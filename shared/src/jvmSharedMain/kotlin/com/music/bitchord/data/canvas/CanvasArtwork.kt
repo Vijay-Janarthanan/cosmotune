@@ -1,5 +1,6 @@
 package com.music.bitchord.data.canvas
 
+import com.opencanvas.core.sync.SyncMap
 import java.text.Normalizer
 import java.util.Locale
 
@@ -30,6 +31,17 @@ data class CanvasArtwork(
     val artist: String? = null,
     val album: String? = null,
     val source: CanvasSource = CanvasSource.OTHER,
+    /**
+     * Set for a full music video that follows the song instead of looping: how the song's timeline
+     * maps onto the video's - segments with their own offsets, since a music video is usually an
+     * edit of the song (an intro, a repeated or dropped bar, an outro). Null for a short looping
+     * clip.
+     */
+    val syncMap: SyncMap? = null,
+    /** Length of a synced video in ms; 0 when unknown. */
+    val videoDurationMs: Long = 0L,
+    /** HTTP headers every request for [url] must carry (googlevideo checks them against the client that minted the URL). */
+    val headers: Map<String, String> = emptyMap(),
 ) {
     /**
      * Whether this clip really belongs to the track we asked about.
