@@ -115,6 +115,7 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -203,7 +204,10 @@ fun SettingsScreen(
     val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
+    val openCanvasEnabled by AppSettings.openCanvasEnabled.collectAsStateWithLifecycle()
+    val openCanvasResolution by AppSettings.openCanvasResolution.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
+
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val legacyMeshGradient by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
@@ -916,7 +920,75 @@ fun SettingsScreen(
                         Chevron()
                     }
                 }
+                val openCanvasTitle = "Dynamic YouTube Canvas (OpenCanvas)"
+                row(openCanvasTitle, "opencanvas", "canvas", "video", divided = false) {
+                    SettingsSubRow(
+                        title = openCanvasTitle,
+                        subtitle = "Plays the artist's music video behind the song, locked to the song's position. Seeks and skips are followed. Powered by OpenCanvas",
+                        checked = openCanvasEnabled,
+                        onCheckedChange = AppSettings::setOpenCanvasEnabled,
+                    )
+                }
+                if (openCanvasEnabled) {
+                    val openCanvasSyncTitle = "OpenCanvas Playback"
+                    row(openCanvasSyncTitle, "opencanvas", "sync", "seek", "video", divided = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 12.dp)
+                        ) {
+                            Text(
+                                text = openCanvasSyncTitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "Synced to the song: the video starts at the song's position, jumps when you seek or skip, " +
+                                    "pauses with the music and never loops. Tracks whose video can't be aligned keep the still cover.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    val openCanvasResTitle = "OpenCanvas Video Resolution"
+                    val resOptions = listOf("360p", "480p", "720p", "1080p")
+                    val selectedResIndex = resOptions.indexOf(openCanvasResolution).let { if (it >= 0) it else 1 }
+                    row(openCanvasResTitle, "opencanvas", "resolution", "quality", "360p", "480p", "720p", "1080p", divided = false) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 12.dp)
+                        ) {
+                            Text(
+                                text = openCanvasResTitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = when (openCanvasResolution) {
+                                    "360p" -> "360p — Ultra-smooth playback & lowest battery/data usage"
+                                    "720p" -> "720p — High Definition; sharp on large displays"
+                                    "1080p" -> "1080p — Full HD clarity; highest quality"
+                                    else -> "480p — Standard mobile canvas quality (Recommended)"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            SegmentedControl(
+                                options = resOptions,
+                                selectedIndex = selectedResIndex,
+                                onSelect = { AppSettings.setOpenCanvasResolution(resOptions[it]) },
+                            )
+                        }
+                    }
+                }
             }
+
             val syncedLyricsTitle = stringResource(R.string.synced_lyrics)
             // Same reasoning as Animated cover art above: the lyrics source and
             // translation rows are only here while this is on.

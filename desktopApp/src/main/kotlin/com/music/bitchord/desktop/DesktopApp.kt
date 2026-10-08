@@ -5995,6 +5995,54 @@ private fun DesktopSettingsScreen(
                         onAnimatedCanvasChange,
                     )
                     if (animatedCanvas) {
+                        val openCanvasEnabled by DesktopAppearanceSettings.openCanvasEnabled.collectAsState()
+
+                        SettingsToggle(
+                            "Dynamic YouTube Canvas (OpenCanvas)",
+                            "Plays the artist's music video behind the song, locked to the song's position. Seeks and skips are followed. Powered by OpenCanvas",
+                            openCanvasEnabled,
+                            DesktopAppearanceSettings::setOpenCanvasEnabled,
+                        )
+                        if (openCanvasEnabled) {
+                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                Text("OpenCanvas Playback", fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Synced to the song: the video starts at the song's position, jumps when you seek or skip, " +
+                                        "pauses with the music and never loops. Tracks whose video can't be aligned keep the still cover.",
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+
+                            val openCanvasResolution by DesktopAppearanceSettings.openCanvasResolution.collectAsState()
+                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                Text("OpenCanvas Stream Resolution", fontWeight = FontWeight.Medium)
+                                val resDescription = when (openCanvasResolution) {
+                                    "360p" -> "360p (Fastest, zero lag on slow connections)"
+                                    "480p" -> "480p (Balanced, mobile standard)"
+                                    "720p" -> "720p HD (Crisp, ideal for desktop displays)"
+                                    "1080p" -> "1080p Full HD (Maximum visual fidelity)"
+                                    else -> openCanvasResolution
+                                }
+                                Text(
+                                    resDescription,
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf("360p", "480p", "720p", "1080p").forEach { res ->
+                                        FilterChip(
+                                            colors = desktopChipColors(),
+                                            selected = openCanvasResolution.equals(res, ignoreCase = true),
+                                            onClick = { DesktopAppearanceSettings.setOpenCanvasResolution(res) },
+                                            label = { Text(res) },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         SettingsNavigationRow(
                             title = DesktopStrings["spotify_canvas_setup", "Spotify Canvas setup"],
                             subtitle = if (spotifyCanvasReady) {
@@ -6005,6 +6053,7 @@ private fun DesktopSettingsScreen(
                             onClick = onOpenSpotifyCanvasSetup,
                         )
                     }
+
                 }
             }
             if (section == DesktopSettingsSection.MISCELLANEOUS) item {

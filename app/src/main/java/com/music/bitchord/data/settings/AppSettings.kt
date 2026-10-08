@@ -443,6 +443,13 @@ object AppSettings {
     /** Tries Spotify before Apple Music and the other animated-art providers. */
     val prioritizeSpotifyCanvas = MutableStateFlow(false)
 
+    /** Streams & reframes YouTube music videos vertically into dynamic Canvas (OpenCanvas by Vijay). */
+    val openCanvasEnabled = MutableStateFlow(true)
+
+    /** Resolution for OpenCanvas video streams: "360p", "480p", "720p", "1080p". */
+    val openCanvasResolution = MutableStateFlow("480p")
+
+
     /**
      * Blows the player's cover art out to a full-bleed banner running off the
      * top of the screen, rather than sitting it in a square card.
@@ -843,7 +850,10 @@ object AppSettings {
             reduceDynamicBlur.value = false
         }
         animatedCanvas.value = prefs.getBoolean(KEY_ANIMATED_CANVAS, true)
+        openCanvasEnabled.value = prefs.getBoolean(KEY_OPENCANVAS_ENABLED, true)
+        openCanvasResolution.value = prefs.getString(KEY_OPENCANVAS_RESOLUTION, "480p") ?: "480p"
         canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, false)
+
         spotifyCanvasAutoHide.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
         prioritizeSpotifyCanvas.value = prefs.getBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, false)
         fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
@@ -1378,6 +1388,17 @@ object AppSettings {
         animatedCanvas.value = value
         prefs.edit().putBoolean(KEY_ANIMATED_CANVAS, value).apply()
     }
+
+    fun setOpenCanvasEnabled(value: Boolean) {
+        openCanvasEnabled.value = value
+        prefs.edit().putBoolean(KEY_OPENCANVAS_ENABLED, value).apply()
+    }
+
+    fun setOpenCanvasResolution(value: String) {
+        openCanvasResolution.value = value
+        prefs.edit().putString(KEY_OPENCANVAS_RESOLUTION, value).apply()
+    }
+
 
     fun setCanvasOverCellular(value: Boolean) {
         canvasOverCellular.value = value
@@ -1964,7 +1985,10 @@ object AppSettings {
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"
     private const val KEY_ANIMATED_CANVAS = "animated_canvas"
+    private const val KEY_OPENCANVAS_ENABLED = "opencanvas_enabled"
+    private const val KEY_OPENCANVAS_RESOLUTION = "opencanvas_resolution"
     private const val KEY_CANVAS_OVER_CELLULAR = "canvas_over_cellular"
+
     private const val KEY_SPOTIFY_CANVAS_AUTO_HIDE = "spotify_canvas_auto_hide"
     private const val KEY_PRIORITIZE_SPOTIFY_CANVAS = "prioritize_spotify_canvas"
     private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
