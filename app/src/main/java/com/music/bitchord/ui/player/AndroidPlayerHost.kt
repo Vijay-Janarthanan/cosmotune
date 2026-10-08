@@ -85,6 +85,9 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
 
     override suspend fun canvasFor(song: Song): CanvasArtwork? = CanvasRepository.canvasFor(song)
 
+    override suspend fun canvasFor(song: Song, provisional: (CanvasArtwork) -> Unit): CanvasArtwork? =
+        CanvasRepository.canvasFor(song, provisional)
+
     @Composable
     override fun CanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) = AndroidCanvasVideo(spec, modifier)
 

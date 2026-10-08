@@ -17,6 +17,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import com.music.bitchord.ui.player.AndroidPlayerHost
 import com.music.bitchord.ui.player.PlayerPlatform
 import com.music.bitchord.data.canvas.CanvasCache
+import com.music.bitchord.data.canvas.OpenCanvasProvider
 import com.music.bitchord.data.smb.SmbCoverFetcher
 import com.music.bitchord.data.webdav.WebDavCoilAuth
 import com.music.bitchord.data.canvas.SpotifyToken
@@ -89,6 +90,9 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory {
             // all — it is the fix for canvas clips re-fetching the same few
             // seconds of video from the network on every loop.
             CanvasCache.init(this)
+            // Where the music-video canvas keeps the song-to-video maps it measured, so a song it has
+            // seen before starts at once.
+            OpenCanvasProvider.configure(java.io.File(filesDir, "opencanvas"))
         }
         // Migration-safe: an old single cookie becomes the first encrypted
         // session, while newer installs restore the profile the listener chose.

@@ -4,6 +4,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.music.bitchord.ui.player.PlayerPlatform
 import com.music.bitchord.data.DebugLog
 import com.music.bitchord.data.TrackLog
+import com.music.bitchord.data.canvas.OpenCanvasProvider
 import com.music.bitchord.data.innertube.InnerTubeXResolver
 import com.music.bitchord.data.innertube.StreamResolver
 import com.music.bitchord.data.innertube.potoken.PoTokenGenerator
@@ -61,6 +62,8 @@ fun main() {
             available = { DesktopPoTokenWebView.available },
         ).asTokenProvider(),
     )
+    // Where the music-video canvas keeps the song-to-video maps it measured.
+    OpenCanvasProvider.configure(DesktopMediaCache.directory.resolve("opencanvas").toFile())
     // The public "apps open right now" count; see Presence.
     DesktopPresence.install()
     desktopMain()

@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.music.bitchord.data.canvas.CanvasArtwork
+import com.opencanvas.core.sync.CanvasSyncDefaults
+import com.opencanvas.core.sync.CanvasSyncPolicy
 import com.music.bitchord.data.canvas.CanvasSource
 import com.music.bitchord.ui.player.CanvasContentMode
 import com.music.bitchord.ui.player.CanvasVideoSpec
@@ -61,27 +63,22 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     val presentationAlpha by rememberUpdatedState(spec.presentationAlpha)
 
     LaunchedEffect(canvas) {
+        // A music video that follows the song is driven by the effect below instead.
+        if (spec.sync != null) return@LaunchedEffect
         // Round and round for as long as the clip is mounted: a canvas is a few
         // seconds long, and the decoder cannot be relied on to rewind an HLS
         // manifest itself, so each pass reopens it.
         while (isActive) {
             val decoder = DesktopCanvasDecoder()
-            val opened = withContext(Dispatchers.IO) {
-                var last: Result<Unit> = Result.failure(IllegalStateException("the clip could not be fetched"))
-                for (candidate in listOfNotNull(canvas.url, canvas.fallbackUrl)) {
-                    val source = if (isManifest(candidate)) {
-                        candidate
-                    } else {
-                        DesktopCanvasCache.fileFor(candidate)?.toAbsolutePath()?.toString() ?: continue
-                    }
-                    last = decoder.open(source)
-                    if (last.isSuccess) break
-                }
-                last
+            val attempt = withContext(Dispatchers.IO) {
+                DesktopCanvasCache.open(decoder, listOfNotNull(canvas.url, canvas.fallbackUrl), canvas.headers)
             }
+            val opened = attempt.result
+            val streaming = attempt.streaming
             if (opened.isFailure) {
                 DesktopTrackLog.log("canvas: ${opened.exceptionOrNull()?.message}")
                 withContext(Dispatchers.IO) { decoder.close() }
+                streaming?.close()
                 return@LaunchedEffect
             }
             reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
@@ -104,13 +101,109 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                     delay((decoder.frameIntervalMillis - spent).coerceAtLeast(0L))
                 }
             } finally {
-                withContext(NonCancellable + Dispatchers.IO) { decoder.close() }
+                withContext(NonCancellable + Dispatchers.IO) {
+                    decoder.close()
+                    streaming?.close()
+                }
             }
             // A pass that drew nothing would spin: reopening cannot fix a clip
             // with no frames in it.
             if (shown == 0) {
                 DesktopTrackLog.log("canvas: the clip decoded no frames; not looping it")
                 return@LaunchedEffect
+            }
+        }
+    }
+
+    // A music video that follows the song: the picture is held at the song's position plus the
+    // video's own offset, so it jumps when the song does and never loops. Frames are paced to the
+    // song's clock rather than to the decoder's, so a slow frame is dropped, not carried as drift.
+    LaunchedEffect(canvas) {
+        val sync = spec.sync ?: return@LaunchedEffect
+        val policy = CanvasSyncPolicy(sync.map, sync.durationMs)
+        val decoder = DesktopCanvasDecoder()
+        val startedAt = System.nanoTime()
+        val attempt = withContext(Dispatchers.IO) {
+            DesktopCanvasCache.open(decoder, listOfNotNull(canvas.url, canvas.fallbackUrl), canvas.headers)
+        }
+        val streaming = attempt.streaming
+        try {
+            if (attempt.result.isFailure) {
+                DesktopTrackLog.log("canvas: ${attempt.result.exceptionOrNull()?.message}")
+                return@LaunchedEffect
+            }
+            reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
+            val pixels = ByteArray(decoder.width * decoder.height * 4)
+            val info = ImageInfo.makeN32(decoder.width, decoder.height, ColorAlphaType.OPAQUE)
+            fun present() {
+                // Handed to Skia rather than copied, so the next frame cannot be decoded into it.
+                frame = Image.makeRaster(info, pixels.copyOf(), decoder.width * 4).toComposeImageBitmap()
+            }
+            var epoch = sync.epoch()
+            var positioned = false
+            var shownPts = Long.MIN_VALUE
+            var firstFrameLogged = false
+            while (isActive) {
+                val songMs = sync.songMs()
+                if (!policy.isVisible(songMs)) {
+                    // Before the video starts or after it ends: the still cover shows through.
+                    frame = null
+                    positioned = false
+                    shownPts = Long.MIN_VALUE
+                    delay(CanvasSyncDefaults.CHECK_INTERVAL_MS / 2)
+                    continue
+                }
+                var target = policy.targetVideoMs(songMs)
+                val jumped = sync.epoch() != epoch
+                epoch = sync.epoch()
+                if (!positioned || jumped || kotlin.math.abs(decoder.lastPtsMs - target) > CanvasSyncDefaults.HARD_SEEK_MS) {
+                    // The seek is what makes a progressive reader fetch the bytes at the target first.
+                    withContext(Dispatchers.IO) { decoder.seekToMs(target) }
+                    positioned = true
+                    shownPts = Long.MIN_VALUE
+                }
+                if (!running) {
+                    // Paused with the song: the picture stays at exactly where the song is, and a seek
+                    // made while paused still moves it.
+                    if (shownPts == Long.MIN_VALUE || kotlin.math.abs(shownPts - target) > policy.toleranceMs) {
+                        if (withContext(Dispatchers.IO) { decoder.nextFrame(pixels, loop = false) }) {
+                            shownPts = decoder.lastPtsMs
+                            present()
+                        }
+                    }
+                    delay(CanvasSyncDefaults.CHECK_INTERVAL_MS / 5)
+                    continue
+                }
+                if (!withContext(Dispatchers.IO) { decoder.nextFrame(pixels, loop = false) }) {
+                    delay(CanvasSyncDefaults.CHECK_INTERVAL_MS)
+                    continue
+                }
+                val pts = decoder.lastPtsMs
+                target = policy.targetVideoMs(sync.songMs())
+                val lead = pts - target
+                when {
+                    // Early: hold the frame until the song gets there.
+                    lead > FRAME_EARLY_MS -> delay(lead.coerceAtMost(CanvasSyncDefaults.CHECK_INTERVAL_MS))
+                    // Late: skip ahead without converting what would be dropped anyway.
+                    lead < -FRAME_LATE_MS -> {
+                        decoder.fastForwardTo(target)
+                        continue
+                    }
+                }
+                shownPts = pts
+                present()
+                if (!firstFrameLogged) {
+                    firstFrameLogged = true
+                    val millis = (System.nanoTime() - startedAt) / 1_000_000
+                    DesktopTrackLog.log(
+                        "canvas: synced first frame in $millis ms (${attempt.how}) at video $pts ms, song ${sync.songMs()} ms",
+                    )
+                }
+            }
+        } finally {
+            withContext(NonCancellable + Dispatchers.IO) {
+                decoder.close()
+                streaming?.close()
             }
         }
     }
@@ -197,4 +290,10 @@ internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(
     artist = artist,
     album = album,
     source = if (source == DesktopCanvasSource.SPOTIFY) CanvasSource.SPOTIFY else CanvasSource.OTHER,
+    syncMap = syncMap,
+    videoDurationMs = videoDurationMs,
 )
+
+/** A frame this much ahead of the song waits for it; this much behind is dropped. */
+private const val FRAME_EARLY_MS = 8L
+private const val FRAME_LATE_MS = 90L

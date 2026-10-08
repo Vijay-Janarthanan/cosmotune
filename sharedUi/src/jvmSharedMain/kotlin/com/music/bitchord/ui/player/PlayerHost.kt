@@ -37,6 +37,13 @@ interface PlayerHost {
     /** Looks a Canvas up for [song]; null is the normal answer. */
     suspend fun canvasFor(song: Song): CanvasArtwork?
 
+    /**
+     * Like [canvasFor], for a host that can tell early that a clip will do while a better one is still
+     * being looked for: it hands that clip to [provisional] at once and the final answer replaces it.
+     * Hosts without such a stage keep the default, which just waits for the answer.
+     */
+    suspend fun canvasFor(song: Song, provisional: (CanvasArtwork) -> Unit): CanvasArtwork? = canvasFor(song)
+
     /** The looping clip over the cover, decoded however this platform decodes video. */
     @Composable
     fun CanvasVideo(spec: CanvasVideoSpec, modifier: Modifier)
@@ -251,6 +258,8 @@ class CanvasVideoSpec(
     val bottomFade: Float,
     val bottomFadeEndPx: Float?,
     val pausedForTransition: Boolean,
+    /** Present for a music video that follows the song; null for a clip that simply loops. */
+    val sync: CanvasSyncSpec? = null,
 )
 
 /**
@@ -276,8 +285,10 @@ fun CanvasArtworkPlayer(
     bottomFadeEndPx: Float? = null,
     pausedForTransition: Boolean = false,
 ) {
+    val sync = rememberCanvasSync(canvas, isPlaying)
     PlayerPlatform.host.CanvasVideo(
         CanvasVideoSpec(
+            sync = sync,
             canvas = canvas,
             isPlaying = isPlaying,
             contentMode = contentMode,

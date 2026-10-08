@@ -780,6 +780,12 @@ fun NowPlayingScreen(
     // A lambda, not a value: read by the lyric strip and panel in scopes of
     // their own, so a tick recomposes them and not the player around them.
     val lyricsPlayhead = rememberLyricPlayhead(position)
+    // A canvas that follows the song (an OpenCanvas music video) reads the same playhead; set while
+    // composing, not in an effect, so a clip mounted in this pass already sees it.
+    remember(position) { CanvasSyncSource.attach(position) }
+    DisposableEffect(position) {
+        onDispose { CanvasSyncSource.detach(position) }
+    }
     val seekToLyric: (Long) -> Unit = { lineTimeMs ->
         onSeek(adjustedLyricsSeekTarget(lineTimeMs, lyricsOffsetMs))
     }
@@ -793,6 +799,19 @@ fun NowPlayingScreen(
     val spotifyCanvasAutoHide by PlayerSettings.spotifyCanvasAutoHide.collectAsStateWithLifecycle()
     val mixing by PlayerSettings.smartMixInProgress.collectAsStateWithLifecycle()
     val canvas = rememberCanvasArtwork(song)
+    // The next track's canvas is looked up while this one plays, so skipping to it shows the video
+    // at once instead of after a search, a stream lookup and an alignment. Same guards as the
+    // current track's lookup; the answer lands in the host's cache and is picked up from there.
+    val prefetchCanvasEnabled by PlayerSettings.animatedCanvas.collectAsStateWithLifecycle()
+    val prefetchOverCellular by PlayerSettings.canvasOverCellular.collectAsStateWithLifecycle()
+    val prefetchMetered by PlayerSettings.meteredConnection.collectAsStateWithLifecycle()
+    LaunchedEffect(song.videoId, queueIndex, queue.size, prefetchCanvasEnabled) {
+        if (!prefetchCanvasEnabled || (prefetchMetered == true && !prefetchOverCellular)) return@LaunchedEffect
+        val upNext = queue.getOrNull(queueIndex + 1)?.takeIf { it.videoId != song.videoId } ?: return@LaunchedEffect
+        // Behind the current track's own lookup, which the hosts serialise anyway.
+        delay(NEXT_CANVAS_PREFETCH_DELAY_MS)
+        PlayerPlatform.host.canvasFor(upNext)
+    }
     var canvasAspect by remember(canvas) { mutableFloatStateOf(0f) }
     // Whether the clip actually has a frame on screen right now, and one of
     // them — used to blow the sleeve out to the full-bleed hero treatment and

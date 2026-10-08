@@ -53,6 +53,9 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.music.bitchord.data.Http
 import com.music.bitchord.data.canvas.CanvasArtwork
 import com.music.bitchord.data.canvas.CanvasCache
+import com.music.bitchord.playback.ChunkedDataSource
+import com.opencanvas.core.sync.CanvasSyncAction
+import com.opencanvas.core.sync.CanvasSyncPolicy
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.ceil
@@ -68,6 +71,12 @@ private const val TAG = "CanvasArtworkPlayer"
  * coming back does not sit there as a hole for the length of a glance.
  */
 private const val REPAINT_TIMEOUT_MS = 700L
+
+/**
+ * How often a synced video is compared with the song. Short, because a seek or a skip should be
+ * answered within a frame or two; the comparison itself is a few subtractions.
+ */
+private const val SYNC_POLL_MS = 80L
 
 /**
  * The looping video that plays over a track's cover art, sized to fill and
@@ -161,10 +170,17 @@ internal fun AndroidCanvasArtworkPlayer(
      * while paused, so there is nothing to fade back in once it lifts.
      */
     pausedForTransition: Boolean = false,
+    /**
+     * Set for a music video that follows the song: it starts at the song's position plus its own
+     * offset, pauses with the song, jumps when the song does and never repeats.
+     */
+    sync: CanvasSyncSpec? = null,
 ) {
     val context = LocalContext.current
 
     var url by remember(canvas) { mutableStateOf(canvas.url) }
+    // A synced video that is off screen because the song is before its start or past its end.
+    var syncHidden by remember(canvas) { mutableStateOf(false) }
     var rendered by remember(canvas) { mutableStateOf(false) }
     // Aspect of the clip itself. Zero until the decoder reports it, which is
     // also the signal that there is nothing sensible to crop to yet.
@@ -186,6 +202,11 @@ internal fun AndroidCanvasArtworkPlayer(
     val currentPresentationAlpha by rememberUpdatedState(presentationAlpha)
     val reportAspect by rememberUpdatedState(onAspectRatioChanged)
 
+    // The headers a stream URL was minted for (googlevideo compares them with the client that asked),
+    // set before the first request goes out and again whenever the canvas changes.
+    val sourceFactory = remember { OkHttpDataSource.Factory(Http.client) }
+    sourceFactory.setDefaultRequestProperties(canvas.headers)
+
     val player = remember {
         ExoPlayer.Builder(context)
             // Shares the app's one OkHttp client, as everything that fetches
@@ -194,7 +215,12 @@ internal fun AndroidCanvasArtworkPlayer(
             // see that object's doc for why this matters far more here than
             // it would for a clip played once.
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(CanvasCache.dataSourceFactory(OkHttpDataSource.Factory(Http.client))),
+                DefaultMediaSourceFactory(
+                    // Bounded ranges, not one open-ended read: googlevideo paces a read that starts at
+                    // byte 0 down to a crawl (about 120 kB/s measured on these URLs) and serves a bounded
+                    // range at line rate, which is what a first frame within a second depends on.
+                    CanvasCache.dataSourceFactory(ChunkedDataSource.Factory(sourceFactory, CANVAS_CHUNK_BYTES)),
+                ),
             )
             .build()
             .apply {
@@ -244,7 +270,15 @@ internal fun AndroidCanvasArtworkPlayer(
         reportAspect(0f)
         val item = MediaItem.Builder().setUri(url)
         mimeTypeOf(url)?.let { item.setMimeType(it) }
-        player.setMediaItem(item.build())
+        if (sync != null) {
+            // A music video is not a loop: it plays once, from where the song is.
+            player.repeatMode = Player.REPEAT_MODE_OFF
+            val start = CanvasSyncPolicy(sync.map, sync.durationMs).targetVideoMs(sync.songMs()).coerceAtLeast(0L)
+            player.setMediaItem(item.build(), start)
+        } else {
+            player.repeatMode = Player.REPEAT_MODE_ONE
+            player.setMediaItem(item.build())
+        }
         player.prepare()
     }
 
@@ -262,8 +296,72 @@ internal fun AndroidCanvasArtworkPlayer(
     // regardless of playback state, so coming back from background always has
     // a surface ready and `onRenderedFirstFrame()` fires naturally.
     val foreground = rememberIsForeground()
-    LaunchedEffect(foreground, pausedForTransition) {
-        player.playWhenReady = foreground && !pausedForTransition
+    // A looping clip runs whenever the app is on screen; a video that follows the song also stops
+    // with it.
+    val songPlaying = sync == null || isPlaying
+    LaunchedEffect(foreground, pausedForTransition, songPlaying, syncHidden) {
+        player.playWhenReady = foreground && !pausedForTransition && songPlaying && !syncHidden
+    }
+
+    // Keeps a synced video at the song's position: it is told where the song is, seeks when the
+    // song does (a scrub, a skip, a restart) and nudges its speed by a few percent to absorb the
+    // small drift between two independent clocks. The decision itself lives in the library so every
+    // host makes it the same way.
+    val songPlayingNow by rememberUpdatedState(isPlaying)
+    LaunchedEffect(sync, url) {
+        val s = sync ?: return@LaunchedEffect
+        val policy = CanvasSyncPolicy(s.map, s.durationMs)
+        var epoch = s.epoch()
+        var lastSpeed = 1f
+        // When the last seek went out, until the player is ready again. A seek that has not landed yet
+        // looks like drift (the song moves on while the video waits for its data), and answering that with
+        // another seek aborts the request that is about to deliver the picture - on a slow network the
+        // video would never arrive.
+        var seekIssuedAt = 0L
+        while (isActive) {
+            if (player.playbackState == Player.STATE_READY) seekIssuedAt = 0L
+            val songMs = s.songMs()
+            val jumped = s.epoch() != epoch
+            epoch = s.epoch()
+            val ready = player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING
+            val videoMs = player.currentPosition
+            // After a jump the video is moved straight to the target instead of waiting for drift to
+            // be measured against a position that has not caught up yet.
+            val action = if (jumped && policy.isVisible(songMs)) {
+                CanvasSyncAction.SeekTo(policy.targetVideoMs(songMs))
+            } else {
+                policy.decide(songMs, videoMs, songPlayingNow, ready)
+            }
+            when (action) {
+                CanvasSyncAction.Hidden, CanvasSyncAction.Ended -> {
+                    if (!syncHidden) {
+                        syncHidden = true
+                        rendered = false
+                    }
+                }
+                CanvasSyncAction.Hold -> Unit
+                is CanvasSyncAction.SeekTo -> {
+                    syncHidden = false
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    val settling = seekIssuedAt != 0L && now - seekIssuedAt < SEEK_SETTLE_MS
+                    // A jump of the song (a scrub, a skip) always moves the video; drift waits for a seek in flight.
+                    if (jumped || !settling) {
+                        player.seekTo(action.videoMs)
+                        seekIssuedAt = now
+                    }
+                }
+                is CanvasSyncAction.Nudge -> {
+                    syncHidden = false
+                    // Hundredths only: a speed that changed on every poll would be churn, not control.
+                    val speed = (action.speed * 100f).roundToInt() / 100f
+                    if (speed != lastSpeed) {
+                        player.setPlaybackSpeed(speed)
+                        lastSpeed = speed
+                    }
+                }
+            }
+            delay(SYNC_POLL_MS)
+        }
     }
 
     // Repaint onto a surface that has just been handed back. A TextureView's
@@ -744,6 +842,12 @@ private class FadingBottomFrame(context: Context) : FrameLayout(context) {
  * Apple serves HLS, Tidal and the community index serve MP4. Naming the type
  * saves ExoPlayer a sniff, and an unrecognised URL is left for it to work out.
  */
+/** How long a seek that has not landed yet is given before drift may trigger another. */
+private const val SEEK_SETTLE_MS = 3_000L
+
+/** Largest range requested at once for a canvas stream; the first lands in one round trip. */
+private const val CANVAS_CHUNK_BYTES = 1024L * 1024L
+
 private fun mimeTypeOf(url: String): String? {
     val path = url.substringBefore('?').lowercase(Locale.ROOT)
     return when {
@@ -773,5 +877,6 @@ internal fun AndroidCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
         bottomFade = spec.bottomFade,
         bottomFadeEndPx = spec.bottomFadeEndPx,
         pausedForTransition = spec.pausedForTransition,
+        sync = spec.sync,
     )
 }

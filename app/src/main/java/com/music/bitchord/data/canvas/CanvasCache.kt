@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
@@ -61,6 +62,19 @@ object CanvasCache {
     fun dataSourceFactory(upstream: DataSource.Factory): DataSource.Factory =
         CacheDataSource.Factory()
             .setCache(cache)
+            .setCacheKeyFactory(::stableKey)
             .setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
+    /**
+     * What a clip is called in the cache. A stream URL is minted afresh every time it is resolved - its
+     * expiry, session and signature all change - so keyed on the whole URL a replay, in this session or
+     * the next, would find nothing it had already downloaded. googlevideo names the media itself in
+     * the `id` parameter and the rendition in `itag`; those stay put, so they are the key.
+     */
+    private fun stableKey(spec: DataSpec): String {
+        val uri = spec.uri
+        val media = uri.getQueryParameter("id") ?: return spec.key ?: uri.toString()
+        return "gv:$media:${uri.getQueryParameter("itag").orEmpty()}"
+    }
 }

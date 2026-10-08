@@ -3,10 +3,19 @@ package com.music.bitchord.data.canvas
 import com.music.bitchord.data.DebugLog as Log
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
+import com.music.bitchord.data.model.durationMillis
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Finds the looping video that belongs behind a track's or a release's cover
@@ -39,6 +48,8 @@ object CanvasRepository {
 
     private const val TAG = "CanvasRepository"
     private const val CACHE_SIZE = 64
+    private const val ENTRY_TTL_MS = 3 * 60 * 60 * 1000L
+
 
     /**
      * A settled answer for one track or release.
@@ -49,7 +60,10 @@ object CanvasRepository {
      * it resolves a beat after the track starts. A miss reached without it is
      * therefore provisional; everything else is final.
      */
-    private class Entry(val artwork: CanvasArtwork?, val withAlbum: Boolean)
+    private class Entry(val artwork: CanvasArtwork?, val withAlbum: Boolean, val at: Long = System.currentTimeMillis()) {
+        /** A stream URL is minted for a few hours; an older answer is looked up again rather than served dead. */
+        val fresh: Boolean get() = System.currentTimeMillis() - at < ENTRY_TTL_MS
+    }
 
     private val cache = object : LinkedHashMap<String, Entry>(CACHE_SIZE, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>) =
@@ -71,7 +85,7 @@ object CanvasRepository {
      * lookup as streaming ones; network guards live in the caller
      * ([NowPlayingScreen], which checks [AppSettings.canvasOverCellular]).
      */
-    suspend fun canvasFor(song: Song): CanvasArtwork? {
+    suspend fun canvasFor(song: Song, provisional: ((CanvasArtwork) -> Unit)? = null): CanvasArtwork? {
         // Only skip when there is no catalogue identity to search on.
         if (song.videoId.isBlank() && (song.localUri != null || song.localPath != null)) return null
 
@@ -88,23 +102,77 @@ object CanvasRepository {
         val spotifyFirst = AppSettings.prioritizeSpotifyCanvas.value
         val key = cacheKey("song|${song.videoId}", spotifyFirst)
 
-        return resolve(key, album != null) {
-            if (spotifyFirst) {
-                firstHit(
-                    { SpotifyCanvas.search(title, artist, album) },
-                    { AppleMusicCanvas.search(title, artist, album) },
-                    { TidalCanvas.search(title, artist, album) },
-                    { CommunityCanvas.search(title, artist, album) },
-                ) { it.matches(title, artist, album) }
-            } else {
-                firstHit(
-                    { AppleMusicCanvas.search(title, artist, album) },
-                    { TidalCanvas.search(title, artist, album) },
-                    { CommunityCanvas.search(title, artist, album) },
-                    { SpotifyCanvas.search(title, artist, album) },
-                ) { it.matches(title, artist, album) }
+        val openCanvasActive = AppSettings.openCanvasEnabled.value
+        val openCanvasRes = AppSettings.openCanvasResolution.value
+
+        val seconds = song.durationMillis() / 1_000L
+
+        // An answer that already stands needs neither the lock nor any lookup.
+        settled(key, album != null)?.let { return it.artwork }
+
+        return coroutineScope {
+            // The music video is looked up from the moment the question is asked, not when the label
+            // sources get their turn: it is the last resort, so its answer should already be there when
+            // they come up empty, and a lookup queued behind another one must not hold it back.
+            val musicVideo = if (openCanvasActive) async(Dispatchers.IO) {
+                OpenCanvasProvider.search(title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
+            } else null
+
+            val answer = resolve(key, album != null) {
+                Log.d(TAG, "lookup start '$title' (album=${album != null})")
+                // A music video that lines up with the song beats a label's short loop, so it is asked
+                // first; the label sources are only the fallback for songs without one.
+                val video = musicVideo?.let { pending ->
+                    runCatching { pending.await() }
+                        .onFailure { Log.d(TAG, "music video lookup failed: ${it.message}") }
+                        .getOrNull()
+                        ?.takeIf { it.matches(title, artist, album) }
+                }
+                video ?: if (spotifyFirst) {
+                    firstHit(
+                        { SpotifyCanvas.search(title, artist, album) },
+                        { AppleMusicCanvas.search(title, artist, album) },
+                        { TidalCanvas.search(title, artist, album) },
+                        { CommunityCanvas.search(title, artist, album) },
+                    ) { it.matches(title, artist, album) }
+                } else {
+                    firstHit(
+                        { AppleMusicCanvas.search(title, artist, album) },
+                        { TidalCanvas.search(title, artist, album) },
+                        { CommunityCanvas.search(title, artist, album) },
+                        { SpotifyCanvas.search(title, artist, album) },
+                    ) { it.matches(title, artist, album) }
+                }
             }
+            musicVideo?.cancel()
+            answer
         }
+    }
+
+    /** The entry for [key] if it is fresh and still answers the question as asked now. */
+    private fun settled(key: String, withAlbum: Boolean): Entry? =
+        synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(withAlbum) } }
+
+    /**
+     * Gets the music-video lookup going the moment [song] starts playing, rather than when its player
+     * screen opens and the label sources have had their say: the video, its alignment and the sharper
+     * stream are then usually ready by the time anyone looks. The lookup that follows asks the same
+     * question and picks up the work in flight. Honours the same settings as the player does.
+     */
+    fun prefetch(song: Song) {
+        if (!AppSettings.animatedCanvas.value || !AppSettings.openCanvasEnabled.value) return
+        if (AppSettings.meteredConnection.value == true && !AppSettings.canvasOverCellular.value) return
+        if (song.videoId.isBlank()) return
+        val title = song.title.cleaned()
+        val artist = song.artist.cleaned()
+        if (title.isBlank() || artist.isBlank()) return
+        OpenCanvasProvider.prefetch(
+            title = title,
+            artist = artist,
+            trackVideoId = song.videoId,
+            resolutionLabel = AppSettings.openCanvasResolution.value,
+            durationSec = song.durationMillis() / 1_000L,
+        )
     }
 
     /**
@@ -119,7 +187,7 @@ object CanvasRepository {
             base = "song|${song.videoId}",
             spotifyFirst = AppSettings.prioritizeSpotifyCanvas.value,
         )
-        return synchronized(cache) { cache[key]?.artwork }
+        return synchronized(cache) { cache[key]?.takeIf { it.fresh }?.artwork }
     }
 
     /**
@@ -165,7 +233,7 @@ object CanvasRepository {
         lookUp: suspend () -> CanvasArtwork?,
     ): CanvasArtwork? = lock.withLock {
         synchronized(cache) {
-            cache[key]?.let { if (it.reusable(withAlbum)) return@withLock it.artwork }
+            cache[key]?.let { if (it.fresh && it.reusable(withAlbum)) return@withLock it.artwork }
         }
         val found = withContext(Dispatchers.IO) { lookUp() }
         synchronized(cache) { cache[key] = Entry(found, withAlbum) }
@@ -195,10 +263,16 @@ object CanvasRepository {
         accept: (CanvasArtwork) -> Boolean,
     ): CanvasArtwork? {
         for (source in sources) {
-            val found = runCatching { source() }
-                .onFailure { Log.d(TAG, "source failed: ${it.message}") }
-                .getOrNull()
-                ?: continue
+            // A lookup that has been given up on (the album arrived and asked the question again) stops
+            // here instead of working through the rest of the sources while holding everyone else up.
+            currentCoroutineContext().ensureActive()
+            val found = try {
+                source()
+            } catch (failure: Throwable) {
+                if (failure is CancellationException) throw failure
+                Log.d(TAG, "source failed: ${failure.message}")
+                null
+            } ?: continue
             if (!accept(found)) {
                 Log.d(TAG, "rejected '${found.title}' by '${found.artist}'")
                 continue

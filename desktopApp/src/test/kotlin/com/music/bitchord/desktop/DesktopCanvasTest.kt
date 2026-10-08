@@ -157,4 +157,17 @@ class DesktopCanvasTest {
             remaining = remaining ushr 7
         }
     }
+
+    @Test
+    fun `OpenCanvas provider produces valid CanvasArtwork`() {
+        val artwork = DesktopCanvasArtwork(
+            url = "https://example.invalid/canvas.mp4",
+            title = "Blinding Lights",
+            artist = "The Weeknd",
+            album = "After Hours",
+            source = DesktopCanvasSource.OTHER
+        )
+        assertTrue(artwork.matches("Blinding Lights", "The Weeknd", "After Hours"))
+        assertEquals(DesktopCanvasSource.OTHER, artwork.source)
+    }
 }

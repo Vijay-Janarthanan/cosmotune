@@ -569,3 +569,46 @@ internal object DesktopCommunityCanvas {
         return entries
     }
 }
+
+// ── OpenCanvas ─────────────────────────────────────────────────────────────
+
+/**
+ * Dynamic OpenCanvas provider for BitChord Desktop.
+ * Powered by OpenCanvas (Created by Vijay).
+ */
+internal object DesktopOpenCanvasProvider {
+    /**
+     * The artist's music video for the track, aligned to the song. [trackVideoId] is the YouTube
+     * (Music) id of the audio being played; without it, or when the map cannot be measured, there
+     * is nothing to show and the still cover stays.
+     */
+    suspend fun search(
+        title: String,
+        artist: String,
+        album: String?,
+        trackVideoId: String?,
+        resolutionLabel: String = "720p",
+        durationSec: Long = 0L,
+    ): DesktopCanvasArtwork? {
+        val clip = com.music.bitchord.data.canvas.OpenCanvasProvider.search(
+            title = title,
+            artist = artist,
+            album = album,
+            trackVideoId = trackVideoId,
+            resolutionLabel = resolutionLabel,
+            durationSec = durationSec,
+        ) ?: return null
+        return DesktopCanvasArtwork(
+            url = clip.url,
+            title = title,
+            artist = artist,
+            album = album,
+            source = DesktopCanvasSource.OTHER,
+            syncMap = clip.syncMap,
+            videoDurationMs = clip.videoDurationMs,
+            headers = clip.headers,
+        )
+    }
+}
+
+

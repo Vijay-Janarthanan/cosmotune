@@ -80,7 +80,7 @@ internal fun rememberCanvasArtwork(song: Song): CanvasArtwork? {
         if (canvas == null && song.albumName == null) delay(ALBUM_SETTLE_MS)
         // Keep what an earlier pass found if this one comes back empty, rather
         // than pulling a playing clip out from under itself.
-        canvas = PlayerPlatform.host.canvasFor(song) ?: canvas
+        canvas = PlayerPlatform.host.canvasFor(song) { early -> canvas = early } ?: canvas
     }
 
     return canvas
@@ -314,3 +314,6 @@ internal fun rememberPlayerVolume(): PlayerVolume {
     return volume
 }
 
+
+/** How long the current track gets to resolve its own canvas before the next one's lookup starts. */
+internal const val NEXT_CANVAS_PREFETCH_DELAY_MS = 4_000L
