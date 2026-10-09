@@ -99,6 +99,13 @@ object DesktopCanvasClient {
     private const val CACHE_SIZE = 64
     private const val ENTRY_TTL_MS = 3 * 60 * 60 * 1000L
 
+    /**
+     * How long a miss is believed when the music-video lookup took part in it. That lookup gives up
+     * quietly on a slow or dropped connection, and a failure looks exactly like "this song has no
+     * video", so remembering it for hours would hide a video that is there until the app restarts.
+     */
+    private const val MISS_RETRY_MS = 60_000L
+
 
     /**
      * A settled answer for one track or release.
@@ -107,9 +114,14 @@ object DesktopCanvasClient {
      * thing that can turn a miss into a hit later: the album is what makes the catalogue searches
      * land, and on the player it resolves a beat after the track starts.
      */
-    private class Entry(val artwork: DesktopCanvasArtwork?, val withAlbum: Boolean, val at: Long = System.currentTimeMillis()) {
+    private class Entry(
+        val artwork: DesktopCanvasArtwork?,
+        val withAlbum: Boolean,
+        val at: Long = System.currentTimeMillis(),
+        private val lifetimeMs: Long = ENTRY_TTL_MS,
+    ) {
         /** A stream URL is minted for a few hours; an older answer is looked up again rather than served dead. */
-        val fresh: Boolean get() = System.currentTimeMillis() - at < ENTRY_TTL_MS
+        val fresh: Boolean get() = System.currentTimeMillis() - at < lifetimeMs
 
         /** A hit is a hit — the album could only have confirmed it. A miss stands too, unless it
          * was reached blind and there is now an album name to try. */
@@ -155,7 +167,7 @@ object DesktopCanvasClient {
                 DesktopOpenCanvasProvider.search(title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
             } else null
 
-            val answer = resolve(key, album != null) {
+            val answer = resolve(key, album != null, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS) {
                 // A music video that lines up with the song beats a label's short loop, so it is asked
                 // first; the label sources are only the fallback for songs without one.
                 val video = musicVideo?.let { pending ->
@@ -200,13 +212,14 @@ object DesktopCanvasClient {
     private suspend fun resolve(
         key: String,
         withAlbum: Boolean,
+        missLifetimeMs: Long = ENTRY_TTL_MS,
         lookUp: suspend () -> DesktopCanvasArtwork?,
     ): DesktopCanvasArtwork? = gate.withLock {
         synchronized(cache) {
             cache[key]?.let { if (it.fresh && it.reusable(withAlbum)) return@withLock it.artwork }
         }
         val found = withContext(Dispatchers.IO) { lookUp() }
-        synchronized(cache) { cache[key] = Entry(found, withAlbum) }
+        synchronized(cache) { cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS) }
         found
     }
 
