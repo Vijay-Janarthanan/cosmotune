@@ -1015,9 +1015,12 @@ object AppSettings {
     private fun watchConnection(context: Context) {
         val manager = context.getSystemService(ConnectivityManager::class.java) ?: return
         val refresh = {
+            val before = meteredConnection.value
             meteredConnection.value = runCatching {
                 if (manager.activeNetwork == null) null else manager.isActiveNetworkMetered
             }.getOrNull()
+            // a different connection may answer what the last one could not (a music-video lookup that timed out)
+            if (before != meteredConnection.value) com.music.bitchord.data.canvas.CanvasRepository.forgetMisses()
         }
         refresh()
         runCatching {

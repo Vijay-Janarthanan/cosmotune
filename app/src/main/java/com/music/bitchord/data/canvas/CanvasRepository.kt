@@ -50,6 +50,14 @@ object CanvasRepository {
     private const val CACHE_SIZE = 64
     private const val ENTRY_TTL_MS = 3 * 60 * 60 * 1000L
 
+    /**
+     * How long a miss is believed when the music-video lookup took part in it. That lookup gives up
+     * quietly on a slow or dropped connection (a few seconds on a weak cellular signal is enough), and
+     * a failure looks exactly like "this song has no video", so remembering it for hours would hide a
+     * video that is there until the app restarts. A minute keeps a revisit from paying again at once.
+     */
+    private const val MISS_RETRY_MS = 60_000L
+
 
     /**
      * A settled answer for one track or release.
@@ -60,9 +68,14 @@ object CanvasRepository {
      * it resolves a beat after the track starts. A miss reached without it is
      * therefore provisional; everything else is final.
      */
-    private class Entry(val artwork: CanvasArtwork?, val withAlbum: Boolean, val at: Long = System.currentTimeMillis()) {
+    private class Entry(
+        val artwork: CanvasArtwork?,
+        val withAlbum: Boolean,
+        val at: Long = System.currentTimeMillis(),
+        private val lifetimeMs: Long = ENTRY_TTL_MS,
+    ) {
         /** A stream URL is minted for a few hours; an older answer is looked up again rather than served dead. */
-        val fresh: Boolean get() = System.currentTimeMillis() - at < ENTRY_TTL_MS
+        val fresh: Boolean get() = System.currentTimeMillis() - at < lifetimeMs
     }
 
     private val cache = object : LinkedHashMap<String, Entry>(CACHE_SIZE, 0.75f, true) {
@@ -118,7 +131,7 @@ object CanvasRepository {
                 OpenCanvasProvider.search(title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
             } else null
 
-            val answer = resolve(key, album != null) {
+            val answer = resolve(key, album != null, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS) {
                 Log.d(TAG, "lookup start '$title' (album=${album != null})")
                 // A music video that lines up with the song beats a label's short loop, so it is asked
                 // first; the label sources are only the fallback for songs without one.
@@ -230,14 +243,23 @@ object CanvasRepository {
     private suspend fun resolve(
         key: String,
         withAlbum: Boolean,
+        missLifetimeMs: Long = ENTRY_TTL_MS,
         lookUp: suspend () -> CanvasArtwork?,
     ): CanvasArtwork? = lock.withLock {
         synchronized(cache) {
             cache[key]?.let { if (it.fresh && it.reusable(withAlbum)) return@withLock it.artwork }
         }
         val found = withContext(Dispatchers.IO) { lookUp() }
-        synchronized(cache) { cache[key] = Entry(found, withAlbum) }
+        synchronized(cache) { cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS) }
         found
+    }
+
+    /**
+     * Forgets every remembered miss. Called when the connection changes (Wi-Fi to mobile data or back):
+     * a lookup that came up empty on the old connection may well succeed on the new one.
+     */
+    fun forgetMisses() {
+        synchronized(cache) { cache.values.removeAll { it.artwork == null } }
     }
 
     /**
