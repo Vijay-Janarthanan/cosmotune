@@ -134,7 +134,8 @@ class NowPlayingPanelsContractTest {
             listOf("panels.lyricsOpen", "panels.queueOpen", "flags.output", "flags.providers", "flags.members", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
             handlers,
         )
-        assertTrue(src.indexOf("PlayerBackHandler(enabled = panels.queueOpen)") < src.indexOf("NowPlayingSheets(\n                flags"), "the panels register before the sheets")
+        assertTrue(src.indexOf("PlayerBackHandler(enabled = panels.queueOpen && !wide)") in 0 until src.indexOf("NowPlayingSheets(\n                flags"), "the panels register before the sheets")
+        assertTrue(src.contains("PlayerBackHandler(enabled = panels.lyricsOpen && !wide)"), "in a wide window the tabs are not layers back peels off")
     }
 
     @Test fun everySheetIsDrawnOverThePlayersOwnHazeStateAndTheLyricsStaysAwake() {
@@ -144,7 +145,7 @@ class NowPlayingPanelsContractTest {
             assertTrue(call.contains("hazeState = hazeState"), "$sheet takes the player's haze state")
         }
         assertTrue(src.contains("currentSource = lyricsSource") && src.contains("states = lyricsProviderStates") && src.contains("onSelect = onSelectLyricsProvider"))
-        assertTrue(src.contains("KeepScreenOn(enabled = panels.lyricsOpen)"))
+        assertTrue(src.contains("KeepScreenOn(enabled = if (wide) !panels.queueOpen else panels.lyricsOpen)"))
         assertTrue(src.contains("flags.providers = true") || src.contains("sheets.providers = true"), "the lyrics status opens the provider sheet")
         assertTrue(code(nowPlaying("NowPlayingMedia.kt")).contains("Box(modifier.hazeSource(hazeState))"), "portrait: the ground and the video are what the sheets blur")
         assertTrue(code(nowPlaying("NowPlayingLandscape.kt")).contains(".hazeSource(hazeState)"), "landscape: the ground and the media are")

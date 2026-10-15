@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.cosmotune.design.CapsuleGeometry
 import com.cosmotune.design.Morph
 import com.cosmotune.design.ShellMetrics
 import com.cosmotune.design.Springs
@@ -117,8 +118,6 @@ fun CosmoPlayerOverlay(
         val h = maxHeight
         val widthPx = constraints.maxWidth.toFloat()
         val heightPx = constraints.maxHeight.toFloat()
-        val density = LocalDensity.current
-        val capsuleRadiusPx = with(density) { ShellMetrics.CAPSULE_RADIUS_DP.dp.toPx() }
         val morph = remember { MorphPath() }
         val clip = remember { Path() }
         val ground = LocalCosmoColors.current
@@ -157,8 +156,9 @@ fun CosmoPlayerOverlay(
                     val top = Morph.lerp(fromTop, 0f, t)
                     val right = Morph.lerp(fromRight, size.width, t)
                     val bottom = Morph.lerp(fromBottom, size.height, t)
-                    // The capsule's own superellipse corners, run down to square. MorphPath refills one path in place, so a
-                    // frame of the morph allocates nothing.
+                    // The capsule's own superellipse corners (it says how round they are: the phone's mini player and the desktop's
+                    // bar differ), run down to square. MorphPath refills one path in place, so a frame of the morph allocates nothing.
+                    val capsuleRadiusPx = (shell.capsuleLabel?.geometry ?: CapsuleGeometry.PHONE).cornerRadiusDp * density
                     val outline = morph.update(right - left, bottom - top, Morph.cornerRadius(t, capsuleRadiusPx), CAPSULE_EXPONENT)
                     clip.reset()
                     clip.addPath(outline, Offset(left, top))
@@ -182,7 +182,12 @@ fun CosmoPlayerOverlay(
  * The capsule's cover, flying to where the player's cover will be, and the capsule's title and artist, fading out as it
  * goes. The cover is laid out once at the size of the player's cover (its rectangle in [CosmoShellState.playerCoverBounds], else
  * 320 dp centred, 112 dp from the top), so the picture is sharp when it lands, and is carried there while it is drawn: a
- * translation from the capsule's cover, a scale from 48 dp up to 1, and a clip whose corners run from 14 dp to 28 dp on screen.
+ * translation from the capsule's cover, a scale from the capsule's cover size up to 1, and a clip whose corners run from the
+ * capsule cover's own corner to 28 dp on screen.
+ *
+ * Where the capsule's cover and words are is the capsule's to say ([CapsuleLabel.geometry]: the phone's mini player and the
+ * desktop's bar have their covers in different places, with different corners), so the first frame of the grow is the capsule and
+ * nothing jumps; a capsule that says nothing is taken for the phone's.
  *
  * Everything here reads the progress in the draw phase, as the card does ([CosmoPlayerOverlay]), and not in a `graphicsLayer`
  * block: a layer block is applied after the draw lambdas of the same frame (seen in a headless render, where the cover lagged the
@@ -196,13 +201,15 @@ private fun MorphLayer(shell: CosmoShellState, windowWidth: Float, windowHeight:
     val palette = LocalCosmoColors.current.palette
     val progress = shell.playerProgress
     val label = shell.capsuleLabel
+    val geometry = label?.geometry ?: CapsuleGeometry.PHONE
     val capsule = shell.capsuleBounds
     val target = shell.playerCoverBounds
     val coverSize: Dp = if (target != null) with(density) { target.width.toDp() } else FALLBACK_COVER
-    val startSize = with(density) { COVER_SIZE.toPx() }
-    val padding = with(density) { CAPSULE_PADDING.toPx() }
+    val startSize = with(density) { geometry.coverSizeDp.dp.toPx() }
+    val insetLeft = with(density) { geometry.coverInsetLeftDp.dp.toPx() }
+    val insetTop = with(density) { geometry.coverInsetTopDp.dp.toPx() }
     val fallbackTop = with(density) { FALLBACK_COVER_TOP.toPx() }
-    val miniRadius = with(density) { CosmoRadii.coverMini.toPx() }
+    val capsuleCoverRadius = with(density) { geometry.coverRadiusDp.dp.toPx() }
     val playerRadius = with(density) { CosmoRadii.coverNowPlaying.toPx() }
     val clip = remember { MorphPath() }
     CoverImage(
@@ -212,14 +219,13 @@ private fun MorphLayer(shell: CosmoShellState, windowWidth: Float, windowHeight:
         shadow = false,
         modifier = Modifier.drawWithContent {
             val t = progress.value
-            val startScale = startSize / size.width
-            val scale = Morph.lerp(startScale, 1f, t)
-            val fromX = (capsule?.left ?: 0f) - origin[0] + padding
-            val fromY = (capsule?.top ?: windowHeight) - origin[1] + padding
+            val scale = Morph.coverScale(t, startSize, size.width)
+            val fromX = Morph.insetFrom(capsule?.left ?: 0f, origin[0], insetLeft)
+            val fromY = Morph.insetFrom(capsule?.top ?: windowHeight, origin[1], insetTop)
             val toX = if (target != null) target.left - origin[0] else (windowWidth - size.width) / 2f
             val toY = if (target != null) target.top - origin[1] else fallbackTop
-            // The radius is in the cover's own (unscaled) space: 14 dp on screen at the start, 28 dp at the end.
-            val radius = Morph.lerp(miniRadius / startScale, playerRadius, t)
+            // The radius is in the cover's own (unscaled) space: the capsule cover's corner on screen at the start, 28 dp at the end.
+            val radius = Morph.coverRadius(t, capsuleCoverRadius, startSize, size.width, playerRadius)
             translate(Morph.lerp(fromX, toX, t), Morph.lerp(fromY, toY, t)) {
                 scale(scale, scale, pivot = Offset.Zero) {
                     clipPath(clip.update(size.width, size.height, radius, CAPSULE_EXPONENT)) { this@drawWithContent.drawContent() }
@@ -228,19 +234,23 @@ private fun MorphLayer(shell: CosmoShellState, windowWidth: Float, windowHeight:
         },
     )
     if (label != null) {
-        val textStart = with(density) { CAPSULE_TEXT_START.toPx() }
-        val textWidth = with(density) { ((capsule?.width ?: windowWidth) - textStart - CAPSULE_TEXT_END.toPx()).coerceAtLeast(0f).toDp() }
+        val textStart = with(density) { geometry.textStartDp.dp.toPx() }
+        val textEnd = with(density) { geometry.textEndDp.dp.toPx() }
+        val capsuleWidth = capsule?.width ?: windowWidth
+        val textWidth = with(density) { Morph.textWidth(capsuleWidth, textStart, textEnd).toDp() }
+        // The words are centred in the capsule's own height (64 dp on the phone, 80 dp on the desktop).
+        val capsuleHeight = with(density) { (capsule?.height ?: ShellMetrics.CAPSULE_HEIGHT_DP.dp.toPx()).toDp() }
         val title = Color(palette.textPrimary)
         val artist = Color(palette.textSecondary)
         Column(
             Modifier
-                .offset { IntOffset(((capsule?.left ?: 0f) - origin[0] + textStart).roundToInt(), ((capsule?.top ?: windowHeight) - origin[1]).roundToInt()) }
-                .size(textWidth, ShellMetrics.CAPSULE_HEIGHT_DP.dp),
+                .offset { IntOffset(Morph.insetFrom(capsule?.left ?: 0f, origin[0], textStart).roundToInt(), ((capsule?.top ?: windowHeight) - origin[1]).roundToInt()) }
+                .size(textWidth, capsuleHeight),
             verticalArrangement = Arrangement.Center,
         ) {
             // The colour is produced when the text is drawn, so its fade (gone by the time the card is half-way) is of the card's frame.
-            BasicText(label.title, style = capsuleTitleStyle(type.textFamily), maxLines = 1, overflow = TextOverflow.Ellipsis, color = { title.copy(alpha = Morph.capsuleTextAlpha(progress.value)) })
-            BasicText(label.artist, style = capsuleArtistStyle(type.textFamily), maxLines = 1, overflow = TextOverflow.Ellipsis, color = { artist.copy(alpha = Morph.capsuleTextAlpha(progress.value)) })
+            BasicText(label.title, style = label.titleStyle ?: capsuleTitleStyle(type.textFamily), maxLines = 1, overflow = TextOverflow.Ellipsis, color = { title.copy(alpha = Morph.capsuleTextAlpha(progress.value)) })
+            BasicText(label.artist, style = label.artistStyle ?: capsuleArtistStyle(type.textFamily), maxLines = 1, overflow = TextOverflow.Ellipsis, color = { artist.copy(alpha = Morph.capsuleTextAlpha(progress.value)) })
         }
     }
 }
@@ -248,6 +258,5 @@ private fun MorphLayer(shell: CosmoShellState, windowWidth: Float, windowHeight:
 private const val CAPSULE_EXPONENT = 4f
 private const val DISMISS_BELOW = 0.75f
 private const val DISMISS_FLING_PX_PER_S = 1600f
-private val CAPSULE_PADDING = 8.dp
 private val FALLBACK_COVER = 320.dp
 private val FALLBACK_COVER_TOP = 112.dp

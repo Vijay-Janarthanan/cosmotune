@@ -20,6 +20,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -103,8 +104,13 @@ import org.jetbrains.compose.resources.stringResource
  *
  * [controlsLocked] is a party whose host has taken the controls: previous, next and the scrubber then answer with
  * [onBlockedControl] and are drawn a little dimmer. [volumeLabel] names the volume bar for a screen reader (the desktop has
- * the word in its own catalogue). Nothing here reads the playhead in composition except the elapsed time, alone: the wave and
- * the progress line read it while drawing.
+ * the word in its own catalogue; a host that wraps the player in [LocalPlayerVolumeLabel] names the bar of the one inside the
+ * player too). Nothing here reads the playhead in composition except the elapsed time, alone: the wave and the progress line
+ * read it while drawing.
+ *
+ * [embedded] is the same bar drawn inside the open player (the wide Now Playing, `NowPlayingWide`) rather than as the capsule the
+ * player grows out of: it neither reports its bounds nor publishes what it shows (the capsule's are the ones the player grows from
+ * and shrinks back to), is not hidden while the player stands open, and has no click that expands the player (it is expanded).
  */
 @Composable
 fun CosmoPlayerBar(
@@ -134,35 +140,47 @@ fun CosmoPlayerBar(
     hazeState: HazeState?,
     modifier: Modifier = Modifier,
     volumeLabel: String? = null,
+    embedded: Boolean = false,
 ) {
     val shell = LocalCosmoShell.current
+    val capsuleShell = if (embedded) null else shell
     val shape = remember { SuperellipseShape(PlayerBarMetrics.RADIUS_DP.dp) }
     val coverUrl = PlayerPlatform.host.rememberRemoteArtworkUrl(song)
     val scrub = rememberPlayerScrub(song.videoId, position, durationMs)
-
-    // What the morph copies: published as a value, so an unchanged song writes nothing (the phone's capsule does the same).
-    val label = remember(song.title, song.artist, coverUrl) { CapsuleLabel(song.title, song.artist, coverUrl) }
-    if (shell != null) {
-        SideEffect { shell.capsuleLabel = label }
-        DisposableEffect(shell) { onDispose { shell.capsuleBounds = null; shell.capsuleLabel = null } }
-    }
+    val type = LocalCosmoType.current
 
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .height(PlayerBarMetrics.HEIGHT_DP.dp)
             // Invisible while the player stands in its place: decided in the draw phase, where the overlay decides its card.
-            .drawWithContent { if (shell?.capsuleHidden != true) drawContent() }
-            .onGloballyPositioned { shell?.capsuleBounds = it.boundsInRoot() }
+            .drawWithContent { if (capsuleShell?.capsuleHidden != true) drawContent() }
+            .onGloballyPositioned { capsuleShell?.capsuleBounds = it.boundsInRoot() }
             .cosmoGlass(hazeState, shape),
     ) {
         val plan = remember(maxWidth) { PlayerBarMetrics.plan(maxWidth.value) }
+
+        // What the morph copies: the words and the picture, and how this bar is built at this width and plan (its corners, where
+        // the cover and the words sit, their styles), published as a value so an unchanged song at an unchanged width writes
+        // nothing (the phone's capsule does the same).
+        if (capsuleShell != null) {
+            val label = remember(song.title, song.artist, coverUrl, plan, maxWidth, type) {
+                CapsuleLabel(
+                    song.title, song.artist, coverUrl,
+                    PlayerBarMetrics.capsuleGeometry(plan, maxWidth.value),
+                    type.forText(barTitleStyle(type.textFamily), song.title),
+                    type.forText(barArtistStyle(type.textFamily), song.artist),
+                )
+            }
+            SideEffect { capsuleShell.capsuleLabel = label }
+            DisposableEffect(capsuleShell) { onDispose { capsuleShell.capsuleBounds = null; capsuleShell.capsuleLabel = null } }
+        }
         Row(
             Modifier.fillMaxSize().padding(horizontal = PlayerBarMetrics.PADDING_DP.dp),
             horizontalArrangement = Arrangement.spacedBy(PlayerBarMetrics.GAP_DP.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SongBlock(song, coverUrl, plan, onExpand)
+            SongBlock(song, coverUrl, plan, onExpand.takeUnless { embedded })
             if (plan.like) {
                 CosmoIconButton(
                     if (liked) CosmoIcons.HeartFill else CosmoIcons.Heart,
@@ -200,7 +218,7 @@ fun CosmoPlayerBar(
                 }
                 if (plan.volume) {
                     Spacer(Modifier.width(PlayerBarMetrics.VOLUME_MARGIN_DP.dp))
-                    VolumeBar(volumeLabel)
+                    VolumeBar(volumeLabel ?: LocalPlayerVolumeLabel.current)
                 }
             }
         }
@@ -214,7 +232,7 @@ fun CosmoPlayerBar(
  * says; in the narrowest plan it takes what the row leaves.
  */
 @Composable
-private fun RowScope.SongBlock(song: Song, coverUrl: String?, plan: PlayerBarMetrics.Plan, onExpand: () -> Unit) {
+private fun RowScope.SongBlock(song: Song, coverUrl: String?, plan: PlayerBarMetrics.Plan, onExpand: (() -> Unit)?) {
     val palette = LocalCosmoColors.current.palette
     val type = LocalCosmoType.current
     val title = remember(type, song.title) { type.forText(barTitleStyle(type.textFamily), song.title) }
@@ -222,9 +240,8 @@ private fun RowScope.SongBlock(song: Song, coverUrl: String?, plan: PlayerBarMet
     val nowPlaying = stringResource(Res.string.now_playing)
     val size = if (plan.tier == PlayerBarMetrics.Tier.MINIMAL) Modifier.weight(1f) else Modifier.width((PlayerBarMetrics.COVER_DP + PlayerBarMetrics.GAP_DP + plan.textDp).dp)
     Row(
-        size
-            .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(onClickLabel = nowPlaying, role = Role.Button, onClick = onExpand),
+        // Inside the open player (no [onExpand]) the cover and the words are just that: nothing to expand.
+        if (onExpand == null) size else size.pointerHoverIcon(PointerIcon.Hand).clickable(onClickLabel = nowPlaying, role = Role.Button, onClick = onExpand),
         horizontalArrangement = Arrangement.spacedBy(PlayerBarMetrics.GAP_DP.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -235,6 +252,12 @@ private fun RowScope.SongBlock(song: Song, coverUrl: String?, plan: PlayerBarMet
         }
     }
 }
+
+/**
+ * The name of the volume bar for a screen reader, for the bar that sits inside the open player: the desktop has the word in its
+ * own catalogue and sharedUi has none, so the host that mounts the player provides it (null: the bar is unnamed).
+ */
+val LocalPlayerVolumeLabel = staticCompositionLocalOf<String?> { null }
 
 /** The title: 14.5 sp, weight 700. */
 private fun barTitleStyle(family: FontFamily) =

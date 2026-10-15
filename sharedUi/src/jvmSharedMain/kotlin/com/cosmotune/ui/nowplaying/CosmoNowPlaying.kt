@@ -38,6 +38,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.design.LyricsMetrics
 import com.cosmotune.design.NowPlayingLayout
 import com.cosmotune.design.Springs
+import com.cosmotune.design.WideNowPlayingMetrics
+import com.cosmotune.ui.shell.CosmoPlayerBar
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoShell
@@ -85,8 +87,9 @@ import org.jetbrains.compose.resources.stringArrayResource
  * artist, the wavy scrubber, the transport and the four tools over it; the lyrics, which fill in as they are sung, and the
  * queue, each over the page in place of the cover; and, on its side, the same screen in two panes. It takes [NowPlayingScreen]'s
  * parameters, name for name, so [NowPlayingSwitch] can hand every one over; the ones nobody reads yet (the album and the autoplay
- * toggle, the version switch, the sign-in) are accepted here for the day a screen needs them. The wide window (the desktop,
- * Task 11) still draws the portrait page.
+ * toggle, the version switch, the sign-in) are accepted here for the day a screen needs them. A wide window (the desktop, or
+ * a tablet on its side: [NowPlayingLayout.choose]) gets [NowPlayingWide]: a header, the lyrics or the queue on the left, the
+ * video card over the cover on the right and the player bar along the foot, which has the transport, the scrubber and the volume.
  *
  * What it keeps from the old screen, in the old screen's order: the song's artwork address, the clip's clock
  * ([CanvasSyncSource]), the clip and its mobile-data guard, the prefetch of the next song's clip, the scrub state, the party
@@ -147,6 +150,8 @@ fun CosmoNowPlaying(
 ) {
     val shell = LocalCosmoShell.current
     val reduced = LocalReducedMotion.current
+    val layout = NowPlayingLayout.choose(windowWidth.value, windowHeight.value)
+    val wide = layout == NowPlayingLayout.WIDE
 
     // ---- what the old screen sets up first, in its order ----------------------------------------------------------------
     // Remote tracks whose art lives inside the file resolve it here, once; every surface reads the same value.
@@ -177,9 +182,11 @@ fun CosmoNowPlaying(
     val openAudioOutput = rememberOutputPicker { sheets.output = true }
     val panels = remember { NowPlayingPanels(PlayerSettings.lastPlayerScreen.value) }
     LaunchedEffect(panels.lyricsOpen, panels.queueOpen) { PlayerSettings.setLastPlayerScreen(panels.screen) }
-    KeepScreenOn(enabled = panels.lyricsOpen)
-    PlayerBackHandler(enabled = panels.lyricsOpen) { panels.closeLyrics() }
-    PlayerBackHandler(enabled = panels.queueOpen) { panels.closeQueue() }
+    // In a wide window the lyrics or the queue is always there (the tabs of the header choose between them), so they are not
+    // layers that back peels off, and the lyrics are showing unless the queue is.
+    KeepScreenOn(enabled = if (wide) !panels.queueOpen else panels.lyricsOpen)
+    PlayerBackHandler(enabled = panels.lyricsOpen && !wide) { panels.closeLyrics() }
+    PlayerBackHandler(enabled = panels.queueOpen && !wide) { panels.closeQueue() }
 
     // ---- the lyrics: the playhead their clock reads, the romanisation and translation, where a tap on a line goes ----------
     val haptics = rememberHaptics()
@@ -207,8 +214,9 @@ fun CosmoNowPlaying(
     // 0 = the cover, 1 = the video all the way in. A State, read only in layer, draw and layout lambdas.
     val reveal = animateFloatAsState(if (videoShown) 1f else 0f, CosmoMotion.slow(reduced), label = "reveal")
 
-    // Dark over a video in both themes: see [rememberPlayerColors].
-    val colors = rememberPlayerColors(shell, hasVideo = canvas != null, videoShown = videoShown, reduced = reduced)
+    // Dark over a video in both themes: see [rememberPlayerColors]. Not in a wide window, where the video is a card on the ambient
+    // ground and the page stays in the theme.
+    val colors = rememberPlayerColors(shell, hasVideo = canvas != null && !wide, videoShown = videoShown && !wide, reduced = reduced)
     val lightTheme = shell != null && !LocalCosmoColors.current.dark
 
     // ---- what the page is made of ----------------------------------------------------------------------------------------
@@ -304,15 +312,56 @@ fun CosmoNowPlaying(
         )
     }
 
+    // The wide page. The lyrics and the queue are the header's two tabs (the queue's flag is the tab); the bar is the desktop's
+    // player capsule drawn inside the player (`embedded`), so it has the transport, the scrubber, like, the panels and the volume.
+    val widePage: @Composable BoxScope.() -> Unit = {
+        NowPlayingWide(
+            windowWidth = windowWidth, windowHeight = windowHeight, hazeState = playerHaze,
+            header = { m ->
+                NowPlayingWideHeader(
+                    song = song, playedBy = playedBy, coverUrl = remoteArt, queueSelected = panels.queueOpen,
+                    onSelectTab = { if (it == 0) panels.openLyrics() else panels.openQueue() },
+                    hasVideo = canvas != null, videoOn = canvas != null && !videoHidden, onToggleVideo = { videoHidden = !videoHidden },
+                    onOpenOrigin = openOrigin, onOpenMenu = onOpenMenu, modifier = m,
+                )
+            },
+            panel = { m ->
+                NowPlayingWidePanels(
+                    queueSelected = panels.queueOpen, reduced = reduced, modifier = m,
+                    lyrics = { lyricsPanel(Modifier.fillMaxSize(), WIDE_LYRICS_STYLE, WIDE_LYRICS_TOP_PADDING) },
+                    queue = { queuePanel(Modifier.fillMaxSize()) },
+                )
+            },
+            media = { cover, video, side ->
+                NowPlayingWideMedia(
+                    canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal, onRenderedChanged = { rendered = it },
+                    blockedByMobileData = blockedByMobileData, coverUrl = remoteArt, shell = shell,
+                    coverModifier = cover, videoModifier = video, coverSide = side,
+                )
+            },
+            bar = { m ->
+                CosmoPlayerBar(
+                    song = song, isPlaying = isPlaying, isLoading = isLoading, position = position, durationMs = durationMs,
+                    liked = likeStatus == LikeStatus.LIKE, shuffle = shuffleEnabled, repeatMode = repeatMode, controlsLocked = controlsLocked,
+                    lyricsOn = !panels.queueOpen, queueOn = panels.queueOpen,
+                    onPlayPause = onPlayPause, onPrevious = onPrevious, onNext = onNext,
+                    onToggleShuffle = onToggleShuffle, onCycleRepeat = onCycleRepeat, onToggleLike = onToggleLike,
+                    onSeekFraction = onSeekFraction, onLyrics = panels::openLyrics, onQueue = panels::openQueue,
+                    onOutput = openAudioOutput, onExpand = {}, onBlockedControl = onBlockedControl,
+                    hazeState = playerHaze, modifier = m, embedded = true,
+                )
+            },
+        )
+    }
+
     CompositionLocalProvider(LocalCosmoColors provides colors) {
-        PlayerStatusBarIcons(reveal = reveal, lightTheme = lightTheme)
+        PlayerStatusBarIcons(reveal = if (wide) noReveal else reveal, lightTheme = lightTheme)
         Box(modifier.fillMaxSize()) {
-            // The portrait page fits any window; a window wider than tall and narrower than 840 dp gets the two panes. The wide
-            // layout is Task 11's: until then a wide window is drawn as portrait.
-            when (NowPlayingLayout.choose(windowWidth.value, windowHeight.value)) {
+            // The portrait page fits any window; a window wider than tall gets the two panes, and from 840 x 600 dp the wide page.
+            when (layout) {
                 NowPlayingLayout.PORTRAIT -> page()
                 NowPlayingLayout.LANDSCAPE -> landscapePage()
-                NowPlayingLayout.WIDE -> page()
+                NowPlayingLayout.WIDE -> widePage()
             }
             NowPlayingSheets(
                 flags = sheets, hazeState = playerHaze, accountName = accountName, isPlaying = isPlaying,
@@ -326,8 +375,14 @@ fun CosmoNowPlaying(
 /** Where the first line starts in the landscape lyrics: just under the top of their pane, there is little room to spare. */
 private val LANDSCAPE_LYRICS_TOP_PADDING = 8.dp
 
+/** The wide page's lyrics: title-l, the line being sung 1.35 times as big, the lines already sung 0.82 (`.dn-lyrics .ln`). */
+private val WIDE_LYRICS_STYLE = LyricsStyle(WideNowPlayingMetrics.LYRICS_BASE_STEP, WideNowPlayingMetrics.LYRICS_CURRENT_SCALE, WideNowPlayingMetrics.LYRICS_PAST_SCALE)
+
+/** The wide column starts where the board's first line does (150 dp down), so the list needs only a little air at its top. */
+private val WIDE_LYRICS_TOP_PADDING = 8.dp
+
 /** How long the lyrics and the queue take to fade in or out over the page. */
-private const val PANEL_FADE_MS = 240
+internal const val PANEL_FADE_MS = 240
 
 /**
  * The lyrics and the queue in a portrait window. Each fades in over the page in the room between the top bar and the stack

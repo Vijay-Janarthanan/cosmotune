@@ -143,10 +143,12 @@ class NowPlayingContractTest {
         assertTrue(media.indexOf("onGloballyPositioned") < media.indexOf("graphicsLayer {\n                        val progress"))
     }
 
-    @Test fun landscapeIsTheTwoPaneLayoutAndTheWideLayoutIsStillTaskElevens() {
-        val screen = nowPlaying("CosmoNowPlaying.kt")
-        assertTrue(screen.contains("Task 11"), "the wide stub says whose it is")
+    @Test fun eachLayoutHasItsOwnPageAndTheWideOneIsNotTheStubAnyMore() {
+        val screen = code(nowPlaying("CosmoNowPlaying.kt"))
+        assertTrue(screen.contains("NowPlayingLayout.PORTRAIT -> page()"))
         assertTrue(screen.contains("NowPlayingLayout.LANDSCAPE -> landscapePage()"))
-        assertTrue(screen.contains("NowPlayingLayout.WIDE -> page()"))
+        assertTrue(screen.contains("NowPlayingLayout.WIDE -> widePage()"), "wide is its own page")
+        assertFalse(screen.contains("NowPlayingLayout.WIDE -> page()"), "no longer the portrait page")
+        assertTrue(screen.contains("NowPlayingLayout.choose(windowWidth.value, windowHeight.value)"), "one chooser decides, from the window")
     }
 }
