@@ -4124,7 +4124,7 @@ fun BitChordDesktopApp() {
                                     modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
                                 )
                             }
-                            LibraryGridPage(
+                            com.cosmotune.ui.library.LibraryGridSwitch(
                                 shelf = libraryShowAll!!,
                                 gridState = libraryGridState,
                                 onItemClick = ::openLibraryItem,
@@ -4135,7 +4135,7 @@ fun BitChordDesktopApp() {
                                     .takeIf { libraryShowAll?.title == PLAYLISTS_SHELF },
                             )
                         }
-                        destination == DesktopDestination.LIBRARY -> LibraryScreen(
+                        destination == DesktopDestination.LIBRARY -> com.cosmotune.ui.library.LibrarySwitch(
                             signedIn = youtubeSignedIn,
                             state = libraryState,
                             listState = libraryListState,
