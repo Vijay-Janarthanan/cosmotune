@@ -192,6 +192,8 @@ fun CosmoNowPlaying(
         trackId = song.videoId, lyrics = lyrics, lyricsSource = lyricsSource, lyricsUnavailable = lyricsUnavailable,
         loadingText = lyricsLoadingText, haptics = haptics,
     )
+    // Choosing lines to share as a card, and the card they make (the phone's; the desktop has none).
+    val lyricShare = rememberCosmoLyricShare(song, lyrics, lyricsTranslation.subLines, remoteArt, haptics)
 
     // ---- the video, and the one number that follows it -------------------------------------------------------------------
     // Reduced motion: the video does not start by itself; the person turns it on.
@@ -257,7 +259,7 @@ fun CosmoNowPlaying(
             lyrics = lyrics, lyricsUnavailable = lyricsUnavailable, loadingText = lyricsLoadingText, translation = lyricsTranslation,
             trackKey = song.videoId, playhead = lyricsPlayhead, isPlaying = isPlaying && position.advancing,
             onSeekToLine = seekToLyric, onOpenProviders = { sheets.providers = true },
-            style = style, modifier = m, topPadding = topPadding,
+            style = style, modifier = m, topPadding = topPadding, share = lyricShare,
         )
     }
     val queuePanel: @Composable (Modifier) -> Unit = { m ->
@@ -319,6 +321,8 @@ fun CosmoNowPlaying(
                 lyricsSource = lyricsSource, lyricsProviderStates = lyricsProviderStates, onSelectLyricsProvider = onSelectLyricsProvider,
                 lyricsOffsetOpen = lyricsOffsetOpen, onDismissLyricsOffset = onDismissLyricsOffset, onListenTogether = onListenTogether,
             )
+            // After the sheets: back reaches the card, then the pick, before any of them.
+            CosmoLyricShareHost(lyricShare, playerHaze)
         }
     }
 }
