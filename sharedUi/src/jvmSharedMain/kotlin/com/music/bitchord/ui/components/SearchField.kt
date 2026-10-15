@@ -54,6 +54,7 @@ fun SearchField(
     placeholder: String = stringResource(Res.string.search_hint),
     modifier: Modifier = Modifier,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.blocks.CosmoSearchField(query = query, onQueryChange = onQueryChange, onSubmit = onSubmit, placeholder = placeholder, modifier = modifier, focusRequester = focusRequester)
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     // Both ways of saying "search this" do the same two things, so they're
