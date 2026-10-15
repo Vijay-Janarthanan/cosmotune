@@ -176,8 +176,9 @@ class LibraryContractTest {
         assertEquals(listOf("playlists", "albums", "artists", "downloaded"), labels.groupValues.drop(1))
         assertTrue(Regex("""var segmentIndex by rememberSaveable""").containsMatchIn(code), "the segment is saved")
         assertTrue("CosmoSegmented(" in code)
-        // P4-19: the four share the row instead of scrolling sideways on a 360 dp phone
-        assertTrue("fill = true" in code && "horizontalScroll(" !in code, "the four segments share the row: no sideways scroll")
+        // P4-19: the four share the row instead of scrolling sideways on a 360 dp phone; P4-17: only below the wide page (840 dp)
+        assertTrue("fill = !wide," in code && "horizontalScroll(" !in code, "the four segments share the row below the wide page: no sideways scroll")
+        assertTrue("val wide = maxWidth.value >= WIDE_PAGE_DP" in code && "private const val WIDE_PAGE_DP = 840f" in code)
     }
 
     @Test fun theHeadingIsTheDisplayStepAndTheNewPlaylistButtonIsATonal40DpIconButton() {

@@ -168,7 +168,8 @@ class VisualPolishContractTest {
         assertTrue("FitLabel(maxSp = 14f, minSp = ControlMetrics.SEGMENT_LABEL_MIN_SP, stepSp = 0.5f, wholeWords = false)" in code, "the label shrinks to 12 sp, no smaller")
         assertTrue(Regex("""maxLines = 1,\s*overflow = TextOverflow\.Ellipsis,\s*autoSize = FIT_LABEL""").containsMatchIn(code), "on one line, cut past the floor")
         val library = code("$ui/library/CosmoLibrary.kt")
-        assertTrue("fill = true" in library && "horizontalScroll(" !in library, "Library's four share the row and no longer scroll sideways")
+        // P4-17: below the wide page only; a wide page keeps the classic control at the start (the board's `.d2-lib .seg2`)
+        assertTrue("fill = !wide," in library && "horizontalScroll(" !in library, "Library's four share the row and no longer scroll sideways")
     }
 
     @Test fun aMoodTilesNameShrinksToFitOnWholeWords() {

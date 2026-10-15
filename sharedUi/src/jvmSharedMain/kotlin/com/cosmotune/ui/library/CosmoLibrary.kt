@@ -161,13 +161,15 @@ fun CosmoLibrary(
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
                 item(key = "heading") { LibraryHeading(wide = wide, onNewPlaylist = onNewPlaylist) }
                 item(key = "segments") {
-                    // The four share the row (their labels shrink to fit, no check): a 360 dp phone shows them all, with no sideways scroll.
+                    // Below the wide page the four share the row (their labels shrink to fit, no check): a 360 dp phone shows them all, with
+                    // no sideways scroll. On a wide page (the desktop, a tablet) they keep their own widths at the start, as the board's
+                    // `.d2-lib .seg2`, instead of four segments a quarter of the page wide each.
                     CosmoSegmented(
                         options = labels,
                         selectedIndex = segment.ordinal,
                         onSelect = { segmentIndex = it },
                         modifier = Modifier.padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, top = 16.dp),
-                        fill = true,
+                        fill = !wide,
                     )
                 }
                 when (segment) {
