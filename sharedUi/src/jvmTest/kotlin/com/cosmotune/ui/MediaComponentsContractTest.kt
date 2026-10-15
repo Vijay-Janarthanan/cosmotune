@@ -112,8 +112,11 @@ class MediaComponentsContractTest {
         assertTrue(preview.contains("Dispatchers.Default"), "the engine runs off the main thread")
     }
 
-    @Test fun thePreviewKeepsAPlaceForTheControlsOfTaskP36() {
+    @Test fun thePreviewShowsTheControlsOfTheLookInThePageAndOnGlass() {
         val preview = source("settings/LookPreview.kt")
-        assertTrue(preview.contains("// P3-6 controls go here after the merge"))
+        for (control in listOf("CosmoButton(", "CosmoIconButton(", "PlayMorphButton(", "CosmoChip(", "CosmoSegmented(", "CosmoSwitch(")) {
+            assertTrue(preview.contains(control), "$control is shown")
+        }
+        assertTrue(preview.contains("floating = true"), "and so are the floating variants")
     }
 }

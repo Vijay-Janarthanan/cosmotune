@@ -57,6 +57,16 @@ import com.cosmotune.design.GlassMode
 import com.cosmotune.design.LookSamples
 import com.cosmotune.design.TypeScale
 import com.cosmotune.theme.CoverField
+import com.cosmotune.ui.components.CosmoButton
+import com.cosmotune.ui.components.CosmoButtonKind
+import com.cosmotune.ui.components.CosmoButtonSize
+import com.cosmotune.ui.components.CosmoChip
+import com.cosmotune.ui.components.CosmoIconButton
+import com.cosmotune.ui.components.CosmoIconButtonStyle
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.components.CosmoSegmented
+import com.cosmotune.ui.components.CosmoSwitch
+import com.cosmotune.ui.components.PlayMorphButton
 import com.cosmotune.ui.components.CosmoSlider
 import com.cosmotune.ui.components.CoverFrame
 import com.cosmotune.ui.components.SuperellipseShape
@@ -158,8 +168,7 @@ internal fun LookPreviewScreen(onClose: () -> Unit, startDark: Boolean = isSyste
                             }
                         }
                     }
-                    // Replace with CosmoSegmented (Dark | Light) after the merge of task P3-6.
-                    ThemeToggle(dark, ink, ink2) { dark = it }
+                    CosmoSegmented(listOf("Dark", "Light"), selectedIndex = if (dark) 0 else 1, onSelect = { dark = it == 0 })
                 }
 
                 Section("Colours", ink2) { Swatches(colors, ink, ink2) }
@@ -189,10 +198,7 @@ internal fun LookPreviewScreen(onClose: () -> Unit, startDark: Boolean = isSyste
 
                 Section("Slider and wavy scrubber", ink2) { Bars(ink, ink2) }
 
-                // P3-6 controls go here after the merge. The section must show, at rest, pressed (an always-pressed target) and
-                // disabled, on this ground: buttons of every kind, icon buttons, the play button, chips, the segmented
-                // control and the switch. Until then it only lists them.
-                Section("Buttons, chips and switches", ink2) { ControlsStub(ink2) }
+                Section("Buttons, chips and switches", ink2) { Controls(ink2) }
 
                 Section("Contrast", ink2) { ContrastList(colors, ink, ink2) }
             }
@@ -205,25 +211,6 @@ private fun Section(title: String, color: Color, content: @Composable () -> Unit
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(title.uppercase(), color = color, style = LocalCosmoType.current.label.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp))
         content()
-    }
-}
-
-/** Dark | Light. A stand-in for `CosmoSegmented`, which task P3-6 builds. */
-@Composable
-private fun ThemeToggle(dark: Boolean, ink: Color, ink2: Color, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(CircleShape).border(BorderStroke(1.dp, ink2.copy(alpha = 0.35f)), CircleShape)) {
-        listOf(true to "Dark", false to "Light").forEach { (isDark, label) ->
-            val on = dark == isDark
-            Box(
-                Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(CircleShape)
-                    .then(if (on) Modifier.drawBehind { drawRect(ink.copy(alpha = 0.16f)) } else Modifier)
-                    .selectable(selected = on, role = Role.RadioButton, onClick = { onChange(isDark) }),
-                contentAlignment = Alignment.Center,
-            ) { Text(label, color = if (on) ink else ink2, fontWeight = FontWeight.SemiBold) }
-        }
     }
 }
 
@@ -320,18 +307,96 @@ private fun Bars(ink: Color, ink2: Color) {
     WaveScrubber(fraction = { 0.5f }, playing = false, onScrub = {}, onRelease = {})
 }
 
-// The controls task P3-6 builds, as the section must show them after the merge.
-private val controlsToCome = listOf(
-    "Buttons: primary, secondary, tertiary and destructive, at rest, pressed and disabled",
-    "Icon buttons, at rest and on",
-    "The play button, paused and playing (a tap toggles)",
-    "Chips, the segmented control and switches",
-)
-
+/** Every control of the B+C system, in the page and on glass, at rest, disabled and (press and hold) pressed. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ControlsStub(ink2: Color) {
+private fun Controls(ink2: Color) {
     val type = LocalCosmoType.current
-    controlsToCome.forEach { Text("Arrives with the controls task: $it", color = ink2, style = type.body(TypeScale.CAPTION)) }
+    var chillOn by remember { mutableStateOf(true) }
+    var focusOn by remember { mutableStateOf(false) }
+    var bigOn by remember { mutableStateOf(true) }
+    var segment by remember { mutableIntStateOf(0) }
+    var switchA by remember { mutableStateOf(true) }
+    var switchB by remember { mutableStateOf(false) }
+    var shuffle by remember { mutableStateOf(true) }
+    var liked by remember { mutableStateOf(false) }
+    var playing by remember { mutableStateOf(false) }
+    var floatingChip by remember { mutableStateOf(true) }
+    var floatingSwitch by remember { mutableStateOf(true) }
+    var floatingSegment by remember { mutableIntStateOf(0) }
+    val caption = type.body(TypeScale.CAPTION)
+
+    Text("Buttons. Press and hold one to see it square up.", color = ink2, style = caption)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        CosmoButton("Play all", {}, kind = CosmoButtonKind.PRIMARY, icon = CosmoIcons.Play)
+        CosmoButton("Shuffle", {}, kind = CosmoButtonKind.TONAL, icon = CosmoIcons.Shuffle)
+        CosmoButton("Add to queue", {}, kind = CosmoButtonKind.QUIET)
+        CosmoButton("Not now", {}, kind = CosmoButtonKind.TEXT)
+    }
+    Text("Sizes, and disabled", color = ink2, style = caption)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        CosmoButton("Small", {}, size = CosmoButtonSize.SMALL)
+        CosmoButton("Medium", {}, size = CosmoButtonSize.MEDIUM)
+        CosmoButton("Large", {}, size = CosmoButtonSize.LARGE)
+        CosmoButton("Disabled", {}, enabled = false)
+        CosmoButton("Disabled", {}, kind = CosmoButtonKind.TONAL, enabled = false)
+    }
+
+    Text("Icon buttons: plain, tonal, glass; on and off", color = ink2, style = caption)
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        CosmoIconButton(CosmoIcons.Shuffle, "Shuffle sample", { shuffle = !shuffle }, style = CosmoIconButtonStyle.PLAIN, on = shuffle)
+        CosmoIconButton(CosmoIcons.Previous, "Previous sample", {}, style = CosmoIconButtonStyle.TONAL, size = 56.dp)
+        CosmoIconButton(
+            if (liked) CosmoIcons.HeartFill else CosmoIcons.Heart, "Like sample", { liked = !liked },
+            style = CosmoIconButtonStyle.TONAL, size = 40.dp, on = liked, accentWhenOn = true,
+        )
+        CosmoIconButton(CosmoIcons.More, "More sample", {}, style = CosmoIconButtonStyle.GLASS, size = 40.dp)
+        CosmoIconButton(CosmoIcons.Queue, "Disabled sample", {}, enabled = false)
+    }
+
+    Text("The play button: paused, playing (tap to toggle), loading", color = ink2, style = caption)
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        PlayMorphButton(playing = playing, loading = false, onClick = { playing = !playing }, size = 80.dp)
+        PlayMorphButton(playing = playing, loading = false, onClick = { playing = !playing }, size = 56.dp)
+        PlayMorphButton(playing = false, loading = true, onClick = {}, size = 56.dp)
+    }
+
+    Text("Chips", color = ink2, style = caption)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CosmoChip("Chill", chillOn, { chillOn = !chillOn })
+        CosmoChip("Focus", focusOn, { focusOn = !focusOn })
+        CosmoChip("Workout", false, {})
+        CosmoChip("Big chip", bigOn, { bigOn = !bigOn }, big = true)
+    }
+
+    Text("Segmented control", color = ink2, style = caption)
+    CosmoSegmented(listOf("Songs", "Albums", "Artists"), segment, { segment = it })
+
+    Text("Switches: on, off, disabled", color = ink2, style = caption)
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        CosmoSwitch(switchA, { switchA = it })
+        CosmoSwitch(switchB, { switchB = it })
+        CosmoSwitch(true, {}, enabled = false)
+    }
+
+    Text("On glass, over a cover: the floating (C) variants", color = ink2, style = caption)
+    Box(Modifier.fillMaxWidth().clip(SuperellipseShape(CosmoRadii.xl))) {
+        StripeCover(0, Modifier.matchParentSize())
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                CosmoButton("Play all", {}, kind = CosmoButtonKind.PRIMARY, icon = CosmoIcons.Play, floating = true)
+                CosmoButton("Shuffle", {}, kind = CosmoButtonKind.QUIET, floating = true)
+                CosmoButton("Skip", {}, kind = CosmoButtonKind.TEXT, floating = true)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                CosmoChip("Lyrics", floatingChip, { floatingChip = !floatingChip }, floating = true)
+                CosmoSwitch(floatingSwitch, { floatingSwitch = it }, floating = true)
+                CosmoIconButton(CosmoIcons.Lyrics, "Lyrics glass sample", {}, floating = true, size = 40.dp)
+                PlayMorphButton(playing = playing, loading = false, onClick = { playing = !playing }, size = 56.dp, floating = true)
+            }
+            CosmoSegmented(listOf("Lyrics", "Queue"), floatingSegment, { floatingSegment = it }, floating = true)
+        }
+    }
 }
 
 @Composable
