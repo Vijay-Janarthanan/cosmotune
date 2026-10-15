@@ -39,7 +39,7 @@ import com.music.bitchord.data.listentogether.partyQueueIndexOf
 import com.music.bitchord.data.listentogether.partyUpcomingAfter
 import com.music.bitchord.ui.LyricsProviderState
 import com.music.bitchord.ui.player.LyricsSidePanel
-import com.music.bitchord.ui.player.NowPlayingScreen
+import com.cosmotune.ui.nowplaying.NowPlayingSwitch
 import com.music.bitchord.ui.player.QueueSidePanel
 import com.music.bitchord.ui.player.PlayerBack
 import com.music.bitchord.ui.player.RepeatModes
@@ -3208,7 +3208,7 @@ fun BitChordDesktopApp() {
                                 )
                             }
                             ?: current
-                        NowPlayingScreen(
+                        NowPlayingSwitch(
                             song = playerSong,
                             isPlaying = playback.isPlaying,
                             isLoading = playback.isLoading,

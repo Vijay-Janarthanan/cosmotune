@@ -262,7 +262,7 @@ import com.music.bitchord.ui.components.FieldConfig
 import com.music.bitchord.ui.icons.BitChordIcons
 import androidx.media3.common.Player
 import com.music.bitchord.data.YtMusicRepository
-import com.music.bitchord.ui.player.NowPlayingScreen
+import com.cosmotune.ui.nowplaying.NowPlayingSwitch
 import com.music.bitchord.ui.player.PlayerSheetMotion
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.drawBehind
@@ -2190,7 +2190,7 @@ private fun BitChordApp(
                         it.memberId == playback.startedBy
                     }?.displayName?.takeIf(String::isNotBlank)
             }
-        NowPlayingScreen(
+        NowPlayingSwitch(
             song = displayedSong,
             playedBy = playedBy,
             accountName = account?.name,

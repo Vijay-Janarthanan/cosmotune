@@ -207,4 +207,8 @@
     <string name="cosmo_look_preview">Preview the look</string>
     <string name="cosmo_look_preview_summary">Colours, buttons and controls under different covers</string>
     <string name="cosmo_seek_bar">Position in song</string>
+    <string name="cosmo_collapse_player">Close player</string>
+    <string name="cosmo_video_show">Show video</string>
+    <string name="cosmo_video_hide">Hide video</string>
+    <string name="cosmo_playing_from">Playing from</string>
 </resources>
