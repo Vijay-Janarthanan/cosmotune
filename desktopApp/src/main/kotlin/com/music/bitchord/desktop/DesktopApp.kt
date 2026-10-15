@@ -7549,7 +7549,19 @@ private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
     val visible = wholeGroup || matched.isNotEmpty()
     // The gap belongs to the group, not to the list: as list spacing, every filtered-out group
     // still left its 18dp behind and the surviving ones sat under a band of empty space.
-    Column(if (visible) Modifier.padding(bottom = 20.dp) else Modifier) {
+    Column(if (visible && com.cosmotune.ui.theme.LocalCosmoShell.current == null) Modifier.padding(bottom = 20.dp) else Modifier) {
+        if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+            // The new look: the group is one tile (the desktop's rows are spaced, not ruled) under its name as an overline.
+            com.cosmotune.ui.settings.CosmoSettingsGroup(header = title.takeIf { visible }, topSpacing = 0.dp) {
+                CompositionLocalProvider(
+                    LocalSettingsQuery provides if (wholeGroup) "" else query,
+                    LocalSettingsMatches provides matched,
+                ) {
+                    content()
+                }
+            }
+            return@Column
+        }
         if (visible) {
             Text(
                 title.uppercase(),
@@ -7597,6 +7609,7 @@ private fun settingsRowVisible(title: String, subtitle: String = ""): Boolean {
 @Composable
 private fun SettingsNavigationRow(title: String, subtitle: String, onClick: () -> Unit) {
     if (!settingsRowVisible(title, subtitle)) return
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(title = title, subtitle = subtitle, onClick = onClick)
     Row(
         Modifier
             .fillMaxWidth()
@@ -7663,6 +7676,7 @@ internal fun DesktopBareSlider(
 @Composable
 private fun SettingsToggle(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     if (!settingsRowVisible(title, subtitle)) return
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(title = title, subtitle = subtitle, onClick = { onCheckedChange(!checked) }, trailing = { com.cosmotune.ui.components.CosmoSwitch(checked = checked, onCheckedChange = onCheckedChange) })
     Row(
         Modifier
             .fillMaxWidth()
@@ -7687,6 +7701,7 @@ private fun SettingsRow(
     onClick: (() -> Unit)? = null,
 ) {
     if (!settingsRowVisible(title, subtitle)) return
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(icon = icon, title = title, subtitle = subtitle, onClick = onClick)
     Row(
         Modifier
             .fillMaxWidth()

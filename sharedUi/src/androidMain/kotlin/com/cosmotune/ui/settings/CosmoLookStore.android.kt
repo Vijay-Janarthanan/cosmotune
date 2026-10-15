@@ -13,6 +13,8 @@ private const val PREFERENCES_NAME = "cosmotune_look"
 private class SharedPreferencesStore(private val preferences: SharedPreferences) : KeyValueStore {
     override fun getBoolean(key: String, default: Boolean): Boolean = preferences.getBoolean(key, default)
     override fun putBoolean(key: String, value: Boolean) = preferences.edit().putBoolean(key, value).apply()
+    override fun getInt(key: String, default: Int): Int = preferences.getInt(key, default)
+    override fun putInt(key: String, value: Int) = preferences.edit().putInt(key, value).apply()
 }
 
 private var processWide: CosmoLookSettings? = null

@@ -820,7 +820,7 @@ fun SettingsScreen(
                     onClick = { AppSettings.setLiquidGlass(!liquidGlass) },
                 )
             }
-            row("new look", "colours follow the cover", "preview the look", "cosmotune", "colour", "color") {
+            row("new look", "colours follow the cover", "preview the look", "cosmotune", "colour", "color", "intensity") {
                 com.cosmotune.ui.CosmoLookSettingsRows()
             }
             // Left out where the player won't honour it: a window too wide for
@@ -1861,6 +1861,18 @@ internal fun AccountCard(
     /** Sits inside a [SettingsGroup] that already supplies the card, so draws none of its own. */
     grouped: Boolean = false,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoProfileCard(
+        name = account?.name ?: stringResource(if (signedIn) R.string.signed_in else R.string.not_signed_in),
+        subtitle = account?.email?.takeIf { it.isNotBlank() }
+            ?: stringResource(if (signedIn) R.string.youtube_music_account else R.string.tap_to_sign_in_google),
+        avatarUrl = account?.thumbnailUrl,
+        onClick = when {
+            signedIn && onClick != null -> onClick
+            !signedIn -> onSignIn
+            else -> null
+        },
+        grouped = grouped,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2282,6 +2294,7 @@ internal fun SettingsGroup(
     topSpacing: Dp = 26.dp,
     content: @Composable () -> Unit,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsGroup(header = header, footer = footer, topSpacing = topSpacing, content = content)
     if (header != null) {
         Text(
             text = header.uppercase(Locale.ROOT),
@@ -2322,6 +2335,7 @@ internal fun SettingsGroup(
 
 @Composable
 internal fun RowDivider() {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoRowDivider()
     HorizontalDivider(
         modifier = Modifier.padding(start = TEXT_INSET),
         thickness = 0.5.dp,
@@ -2351,6 +2365,7 @@ internal fun SettingsRow(
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(icon = icon, title = title, subtitle = subtitle, subtitleContent = subtitleContent, value = value, badge = badge, enabled = enabled, iconPainter = iconPainter, onClick = onClick, trailing = trailing)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2432,6 +2447,7 @@ internal fun SettingsSubRow(
     badge: String? = null,
     subtitle: String? = null,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsSubRow(title = title, checked = checked, onCheckedChange = onCheckedChange, badge = badge, subtitle = subtitle)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2476,6 +2492,7 @@ internal fun SettingsSubRow(
 /** Marks the connection whose ceiling is actually in force right now. */
 @Composable
 internal fun Badge(text: String) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoBadge(text = text)
     Text(
         text = text.uppercase(Locale.ROOT),
         style = MaterialTheme.typography.labelSmall,
@@ -2489,6 +2506,7 @@ internal fun Badge(text: String) {
 
 @Composable
 internal fun Chevron() {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoChevron()
     Icon(
         Icons.Rounded.ChevronRight,
         contentDescription = null,
@@ -2510,6 +2528,7 @@ internal fun SliderRow(
     steps: Int,
     subtitle: String? = null,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSliderRow(icon = icon, title = title, value = value, sliderValue = sliderValue, onSliderValue = onSliderValue, valueRange = valueRange, steps = steps, subtitle = subtitle)
     val colors = SliderDefaults.colors(
         thumbColor = MaterialTheme.colorScheme.primary,
         activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -2573,6 +2592,7 @@ internal fun DestructiveRow(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoDestructiveRow(label = label, enabled = enabled, onClick = onClick)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -2597,6 +2617,7 @@ internal fun SegmentedControl(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsSegmented(options = options, selectedIndex = selectedIndex, onSelect = onSelect, modifier = modifier, enabled = enabled)
     val haptics = LocalHapticFeedback.current
     Row(
         modifier = modifier

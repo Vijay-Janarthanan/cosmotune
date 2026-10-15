@@ -67,25 +67,33 @@ private const val COVER_GRACE_MS = 1_500L
  * What it must not do is flicker (`PaletteChoice`): a cover still loading or failing keeps the colours on screen, a cover
  * address that is still being resolved is waited for ([COVER_GRACE_MS]) instead of sending the app to the brand colours and
  * back, and two tracks of one album that look alike do not re-theme. A fade that an early restart of the effect cut short is
- * always brought to its end.
+ * always brought to its end. A change of the colour intensity (Settings > Appearance) loads the palette again at the new multiplier
+ * and shows it as it is: the two palettes of one cover differ by less than the same-album settle threshold, which would keep the
+ * old one.
  */
 @Composable
 private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Boolean, reduced: Boolean) {
     val context = LocalPlatformContext.current
     val coverColours by shell.settings.coverColours.collectAsStateWithLifecycle()
+    val intensityIndex by shell.settings.intensity.collectAsStateWithLifecycle()
+    val intensity = com.cosmotune.design.Intensity.multiplier(intensityIndex)
     val url = shell.coverUrl
     val album = shell.coverAlbum
     val reducedNow by rememberUpdatedState(reduced)
     var showedCover by remember { mutableStateOf(false) }
     var lastAlbum by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(newLook, coverColours, dark, url) {
+    var shownIntensity by remember { mutableStateOf(intensity) }
+    LaunchedEffect(newLook, coverColours, dark, url, intensity) {
         if (!newLook) return@LaunchedEffect
         // No address yet: give it time, unless the palette on screen is the other theme's, which cannot wait.
         if (coverColours && url == null && shell.palette.targetDark == dark) delay(COVER_GRACE_MS)
         val missing = !coverColours || url == null
-        val fresh = if (missing) null else CoverPaletteLoader.load(context, url!!, dark)
+        val fresh = if (missing) null else CoverPaletteLoader.load(context, url!!, dark, intensity)
         val sameAlbum = album != null && album == lastAlbum
-        val next = PaletteChoice.next(shell.palette.target, shell.palette.targetDark == dark, fresh, missing, CosmoBrandPalettes.of(dark), sameAlbum)
+        // The intensity changed since the palette on screen was made: its twin for this cover is shown even though it is close.
+        val next = if (fresh != null && shownIntensity != intensity) fresh
+        else PaletteChoice.next(shell.palette.target, shell.palette.targetDark == dark, fresh, missing, CosmoBrandPalettes.of(dark), sameAlbum)
+        if (fresh != null) shownIntensity = intensity
         // The first cover after launch snaps; after that every change fades. Both flags are set before the fade, which a
         // restart of this effect may cut short.
         val animate = showedCover
@@ -94,8 +102,8 @@ private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Bool
         if (next != null) shell.palette.show(next, dark, reducedNow, animate) else shell.palette.finishFade(reducedNow, animate)
     }
     val nextUrl = shell.nextCoverUrl
-    LaunchedEffect(newLook, coverColours, dark, nextUrl) {
+    LaunchedEffect(newLook, coverColours, dark, nextUrl, intensity) {
         // Warms the cache, so the next fade starts with the audio, not after the cover loads.
-        if (newLook && coverColours && nextUrl != null) CoverPaletteLoader.load(context, nextUrl, dark)
+        if (newLook && coverColours && nextUrl != null) CoverPaletteLoader.load(context, nextUrl, dark, intensity)
     }
 }
