@@ -70,6 +70,18 @@ internal object DesktopLicenses {
                     "The backdrop blur behind the floating bars, as on Android.",
                 ),
                 DesktopLicense("SLF4J", "MIT", "https://www.slf4j.org"),
+                DesktopLicense(
+                    "Archivo",
+                    "OFL-1.1",
+                    "https://github.com/Omnibus-Type/Archivo",
+                    "The typeface of titles and display text in the new look, bundled as a variable font. Copyright 2020 The Archivo Project Authors.",
+                ),
+                DesktopLicense(
+                    "Hanken Grotesk",
+                    "OFL-1.1",
+                    "https://github.com/marcologous/hanken-grotesk",
+                    "The typeface of body text and labels in the new look, bundled as a variable font. Copyright 2021 The Hanken Grotesk Project Authors.",
+                ),
             ),
         ),
         DesktopLicenseGroup(
