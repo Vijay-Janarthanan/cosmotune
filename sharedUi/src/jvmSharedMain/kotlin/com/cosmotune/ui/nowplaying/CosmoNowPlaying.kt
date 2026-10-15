@@ -1,9 +1,16 @@
 package com.cosmotune.ui.nowplaying
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -12,6 +19,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,10 +28,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cosmotune.design.LyricsMetrics
 import com.cosmotune.design.NowPlayingLayout
+import com.cosmotune.design.Springs
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoShell
@@ -35,20 +49,27 @@ import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.LastPlayerScreen
 import com.music.bitchord.playback.PlaybackPosition
+import com.music.bitchord.sharedui.resources.Res
+import com.music.bitchord.sharedui.resources.lyrics_loading_lines
 import com.music.bitchord.ui.LyricsProviderState
+import com.music.bitchord.ui.haptics.rememberHaptics
 import com.music.bitchord.ui.player.AudioOutputSheet
 import com.music.bitchord.ui.player.AudioPipelineDialog
 import com.music.bitchord.ui.player.CanvasSyncSource
 import com.music.bitchord.ui.player.ListenTogetherMembersSheet
 import com.music.bitchord.ui.player.KeepScreenOn
 import com.music.bitchord.ui.player.LyricsOffsetSheet
+import com.music.bitchord.ui.player.LyricsProviderSheet
 import com.music.bitchord.ui.player.NEXT_CANVAS_PREFETCH_DELAY_MS
 import com.music.bitchord.ui.player.PlayerBackHandler
 import com.music.bitchord.ui.player.PlayerPlatform
 import com.music.bitchord.ui.player.PlayerSettings
+import com.music.bitchord.ui.player.adjustedLyricsSeekTarget
 import com.music.bitchord.ui.player.rememberCanvasArtwork
 import com.music.bitchord.ui.player.rememberCanvasBlockedByMobileData
 import com.music.bitchord.ui.player.rememberControlsLocked
+import com.music.bitchord.ui.player.rememberLyricPlayhead
+import com.music.bitchord.ui.player.rememberLyricsTranslation
 import com.music.bitchord.ui.player.rememberOutputPicker
 import com.music.bitchord.ui.player.rememberPlayerScrub
 import com.music.bitchord.ui.player.rememberRemoteArtworkUrl
@@ -57,18 +78,21 @@ import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import org.jetbrains.compose.resources.stringArrayResource
 
 /**
- * The new Now Playing (portrait first): the cover on the ambient ground, which gives way to the song's video when it has one;
- * the title, the artist, the wavy scrubber, the transport and the four tools over it. It takes [NowPlayingScreen]'s parameters,
- * name for name, so [NowPlayingSwitch] can hand every one over; the ones only the lyrics and queue panels (Task 10) and the
- * landscape and wide layouts (Tasks 10 and 11) use are accepted here and not yet read.
+ * The new Now Playing: the cover on the ambient ground, which gives way to the song's video when it has one; the title, the
+ * artist, the wavy scrubber, the transport and the four tools over it; the lyrics, which fill in as they are sung, and the
+ * queue, each over the page in place of the cover; and, on its side, the same screen in two panes. It takes [NowPlayingScreen]'s
+ * parameters, name for name, so [NowPlayingSwitch] can hand every one over; the ones nobody reads yet (the album and the autoplay
+ * toggle, the version switch, the sign-in) are accepted here for the day a screen needs them. The wide window (the desktop,
+ * Task 11) still draws the portrait page.
  *
  * What it keeps from the old screen, in the old screen's order: the song's artwork address, the clip's clock
  * ([CanvasSyncSource]), the clip and its mobile-data guard, the prefetch of the next song's clip, the scrub state, the party
- * lock, the output picker and the panels' flags, restored from and written back to the last-screen setting. What it adds:
- * [reveal], the one number (0 = cover, 1 = video) the cover's trip, the scrims, the clip's alpha, the chip slot and the status
- * bar icons all follow.
+ * lock, the output picker, the panels' flags (restored from and written back to the last-screen setting) and the lyrics'
+ * playhead and translation. What it adds: [reveal], the one number (0 = cover, 1 = video) the cover's trip, the scrims, the
+ * clip's alpha, the chip slot and the status bar icons all follow.
  */
 @Composable
 fun CosmoNowPlaying(
@@ -157,6 +181,18 @@ fun CosmoNowPlaying(
     PlayerBackHandler(enabled = panels.lyricsOpen) { panels.closeLyrics() }
     PlayerBackHandler(enabled = panels.queueOpen) { panels.closeQueue() }
 
+    // ---- the lyrics: the playhead their clock reads, the romanisation and translation, where a tap on a line goes ----------
+    val haptics = rememberHaptics()
+    val lyricsPlayhead = rememberLyricPlayhead(position)
+    val lyricsOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
+    val seekToLyric: (Long) -> Unit = { lineTimeMs -> onSeek(adjustedLyricsSeekTarget(lineTimeMs, lyricsOffsetMs)) }
+    val lyricsLoadingLines = stringArrayResource(Res.array.lyrics_loading_lines)
+    val lyricsLoadingText = remember(song.videoId) { lyricsLoadingLines.random() }
+    val lyricsTranslation = rememberLyricsTranslation(
+        trackId = song.videoId, lyrics = lyrics, lyricsSource = lyricsSource, lyricsUnavailable = lyricsUnavailable,
+        loadingText = lyricsLoadingText, haptics = haptics,
+    )
+
     // ---- the video, and the one number that follows it -------------------------------------------------------------------
     // Reduced motion: the video does not start by itself; the person turns it on.
     var videoHidden by rememberSaveable { mutableStateOf(reduced) }
@@ -179,6 +215,10 @@ fun CosmoNowPlaying(
     val playerHaze = remember { HazeState() }
     val stackHeightPx = remember { mutableIntStateOf(0) }
     val chipOrigin = remember { mutableStateOf<Offset?>(null) }
+    // The landscape page has no chip beside the artist: the cover stays in its pane and the video takes the pane's place.
+    val noReveal = remember { mutableFloatStateOf(0f) }
+    // The large cover is not drawn while the lyrics or the queue have the page.
+    val coverShown = animateFloatAsState(if (panels.lyricsOpen || panels.queueOpen) 0f else 1f, CosmoMotion.effects(reduced), label = "coverShown")
     val openOrigin: () -> Unit = {
         // The caption's way back, as the old one's: the party for a song someone else queued, the queue for a queue-built
         // session, and otherwise the album or playlist the session was started from.
@@ -188,13 +228,17 @@ fun CosmoNowPlaying(
             else -> onOpenPlaybackSource()
         }
     }
-    val page: @Composable BoxScope.() -> Unit = {
-        NowPlayingBackdrop(
-            canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal, lyricsOpen = panels.lyricsOpen,
-            onRenderedChanged = { rendered = it }, hazeState = playerHaze, modifier = Modifier.fillMaxSize(),
+    val topBar: @Composable (Modifier) -> Unit = { m ->
+        NowPlayingTopBar(
+            song = song, playedBy = playedBy, hasVideo = canvas != null, videoOn = canvas != null && !videoHidden,
+            blockedByMobileData = blockedByMobileData, onToggleVideo = { videoHidden = !videoHidden },
+            onOpenOrigin = openOrigin, onOpenMenu = onOpenMenu, modifier = m,
         )
+    }
+    val stack: @Composable (Modifier, Boolean, (@Composable BoxScope.() -> Unit)?) -> Unit = { m, landscape, panel ->
         NowPlayingStack(
-            song = song, coverUrl = remoteArt, hasVideo = canvas != null, reveal = reveal,
+            song = song, coverUrl = remoteArt, hasVideo = canvas != null && !landscape,
+            reveal = if (landscape) noReveal else reveal,
             onChipPlaced = { chipOrigin.value = it },
             isPlaying = isPlaying, isLoading = isLoading, position = position, durationMs = durationMs, scrub = scrub,
             onSeekFraction = onSeekFraction, liked = likeStatus == LikeStatus.LIKE, onToggleLike = onToggleLike,
@@ -205,37 +249,122 @@ fun CosmoNowPlaying(
             lyricsOpen = panels.lyricsOpen, onToggleLyrics = panels::toggleLyrics, onOpenOutput = openAudioOutput,
             onTogether = { if (inParty) sheets.members = true else onListenTogether() },
             queueOpen = panels.queueOpen, onToggleQueue = panels::toggleQueue,
-            // Measured with its own padding, so the cover knows how much of the window the stack takes.
-            modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { stackHeightPx.intValue = it.height },
+            landscape = landscape, panel = panel, modifier = m,
         )
+    }
+    val lyricsPanel: @Composable (Modifier, LyricsStyle, Dp) -> Unit = { m, style, topPadding ->
+        CosmoLyricsPanel(
+            lyrics = lyrics, lyricsUnavailable = lyricsUnavailable, loadingText = lyricsLoadingText, translation = lyricsTranslation,
+            trackKey = song.videoId, playhead = lyricsPlayhead, isPlaying = isPlaying && position.advancing,
+            onSeekToLine = seekToLyric, onOpenProviders = { sheets.providers = true },
+            style = style, modifier = m, topPadding = topPadding,
+        )
+    }
+    val queuePanel: @Composable (Modifier) -> Unit = { m ->
+        CosmoQueuePanel(
+            queue = queue, queueIndex = queueIndex, autoplayEnabled = autoplayEnabled, controlsLocked = controlsLocked,
+            onJumpTo = onJumpTo, onRemoveFromQueue = onRemoveFromQueue, onMoveInQueue = onMoveInQueue,
+            onClearQueue = onClearQueue, onQueueDragActiveChange = onQueueDragActiveChange, modifier = m,
+        )
+    }
+    // In two panes the lyrics or the queue take the place of the title and the artist; the scrubber, the transport and the tools stay.
+    val landscapeLyrics: @Composable BoxScope.() -> Unit = { lyricsPanel(Modifier.fillMaxSize(), LyricsStyle.Landscape, LANDSCAPE_LYRICS_TOP_PADDING) }
+    val landscapeQueue: @Composable BoxScope.() -> Unit = { queuePanel(Modifier.fillMaxSize().padding(vertical = 8.dp)) }
+    val page: @Composable BoxScope.() -> Unit = {
+        NowPlayingBackdrop(
+            canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal, lyricsOpen = panels.lyricsOpen,
+            onRenderedChanged = { rendered = it }, hazeState = playerHaze, modifier = Modifier.fillMaxSize(),
+        )
+        // Measured with its own padding, so the cover and the panels know how much of the window the stack takes.
+        stack(Modifier.align(Alignment.BottomCenter).onSizeChanged { stackHeightPx.intValue = it.height }, false, null)
         // Above the stack: on its way into the chip it passes over the title. It takes no touches.
-        NowPlayingCover(
-            url = remoteArt, reveal = reveal, chipOrigin = chipOrigin, stackHeightPx = stackHeightPx, shell = shell,
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = coverShown.value }) {
+            NowPlayingCover(url = remoteArt, reveal = reveal, chipOrigin = chipOrigin, stackHeightPx = stackHeightPx, shell = shell)
+        }
+        PortraitPanels(
+            lyricsOpen = panels.lyricsOpen, queueOpen = panels.queueOpen, stackHeightPx = stackHeightPx, reduced = reduced,
+            lyrics = { lyricsPanel(Modifier.fillMaxSize(), LyricsStyle.Portrait, LyricsMetrics.PORTRAIT_TOP_PADDING_DP.dp) },
+            queue = { queuePanel(Modifier.fillMaxSize()) },
         )
-        NowPlayingTopBar(
-            song = song, playedBy = playedBy, hasVideo = canvas != null, videoOn = canvas != null && !videoHidden,
-            blockedByMobileData = blockedByMobileData, onToggleVideo = { videoHidden = !videoHidden },
-            onOpenOrigin = openOrigin, onOpenMenu = onOpenMenu, modifier = Modifier.align(Alignment.TopCenter),
+        topBar(Modifier.align(Alignment.TopCenter))
+    }
+    val landscapePage: @Composable BoxScope.() -> Unit = {
+        NowPlayingLandscape(
+            hazeState = playerHaze,
+            media = {
+                NowPlayingLandscapeMedia(
+                    canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal,
+                    onRenderedChanged = { rendered = it }, coverUrl = remoteArt, shell = shell,
+                )
+            },
+            topBar = { topBar(Modifier) },
+            controls = {
+                stack(Modifier.weight(1f), true, if (panels.lyricsOpen) landscapeLyrics else if (panels.queueOpen) landscapeQueue else null)
+            },
         )
     }
 
     CompositionLocalProvider(LocalCosmoColors provides colors) {
         PlayerStatusBarIcons(reveal = reveal, lightTheme = lightTheme)
         Box(modifier.fillMaxSize()) {
-            // The portrait page fits any window. Task 10 gives the LANDSCAPE branch its own arrangement (the panels and the two
-            // columns), Task 11 the WIDE one; until then every window is drawn as portrait.
+            // The portrait page fits any window; a window wider than tall and narrower than 840 dp gets the two panes. The wide
+            // layout is Task 11's: until then a wide window is drawn as portrait.
             when (NowPlayingLayout.choose(windowWidth.value, windowHeight.value)) {
                 NowPlayingLayout.PORTRAIT -> page()
-                NowPlayingLayout.LANDSCAPE -> page()
+                NowPlayingLayout.LANDSCAPE -> landscapePage()
                 NowPlayingLayout.WIDE -> page()
             }
-            // Lyrics and queue panels, the provider and share sheets: Task 10. Until then the lyrics and queue tools flip
-            // their flags and nothing opens.
             NowPlayingSheets(
                 flags = sheets, hazeState = playerHaze, accountName = accountName, isPlaying = isPlaying,
+                lyricsSource = lyricsSource, lyricsProviderStates = lyricsProviderStates, onSelectLyricsProvider = onSelectLyricsProvider,
                 lyricsOffsetOpen = lyricsOffsetOpen, onDismissLyricsOffset = onDismissLyricsOffset, onListenTogether = onListenTogether,
             )
         }
+    }
+}
+
+/** Where the first line starts in the landscape lyrics: just under the top of their pane, there is little room to spare. */
+private val LANDSCAPE_LYRICS_TOP_PADDING = 8.dp
+
+/** How long the lyrics and the queue take to fade in or out over the page. */
+private const val PANEL_FADE_MS = 240
+
+/**
+ * The lyrics and the queue in a portrait window. Each fades in over the page in the room between the top bar and the stack
+ * ([PanelArea]); the stack gives the queue the transport's height and the lyrics what it has left once the title has stepped down.
+ */
+@Composable
+private fun PortraitPanels(
+    lyricsOpen: Boolean,
+    queueOpen: Boolean,
+    stackHeightPx: State<Int>,
+    reduced: Boolean,
+    lyrics: @Composable () -> Unit,
+    queue: @Composable () -> Unit,
+) {
+    val ms = if (reduced) Springs.REDUCED_MS else PANEL_FADE_MS
+    AnimatedVisibility(lyricsOpen, Modifier.fillMaxSize(), enter = fadeIn(tween(ms)), exit = fadeOut(tween(ms))) {
+        PanelArea(stackHeightPx) { Box(Modifier.fillMaxSize().padding(horizontal = LyricsMetrics.PORTRAIT_SIDE_DP.dp)) { lyrics() } }
+    }
+    AnimatedVisibility(queueOpen, Modifier.fillMaxSize(), enter = fadeIn(tween(ms)), exit = fadeOut(tween(ms))) {
+        PanelArea(stackHeightPx) { Box(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) { queue() } }
+    }
+}
+
+/**
+ * The room a panel gets: the window's width, from the bottom of the top bar to the top of the stack. The stack's height is read in
+ * the layout phase, so a stack that changes (the title stepping down, the queue folding the upper blocks away) moves the panel's
+ * edge without recomposing it.
+ */
+@Composable
+private fun PanelArea(stackHeightPx: State<Int>, content: @Composable () -> Unit) {
+    val statusBars = WindowInsets.statusBars
+    Layout(content = content, modifier = Modifier.fillMaxSize()) { measurables, constraints ->
+        val top = (statusBars.getTop(this) + TOP_BAR_BELOW_STATUS_DP.dp.roundToPx()).coerceAtMost(constraints.maxHeight)
+        val bottom = (constraints.maxHeight - stackHeightPx.value).coerceIn(top, constraints.maxHeight)
+        val height = bottom - top
+        val placeable = measurables.firstOrNull()?.measure(Constraints.fixed(constraints.maxWidth, height))
+        layout(constraints.maxWidth, constraints.maxHeight) { placeable?.place(0, top) }
     }
 }
 
@@ -261,7 +390,7 @@ private fun rememberInParty(): Boolean {
 
 /**
  * The lyrics and queue panels' open flags, restored from the last-screen setting when the player opens and written back when
- * they change. At most one is open. Task 10 draws the panels these flags open; until then they only flip.
+ * they change. At most one is open; the back handlers close them.
  */
 @Stable
 internal class NowPlayingPanels(restored: LastPlayerScreen) {
@@ -290,15 +419,18 @@ internal class NowPlayingPanels(restored: LastPlayerScreen) {
 @Stable
 internal class NowPlayingSheetFlags {
     var output by mutableStateOf(false)
+    var providers by mutableStateOf(false)
     var pipeline by mutableStateOf(false)
     var cast by mutableStateOf(false)
     var members by mutableStateOf(false)
 }
 
 /**
- * The drawers and dialogs the player raises over itself: the audio output drawer (with the pipeline and the cast picker it
- * opens), the Listen Together members and the lyrics offset. The old ones, called as the old screen calls them. Back closes
- * the topmost one first: a later registration is the one back reaches first.
+ * The drawers and dialogs the player raises over itself, each over [hazeState] (the page's ground and video): the audio output
+ * drawer (with the pipeline and the cast picker it opens), the lyrics provider chooser, the Listen Together members and the
+ * lyrics offset. The old ones, called as the old screen calls them. Back closes the topmost one first: a later registration
+ * is the one back reaches first, so the order here is the order of `NowPlayingScreen.kt:1022-1053`, with the lyrics and the
+ * queue (registered before this) under all of them.
  */
 @Composable
 private fun NowPlayingSheets(
@@ -306,11 +438,15 @@ private fun NowPlayingSheets(
     hazeState: HazeState,
     accountName: String?,
     isPlaying: Boolean,
+    lyricsSource: LyricsSource?,
+    lyricsProviderStates: Map<LyricsSource, LyricsProviderState>,
+    onSelectLyricsProvider: (LyricsSource) -> Unit,
     lyricsOffsetOpen: Boolean,
     onDismissLyricsOffset: () -> Unit,
     onListenTogether: () -> Unit,
 ) {
     PlayerBackHandler(enabled = flags.output) { flags.output = false }
+    PlayerBackHandler(enabled = flags.providers) { flags.providers = false }
     PlayerBackHandler(enabled = flags.members) { flags.members = false }
     PlayerBackHandler(enabled = flags.pipeline) { flags.pipeline = false }
     PlayerBackHandler(enabled = flags.cast) { flags.cast = false }
@@ -322,6 +458,15 @@ private fun NowPlayingSheets(
             onDismiss = { flags.output = false },
             onOpenPipeline = { flags.pipeline = true },
             onOpenCast = { flags.cast = true },
+        )
+    }
+    if (flags.providers) {
+        LyricsProviderSheet(
+            hazeState = hazeState,
+            currentSource = lyricsSource,
+            states = lyricsProviderStates,
+            onSelect = onSelectLyricsProvider,
+            onDismiss = { flags.providers = false },
         )
     }
     if (flags.pipeline) {

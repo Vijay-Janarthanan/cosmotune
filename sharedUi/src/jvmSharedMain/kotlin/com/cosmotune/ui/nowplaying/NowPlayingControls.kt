@@ -1,9 +1,16 @@
 package com.cosmotune.ui.nowplaying
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -36,10 +44,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.cosmotune.design.LandscapeMetrics
 import com.cosmotune.design.NowPlayingMetrics
+import com.cosmotune.design.Springs
 import com.cosmotune.design.TypeScale
 import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIconButtonStyle
@@ -83,6 +94,7 @@ import com.music.bitchord.ui.haptics.rememberHaptics
 import com.music.bitchord.ui.player.PlayerPlatform
 import com.music.bitchord.ui.player.PlayerScrub
 import com.music.bitchord.ui.player.RepeatModes
+import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -159,12 +171,21 @@ private fun PlayingFrom(song: Song, playedBy: String?, onClick: () -> Unit, modi
     }
 }
 
+/** The top bar's bottom edge below the status bar: 4 dp of air and the 48 dp tall row. The lyrics and the queue start under it. */
+internal const val TOP_BAR_BELOW_STATUS_DP = 4 + 48
+
 /**
  * The stack at the foot of the page (`.np2-stack`): 20 dp from the sides, 22 dp above the navigation bar. From the top the
  * title, the artist with the like and More buttons, the wavy scrubber with the two times, the transport and the four tools.
  *
  * Nothing here reads the playhead except [Times] (twice a second, alone). [reveal] opens the chip slot beside the artist;
  * [onChipPlaced] reports where its top-left corner is, in root coordinates, for the cover to land on.
+ *
+ * The panels: with [lyricsOpen] the title steps down to `title(TITLE_L)` (`TITLE_M` when long) and the page draws the lyrics
+ * above the stack; with [queueOpen] the title, the artist and the scrubber fold away and the page draws the queue's card over
+ * the room they leave, so the stack is the transport and the tools. In a [landscape] window the stack fills the height it is
+ * given: the title (one line) and the artist take the room above the scrubber, and [panel] (the lyrics or the queue) takes it
+ * in their place, the scrubber folding away with them; the transport and the tools stay at the foot, the play button 64 dp.
  */
 @Composable
 internal fun NowPlayingStack(
@@ -201,64 +222,128 @@ internal fun NowPlayingStack(
     queueOpen: Boolean,
     onToggleQueue: () -> Unit,
     modifier: Modifier = Modifier,
+    landscape: Boolean = false,
+    panel: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     // Back restarts the song once it is a few seconds in; derived, so this scope hears about the playhead once, at that point.
     val pastRestartPoint by remember(position) { derivedStateOf { position.positionMs > BACK_RESTARTS_AFTER_MS } }
-    Column(modifier.fillMaxWidth().navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 22.dp)) {
-        NowPlayingTitle(song.title, song.videoId)
-        ArtistRow(song, coverUrl, hasVideo, reveal, onChipPlaced, liked, onToggleLike, onOpenMenu, onOpenArtist)
-        WaveScrubber(
-            fraction = { scrub.shown(position.positionMs, durationMs) },
-            playing = isPlaying,
-            onScrub = scrub::drag,
-            onRelease = { scrub.release(onSeekFraction) },
-        )
-        Times(position, durationMs, scrub)
+    val reduced = LocalReducedMotion.current
+    // What the panel's card covers folds away on the move spring and is gone from the tree at the end: in portrait with the
+    // queue open the title, the artist and the scrubber; in two panes, with the lyrics or the queue, the scrubber (the panel
+    // itself takes the place of the title and the artist).
+    val fold = animateFloatAsState(if (if (landscape) panel != null else queueOpen) 1f else 0f, CosmoMotion.move(reduced), label = "stackFold")
+    val folded by remember(fold) { derivedStateOf { fold.value >= 0.999f } }
+    // The title's arrival runs 0 to 1 on every new song. It lives here, not in the title, so that a title that was folded away
+    // and comes back (the queue closing) does not arrive again.
+    val arrival = remember(song.videoId) { Animatable(if (reduced || lyricsOpen) 1f else 0f) }
+    LaunchedEffect(song.videoId, reduced, lyricsOpen) {
+        if (reduced || lyricsOpen) arrival.snapTo(1f) else arrival.animateTo(1f, CosmoMotion.slow(reduced))
+    }
+    val frame = if (landscape) {
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+    } else {
+        Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 22.dp)
+    }
+    Column(modifier.then(frame)) {
+        if (landscape) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                if (panel != null) {
+                    panel()
+                } else {
+                    Column(Modifier.align(Alignment.CenterStart)) {
+                        NowPlayingTitle(song.title, arrival, lyricsOpen = false, landscape = true)
+                        ArtistRow(song, coverUrl, hasVideo, reveal, onChipPlaced, liked, onToggleLike, onOpenMenu, onOpenArtist, verticalPadding = 2.dp)
+                    }
+                }
+            }
+        } else if (!folded) {
+            Column(Modifier.foldedBy(fold)) {
+                NowPlayingTitle(song.title, arrival, lyricsOpen = lyricsOpen, landscape = false)
+                ArtistRow(song, coverUrl, hasVideo, reveal, onChipPlaced, liked, onToggleLike, onOpenMenu, onOpenArtist)
+            }
+        }
+        if (!folded) {
+            Column(Modifier.foldedBy(fold)) {
+                WaveScrubber(
+                    fraction = { scrub.shown(position.positionMs, durationMs) },
+                    playing = isPlaying,
+                    onScrub = scrub::drag,
+                    onRelease = { scrub.release(onSeekFraction) },
+                )
+                Times(position, durationMs, scrub)
+            }
+        }
         Transport(
             isPlaying = isPlaying, isLoading = isLoading, onPlayPause = onPlayPause, locked = controlsLocked,
             previousEnabled = controlsLocked || hasPrevious || pastRestartPoint,
             nextEnabled = controlsLocked || hasNext,
             onPrevious = onPrevious, onNext = onNext, onBlockedControl = onBlockedControl,
             shuffleEnabled = shuffleEnabled, onToggleShuffle = onToggleShuffle, repeatMode = repeatMode, onCycleRepeat = onCycleRepeat,
+            playSize = if (landscape) LandscapeMetrics.PLAY_BUTTON_DP.dp else 80.dp,
         )
         Tools(lyricsOpen, onToggleLyrics, onOpenOutput, onTogether, queueOpen, onToggleQueue)
     }
 }
 
 /**
- * The title in the display face. On every new song an [Animatable] runs 0 to 1 on the slow spring; the weight steps through
- * the six instances of the title path (light and wide to heavy and narrow) with the letter spacing in the same steps, and it
- * rises 10 dp as it fades in. Stepping, not gliding: the instances are cut once, and a glide would lay the text out again on
- * every frame. Reduced motion snaps it to its end.
+ * Folds a block away as [share] goes from 0 to 1: it is measured as it is and reports a shorter height (the layout phase
+ * reads [share], nothing recomposes), is clipped to it and fades out with it.
+ */
+private fun Modifier.foldedBy(share: State<Float>): Modifier = this
+    .clipToBounds()
+    .layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val height = (placeable.height * (1f - share.value).coerceIn(0f, 1f)).roundToInt()
+        layout(placeable.width, height) { placeable.place(0, 0) }
+    }
+    .graphicsLayer { alpha = 1f - share.value.coerceIn(0f, 1f) }
+
+/** The move spring as a finite spec for the APIs that want one; reduced motion: a short fade in its place. */
+private fun <T> finiteMove(reduced: Boolean): FiniteAnimationSpec<T> =
+    if (reduced) tween(Springs.REDUCED_MS) else spring(Springs.MOVE.dampingRatio, Springs.MOVE.stiffness)
+
+/**
+ * The title in the display face. On every new song [arrival] runs 0 to 1 on the slow spring; the weight steps through the six
+ * instances of the title path (light and wide to heavy and narrow) with the letter spacing in the same steps, and it rises
+ * 10 dp as it fades in. Stepping, not gliding: the instances are cut once, and a glide would lay the text out again on every
+ * frame. Reduced motion snaps it to its end.
+ *
+ * With [lyricsOpen] it is `title(TITLE_L)` instead, `TITLE_M` when the title is long (`.np2.lyrics-on .np2-title`), and does
+ * not arrive: the lyrics have the page. A [landscape] window sets it at `display(DISPLAY_S)`, on one line; it is shorter there.
  */
 @Composable
-private fun NowPlayingTitle(title: String, trackKey: String, modifier: Modifier = Modifier) {
+private fun NowPlayingTitle(title: String, arrival: Animatable<Float, AnimationVector1D>, lyricsOpen: Boolean, landscape: Boolean, modifier: Modifier = Modifier) {
     val type = LocalCosmoType.current
     val palette = LocalCosmoColors.current.palette
     val reduced = LocalReducedMotion.current
-    val arrival = remember(trackKey) { Animatable(if (reduced) 1f else 0f) }
-    LaunchedEffect(trackKey, reduced) {
-        if (reduced) arrival.snapTo(1f) else arrival.animateTo(1f, CosmoMotion.slow(reduced))
-    }
     val step by remember(arrival) { derivedStateOf { NowPlayingMetrics.titleStep(arrival.value) } }
-    val style = remember(type, title, step) {
-        val base = type.display(TypeScale.titleStep(title)).copy(
-            fontWeight = type.titlePath(step),
-            letterSpacing = NowPlayingMetrics.titleTrackingEm(step).em,
-        )
+    val displayStep = if (landscape) LandscapeMetrics.TITLE_STEP else TypeScale.titleStep(title)
+    val style = remember(type, title, step, lyricsOpen, displayStep) {
+        val base = if (lyricsOpen) {
+            type.title(if (title.length > TypeScale.LONG_TITLE_CHARS) TypeScale.TITLE_M else TypeScale.TITLE_L)
+        } else {
+            type.display(displayStep).copy(
+                fontWeight = type.titlePath(step),
+                letterSpacing = NowPlayingMetrics.titleTrackingEm(step).em,
+            )
+        }
         type.forText(base, title)
     }
     Text(
         text = title,
         style = style,
         color = Color(palette.textPrimary),
-        maxLines = 2,
+        maxLines = if (landscape) 1 else 2,
         overflow = TextOverflow.Ellipsis,
-        modifier = modifier.fillMaxWidth().graphicsLayer {
-            val t = arrival.value.coerceIn(0f, 1f)
-            alpha = t
-            translationY = 10.dp.toPx() * (1f - t)
-        },
+        modifier = modifier
+            .fillMaxWidth()
+            // The stack gets shorter, or taller, as the title changes size; it eases there on the move spring.
+            .animateContentSize(finiteMove(reduced))
+            .graphicsLayer {
+                val t = arrival.value.coerceIn(0f, 1f)
+                alpha = t
+                translationY = 10.dp.toPx() * (1f - t)
+            },
     )
 }
 
@@ -278,11 +363,12 @@ private fun ArtistRow(
     onToggleLike: () -> Unit,
     onOpenMenu: () -> Unit,
     onOpenArtist: (browseId: String?, name: String) -> Unit,
+    verticalPadding: Dp = 10.dp,
 ) {
     val type = LocalCosmoType.current
     val palette = LocalCosmoColors.current.palette
     val style = remember(type) { TextStyle(fontFamily = type.textFamily, fontSize = 16.sp, fontWeight = FontWeight(650)) }
-    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = verticalPadding), verticalAlignment = Alignment.CenterVertically) {
         ChipSlot(coverUrl, hasVideo, reveal, onChipPlaced)
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             Text(
@@ -380,6 +466,7 @@ private fun Transport(
     onToggleShuffle: () -> Unit,
     repeatMode: Int,
     onCycleRepeat: () -> Unit,
+    playSize: Dp,
 ) {
     val haptics = rememberHaptics()
     Row(
@@ -396,7 +483,7 @@ private fun Transport(
             onClick = { if (locked) onBlockedControl() else { haptics.play(Haptic.SkipPrevious); onPrevious() } },
             style = CosmoIconButtonStyle.TONAL, size = 56.dp, enabled = previousEnabled,
         )
-        PlayMorphButton(isPlaying, isLoading, onPlayPause, size = 80.dp)
+        PlayMorphButton(isPlaying, isLoading, onPlayPause, size = playSize)
         CosmoIconButton(
             CosmoIcons.Next, stringResource(Res.string.widget_next),
             onClick = { if (locked) onBlockedControl() else { haptics.play(Haptic.SkipNext); onNext() } },
