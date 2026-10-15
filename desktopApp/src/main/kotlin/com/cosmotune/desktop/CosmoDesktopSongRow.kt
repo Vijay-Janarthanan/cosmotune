@@ -30,6 +30,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -93,6 +94,13 @@ internal val DESKTOP_ROW_ACTION: Dp = 32.dp
 internal val DESKTOP_NUMBER_COLUMN: Dp = 36.dp
 internal val DESKTOP_DURATION_COLUMN: Dp = 60.dp
 
+/**
+ * Whether the audio is playing right now (not paused), for the bars of the playing row. The old pages cannot see it (`playback` is a
+ * local of the root composable), so the root provides it once, next to the playing song, and the three functions below start their
+ * `isPlaying` from it. False where nothing provides it (a render, a test).
+ */
+internal val LocalCosmoPlaying = compositionLocalOf { false }
+
 /** The state layer on hover, the playing row's wash (`.d2-tracks li.is-playing`: the container at 60 %) and the faint stripe. */
 private const val HOVER_LAYER = 0.08f
 private const val PLAYING_WASH = 0.6f
@@ -101,8 +109,8 @@ private const val STRIPE_LAYER = 0.025f
 /**
  * `DesktopSongRow` in the new look. It takes the old row's parameters, in the same order, and two more at the end: [isCurrent] says
  * the row is the song that is playing (it is washed, its title is in the accent and the bars stand where a number would), and
- * [isPlaying] that the bars move. The old row's own function reads the playing song from a local that only its file can see, so its
- * delegate passes [isCurrent] and leaves [isPlaying] at its default.
+ * [isPlaying] that the bars move (from [LocalCosmoPlaying], which the root fills with the player's own flag). The old row's own function
+ * reads the playing song from a local that only its file can see, so its delegate passes [isCurrent] and leaves [isPlaying] at its default.
  *
  * It is 54 dp tall: the number or a 40 dp cover, the title over the artist, the like heart and the download and add buttons (shown
  * while the pointer is over the row or it has the keyboard focus, and always while the song is liked, downloading or downloaded),
@@ -121,7 +129,7 @@ internal fun CosmoDesktopSongRow(
     number: Int? = null,
     menu: (@Composable (Song) -> Unit)? = null,
     isCurrent: Boolean = false,
-    isPlaying: Boolean = false,
+    isPlaying: Boolean = LocalCosmoPlaying.current,
 ) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette

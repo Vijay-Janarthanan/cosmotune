@@ -3013,6 +3013,7 @@ fun BitChordDesktopApp() {
         CompositionLocalProvider(
             LocalContentColor provides Color.White,
             LocalNowPlaying provides selectedSong,
+            com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,
         ) {
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.

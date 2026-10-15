@@ -11,6 +11,8 @@ import kotlin.test.assertTrue
  */
 class PolishContractTest {
     private val app = "app/src/main/java/com/music/bitchord/"
+    private val desktop = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/"
+    private val cosmoDesktop = "desktopApp/src/main/kotlin/com/cosmotune/desktop/"
 
     // ---- 1. the equaliser toggle ticks once -----------------------------------------------------------------------------------
 
@@ -36,5 +38,36 @@ class PolishContractTest {
             Regex("""onClick = \{\s*haptics\.play\(if \(!enabled\) Haptic\.ToggleOn else Haptic\.ToggleOff\)""").containsMatchIn(src),
             "the row's tap keeps its haptic",
         )
+    }
+
+    // ---- 2. the playing bars of the desktop rows move ---------------------------------------------------------------------------
+
+    @Test fun theDesktopRowsAndPagesReadWhetherAudioIsPlayingFromOneLocalOfOurs() {
+        val row = SourceContract.code(SourceContract.read("${cosmoDesktop}CosmoDesktopSongRow.kt"))
+        assertTrue(
+            Regex("""internal val LocalCosmoPlaying = compositionLocalOf \{ false \}""").containsMatchIn(row),
+            "the local is declared in our file, false by default",
+        )
+        for ((file, function) in listOf(
+            "CosmoDesktopSongRow.kt" to "CosmoDesktopSongRow",
+            "CosmoDesktopCollectionPage.kt" to "CosmoDesktopCollectionPage",
+            "CosmoDesktopArtistPage.kt" to "CosmoDesktopArtistPage",
+        )) {
+            val parameters = SourceContract.parameters(SourceContract.read("$cosmoDesktop$file"), function)
+            assertTrue(
+                "isPlaying: Boolean = LocalCosmoPlaying.current" in parameters,
+                "$function's isPlaying starts from the local, not from a constant false: $parameters",
+            )
+        }
+    }
+
+    @Test fun theDesktopRootProvidesThePlayersFlagNextToTheNowPlayingSong() {
+        val src = SourceContract.code(SourceContract.read("${desktop}DesktopApp.kt")).replace(Regex("\\s+"), " ")
+        assertTrue(
+            src.contains("LocalNowPlaying provides selectedSong, com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,"),
+            "the root provides playback.isPlaying beside the playing song",
+        )
+        // nobody sets it to a constant behind the root's back
+        assertFalse(Regex("""LocalCosmoPlaying provides (true|false)""").containsMatchIn(src), "no constant is provided")
     }
 }

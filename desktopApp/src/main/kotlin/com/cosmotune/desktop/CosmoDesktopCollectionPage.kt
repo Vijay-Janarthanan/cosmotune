@@ -112,8 +112,8 @@ private val CREDIT_CIRCLE = 28.dp
 /**
  * The collection page of the new look. It takes the old page's parameters, in the same order, and two more at the end:
  * [nowPlaying] (the song that is playing, whose row is washed and has the bars in place of its number) and [isPlaying] (the bars
- * move). The old page reads the playing song from a local that only its own file can see, so its delegate passes [nowPlaying] and
- * leaves [isPlaying] at its default.
+ * move; from [LocalCosmoPlaying], which the root fills with the player's own flag). The old page reads the playing song from a local
+ * that only its own file can see, so its delegate passes [nowPlaying] and leaves [isPlaying] at its default.
  *
  * What the old page did it still does: the list filter, the next page of tracks when the last row shows, the motion artwork in the
  * cover when [animatedCanvas], the more menu with download all, share, rename and delete (the last two for a playlist of the
@@ -140,7 +140,7 @@ internal fun CosmoDesktopCollectionPage(
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
     nowPlaying: Song? = null,
-    isPlaying: Boolean = false,
+    isPlaying: Boolean = LocalCosmoPlaying.current,
 ) {
     val songs = collection.songs
     // "Search this list": a filter over the rows already loaded.

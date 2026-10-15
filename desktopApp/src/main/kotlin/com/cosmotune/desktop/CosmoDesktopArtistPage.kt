@@ -104,8 +104,9 @@ private val SHELF_CARD = 150.dp
 
 /**
  * The artist page of the new look. It takes the old page's parameters, in the same order, and two more at the end: [nowPlaying] (the
- * song that is playing: its row in Popular is washed and shows the bars) and [isPlaying] (the bars move). The old page reads the
- * playing song from a local that only its own file can see, so its delegate passes [nowPlaying] and leaves [isPlaying] at its default.
+ * song that is playing: its row in Popular is washed and shows the bars) and [isPlaying] (the bars move; from [LocalCosmoPlaying],
+ * which the root fills with the player's own flag). The old page reads the playing song from a local that only its own file can see,
+ * so its delegate passes [nowPlaying] and leaves [isPlaying] at its default.
  *
  * A guest has no [onToggleSubscription] and so no Follow button. There is no More button: the old page had no menu for an artist and
  * nothing here could fill one.
@@ -122,7 +123,7 @@ internal fun CosmoDesktopArtistPage(
     onToggleSubscription: ((SubscriptionState) -> Unit)?,
     contentPadding: PaddingValues,
     nowPlaying: Song? = null,
-    isPlaying: Boolean = false,
+    isPlaying: Boolean = LocalCosmoPlaying.current,
 ) {
     val direction = LocalLayoutDirection.current
     Box(
