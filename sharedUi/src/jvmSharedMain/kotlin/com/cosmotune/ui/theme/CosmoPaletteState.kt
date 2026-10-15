@@ -62,8 +62,8 @@ class CosmoPaletteState(initial: CoverColors, dark: Boolean) {
     }
 
     private companion object {
-        const val REDUCED_MS = 150 // Springs.REDUCED_MS (Task 4)
-        const val PALETTE_MS = 700 // Springs.PALETTE_MS (Task 4)
+        const val REDUCED_MS = com.cosmotune.design.Springs.REDUCED_MS
+        const val PALETTE_MS = com.cosmotune.design.Springs.PALETTE_MS
         val FADE_EASING = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     }
 }
