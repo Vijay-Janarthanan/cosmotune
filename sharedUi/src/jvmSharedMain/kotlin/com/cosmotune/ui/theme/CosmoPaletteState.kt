@@ -3,6 +3,7 @@ package com.cosmotune.ui.theme
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -101,6 +102,12 @@ class CosmoShellState internal constructor(val settings: CosmoLookSettings, dark
     /** The mini capsule's rectangle in root coordinates: where the player grows from and shrinks back to. Null while it is not on screen. */
     var capsuleBounds by mutableStateOf<Rect?>(null)
 
+    /**
+     * What the mini capsule shows (title, artist, the cover's address), set by the capsule while it is on screen: the
+     * overlay's travelling cover and text are copies of it. Null while there is no capsule.
+     */
+    internal var capsuleLabel by mutableStateOf<CapsuleLabel?>(null)
+
     /** The player's cover rectangle in root coordinates, set by the player; the travelling cover lands on it. */
     var playerCoverBounds by mutableStateOf<Rect?>(null)
 
@@ -113,6 +120,10 @@ class CosmoShellState internal constructor(val settings: CosmoLookSettings, dark
     /** True once the morph has finished. Reads [playerProgress]: use it only in `derivedStateOf` or in draw. */
     val playerSettled: Boolean get() = playerProgress.value >= 1f
 }
+
+/** The mini capsule's own words and picture, copied by the player overlay's morph. */
+@Immutable
+internal data class CapsuleLabel(val title: String, val artist: String, val coverUrl: String?)
 
 /** The palette of a cover with no colour: Cosmotune's own apricot (01-dynamic-colour.md section 3, rule 6). */
 object CosmoBrandPalettes {
