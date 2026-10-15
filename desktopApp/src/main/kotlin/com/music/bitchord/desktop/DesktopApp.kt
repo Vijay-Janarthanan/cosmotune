@@ -5098,6 +5098,7 @@ private fun DesktopArtistPage(
     onToggleSubscription: ((SubscriptionState) -> Unit)?,
     contentPadding: PaddingValues,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopArtistPage(state = state, fallbackName = fallbackName, onRetry = onRetry, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onOpenMenu = onOpenMenu, onShelfItemClick = onShelfItemClick, onToggleSubscription = onToggleSubscription, contentPadding = contentPadding, nowPlaying = LocalNowPlaying.current)
     DesktopPageScaffold(contentPadding) {
         when (state) {
             UiState.Loading -> Box(Modifier.fillMaxSize()) {
@@ -6731,6 +6732,7 @@ private fun DesktopCollectionPage(
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, nowPlaying = LocalNowPlaying.current)
     val songs = collection.songs
     // The phone's "search this list": a filter over the rows already loaded.
     var searching by remember(collection.browseId) { mutableStateOf(false) }
@@ -7419,6 +7421,7 @@ private fun DesktopSongRow(
     /** The row's own "…", when the page has a menu to give it. */
     menu: (@Composable (Song) -> Unit)? = null,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopSongRow(song = song, liked = liked, onClick = onClick, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloaded = downloaded, downloadInProgress = downloadInProgress, number = number, menu = menu, isCurrent = song.isNowPlaying())
     Row(
         Modifier
             .fillMaxWidth()
