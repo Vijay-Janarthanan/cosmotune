@@ -1266,4 +1266,7 @@
     <string name="spotify_library_subtitle">あなたの Spotify プレイリスト</string>
     <string name="spotify_sign_in">Spotify でサインイン</string>
     <string name="spotify_track_unavailable">その曲は YouTube Music で見つかりません</string>
+    <string name="canvas_paused_on_mobile_data">Video is paused on mobile data</string>
+    <string name="canvas_allow_on_mobile_data">Allow</string>
+    <string name="canvas_allow_on_mobile_data_description">Allow video on mobile data</string>
 </resources>

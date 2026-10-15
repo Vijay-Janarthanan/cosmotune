@@ -1288,4 +1288,7 @@
     <string name="spotify_library_subtitle">आपकी Spotify प्लेलिस्ट</string>
     <string name="spotify_sign_in">Spotify से साइन इन करें</string>
     <string name="spotify_track_unavailable">वह गाना YouTube Music पर नहीं मिला</string>
+    <string name="canvas_paused_on_mobile_data">मोबाइल डेटा पर वीडियो रुका हुआ है</string>
+    <string name="canvas_allow_on_mobile_data">अनुमति दें</string>
+    <string name="canvas_allow_on_mobile_data_description">मोबाइल डेटा पर वीडियो की अनुमति दें</string>
 </resources>

@@ -115,6 +115,14 @@ interface PlayerHost {
      */
     @Composable
     fun LyricsShareSheet(hazeState: HazeState, request: LyricsShareRequest, onDismiss: () -> Unit) = Unit
+
+    /**
+     * The one line that says the video is paused on mobile data, with a button that allows it. Drawn by the
+     * player only while that guard is the reason there is no video (see [rememberCanvasBlockedByMobileData]),
+     * so a host with no mobile data, the desktop, keeps this default and never shows anything.
+     */
+    @Composable
+    fun CanvasMobileDataHint(modifier: Modifier) = Unit
 }
 
 private val NoCast = MutableStateFlow(CastUi())

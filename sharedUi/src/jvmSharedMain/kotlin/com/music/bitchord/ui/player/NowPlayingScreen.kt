@@ -799,6 +799,9 @@ fun NowPlayingScreen(
     val spotifyCanvasAutoHide by PlayerSettings.spotifyCanvasAutoHide.collectAsStateWithLifecycle()
     val mixing by PlayerSettings.smartMixInProgress.collectAsStateWithLifecycle()
     val canvas = rememberCanvasArtwork(song)
+    // True only while the mobile-data guard is the reason there is no video: the sleeve then carries one line
+    // that says so, with a button that allows it. Always false on the desktop, which has no mobile data.
+    val mobileDataHintShown = rememberCanvasBlockedByMobileData(song)
     // The next track's canvas is looked up while this one plays, so skipping to it shows the video
     // at once instead of after a search, a stream lookup and an alignment. Same guards as the
     // current track's lookup; the answer lands in the host's cache and is picked up from there.
@@ -1869,6 +1872,14 @@ fun NowPlayingScreen(
                                 // the sleeve: the cover in the bar has none.
                                 .graphicsLayer { alpha = if (panelOpen) 0f else dockFade() },
                         )
+                        // Not composed at all while a panel is up: it holds a button, and an invisible
+                        // one must not catch a tap meant for the panel.
+                        if (!panelOpen) {
+                            CanvasMobileDataHintOnSleeve(
+                                blocked = mobileDataHintShown,
+                                modifier = Modifier.graphicsLayer { alpha = dockFade() },
+                            )
+                        }
                     }
                 },
                 actions = playerActions,
@@ -3103,6 +3114,11 @@ fun NowPlayingScreen(
                                     alpha = (1f - p() * 2f) * spotifyChromeAlpha
                                 },
                         )
+                    }
+                    // Gone from the first frame of a collapse, not faded: it holds a button, which a
+                    // sleeve on its way into the header must not leave behind.
+                    WhileShown({ !collapsePastSettling }) {
+                        CanvasMobileDataHintOnSleeve(blocked = mobileDataHintShown)
                     }
                 }
 

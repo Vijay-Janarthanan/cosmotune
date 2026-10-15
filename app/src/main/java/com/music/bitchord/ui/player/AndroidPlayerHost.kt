@@ -186,6 +186,10 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         request: LyricsShareRequest,
         onDismiss: () -> Unit,
     ) = AndroidLyricsShareSheet(hazeState = hazeState, request = request, onDismiss = onDismiss)
+
+    // The phone is the platform with mobile data; the desktop keeps the default, which draws nothing.
+    @Composable
+    override fun CanvasMobileDataHint(modifier: Modifier) = AndroidCanvasMobileDataHint(modifier)
 }
 
 private fun AudioOutputStatus.Snapshot.toOutputFormat(): OutputFormatUi {
