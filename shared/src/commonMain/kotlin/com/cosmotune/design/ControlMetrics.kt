@@ -66,6 +66,24 @@ object ControlMetrics {
     /** Whether the selected segment shows its check: always in the classic control, up to three options in a filling one. */
     fun segmentShowsCheck(count: Int, fill: Boolean): Boolean = !fill || count <= SEGMENT_FILL_CHECK_MAX
 
+    /** The gap between a segment's check and its label. */
+    const val SEGMENT_CHECK_GAP_DP = 6f
+
+    /**
+     * A settings page's segmented control (theme, output precision, refresh rate, colour intensity) always shares its row, so it takes
+     * the filling control's numbers: [SEGMENT_FILL_PADDING_DP] inside each end, the check only on the selected segment of a full-size
+     * control of up to [SEGMENT_FILL_CHECK_MAX] options, and a label that shrinks from [settingsSegmentLabelMaxSp] to
+     * [SEGMENT_LABEL_MIN_SP] before it is cut. With the board's 12 and 16 dp ends, "Balanced" (Intensity) was cut on a 360 dp phone.
+     */
+    fun settingsSegmentLabelRoomDp(rowDp: Float, count: Int, check: Boolean): Float =
+        fillSegmentWidthDp(rowDp, count) - 2 * SEGMENT_FILL_PADDING_DP - (if (check) SEGMENT_ICON_DP + SEGMENT_CHECK_GAP_DP else 0f)
+
+    fun settingsSegmentShowsCheck(selected: Boolean, compact: Boolean, count: Int): Boolean =
+        selected && !compact && segmentShowsCheck(count, fill = true)
+
+    /** The label's own size: 14 sp, 13 in the small control that stands under a row (`.mini-seg`). */
+    fun settingsSegmentLabelMaxSp(compact: Boolean): Float = if (compact) 13f else 14f
+
     /** The C segmented control: a glass track (4 dp padding, radius 24) around a 32 dp ink thumb that slides. */
     const val C_SEGMENT_TRACK_PADDING_DP = 4f
     const val C_SEGMENT_TRACK_RADIUS_DP = 24f

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -78,6 +79,7 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.CosmoSlider
 import com.cosmotune.ui.components.CosmoSwitch
 import com.cosmotune.ui.components.DISABLED_ALPHA
+import com.cosmotune.ui.components.FitLabel
 import com.cosmotune.ui.components.MorphPath
 import com.cosmotune.ui.components.STATE_LAYER_HOVERED
 import com.cosmotune.ui.components.STATE_LAYER_PRESSED
@@ -145,7 +147,10 @@ private const val TILE_TOP_MIX = 0.4f
 private const val TITLE_WEIGHT = 650
 private const val MINI_SEGMENT_HEIGHT_DP = 32f
 private const val SEGMENT_WEIGHT = 640
-private const val SEGMENT_CHECK_MAX_OPTIONS = 3
+
+/** A settings segment's label, shrunk half a sp at a time from its own size to fit; never below 12 sp (then the ellipsis cuts). */
+private val SEGMENT_FIT = FitLabel(ControlMetrics.settingsSegmentLabelMaxSp(compact = false), ControlMetrics.SEGMENT_LABEL_MIN_SP, 0.5f, wholeWords = false)
+private val COMPACT_SEGMENT_FIT = FitLabel(ControlMetrics.settingsSegmentLabelMaxSp(compact = true), ControlMetrics.SEGMENT_LABEL_MIN_SP, 0.5f, wholeWords = false)
 
 // ---- the tiles of a group -----------------------------------------------------------------------------------------------------
 
@@ -735,9 +740,9 @@ private fun SettingsSegment(
     val outline = remember { Path() }
     val ink = Color(if (selected) palette.onAccentContainer else palette.textSecondary)
     val outer = heightDp / 2f
-    val check = selected && !compact && count <= SEGMENT_CHECK_MAX_OPTIONS
+    val check = ControlMetrics.settingsSegmentShowsCheck(selected, compact, count)
     val textStyle = type.forText(
-        type.label.copy(fontWeight = FontWeight(SEGMENT_WEIGHT), fontSize = if (compact) 13.sp else 14.sp),
+        type.label.copy(fontWeight = FontWeight(SEGMENT_WEIGHT), fontSize = ControlMetrics.settingsSegmentLabelMaxSp(compact).sp, color = ink),
         label,
     )
     Row(
@@ -763,12 +768,21 @@ private fun SettingsSegment(
             }
             .hoverable(interaction, enabled)
             .selectable(selected, interaction, indication = null, enabled = enabled, role = Role.Tab) { haptics.play(Haptic.Select); onSelect() }
-            .padding(horizontal = if (compact) 12.dp else ControlMetrics.SEGMENT_PADDING_DP.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            // The segment shares its row and its label is centred, so these ends only show when the label is long (see
+            // ControlMetrics.settingsSegmentLabelRoomDp).
+            .padding(horizontal = ControlMetrics.SEGMENT_FILL_PADDING_DP.dp),
+        horizontalArrangement = Arrangement.spacedBy(ControlMetrics.SEGMENT_CHECK_GAP_DP.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (check) Icon(CosmoIcons.Check, contentDescription = null, tint = ink, modifier = Modifier.size(ControlMetrics.SEGMENT_ICON_DP.dp))
-        Text(text = label, color = ink, style = textStyle, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        BasicText(
+            text = label,
+            style = textStyle,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            autoSize = if (compact) COMPACT_SEGMENT_FIT else SEGMENT_FIT,
+            modifier = Modifier.weight(1f, fill = false),
+        )
     }
 }
 
