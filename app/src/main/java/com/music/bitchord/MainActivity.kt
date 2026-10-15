@@ -299,6 +299,8 @@ import com.music.bitchord.ui.replay.ReplayShareSheet
 import com.music.bitchord.ui.replay.ReplayStories
 import com.music.bitchord.ui.replay.ReplayStoryPage
 import com.music.bitchord.ui.replay.rememberReplayState
+import com.cosmotune.ui.theme.FollowCover
+import com.cosmotune.ui.theme.cosmoAmbientGround
 import com.music.bitchord.ui.theme.BitChordTheme
 import com.music.bitchord.ui.theme.rememberArtworkPalette
 import com.music.bitchord.data.canvas.AppleArtistArtRepository
@@ -457,6 +459,7 @@ private fun BitChordApp(
     appBackdrop: LayerBackdrop,
     viewModel: MainViewModel = viewModel(),
 ) {
+    val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val hazeState = remember { HazeState() }
@@ -874,6 +877,7 @@ private fun BitChordApp(
     }
     val controller = rememberMediaController()
     val player = rememberPlayerState(controller)
+    cosmoShell?.FollowCover(player.song, player.queue.getOrNull(player.queueIndex + 1))
     // A resume in a party is performed on the instant the server schedules, not
     // when it was pressed, and nothing about the player moves in between — so
     // the transport spends that round trip drawn as though the tap never landed.
@@ -2429,7 +2433,7 @@ private fun BitChordApp(
     Box(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .then(if (cosmoShell != null) Modifier.cosmoAmbientGround() else Modifier.background(MaterialTheme.colorScheme.background)),
     ) {
         // A pushed album/artist/playlist page replaces the tab content but
         // leaves the tab bar and mini player in place.
@@ -3413,7 +3417,7 @@ private fun BitChordApp(
                     }
                 }
                 BottomFadeScrim(
-                    pageColor = chromePageColor,
+                    pageColor = if (cosmoShell != null && !isDetailVisible) Color(cosmoShell.colors.palette.backgroundTop) else chromePageColor,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .rotate(180f)
