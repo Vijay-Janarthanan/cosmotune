@@ -1395,11 +1395,14 @@ object AppSettings {
     fun setOpenCanvasEnabled(value: Boolean) {
         openCanvasEnabled.value = value
         prefs.edit().putBoolean(KEY_OPENCANVAS_ENABLED, value).apply()
+        // what was found under the old setting must not be served under the new one
+        com.music.bitchord.data.canvas.CanvasRepository.forgetAll()
     }
 
     fun setOpenCanvasResolution(value: String) {
         openCanvasResolution.value = value
         prefs.edit().putString(KEY_OPENCANVAS_RESOLUTION, value).apply()
+        com.music.bitchord.data.canvas.CanvasRepository.forgetAll()
     }
 
 

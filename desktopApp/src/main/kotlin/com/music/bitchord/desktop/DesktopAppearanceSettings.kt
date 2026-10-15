@@ -52,12 +52,17 @@ internal object DesktopAppearanceSettings {
     /** Preferred stream resolution for OpenCanvas (e.g., 360p, 480p, 720p, 1080p). */
     val openCanvasResolution: StateFlow<String> = _openCanvasResolution
 
-    fun setOpenCanvasEnabled(value: Boolean) = write(KEY_OPENCANVAS_ENABLED, value, _openCanvasEnabled)
+    fun setOpenCanvasEnabled(value: Boolean) {
+        write(KEY_OPENCANVAS_ENABLED, value, _openCanvasEnabled)
+        // what was found under the old setting must not be served under the new one
+        DesktopCanvasClient.forgetAll()
+    }
 
 
     fun setOpenCanvasResolution(value: String) {
         DesktopPersistence().saveString(KEY_OPENCANVAS_RESOLUTION, value)
         _openCanvasResolution.value = value
+        DesktopCanvasClient.forgetAll()
     }
 
     private fun write(key: String, value: Boolean, into: MutableStateFlow<Boolean>) {

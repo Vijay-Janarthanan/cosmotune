@@ -133,6 +133,9 @@ object DesktopCanvasClient {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>) = size > CACHE_SIZE
     }
 
+    /** Counts the times [forgetAll] ran; read and written under `synchronized(cache)`. */
+    private var generation = 0
+
     // Skipping through a queue fires a lookup per track. Serialising them keeps four providers'
     // worth of requests off the wire at once.
     private val gate = Mutex()
@@ -209,18 +212,35 @@ object DesktopCanvasClient {
         }
     }
 
-    private suspend fun resolve(
+    internal suspend fun resolve(
         key: String,
         withAlbum: Boolean,
         missLifetimeMs: Long = ENTRY_TTL_MS,
         lookUp: suspend () -> DesktopCanvasArtwork?,
     ): DesktopCanvasArtwork? = gate.withLock {
-        synchronized(cache) {
+        val began = synchronized(cache) {
             cache[key]?.let { if (it.fresh && it.reusable(withAlbum)) return@withLock it.artwork }
+            generation
         }
         val found = withContext(Dispatchers.IO) { lookUp() }
-        synchronized(cache) { cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS) }
+        synchronized(cache) {
+            // an answer worked out under settings that have changed since is not remembered
+            if (generation == began) cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS)
+        }
         found
+    }
+
+    /**
+     * Forgets every remembered answer, hits included, and any lookup still under way will not store its
+     * answer. Called when the OpenCanvas switch or its stream resolution changes: what was found (or missed)
+     * under the old setting must not be served under the new one. With the switch off, a remembered music
+     * video would otherwise keep coming back for up to three hours.
+     */
+    fun forgetAll() {
+        synchronized(cache) {
+            cache.clear()
+            generation++
+        }
     }
 
     /**

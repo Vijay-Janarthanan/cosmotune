@@ -43,6 +43,8 @@ internal fun rememberCanvasArtwork(song: Song): CanvasArtwork? {
     val canvasOverCellular by PlayerSettings.canvasOverCellular.collectAsStateWithLifecycle()
     val prioritizeSpotifyCanvas by PlayerSettings.prioritizeSpotifyCanvas.collectAsStateWithLifecycle()
     val meteredConnection by PlayerSettings.meteredConnection.collectAsStateWithLifecycle()
+    val openCanvasEnabled by PlayerSettings.openCanvasEnabled.collectAsStateWithLifecycle()
+    val openCanvasResolution by PlayerSettings.openCanvasResolution.collectAsStateWithLifecycle()
     // The switch turns the feature off outright; this is the narrower "not
     // over cellular" case — see [PlayerSettings.canvasOverCellular] for why a
     // clip's own loop makes that worth guarding separately from a still image.
@@ -54,8 +56,12 @@ internal fun rememberCanvasArtwork(song: Song): CanvasArtwork? {
     // which is the flicker. A different song keys differently and starts
     // clean; the same-titled-impostor case is guarded where the clip is
     // adopted, by [CanvasArtwork.matches].
-    var canvas by remember(song.title, song.artist) { mutableStateOf<CanvasArtwork?>(null) }
-    LaunchedEffect(song.videoId, song.albumName, canvasAllowedNow, prioritizeSpotifyCanvas) {
+    //
+    // The OpenCanvas switch is the exception: turning it off has to take its
+    // video away, and a clip carried over across a version switch (below)
+    // would otherwise outlive it. A change of stream resolution only asks again.
+    var canvas by remember(song.title, song.artist, openCanvasEnabled) { mutableStateOf<CanvasArtwork?>(null) }
+    LaunchedEffect(song.videoId, song.albumName, canvasAllowedNow, prioritizeSpotifyCanvas, openCanvasEnabled, openCanvasResolution) {
         if (!canvasAllowedNow) {
             canvas = null
             return@LaunchedEffect

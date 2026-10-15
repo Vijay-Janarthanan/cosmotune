@@ -164,6 +164,10 @@ interface PlayerSettingsSource {
     val lyricsOffsetMs: StateFlow<Int>
     val lyricsSourceOrder: StateFlow<List<LyricsSource>>
     val meteredConnection: StateFlow<Boolean?>
+
+    /** The OpenCanvas switch and its stream resolution: the player looks its video up again when either changes. */
+    val openCanvasEnabled: StateFlow<Boolean>
+    val openCanvasResolution: StateFlow<String>
     val preferUsbDac: StateFlow<Boolean>
     val prioritizeSpotifyCanvas: StateFlow<Boolean>
     val reduceAnimation: StateFlow<Boolean>

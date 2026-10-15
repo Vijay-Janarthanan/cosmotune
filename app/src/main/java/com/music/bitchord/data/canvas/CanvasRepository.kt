@@ -83,6 +83,9 @@ object CanvasRepository {
             size > CACHE_SIZE
     }
 
+    /** Counts the times [forgetAll] ran; read and written under `synchronized(cache)`. */
+    private var generation = 0
+
     // Skipping through a queue fires a lookup per track. Serialising them
     // keeps three providers' worth of requests off the wire at once, and means
     // a track that was already resolved by the time its turn comes up is
@@ -240,17 +243,21 @@ object CanvasRepository {
     private fun cacheKey(base: String, spotifyFirst: Boolean): String =
         "$base|spotifyFirst=$spotifyFirst"
 
-    private suspend fun resolve(
+    internal suspend fun resolve(
         key: String,
         withAlbum: Boolean,
         missLifetimeMs: Long = ENTRY_TTL_MS,
         lookUp: suspend () -> CanvasArtwork?,
     ): CanvasArtwork? = lock.withLock {
-        synchronized(cache) {
+        val began = synchronized(cache) {
             cache[key]?.let { if (it.fresh && it.reusable(withAlbum)) return@withLock it.artwork }
+            generation
         }
         val found = withContext(Dispatchers.IO) { lookUp() }
-        synchronized(cache) { cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS) }
+        synchronized(cache) {
+            // an answer worked out under settings that have changed since is not remembered
+            if (generation == began) cache[key] = Entry(found, withAlbum, lifetimeMs = if (found == null) missLifetimeMs else ENTRY_TTL_MS)
+        }
         found
     }
 
@@ -260,6 +267,19 @@ object CanvasRepository {
      */
     fun forgetMisses() {
         synchronized(cache) { cache.values.removeAll { it.artwork == null } }
+    }
+
+    /**
+     * Forgets every remembered answer, hits included, and any lookup still under way will not store
+     * its answer. Called when the OpenCanvas switch or its stream resolution changes: what was found
+     * (or missed) under the old setting must not be served under the new one. With the switch off, a
+     * remembered music video would otherwise keep coming back for up to three hours.
+     */
+    fun forgetAll() {
+        synchronized(cache) {
+            cache.clear()
+            generation++
+        }
     }
 
     /**

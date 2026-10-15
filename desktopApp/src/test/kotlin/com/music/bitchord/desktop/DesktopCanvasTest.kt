@@ -1,9 +1,12 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.data.model.Song
 import java.nio.charset.StandardCharsets
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -169,5 +172,27 @@ class DesktopCanvasTest {
         )
         assertTrue(artwork.matches("Blinding Lights", "The Weeknd", "After Hours"))
         assertEquals(DesktopCanvasSource.OTHER, artwork.source)
+    }
+
+    private fun song(videoId: String) = Song(videoId, "Song", "Artist", null)
+
+    @Test
+    fun `a canvas found earlier is not served once the remembered answers are dropped`() = runBlocking {
+        DesktopCanvasClient.resolve("song|clear-1", withAlbum = false) { artwork("Song", "Artist") }
+        assertNotNull(DesktopCanvasClient.cached(song("clear-1")), "the hit is remembered")
+
+        DesktopCanvasClient.forgetAll()
+
+        assertNull(DesktopCanvasClient.cached(song("clear-1")), "and gone after the switch or the resolution changed")
+    }
+
+    @Test
+    fun `a lookup that was running when the answers were dropped is not remembered afterwards`() = runBlocking {
+        DesktopCanvasClient.resolve("song|clear-2", withAlbum = false) {
+            DesktopCanvasClient.forgetAll()
+            artwork("Song", "Artist")
+        }
+
+        assertNull(DesktopCanvasClient.cached(song("clear-2")))
     }
 }
