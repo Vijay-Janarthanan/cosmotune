@@ -8,6 +8,15 @@ package com.cosmotune.theme
  * is a calm colour, about 110 is the most vivid red an sRGB screen shows), and tone as CIE L* (0 black, 100 white;
  * a tone difference of 50 between two colours guarantees a contrast ratio of at least 4.5). A requested chroma the
  * screen cannot show at that hue and tone is lowered until it fits; channels are never clipped.
+ *
+ * **For the design handoff: the defaults are provisional, and three things in them need a decision.**
+ * - In the dark theme `surface` (tone 10) lies on `backgroundMid` (tone 10) at a contrast of 1.00:1, and
+ *   `surfaceVariant` (tone 17) on `backgroundTop` (tone 15) at 1.05:1. A card drawn with them is invisible by
+ *   luminance alone: the screens need a border or a scrim, or the tones need retuning so that cards and background
+ *   are apart.
+ * - sRGB narrows towards white, so the light theme's asked-for background chroma of 6, 10 and 14 at tones 98, 96 and
+ *   94 cannot be shown: the apricot seed gives about 1.6, 4.7 and 7.7. The light backgrounds are a faint tint.
+ * - The same limit applies to the dark button gradient's start (chroma 42 at tone 82): an orange-red seed gives about 26.
  */
 data class CoverPaletteSpec(
     // --- reading the cover ---------------------------------------------------------------------

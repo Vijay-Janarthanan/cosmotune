@@ -716,7 +716,7 @@ class CoverPaletteTest {
         assertSame(previous, CoverPalette.settle(previous, next, 1000f), "a huge threshold always keeps it")
         val slightly = palette(solid(rgb(255, 10, 0)), 16, 16)
         assertSame(previous, CoverPalette.settle(previous, slightly, 3f))
-        assertSame(slightly, CoverPalette.settle(previous, slightly, 0.0001f))
+        assertSame(slightly, CoverPalette.settle(previous, slightly, 0f), "even an identical-looking palette is replaced at a threshold of zero")
     }
 
     @Test
@@ -1039,5 +1039,69 @@ class CoverPaletteTest {
         assertTrue(fromFallback.isFallback)
         assertFalse(fromCover.isFallback)
         assertEquals(fromFallback, fromCover.copy(isFallback = true))
+    }
+
+    // --- settle compares what is visible; the tone cap holds on the final colour ---------------------
+
+    @Test
+    fun settleIgnoresASeedThatOnlyDiffersInTone() {
+        // Two covers of the same hue and chroma but different lightness: the palette is derived from hue and chroma only,
+        // so the screen looks the same and nothing may be animated. (Compared by seeds, they were far apart.)
+        val darker = palette(solid(Hct.from(283.0, 40.0, 35.0).toInt()), 16, 16)
+        val lighter = palette(solid(Hct.from(283.0, 40.0, 62.0).toInt()), 16, 16)
+        assertNotEquals(darker.seed, lighter.seed)
+        assertTrue(abs(oklabL(darker.seed) - oklabL(lighter.seed)) > 0.15, "the seeds themselves are far apart in lightness")
+        assertTrue(abs(oklabL(darker.accent) - oklabL(lighter.accent)) < 0.01, "the accents look the same")
+        assertSame(darker, CoverPalette.settle(darker, lighter))
+    }
+
+    @Test
+    fun settleTakesTheNextPaletteWhenTheAccentChangesEvenIfTheBackgroundHardlyDoes() {
+        // The same lightness and chroma, a different hue: the accent (tone 78) is the most visible colour and it moved.
+        val blue = solidPalette(Hct.from(263.0, 60.0, 50.0).toInt())
+        val green = solidPalette(Hct.from(150.0, 60.0, 50.0).toInt())
+        assertSame(green, CoverPalette.settle(blue, green))
+    }
+
+    @Test
+    fun settleUsesTheSpecThatWasPassedNotAFreshOne() {
+        val previous = solidPalette(red)
+        val next = solidPalette(blueColor)
+        assertSame(previous, CoverPalette.settle(previous, next, CoverPaletteSpec(settleMinDeltaE = 1000f)))
+        assertSame(next, CoverPalette.settle(previous, next, CoverPaletteSpec(settleMinDeltaE = 0f)))
+        // A spec that keeps a small change (red to a slightly different red) and one that keeps nothing.
+        val slightly = palette(solid(rgb(255, 10, 0)), 16, 16)
+        assertSame(previous, CoverPalette.settle(previous, slightly, CoverPaletteSpec(settleMinDeltaE = 3f)))
+        assertSame(slightly, CoverPalette.settle(previous, slightly, CoverPaletteSpec(settleMinDeltaE = 0f)))
+    }
+
+    @Test
+    fun settleNeverKeepsAFallbackPaletteForARealOneOrTheOtherWayRound() {
+        // A white cover (the fallback apricot) and a solid apricot cover have the same colours and differ in the flag only.
+        val fallback = solidPalette(white)
+        val real = solidPalette(apricot)
+        assertEquals(fallback, real.copy(isFallback = true))
+        assertSame(real, CoverPalette.settle(fallback, real))
+        assertSame(fallback, CoverPalette.settle(real, fallback))
+        // Two fallbacks are the same palette and are kept.
+        val another = solidPalette(black)
+        assertSame(fallback, CoverPalette.settle(fallback, another))
+    }
+
+    @Test
+    fun theAccentToneCapHoldsOnTheFinalColourForEveryHue() {
+        // Every accent colour is asked for exactly the cap (tone 84). Rounding to 8 bits can land a hair above it: the
+        // engine lowers the colour until the colour that is really shown is at or under the cap.
+        val spec = CoverPaletteSpec(
+            darkAccentTone = 84.0, darkAccentStrongTone = 84.0, darkButtonStartTone = 84.0, darkButtonEndTone = 84.0, darkGlowTone = 84.0,
+        )
+        for (hue in 0..345 step 15) {
+            for (saturation in listOf(0.3, 0.7, 1.0)) {
+                val c = palette(solid(hsv(hue.toDouble(), saturation, 0.9)), 16, 16, dark = true, spec = spec)
+                listOf(c.accent, c.accentStrong, c.buttonGradientStart, c.buttonGradientEnd, c.glow).forEach {
+                    assertTrue(tone(it) <= 84.0 + 1e-6, "hue $hue saturation $saturation: #${it.toUInt().toString(16)} has tone ${tone(it)}")
+                }
+            }
+        }
     }
 }

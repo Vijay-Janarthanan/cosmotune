@@ -3,6 +3,7 @@ package com.cosmotune.theme
 import com.materialkolor.hct.Hct
 import com.materialkolor.quantize.QuantizerCelebi
 import com.materialkolor.score.Score
+import kotlin.math.cbrt
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -17,18 +18,26 @@ import kotlin.math.pow
  *    (the engine samples to 64 x 64 anyway, so a larger bitmap only costs time): `Bitmap.getPixels` on Android,
  *    `Image.toComposeImageBitmap().readPixels` on the desktop. The array holds non-premultiplied ARGB, one
  *    `Int` per pixel, row by row.
- * 2. Call [fromPixels] **once per track**, not once per frame (a 64 x 64 cover takes about a millisecond on a warm
- *    desktop JVM; keep it off the main thread on a phone), with `dark` set from the app's theme. It never returns
- *    null, and a failure inside the colour library is turned into "no colour": a cover with no colour (white, black,
- *    grey, empty, fully transparent) gives a calm palette from the fallback seed with [CoverColors.isFallback] set.
- * 3. Pass the result through [settle] together with the palette now on screen. Two tracks of one album carry the
- *    same cover and the same seed, and `settle` then returns the palette on screen unchanged, so nothing flickers.
- * 4. Animate from the palette on screen to the settled one with [lerp] over 600 ms: ask for `t` from 0 to 1
- *    each frame, turn the ARGB integers into `Color`s, and keep the final palette as the next call's "previous".
+ * 2. Call [fromPixels] **once per track**, not once per frame, with `dark` set from the app's theme. A photo-like 64 x 64
+ *    cover takes about 10 ms on a warm desktop JVM (a cover of a few flat colours well under a millisecond), so call it
+ *    **off the main thread**, and more so on a phone. It never returns null, and a failure inside the colour library
+ *    is turned into "no colour": a cover with no colour (white, black, grey, empty, fully transparent) gives a calm
+ *    palette from the fallback seed with [CoverColors.isFallback] set.
+ * 3. Pass the result through [settle] together with the palette the screen is showing or heading for. Two tracks of
+ *    one album carry the same cover, and `settle` then returns that palette unchanged, so nothing flickers; it
+ *    compares the colours you will see (the accent and the top of the background), not the seeds.
+ * 4. Animate from what is on screen to the settled palette with [lerp] over 600 ms: ask for `t` from 0 to 1 each
+ *    frame and turn the ARGB integers into `Color`s. If the track changes in the middle of an animation, start the
+ *    new one from the blend that is on screen now, not from the palette the old animation started from.
  *
  * ```
- * val next = CoverPalette.settle(onScreen, CoverPalette.fromPixels(pixels, w, h, dark = isDark))
- * if (next !== onScreen) animate(600) { t -> shown = CoverPalette.lerp(onScreen, next, t) }
+ * // target: the palette being shown or animated to (null at the start); shown: the blend on screen this frame
+ * val next = CoverPalette.settle(target, CoverPalette.fromPixels(pixels, w, h, dark = isDark))
+ * if (next !== target) {
+ *     val from = shown ?: next            // the current blend, also in the middle of an animation
+ *     target = next
+ *     animate(600) { t -> shown = CoverPalette.lerp(from, next, t) }
+ * }
  * ```
  *
  * ## How the colours are chosen
@@ -48,14 +57,16 @@ import kotlin.math.pow
  *   so every tone in [CoverPaletteSpec] is a perceptual lightness that maps straight to a contrast ratio. A colour
  *   the screen cannot show at its hue and tone has its chroma lowered until it fits; channels are never clipped.
  *   Hue and chroma of everything come from the seed; the tones and chroma limits are the design, in the spec.
- * - **The rails**, checked on the final 8-bit colours (not on the targets): in the dark theme no background or
- *   surface has a relative luminance above 0.12 and no accent colour is above tone 84; text is at least 4.5:1 on
- *   every background stop and surface, the on-accent colour is at least 4.5:1 on the accent and both ends of the
- *   button gradient, and the accent is at least 3:1 on the surface. A colour that fails is moved away from what it
- *   sits on in steps of 2 tones; an on-accent colour that still fails becomes the better of near-black and near-white.
- *   With the default spec the targets already hold every rail; the repair only matters when the spec is retuned.
+ * - **The rails**, every one checked on the final 8-bit colour that is returned, not on the target: in the dark theme no
+ *   background or surface has a relative luminance above 0.12 (a colour above it is lowered one tone at a time) and
+ *   no accent colour (accent, accent strong, both button ends, glow) has a tone above 84 (lowered a quarter tone at a
+ *   time until the shown colour is at or under); text is at least 4.5:1 on every background stop and surface, the
+ *   on-accent colour is at least 4.5:1 on the accent and both ends of the button gradient, and the accent is at least
+ *   3:1 on the surface. A colour whose contrast fails is moved away from what it sits on in steps of 2 tones; an
+ *   on-accent colour that still fails becomes the better of near-black and near-white. With the default spec the
+ *   targets already hold every rail; the repair only matters when the spec is retuned.
  * - **Blending and stability** use OKLab ([Oklab]): [lerp] is a straight line there, and [settle] measures how
- *   different two seeds look.
+ *   different the two palettes' accent and background look.
  *
  * Everything is deterministic: the same pixels, flag and spec always give the same palette. No time, no randomness
  * (the library's quantiser uses a fixed seed).
@@ -63,6 +74,9 @@ import kotlin.math.pow
 object CoverPalette {
 
     private const val OPAQUE: Int = 0xFF shl 24
+
+    /** Slack for the floating-point error of the tone of a colour at exactly the cap. */
+    private const val TONE_EPSILON = 1e-6
 
     /**
      * The palette for a cover.
@@ -126,19 +140,27 @@ object CoverPalette {
     }
 
     /**
-     * Keeps the palette on screen when the next track's is not noticeably different. Returns [previous] itself
-     * (the same object) when the two seeds are closer than [minDeltaE] in OKLab (distance times 100; about 2 is
-     * what an eye can just tell apart), which is the case for every track of one album, and [next] otherwise or
-     * when there is no previous palette.
+     * Keeps the palette on screen when the next track's looks the same. Returns [previous] itself (the same object)
+     * when the two palettes' **accent** and **backgroundTop**, the colours that show most, are each closer than
+     * [minDeltaE] in OKLab (distance times 100; about 2 is what an eye can just tell apart): that is the case for every
+     * track of one album, and also for two covers whose seeds differ only in lightness, because the palette is derived
+     * from the seed's hue and chroma alone. Returns [next] otherwise, when there is no previous palette, and whenever
+     * exactly one of the two is a fallback palette (a real colour never hides behind the fallback, or the other way
+     * round, however close they are). Comparing the accent and background also tells a dark palette from the light
+     * one for the same cover.
      *
-     * The two palettes' surfaces are compared too, so that the same seed in the other theme (a dark palette
-     * replaced by the light one, same cover) is never taken for "the same palette".
+     * The threshold is [CoverPaletteSpec.settleMinDeltaE]: pass the spec you called [fromPixels] with, or a number.
      */
+    fun settle(previous: CoverColors?, next: CoverColors, spec: CoverPaletteSpec): CoverColors =
+        settle(previous, next, spec.settleMinDeltaE)
+
+    /** [settle] with an explicit threshold (distance in OKLab times 100); the default is the default spec's. */
     fun settle(previous: CoverColors?, next: CoverColors, minDeltaE: Float = CoverPaletteSpec().settleMinDeltaE): CoverColors {
         if (previous == null) return next
-        val seedDistance = Oklab.deltaE(previous.seed, next.seed)
-        val surfaceDistance = Oklab.deltaE(previous.surface, next.surface)
-        return if (seedDistance < minDeltaE && surfaceDistance < minDeltaE) previous else next
+        if (previous.isFallback != next.isFallback) return next
+        val accentDistance = Oklab.deltaE(previous.accent, next.accent)
+        val backgroundDistance = Oklab.deltaE(previous.backgroundTop, next.backgroundTop)
+        return if (accentDistance < minDeltaE && backgroundDistance < minDeltaE) previous else next
     }
 
     // --- reading the cover ---------------------------------------------------------------------
@@ -295,10 +317,11 @@ object CoverPalette {
             hue, accentChroma, goal.accentTone, listOf(surface),
             spec.minComponentContrast, 0.0, spec.maxAccentTone, spec,
         )
-        val accentStrong = colour(hue, accentChroma + spec.accentStrongChromaBoost, min(goal.accentStrongTone, spec.maxAccentTone))
-        val buttonStart = colour(hue + spec.buttonStartHueShift, spec.buttonStartChroma, min(goal.buttonStartTone, spec.maxAccentTone))
-        val buttonEnd = colour(hue + spec.buttonEndHueShift, spec.buttonEndChroma, min(goal.buttonEndTone, spec.maxAccentTone))
-        val glow = colour(hue, spec.glowChroma, min(goal.glowTone, spec.maxAccentTone))
+        val cap = spec.maxAccentTone
+        val accentStrong = colour(hue, accentChroma + spec.accentStrongChromaBoost, goal.accentStrongTone, cap)
+        val buttonStart = colour(hue + spec.buttonStartHueShift, spec.buttonStartChroma, goal.buttonStartTone, cap)
+        val buttonEnd = colour(hue + spec.buttonEndHueShift, spec.buttonEndChroma, goal.buttonEndTone, cap)
+        val glow = colour(hue, spec.glowChroma, goal.glowTone, cap)
 
         // The colour of what is drawn on the accent: moved to a readable tone, or flipped to near-black / near-white.
         val onAccent = onAccentColour(hue, goal.onAccent, listOf(accent, buttonStart, buttonEnd), spec)
@@ -334,9 +357,22 @@ object CoverPalette {
     /**
      * The opaque ARGB colour of an HCT triple. The library's solver keeps hue and tone and lowers the chroma
      * until the colour fits the sRGB range, so a colour is never made by clipping channels.
+     *
+     * With a [maxTone] below 100 the tone of the colour that is really returned (after the rounding to 8 bits per
+     * channel, which can land a hair above the tone asked for) is held at or under it: the colour is lowered a
+     * quarter of a tone at a time until it is.
      */
-    private fun colour(hue: Double, chroma: Double, tone: Double): Int =
-        Hct.from(((hue % 360.0) + 360.0) % 360.0, max(chroma, 0.0), tone.coerceIn(0.0, 100.0)).toInt() or OPAQUE
+    private fun colour(hue: Double, chroma: Double, tone: Double, maxTone: Double = 100.0): Int {
+        val h = ((hue % 360.0) + 360.0) % 360.0
+        var t = tone.coerceIn(0.0, max(maxTone, 0.0))
+        var c = Hct.from(h, max(chroma, 0.0), t).toInt() or OPAQUE
+        if (maxTone >= 100.0) return c
+        while (toneOf(c) > maxTone + TONE_EPSILON && t > 0.0) {
+            t = max(t - 0.25, 0.0)
+            c = Hct.from(h, max(chroma, 0.0), t).toInt() or OPAQUE
+        }
+        return c
+    }
 
     /** The colour at [tone], or the first tone below it (steps of 1) whose relative luminance is at most [maxLuminance]. */
     private fun underLuminance(hue: Double, chroma: Double, tone: Double, maxLuminance: Double): Int {
@@ -369,7 +405,7 @@ object CoverPalette {
     ): Int {
         val needed = minRatio + spec.contrastMargin
         var t = tone.coerceIn(lowerTone, upperTone)
-        var c = colour(hue, chroma, t)
+        var c = colour(hue, chroma, t, upperTone)
         if (readable(c, against, needed)) return c
         val step = max(spec.toneStep, 0.1)
         val lighterThanBackground = luminance(c) >= against.sumOf { luminance(it) } / against.size
@@ -378,7 +414,7 @@ object CoverPalette {
             val next = (t + direction).coerceIn(lowerTone, upperTone)
             if (next == t) return c
             t = next
-            c = colour(hue, chroma, t)
+            c = colour(hue, chroma, t, upperTone)
             if (readable(c, against, needed)) return c
         }
     }
@@ -401,6 +437,13 @@ object CoverPalette {
     private fun linear(channel8: Int): Double {
         val c = channel8 / 255.0
         return if (c <= 0.04045) c / 12.92 else ((c + 0.055) / 1.055).pow(2.4)
+    }
+
+    /** The tone (CIE L*) of an sRGB colour, from its relative luminance. */
+    private fun toneOf(argb: Int): Double {
+        val y = luminance(argb)
+        val f = if (y > 216.0 / 24389.0) cbrt(y) else (24389.0 / 27.0 * y + 16.0) / 116.0
+        return 116.0 * f - 16.0
     }
 
     private fun contrast(a: Int, b: Int): Double {
