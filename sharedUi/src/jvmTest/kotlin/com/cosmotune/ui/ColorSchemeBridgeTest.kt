@@ -7,6 +7,7 @@ import com.cosmotune.theme.CoverPalette
 import com.cosmotune.ui.theme.toColorScheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 class ColorSchemeBridgeTest {
     private val green = CoverPalette.fromPixels(IntArray(64 * 64) { 0xFF466044.toInt() }, 64, 64, dark = true)
@@ -29,10 +30,41 @@ class ColorSchemeBridgeTest {
         assertEquals(Color(green.scrim), s.scrim)
     }
 
+    @Test fun theErrorFamilyIsTheDangerFamily() {
+        // Material's error, onError, errorContainer and onErrorContainer are the palette's fixed red family (v3 delta), so a
+        // dialog or a text field that still asks Material for "error" gets the same red as the new screens.
+        for (dark in listOf(true, false)) {
+            val p = CoverPalette.fromPixels(IntArray(64 * 64) { 0xFF466044.toInt() }, 64, 64, dark = dark)
+            val s = p.toColorScheme(if (dark) darkColorScheme() else lightColorScheme())
+            assertEquals(Color(p.danger), s.error, "error (dark = $dark)")
+            assertEquals(Color(p.onDanger), s.onError, "onError (dark = $dark)")
+            assertEquals(Color(p.dangerContainer), s.errorContainer, "errorContainer (dark = $dark)")
+            assertEquals(Color(p.onDangerContainer), s.onErrorContainer, "onErrorContainer (dark = $dark)")
+        }
+    }
+
+    @Test fun theErrorColoursAreTheDesignersRedNotMaterialsStockOnes() {
+        val dark = green.toColorScheme(darkColorScheme())
+        assertEquals(Color(0xFFF2716A), dark.error)
+        assertEquals(Color(0xFF1A0E0D), dark.onError)
+        assertEquals(Color(0xFF642724), dark.errorContainer)
+        assertEquals(Color(0xFFFFDEDB), dark.onErrorContainer)
+        val base = lightColorScheme()
+        val light = CoverPalette.fromPixels(IntArray(0), 0, 0, dark = false).toColorScheme(base)
+        assertEquals(Color(0xFFBA2B28), light.error)
+        assertEquals(Color(0xFFFFFFFF), light.onError)
+        assertEquals(Color(0xFFFFD8D4), light.errorContainer)
+        assertEquals(Color(0xFF6C1614), light.onErrorContainer)
+        assertNotEquals(base.error, light.error)
+    }
+
     @Test fun keepsWhatTheBridgeDoesNotOwn() {
         val base = lightColorScheme()
         val s = CoverPalette.fromPixels(IntArray(0), 0, 0, dark = false).toColorScheme(base)
-        assertEquals(base.error, s.error)
-        assertEquals(base.onError, s.onError)
+        assertEquals(base.secondary, s.secondary)
+        assertEquals(base.onSecondary, s.onSecondary)
+        assertEquals(base.tertiary, s.tertiary)
+        assertEquals(base.inverseSurface, s.inverseSurface)
+        assertEquals(base.surfaceBright, s.surfaceBright)
     }
 }

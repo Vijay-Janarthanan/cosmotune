@@ -144,6 +144,14 @@ object CoverPalette {
             scrim = mix(a.scrim, b.scrim),
             track = mix(a.track, b.track),
             outline = mix(a.outline, b.outline),
+            glass = mix(a.glass, b.glass),
+            skelBase = mix(a.skelBase, b.skelBase),
+            skelShine = mix(a.skelShine, b.skelShine),
+            danger = mix(a.danger, b.danger),
+            onDanger = mix(a.onDanger, b.onDanger),
+            dangerContainer = mix(a.dangerContainer, b.dangerContainer),
+            onDangerContainer = mix(a.onDangerContainer, b.onDangerContainer),
+            dangerClash = if (t < 0.5f) a.dangerClash else b.dangerClash,
         )
     }
 

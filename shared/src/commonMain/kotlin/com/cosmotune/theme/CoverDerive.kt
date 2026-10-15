@@ -12,8 +12,9 @@ internal class Extraction(val seed: Lch, val second: Lch?, val mono: Boolean, va
 
 /**
  * The derivation: seed in, palette out. A port of `DC.derive` (and its helpers `ensure` and `inside`) in the
- * designer's `dynamic-colour.js`, line by line, with every number taken from [CoverPaletteSpec]. The order of the
- * steps matters (the contrast loops read what was derived before them), so it is the reference's order.
+ * designer's `dynamic-colour.js` (v3: `dynamic-colour-v3.js`, which only adds fields), line by line, with every number
+ * taken from [CoverPaletteSpec]. The order of the steps matters (the contrast loops read what was derived before them),
+ * so it is the reference's order.
  */
 internal object CoverDerive {
 
@@ -216,6 +217,20 @@ internal object CoverDerive {
             guard++
         }
 
+        // v3: glass, the skeleton pair and the danger family (`ui/v3/02-colour-delta.md`, section 1), computed after the
+        // on-accent colour. The grounds they sit on are final here (the rails above have moved them).
+        val glass = rule(if (dark) spec.darkGlass else spec.lightGlass, c, hg, 1.0, if (dark) spec.darkGlassAlpha else spec.lightGlassAlpha)
+        val skelBase = rule(if (dark) spec.darkSkeletonBase else spec.lightSkeletonBase, c, hg)
+        val skelShine = rule(if (dark) spec.darkSkeletonShine else spec.lightSkeletonShine, c, h)
+        fun fixed(f: FixedColour) = m.mk(f.l, f.c, f.h)
+        val danger = ensure(fixed(if (dark) spec.darkDanger else spec.lightDanger), listOf(backgroundBottom, surface, surfaceVariant), spec.uiContrast)
+        val dangerContainer = fixed(if (dark) spec.darkDangerContainer else spec.lightDangerContainer)
+        val onDangerContainer = ensure(fixed(if (dark) spec.darkOnDangerContainer else spec.lightOnDangerContainer), listOf(dangerContainer), spec.textContrast)
+        val dangerInk = fixed(spec.onDangerInk)
+        val dangerWhite = m.mk(1.0, 0.0, 0.0)
+        val onDanger = if (m.contrast(dangerInk, danger) >= m.contrast(dangerWhite, danger)) dangerInk else dangerWhite
+        val dangerClash = !mono && hueDistance(h, spec.dangerHue) < spec.dangerClashHueDistance
+
         return CoverColors(
             seed = m.mk(s.l, s.c, s.h).argb,
             backgroundTop = backgroundTop.argb,
@@ -241,6 +256,14 @@ internal object CoverDerive {
             scrim = scrim.argb,
             track = track.argb,
             outline = outline.argb,
+            glass = glass.argb,
+            skelBase = skelBase.argb,
+            skelShine = skelShine.argb,
+            danger = danger.argb,
+            onDanger = onDanger.argb,
+            dangerContainer = dangerContainer.argb,
+            onDangerContainer = onDangerContainer.argb,
+            dangerClash = dangerClash,
         )
     }
 

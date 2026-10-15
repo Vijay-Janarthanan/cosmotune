@@ -10,9 +10,13 @@ data class ChromaRule(val l: Double, val factor: Double, val max: Double)
 /** A colour whose chroma is a share of the accent chroma, held between a floor and a ceiling: `(l, clamp(factor * A, min, max))`. */
 data class AccentChromaRule(val l: Double, val factor: Double, val min: Double, val max: Double)
 
+/** A colour that does not depend on the cover: OKLCH `(l, c, h)` as it is asked for (gamut mapping may lower the chroma). */
+data class FixedColour(val l: Double, val c: Double, val h: Double)
+
 /**
  * Every number the cover palette uses, in one place: the designer's dynamic-colour formulas
- * (`ui/v2/01-dynamic-colour.md`, implemented by `ui/v2/dynamic-colour.js`), so the design can be retuned without
+ * (`ui/v2/01-dynamic-colour.md`, implemented by `ui/v2/dynamic-colour.js`, plus the v3 fields of `ui/v3/02-colour-delta.md`,
+ * implemented by `ui/v3/dynamic-colour-v3.js`), so the design can be retuned without
  * touching the logic in [CoverPalette]. The defaults are the formulas as the owner approved them.
  *
  * Colours are OKLCH (L 0 to 1, chroma, hue in degrees; Bjorn Ottosson's OKLab, as in CSS Color 4). Chroma that sRGB
@@ -209,6 +213,38 @@ data class CoverPaletteSpec(
     val lightTrackL: Double = 0.20,
     val lightTrackAlpha: Double = 0.16,
     val lightOutlineAlpha: Double = 0.12,
+
+    // --- v3: glass, the skeleton pair and the danger family (ui/v3/02-colour-delta.md, section 1) -----
+
+    /**
+     * The tint under blur: OKLCH `(l, min(factor * c, max))` at the ground hue, with the alpha it carries: 0.52 in the dark
+     * theme, 0.62 in the light one.
+     */
+    val darkGlass: ChromaRule = ChromaRule(0.30, 0.32, 0.032),
+    val darkGlassAlpha: Double = 0.52,
+    val lightGlass: ChromaRule = ChromaRule(0.975, 0.32, 0.032),
+    val lightGlassAlpha: Double = 0.62,
+    /** The skeleton fill, at the ground hue, and the skeleton's shimmer highlight, at the seed's hue. */
+    val darkSkeletonBase: ChromaRule = ChromaRule(0.30, 0.30, 0.03),
+    val lightSkeletonBase: ChromaRule = ChromaRule(0.92, 0.30, 0.03),
+    val darkSkeletonShine: ChromaRule = ChromaRule(0.40, 0.45, 0.05),
+    val lightSkeletonShine: ChromaRule = ChromaRule(0.97, 0.45, 0.05),
+    /**
+     * The danger family does not depend on the cover, so a destructive action never reads as "the song's colour". The red
+     * itself is moved by the contrast loop until it has [uiContrast] on the bottom background stop, the surface and the
+     * variant surface; the text on it is ink ([onDangerInk]) or white, whichever has the higher contrast on the red.
+     */
+    val darkDanger: FixedColour = FixedColour(0.70, 0.16, 25.0),
+    val lightDanger: FixedColour = FixedColour(0.52, 0.18, 27.0),
+    val onDangerInk: FixedColour = FixedColour(0.18, 0.02, 25.0),
+    /** The fill of a destructive button (family B), and the text on it (moved until it has [textContrast] on the container). */
+    val darkDangerContainer: FixedColour = FixedColour(0.36, 0.09, 25.0),
+    val lightDangerContainer: FixedColour = FixedColour(0.92, 0.05, 25.0),
+    val darkOnDangerContainer: FixedColour = FixedColour(0.93, 0.04, 25.0),
+    val lightOnDangerContainer: FixedColour = FixedColour(0.35, 0.12, 27.0),
+    /** A cover whose seed hue is closer than [dangerClashHueDistance] degrees to [dangerHue] makes destructive buttons render outlined. */
+    val dangerHue: Double = 25.0,
+    val dangerClashHueDistance: Double = 30.0,
 
     // --- the grey cover (fewer than [minColourShare] colour pixels) ----------------------------
 

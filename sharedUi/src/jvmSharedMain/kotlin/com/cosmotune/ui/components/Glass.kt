@@ -34,7 +34,7 @@ import kotlin.math.min
  *
  * 1. a soft shadow, a lift of 12 dp in black at 50 % (light theme 22 %), outside the shape, when [shadow] is true ([liftShadow]);
  * 2. the backdrop, blurred 22 dp (32 dp on the desktop), by Haze through [hazeState]; or, when [GlassPolicy] says solid, nothing;
- * 3. the `surfaceHigh` fill: the glass 52 % (light 62 %) over a blur, a nearly solid 94 % without one;
+ * 3. the fill: the cover's `glass` colour (52 % dark, 62 % light) over a blur, `surfaceHigh` at a nearly solid 94 % without one;
  * 4. the cover tint: `accentContainer` at 46 % along 100 degrees, gone by 70 % of the width, or the caller's own [tint];
  * 5. the content;
  * 6. the specular edge: an inner 1 dp ring and a fine top line that follows the corners.
@@ -67,7 +67,6 @@ fun Modifier.cosmoGlass(
     val dark = colors.dark                  // read after the palette, which it travels with
     val sdk = platformSdkInt
     val blurred = rememberGlassMode(hasBackdrop = hazeState != null, overVideo = overVideo) == GlassMode.BLUR
-    val fillAlpha = GlassPolicy.fillAlpha(if (blurred) GlassMode.BLUR else GlassMode.SOLID, dark)
 
     var glass: Modifier = this
     if (shadow) {
@@ -91,7 +90,9 @@ fun Modifier.cosmoGlass(
     return glass.drawWithCache {
         val outline = shape.createOutline(size, layoutDirection, this)
         // The live colours are read here, so the cache is rebuilt only while a palette fade runs.
-        val fill = colors.live(CoverField.SURFACE_HIGH).copy(alpha = fillAlpha)
+        // Over a blur the fill is the cover's `glass` field, which carries its own alpha (52 % dark, 62 % light); without one it
+        // is `surfaceHigh`, nearly solid.
+        val fill = if (blurred) colors.live(CoverField.GLASS) else colors.live(CoverField.SURFACE_HIGH).copy(alpha = GlassPolicy.SOLID_ALPHA)
         val coverTint: Brush? = if (tint == null) {
             val container = colors.live(CoverField.ACCENT_CONTAINER)
             val line = FloatArray(4)

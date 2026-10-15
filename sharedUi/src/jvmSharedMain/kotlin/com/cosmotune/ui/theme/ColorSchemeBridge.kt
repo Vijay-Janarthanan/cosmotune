@@ -4,7 +4,10 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
 import com.cosmotune.theme.CoverColors
 
-/** The cover palette as a Material scheme, so the old screens follow the cover (handoff section 2, plus onBackground). */
+/**
+ * The cover palette as a Material scheme, so the old screens follow the cover (handoff section 2, plus onBackground). Material's
+ * error family is the palette's danger family (the v3 delta): a fixed red that does not follow the cover.
+ */
 fun CoverColors.toColorScheme(base: ColorScheme): ColorScheme {
     val text = Color(textPrimary)
     return base.copy(
@@ -19,5 +22,7 @@ fun CoverColors.toColorScheme(base: ColorScheme): ColorScheme {
         surfaceContainerHighest = Color(surfaceVariant),
         outline = text.copy(alpha = 0.14f), outlineVariant = text.copy(alpha = 0.08f),
         scrim = Color(scrim),
+        error = Color(danger), onError = Color(onDanger),
+        errorContainer = Color(dangerContainer), onErrorContainer = Color(onDangerContainer),
     )
 }
