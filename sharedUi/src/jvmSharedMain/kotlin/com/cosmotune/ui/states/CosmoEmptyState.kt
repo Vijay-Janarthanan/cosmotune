@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -34,6 +35,7 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.CosmoLoadingBlob
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.components.heroFill
+import com.cosmotune.ui.components.tileEdge
 import com.cosmotune.ui.components.tonalFill
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.CosmoType
@@ -50,6 +52,7 @@ private val ART_WIDTH = 120.dp
 private val ART_HEIGHT = 96.dp
 private val TILE_SIZE = 64.dp
 private val TILE_RADIUS = 18.dp
+private val TILE_SHAPE = SuperellipseShape(TILE_RADIUS)
 private val ICON_SIZE = 28.dp
 
 /** The state's own rhythm: the gap of the column (`gap: 10px`), the room around it, and how wide the message may run. */
@@ -148,7 +151,8 @@ fun CosmoLoadingState(label: String, modifier: Modifier = Modifier) {
 
 /**
  * The 120 x 96 art. The tiles are decoration: the icon has no description (the title and the message say it), and the fills are read
- * while drawing so the art follows a palette fade.
+ * while drawing so the art follows a palette fade. The back tiles, faint by design, keep a tile's rim and hairline at full strength
+ * (`--hl`), so they read as tiles and not as stains on a light page; they take no shadow, which would show through their fill.
  */
 @Composable
 private fun EmptyArt(icon: ImageVector, colors: CosmoColors) {
@@ -160,15 +164,21 @@ private fun EmptyArt(icon: ImageVector, colors: CosmoColors) {
                     .offset(tile.left, tile.top)
                     .size(TILE_SIZE)
                     .graphicsLayer { rotationZ = tile.degrees }
-                    .clip(SuperellipseShape(TILE_RADIUS))
-                    .drawBehind { drawRect(tonalFill(colors), alpha = tile.alpha) },
+                    .clip(TILE_SHAPE)
+                    .drawWithCache {
+                        val edge = tileEdge(TILE_SHAPE.createOutline(size, layoutDirection, this), colors)
+                        onDrawBehind {
+                            drawRect(tonalFill(colors), alpha = tile.alpha)
+                            edge()
+                        }
+                    },
             )
         }
         Box(
             Modifier
                 .offset(FRONT_LEFT, FRONT_TOP)
                 .size(TILE_SIZE)
-                .clip(SuperellipseShape(TILE_RADIUS))
+                .clip(TILE_SHAPE)
                 .drawBehind { drawRect(heroFill(colors)) },
             contentAlignment = Alignment.Center,
         ) {

@@ -2,6 +2,7 @@ package com.cosmotune.ui.components
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
@@ -25,3 +26,18 @@ internal fun Modifier.liftShadow(shape: Shape, elevation: Dp, spot: () -> Color,
         spotShadowColor = spot()
         ambientShadowColor = ambient()
     }
+
+/**
+ * What [liftShadow] draws, for a surface whose own layer also moves: a [MorphBox] applies it in the layer block that scales it, so the
+ * shadow shrinks with a press instead of showing round the edges of the squished surface. The colours are read in that layer block.
+ */
+internal class Lift(val shape: Shape, val elevation: Dp, val spot: () -> Color, val ambient: () -> Color)
+
+/** [lift] in this layer: its elevation, shape and the two colours, read now; never a clip. */
+internal fun GraphicsLayerScope.applyLift(lift: Lift) {
+    shadowElevation = lift.elevation.toPx()
+    shape = lift.shape
+    clip = false
+    spotShadowColor = lift.spot()
+    ambientShadowColor = lift.ambient()
+}

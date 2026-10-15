@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.cosmotune.design.CoverArt
+import com.cosmotune.design.TileDepth
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.LocalCosmoColors
@@ -76,7 +77,7 @@ fun CoverFrame(
             .drawBehind { drawRect(colors.live(CoverField.SURFACE_VARIANT)) },
     ) {
         content()
-        Box(Modifier.matchParentSize().coverRim(shape))
+        Box(Modifier.matchParentSize().coverRim(shape, colors))
     }
 }
 
@@ -90,14 +91,21 @@ private fun Modifier.coverShadows(shape: Shape, colors: CosmoColors): Modifier =
 
 private val COVER_ELEVATION = 14.dp
 
-/** The cover's rim (`.cv::after`): an inner ring of white 14 % (0.5 dp) and a fine top line of white 16 %. Drawn on top of the picture. */
-private fun Modifier.coverRim(shape: Shape): Modifier = drawWithCache {
+/**
+ * The cover's rim (`.cv::after`): an inner ring of white 14 % (0.5 dp) and a fine top line of white 16 %. Drawn on top of the picture.
+ * In the light theme a white ring vanishes on a pale cover over a pale page, so it also takes the tile's hairline (`--hl` light: the
+ * ink at 6 %), read while drawing; reading the palette in the cache rebuilds it when the theme flips.
+ */
+private fun Modifier.coverRim(shape: Shape, colors: CosmoColors): Modifier = drawWithCache {
     val outline = shape.createOutline(size, layoutDirection, this)
     val ring = Stroke(1.dp.toPx())                      // the clip shows half of it: 0.5 dp
     val top = topLightBrush(Color.White.copy(alpha = 0.16f), size.height)
     val topStroke = Stroke(2.dp.toPx())                 // 1 dp inside
+    keepRedrawnWith(colors.palette)
+    val light = !colors.dark
     onDrawBehind {
         drawOutline(outline, Color.White.copy(alpha = 0.14f), style = ring)
         drawOutline(outline, top, style = topStroke)
+        if (light) drawOutline(outline, colors.live(CoverField.TEXT_PRIMARY).copy(alpha = TileDepth.hairlineAlpha(dark = false)), style = ring)
     }
 }

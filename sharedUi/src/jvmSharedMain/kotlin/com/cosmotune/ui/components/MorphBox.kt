@@ -51,7 +51,8 @@ internal const val DISABLED_ALPHA = 0.38f
  * [stateLayer] is laid over the fill, clipped to the outline, at [pressedLayerAlpha] while pressed and
  * [STATE_LAYER_HOVERED] under a mouse; [Color.Unspecified] draws none. Reduced motion: no scale, and every spring becomes a
  * 150 ms fade. A disabled control fades to 38 % ([dimWhenDisabled] false lets the caller draw its own disabled look).
- * [floating] only picks the focus ring: the 2 dp ink ring of the C recipe over the B ring of `accentStrong`.
+ * [floating] only picks the focus ring: the 2 dp ink ring of the C recipe over the B ring of `accentStrong`. [lift] is a platform
+ * elevation shadow drawn in the same layer as the press scale (a tile's lift, `--e1`), so it shrinks with the press.
  */
 @Composable
 internal fun MorphBox(
@@ -66,6 +67,7 @@ internal fun MorphBox(
     stateLayer: Color = Color.Unspecified,
     pressedLayerAlpha: Float = STATE_LAYER_PRESSED,
     shadow: (DrawScope.(outline: Path) -> Unit)? = null,
+    lift: Lift? = null,
     edge: (DrawScope.(outline: Path) -> Unit)? = null,
     fill: DrawScope.() -> Brush?,
     content: @Composable BoxScope.() -> Unit,
@@ -103,6 +105,7 @@ internal fun MorphBox(
                 this.scaleX = scaleX.value
                 this.scaleY = scaleY.value
                 alpha = if (enabled || !dimWhenDisabled) 1f else DISABLED_ALPHA
+                if (lift != null) applyLift(lift)
             }
             .cosmoFocusRing(interaction, target.radiusDp.dp, floating)
             .drawBehind {

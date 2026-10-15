@@ -203,13 +203,16 @@ class StatesContractTest {
         assertTrue(art.contains("drawRect(tonalFill(colors), alpha = tile.alpha)"), "the back tiles are the tonal fill at 60 and 80 %")
         assertTrue(art.contains("drawRect(heroFill(colors))"), "the front tile is the play gradient")
         assertTrue(art.contains("tint = onAccent") && art.contains("Modifier.size(ICON_SIZE)"), "the icon is 28 dp in onAccent")
-        assertEquals(2, Regex("""SuperellipseShape\(TILE_RADIUS\)""").findAll(art).count(), "the two turned tiles (one loop) and the front tile are superellipses of 18")
+        // P4-19: one shape for the three tiles, made once
+        assertTrue(emptyCode.contains("private val TILE_SHAPE = SuperellipseShape(TILE_RADIUS)"), "the tiles are superellipses of 18")
+        assertEquals(2, Regex("""\.clip\(TILE_SHAPE\)""").findAll(art).count(), "the two turned tiles (one loop) and the front tile take that shape")
         assertTrue(art.contains("for (tile in BACK_TILES)") && emptyCode.contains("private val BACK_TILES = listOf("), "two back tiles")
     }
 
     @Test fun theEmptyStateReadsItsFillsWhileDrawingAndPicksNoColourByHand() {
         val art = SourceContract.functionBody(emptySrc, "EmptyArt")
-        val withoutDraws = art.replace(blockAfter(art, ".drawBehind { drawRect(tonalFill"), "").replace(blockAfter(art, ".drawBehind { drawRect(heroFill"), "")
+        // P4-19: the back tiles draw their fill and their edge in a draw cache
+        val withoutDraws = art.replace(blockAfter(art, ".drawWithCache {"), "").replace(blockAfter(art, ".drawBehind { drawRect(heroFill"), "")
         assertFalse(withoutDraws.contains("live("), "no live colour in the composition")
         assertFalse(Regex("""Color\(0x|Color\.(White|Black|Gray|Red|Green|Blue)""").containsMatchIn(emptyCode), "no colour picked by hand")
         assertFalse(Regex("""remember\s*\{[^}]*(Brush|SolidColor)""").containsMatchIn(emptyCode), "no brush is remembered")
