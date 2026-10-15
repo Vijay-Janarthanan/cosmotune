@@ -1,6 +1,7 @@
 package com.music.bitchord.desktop
 
 import androidx.compose.foundation.lazy.LazyListState
+import com.cosmotune.ui.theme.FollowCover
 import com.music.bitchord.ui.components.LocalShelfRowChrome
 import com.music.bitchord.ui.components.ShelfRowChrome
 import com.music.bitchord.ui.components.ShelfRow
@@ -2993,6 +2994,8 @@ fun BitChordDesktopApp() {
         dark = true,
         legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) },
     ) {
+        val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current
+        cosmoShell?.FollowCover(selectedSong, liveQueue.songs.getOrNull(liveQueue.index + 1))
         val ambientBackdrop by DesktopAppearanceSettings.ambientBackdrop.collectAsState()
         val windowActions = LocalDesktopWindowActions.current
         CompositionLocalProvider(
@@ -3007,7 +3010,7 @@ fun BitChordDesktopApp() {
                     val ambientArtworkUrl = replaySummary.songs.firstOrNull()?.song?.thumbnailUrl
                         .takeIf { overlays.replay }
                         ?: selectedSong?.thumbnailUrl.takeIf { ambientBackdrop }
-                    DesktopPageBackdrop(
+                    if (cosmoShell != null) com.cosmotune.ui.theme.AmbientBackground(Modifier.fillMaxSize()) else DesktopPageBackdrop(
                         artworkUrl = ambientArtworkUrl,
                         transparentBase = transparentBase,
                     )
