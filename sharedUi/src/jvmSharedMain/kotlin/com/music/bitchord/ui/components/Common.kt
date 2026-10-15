@@ -320,6 +320,7 @@ fun SongRow(
     /** True while a Downloads row belongs to the current multi-selection. */
     selected: Boolean = false,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.blocks.CosmoSongRow(song = song, onClick = onClick, modifier = modifier, onLongPress = onLongPress, onMore = onMore, onSwipeToQueue = onSwipeToQueue, trackNumber = trackNumber, downloadedTint = downloadedTint, isCurrent = isCurrent, isPlaying = isPlaying, selected = selected)
     val haptics = rememberHaptics()
     val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
     var boxWidth by remember { mutableFloatStateOf(0f) }
