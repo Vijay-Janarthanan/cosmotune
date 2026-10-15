@@ -1,179 +1,19 @@
 package com.cosmotune.theme
 
 import com.materialkolor.hct.Hct
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.cbrt
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.pow
-import kotlin.math.roundToInt
-import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
-import kotlin.test.assertNotSame
-import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * The cover palette: one colour is picked from the cover and every other colour is derived from it, calm
- * (never too bright) and readable (WCAG contrast). The expectations are written by hand. The contrast, luminance,
- * tone and OKLab functions below are the test's own and do not use the code under test.
+ * Reading a cover: sampling, the designer's pre-filter, the seed (the quantiser and the scorer, or the exact histogram of
+ * a flat cover), the grey-cover fallback and determinism. The expectations are written by hand; the colour maths of the
+ * tests (contrast, OKLCH) is the tests' own, in [ThemeTestBase], and does not use the code under test.
  */
-class CoverPaletteTest {
-
-    // --- the test's own colour maths ---------------------------------------------------------------
-
-    private fun red(c: Int) = (c shr 16) and 0xFF
-    private fun green(c: Int) = (c shr 8) and 0xFF
-    private fun blue(c: Int) = c and 0xFF
-    private fun rgb(r: Int, g: Int, b: Int) = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-
-    /** WCAG 2.x: the 0.03928 knee and the 0.2126 / 0.7152 / 0.0722 weights. */
-    private fun linear(channel8: Int): Double {
-        val c = channel8 / 255.0
-        return if (c <= 0.03928) c / 12.92 else ((c + 0.055) / 1.055).pow(2.4)
-    }
-
-    private fun luminance(c: Int) = 0.2126 * linear(red(c)) + 0.7152 * linear(green(c)) + 0.0722 * linear(blue(c))
-
-    private fun contrast(a: Int, b: Int): Double {
-        val la = luminance(a)
-        val lb = luminance(b)
-        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
-    }
-
-    /** CIE L* (the "tone" of HCT) from the relative luminance. */
-    private fun tone(c: Int): Double {
-        val y = luminance(c)
-        val f = if (y > 216.0 / 24389.0) cbrt(y) else (24389.0 / 27.0 * y + 16.0) / 116.0
-        return 116.0 * f - 16.0
-    }
-
-    /** The L of OKLab (Ottosson's matrices, applied to linear sRGB). */
-    private fun oklabL(c: Int): Double {
-        fun lin(ch: Int): Double {
-            val x = ch / 255.0
-            return if (x <= 0.04045) x / 12.92 else ((x + 0.055) / 1.055).pow(2.4)
-        }
-        val r = lin(red(c))
-        val g = lin(green(c))
-        val b = lin(blue(c))
-        val l = cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
-        val m = cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
-        val s = cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
-        return 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s
-    }
-
-    private fun hueDistance(a: Double, b: Double) = abs(((a - b + 540.0) % 360.0) - 180.0)
-
-    /** Hue, saturation and value (0..1) to ARGB: a different route from the code's HCT, for building test covers. */
-    private fun hsv(hue: Double, saturation: Double, value: Double): Int {
-        val chroma = value * saturation
-        val sector = (hue / 60.0) % 6.0
-        val x = chroma * (1.0 - abs(sector % 2.0 - 1.0))
-        val m = value - chroma
-        val (r, g, b) = when (sector.toInt()) {
-            0 -> Triple(chroma, x, 0.0)
-            1 -> Triple(x, chroma, 0.0)
-            2 -> Triple(0.0, chroma, x)
-            3 -> Triple(0.0, x, chroma)
-            4 -> Triple(x, 0.0, chroma)
-            else -> Triple(chroma, 0.0, x)
-        }
-        return rgb(((r + m) * 255).roundToInt(), ((g + m) * 255).roundToInt(), ((b + m) * 255).roundToInt())
-    }
-
-    // --- the covers --------------------------------------------------------------------------------
-
-    private val red = rgb(255, 0, 0)
-    private val blueColor = rgb(0, 0, 255)
-    private val yellow = rgb(255, 255, 0)
-    private val white = rgb(255, 255, 255)
-    private val black = rgb(0, 0, 0)
-    private val apricot = 0xFFFFB98F.toInt()
-
-    private fun solid(argb: Int, w: Int = 16, h: Int = 16) = IntArray(w * h) { argb }
-
-    private fun palette(
-        pixels: IntArray,
-        w: Int,
-        h: Int,
-        dark: Boolean = true,
-        spec: CoverPaletteSpec = CoverPaletteSpec(),
-    ) = CoverPalette.fromPixels(pixels, w, h, dark, spec)
-
-    private fun solidPalette(argb: Int, dark: Boolean = true) = palette(solid(argb), 16, 16, dark)
-
-    /** A large blue field with a small orange logo in one corner (64 of 2304 pixels, 2.8 percent). */
-    private fun blueFieldOrangeLogo(): IntArray {
-        val field = rgb(30, 80, 200)
-        val logo = rgb(255, 140, 30)
-        return IntArray(48 * 48) { i ->
-            val x = i % 48
-            val y = i / 48
-            if (x in 36..43 && y in 36..43) logo else field
-        }
-    }
-
-    private fun greyRamp(): IntArray = IntArray(32 * 32) { i ->
-        val v = (i * 255) / (32 * 32 - 1)
-        rgb(v, v, v)
-    }
-
-    /** Left half deep pink, right half teal, both neon. */
-    private fun neonSplit(): IntArray = IntArray(40 * 40) { i -> if (i % 40 < 20) rgb(255, 20, 147) else rgb(0, 229, 204) }
-
-    // --- the rails every palette must hold ---------------------------------------------------------
-
-    private fun assertAtLeast(minimum: Double, actual: Double, what: String) {
-        assertTrue(actual >= minimum, "$what: contrast $actual is below $minimum")
-    }
-
-    private fun assertRails(name: String, c: CoverColors, dark: Boolean) {
-        val every = listOf(
-            c.seed, c.backgroundTop, c.backgroundMid, c.backgroundBottom, c.surface, c.surfaceVariant, c.accent,
-            c.accentStrong, c.onAccent, c.buttonGradientStart, c.buttonGradientEnd, c.textPrimary, c.textSecondary, c.glow,
-        )
-        every.forEachIndexed { i, colour -> assertEquals(0xFF, colour ushr 24, "$name: colour #$i is not opaque") }
-
-        // Primary text on every background stop and on both surfaces.
-        listOf(c.backgroundTop, c.backgroundMid, c.backgroundBottom, c.surface, c.surfaceVariant).forEach {
-            assertAtLeast(4.5, contrast(c.textPrimary, it), "$name textPrimary on #${it.toUInt().toString(16)}")
-        }
-        // Secondary text: the brief names the surface and the middle stop; the palette holds it on all of them.
-        listOf(c.surface, c.backgroundMid, c.backgroundTop, c.backgroundBottom, c.surfaceVariant).forEach {
-            assertAtLeast(4.5, contrast(c.textSecondary, it), "$name textSecondary on #${it.toUInt().toString(16)}")
-        }
-        // Text and icons on the accent and on both ends of the button gradient.
-        listOf(c.accent, c.buttonGradientStart, c.buttonGradientEnd).forEach {
-            assertAtLeast(4.5, contrast(c.onAccent, it), "$name onAccent on #${it.toUInt().toString(16)}")
-        }
-        // The accent is a user interface component on the surface.
-        assertAtLeast(3.0, contrast(c.accent, c.surface), "$name accent on surface")
-
-        if (dark) {
-            listOf(c.backgroundTop, c.backgroundMid, c.backgroundBottom, c.surface, c.surfaceVariant).forEach {
-                assertTrue(luminance(it) <= 0.12, "$name: dark background colour #${it.toUInt().toString(16)} has luminance ${luminance(it)}")
-            }
-        }
-        // "Not too bright": the accent family stays at or below tone 84 (half a tone of slack for 8-bit rounding).
-        listOf(c.accent, c.accentStrong, c.buttonGradientStart, c.buttonGradientEnd, c.glow).forEach {
-            assertTrue(tone(it) <= 84.5, "$name: accent colour #${it.toUInt().toString(16)} has tone ${tone(it)}")
-        }
-    }
-
-    private fun assertRailsBothThemes(name: String, pixels: IntArray, w: Int, h: Int): Pair<CoverColors, CoverColors> {
-        val dark = palette(pixels, w, h, dark = true)
-        val light = palette(pixels, w, h, dark = false)
-        assertRails("$name (dark)", dark, dark = true)
-        assertRails("$name (light)", light, dark = false)
-        return dark to light
-    }
+class CoverPaletteTest : ThemeTestBase() {
 
     // --- single covers -----------------------------------------------------------------------------
 
@@ -183,18 +23,23 @@ class CoverPaletteTest {
         assertFalse(dark.isFallback)
         assertFalse(light.isFallback)
         val seedHue = Hct.fromInt(dark.seed).hue
-        assertTrue(seedHue in 20.0..35.0, "the seed hue of pure red is about 27, was $seedHue")
-        assertTrue(hueDistance(Hct.fromInt(dark.accent).hue, seedHue) <= 4.0, "the accent keeps the seed's hue")
-        assertTrue(hueDistance(Hct.fromInt(light.accent).hue, seedHue) <= 4.0, "the light accent keeps the seed's hue")
+        assertTrue(seedHue in 20.0..35.0, "the seed hue of pure red is about 27 in HCT, was $seedHue")
+        val seedOklchHue = hueOf(dark.seed)
+        assertAbout(29.0, seedOklchHue, 3.0, "the OKLCH hue of pure red")
+        assertTrue(hueDistance(hueOf(dark.accent), seedOklchHue) <= 4.0, "the accent keeps the seed's hue: ${hueOf(dark.accent)}")
+        assertTrue(hueDistance(hueOf(light.accent), seedOklchHue) <= 4.0, "the light accent keeps the seed's hue: ${hueOf(light.accent)}")
     }
 
     @Test
     fun solidBlueKeepsItsHue() {
-        val (dark, _) = assertRailsBothThemes("solid blue", solid(blueColor), 16, 16)
+        val (dark, light) = assertRailsBothThemes("solid blue", solid(blueColor), 16, 16)
         assertFalse(dark.isFallback)
         val seedHue = Hct.fromInt(dark.seed).hue
-        assertTrue(seedHue in 275.0..290.0, "the seed hue of pure blue is about 283, was $seedHue")
-        assertTrue(hueDistance(Hct.fromInt(dark.accent).hue, seedHue) <= 4.0, "the accent keeps the seed's hue")
+        assertTrue(seedHue in 275.0..290.0, "the seed hue of pure blue is about 283 in HCT, was $seedHue")
+        val seedOklchHue = hueOf(dark.seed)
+        assertAbout(264.0, seedOklchHue, 3.0, "the OKLCH hue of pure blue")
+        assertTrue(hueDistance(hueOf(dark.accent), seedOklchHue) <= 4.0, "the accent keeps the seed's hue: ${hueOf(dark.accent)}")
+        assertTrue(hueDistance(hueOf(light.accent), seedOklchHue) <= 4.0, "the light accent keeps the seed's hue: ${hueOf(light.accent)}")
     }
 
     @Test
@@ -239,17 +84,30 @@ class CoverPaletteTest {
     }
 
     @Test
-    fun aPureYellowCoverKeepsItsHueButStaysCalm() {
-        val (dark, light) = assertRailsBothThemes("pure yellow", solid(yellow), 16, 16)
+    fun aYellowCoverKeepsItsHueButStaysCalm() {
+        // The designer's Sunblock: #FFE500 (OKLab L 0.915, under the near-white cut of 0.95).
+        val sunblock = rgb(255, 229, 0)
+        val (dark, light) = assertRailsBothThemes("yellow", solid(sunblock), 16, 16)
         assertFalse(dark.isFallback)
-        val seedHue = Hct.fromInt(dark.seed).hue
-        assertTrue(seedHue in 100.0..120.0, "the seed hue of pure yellow is about 110, was $seedHue")
-        assertTrue(hueDistance(Hct.fromInt(dark.accent).hue, seedHue) <= 4.0, "the accent is still yellow")
-        assertTrue(tone(dark.accent) <= 84.5, "the accent tone is capped at 84, was ${tone(dark.accent)}")
-        assertTrue(tone(light.accent) <= 84.5)
-        listOf(dark.backgroundTop, dark.backgroundMid, dark.backgroundBottom, dark.surface, dark.surfaceVariant).forEach {
-            assertTrue(luminance(it) <= 0.12, "a yellow cover must not make a bright background")
+        val seedOklchHue = hueOf(dark.seed)
+        assertAbout(101.0, seedOklchHue, 3.0, "the OKLCH hue of #FFE500")
+        // The accent is a calm mustard of the same hue (the designer's #D6C65A); the grounds are dark amber, never bright.
+        assertTrue(hueDistance(hueOf(dark.accent), seedOklchHue) <= 6.0, "the accent is still yellow: ${hueOf(dark.accent)}")
+        assertTrue(lightness(dark.accent) <= 0.84 + 0.005, "the accent is held at L 0.84 or under: ${lightness(dark.accent)}")
+        assertTrue(hueDistance(hueOf(light.accent), seedOklchHue) <= 8.0, "the light accent is still yellow: ${hueOf(light.accent)}")
+        listOf(dark.backgroundTop, dark.backgroundMid, dark.backgroundBottom, dark.ambient).forEach {
+            assertTrue(luminance(it) <= 0.030, "a yellow cover must not make a bright background")
         }
+    }
+
+    @Test
+    fun pureYellowFFFF00IsNearWhiteForTheDesignersPreFilter() {
+        // #FFFF00 has an OKLab L of 0.968, above the 0.95 cut, so the designer's pre-filter drops every pixel of it: a cover of
+        // exactly that yellow is a grey cover and gets the brand palette. (A real yellow cover such as #FFE500 is not affected.)
+        assertTrue(lightness(yellow) > 0.95)
+        val c = solidPalette(yellow)
+        assertTrue(c.isFallback)
+        assertEquals(apricot, c.seed)
     }
 
     @Test
@@ -315,119 +173,6 @@ class CoverPaletteTest {
         assertRails("noisy flat cover", c, dark = true)
     }
 
-    // --- the numbers of the design -----------------------------------------------------------------
-
-    @Test
-    fun theDarkThemeUsesTheDesignTones() {
-        val c = solidPalette(blueColor, dark = true)
-        fun assertTone(expected: Double, colour: Int, what: String) =
-            assertTrue(abs(tone(colour) - expected) <= 1.5, "$what: tone ${tone(colour)}, expected $expected")
-        assertTone(15.0, c.backgroundTop, "backgroundTop")
-        assertTone(10.0, c.backgroundMid, "backgroundMid")
-        assertTone(6.0, c.backgroundBottom, "backgroundBottom")
-        assertTone(10.0, c.surface, "surface")
-        assertTone(17.0, c.surfaceVariant, "surfaceVariant")
-        assertTone(78.0, c.accent, "accent")
-        assertTone(68.0, c.accentStrong, "accentStrong")
-        assertTone(82.0, c.buttonGradientStart, "buttonGradientStart")
-        assertTone(70.0, c.buttonGradientEnd, "buttonGradientEnd")
-        assertTone(96.0, c.textPrimary, "textPrimary")
-        assertTone(78.0, c.textSecondary, "textSecondary")
-        assertTone(60.0, c.glow, "glow")
-        assertTone(8.0, c.onAccent, "onAccent")
-    }
-
-    @Test
-    fun theLightThemeUsesTheDesignTones() {
-        val c = solidPalette(blueColor, dark = false)
-        fun assertTone(expected: Double, colour: Int, what: String) =
-            assertTrue(abs(tone(colour) - expected) <= 1.5, "$what: tone ${tone(colour)}, expected $expected")
-        assertTone(98.0, c.backgroundTop, "backgroundTop")
-        assertTone(96.0, c.backgroundMid, "backgroundMid")
-        assertTone(94.0, c.backgroundBottom, "backgroundBottom")
-        assertTone(99.0, c.surface, "surface")
-        assertTone(93.0, c.surfaceVariant, "surfaceVariant")
-        assertTone(44.0, c.accent, "accent")
-        assertTone(38.0, c.accentStrong, "accentStrong")
-        assertTone(46.0, c.buttonGradientStart, "buttonGradientStart")
-        assertTone(38.0, c.buttonGradientEnd, "buttonGradientEnd")
-        assertTone(10.0, c.textPrimary, "textPrimary")
-        assertTone(35.0, c.textSecondary, "textSecondary")
-        assertTone(70.0, c.glow, "glow")
-        assertEquals(white, c.onAccent, "the on-accent colour of the light theme is white")
-    }
-
-    @Test
-    fun theBackgroundChromaIsCappedByTheDesign() {
-        // Pure red has a seed chroma of about 113, so the caps (28, 22, 16) are what limits the backgrounds.
-        val c = solidPalette(red, dark = true)
-        assertTrue(Hct.fromInt(c.backgroundTop).chroma <= 28.0 + 3.0, "top chroma ${Hct.fromInt(c.backgroundTop).chroma}")
-        assertTrue(Hct.fromInt(c.backgroundMid).chroma <= 22.0 + 3.0, "mid chroma ${Hct.fromInt(c.backgroundMid).chroma}")
-        assertTrue(Hct.fromInt(c.backgroundBottom).chroma <= 16.0 + 3.0, "bottom chroma ${Hct.fromInt(c.backgroundBottom).chroma}")
-        // And the gradient is a gradient: top lighter than middle, middle lighter than bottom.
-        assertTrue(tone(c.backgroundTop) > tone(c.backgroundMid))
-        assertTrue(tone(c.backgroundMid) > tone(c.backgroundBottom))
-    }
-
-    @Test
-    fun theButtonGradientTurnsTheHueEitherWay() {
-        val c = solidPalette(blueColor, dark = true)
-        val seedHue = Hct.fromInt(c.seed).hue
-        val start = Hct.fromInt(c.buttonGradientStart).hue
-        val end = Hct.fromInt(c.buttonGradientEnd).hue
-        assertTrue(hueDistance(start, seedHue - 14.0) <= 6.0, "start hue $start, seed hue $seedHue")
-        assertTrue(hueDistance(end, seedHue + 14.0) <= 6.0, "end hue $end, seed hue $seedHue")
-    }
-
-    // --- the sweep ---------------------------------------------------------------------------------
-
-    @Test
-    fun theRailsHoldAcrossEveryHueAndChromaOfASyntheticCover() {
-        var colourful = 0
-        var total = 0
-        for (hue in 0..345 step 15) {
-            for (saturation in listOf(0.25, 0.6, 1.0)) { // low, mid and high chroma
-                for (value in listOf(0.45, 0.9)) {
-                    val argb = hsv(hue.toDouble(), saturation, value)
-                    val name = "hue $hue saturation $saturation value $value (#${argb.toUInt().toString(16)})"
-                    val (dark, light) = assertRailsBothThemes(name, solid(argb), 16, 16)
-                    total++
-                    if (!dark.isFallback) {
-                        colourful++
-                        // The seed is the cover's own colour: the pipeline did not wander off.
-                        assertTrue(hueDistance(Hct.fromInt(dark.seed).hue, Hct.fromInt(argb).hue) <= 3.0, "$name: seed hue")
-                        // The accent keeps the seed's hue when the screen can show it with any real chroma: gamut is
-                        // met by lowering chroma, not by clipping channels (which would turn the hue).
-                        val accent = Hct.fromInt(dark.accent)
-                        if (accent.chroma >= 12.0) {
-                            assertTrue(hueDistance(accent.hue, Hct.fromInt(dark.seed).hue) <= 4.0, "$name: accent hue ${accent.hue}")
-                        }
-                        val lightAccent = Hct.fromInt(light.accent)
-                        if (lightAccent.chroma >= 12.0) {
-                            assertTrue(hueDistance(lightAccent.hue, Hct.fromInt(light.seed).hue) <= 4.0, "$name: light accent hue")
-                        }
-                    } else {
-                        assertEquals(apricot, dark.seed, "$name: a cover with no colour uses the fallback seed")
-                    }
-                }
-            }
-        }
-        assertEquals(144, total)
-        assertTrue(colourful >= 120, "the sweep must mostly exercise real seeds, only $colourful of $total were colourful")
-    }
-
-    @Test
-    fun randomNoiseOfEverySizeNeverBreaksTheRails() {
-        val random = Random(20261015)
-        repeat(60) { n ->
-            val w = random.nextInt(1, 81)
-            val h = random.nextInt(1, 81)
-            val pixels = IntArray(w * h) { random.nextInt() } // random alpha too
-            val (dark, light) = assertRailsBothThemes("noise #$n (${w}x$h)", pixels, w, h)
-            assertEquals(dark.isFallback, light.isFallback, "noise #$n: the seed does not depend on the theme")
-        }
-    }
-
     // --- determinism -------------------------------------------------------------------------------
 
     @Test
@@ -455,6 +200,7 @@ class CoverPaletteTest {
         assertContentEquals(copy, pixels)
     }
 
+
     // --- the fallback ------------------------------------------------------------------------------
 
     @Test
@@ -463,7 +209,8 @@ class CoverPaletteTest {
         val c = CoverPalette.fromPixels(solid(white), 16, 16, fallbackSeed = custom)
         assertTrue(c.isFallback)
         assertEquals(custom, c.seed)
-        assertRails("custom fallback", c, dark = true)
+        // A blue fallback seed is not the brand apricot: the progress rail is the reference's to log, not to repair.
+        assertRails("custom fallback", c, dark = true, checkProgress = false)
     }
 
     @Test
@@ -473,12 +220,17 @@ class CoverPaletteTest {
     }
 
     @Test
-    fun theFallbackPaletteIsStillCalmAndReadable() {
-        // The apricot of the logo is bright (tone 80): the dark theme must still not put it behind the text.
+    fun theFallbackPaletteIsTheBrandPalette() {
+        // The designer's grey rule: a warm neutral ground (chroma 0.012) and the brand apricot as the accent on dark.
         val c = solidPalette(white, dark = true)
         assertTrue(c.isFallback)
-        listOf(c.backgroundTop, c.backgroundMid, c.backgroundBottom).forEach { assertTrue(tone(it) <= 20.0) }
+        assertEquals(apricot, c.accent)
+        listOf(c.backgroundTop, c.backgroundMid, c.backgroundBottom).forEach {
+            assertTrue(luminance(it) <= 0.030, "calm ground ${hex(it)}")
+            assertTrue(chromaOf(it) < 0.02, "a warm neutral, not a colour: chroma ${chromaOf(it)}")
+        }
     }
+
 
     // --- reading the pixels ------------------------------------------------------------------------
 
@@ -581,295 +333,9 @@ class CoverPaletteTest {
         assertTrue(Hct.fromInt(palette(pixels, 128, 1).seed).hue in 275.0..290.0)
     }
 
-    // --- lerp --------------------------------------------------------------------------------------
-
-    private fun fields(c: CoverColors) = listOf(
-        c.seed, c.backgroundTop, c.backgroundMid, c.backgroundBottom, c.surface, c.surfaceVariant, c.accent,
-        c.accentStrong, c.onAccent, c.buttonGradientStart, c.buttonGradientEnd, c.textPrimary, c.textSecondary, c.glow,
-    )
-
-    @Test
-    fun lerpEndpointsAreTheTwoPalettes() {
-        val a = solidPalette(red)
-        val b = solidPalette(blueColor)
-        assertEquals(a, CoverPalette.lerp(a, b, 0f))
-        assertEquals(b, CoverPalette.lerp(a, b, 1f))
-    }
-
-    @Test
-    fun lerpClampsTOutsideZeroToOne() {
-        val a = solidPalette(red)
-        val b = solidPalette(blueColor)
-        assertEquals(a, CoverPalette.lerp(a, b, -0.5f))
-        assertEquals(b, CoverPalette.lerp(a, b, 1.5f))
-        assertEquals(a, CoverPalette.lerp(a, b, Float.NaN))
-    }
-
-    @Test
-    fun theMidpointLiesBetweenTheTwoInOklabLightness() {
-        val a = solidPalette(red)
-        val b = solidPalette(blueColor)
-        val mid = CoverPalette.lerp(a, b, 0.5f)
-        val before = fields(a)
-        val after = fields(b)
-        val middle = fields(mid)
-        for (i in before.indices) {
-            val lo = min(oklabL(before[i]), oklabL(after[i]))
-            val hi = max(oklabL(before[i]), oklabL(after[i]))
-            val l = oklabL(middle[i])
-            // Eight-bit rounding can move L by about 0.002.
-            assertTrue(l >= lo - 0.005 && l <= hi + 0.005, "field #$i: L $l is not between $lo and $hi")
-            // OKLab is where the straight line is drawn, so the lightness is the mean (not a mix done on the channels).
-            assertTrue(abs(l - (oklabL(before[i]) + oklabL(after[i])) / 2.0) <= 0.01, "field #$i: L $l is not the mean")
-        }
-        assertNotEquals(a, mid)
-        assertNotEquals(b, mid)
-        middle.forEach { assertEquals(0xFF, it ushr 24, "an interpolated colour is opaque") }
-    }
-
-    @Test
-    fun lerpOfAPaletteWithItselfIsThatPalette() {
-        val a = solidPalette(blueColor)
-        assertEquals(a, CoverPalette.lerp(a, a, 0.3f))
-    }
-
-    @Test
-    fun lerpMovesTheLightnessStepByStep() {
-        // A dark palette to a light one: the background gets lighter all the way.
-        val dark = solidPalette(blueColor, dark = true)
-        val light = solidPalette(blueColor, dark = false)
-        var previous = oklabL(dark.backgroundTop)
-        for (step in 1..10) {
-            val l = oklabL(CoverPalette.lerp(dark, light, step / 10f).backgroundTop)
-            assertTrue(l >= previous - 0.004, "step $step: $l after $previous")
-            previous = l
-        }
-    }
-
-    @Test
-    fun lerpKeepsEveryColourInGamutWhenTheEndsAreFarApart() {
-        // Interpolating in OKLab can leave the sRGB cube between two vivid colours; the result must still be a real colour.
-        val a = solidPalette(red)
-        val b = solidPalette(blueColor)
-        for (step in 0..20) {
-            val c = CoverPalette.lerp(a, b, step / 20f)
-            fields(c).forEach { assertEquals(0xFF, it ushr 24) }
-        }
-    }
-
-    @Test
-    fun theFallbackFlagFollowsTheNearerEnd() {
-        val fallback = solidPalette(white)
-        val real = solidPalette(red)
-        assertTrue(fallback.isFallback)
-        assertFalse(real.isFallback)
-        assertTrue(CoverPalette.lerp(fallback, real, 0.25f).isFallback)
-        assertFalse(CoverPalette.lerp(fallback, real, 0.75f).isFallback)
-    }
-
-    // --- settle ------------------------------------------------------------------------------------
-
-    @Test
-    fun settleWithNoPreviousPaletteTakesTheNext() {
-        val next = solidPalette(red)
-        assertSame(next, CoverPalette.settle(null, next))
-    }
-
-    @Test
-    fun settleKeepsThePreviousPaletteForAnAlmostIdenticalSeed() {
-        // Two tracks of the same album: the same cover, perhaps a different JPEG, a different last bit of colour.
-        val previous = palette(solid(rgb(48, 80, 192)), 16, 16)
-        val next = palette(solid(rgb(49, 81, 192)), 16, 16)
-        assertNotEquals(previous, next, "the two palettes are not identical, or the test proves nothing")
-        assertSame(previous, CoverPalette.settle(previous, next))
-    }
-
-    @Test
-    fun settleKeepsThePreviousPaletteForTheSameCoverAgain() {
-        val previous = solidPalette(red)
-        val next = solidPalette(red)
-        assertNotSame(previous, next)
-        assertSame(previous, CoverPalette.settle(previous, next))
-    }
-
-    @Test
-    fun settleTakesTheNextPaletteForADifferentCover() {
-        val previous = solidPalette(red)
-        val next = solidPalette(blueColor)
-        assertSame(next, CoverPalette.settle(previous, next))
-    }
-
-    @Test
-    fun settleTakesTheNextPaletteWhenTheThemeChanged() {
-        // The same cover and the same seed, but dark and light palettes differ everywhere except the seed.
-        val previous = solidPalette(blueColor, dark = true)
-        val next = solidPalette(blueColor, dark = false)
-        assertEquals(previous.seed, next.seed)
-        assertSame(next, CoverPalette.settle(previous, next))
-    }
-
-    @Test
-    fun settleHonoursTheThreshold() {
-        val previous = solidPalette(red)
-        val next = solidPalette(blueColor)
-        assertSame(next, CoverPalette.settle(previous, next, 0f), "a threshold of zero never keeps the previous")
-        assertSame(previous, CoverPalette.settle(previous, next, 1000f), "a huge threshold always keeps it")
-        val slightly = palette(solid(rgb(255, 10, 0)), 16, 16)
-        assertSame(previous, CoverPalette.settle(previous, slightly, 3f))
-        assertSame(slightly, CoverPalette.settle(previous, slightly, 0f), "even an identical-looking palette is replaced at a threshold of zero")
-    }
-
-    @Test
-    fun settleAndLerpWorkTogether() {
-        // The screen's loop: settle against what is on screen, then glide from there to the result.
-        var onScreen: CoverColors? = null
-        val covers = listOf(solid(red), solid(red), solid(blueColor), solid(blueColor), solid(yellow))
-        val seen = covers.map { cover ->
-            val next = CoverPalette.settle(onScreen, palette(cover, 16, 16))
-            onScreen = next
-            next
-        }
-        assertSame(seen[0], seen[1])
-        assertNotSame(seen[1], seen[2])
-        assertSame(seen[2], seen[3])
-        assertNotSame(seen[3], seen[4])
-        assertEquals(seen[2], CoverPalette.lerp(seen[1], seen[2], 1f))
-    }
-
-    // --- the spec: retuning, and the safety rails when it is retuned badly ------------------------
-
-    @Test
-    fun theSpecNumbersReachThePalette() {
-        val spec = CoverPaletteSpec(darkBackgroundTopTone = 12.0, darkAccentTone = 70.0)
-        val c = palette(solid(blueColor), 16, 16, dark = true, spec = spec)
-        assertTrue(abs(tone(c.backgroundTop) - 12.0) <= 1.5, "backgroundTop tone ${tone(c.backgroundTop)}")
-        assertTrue(abs(tone(c.accent) - 70.0) <= 1.5, "accent tone ${tone(c.accent)}")
-        assertRails("retuned", c, dark = true)
-    }
-
-    @Test
-    fun aTextToneThatIsTooDarkIsMovedUpUntilItIsReadable() {
-        val spec = CoverPaletteSpec(darkTextPrimaryTone = 40.0, darkTextSecondaryTone = 40.0)
-        val c = palette(solid(blueColor), 16, 16, dark = true, spec = spec)
-        assertRails("bad text tone", c, dark = true)
-        assertTrue(tone(c.textPrimary) in 56.0..70.0, "moved up from 40, to ${tone(c.textPrimary)}")
-        assertTrue(tone(c.textSecondary) in 56.0..70.0, "moved up from 40, to ${tone(c.textSecondary)}")
-    }
-
-    @Test
-    fun aLightTextThatIsTooPaleIsMovedDown() {
-        val spec = CoverPaletteSpec(lightTextPrimaryTone = 70.0, lightTextSecondaryTone = 70.0)
-        val c = palette(solid(red), 16, 16, dark = false, spec = spec)
-        assertRails("bad light text", c, dark = false)
-        assertTrue(tone(c.textPrimary) < 70.0, "moved down from 70, to ${tone(c.textPrimary)}")
-    }
-
-    @Test
-    fun aBackgroundThatWouldBeTooBrightIsPulledUnderTheLuminanceCap() {
-        val spec = CoverPaletteSpec(darkBackgroundTopTone = 70.0, darkSurfaceTone = 60.0, darkSurfaceVariantTone = 55.0)
-        val c = palette(solid(blueColor), 16, 16, dark = true, spec = spec)
-        assertRails("bright backgrounds", c, dark = true)
-        // The cap is a luminance of 0.12, tone 41: the colour comes down to it and stays a real, not black, colour.
-        assertTrue(tone(c.backgroundTop) in 36.0..42.0, "top tone ${tone(c.backgroundTop)}")
-        assertTrue(tone(c.surface) in 36.0..42.0, "surface tone ${tone(c.surface)}")
-    }
-
-    @Test
-    fun theAccentToneIsCappedAt84() {
-        val spec = CoverPaletteSpec(
-            darkAccentTone = 97.0, darkAccentStrongTone = 95.0, darkButtonStartTone = 99.0, darkButtonEndTone = 92.0, darkGlowTone = 90.0,
-        )
-        val dark = palette(solid(yellow), 16, 16, dark = true, spec = spec)
-        assertRails("bright accents", dark, dark = true)
-        assertTrue(tone(dark.accent) in 80.0..84.5, "accent tone ${tone(dark.accent)}")
-        assertTrue(tone(dark.buttonGradientStart) in 80.0..84.5, "button start tone ${tone(dark.buttonGradientStart)}")
-        assertTrue(tone(dark.glow) in 80.0..84.5, "glow tone ${tone(dark.glow)}")
-    }
-
-    @Test
-    fun anAccentThatIsTooCloseToTheSurfaceIsMovedAway() {
-        // Tone 20 on a tone 10 surface has a contrast of about 1.3; the buttons are kept at tones that white text reads on.
-        val spec = CoverPaletteSpec(
-            darkAccentTone = 20.0, darkAccentStrongTone = 16.0, darkButtonStartTone = 44.0, darkButtonEndTone = 38.0,
-        )
-        val c = palette(solid(blueColor), 16, 16, dark = true, spec = spec)
-        assertRails("dull accent", c, dark = true)
-        assertTrue(tone(c.accent) in 40.0..50.0, "the accent was lifted from 20 to about 44, not ${tone(c.accent)}")
-    }
-
-    @Test
-    fun whenNoToneOfTheOnAccentColourIsReadableItFlipsToNearWhite() {
-        // Accents of tone 42 to 46 are too light for black text (contrast 4.0 at best) and light enough for white.
-        val spec = CoverPaletteSpec(
-            darkAccentTone = 46.0, darkAccentStrongTone = 40.0, darkButtonStartTone = 46.0, darkButtonEndTone = 42.0,
-        )
-        val c = palette(solid(blueColor), 16, 16, dark = true, spec = spec)
-        assertRails("flipped on-accent", c, dark = true)
-        assertTrue(tone(c.onAccent) >= 90.0, "the on-accent colour became near-white, tone ${tone(c.onAccent)}")
-    }
-
-    @Test
-    fun whenNoToneIsReadableOnADarkAccentTheOnAccentFlipsToNearBlack() {
-        // Light theme: white is the design's choice, but an accent of tone 62 to 70 is too pale for it.
-        val spec = CoverPaletteSpec(
-            lightAccentTone = 66.0, lightAccentStrongTone = 60.0, lightButtonStartTone = 70.0, lightButtonEndTone = 62.0,
-        )
-        val c = palette(solid(blueColor), 16, 16, dark = false, spec = spec)
-        assertRails("flipped on-accent (light)", c, dark = false)
-        assertTrue(tone(c.onAccent) <= 15.0, "the on-accent colour became near-black, tone ${tone(c.onAccent)}")
-    }
 
     // --- covers that go through the quantiser (more than 128 distinct colours) -----------------------
 
-    /** How many distinct colours the engine sees in a cover, counted at 5 bits per channel after sampling. */
-    private fun distinctBins(pixels: IntArray, w: Int, h: Int): Int =
-        CoverPalette.sample(pixels, w, h).map { ((red(it) shr 3) shl 10) or ((green(it) shr 3) shl 5) or (blue(it) shr 3) }.toSet().size
-
-    private fun scaled(base: Int, factor: Double, noise: Int, random: Random): Int {
-        fun channel(v: Int) = (v * factor + random.nextInt(-noise, noise + 1)).roundToInt().coerceIn(0, 255)
-        return rgb(channel(red(base)), channel(green(base)), channel(blue(base)))
-    }
-
-    /**
-     * A 64 x 64 blue gradient (dark navy on the left, light blue on the right, a little lighter towards the bottom)
-     * with a few levels of noise on every channel, and an orange logo in the top-right corner that covers 121 of 4096
-     * pixels (2.95 percent) plus its own noise. Fixed random seed: the same cover on every machine.
-     */
-    private fun noisyBlueGradientWithOrangeLogo(logoSide: Int = 11): IntArray {
-        val random = Random(2026)
-        return IntArray(64 * 64) { i ->
-            val x = i % 64
-            val y = i / 64
-            if (x >= 64 - logoSide && y < logoSide) {
-                scaled(rgb(255, 140, 30), 1.0, 6, random)
-            } else {
-                val t = x / 63.0
-                val base = rgb((20 + 50 * t).roundToInt(), (70 + 70 * t).roundToInt(), (180 + 65 * t).roundToInt())
-                scaled(base, 0.9 + 0.2 * (y / 63.0), 6, random)
-            }
-        }
-    }
-
-    /**
-     * A 64 x 64 photo-like cover: a field with a vertical light gradient, an object (a shaded disc in the middle) that
-     * covers [objectShare] of the pixels, and per-pixel noise on all three channels.
-     */
-    private fun photoLike(field: Int, obj: Int, objectShare: Double, seed: Int): IntArray {
-        val random = Random(seed)
-        val radius = sqrt(objectShare * 64 * 64 / PI)
-        return IntArray(64 * 64) { i ->
-            val x = i % 64
-            val y = i / 64
-            val dx = x - 31.5
-            val dy = y - 31.5
-            val distance = sqrt(dx * dx + dy * dy)
-            if (distance <= radius) {
-                scaled(obj, 0.8 + 0.3 * (1.0 - distance / radius), 14, random)
-            } else {
-                scaled(field, 0.6 + 0.55 * (y / 63.0), 14, random)
-            }
-        }
-    }
 
     @Test
     fun aBlueGradientWithNoiseAndASmallOrangeLogoSeedsFromTheBlue() {
@@ -893,14 +359,6 @@ class CoverPaletteTest {
         val second = palette(pixels, 64, 64)
         assertEquals(first, second)
         assertEquals(palette(pixels, 64, 64, dark = false), palette(pixels.copyOf(), 64, 64, dark = false))
-    }
-
-    /** A 64 x 64 cover of exactly [bins] distinct 5-bit colours of one blue family, every colour on the same number of pixels. */
-    private fun coverWithBins(bins: Int): IntArray {
-        val lattice = mutableListOf<Int>()
-        for (r in 2..6) for (g in 6..13) for (b in 20..28) lattice += rgb((r shl 3) + 4, (g shl 3) + 4, (b shl 3) + 4)
-        val colours = lattice.take(bins)
-        return IntArray(64 * 64) { i -> colours[i % bins] }
     }
 
     @Test
@@ -955,153 +413,73 @@ class CoverPaletteTest {
         assertTrue(hueDistance(hue, Hct.fromInt(red).hue) <= 25.0, "the seed should be the red, was $hue")
     }
 
-    // --- chroma and hue of the derived colours (where the caps do not bind) -----------------------------
+    // --- the designer's pre-filter and the second colour -----------------------------------------------
 
-    /** The fallback apricot (#ffb98f) has a chroma of about 30.6, below every cap, so the targets show through unchanged. */
-    private val apricotSeedHct = Hct.fromInt(apricot)
+    private val orange = rgb(255, 140, 30)
+    private val deepBlue = rgb(30, 80, 200)
 
-    private fun assertAbout(expected: Double, actual: Double, tolerance: Double, what: String) =
-        assertTrue(abs(actual - expected) <= tolerance, "$what: $actual, expected $expected plus or minus $tolerance")
+    /** A 40 x 40 cover (1600 pixels): the first [logoPixels] pixels are [logo], the rest [ground]. */
+    private fun withLogo(ground: Int, logo: Int, logoPixels: Int): IntArray = IntArray(1600) { i -> if (i < logoPixels) logo else ground }
 
     @Test
-    fun theDarkPaletteKeepsTheChromaOfTheSeedWhereTheCapsDoNotBind() {
-        val c = solidPalette(white, dark = true)
-        assertTrue(c.isFallback)
-        assertAbout(30.6, apricotSeedHct.chroma, 1.0, "the seed chroma")
-        fun chroma(colour: Int) = Hct.fromInt(colour).chroma
-        // 0.5, 0.4 and 0.3 of the seed's chroma: the caps (28, 22, 16) do not bind. A regression to grey backgrounds fails here.
-        assertAbout(15.3, chroma(c.backgroundTop), 2.0, "backgroundTop chroma")
-        assertAbout(12.2, chroma(c.backgroundMid), 2.0, "backgroundMid chroma")
-        assertAbout(9.2, chroma(c.backgroundBottom), 2.0, "backgroundBottom chroma")
-        assertAbout(10.0, chroma(c.surface), 3.0, "surface chroma")
-        assertAbout(14.0, chroma(c.surfaceVariant), 3.0, "surfaceVariant chroma")
-        // The accent has the seed's chroma held to at least 36; the glow is 48.
-        assertTrue(chroma(c.accent) >= 35.0, "accent chroma ${chroma(c.accent)}")
-        assertTrue(chroma(c.accentStrong) >= 35.0, "accentStrong chroma ${chroma(c.accentStrong)}")
-        assertAbout(48.0, chroma(c.glow), 4.0, "glow chroma")
-        // The gradient's ends ask for 42 and 52. At tone 82 an orange-red cannot be shown with 42 (measured 25.9, the
-        // gamut limit), so the start only has to be clearly coloured; the end reaches its 52.
-        assertTrue(chroma(c.buttonGradientStart) >= 20.0, "button start chroma ${chroma(c.buttonGradientStart)}")
-        assertAbout(52.0, chroma(c.buttonGradientEnd), 4.0, "button end chroma")
+    fun aMostlyBlackCoverTakesItsSeedFromTheOrangeNotFromTheBlack() {
+        // Without the pre-filter the quantiser picks the dominant near-black; the designer drops near-black pixels first.
+        val c = palette(withLogo(rgb(6, 7, 9), orange, 160), 40, 40)
+        assertFalse(c.isFallback)
+        assertAbout(oklch(orange).third, hueOf(c.seed), 8.0, "the seed is the orange")
     }
 
     @Test
-    fun theDarkBackgroundsAndSurfacesKeepTheHueOfTheSeed() {
-        val c = solidPalette(white, dark = true)
-        val seedHue = apricotSeedHct.hue
-        listOf(c.backgroundTop, c.backgroundMid, c.backgroundBottom, c.surface, c.surfaceVariant, c.accent, c.glow).forEach {
-            val hct = Hct.fromInt(it)
-            if (hct.chroma > 6.0) {
-                assertTrue(hueDistance(hct.hue, seedHue) <= 8.0, "#${it.toUInt().toString(16)} has hue ${hct.hue}, the seed's is $seedHue")
-            }
-        }
+    fun aMostlyWhiteCoverTakesItsSeedFromTheColourOnIt() {
+        val c = palette(withLogo(rgb(250, 250, 250), deepBlue, 130), 40, 40)
+        assertFalse(c.isFallback)
+        assertAbout(oklch(deepBlue).third, hueOf(c.seed), 8.0, "the seed is the blue")
+        // A cover that is mostly white is bright: the grounds are calmer (the bright factor) but the palette is the usual kind.
+        assertRailsBothThemes("white with a blue mark", withLogo(rgb(250, 250, 250), deepBlue, 130), 40, 40)
     }
 
     @Test
-    fun theLightPaletteKeepsTheDesignTonesAndSomeColour() {
-        val c = solidPalette(white, dark = false)
-        fun chroma(colour: Int) = Hct.fromInt(colour).chroma
-        assertAbout(98.0, tone(c.backgroundTop), 1.5, "backgroundTop tone")
-        assertAbout(96.0, tone(c.backgroundMid), 1.5, "backgroundMid tone")
-        assertAbout(94.0, tone(c.backgroundBottom), 1.5, "backgroundBottom tone")
-        assertAbout(99.0, tone(c.surface), 1.5, "surface tone")
-        assertAbout(93.0, tone(c.surfaceVariant), 1.5, "surfaceVariant tone")
-        assertAbout(44.0, tone(c.accent), 1.5, "accent tone")
-        assertAbout(38.0, tone(c.accentStrong), 1.5, "accentStrong tone")
-        assertAbout(10.0, tone(c.textPrimary), 1.5, "textPrimary tone")
-        assertAbout(35.0, tone(c.textSecondary), 1.5, "textSecondary tone")
-        assertAbout(70.0, tone(c.glow), 1.5, "glow tone")
-        // The backgrounds are tinted with the seed's hue, not grey. They ask for chroma 6, 10 and 14, but sRGB narrows
-        // towards white and cannot show that at tones 98, 96 and 94: the engine lowers the chroma to what fits
-        // (measured 1.6, 4.7 and 7.7, rising towards the bottom). So: a tint, never above the target, rising downwards.
-        val top = chroma(c.backgroundTop)
-        val mid = chroma(c.backgroundMid)
-        val bottom = chroma(c.backgroundBottom)
-        assertTrue(top in 1.0..6.5, "light backgroundTop chroma $top")
-        assertTrue(mid in 3.5..10.5, "light backgroundMid chroma $mid")
-        assertTrue(bottom in 6.0..14.5, "light backgroundBottom chroma $bottom")
-        assertTrue(top < mid && mid < bottom, "the tint grows from top to bottom: $top, $mid, $bottom")
-        assertTrue(chroma(c.accent) >= 35.0, "light accent chroma ${chroma(c.accent)}")
-        assertAbout(48.0, chroma(c.glow), 4.0, "light glow chroma")
-        listOf(c.backgroundMid, c.backgroundBottom, c.surfaceVariant, c.accent, c.glow).forEach {
-            val hct = Hct.fromInt(it)
-            if (hct.chroma > 6.0) {
-                assertTrue(hueDistance(hct.hue, apricotSeedHct.hue) <= 8.0, "light #${it.toUInt().toString(16)} has hue ${hct.hue}")
-            }
-        }
+    fun underOnePointFivePercentOfColourMeansAGreyCover() {
+        // 1600 pixels: 23 are 1.44 percent, 25 are 1.56 percent. The share is counted after the pre-filter, of all pixels.
+        val under = palette(withLogo(black, orange, 23), 40, 40)
+        val over = palette(withLogo(black, orange, 25), 40, 40)
+        assertTrue(under.isFallback, "1.44 percent colour is a grey cover")
+        assertFalse(over.isFallback, "1.56 percent colour is a cover with a colour")
+        assertEquals(apricot, under.seed)
+        assertAbout(oklch(orange).third, hueOf(over.seed), 8.0, "the seed of the cover with a little orange")
     }
 
     @Test
-    fun aSeedIsASeedWhetherItCameFromTheFallbackOrFromTheCover() {
-        // A solid apricot cover and a white cover (fallback apricot) differ in the flag and nothing else.
-        val fromFallback = solidPalette(white)
-        val fromCover = solidPalette(apricot)
-        assertTrue(fromFallback.isFallback)
-        assertFalse(fromCover.isFallback)
-        assertEquals(fromFallback, fromCover.copy(isFallback = true))
-    }
-
-    // --- settle compares what is visible; the tone cap holds on the final colour ---------------------
-
-    @Test
-    fun settleIgnoresASeedThatOnlyDiffersInTone() {
-        // Two covers of the same hue and chroma but different lightness: the palette is derived from hue and chroma only,
-        // so the screen looks the same and nothing may be animated. (Compared by seeds, they were far apart.)
-        val darker = palette(solid(Hct.from(283.0, 40.0, 35.0).toInt()), 16, 16)
-        val lighter = palette(solid(Hct.from(283.0, 40.0, 62.0).toInt()), 16, 16)
-        assertNotEquals(darker.seed, lighter.seed)
-        assertTrue(abs(oklabL(darker.seed) - oklabL(lighter.seed)) > 0.15, "the seeds themselves are far apart in lightness")
-        assertTrue(abs(oklabL(darker.accent) - oklabL(lighter.accent)) < 0.01, "the accents look the same")
-        assertSame(darker, CoverPalette.settle(darker, lighter))
+    fun nearGreyPixelsAreNotColour() {
+        // A warm grey (chroma 0.01, below the 0.03 cut) over the whole cover and a 1 percent red mark: no colour.
+        val grey = rgb(128, 122, 120)
+        assertTrue(chromaOf(grey) < 0.03)
+        assertTrue(palette(withLogo(grey, red, 16), 40, 40).isFallback)
+        // The same grey made one level more colourful than the cut is a colour: the seed is that grey-brown.
+        val tinted = rgb(150, 110, 100)
+        assertTrue(chromaOf(tinted) > 0.03)
+        assertFalse(palette(solid(tinted), 16, 16).isFallback)
     }
 
     @Test
-    fun settleTakesTheNextPaletteWhenTheAccentChangesEvenIfTheBackgroundHardlyDoes() {
-        // The same lightness and chroma, a different hue: the accent (tone 78) is the most visible colour and it moved.
-        val blue = solidPalette(Hct.from(263.0, 60.0, 50.0).toInt())
-        val green = solidPalette(Hct.from(150.0, 60.0, 50.0).toInt())
-        assertSame(green, CoverPalette.settle(blue, green))
+    fun theSecondColourOfTheCoverColoursTheBottomStop() {
+        // 70 percent blue and 30 percent orange: the seed is the blue, the secondary the orange, 200 degrees away.
+        val pixels = IntArray(1600) { i -> if (i < 480) orange else deepBlue }
+        val dark = palette(pixels, 40, 40)
+        assertAbout(oklch(deepBlue).third, hueOf(dark.seed), 6.0, "the seed")
+        assertTrue(hueDistance(hueOf(dark.backgroundTop), oklch(deepBlue).third) <= 15.0, "the top stop is blue: ${hueOf(dark.backgroundTop)}")
+        assertTrue(hueDistance(hueOf(dark.backgroundBottom), oklch(orange).third) <= 15.0, "the bottom stop is orange: ${hueOf(dark.backgroundBottom)}")
+        val light = palette(pixels, 40, 40, dark = false)
+        assertTrue(hueDistance(hueOf(light.backgroundBottom), hueOf(light.backgroundTop)) > 60.0, "the light bottom stop is the second colour too")
     }
 
     @Test
-    fun settleUsesTheSpecThatWasPassedNotAFreshOne() {
-        val previous = solidPalette(red)
-        val next = solidPalette(blueColor)
-        assertSame(previous, CoverPalette.settle(previous, next, CoverPaletteSpec(settleMinDeltaE = 1000f)))
-        assertSame(next, CoverPalette.settle(previous, next, CoverPaletteSpec(settleMinDeltaE = 0f)))
-        // A spec that keeps a small change (red to a slightly different red) and one that keeps nothing.
-        val slightly = palette(solid(rgb(255, 10, 0)), 16, 16)
-        assertSame(previous, CoverPalette.settle(previous, slightly, CoverPaletteSpec(settleMinDeltaE = 3f)))
-        assertSame(slightly, CoverPalette.settle(previous, slightly, CoverPaletteSpec(settleMinDeltaE = 0f)))
-    }
-
-    @Test
-    fun settleNeverKeepsAFallbackPaletteForARealOneOrTheOtherWayRound() {
-        // A white cover (the fallback apricot) and a solid apricot cover have the same colours and differ in the flag only.
-        val fallback = solidPalette(white)
-        val real = solidPalette(apricot)
-        assertEquals(fallback, real.copy(isFallback = true))
-        assertSame(real, CoverPalette.settle(fallback, real))
-        assertSame(fallback, CoverPalette.settle(real, fallback))
-        // Two fallbacks are the same palette and are kept.
-        val another = solidPalette(black)
-        assertSame(fallback, CoverPalette.settle(fallback, another))
-    }
-
-    @Test
-    fun theAccentToneCapHoldsOnTheFinalColourForEveryHue() {
-        // Every accent colour is asked for exactly the cap (tone 84). Rounding to 8 bits can land a hair above it: the
-        // engine lowers the colour until the colour that is really shown is at or under the cap.
-        val spec = CoverPaletteSpec(
-            darkAccentTone = 84.0, darkAccentStrongTone = 84.0, darkButtonStartTone = 84.0, darkButtonEndTone = 84.0, darkGlowTone = 84.0,
-        )
-        for (hue in 0..345 step 15) {
-            for (saturation in listOf(0.3, 0.7, 1.0)) {
-                val c = palette(solid(hsv(hue.toDouble(), saturation, 0.9)), 16, 16, dark = true, spec = spec)
-                listOf(c.accent, c.accentStrong, c.buttonGradientStart, c.buttonGradientEnd, c.glow).forEach {
-                    assertTrue(tone(it) <= 84.0 + 1e-6, "hue $hue saturation $saturation: #${it.toUInt().toString(16)} has tone ${tone(it)}")
-                }
-            }
-        }
+    fun aSecondColourWithinTwentyFiveDegreesIsIgnored() {
+        val near = rgb(90, 60, 220)
+        val gap = hueDistance(oklch(deepBlue).third, oklch(near).third)
+        assertTrue(gap in 15.0..25.0, "the two blues are $gap degrees apart")
+        val pixels = IntArray(1600) { i -> if (i < 480) near else deepBlue }
+        val c = palette(pixels, 40, 40)
+        assertTrue(hueDistance(hueOf(c.backgroundBottom), hueOf(c.backgroundTop)) <= 8.0, "the bottom stop keeps the seed's hue")
     }
 }

@@ -27,18 +27,26 @@ checks these rules.
 ## The cover palette
 
 `shared/src/commonMain/kotlin/com/cosmotune/theme/` is the colour engine of the new interface. `CoverPalette` turns the
-pixels of a cover into a `CoverColors` (every colour a screen needs, from one seed colour taken from the cover), `CoverPaletteSpec`
-holds every number of the design, and `Oklab` blends and compares colours. It is pure Kotlin with no Android or Compose types,
-so `CoverPaletteTest` runs it on the desktop JVM. How a screen calls it is at the top of `CoverPalette.kt`.
+pixels of a cover into a `CoverColors` (every colour a screen needs, from one seed colour taken from the cover),
+`CoverDerive` derives the palette from the seed, `CoverPaletteSpec` holds every number of the design, and `Oklab` holds
+the colour maths. It is pure Kotlin with no Android or Compose types, so its tests run on the desktop JVM. How a screen
+calls it is at the top of `CoverPalette.kt`.
 
-- To retune the design, change a default in `CoverPaletteSpec` (tones, chroma limits, hue shifts, the caps) and run
-  `CoverPaletteTest`. The tests hold the safety rails (contrast, the luminance and tone caps, the gamut) for every hue, so a
-  retune that breaks one fails there. A tone or chroma that cannot be shown is lowered to fit, never clipped.
-- The seed is chosen in the private function `CoverPalette.chooseSeed`; the colours are derived from it by `derive`. Both
-  use Google's Material Color Utilities, in MaterialKolor's Kotlin Multiplatform port: `com.materialkolor:material-color-utilities`
+- The derivation is the designer's: `CoverDerive` is a line-by-line port of `derive()` in `dynamic-colour.js` (the designer's
+  reference implementation, `ui/v2/` of the design folder) in OKLCH, and `Oklab.kt` ports its colour maths (CSS Color 4 gamut
+  mapping, WCAG contrast). `CoverPaletteSpec` holds the formulas' numbers. To retune, change a default there and run
+  `CoverPaletteRailsTest`: the safety rails (contrast, the darkness rail, the gamut margin) are tested for every hue.
+- `CoverPaletteGoldenTest` checks the Kotlin output against the reference, colour by colour: `shared/src/jvmTest/resources/theme-golden/golden.json`
+  is made by `make-golden.mjs`, which runs the designer's `dynamic-colour.js` unchanged under Node on 61 seeds in both themes.
+  When the designer changes the formulas, rerun it from that folder (`node make-golden.mjs "<path to dynamic-colour.js>" > golden.json`),
+  port the change into `CoverDerive` and `CoverPaletteSpec`, and the test shows what still differs. `CoverPaletteDesignerTableTest` does the same
+  against the twelve-cover table printed in `01-dynamic-colour.md`.
+- The seed is chosen in the private function `CoverPalette.chooseColours`, after the designer's pre-filter (pixels with an OKLab L
+  under 0.16 or over 0.95, or a chroma under 0.03, are dropped; under 1.5 percent left means a grey cover and the brand apricot).
+  It uses Google's Material Color Utilities, in MaterialKolor's Kotlin Multiplatform port: `com.materialkolor:material-color-utilities`
   4.1.1 (MIT, with Google's Apache-2.0 code; Android and desktop JVM, no Compose). Its Celebi quantiser mixes a cover of a few flat
   colours into one blend, so such a cover is read from its colour histogram instead (`maxFlatBins`). To use another picker,
-  replace `chooseSeed`; nothing else needs to change.
+  replace `chooseColours`; nothing else needs to change.
 - The library's version follows the Kotlin version: 4.1.1 is built on Kotlin 2.3, and 5.x needs the Kotlin 2.4 standard
   library. The `FORK.md` row for `shared/build.gradle.kts` says what to do when Kotlin is raised.
 

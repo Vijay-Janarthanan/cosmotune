@@ -1,0 +1,1 @@
+`golden.json` is the designer's reference output (`ui/v2/dynamic-colour.js`, run unchanged) for 61 seeds in both themes. Rerun when the designer changes the formulas: `node make-golden.mjs "<path to ui/v2/dynamic-colour.js>" > golden.json` from this folder (Node 18 or newer, no packages); `CoverPaletteGoldenTest` then shows what the Kotlin engine must follow.
