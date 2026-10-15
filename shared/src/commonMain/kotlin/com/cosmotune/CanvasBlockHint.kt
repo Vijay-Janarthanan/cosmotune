@@ -34,3 +34,19 @@ fun canvasBlockedByMobileData(
  */
 fun canvasLookupWanted(videoId: String, isLocalFile: Boolean, title: String, artist: String): Boolean =
     !(videoId.isBlank() && isLocalFile) && title.isNotBlank() && artist.isNotBlank()
+
+/**
+ * Whether the music video of a track that has just started is looked up in the background, before anyone opens the
+ * player (`CanvasRepository.prefetch`, called on every track change, screen off included). Each such lookup reads a
+ * search page and up to seven file headers, so it never runs on a metered connection: not even when "play over
+ * cellular" is on, because that setting allows a video the person is looking at, not one found for every song in turn.
+ * With cellular allowed, the lookup then happens when the player is on screen.
+ *
+ * @param animatedCanvas the animated-cover switch (`animatedCanvas`).
+ * @param openCanvasEnabled the OpenCanvas switch (`openCanvasEnabled`).
+ * @param metered the connection is metered (`meteredConnection == true`): mobile data, or a Wi-Fi that Android marks as
+ *   metered. No active network is false.
+ * @param hasIds the song has a video id and a title and an artist to search on.
+ */
+fun prefetchAllowed(animatedCanvas: Boolean, openCanvasEnabled: Boolean, metered: Boolean, hasIds: Boolean): Boolean =
+    animatedCanvas && openCanvasEnabled && !metered && hasIds

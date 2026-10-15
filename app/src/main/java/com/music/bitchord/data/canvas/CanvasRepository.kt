@@ -1,5 +1,6 @@
 package com.music.bitchord.data.canvas
 
+import com.cosmotune.prefetchAllowed
 import com.music.bitchord.data.DebugLog as Log
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
@@ -173,15 +174,24 @@ object CanvasRepository {
      * Gets the music-video lookup going the moment [song] starts playing, rather than when its player
      * screen opens and the label sources have had their say: the video, its alignment and the sharper
      * stream are then usually ready by the time anyone looks. The lookup that follows asks the same
-     * question and picks up the work in flight. Honours the same settings as the player does.
+     * question and picks up the work in flight.
+     *
+     * Honours the player's two switches, and is stricter than the player on a metered connection: it
+     * never runs there, even when "play over cellular" is on. This is called on every track change, screen
+     * off included, and each call reads a search page and up to seven file headers; on mobile data that is
+     * paid for songs nobody looks at. A song that is allowed over cellular is looked up when the player is
+     * on screen instead (see [canvasFor]).
      */
     fun prefetch(song: Song) {
-        if (!AppSettings.animatedCanvas.value || !AppSettings.openCanvasEnabled.value) return
-        if (AppSettings.meteredConnection.value == true && !AppSettings.canvasOverCellular.value) return
-        if (song.videoId.isBlank()) return
         val title = song.title.cleaned()
         val artist = song.artist.cleaned()
-        if (title.isBlank() || artist.isBlank()) return
+        if (!prefetchAllowed(
+                animatedCanvas = AppSettings.animatedCanvas.value,
+                openCanvasEnabled = AppSettings.openCanvasEnabled.value,
+                metered = AppSettings.meteredConnection.value == true,
+                hasIds = song.videoId.isNotBlank() && title.isNotBlank() && artist.isNotBlank(),
+            )
+        ) return
         OpenCanvasProvider.prefetch(
             title = title,
             artist = artist,
