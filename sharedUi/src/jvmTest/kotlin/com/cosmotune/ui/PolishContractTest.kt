@@ -1,6 +1,7 @@
 package com.cosmotune.ui
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -69,5 +70,43 @@ class PolishContractTest {
         )
         // nobody sets it to a constant behind the root's back
         assertFalse(Regex("""LocalCosmoPlaying provides (true|false)""").containsMatchIn(src), "no constant is provided")
+    }
+
+    // ---- 3. the frame's ambient ground under a window material --------------------------------------------------------------------
+
+    private val frame: String
+        get() = SourceContract.functionBody(SourceContract.read("${desktop}DesktopApp.kt"), "DesktopFrame").replace(Regex("\\s+"), " ")
+
+    @Test fun theNewLooksFrameDrawsTheAmbientGroundBelowTheTitleBarWhateverTheMaterial() {
+        val text = frame
+        assertTrue(
+            text.contains("val cosmoGround = com.cosmotune.ui.theme.LocalCosmoShell.current != null"),
+            "the frame asks the look once, in composition",
+        )
+        val ground = "if (glass && cosmoGround) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }"
+        assertEquals(1, Regex(Regex.escape(ground)).findAll(text).count(), "the ground of the look is drawn once with a material, as a source for the bar's blur")
+        assertTrue(
+            text.indexOf("DesktopTitleBar()") < text.indexOf(ground) && text.indexOf(ground) < text.indexOf("BoxWithConstraints("),
+            "it lies under the sidebar, the top bar, the page and the side column, and below the title bar (which keeps the material)",
+        )
+    }
+
+    @Test fun theFlatSlabsAndThePagesOwnBackdropAreOnlyForTheOldLook() {
+        val text = frame
+        assertFalse(text.contains("if (glass && !materialBehindApp) {"), "no flat container colour behind the page or the column of the new look")
+        assertEquals(
+            2,
+            Regex(Regex.escape("if (glass && !materialBehindApp && !cosmoGround) { Modifier.background(containerColor) } else { Modifier }")).findAll(text).count(),
+            "the page's and the column's flat colour only without the new look",
+        )
+        assertTrue(text.contains("if (glass && !cosmoGround) backdrop(materialBehindApp)"), "the page's own backdrop is the old look's: the ground is already behind it")
+        assertFalse(Regex("""if \(glass\) backdrop\(materialBehindApp\)""").containsMatchIn(text), "no unconditional page backdrop is left")
+    }
+
+    @Test fun withTheLookOffTheFrameIsTheOldOne() {
+        val text = frame
+        assertTrue(text.contains("if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }"), "the old window ground is untouched")
+        assertTrue(text.contains(".then(if (glass) Modifier else Modifier.background(containerColor))"), "the old window colour is untouched")
+        assertTrue(text.contains("val materialBehindApp = glass && appBackground"), "the old material rule is untouched")
     }
 }

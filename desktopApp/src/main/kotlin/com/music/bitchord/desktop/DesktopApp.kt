@@ -4953,6 +4953,9 @@ private fun DesktopFrame(
     val appBackground by DesktopWindowBackdrop.appBackground.collectAsState()
     val glass = material != DesktopBackdrop.OFF
     val materialBehindApp = glass && appBackground
+    // The new look draws its own ambient ground behind the sidebar, the top bar, the page and the side column whatever the window's
+    // material is, so none of them stands on the raw material or on a flat slab; the material shows through under the title bar only.
+    val cosmoGround = com.cosmotune.ui.theme.LocalCosmoShell.current != null
     val maximized by DesktopWindowMode.maximized.collectAsState()
     val roundCorners = DesktopPlatform.isMac && !maximized
     CompositionLocalProvider(LocalDesktopHaze provides haze) {
@@ -4970,6 +4973,8 @@ private fun DesktopFrame(
                 // that is what a title bar is.
                 DesktopTitleBar()
                 Box(Modifier.fillMaxWidth().weight(1f)) {
+                    // With a material the new look's ground lies here, below the title bar (without one, the window's own ground above is it).
+                    if (glass && cosmoGround) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val compact = maxWidth < 980.dp
                         // The sidebar runs the full height of the window, its head the window's
@@ -4984,7 +4989,7 @@ private fun DesktopFrame(
                                         .weight(1f)
                                         .fillMaxHeight()
                                         .then(
-                                            if (glass && !materialBehindApp) {
+                                            if (glass && !materialBehindApp && !cosmoGround) {
                                                 Modifier.background(containerColor)
                                             } else {
                                                 Modifier
@@ -4992,7 +4997,7 @@ private fun DesktopFrame(
                                         ),
                                 ) {
                                     Box(Modifier.fillMaxSize().hazeSource(haze)) {
-                                        if (glass) backdrop(materialBehindApp)
+                                        if (glass && !cosmoGround) backdrop(materialBehindApp)
                                         content(
                                             PaddingValues(
                                                 start = 0.dp,
@@ -5015,7 +5020,7 @@ private fun DesktopFrame(
                                     Modifier
                                         .fillMaxHeight()
                                         .then(
-                                            if (glass && !materialBehindApp) {
+                                            if (glass && !materialBehindApp && !cosmoGround) {
                                                 Modifier.background(containerColor)
                                             } else {
                                                 Modifier
