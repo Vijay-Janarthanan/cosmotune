@@ -150,4 +150,39 @@ class PolishContractTest {
             assertEquals(5, pipes, "four columns: ${line.take(100)}")
         }
     }
+
+    // ---- labels that fit a 360 dp phone: Library's four segments, the mood tiles' names ------------------------------------------
+
+    @Test fun aSegmentedControlCanShareItsRowAndLibrarysFourDo() {
+        val src = SourceContract.read("$ui/components/CosmoSegmented.kt")
+        assertEquals("fill: Boolean = false", SourceContract.parameters(src, "CosmoSegmented").last(), "one more optional parameter: the others are unchanged")
+        val control = SourceContract.functionBody(src, "CosmoSegmented")
+        assertTrue("(if (fill) modifier.fillMaxWidth() else modifier).selectableGroup()" in control, "a filling control takes the row")
+        assertTrue("modifier = if (fill) Modifier.weight(1f) else Modifier" in control, "its segments share it equally")
+        assertTrue("ControlMetrics.segmentShowsCheck(options.size, fill)" in control, "the check only where it fits")
+        val segment = SourceContract.functionBody(src, "Segment")
+        assertTrue("(if (fill) ControlMetrics.SEGMENT_FILL_PADDING_DP else ControlMetrics.SEGMENT_PADDING_DP).dp" in segment, "4 dp inside the ends instead of 16")
+        assertTrue("if (selected && check) Icon(CosmoIcons.Check" in segment)
+        assertTrue("minimumInteractiveComponentSize()" in segment && ".height(ControlMetrics.SEGMENT_HEIGHT_DP.dp)" in segment, "the 48 dp target stays")
+        val code = SourceContract.code(src)
+        assertTrue("FitLabel(maxSp = 14f, minSp = ControlMetrics.SEGMENT_LABEL_MIN_SP, stepSp = 0.5f, wholeWords = false)" in code, "the label shrinks to 12 sp, no smaller")
+        assertTrue(Regex("""maxLines = 1,\s*overflow = TextOverflow\.Ellipsis,\s*autoSize = FIT_LABEL""").containsMatchIn(code), "on one line, cut past the floor")
+        val library = code("$ui/library/CosmoLibrary.kt")
+        assertTrue("fill = true" in library && "horizontalScroll(" !in library, "Library's four share the row and no longer scroll sideways")
+    }
+
+    @Test fun aMoodTilesNameShrinksToFitOnWholeWords() {
+        val src = SourceContract.read("$ui/blocks/CosmoMood.kt")
+        val tile = SourceContract.functionBody(src, "CosmoMoodTile")
+        assertTrue("maxLines = LabelFit.maxLines(label)" in tile, "one word, one line; several, two lines")
+        assertTrue("autoSize = if (big) BIG_LABEL_FIT else LABEL_FIT" in tile && "overflow = TextOverflow.Ellipsis" in tile)
+        assertTrue("lineHeight = 1.1.em" in tile, "the line height follows the label when it shrinks")
+        val code = SourceContract.code(src)
+        assertTrue("FitLabel(20f, BlockMetrics.MOOD_LABEL_MIN_SP, BlockMetrics.MOOD_LABEL_STEP_SP, wholeWords = true)" in code, "20 sp down to 12, on whole words")
+        assertTrue("FitLabel(24f, BlockMetrics.MOOD_LABEL_MIN_SP, BlockMetrics.MOOD_LABEL_STEP_SP, wholeWords = true)" in code, "24 sp in a big tile")
+        val fit = SourceContract.code(SourceContract.read("$ui/components/FitLabel.kt"))
+        assertTrue("LabelFit.sizes(maxSp, minSp, stepSp)" in fit, "the sizes, largest first")
+        assertTrue("if (layout.hasVisualOverflow) continue" in fit, "a size fits when nothing overflows (not only when the last line was ellipsised)")
+        assertTrue("if (wholeWords && !LabelFit.breaksOnlyAtSpaces(" in fit, "and, for a name, when no word is broken")
+    }
 }

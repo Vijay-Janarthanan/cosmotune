@@ -1,6 +1,5 @@
 package com.cosmotune.ui.library
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -155,7 +153,6 @@ fun CosmoLibrary(
         stringResource(Res.string.artists),
         stringResource(Res.string.downloaded),
     )
-    val segmentScroll = rememberScrollState()
     PullToRefresh(refreshing = refreshing, onRefresh = onRefresh, state = pullState, modifier = modifier) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val columns = libraryGrid(maxWidth - CosmoSpacing.margin * 2).columns
@@ -164,12 +161,13 @@ fun CosmoLibrary(
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
                 item(key = "heading") { LibraryHeading(wide = wide, onNewPlaylist = onNewPlaylist) }
                 item(key = "segments") {
-                    // Four labels with the check are wider than a narrow phone: the control scrolls sideways there.
+                    // The four share the row (their labels shrink to fit, no check): a 360 dp phone shows them all, with no sideways scroll.
                     CosmoSegmented(
                         options = labels,
                         selectedIndex = segment.ordinal,
                         onSelect = { segmentIndex = it },
-                        modifier = Modifier.horizontalScroll(segmentScroll).padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, top = 16.dp),
+                        modifier = Modifier.padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, top = 16.dp),
+                        fill = true,
                     )
                 }
                 when (segment) {

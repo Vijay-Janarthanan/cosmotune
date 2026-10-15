@@ -50,6 +50,22 @@ object ControlMetrics {
     const val SEGMENT_OUTER_RADIUS_DP = 20f
     const val SEGMENT_ICON_DP = 18f
 
+    /**
+     * A segmented control that fills its row (`fill`, Library's four segments; `.row2.stack .seg2 > button { flex: 1 }`): the segments
+     * share the width ([fillSegmentWidthDp]), with [SEGMENT_FILL_PADDING_DP] inside each end instead of 16, their labels shrink to fit
+     * down to [SEGMENT_LABEL_MIN_SP], and the check shows only up to [SEGMENT_FILL_CHECK_MAX] options ([segmentShowsCheck]), so four
+     * labels fit a 360 dp phone without scrolling sideways. The three-segment controls elsewhere do not fill and are unchanged.
+     */
+    const val SEGMENT_FILL_PADDING_DP = 4f
+    const val SEGMENT_LABEL_MIN_SP = 12f
+    const val SEGMENT_FILL_CHECK_MAX = 3
+
+    /** The width of each of [count] segments sharing a row [rowDp] wide, [SEGMENT_GAP_DP] apart. */
+    fun fillSegmentWidthDp(rowDp: Float, count: Int): Float = (rowDp - SEGMENT_GAP_DP * (count - 1)) / count
+
+    /** Whether the selected segment shows its check: always in the classic control, up to three options in a filling one. */
+    fun segmentShowsCheck(count: Int, fill: Boolean): Boolean = !fill || count <= SEGMENT_FILL_CHECK_MAX
+
     /** The C segmented control: a glass track (4 dp padding, radius 24) around a 32 dp ink thumb that slides. */
     const val C_SEGMENT_TRACK_PADDING_DP = 4f
     const val C_SEGMENT_TRACK_RADIUS_DP = 24f

@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -61,6 +63,10 @@ private const val SEGMENT_ICON_GAP_DP = 6
  * glass track (radius 24, 4 dp padding) with an ink thumb, 32 dp tall, that slides to the selected option on the move spring
  * and inverts the label it covers; its options share the width of the widest.
  *
+ * With [fill] the segments share the row's width instead of taking their labels' (Library's four on a 360 dp phone): each keeps
+ * 4 dp inside its ends, its label shrinks to fit down to 12 sp (then it is cut), and with more than three options the selected
+ * one shows no check ([ControlMetrics.segmentShowsCheck]). Without it nothing changes.
+ *
  * Semantics: the row is a selectable group and each segment a `Role.Tab` with its selected state. Selecting plays the select
  * haptic.
  *
@@ -74,20 +80,37 @@ fun CosmoSegmented(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     floating: Boolean = false,
+    fill: Boolean = false,
 ) {
     if (floating) {
         FloatingSegmented(options, selectedIndex, onSelect, modifier)
         return
     }
-    Row(modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(ControlMetrics.SEGMENT_GAP_DP.dp)) {
+    val check = ControlMetrics.segmentShowsCheck(options.size, fill)
+    Row(
+        (if (fill) modifier.fillMaxWidth() else modifier).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(ControlMetrics.SEGMENT_GAP_DP.dp),
+    ) {
         options.forEachIndexed { index, label ->
-            Segment(label, index, options.size, selected = index == selectedIndex) { onSelect(index) }
+            Segment(
+                label, index, options.size, selected = index == selectedIndex, fill = fill, check = check,
+                modifier = if (fill) Modifier.weight(1f) else Modifier,
+            ) { onSelect(index) }
         }
     }
 }
 
 @Composable
-private fun Segment(label: String, index: Int, count: Int, selected: Boolean, onSelect: () -> Unit) {
+private fun Segment(
+    label: String,
+    index: Int,
+    count: Int,
+    selected: Boolean,
+    fill: Boolean,
+    check: Boolean,
+    modifier: Modifier,
+    onSelect: () -> Unit,
+) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
     val reduced = LocalReducedMotion.current
@@ -105,7 +128,7 @@ private fun Segment(label: String, index: Int, count: Int, selected: Boolean, on
     val outline = remember { Path() }
     val ink = Color(if (selected) palette.onAccentContainer else palette.textSecondary)
     Row(
-        Modifier
+        modifier
             .minimumInteractiveComponentSize()
             .height(ControlMetrics.SEGMENT_HEIGHT_DP.dp)
             .cosmoFocusRing(interaction, ControlMetrics.SEGMENT_OUTER_RADIUS_DP.dp)
@@ -127,12 +150,12 @@ private fun Segment(label: String, index: Int, count: Int, selected: Boolean, on
             }
             .hoverable(interaction)
             .selectable(selected, interaction, indication = null, role = Role.Tab) { haptics.play(Haptic.Select); onSelect() }
-            .padding(horizontal = ControlMetrics.SEGMENT_PADDING_DP.dp),
+            .padding(horizontal = (if (fill) ControlMetrics.SEGMENT_FILL_PADDING_DP else ControlMetrics.SEGMENT_PADDING_DP).dp),
         horizontalArrangement = Arrangement.spacedBy(SEGMENT_ICON_GAP_DP.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (selected) Icon(CosmoIcons.Check, contentDescription = null, tint = ink, modifier = Modifier.size(ControlMetrics.SEGMENT_ICON_DP.dp))
-        SegmentLabel(label, ink)
+        if (selected && check) Icon(CosmoIcons.Check, contentDescription = null, tint = ink, modifier = Modifier.size(ControlMetrics.SEGMENT_ICON_DP.dp))
+        if (fill) FittedSegmentLabel(label, ink) else SegmentLabel(label, ink)
     }
 }
 
@@ -145,6 +168,21 @@ private fun SegmentLabel(label: String, ink: Color) {
         style = type.forText(type.label.copy(fontWeight = FontWeight(SEGMENT_WEIGHT)), label),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** The label of a segment that shares its row: the label's own size (14 sp) shrunk, half a sp at a time, to fit; never below 12 sp. */
+private val FIT_LABEL = FitLabel(maxSp = 14f, minSp = ControlMetrics.SEGMENT_LABEL_MIN_SP, stepSp = 0.5f, wholeWords = false)
+
+@Composable
+private fun FittedSegmentLabel(label: String, ink: Color) {
+    val type = LocalCosmoType.current
+    BasicText(
+        text = label,
+        style = type.forText(type.label.copy(fontWeight = FontWeight(SEGMENT_WEIGHT), color = ink), label),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        autoSize = FIT_LABEL,
     )
 }
 
