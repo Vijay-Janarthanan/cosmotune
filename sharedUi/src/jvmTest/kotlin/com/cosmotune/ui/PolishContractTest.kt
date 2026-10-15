@@ -78,4 +78,24 @@ class PolishContractTest {
             "a pale cover keeps an edge on a pale page",
         )
     }
+
+    // ---- the small controls: a quiet chip, a tinted icon button ----------------------------------------------------------------
+
+    @Test fun aChipCanStayQuietAndTheSearchFiltersDoOnATapOfTheChosenOne() {
+        val chip = SourceContract.read("$ui/components/CosmoChip.kt")
+        assertEquals("haptic: Boolean = true", SourceContract.parameters(chip, "CosmoChip").last(), "one more optional parameter, at the end")
+        assertTrue("onClick = { if (haptic) haptics.play(Haptic.Select); onClick() }" in SourceContract.code(chip), "the select haptic only when asked")
+        assertTrue("haptic = entry != filter" in code("$ui/search/CosmoSearch.kt"), "a filter chip buzzes only when the filter changes")
+        for (file in listOf("search/CosmoBrowseBlocks.kt", "settings/LookPreview.kt")) assertFalse("haptic =" in code("$ui/$file"), "$file keeps the haptic")
+    }
+
+    @Test fun anIconButtonTakesARestingTintAndNowPlayingsToolsRestInSecondaryInk() {
+        val button = SourceContract.read("$ui/components/CosmoIconButton.kt")
+        assertEquals("tint: Color? = null", SourceContract.parameters(button, "CosmoIconButton").last(), "one more optional parameter, at the end")
+        assertTrue("val ink = if (!isOn && tint != null) tint else Color(" in SourceContract.code(button), "the tint is the resting ink; an on state keeps its own")
+        val tools = SourceContract.functionBody(SourceContract.read("$ui/nowplaying/NowPlayingControls.kt"), "Tools")
+        assertTrue("val resting = Color(LocalCosmoColors.current.palette.textSecondary)" in tools, "secondary ink, read in composition")
+        assertEquals(4, Regex("""tint = resting""").findAll(tools).count(), "lyrics, output, Listen Together and the queue")
+        assertFalse(".live(" in tools, "a composition colour, not a live one")
+    }
 }

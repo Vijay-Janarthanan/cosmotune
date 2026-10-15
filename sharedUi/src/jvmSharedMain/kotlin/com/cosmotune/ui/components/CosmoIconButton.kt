@@ -38,6 +38,9 @@ enum class CosmoIconButtonStyle { PLAIN, TONAL, GLASS }
  * `onAccent` ink (PLAIN: the tonal container with `onAccentContainer`). [accentWhenOn] keeps the tonal container and draws the
  * icon in `accent` instead, the liked heart. A 40 dp button reserves a 48 dp touch target. The icon is 20 / 24 / 28 dp at
  * 40 / 48 / 56. A disabled button fades to 38 %. [contentDescription] is read by screen readers.
+ *
+ * [tint] replaces the resting ink (`textPrimary`), for a row of quiet tools drawn in secondary ink (`.np2-tools .ib`); an on state
+ * keeps its own ink. It is a composition colour: pass a palette colour as `Color(palette.textSecondary)`, never a live one.
  */
 @Composable
 fun CosmoIconButton(
@@ -51,13 +54,14 @@ fun CosmoIconButton(
     accentWhenOn: Boolean = false,
     enabled: Boolean = true,
     floating: Boolean = false,
+    tint: Color? = null,
 ) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
     val haptics = rememberHaptics()
     val isFloating = floating || style == CosmoIconButtonStyle.GLASS
     val isOn = on == true
-    val ink = Color(
+    val ink = if (!isOn && tint != null) tint else Color(
         when {
             isFloating -> palette.textPrimary
             !isOn -> palette.textPrimary

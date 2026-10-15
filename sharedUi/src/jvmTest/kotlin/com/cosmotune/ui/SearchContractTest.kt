@@ -153,7 +153,8 @@ class SearchContractTest {
         val new = SourceContract.code(search("CosmoSearch"))
         assertTrue("if (results != null && !suggesting && !searchingLibrary) {" in new)
         assertTrue("SearchFilter.entries.forEach { entry ->" in new)
-        assertTrue("CosmoChip(label = entry.label, selected = entry == filter, onClick = { onFilterChange(entry) })" in new)
+        // P4-19: the chip that is already chosen does not buzz again
+        assertTrue("CosmoChip(label = entry.label, selected = entry == filter, onClick = { onFilterChange(entry) }, haptic = entry != filter)" in new)
         assertTrue("visible = query.isEmpty()," in new, "the Library switcher is up only while nothing is typed, as the old")
         assertTrue("contentPadding.calculateBottomPadding()" in new, "the list takes the bottom of contentPadding")
     }

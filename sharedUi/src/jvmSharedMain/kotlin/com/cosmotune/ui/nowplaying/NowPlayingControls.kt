@@ -505,8 +505,8 @@ private fun Transport(
 
 /**
  * Lyrics, output, Listen Together and the queue (`.np2-tools`), 14 dp under the transport, 40 dp plain buttons. Lyrics and the
- * queue are toggles. The board draws the resting icons in secondary ink; [CosmoIconButton] has no ink parameter, so they take
- * its own (primary) ink.
+ * queue are toggles. At rest the icons are in secondary ink, as the board draws them (`.np2-tools .ib { color: var(--c-text-2) }`);
+ * a tool that is on keeps the toggle's own ink (`.ib.is-on`). Portrait and landscape both draw this row.
  */
 @Composable
 private fun Tools(
@@ -517,14 +517,15 @@ private fun Tools(
     queueOpen: Boolean,
     onToggleQueue: () -> Unit,
 ) {
+    val resting = Color(LocalCosmoColors.current.palette.textSecondary)
     Row(
         Modifier.fillMaxWidth().padding(top = 14.dp, start = 2.dp, end = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CosmoIconButton(CosmoIcons.Lyrics, stringResource(Res.string.open_lyrics), onToggleLyrics, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, on = lyricsOpen)
-        CosmoIconButton(CosmoIcons.Devices, stringResource(Res.string.audio_output), onOpenOutput, style = CosmoIconButtonStyle.PLAIN, size = 40.dp)
-        CosmoIconButton(CosmoIcons.Together, stringResource(Res.string.listen_together), onTogether, style = CosmoIconButtonStyle.PLAIN, size = 40.dp)
-        CosmoIconButton(CosmoIcons.Queue, stringResource(Res.string.queue), onToggleQueue, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, on = queueOpen)
+        CosmoIconButton(CosmoIcons.Lyrics, stringResource(Res.string.open_lyrics), onToggleLyrics, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, on = lyricsOpen, tint = resting)
+        CosmoIconButton(CosmoIcons.Devices, stringResource(Res.string.audio_output), onOpenOutput, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, tint = resting)
+        CosmoIconButton(CosmoIcons.Together, stringResource(Res.string.listen_together), onTogether, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, tint = resting)
+        CosmoIconButton(CosmoIcons.Queue, stringResource(Res.string.queue), onToggleQueue, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, on = queueOpen, tint = resting)
     }
 }
