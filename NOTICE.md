@@ -22,3 +22,9 @@ and `licenses/OpenCanvas-NOTICE.txt`. The engine is in
 OpenCanvas's own repository, so that changes can be merged, which is why they carry no licence header; this notice
 and the files in `licenses/` stand in for one. Apache-licensed code may be combined into a GPLv3 work, and the combined work,
 Cosmotune, is distributed under the GPLv3.
+
+## Material Color Utilities
+
+Cosmotune picks the main colour of a cover with MaterialKolor's Kotlin port of Google's Material Color Utilities
+(`com.materialkolor:material-color-utilities`, https://github.com/jordond/materialkolor), which is under the MIT licence and
+carries Google's code under the Apache License, version 2.0; both may be combined into a GPLv3 work.

@@ -53,6 +53,11 @@ kotlin {
         commonMain.dependencies {
             // Models in this module intentionally have no Android or Compose dependency.
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+            // Google's Material Color Utilities (the image quantiser, the scorer and the HCT colour
+            // space) for the cover palette in com.cosmotune.theme. Pure Kotlin, so it has no Compose
+            // dependency. 4.1.1 is the newest release built on the Kotlin 2.3 line this build uses
+            // (5.x needs the Kotlin 2.4 standard library).
+            implementation("com.materialkolor:material-color-utilities:4.1.1")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
