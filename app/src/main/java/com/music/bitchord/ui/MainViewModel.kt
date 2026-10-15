@@ -3,6 +3,7 @@ package com.music.bitchord.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.cosmotune.StartupRetry
 import com.music.bitchord.R
 import com.music.bitchord.auth.AuthStore
 import com.music.bitchord.auth.GoogleAccountSession
@@ -133,6 +134,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _homeRecentlyPlayedLoading = MutableStateFlow(false)
     val homeRecentlyPlayedLoading: StateFlow<Boolean> = _homeRecentlyPlayedLoading.asStateFlow()
     private val homeLoadGeneration = AtomicLong(0L)
+
+    /** The start-up load of Home has had its one automatic second try ([retryHomeSoon]). */
+    private var homeStartupRetried = false
 
     private val _explore = MutableStateFlow<UiState<List<MoodGenreSection>>>(UiState.Loading)
     val explore: StateFlow<UiState<List<MoodGenreSection>>> = _explore.asStateFlow()
@@ -1389,7 +1393,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSearchPipeline()
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
-        loadHome()
+        loadHome(startup = true)
         loadExplore()
         if (_signedIn.value) {
             loadLibrary()
@@ -1595,7 +1599,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (_detailStack.value.isNotEmpty()) _detailStack.value = emptyList()
     }
 
-    fun loadHome() {
+    /** [startup] is true only for the load [init] starts, the one that gets a delayed second try ([retryHomeSoon]). */
+    fun loadHome(startup: Boolean = false) {
         val identity = listenerKey()
         val generation = homeLoadGeneration.incrementAndGet()
         _home.value = UiState.Loading
@@ -1618,7 +1623,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         }
                         .onFailure { failure ->
                             if (isCurrentHomeLoad(identity, generation) && _home.value !is UiState.Success) {
-                                _home.value = UiState.Error(failure.friendly())
+                                if (startup && StartupRetry.shouldRetry(failure.message, homeStartupRetried)) {
+                                    retryHomeSoon(identity, generation)
+                                } else {
+                                    _home.value = UiState.Error(failure.friendly())
+                                }
                             }
                         }
                 } finally {
@@ -1664,6 +1673,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun isCurrentHomeLoad(identity: String?, generation: Long) =
         identity == listenerKey() && generation == homeLoadGeneration.get()
+
+    /**
+     * The start-up load failed on a host-name lookup (often: no usable network yet). The feed stays on its loading
+     * placeholders, so no error flashes up, and the load runs once more after [StartupRetry.DELAY_MS], unless a
+     * newer load (Retry, account switch, sign-out) or any content has taken the feed over meanwhile.
+     */
+    private fun retryHomeSoon(identity: String?, generation: Long) {
+        homeStartupRetried = true
+        viewModelScope.launch {
+            delay(StartupRetry.DELAY_MS)
+            if (isCurrentHomeLoad(identity, generation) && _home.value is UiState.Loading) loadHome()
+        }
+    }
 
     private fun publishHomeShelves(shelves: List<HomeShelf>, prepend: Boolean = false) {
         val existing = (_home.value as? UiState.Success)?.data.orEmpty()
