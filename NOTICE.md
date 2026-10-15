@@ -31,3 +31,12 @@ licence (copyright 2025 Jordon de Hoog), and its README puts the module `materia
 (https://github.com/material-foundation/material-color-utilities) converted to Kotlin, under the Apache License, version 2.0
 (copyright 2021 Google LLC). Both licence texts are in `licenses/`: `MaterialKolor-LICENSE.txt` and
 `MaterialColorUtilities-LICENSE.txt`. Both licences may be combined into a GPLv3 work.
+
+## Archivo and Hanken Grotesk
+
+The new look sets its titles in **Archivo** (copyright 2020 The Archivo Project Authors, https://github.com/Omnibus-Type/Archivo) and its
+text in **Hanken Grotesk** (copyright 2021 The Hanken Grotesk Project Authors, https://github.com/marcologous/hanken-grotesk). Both are
+variable fonts under the SIL Open Font License, version 1.1, bundled unmodified, exactly as published in the Google Fonts repository
+(https://github.com/google/fonts, `ofl/archivo` and `ofl/hankengrotesk`); they are in `sharedUi/src/commonMain/composeResources/font/`.
+The licence texts are in `licenses/Archivo-OFL.txt` and `licenses/HankenGrotesk-OFL.txt`. The fonts stay under the OFL; they are
+not sold on their own, and the combined program, Cosmotune, is distributed under the GPLv3.

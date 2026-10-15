@@ -91,6 +91,9 @@ kotlin {
         jvmTest.dependencies {
             implementation(kotlin("test"))
             implementation("junit:junit:4.13.2")
+            // Skia's native library, so a test can measure text without a window (FontVariationTest); the desktop
+            // app ships the same runtime. Test classpath only.
+            implementation(compose.desktop.currentOs)
         }
         androidMain.dependencies {
             // The phone's own versions, so nothing here moves them.

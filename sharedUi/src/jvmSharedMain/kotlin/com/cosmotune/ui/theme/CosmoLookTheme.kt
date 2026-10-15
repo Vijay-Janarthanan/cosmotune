@@ -38,6 +38,7 @@ fun CosmoLookTheme(
         val scheme = if (newLook) remember(target, legacyScheme) { target.toColorScheme(legacyScheme) } else legacyScheme
         MaterialTheme(colorScheme = scheme, typography = MaterialTheme.typography, shapes = MaterialTheme.shapes) {
             CompositionLocalProvider(
+                LocalCosmoType provides rememberCosmoType(),
                 LocalCosmoShell provides (if (newLook) shell else null),
                 LocalCosmoColors provides shell.colors,
                 LocalReducedMotion provides reduced,
