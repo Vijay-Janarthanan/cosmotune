@@ -2985,6 +2985,7 @@ private fun BitChordApp(
                             },
                             songSort = songSort,
                             contentPadding = listPadding,
+                            onPlayPause = togglePlayPause,
                         )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> com.cosmotune.ui.home.HomeSwitch(

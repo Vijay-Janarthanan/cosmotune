@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.cosmotune.design.ArtistPlay
 import com.cosmotune.design.ReleaseMeta
 import com.cosmotune.design.TypeScale
 import com.cosmotune.theme.CoverField
@@ -99,6 +100,10 @@ import org.jetbrains.compose.resources.stringResource
  *
  * The banner runs under the bar (only the bottom of [contentPadding] is the list's). The counts are shown as [DetailPage] has them:
  * the caller says them in the app's language.
+ *
+ * [onPlayPause] is the player's own toggle: while the song that is loaded is one of this artist's, the big play button reads as pause
+ * while the audio plays and a tap toggles the player instead of starting the list over ([ArtistPlay]); without it, or while the
+ * player is on something else, a tap plays the list from the top.
  */
 @Composable
 fun CosmoArtistPage(
@@ -121,6 +126,7 @@ fun CosmoArtistPage(
     onLoadReleaseLibrary: ((String) -> Unit)?,
     onToggleReleaseLibrary: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
+    onPlayPause: (() -> Unit)? = null,
 ) {
     val reduced = LocalReducedMotion.current
     val songs = (page.songs as? UiState.Success)?.data.orEmpty()
@@ -158,6 +164,7 @@ fun CosmoArtistPage(
                 onToggleSubscription = onToggleSubscription,
                 releaseLibrary = releaseLibrary,
                 onToggleReleaseLibrary = onToggleReleaseLibrary,
+                onPlayPause = onPlayPause,
             )
         } else {
             CosmoShelfGridPage(
@@ -190,11 +197,12 @@ private fun ArtistList(
     onToggleSubscription: (() -> Unit)?,
     releaseLibrary: Map<String, LibraryState>,
     onToggleReleaseLibrary: ((String) -> Unit)?,
+    onPlayPause: (() -> Unit)?,
 ) {
     val popular = remember(songs) { songs.take(PageMetrics.POPULAR_COUNT) }
     val subscription = page.subscription?.takeIf { onToggleSubscription != null }
     // The play button is a pause button while one of this artist's songs is the one playing.
-    val artistPlaying = isPlaying && currentSong != null && songs.any { it.isSameTrackAs(currentSong) }
+    val artistPlaying = ArtistPlay.showsPause(songs, currentSong, isPlaying)
     val description = page.description?.takeIf { it.isNotBlank() }
     val hasStats = page.subscriberCountText != null || page.monthlyListenerCount != null
 
@@ -224,7 +232,13 @@ private fun ArtistList(
                             hasSongs = songs.isNotEmpty(),
                             playing = artistPlaying,
                             onShuffle = { onShuffle(songs) },
-                            onPlay = { onSongClick(songs, 0) },
+                            onPlay = {
+                                // On one of the artist's own songs the button is the player's play/pause; elsewhere it plays the list.
+                                when (ArtistPlay.tap(songs, currentSong, canToggle = onPlayPause != null)) {
+                                    ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()
+                                    ArtistPlay.Tap.PLAY_LIST -> onSongClick(songs, 0)
+                                }
+                            },
                         )
                     }
                 }

@@ -3014,6 +3014,7 @@ fun BitChordDesktopApp() {
             LocalContentColor provides Color.White,
             LocalNowPlaying provides selectedSong,
             com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,
+            com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),
         ) {
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.

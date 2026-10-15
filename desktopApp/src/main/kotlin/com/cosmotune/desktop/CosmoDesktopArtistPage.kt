@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cosmotune.design.ArtistPlay
 import com.cosmotune.design.TypeScale
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.blocks.CosmoListRow
@@ -124,6 +125,7 @@ internal fun CosmoDesktopArtistPage(
     contentPadding: PaddingValues,
     nowPlaying: Song? = null,
     isPlaying: Boolean = LocalCosmoPlaying.current,
+    onPlayPause: (() -> Unit)? = LocalCosmoPlayPause.current,
 ) {
     val direction = LocalLayoutDirection.current
     Box(
@@ -153,6 +155,7 @@ internal fun CosmoDesktopArtistPage(
                 onToggleSubscription = onToggleSubscription,
                 nowPlaying = nowPlaying,
                 isPlaying = isPlaying,
+                onPlayPause = onPlayPause,
             )
         }
     }
@@ -170,6 +173,7 @@ private fun ArtistContent(
     onToggleSubscription: ((SubscriptionState) -> Unit)?,
     nowPlaying: Song?,
     isPlaying: Boolean,
+    onPlayPause: (() -> Unit)?,
 ) {
     val name = artist.name?.takeIf(String::isNotBlank) ?: fallbackName
     val top = remember(artist.songs) { artist.songs.take(POPULAR_QUEUE) }
@@ -184,9 +188,12 @@ private fun ArtistContent(
             ArtistActions(
                 top = top,
                 subscription = artist.subscription,
+                nowPlaying = nowPlaying,
+                isPlaying = isPlaying,
                 onPlaySongs = onPlaySongs,
                 onShuffle = onShuffle,
                 onToggleSubscription = onToggleSubscription,
+                onPlayPause = onPlayPause,
             )
         }
         if (top.isNotEmpty() || blurb != null) {
@@ -292,14 +299,21 @@ private fun BannerWords(name: String, listeners: String?, modifier: Modifier, in
     }
 }
 
-/** The actions under the banner: Play (the hero button at 56 dp), Shuffle, and Follow or Following when the account can. */
+/**
+ * The actions under the banner: Play (the hero button at 56 dp), Shuffle, and Follow or Following when the account can. While the song
+ * that is loaded is one of [top], Play is the player's play/pause ([onPlayPause]: pause while it plays, a tap toggles) and not a
+ * restart of the list ([ArtistPlay]).
+ */
 @Composable
 private fun ArtistActions(
     top: List<Song>,
     subscription: SubscriptionState?,
+    nowPlaying: Song?,
+    isPlaying: Boolean,
     onPlaySongs: (List<Song>, Int) -> Unit,
     onShuffle: (List<Song>) -> Unit,
     onToggleSubscription: ((SubscriptionState) -> Unit)?,
+    onPlayPause: (() -> Unit)?,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(start = COLUMNS_PADDING, end = COLUMNS_PADDING, top = 20.dp),
@@ -307,9 +321,14 @@ private fun ArtistActions(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PlayMorphButton(
-            playing = false,
+            playing = ArtistPlay.showsPause(top, nowPlaying, isPlaying),
             loading = false,
-            onClick = { if (top.isNotEmpty()) onPlaySongs(top, 0) },
+            onClick = {
+                when (ArtistPlay.tap(top, nowPlaying, canToggle = onPlayPause != null)) {
+                    ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()
+                    ArtistPlay.Tap.PLAY_LIST -> if (top.isNotEmpty()) onPlaySongs(top, 0)
+                }
+            },
             size = 56.dp,
         )
         CosmoIconButton(

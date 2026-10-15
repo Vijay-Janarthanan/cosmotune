@@ -33,6 +33,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,6 +101,19 @@ internal val DESKTOP_DURATION_COLUMN: Dp = 60.dp
  * `isPlaying` from it. False where nothing provides it (a render, a test).
  */
 internal val LocalCosmoPlaying = compositionLocalOf { false }
+
+/**
+ * The player's play/pause as the user would press it (the one that honours Listen Together's lock), for the artist page's big button.
+ * Provided by the root, like [LocalCosmoPlaying]; null where nothing provides it, and the page then plays its list on every tap.
+ */
+internal val LocalCosmoPlayPause = compositionLocalOf<(() -> Unit)?> { null }
+
+/** A callback with one identity for as long as it stays in the composition that always calls the latest [action]: a local that holds it never invalidates its readers. */
+@Composable
+internal fun rememberStableAction(action: () -> Unit): () -> Unit {
+    val latest by rememberUpdatedState(action)
+    return remember { { latest() } }
+}
 
 /** The state layer on hover, the playing row's wash (`.d2-tracks li.is-playing`: the container at 60 %) and the faint stripe. */
 private const val HOVER_LAYER = 0.08f

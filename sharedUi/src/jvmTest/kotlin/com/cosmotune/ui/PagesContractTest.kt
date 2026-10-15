@@ -81,7 +81,9 @@ class PagesContractTest {
         val old = parameters(SourceContract.read(screenPath), "DetailScreen")
         val switch = parameters(SourceContract.read(switchPath), "DetailSwitch")
         assertEquals(23, old.size, "DetailScreen has 23 parameters; if this changed, DetailSwitch has to decide about the new one")
-        assertEquals(old, switch, "DetailSwitch has DetailScreen's parameters: same names, types, defaults and order")
+        // P4-20: one more at the end, defaulted: the root's play/pause toggle, which only the artist page uses (the old call does not pass it)
+        assertEquals(old, switch.take(old.size), "DetailSwitch starts with DetailScreen's parameters: same names, types, defaults and order")
+        assertEquals(listOf("onPlayPause: (() -> Unit)? = null"), switch.drop(old.size), "and has the one extra of P4-20")
     }
 
     @Test fun theOldBranchPassesEveryParameterByName() {
@@ -133,7 +135,7 @@ class PagesContractTest {
             listOf(
                 "page", "heroUrl", "currentSong", "isPlaying", "listState", "contentPadding", "activeShelf", "onActiveShelfChange", "onSongClick",
                 "onSongLongPress", "onSongSwipe", "onShuffle", "onSectionItemClick", "onSectionItemLongPress", "onToggleSubscription",
-                "releaseLibrary", "onLoadReleaseLibrary", "onToggleReleaseLibrary", "modifier",
+                "releaseLibrary", "onLoadReleaseLibrary", "onToggleReleaseLibrary", "modifier", "onPlayPause",
             ),
             names(page("CosmoArtistPage"), "CosmoArtistPage"),
         )

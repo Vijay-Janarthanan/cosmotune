@@ -183,4 +183,67 @@ class PolishContractTest {
             "holding the liked tile calls the same hold as every other playlist: the menu the old row opened",
         )
     }
+
+    // ---- 7. the artist page's play button toggles while the artist is playing -----------------------------------------------------
+
+    @Test fun thePhoneArtistPageTakesAnOptionalPlayPauseAndDecidesWithTheSharedRule() {
+        val page = SourceContract.read("${shared}pages/CosmoArtistPage.kt")
+        assertEquals("onPlayPause: (() -> Unit)? = null", SourceContract.parameters(page, "CosmoArtistPage").last(), "the last parameter is the optional toggle")
+        val code = SourceContract.code(page).replace(Regex("\\s+"), " ")
+        assertTrue(code.contains("val artistPlaying = ArtistPlay.showsPause(songs, currentSong, isPlaying)"), "the button reads as pause by the shared rule")
+        assertTrue(code.contains("ArtistPlay.tap(songs, currentSong, canToggle = onPlayPause != null)"), "the tap asks the shared rule")
+        assertTrue(code.contains("ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()") && code.contains("ArtistPlay.Tap.PLAY_LIST -> onSongClick(songs, 0)"), "a toggle toggles, otherwise the list plays from the top")
+        assertTrue(code.contains("onPlayPause = onPlayPause"), "the page hands the toggle down to the list")
+    }
+
+    @Test fun theDetailSwitchPassesTheRootsToggleToTheArtistPageOnlyAndKeepsTheOldCallAsItWas() {
+        val switch = SourceContract.read("app/src/main/java/com/cosmotune/ui/pages/DetailSwitch.kt")
+        val old = SourceContract.parameters(SourceContract.read("${app}ui/screens/DetailScreen.kt"), "DetailScreen")
+        val own = SourceContract.parameters(switch, "DetailSwitch")
+        assertEquals(old, own.take(old.size), "the switch starts with the old screen's parameters, as written")
+        assertEquals(listOf("onPlayPause: (() -> Unit)? = null"), own.drop(old.size), "and has one more, defaulted, at the end")
+        val body = SourceContract.code(SourceContract.functionBody(switch, "DetailSwitch")).replace(Regex("\\s+"), " ")
+        val artist = body.substringAfter("CosmoArtistPage(").substringBefore("CosmoReleasePage(")
+        assertTrue(artist.contains("onPlayPause = onPlayPause"), "the artist page gets the toggle")
+        assertEquals(1, Regex("""onPlayPause = onPlayPause""").findAll(body).count(), "and only the artist page")
+        assertFalse(body.substringAfter("} else { DetailScreen(").contains("onPlayPause"), "the old screen's call does not know it")
+    }
+
+    @Test fun theRootHandsThePhonesToggleToTheDetailSwitch() {
+        val src = SourceContract.code(SourceContract.read("${app}MainActivity.kt"))
+        val at = src.indexOf("com.cosmotune.ui.pages.DetailSwitch(")
+        assertTrue(at >= 0, "the call is there")
+        val open = at + "com.cosmotune.ui.pages.DetailSwitch".length
+        var depth = 0
+        var end = open
+        while (end < src.length) {
+            when (src[end]) { '(' -> depth++; ')' -> if (--depth == 0) break }
+            end++
+        }
+        val call = src.substring(open, end).replace(Regex("\\s+"), " ")
+        assertTrue(call.contains("onPlayPause = togglePlayPause"), "the call hands over the root's own toggle (the one the mini player uses)")
+    }
+
+    @Test fun theDesktopArtistPageReadsTheRootsToggleFromOneLocalOfOursAndDecidesWithTheSharedRule() {
+        val page = SourceContract.read("${cosmoDesktop}CosmoDesktopArtistPage.kt")
+        val row = SourceContract.code(SourceContract.read("${cosmoDesktop}CosmoDesktopSongRow.kt"))
+        assertTrue(Regex("""internal val LocalCosmoPlayPause = compositionLocalOf<\(\(\) -> Unit\)\?> \{ null \}""").containsMatchIn(row), "the local is ours, null where nobody provides it")
+        assertEquals("onPlayPause: (() -> Unit)? = LocalCosmoPlayPause.current", SourceContract.parameters(page, "CosmoDesktopArtistPage").last())
+        val code = SourceContract.code(page).replace(Regex("\\s+"), " ")
+        assertTrue(code.contains("ArtistPlay.showsPause(top, nowPlaying, isPlaying)"), "the button reads as pause by the shared rule")
+        assertTrue(code.contains("ArtistPlay.tap(top, nowPlaying, canToggle = onPlayPause != null)"), "the tap asks the shared rule")
+        assertTrue(code.contains("ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()") && code.contains("ArtistPlay.Tap.PLAY_LIST -> if (top.isNotEmpty()) onPlaySongs(top, 0)"), "a toggle toggles, otherwise the list plays from the top")
+        assertFalse(code.contains("playing = false"), "the button is no longer stuck on play")
+    }
+
+    @Test fun theDesktopRootProvidesItsStableToggleBesideThePlayersFlag() {
+        val src = SourceContract.code(SourceContract.read("${desktop}DesktopApp.kt")).replace(Regex("\\s+"), " ")
+        assertTrue(
+            src.contains("com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying, com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),"),
+            "the root provides the toggle that honours Listen Together's lock, with one identity",
+        )
+        val row = SourceContract.code(SourceContract.read("${cosmoDesktop}CosmoDesktopSongRow.kt")).replace(Regex("\\s+"), " ")
+        assertTrue(row.contains("internal fun rememberStableAction(action: () -> Unit): () -> Unit"), "the helper is in our file")
+        assertTrue(row.contains("val latest by rememberUpdatedState(action) return remember { { latest() } }"), "one identity, always the latest action")
+    }
 }

@@ -29,8 +29,8 @@ import com.music.bitchord.ui.screens.DetailScreen
  * The one entry point of the album, playlist and artist pages: the new pages while the new look is on (the shell exists), the old
  * screen while it is off.
  *
- * The parameter list is [DetailScreen]'s, name for name, with the same defaults and in the same order, and the old branch passes every
- * argument by name. That is the seam: when upstream adds a parameter to [DetailScreen] the old branch stops compiling (or the contract
+ * The parameter list is [DetailScreen]'s, name for name, with the same defaults and in the same order, plus one more at the end,
+ * [onPlayPause], which only the new artist page reads; and the old branch passes every argument of [DetailScreen] by name. That is the seam: when upstream adds a parameter to [DetailScreen] the old branch stops compiling (or the contract
  * test fails), and this file is where the new parameter has to be decided on instead of silently going missing from the new pages.
  * With the new look off nothing here runs but the old call.
  *
@@ -63,6 +63,9 @@ fun DetailSwitch(
     onLoadReleaseLibrary: ((String) -> Unit)? = null,
     onToggleReleaseLibrary: ((String) -> Unit)? = null,
     songSort: SongSort = SongSort.DEFAULT,
+    // The one parameter the old screen does not have: the root's play/pause, for the new artist page's big button (the old one never
+    // needed it). Not passed on to [DetailScreen].
+    onPlayPause: (() -> Unit)? = null,
 ) {
     if (LocalCosmoShell.current != null) {
         if (page.type == BrowseType.ARTIST) {
@@ -86,6 +89,7 @@ fun DetailSwitch(
                 onLoadReleaseLibrary = onLoadReleaseLibrary,
                 onToggleReleaseLibrary = onToggleReleaseLibrary,
                 modifier = modifier,
+                onPlayPause = onPlayPause,
             )
         } else {
             val raw = (page.songs as? UiState.Success)?.data.orEmpty()
