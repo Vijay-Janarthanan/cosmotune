@@ -18,6 +18,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.design.GlassPolicy
@@ -25,6 +27,9 @@ import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoShell
+import com.music.bitchord.sharedui.resources.Res
+import com.music.bitchord.sharedui.resources.cosmo_sheet_handle
+import org.jetbrains.compose.resources.stringResource
 
 /** `--r-sheet`. */
 private val SHEET_SHAPE = SuperellipseShape(CosmoRadii.sheet)
@@ -101,10 +106,11 @@ fun ModalBottomSheet(
 
 /**
  * The grabber of a detached sheet (`.sheet2 .grab`): a 36 x 4 dp pill in `textPrimary` at 45 %, 10 dp below the sheet's top edge
- * and 14 dp above its content. The sheet centres it and gives it the "drag handle" role and actions, so it has no label of its own.
+ * and 14 dp above its content. The sheet centres it and gives it the "drag handle" role and actions; the label is `cosmo_sheet_handle`.
  */
 @Composable
 fun CosmoSheetHandle(modifier: Modifier = Modifier) {
     val ink = Color(LocalCosmoColors.current.palette.textPrimary).copy(alpha = GRAB_ALPHA)
-    Box(modifier.padding(top = GRAB_TOP, bottom = GRAB_BOTTOM).size(GRAB_WIDTH, GRAB_HEIGHT).background(ink, CircleShape))
+    val label = stringResource(Res.string.cosmo_sheet_handle)
+    Box(modifier.padding(top = GRAB_TOP, bottom = GRAB_BOTTOM).size(GRAB_WIDTH, GRAB_HEIGHT).background(ink, CircleShape).semantics { contentDescription = label })
 }
