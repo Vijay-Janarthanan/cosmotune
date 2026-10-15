@@ -2587,6 +2587,13 @@ fun BitChordDesktopApp() {
         }
     }
 
+    // The new look's Home shows Explore's moods as chips (P4-10), so Listen now loads Explore too, while the new look is on.
+    val homeWantsExplore = destination == DesktopDestination.LISTEN_NOW &&
+        com.cosmotune.ui.settings.rememberCosmoLookSettings().newLook.collectAsState().value
+    LaunchedEffect(homeWantsExplore) {
+        if (homeWantsExplore && exploreState is UiState.Loading) loadExplore()
+    }
+
     // Category buttons carry no artwork of their own, so a few are resolved at a time from the
     // shelves they open.
     LaunchedEffect(exploreState) {
@@ -3969,7 +3976,7 @@ fun BitChordDesktopApp() {
                             downloadInProgress = downloadInProgress,
                             contentPadding = contentPadding,
                         )
-                        destination == DesktopDestination.LISTEN_NOW -> HomeScreen(
+                        destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.home.HomeSwitch(
                             state = homeState,
                             listState = homeListState,
                             onItemClick = { item, shelfTitle -> openShelfItem(item, shelfTitle) },
@@ -3979,6 +3986,7 @@ fun BitChordDesktopApp() {
                             pullState = rememberPullToRefreshState(),
                             contentPadding = sharedPagePadding,
                             title = null,
+                            browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { selectDestination(DesktopDestination.EXPLORE); openMoodGenre(it) }, onRetry = { exploreReloads++ }),
                             signedIn = youtubeSignedIn,
                             onSignIn = { overlays.accounts = true },
                             onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },

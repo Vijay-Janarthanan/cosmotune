@@ -2987,12 +2987,13 @@ private fun BitChordApp(
                             contentPadding = listPadding,
                         )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
-                        TAB_HOME -> HomeScreen(
+                        TAB_HOME -> com.cosmotune.ui.home.HomeSwitch(
                             state = homeState,
                             listState = homeListState,
                             currentSong = player.song,
                             isPlaying = player.isPlaying,
                             title = stringResource(R.string.listen_now),
+                            browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { viewModel.openMoodGenre(it); selectedTab = TAB_EXPLORE }, onRetry = viewModel::loadExplore),
                             signedIn = signedIn,
                             onSignIn = { webSession = WebSessionMode.SIGN_IN },
                             onItemClick = { item, shelfTitle ->
