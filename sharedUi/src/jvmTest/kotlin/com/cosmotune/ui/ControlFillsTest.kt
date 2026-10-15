@@ -94,13 +94,37 @@ class ControlFillsTest {
         assertNotEquals(green.accent, red.accent, "the two covers really differ")
     }
 
-    @Test fun glassIsSurfaceHighAtTheOpacityOfTheTheme() {
+    @Test fun glassIsTheGlassFieldOfThePalette() {
         for ((dark, expected) in listOf(true to GlassPolicy.TINT_ALPHA, false to GlassPolicy.TINT_ALPHA_LIGHT)) {
             val p = palette(0xFF466044.toInt(), dark)
             val glass = CosmoColors(CosmoPaletteState(p, dark)).glass()
-            assertEquals(p.surfaceHigh and 0xFFFFFF, glass and 0xFFFFFF, "colour (dark = $dark)")
-            assertEquals(Math.round(expected * 255f), alpha(glass), "opacity (dark = $dark)")
+            assertEquals(p.glass and 0xFFFFFF, glass and 0xFFFFFF, "colour (dark = $dark): the engine's glass")
+            assertEquals(p.glass ushr 24, alpha(glass), "opacity (dark = $dark): the engine's own alpha")
+            assertEquals(Math.round(expected * 255f), alpha(glass), "and it is the glass opacity of the theme (dark = $dark)")
+            // The designer's formulas give the dark glass the very colour of surfaceHigh (L 0.30, the same chroma rule), so only
+            // the light glass differs from it: more tinted (chroma 0.32 c against 0.10 c) at the same lightness.
+            if (dark) assertEquals(p.surfaceHigh and 0xFFFFFF, glass and 0xFFFFFF, "the dark glass is surfaceHigh's colour")
+            else assertNotEquals(p.surfaceHigh and 0xFFFFFF, glass and 0xFFFFFF, "the light glass is its own, more tinted colour")
         }
+    }
+
+    @Test fun glassFollowsThePaletteThatIsOnScreen() = runBlocking {
+        val state = CosmoPaletteState(green, dark = true)
+        val colors = CosmoColors(state)
+        assertEquals(green.glass, colors.glass(), "before the cover changes")
+        state.show(red, dark = true, reducedMotion = false, animate = false)
+        assertEquals(red.glass, colors.glass(), "after the cover changed")
+        assertNotEquals(green.glass, red.glass, "the two covers really have different glass")
+    }
+
+    @Test fun theGlassSurfaceUsesTheGlassFieldOverABlurAndSurfaceHighAtNinetyFourPercentWithout() {
+        // Glass.kt is a composable (no window here), so what it fills with is pinned by reading it, as the media contract test does.
+        val root = generateSequence(java.io.File("").absoluteFile) { it.parentFile }.first { java.io.File(it, "settings.gradle.kts").isFile }
+        val glass = java.io.File(root, "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/components/Glass.kt").readText().replace("\r\n", "\n")
+        val cache = glass.substringAfter("return glass.drawWithCache")
+        assertTrue(cache.contains("if (blurred) colors.live(CoverField.GLASS)"), "over a blur the fill is the glass field, with its own alpha")
+        assertTrue(cache.contains("colors.live(CoverField.SURFACE_HIGH).copy(alpha = GlassPolicy.SOLID_ALPHA)"), "without a blur it is surfaceHigh at the solid opacity")
+        assertEquals(0.94f, GlassPolicy.SOLID_ALPHA)
     }
 
     @Test fun aFloatingPrimaryIsTranslucentTintedGlassAndAFloatingPlayButtonIsDenser() {

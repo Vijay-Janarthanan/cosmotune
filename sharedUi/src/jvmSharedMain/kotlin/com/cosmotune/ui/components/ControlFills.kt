@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.design.ColorMix
 import com.cosmotune.design.ControlMetrics
 import com.cosmotune.design.CssGradient
-import com.cosmotune.design.GlassPolicy
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.theme.CosmoColors
 
@@ -39,11 +38,11 @@ private val WHITE = 0xFFFFFFFF.toInt()
 private fun CosmoColors.argb(field: Int): Int = live(field).toArgb()
 
 /**
- * The cover's `glass` for a floating control: `surfaceHigh` at the glass opacity of the theme (52 % dark, 62 % light). The
- * engine has no separate `glass` colour yet (the v3 delta of `02-colour-delta.md` was not ported); `surfaceHigh` is the
- * nearest field (the solid fallback of the spec is `surfaceHigh` too), so this is the one place to change when it arrives.
+ * The cover's `glass` for a floating control: the engine's own `glass` field (the v3 delta of `02-colour-delta.md`), the tint
+ * under blur, which carries its opacity (52 % dark, 62 % light). A control never blurs itself, so there is no solid form here:
+ * the nearly solid `surfaceHigh` at 94 % is the fallback of the glass surface (`cosmoGlass`), not of a control drawn on it.
  */
-internal fun CosmoColors.glass(): Int = ColorMix.withAlpha(argb(CoverField.SURFACE_HIGH), GlassPolicy.tintAlpha(dark))
+internal fun CosmoColors.glass(): Int = argb(CoverField.GLASS)
 
 /** A CSS `linear-gradient(<angle>, from, to)` over the current box, with stops interpolated in OKLab. */
 internal fun DrawScope.cssGradient(angleDeg: Float, from: Int, to: Int): Brush {

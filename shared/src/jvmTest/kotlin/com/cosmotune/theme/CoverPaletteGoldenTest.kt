@@ -16,9 +16,11 @@ import kotlin.test.assertTrue
 
 /**
  * The Kotlin engine against the designer's reference implementation. `theme-golden/golden.json` holds, for 61 seeds in
- * both themes, every colour that the designer's `dynamic-colour.js` derives (made by `theme-golden/make-golden.mjs`,
- * which runs that file unchanged under Node). Each colour must agree within 1 per channel (the two are separate
- * implementations of one formula; a 1 can come from `pow` and `cbrt` differing in the last bit before rounding to 8 bits).
+ * both themes, every colour that the designer's `dynamic-colour-v3.js` derives (made by `theme-golden/make-golden.mjs`,
+ * which runs that file unchanged under Node; v3 only adds fields to v2's engine, so the v2 colours are the v2 file's).
+ * Each colour must agree within 1 per channel and its alpha within 1 of 255 (the two are separate implementations of one
+ * formula; a 1 can come from `pow` and `cbrt` differing in the last bit before rounding to 8 bits). The v3 colours are
+ * `glass` (with its alpha), `skelBase`, `skelShine`, the four danger colours, and the flag `dangerClash`.
  */
 class CoverPaletteGoldenTest {
 
@@ -37,6 +39,9 @@ class CoverPaletteGoldenTest {
         "buttonGradientStart" to c.buttonGradientStart, "buttonGradientEnd" to c.buttonGradientEnd,
         "accentContainer" to c.accentContainer, "onAccentContainer" to c.onAccentContainer, "glow" to c.glow,
         "shadow" to c.shadow, "scrim" to c.scrim, "track" to c.track, "outline" to c.outline,
+        "glass" to c.glass, "skelBase" to c.skelBase, "skelShine" to c.skelShine,
+        "danger" to c.danger, "onDanger" to c.onDanger, "dangerContainer" to c.dangerContainer,
+        "onDangerContainer" to c.onDangerContainer,
     )
 
     private fun intensityOf(name: String) = when (name) {
@@ -49,6 +54,7 @@ class CoverPaletteGoldenTest {
     fun theGoldenFileHasTheCasesItShould() {
         val cases = golden["cases"]!!.jsonArray
         assertTrue(cases.size >= 40, "about 40 seeds or more, got ${cases.size}")
+        assertEquals("ui/v3/dynamic-colour-v3.js", golden["reference"]!!.jsonObject["file"]!!.jsonPrimitive.content)
         val names = cases.map { it.jsonObject["name"]!!.jsonPrimitive.content }
         assertEquals(names.size, names.toSet().size, "case names are unique")
         // Both themes of every case, and the failing-rail list of the reference is empty (the designer's own rails hold on all of them).
@@ -56,6 +62,7 @@ class CoverPaletteGoldenTest {
             val o = it.jsonObject
             listOf("dark", "light").forEach { theme ->
                 assertTrue(o[theme]!!.jsonObject["pass"]!!.jsonPrimitive.boolean, "the reference's own rails fail on ${o["name"]} ($theme)")
+                assertTrue(o[theme]!!.jsonObject.containsKey("dangerClash"), "${o["name"]} ($theme) has no dangerClash")
             }
         }
     }
@@ -96,9 +103,10 @@ class CoverPaletteGoldenTest {
                     }
                 }
                 assertEquals(o["mono"]!!.jsonPrimitive.boolean, actual.isFallback, "$name: isFallback")
+                assertEquals(expected["dangerClash"]!!.jsonPrimitive.boolean, actual.dangerClash, "$name ($theme): dangerClash")
             }
         }
-        assertTrue(compared > 2500, "compared only $compared colours")
+        assertTrue(compared > 3500, "compared only $compared colours")
         assertTrue(problems.isEmpty(), "${problems.size} of $compared colours differ from the reference by more than 1:\n" + problems.take(30).joinToString("\n"))
         println("golden: $compared colours compared, largest per-channel difference $maxDifference")
     }

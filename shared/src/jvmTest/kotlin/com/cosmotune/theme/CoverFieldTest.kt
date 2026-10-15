@@ -4,8 +4,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class CoverFieldTest {
-    // Every colour of the handoff table, valued by its index. track and outline are the palette's two translucent
-    // neutrals, which the animation does not blend (they are not in the handoff table), so they sit beyond the table.
+    // Every colour of the handoff table, valued by its index, then the v3 colours (glass, the skeleton pair, the danger
+    // family) at 21 to 27. track and outline are the palette's two translucent neutrals, which the animation does not blend
+    // (they are not in the handoff table), so they sit beyond the table.
     private val numbered = CoverColors(
         seed = 0, ambient = 1,
         backgroundTop = 2, backgroundMid = 3, backgroundBottom = 4,
@@ -15,13 +16,34 @@ class CoverFieldTest {
         buttonGradientStart = 14, buttonGradientEnd = 15,
         accentContainer = 16, onAccentContainer = 17,
         glow = 18, shadow = 19, scrim = 20,
+        glass = 21, skelBase = 22, skelShine = 23,
+        danger = 24, onDanger = 25, dangerContainer = 26, onDangerContainer = 27,
         track = 100, outline = 101,
         isFallback = false,
+        dangerClash = false,
     )
 
     @Test fun theFieldArrayFollowsTheIndexConstants() {
-        assertEquals((0 until 21).toList(), numbered.toFieldArray().toList())
+        assertEquals((0 until 28).toList(), numbered.toFieldArray().toList())
         assertEquals(CoverField.COUNT, numbered.toFieldArray().size)
+        assertEquals(28, CoverField.COUNT)
+    }
+
+    @Test fun theV3FieldsHaveTheirIndexes() {
+        assertEquals(21, CoverField.GLASS)
+        assertEquals(22, CoverField.SKEL_BASE)
+        assertEquals(23, CoverField.SKEL_SHINE)
+        assertEquals(24, CoverField.DANGER)
+        assertEquals(25, CoverField.ON_DANGER)
+        assertEquals(26, CoverField.DANGER_CONTAINER)
+        assertEquals(27, CoverField.ON_DANGER_CONTAINER)
+        assertEquals(21, numbered.argbOf(CoverField.GLASS))
+        assertEquals(22, numbered.argbOf(CoverField.SKEL_BASE))
+        assertEquals(23, numbered.argbOf(CoverField.SKEL_SHINE))
+        assertEquals(24, numbered.argbOf(CoverField.DANGER))
+        assertEquals(25, numbered.argbOf(CoverField.ON_DANGER))
+        assertEquals(26, numbered.argbOf(CoverField.DANGER_CONTAINER))
+        assertEquals(27, numbered.argbOf(CoverField.ON_DANGER_CONTAINER))
     }
 
     @Test fun argbOfReadsOneColourByItsIndex() {
