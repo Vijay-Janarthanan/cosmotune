@@ -3025,7 +3025,7 @@ private fun BitChordApp(
                             recentlyPlayedLoading = homeRecentlyPlayedLoading,
                         )
                         TAB_EXPLORE -> selectedMoodGenre?.let { category ->
-                            MoodGenrePlaylistsScreen(
+                            com.cosmotune.ui.search.MoodGenreSwitch(
                                 title = category.title,
                                 state = moodGenreShelves,
                                 listState = moodGenreListState,
@@ -3056,7 +3056,7 @@ private fun BitChordApp(
                                 onRetry = { viewModel.openMoodGenre(category) },
                                 contentPadding = listPadding,
                             )
-                        } ?: ExploreScreen(
+                        } ?: com.cosmotune.ui.search.ExploreSwitch(
                             state = exploreState,
                             listState = exploreListState,
                             onCategoryClick = viewModel::openMoodGenre,
@@ -3066,7 +3066,7 @@ private fun BitChordApp(
                             pullState = explorePull,
                             contentPadding = listPadding,
                         )
-                        TAB_SEARCH -> SearchScreen(
+                        TAB_SEARCH -> com.cosmotune.ui.search.SearchSwitch(
                             query = query,
                             onQueryChange = viewModel::onQueryChange,
                             filter = filter,
@@ -3207,6 +3207,7 @@ private fun BitChordApp(
                                     onSelect = { index -> onSearchSourceChange(SearchSource.entries[index]) },
                                 )
                             },
+                            browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { viewModel.openMoodGenre(it); selectedTab = TAB_EXPLORE }, onRetry = viewModel::loadExplore),
                             searchingLibrary = searchSource == SearchSource.LIBRARY,
                             libraryResults = libraryResults,
                             // The same queue opening the Local Music folder and
