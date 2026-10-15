@@ -2989,9 +2989,9 @@ fun BitChordDesktopApp() {
         partySyncHolder[0]?.onLocalIntent()
     }
 
-    MaterialTheme(
-        colorScheme = desktopColorScheme(),
-        typography = desktopTypography(),
+    com.cosmotune.ui.theme.CosmoLookTheme(
+        dark = true,
+        legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) },
     ) {
         val ambientBackdrop by DesktopAppearanceSettings.ambientBackdrop.collectAsState()
         val windowActions = LocalDesktopWindowActions.current
@@ -5976,6 +5976,7 @@ private fun DesktopSettingsScreen(
                             DesktopAppearanceSettings::setAmbientBackdrop,
                         )
                     }
+                    com.cosmotune.desktop.CosmoLookDesktopToggles { title, subtitle, checked, onChange -> SettingsToggle(title, subtitle, checked, onChange) }
                     SettingsToggle(
                         DesktopStrings["full_screen_cover_art", "Full-screen cover art"],
                         DesktopStrings["full_screen_cover_art_subtitle", "Runs the cover to the edges of the player instead of a square sleeve"],

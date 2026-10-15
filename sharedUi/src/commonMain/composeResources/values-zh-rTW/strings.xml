@@ -200,4 +200,8 @@
     <string name="search_library_empty">搜尋本地音樂資料夾中的歌曲。</string>
     <string name="search_library_hint">歌曲、藝人和專輯</string>
     <string name="search_library_no_results">本地音樂中沒有與「%1$s」匹配的內容。</string>
+    <string name="cosmo_new_look">New look (preview)</string>
+    <string name="cosmo_new_look_summary">The redesigned player and navigation. Still being built.</string>
+    <string name="cosmo_cover_colours">Colours follow the cover</string>
+    <string name="cosmo_cover_colours_summary">The whole app takes its colour from the song that is playing</string>
 </resources>

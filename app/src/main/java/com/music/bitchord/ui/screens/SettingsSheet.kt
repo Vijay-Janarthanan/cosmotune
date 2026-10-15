@@ -820,6 +820,9 @@ fun SettingsScreen(
                     onClick = { AppSettings.setLiquidGlass(!liquidGlass) },
                 )
             }
+            row("new look", "colours follow the cover", "cosmotune", "colour", "color") {
+                com.cosmotune.ui.CosmoLookSettingsRows()
+            }
             // Left out where the player won't honour it: a window too wide for
             // the player to fill and too narrow to stand a page beside it keeps
             // the sleeve either way. A docked pane is a phone's width, so it does

@@ -50,6 +50,18 @@ calls it is at the top of `CoverPalette.kt`.
 - The library's version follows the Kotlin version: 4.1.1 is built on Kotlin 2.3, and 5.x needs the Kotlin 2.4 standard
   library. The `FORK.md` row for `shared/build.gradle.kts` says what to do when Kotlin is raised.
 
+## The new interface (part one)
+
+- Our Compose code is in `sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/` (one source set for Android and the desktop), our
+  pure logic in `shared/.../com/cosmotune/`. A package inside `sharedUi` can use the player's `internal` pieces; a separate module could not.
+- The switch is `CosmoLookSettings` (`NEW_LOOK_DEFAULT` in `CosmoConfig`; SharedPreferences `cosmotune_look` on the phone, the Preferences
+  node `com.cosmotune.desktop/look` on the desktop). `CosmoLookTheme` replaces the theme call in `MainActivity` and `DesktopApp` and gives
+  the old screens the cover palette as a Material scheme (`ColorSchemeBridge`). With the switch off it is the old theme.
+- `LocalCosmoShell` is null while the switch is off and the shell state while it is on: the few places in the old roots that draw new
+  chrome check it. When upstream changes `NowPlayingScreen`'s parameters, update `NowPlayingSwitch` (task P3-9).
+- `FORK.md` has the rows for the upstream files involved: `MainActivity.kt`, `SettingsSheet.kt`, `DesktopApp.kt` and the `cosmo_*` strings.
+  `CosmoStringsTest` fails when a locale lacks a `cosmo_*` key; `CoverFieldTest` fails when `CoverColors` gains a colour with no index.
+
 ## Icons
 
 The logo (a heavy C with a small moon-textured, waning o) is drawn in a design kit that lives in the OpenCanvas

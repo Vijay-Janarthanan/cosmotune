@@ -356,7 +356,7 @@ class MainActivity : AppCompatActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            BitChordTheme(darkTheme = darkTheme) {
+            com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { BitChordTheme(darkTheme = darkTheme, content = it) }) {
                 // The glass surfaces sample this layer, and a layer records only
                 // what is drawn into it — which, for BitChord, is a page that
                 // paints no background of its own. Everywhere a page is not

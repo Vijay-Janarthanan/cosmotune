@@ -200,4 +200,8 @@
     <string name="search_library_empty">Cerca i brani nella cartella Musica locale.</string>
     <string name="search_library_hint">Brani, artisti e album</string>
     <string name="search_library_no_results">Nulla in Musica locale corrisponde a «%1$s».</string>
+    <string name="cosmo_new_look">New look (preview)</string>
+    <string name="cosmo_new_look_summary">The redesigned player and navigation. Still being built.</string>
+    <string name="cosmo_cover_colours">Colours follow the cover</string>
+    <string name="cosmo_cover_colours_summary">The whole app takes its colour from the song that is playing</string>
 </resources>
