@@ -7,6 +7,7 @@ import com.music.bitchord.ui.components.ShelfRowChrome
 import com.music.bitchord.ui.components.ShelfRow
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.pointer.isBackPressed
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -3053,6 +3054,11 @@ fun BitChordDesktopApp() {
                             searchFocusRequested = true
                             true
                         }
+                        // Ctrl K: the shortcut the new look's search field shows on its key cap (macOS has Command F above).
+                        cosmoShell != null && !DesktopPlatform.isMac && event.isCtrlPressed && event.key == Key.K -> {
+                            searchFocusRequested = true
+                            true
+                        }
                         DesktopPlatform.isMac && event.isMetaPressed && event.key == Key.W -> {
                             windowActions?.close?.invoke()
                             true
@@ -3094,6 +3100,15 @@ fun BitChordDesktopApp() {
                         ::goBack,
                         activeAccount?.avatar ?: activeAccount?.profiles?.firstOrNull()?.avatar,
                         { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
+                        accountName = activeAccount?.name,
+                        // The profile drawer's entries. Settings and Replay stand in place of the page, so they leave each other first.
+                        entries = listOf(
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Replay, DesktopStrings["replay", "Replay"], onClick = { overlays.settingsPage = null; overlays.replay = true }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Together, DesktopStrings["listen_together", "Listen together"], onClick = { overlays.listenTogether = true }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings["downloads", "Downloads"], onClick = { selectDestination(DesktopDestination.DOWNLOADS) }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Equaliser, DesktopStrings["equalizer", "Equalizer"], onClick = { overlays.settingsPage = DesktopSettingsPage.EQUALIZER }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Settings, DesktopStrings["settings", "Settings"], onClick = { openSettings() }),
+                        ),
                     ) else
                     DesktopTopBar(
                         compact = compact,
@@ -3162,23 +3177,18 @@ fun BitChordDesktopApp() {
                     if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(
                         tabs = listOf(
                             com.cosmotune.ui.shell.CosmoTab(DesktopStrings["home", "Home"], com.cosmotune.ui.components.CosmoIcons.Home, com.cosmotune.ui.components.CosmoIcons.HomeFill),
-                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["explore", "Explore"], com.cosmotune.ui.components.CosmoIcons.Grid, com.cosmotune.ui.components.CosmoIcons.Grid),
-                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["library", "Library"], com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.LibraryFill),
                             com.cosmotune.ui.shell.CosmoTab(DesktopStrings["search", "Search"], com.cosmotune.ui.components.CosmoIcons.Search, com.cosmotune.ui.components.CosmoIcons.SearchFill),
-                        ),   // the order of the four destinations below
+                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["library", "Library"], com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.LibraryFill),
+                        ),   // Home, Search (Explore inside it), Library
                         selectedIndex = when (destination) {
                             DesktopDestination.LISTEN_NOW -> 0
-                            DesktopDestination.EXPLORE -> 1
+                            DesktopDestination.SEARCH, DesktopDestination.EXPLORE -> 1
                             DesktopDestination.LIBRARY -> 2
-                            DesktopDestination.SEARCH -> 3
                             else -> -1
                         },
                         onTabSelected = { index ->
                             selectDestination(
-                                listOf(
-                                    DesktopDestination.LISTEN_NOW, DesktopDestination.EXPLORE,
-                                    DesktopDestination.LIBRARY, DesktopDestination.SEARCH,
-                                )[index],
+                                listOf(DesktopDestination.LISTEN_NOW, DesktopDestination.SEARCH, DesktopDestination.LIBRARY)[index],
                             )
                         },
                         song = selectedSong,
@@ -4557,6 +4567,24 @@ private fun DesktopSidebar(
     focusSearch: Boolean,
     onSearchFocused: () -> Unit,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopSidebar(
+        nav = listOf(
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Home, com.cosmotune.ui.components.CosmoIcons.HomeFill, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW, onClick = { onDestinationSelected(DesktopDestination.LISTEN_NOW) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Search, com.cosmotune.ui.components.CosmoIcons.SearchFill, DesktopStrings["search", "Search"], destination == DesktopDestination.SEARCH || destination == DesktopDestination.EXPLORE, onClick = { onDestinationSelected(DesktopDestination.SEARCH) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.LibraryFill, DesktopStrings["library", "Library"], destination == DesktopDestination.LIBRARY, onClick = { onDestinationSelected(DesktopDestination.LIBRARY) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Clock, com.cosmotune.ui.components.CosmoIcons.Clock, DesktopStrings["history", "History"], destination == DesktopDestination.HISTORY, onClick = { onDestinationSelected(DesktopDestination.HISTORY) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Download, com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings["downloads", "Downloads"], destination == DesktopDestination.DOWNLOADS, aside = DesktopDownloadQueue.active.collectAsState().value.size.takeIf { it > 0 }?.toString(), onClick = { onDestinationSelected(DesktopDestination.DOWNLOADS) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.Library, DesktopStrings["local_music", "Local Music"], destination == DesktopDestination.LOCAL_MUSIC, onClick = { onDestinationSelected(DesktopDestination.LOCAL_MUSIC) }),
+        ),
+        playlists = com.cosmotune.desktop.cosmoSidebarPlaylists(accountPlaylists, localPlaylists, openedCollectionId, onOpenAccountPlaylist, onOpenLocalPlaylist),
+        settingsSelected = settingsOpen,
+        onOpenSettings = onOpenSettings,
+        query = query,
+        onQueryChange = onQueryChange,
+        onSearch = onSearch,
+        focusSearch = focusSearch,
+        onSearchFocused = onSearchFocused,
+    )
     val searchFocusRequester = remember { FocusRequester() }
     LaunchedEffect(focusSearch) {
         if (focusSearch) {
