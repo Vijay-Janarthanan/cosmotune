@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -49,6 +51,7 @@ import com.cosmotune.ui.components.CosmoButtonSize
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.components.liftShadow
 import com.cosmotune.ui.components.tonalFill
+import com.cosmotune.ui.states.CosmoShimmer
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.CosmoType
@@ -94,6 +97,9 @@ internal object PageMetrics {
 
     /** The track rows of a release (`.tracks2 .mrow`). */
     const val TRACK_ROW_DP = BlockMetrics.TRACK_ROW_DP
+
+    /** The rows of an artist's list (`.mrow`), which the artist page's skeleton stands for. */
+    const val ROW_DP = BlockMetrics.ROW_DP
 
     /** Where the find-in-list field stands once open: after the cover, the meta and the actions. */
     const val SEARCH_ITEM_INDEX = 3
@@ -338,5 +344,51 @@ internal fun StatPills(subscribers: String?, listeners: String?) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (subscribers != null) StatPill(subscribers)
         if (listeners != null) StatPill(listeners)
+    }
+}
+
+// ---- the skeleton of a page's list -------------------------------------------------------------------------------------------
+
+/** `.skel-row`: a 52 dp cover of radius 12, 14 dp before two lines 12 dp tall and 8 apart, ragged in width so they read as text. */
+private val SKELETON_COVER_SHAPE = SuperellipseShape(12.dp)
+private val SKELETON_LINE_SHAPE = RoundedCornerShape(CosmoRadii.xs)
+private val SKELETON_TITLE_WIDTHS = floatArrayOf(0.68f, 0.46f, 0.58f, 0.74f, 0.52f)
+private val SKELETON_SUBTITLE_WIDTHS = floatArrayOf(0.34f, 0.44f, 0.27f, 0.38f, 0.31f)
+
+/** The place of the page's buttons: the 56 dp Play (a rounded square, 0.30 of its height) and two 48 dp icon buttons. */
+private val SKELETON_PLAY_SHAPE = SuperellipseShape(17.dp)
+private val SKELETON_ICON_SHAPE = SuperellipseShape(14.dp)
+
+/**
+ * A page's list while its songs load, in the new look (`.skel-row`, `components-v3bc.css`): the place of the page's buttons, then
+ * [rows] rows [rowDp] tall, 16 dp from the sides, each a 52 dp cover and two lines. Every block is the cover's own skeleton
+ * ([CosmoShimmer]: `skelBase` with a sweep of `skelShine`, still under reduced motion) at full strength: the old `detailSkeleton`
+ * dimmed its blocks to 40 % over the page, which read as a grey wash, and drew the old page's round buttons. Keys are stable.
+ */
+internal fun LazyListScope.pageSkeleton(keyPrefix: String, rowDp: Float, rows: Int = 8) {
+    item(key = keyPrefix + ":actions", contentType = "skeleton-actions") {
+        Row(
+            Modifier.fillMaxWidth().padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, top = 16.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(PageMetrics.ACTIONS_GAP_DP.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CosmoShimmer(Modifier.size(width = 124.dp, height = 56.dp), SKELETON_PLAY_SHAPE)
+            CosmoShimmer(Modifier.size(48.dp), SKELETON_ICON_SHAPE)
+            CosmoShimmer(Modifier.size(48.dp), SKELETON_ICON_SHAPE)
+        }
+    }
+    items(rows, key = { keyPrefix + ":row:" + it }, contentType = { "skeleton-row" }) { index ->
+        Row(
+            Modifier.fillMaxWidth().height(rowDp.dp).padding(horizontal = CosmoSpacing.margin),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CosmoShimmer(Modifier.size(BlockMetrics.ROW_COVER_DP.dp), SKELETON_COVER_SHAPE)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                CosmoShimmer(Modifier.fillMaxWidth(SKELETON_TITLE_WIDTHS[index % SKELETON_TITLE_WIDTHS.size]).height(12.dp), SKELETON_LINE_SHAPE)
+                Spacer(Modifier.height(8.dp))
+                CosmoShimmer(Modifier.fillMaxWidth(SKELETON_SUBTITLE_WIDTHS[index % SKELETON_SUBTITLE_WIDTHS.size]).height(12.dp), SKELETON_LINE_SHAPE)
+            }
+        }
     }
 }

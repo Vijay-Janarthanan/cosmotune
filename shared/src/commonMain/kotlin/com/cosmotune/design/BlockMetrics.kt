@@ -115,6 +115,13 @@ object BlockMetrics {
     fun moodTileHeightDp(big: Boolean): Float = if (big) MOOD_TILE_BIG_DP else MOOD_TILE_DP
 
     /**
+     * A mood tile's name (`.mtile b`, 20 sp, 24 big) shrinks a step at a time, down to this, until it fits its tile on whole words
+     * ([LabelFit]): "Energise" or "Konzentration" in a small tile of a 360 dp phone no longer breaks in the middle of the word.
+     */
+    const val MOOD_LABEL_MIN_SP = 12f
+    const val MOOD_LABEL_STEP_SP = 1f
+
+    /**
      * The width of a mood tile in a window [windowWidthDp] wide: the content width less five gaps, in six columns; a tile spans
      * two columns and the gap between them, a big one three and two gaps.
      */

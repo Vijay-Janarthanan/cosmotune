@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,14 +23,19 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.cosmotune.design.BlockMetrics
 import com.cosmotune.design.ControlMetrics
+import com.cosmotune.design.LabelFit
 import com.cosmotune.ui.components.CoverImage
+import com.cosmotune.ui.components.FitLabel
 import com.cosmotune.ui.components.MorphBox
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.components.ink
 import com.cosmotune.ui.components.primaryFill
+import com.cosmotune.ui.components.tileEdge
+import com.cosmotune.ui.components.tileLiftOf
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.music.bitchord.ui.haptics.Haptic
@@ -77,9 +84,10 @@ fun CosmoMoodChip(
 
 /**
  * A mood tile (`.mtile`): radius 20, 92 dp tall (116 with [big]), the cover's ground with a wash of `ambient` from the top left,
- * the label in Archivo (20 sp, 24 big) at the top left, and a cover of the mood turned 10 degrees and poking out of the bottom right
- * corner, with its shadow. It fills the width it is given; the page lays the tiles out ([BlockMetrics.moodRows]). It presses like
- * a mood chip.
+ * the label in Archivo (20 sp, 24 big) at the top left, shrunk a step at a time down to 12 sp until it fits on whole words (a name
+ * of one word on its one line, a longer one on two lines broken at spaces: [LabelFit]), and a cover of the mood turned 10 degrees and poking out of the bottom right
+ * corner, with its shadow. It is lifted and edged like every tile (`.mtile`: `box-shadow: var(--hl), var(--e1)`). It fills the width
+ * it is given; the page lays the tiles out ([BlockMetrics.moodRows]). It presses like a mood chip.
  */
 @Composable
 fun CosmoMoodTile(
@@ -94,12 +102,17 @@ fun CosmoMoodTile(
     val type = LocalCosmoType.current
     val haptics = rememberHaptics()
     val labelSize = if (big) 24.sp else 20.sp
+    val lift = remember(colors) { tileLiftOf(SuperellipseShape(BlockMetrics.MOOD_TILE_RADIUS_DP.dp), colors) }
     MorphBox(
         targetFor = { pressed -> BlockMetrics.moodTileTarget(pressed) },
         onClick = { haptics.play(Haptic.Select); onClick() },
         modifier = modifier.fillMaxWidth().height(BlockMetrics.moodTileHeightDp(big).dp),
         stateLayer = Color(palette.textPrimary),
-        edge = { outline -> clipPath(outline) { ambientWash(colors, cx = 0f, cy = 0f, rx = 1.2f, ry = 1.2f) } },
+        lift = lift,
+        edge = { outline ->
+            clipPath(outline) { ambientWash(colors, cx = 0f, cy = 0f, rx = 1.2f, ry = 1.2f) }
+            tileEdge(outline, colors)
+        },
         fill = { groundFill(colors) },
     ) {
         // The cover pokes out past the tile's corner: the tile clips it.
@@ -114,17 +127,23 @@ fun CosmoMoodTile(
                     .graphicsLayer { rotationZ = -10f },
                 shadow = true,
             )
-            Text(
+            // The line height is a ratio (em), so it follows the label when it shrinks.
+            val style = type.forText(
+                TextStyle(fontFamily = type.displayFamily, fontWeight = FontWeight(760), fontSize = labelSize, lineHeight = 1.1.em, color = Color(palette.textPrimary)),
+                label,
+            ).let { if (it.lineHeight.isSp) it.copy(lineHeight = (it.lineHeight.value / labelSize.value).em) else it }
+            BasicText(
                 text = label,
-                style = type.forText(
-                    TextStyle(fontFamily = type.displayFamily, fontWeight = FontWeight(760), fontSize = labelSize, lineHeight = labelSize * 1.1f),
-                    label,
-                ),
-                color = Color(palette.textPrimary),
-                maxLines = 2,
+                style = style,
+                maxLines = LabelFit.maxLines(label),
                 overflow = TextOverflow.Ellipsis,
+                autoSize = if (big) BIG_LABEL_FIT else LABEL_FIT,
                 modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 14.dp, vertical = 12.dp),
             )
         }
     }
 }
+
+/** A mood tile's name at 20 sp (24 in a big tile), shrunk a step at a time down to 12 sp until it fits on whole words. */
+private val LABEL_FIT = FitLabel(20f, BlockMetrics.MOOD_LABEL_MIN_SP, BlockMetrics.MOOD_LABEL_STEP_SP, wholeWords = true)
+private val BIG_LABEL_FIT = FitLabel(24f, BlockMetrics.MOOD_LABEL_MIN_SP, BlockMetrics.MOOD_LABEL_STEP_SP, wholeWords = true)

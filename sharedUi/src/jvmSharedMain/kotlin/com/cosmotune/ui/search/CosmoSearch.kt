@@ -306,7 +306,7 @@ private fun SearchFilterChips(filter: SearchFilter, onFilterChange: (SearchFilte
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SearchFilter.entries.forEach { entry ->
-            CosmoChip(label = entry.label, selected = entry == filter, onClick = { onFilterChange(entry) })
+            CosmoChip(label = entry.label, selected = entry == filter, onClick = { onFilterChange(entry) }, haptic = entry != filter)
         }
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -31,12 +32,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.design.BlockMetrics
 import com.cosmotune.design.ColorMix
+import com.cosmotune.design.ControlMetrics
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.components.CoverImage
 import com.cosmotune.ui.components.MorphBox
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.components.cssGradient
 import com.cosmotune.ui.components.heroFill
+import com.cosmotune.ui.components.tileEdge
+import com.cosmotune.ui.components.tileLift
+import com.cosmotune.ui.components.tileLiftOf
+import com.cosmotune.ui.components.topLine
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.drawEllipseGlow
 import com.cosmotune.ui.theme.LocalCosmoColors
@@ -48,18 +54,28 @@ import com.music.bitchord.ui.haptics.rememberHaptics
 import com.cosmotune.ui.components.CosmoIcons
 
 /*
- * Cards and tiles that hold a page's blocks (`tokens-v3bc.css` `--tile-fill`, `screens-v2.css` `.liked2`, `.mix2`, `.fan`): no
- * outline and no shadow, the cover's own colours inside.
+ * Cards and tiles that hold a page's blocks (`tokens-v3bc.css` `--tile-fill`, `screens-v2.css` `.liked2`, `.mix2`, `.fan`): the cover's
+ * own colours inside, and what the boards draw on every tile to lift it off the page (`screens-v3.css` `.tile2`, `.mix2`, `.mtile`,
+ * `.pin2`: `box-shadow: var(--hl), var(--e1)`; `TileDepth`): a soft lift in the palette's `shadow`, a top-lit rim and a hairline.
  */
 
 /**
  * The fill of a card or tile: a 180 degree gradient from `mix(surfaceHigh, surface, 0.4)` to `surface`, clipped to [shape]
- * (the spec: card 24, tile 28, superellipse). The colours are read while drawing, so the tile follows a palette fade.
+ * (the spec: card 24, tile 28, superellipse), lifted off the page by the tile's shadow and edged with its rim and hairline
+ * (`--e1`, `--hl`). The colours are read while drawing, so the tile follows a palette fade.
  */
 @Composable
 fun Modifier.cosmoTile(shape: Shape): Modifier {
     val colors = LocalCosmoColors.current
-    return clip(shape).drawBehind { drawRect(tileFill(colors)) }
+    return tileLift(shape, colors)
+        .clip(shape)
+        .drawWithCache {
+            val edge = tileEdge(shape.createOutline(size, layoutDirection, this), colors)
+            onDrawBehind {
+                drawRect(tileFill(colors))
+                edge()
+            }
+        }
 }
 
 private fun DrawScope.tileFill(c: CosmoColors): Brush {
@@ -84,9 +100,9 @@ internal fun DrawScope.ambientWash(c: CosmoColors, cx: Float, cy: Float, rx: Flo
 
 /**
  * The pinned "Liked songs" tile (`.liked2`): 172 dp tall, superellipse 26, filled with the hero gradient (`buttonGradientStart` to
- * `buttonGradientEnd` at 145 degrees), a heart in a 52 dp tile at the top left, and at the bottom the title in Archivo (22 sp) and
- * [subtitle]. A screen draws at most one gradient tile. Hold (or a right click on the desktop) calls [onLongPress], the Library's menu
- * for the playlist; without it the tile has no hold.
+ * `buttonGradientEnd` at 145 degrees) under the button's top highlight (`--btn-shadow`), lifted like every tile, a heart in a 52 dp
+ * tile at the top left, and at the bottom the title in Archivo (22 sp) and [subtitle]. A screen draws at most one gradient tile.
+ * Hold (or a right click on the desktop) calls [onLongPress], the Library's menu for the playlist; without it the tile has no hold.
  */
 @Composable
 fun CosmoLikedTile(
@@ -101,12 +117,15 @@ fun CosmoLikedTile(
     val type = LocalCosmoType.current
     val haptics = rememberHaptics()
     val onAccent = Color(palette.onAccent)
+    val lift = remember(colors) { tileLiftOf(SuperellipseShape(BlockMetrics.TILE_RADIUS_DP.dp), colors) }
     MorphBox(
         targetFor = { pressed -> BlockMetrics.tileTarget(pressed) },
         onClick = { haptics.play(Haptic.Tap); onClick() },
         modifier = modifier.fillMaxWidth().height(BlockMetrics.TILE_HEIGHT_DP.dp).contextClick(onLongPress),
         onLongPress = onLongPress,
         stateLayer = onAccent,
+        lift = lift,
+        edge = { outline -> topLine(outline, Color.White.copy(alpha = ControlMetrics.highlightPrimary(colors.dark))) },
         fill = { heroFill(colors) },
     ) {
         Box(Modifier.fillMaxSize()) {
@@ -152,8 +171,8 @@ internal fun tileSubtitleStyle(type: com.cosmotune.ui.theme.CosmoType): TextStyl
 
 /**
  * A mix (`.mix2`, `.fan`): 172 dp tall; the cover's ground (`backgroundTop` to `backgroundBottom`) with a wash of `ambient` from the
- * top corner, three of its [covers] fanned at the top right, each with its shadow, and the title (Archivo 22 sp) and [subtitle]
- * at the bottom left. Hold calls [onLongPress].
+ * top corner, lifted and edged like every tile, three of its [covers] fanned at the top right, each with its shadow, and the title
+ * (Archivo 22 sp) and [subtitle] at the bottom left. Hold calls [onLongPress].
  */
 @Composable
 fun CosmoMixTile(
@@ -173,14 +192,19 @@ fun CosmoMixTile(
             .fillMaxWidth()
             .height(BlockMetrics.TILE_HEIGHT_DP.dp)
             .semantics(mergeDescendants = true) { role = Role.Button }
+            .tileLift(shape, colors)
             // The press highlight has to stop at the corners, and so does the picture taken when the tile is held.
             .clip(shape)
             .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
             .contextClick(onLongPress)
             .clip(shape)
-            .drawBehind {
-                drawRect(groundFill(colors))
-                ambientWash(colors, cx = 1f, cy = 0f, rx = 1.2f, ry = 0.9f)
+            .drawWithCache {
+                val edge = tileEdge(shape.createOutline(size, layoutDirection, this), colors)
+                onDrawBehind {
+                    drawRect(groundFill(colors))
+                    ambientWash(colors, cx = 1f, cy = 0f, rx = 1.2f, ry = 0.9f)
+                    edge()
+                }
             },
     ) {
         // The first three covers, in the fan's order; a mix with fewer keeps its covers in the middle of the fan.

@@ -2,8 +2,9 @@ package com.cosmotune.design
 
 /**
  * Settings > Appearance > Intensity: how much colour the cover brings (`v2/01-dynamic-colour.md` section 3, rule 7). Calm,
- * Balanced and Rich multiply the chroma budget and the accent chroma by [multiplier] before the engine's caps, so a cover that
- * is already at a cap shows no difference and the grey and the brand palettes stay as they are.
+ * Balanced and Rich multiply the chroma budget and the accent chroma by [multiplier], and the engine's chroma ceilings and gamut
+ * share with it (`CoverPaletteSpec.forIntensity`), so a cover already at a ceiling changes too; the rails hold at every setting, a
+ * grey cover keeps its neutral grounds and the brand palettes (shown while there is no cover) stay as they are.
  */
 object Intensity {
     const val CALM = 0

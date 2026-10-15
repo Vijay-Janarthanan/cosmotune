@@ -5,7 +5,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.LocalPlatformContext
+import com.cosmotune.design.Intensity
 import com.cosmotune.theme.CoverColors
 import com.cosmotune.ui.theme.CosmoBrandPalettes
 import com.cosmotune.ui.theme.CosmoColors
@@ -22,8 +24,9 @@ import com.cosmotune.ui.theme.LocalCosmoColors
  * the shell's own colours are returned. In the light theme the screen keeps a palette state of its own: it follows the
  * shell's palette while no video shows, and fades (700 ms, like any palette change) to the dark palette of the same cover once
  * [videoShown] (the clip has a frame on screen), and back when the video goes. The dark palette comes from the same engine
- * and the same cache as the shell's ([CoverPaletteLoader]); it is looked up as soon as the song has a video ([hasVideo]), so
- * it is ready by the first frame. The page ground is drawn with these colours too, so the fade is one thing.
+ * and the same cache as the shell's ([CoverPaletteLoader]), at the colour intensity of the setting (Settings > Appearance), like
+ * the shell's; it is looked up as soon as the song has a video ([hasVideo]), so it is ready by the first frame. The page ground is
+ * drawn with these colours too, so the fade is one thing.
  *
  * Without a shell (the new look is off) the inherited colours are returned untouched.
  */
@@ -44,9 +47,11 @@ private fun rememberLightThemeColors(shell: CosmoShellState, target: CoverColors
     val url = shell.coverUrl
     val own = remember(shell) { CosmoPaletteState(target, dark = false) }
     val colors = remember(own) { CosmoColors(own) }
-    val lookup by produceState(DarkLookup(false, null), url, hasVideo) {
+    val intensityIndex by shell.settings.intensity.collectAsStateWithLifecycle()
+    val intensity = Intensity.multiplier(intensityIndex)
+    val lookup by produceState(DarkLookup(false, null), url, hasVideo, intensity) {
         value = DarkLookup(false, null)
-        value = DarkLookup(true, if (hasVideo && url != null) CoverPaletteLoader.load(context, url, dark = true) else null)
+        value = DarkLookup(true, if (hasVideo && url != null) CoverPaletteLoader.load(context, url, dark = true, intensity = intensity) else null)
     }
     LaunchedEffect(own, target, videoShown, lookup, reduced) {
         // Never show the dark brand colours for the second it takes to find the cover's own.

@@ -38,7 +38,9 @@ private const val CHIP_WEIGHT = 620
  * ink when [selected]; pressed it squares up to 0.14. On a floating layer ([floating], over video or in a sheet) it is a glass
  * pill that becomes solid ink with a `backgroundBottom` label when selected.
  *
- * It is a toggle for screen readers (`Role.Checkbox`) and plays the select haptic. It reserves a 48 dp touch target.
+ * It is a toggle for screen readers (`Role.Checkbox`) and plays the select haptic, unless [haptic] is false (a filter row passes
+ * `haptic = !selected`, so a tap on the chip that is already chosen changes nothing and buzzes for nothing). It reserves a 48 dp
+ * touch target.
  */
 @Composable
 fun CosmoChip(
@@ -48,6 +50,7 @@ fun CosmoChip(
     modifier: Modifier = Modifier,
     big: Boolean = false,
     floating: Boolean = false,
+    haptic: Boolean = true,
 ) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
@@ -63,7 +66,7 @@ fun CosmoChip(
     )
     MorphBox(
         targetFor = { pressed -> ControlMorph.chip(height, selected, pressed, floating) },
-        onClick = { haptics.play(Haptic.Select); onClick() },
+        onClick = { if (haptic) haptics.play(Haptic.Select); onClick() },
         modifier = modifier.minimumInteractiveComponentSize().height(height.dp),
         toggled = selected,
         role = Role.Checkbox,

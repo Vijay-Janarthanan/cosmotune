@@ -4419,6 +4419,7 @@ private fun BitChordApp(
                 // and drag handle included — see SongActionsSheet.
                 containerColor = Color.Transparent,
                 dragHandle = null,
+                scrimColor = com.cosmotune.ui.sheets.cosmoSheetScrim(),
             ) {
                 songMenuBody(song, SongActionsPresentation.Sheet)
             }
@@ -4475,7 +4476,7 @@ private fun BitChordApp(
                 playlistTarget = null
                 creatingPlaylist = false
             }
-            ModalBottomSheet(
+            com.cosmotune.ui.sheets.SurfaceSheetSwitch(
                 onDismissRequest = dismiss,
                 containerColor = MaterialTheme.colorScheme.background,
             ) {
@@ -4714,7 +4715,7 @@ private fun BitChordApp(
             )
         }
         browseActions?.takeIf { browseMenuOrigin == null }?.let { target ->
-            ModalBottomSheet(
+            com.cosmotune.ui.sheets.SurfaceSheetSwitch(
                 onDismissRequest = { browseActions = null },
                 containerColor = MaterialTheme.colorScheme.background,
             ) {

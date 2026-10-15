@@ -71,7 +71,6 @@ import com.music.bitchord.sharedui.resources.more
 import com.music.bitchord.sharedui.resources.play
 import com.music.bitchord.ui.components.ExplicitSongTitle
 import com.music.bitchord.ui.components.MessageState
-import com.music.bitchord.ui.components.detailSkeleton
 import com.music.bitchord.ui.player.PlayerBackHandler
 import org.jetbrains.compose.resources.stringResource
 
@@ -269,7 +268,7 @@ fun CosmoReleasePage(
         }
 
         when (val state = page.songs) {
-            is UiState.Loading -> detailSkeleton(isArtist = false)
+            is UiState.Loading -> pageSkeleton("skeleton:release", rowDp = PageMetrics.TRACK_ROW_DP)
             is UiState.Error -> item(key = "error") { MessageState(state.message) }
             is UiState.Success -> {
                 if (songs.isEmpty() && page.suggestedSongs.isEmpty()) {

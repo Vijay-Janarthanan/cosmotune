@@ -31,9 +31,9 @@ internal object CoverPaletteLoader {
     }
 
     /**
-     * The palette of the cover at [url], or null when the picture could not be loaded. [intensity] is the engine's multiplier of the
-     * chroma budget and the accent chroma (`Intensity.multiplier`: Calm 0.7, Balanced 1.0, Rich 1.25). Main thread; the work runs on
-     * Default.
+     * The palette of the cover at [url], or null when the picture could not be loaded. [intensity] is the setting's multiplier
+     * (`Intensity.multiplier`: Calm 0.7, Balanced 1.0, Rich 1.25), which the engine applies to the chroma budget, the accent chroma and
+     * their ceilings ([CoverPaletteSpec.forIntensity]). Main thread; the work runs on Default.
      */
     suspend fun load(context: PlatformContext, url: String, dark: Boolean, intensity: Double = 1.0): CoverColors? {
         val key = (if (dark) "d:" else "l:") + intensity + ":" + url
@@ -41,7 +41,7 @@ internal object CoverPaletteLoader {
         val request = ImageRequest.Builder(context).data(url.artworkAt(ROW_ART_PX)).size(DECODE_PX).forPixelAccess().build()
         val bitmap = (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image?.toImageBitmap() ?: return null
         val palette = withContext(Dispatchers.Default) {
-            CoverPalette.fromPixels(bitmap.argbPixels(), bitmap.width, bitmap.height, dark = dark, spec = CoverPaletteSpec(intensity = intensity))
+            CoverPalette.fromPixels(bitmap.argbPixels(), bitmap.width, bitmap.height, dark = dark, spec = CoverPaletteSpec.forIntensity(intensity))
         }
         cache[key] = palette
         return palette

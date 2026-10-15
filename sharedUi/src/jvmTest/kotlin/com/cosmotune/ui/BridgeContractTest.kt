@@ -308,7 +308,8 @@ class BridgeContractTest {
         assertTrue(c.contains("Color.Black.copy(alpha = 0.40f)"), ".scrim-dim")
         val on = lookOn(body(src, "ModalBottomSheet"))
         for (line in listOf(
-            "modifier = modifier.padding(horizontal = CosmoRadii.sheetInset)",
+            // P4-19: 8 dp from the bottom too (`.sheet2 { bottom: var(--sheet-inset) }`)
+            "modifier = modifier.padding(start = CosmoRadii.sheetInset, end = CosmoRadii.sheetInset, bottom = CosmoRadii.sheetInset)",
             "shape = SHEET_SHAPE",
             "containerColor = glass",
             "tonalElevation = 0.dp",
