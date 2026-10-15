@@ -1,5 +1,8 @@
 package com.cosmotune.ui.theme
 
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -10,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.LocalPlatformContext
 import com.cosmotune.theme.PaletteChoice
@@ -25,7 +29,12 @@ val LocalReducedMotion = staticCompositionLocalOf { false }
  * The app theme with the new look switch in it. [legacy] is the old theme call (BitChordTheme on the
  * phone, the desktop MaterialTheme). The structure below is the same whether the switch is on or off,
  * so turning it on in Settings keeps every remembered state of the app.
+ *
+ * With the switch on, the old screens also take the new look through Material: the cover palette as the colour scheme
+ * ([toColorScheme]), the type, the corners and the ripple ([toMaterialTypography], [CosmoMaterialShapes], [CosmoRipple]), and
+ * the ambient text colour as the content colour.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CosmoLookTheme(
     dark: Boolean,
@@ -39,14 +48,26 @@ fun CosmoLookTheme(
     PaletteFollower(shell, newLook, dark, reduced)
     legacy {
         val legacyScheme = MaterialTheme.colorScheme
+        val legacyTypography = MaterialTheme.typography
+        val legacyShapes = MaterialTheme.shapes
         val target = shell.palette.target
+        val type = rememberCosmoType()
         val scheme = if (newLook) remember(target, legacyScheme) { target.toColorScheme(legacyScheme) } else legacyScheme
-        MaterialTheme(colorScheme = scheme, typography = MaterialTheme.typography, shapes = MaterialTheme.shapes) {
+        MaterialTheme(
+            colorScheme = scheme,
+            typography = if (newLook) remember(type, legacyTypography) { type.toMaterialTypography(legacyTypography) } else legacyTypography,
+            shapes = if (newLook) CosmoMaterialShapes else legacyShapes,
+        ) {
+            // The locals below are provided whether the switch is on or off (their values differ), never `content` itself
+            // inside an `if`: another call tree would throw away the app's state when the switch flips.
             CompositionLocalProvider(
-                LocalCosmoType provides rememberCosmoType(),
+                LocalCosmoType provides type,
                 LocalCosmoShell provides (if (newLook) shell else null),
                 LocalCosmoColors provides shell.colors,
                 LocalReducedMotion provides reduced,
+                // The ambient ground's text colour for an untinted icon or text; Material surfaces still set their own.
+                LocalContentColor provides (if (newLook) Color(target.textPrimary) else LocalContentColor.current),
+                LocalRippleConfiguration provides (if (newLook) CosmoRipple else LocalRippleConfiguration.current),
                 content = content,
             )
         }
