@@ -93,21 +93,28 @@ object AppUpdateChecker {
     }
 
     /**
-     * The release usually carries exactly one `.apk`; take its direct download
-     * URL. A release without one (source-only draft, renamed asset) leaves
-     * [UpdateInfo.apkUrl] null and the UI falls back to opening the releases
-     * page as before.
+     * A Cosmotune release carries four `.apk` files (one per CPU family and a
+     * universal one), an older release may carry a single one. Take the direct
+     * download URL of the one that fits this phone: [com.cosmotune.ApkPicker]
+     * walks `Build.SUPPORTED_ABIS` in the phone's own order, then falls back to
+     * the universal file, then to the first `.apk`. A release without any
+     * (source-only draft, renamed asset) leaves [UpdateInfo.apkUrl] null and
+     * the UI falls back to opening the releases page as before.
      */
     private fun apkAssetUrl(release: JsonObject): String? = runCatching {
-        release["assets"]?.jsonArray
+        val apks = release["assets"]?.jsonArray
             ?.mapNotNull { it as? JsonObject }
-            ?.firstOrNull { asset ->
+            ?.filter { asset ->
                 asset["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk", ignoreCase = true) == true &&
                     asset["state"]?.jsonPrimitive?.contentOrNull == "uploaded"
             }
-            ?.get("browser_download_url")
-            ?.jsonPrimitive
-            ?.contentOrNull
+            ?.mapNotNull { asset ->
+                val name = asset["name"]?.jsonPrimitive?.contentOrNull
+                val url = asset["browser_download_url"]?.jsonPrimitive?.contentOrNull
+                if (name != null && url != null) name to url else null
+            }
+            .orEmpty()
+        com.cosmotune.ApkPicker.choose(apks, Build.SUPPORTED_ABIS.toList())
     }.getOrNull()
 
     /**
