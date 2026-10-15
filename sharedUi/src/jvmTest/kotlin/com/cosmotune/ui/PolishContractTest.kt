@@ -98,4 +98,56 @@ class PolishContractTest {
         assertEquals(4, Regex("""tint = resting""").findAll(tools).count(), "lyrics, output, Listen Together and the queue")
         assertFalse(".live(" in tools, "a composition colour, not a live one")
     }
+
+    // ---- the album, playlist and add-to-playlist sheets on the song sheet's surface ------------------------------------------------
+
+    private val mainActivity = "app/src/main/java/com/music/bitchord/MainActivity.kt"
+
+    @Test fun theSurfaceSheetIsASwitchOfTheBridgesSheet() {
+        val src = SourceContract.read("$ui/sheets/SurfaceSheetSwitch.kt")
+        val bridge = SourceContract.read("$ui/bridge/SheetBridge.kt")
+        assertEquals(SourceContract.parameters(bridge, "ModalBottomSheet"), SourceContract.parameters(src, "SurfaceSheetSwitch"), "the same parameters, names, types, defaults and order")
+        val body = SourceContract.functionBody(src, "SurfaceSheetSwitch")
+        val first = SourceContract.firstStatement(body)
+        assertTrue(first.startsWith("if (LocalCosmoShell.current == null) { com.cosmotune.ui.bridge.ModalBottomSheet("), "the look off is the old call: $first")
+        SourceContract.assertPassesEveryParameter(first, SourceContract.names(SourceContract.parameters(src, "SurfaceSheetSwitch")))
+        val on = body.substringAfter(first)
+        for (line in listOf(
+            "androidx.compose.material3.ModalBottomSheet(", "shape = RectangleShape", "containerColor = Color.Transparent", "tonalElevation = 0.dp",
+            "scrimColor = CosmoSheetScrim", "dragHandle = null", "contentWindowInsets = contentWindowInsets", "CosmoSheetSurface(content = content)",
+        )) assertTrue(line in on, "the look on: $line")
+        val code = SourceContract.code(src)
+        assertTrue("val CosmoSheetScrim: Color = Color.Black.copy(alpha = 0.40f)" in code, "the spec's 40 % black")
+        assertTrue("if (LocalCosmoShell.current != null) CosmoSheetScrim else BottomSheetDefaults.ScrimColor" in code, "Material's default while the look is off")
+    }
+
+    @Test fun theTwoHostsCallTheSwitchAndTheSongSheetTakesTheSpecsScrim() {
+        val main = SourceContract.code(SourceContract.read(mainActivity))
+        assertEquals(2, Regex("""com\.cosmotune\.ui\.sheets\.SurfaceSheetSwitch\(""").findAll(main).count(), "the picker's and the browse sheet's hosts")
+        assertTrue(Regex("""SurfaceSheetSwitch\(\s*onDismissRequest = dismiss,\s*containerColor = MaterialTheme\.colorScheme\.background,\s*\) \{\s*PlaylistPickerSheet\(""").containsMatchIn(main), "the picker's host, its arguments unchanged")
+        assertTrue(Regex("""SurfaceSheetSwitch\(\s*onDismissRequest = \{ browseActions = null \},\s*containerColor = MaterialTheme\.colorScheme\.background,\s*\) \{\s*browseMenuBody\(target, SongActionsPresentation\.Sheet\)""").containsMatchIn(main), "the browse sheet's host")
+        assertTrue(Regex("""containerColor = Color\.Transparent,\s*dragHandle = null,\s*scrimColor = com\.cosmotune\.ui\.sheets\.cosmoSheetScrim\(\),\s*\) \{\s*songMenuBody\(song, SongActionsPresentation\.Sheet\)""").containsMatchIn(main), "the song sheet dims the page with 40 %")
+        val fork = SourceContract.read("FORK.md")
+        assertTrue(fork.lines().any { it.startsWith("| `app/src/main/java/com/music/bitchord/MainActivity.kt`") && "SurfaceSheetSwitch" in it && "cosmoSheetScrim()" in it && "(P4-19)" in it }, "a FORK row for the three hosts")
+    }
+
+    @Test fun theSheetHeaderShowsTheExplicitMarkAgain() {
+        val header = SourceContract.functionBody(SourceContract.read("$ui/sheets/CosmoSheetHeader.kt"), "CosmoSheetHeader")
+        assertTrue("if (explicit) ExplicitMark(Color(palette.textPrimary))" in header, "the mark in front of the title, in its ink")
+        val mark = SourceContract.code(SourceContract.read("$ui/sheets/CosmoSheetHeader.kt"))
+        assertTrue("MARK_BORDER_ALPHA = 0.72f" in mark && "RoundedCornerShape(2.dp)" in mark && "text = \"E\"" in mark, "the catalogue's outlined E, as ExplicitSongTitle draws it")
+        val songSheet = SourceContract.read("app/src/main/java/com/music/bitchord/ui/components/SongActionsSheet.kt")
+        val delegate = SourceContract.firstStatement(SourceContract.functionBody(songSheet, "SheetTrackHeader"))
+        assertTrue(delegate.endsWith("explicit = song.isExplicit == true)"), "the song sheet's delegate passes it: $delegate")
+        assertTrue(SourceContract.read("FORK.md").lines().any { it.startsWith("| `app/src/main/java/com/music/bitchord/ui/components/SongActionsSheet.kt`") && "explicit = song.isExplicit == true" in it }, "with its FORK row")
+    }
+
+    @Test fun everyRowOfTheForkTableHasFourColumns() {
+        for (line in SourceContract.read("FORK.md").lines().filter { it.startsWith("|") }) {
+            var inside = false
+            var pipes = 0
+            for (c in line) { if (c == '`') inside = !inside else if (c == '|' && !inside) pipes++ }
+            assertEquals(5, pipes, "four columns: ${line.take(100)}")
+        }
+    }
 }

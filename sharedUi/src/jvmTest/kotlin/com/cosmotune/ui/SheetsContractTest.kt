@@ -45,9 +45,9 @@ class SheetsContractTest {
             listOf("icon: ImageVector", "label: String", "value: String? = null", "tint: Color? = null", "enabled: Boolean = true", "menu: Boolean = false", "onClick: () -> Unit"),
             SourceContract.parameters(sheet("CosmoActionRow"), "CosmoActionRow"),
         )
-        // the brief's four, then one more, optional: an artist's cover is round
+        // the brief's four, then two more, optional: an artist's cover is round; an explicit song shows its "E" (P4-19)
         assertEquals(
-            listOf("title: String", "subtitle: String?", "imageUrl: String?", "modifier: Modifier = Modifier", "circle: Boolean = false"),
+            listOf("title: String", "subtitle: String?", "imageUrl: String?", "modifier: Modifier = Modifier", "circle: Boolean = false", "explicit: Boolean = false"),
             SourceContract.parameters(sheet("CosmoSheetHeader"), "CosmoSheetHeader"),
         )
         assertEquals(listOf("text: String"), SourceContract.parameters(sheet("CosmoSheetHeader"), "CosmoSheetHeading"))

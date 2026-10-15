@@ -47,8 +47,8 @@ private val GRAB_BOTTOM = 14.dp
 /**
  * Material's `ModalBottomSheet` with the same names, order and defaults (material3 1.3.x). With the new look off it is Material's
  * own. With it on, a sheet that paints itself (the caller passed `containerColor = Color.Transparent`: the song and browse
- * sheets, the player) is Material's untouched. Any other sheet is detached glass: 8 dp in from the sides ([CosmoRadii.sheetInset]),
- * a 36 dp superellipse, `surfaceHigh` at [GlassPolicy.SOLID_ALPHA], a 40 % black scrim, no tonal elevation and the
+ * sheets, the player) is Material's untouched. Any other sheet is detached glass: 8 dp in from the sides and the bottom
+ * ([CosmoRadii.sheetInset], `.sheet2 { left/right/bottom: var(--sheet-inset) }`), a 36 dp superellipse, `surfaceHigh` at [GlassPolicy.SOLID_ALPHA], a 40 % black scrim, no tonal elevation and the
  * [CosmoSheetHandle] grabber in place of the Material handle (a handle the caller turned off with `null` stays off).
  */
 @ExperimentalMaterial3Api
@@ -89,7 +89,7 @@ fun ModalBottomSheet(
     val glass = Color(LocalCosmoColors.current.palette.surfaceHigh).copy(alpha = GlassPolicy.SOLID_ALPHA)
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        modifier = modifier.padding(horizontal = CosmoRadii.sheetInset),
+        modifier = modifier.padding(start = CosmoRadii.sheetInset, end = CosmoRadii.sheetInset, bottom = CosmoRadii.sheetInset),
         sheetState = sheetState,
         sheetMaxWidth = sheetMaxWidth,
         shape = SHEET_SHAPE,

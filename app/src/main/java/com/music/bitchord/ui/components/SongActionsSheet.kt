@@ -912,7 +912,7 @@ internal fun SheetTrackHeader(
     modifier: Modifier = Modifier,
     subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetHeader(title = song.title, subtitle = song.artist, imageUrl = song.thumbnailUrl, modifier = modifier)
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetHeader(title = song.title, subtitle = song.artist, imageUrl = song.thumbnailUrl, modifier = modifier, explicit = song.isExplicit == true)
     Row(
         modifier = modifier
             .fillMaxWidth()
