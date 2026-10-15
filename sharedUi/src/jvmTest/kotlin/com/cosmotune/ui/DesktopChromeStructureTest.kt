@@ -132,7 +132,9 @@ class DesktopChromeStructureTest {
 
     @Test fun theTopBarIsTheBriefs() {
         val text = chrome
-        assertEquals(listOf("compact", "canGoBack", "onBack", "accountAvatar", "onOpenAccounts"), parameterNames(signature(text, "CosmoDesktopTopBar")))
+        // The five of part one, then the two the profile drawer needs (P4-13), both with defaults.
+        assertEquals(listOf("compact", "canGoBack", "onBack", "accountAvatar", "onOpenAccounts", "accountName", "entries"), parameterNames(signature(text, "CosmoDesktopTopBar")))
+        assertTrue("accountName: String? = null" in text && "entries: List<CosmoDrawerEntry> = emptyList()" in text, "the two new parameters have defaults, so a call of the first five still compiles")
         assertTrue("DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT))" in text && "TOP_BAR_HEIGHT: Dp = 56.dp" in text, "a 56 dp drag area")
         assertTrue("compact && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled" in text, "the old bar's rule for the window buttons in a compact window")
         assertTrue("painterResource(Res.drawable.logo_mark)" in text && "Modifier.size(width = 28.dp, height = 18.dp)" in text, "the untinted mark at 28 x 18 dp")
@@ -169,8 +171,10 @@ class DesktopChromeStructureTest {
         assertTrue(old > call, "the old call follows with its own arguments")
         val between = text.substring(call, old)
         assertEquals("else", between.trimEnd().substringAfterLast(")").trim(), "directly after the new call comes `else`, then the old call")
-        for (key in listOf("\"home\"", "\"explore\"", "\"library\"", "\"search\"")) assertTrue(key in between, "the tab label $key")
-        for (destination in listOf("LISTEN_NOW -> 0", "EXPLORE -> 1", "LIBRARY -> 2", "SEARCH -> 3", "else -> -1")) assertTrue(destination in between, "the selected tab: $destination")
+        // Three tabs since P4-13: Explore lives inside Search, as on the phone.
+        for (key in listOf("\"home\"", "\"search\"", "\"library\"")) assertTrue(key in between, "the tab label $key")
+        assertTrue("\"explore\"" !in between, "no Explore tab")
+        for (destination in listOf("LISTEN_NOW -> 0", "SEARCH, DesktopDestination.EXPLORE -> 1", "LIBRARY -> 2", "else -> -1")) assertTrue(destination in between, "the selected tab: $destination")
         assertTrue("onTabSelected" in between && "selectDestination(" in between, "a tab selects its destination")
         assertTrue("hazeState = LocalDesktopHaze.current" in between, "the capsules blur the page behind them")
     }

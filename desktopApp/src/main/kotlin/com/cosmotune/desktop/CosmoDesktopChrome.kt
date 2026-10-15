@@ -5,8 +5,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -18,34 +16,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import bitchord.desktopapp.generated.resources.Res
 import bitchord.desktopapp.generated.resources.logo_mark
 import com.cosmotune.design.ShellMetrics
+import com.cosmotune.ui.chrome.CosmoDrawerEntry
+import com.cosmotune.ui.chrome.CosmoProfileButton
 import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.desktop.DesktopArtwork
 import com.music.bitchord.desktop.DesktopPlatform
 import com.music.bitchord.desktop.DesktopStrings
 import com.music.bitchord.desktop.DesktopTitleBarDragArea
@@ -56,8 +42,9 @@ import org.jetbrains.compose.resources.painterResource
 /**
  * The desktop's top bar in the new look (`V2.desktop`, `.d2-top`): 56 dp high and see-through, so the ambient ground shows
  * behind it; the old bar's transport, now-playing cell and volume are in the floating player bar. From the left: the logo
- * mark (28 x 18 dp, untinted: apricot on the dark desktop), the one way back (a 40 dp tonal button), then the account's
- * picture at the right edge.
+ * mark (28 x 18 dp, untinted: apricot on the dark desktop), the one way back (a 40 dp tonal button), then the profile button
+ * at the right edge: the account's picture, which opens the profile drawer with its mode switch and its [entries]. The drawer's
+ * head shows [accountName] (a blank one reads "Accounts"), and a tap on it calls [onOpenAccounts], the account switcher.
  *
  * The strip moves the window and maximises it on a double click, like the old bar. A [compact] window has no sidebar to carry the
  * window's own buttons, so, when the application draws its own window frame and there is no separate title bar, they lead
@@ -70,6 +57,8 @@ internal fun CosmoDesktopTopBar(
     onBack: () -> Unit,
     accountAvatar: String?,
     onOpenAccounts: () -> Unit,
+    accountName: String? = null,
+    entries: List<CosmoDrawerEntry> = emptyList(),
 ) {
     val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
     val inlineCaption = compact && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
@@ -81,7 +70,7 @@ internal fun CosmoDesktopTopBar(
                 }
             }
             Row(
-                Modifier.weight(1f).fillMaxHeight().padding(start = 14.dp, end = 16.dp),
+                Modifier.weight(1f).fillMaxHeight().padding(start = 14.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Image(
@@ -95,31 +84,14 @@ internal fun CosmoDesktopTopBar(
                     style = CosmoIconButtonStyle.TONAL, size = 40.dp, enabled = canGoBack,
                 )
                 Spacer(Modifier.weight(1f))
-                Avatar(accountAvatar, onOpenAccounts)
-            }
-        }
-    }
-}
-
-/** The account's picture as a 36 dp circle (a person glyph on the tonal colour when nobody is signed in); a click opens the switcher. */
-@Composable
-private fun Avatar(avatar: String?, onClick: () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
-    val name = DesktopStrings["accounts", "Accounts"]
-    Box(
-        Modifier
-            .size(AVATAR_SIZE)
-            .clip(CircleShape)
-            .pointerHoverIcon(PointerIcon.Hand)
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = name },
-        contentAlignment = Alignment.Center,
-    ) {
-        if (avatar != null) {
-            DesktopArtwork(avatar, Modifier.size(AVATAR_SIZE), contentScale = ContentScale.Crop, px = AVATAR_PX)
-        } else {
-            Box(Modifier.size(AVATAR_SIZE).background(Color(palette.surfaceVariant)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Person, contentDescription = null, tint = Color(palette.textSecondary), modifier = Modifier.size(20.dp))
+                CosmoProfileButton(
+                    avatarUrl = accountAvatar,
+                    name = accountName?.takeIf { it.isNotBlank() } ?: DesktopStrings["accounts", "Accounts"],
+                    subtitle = null,
+                    entries = entries,
+                    onAccount = onOpenAccounts,
+                    size = AVATAR_SIZE,
+                )
             }
         }
     }
@@ -151,6 +123,5 @@ internal fun CosmoDesktopPlayerBarHost(panelOpen: Boolean, content: @Composable 
 
 private val TOP_BAR_HEIGHT: Dp = 56.dp
 private val AVATAR_SIZE: Dp = 36.dp
-private const val AVATAR_PX = 96
 private const val SIDE_MARGIN = 16f
 private const val PANEL_SLIDE_MS = 260   // DesktopSidePanelColumn's own SLIDE_MS
