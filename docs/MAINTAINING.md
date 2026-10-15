@@ -54,7 +54,7 @@ calls it is at the top of `CoverPalette.kt`.
 
 - Our Compose code is in `sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/` (one source set for Android and the desktop), our
   pure logic in `shared/.../com/cosmotune/`. A package inside `sharedUi` can use the player's `internal` pieces; a separate module could not.
-- The switch is `CosmoLookSettings` (`NEW_LOOK_DEFAULT` in `CosmoConfig`; SharedPreferences `cosmotune_look` on the phone, the Preferences
+- The switch is `CosmoLookSettings` (`NEW_LOOK_DEFAULT` in `CosmoConfig`, `true` since part two of the new look: a fresh install shows it, a stored choice is kept; SharedPreferences `cosmotune_look` on the phone, the Preferences
   node `com.cosmotune.desktop/look` on the desktop). `CosmoLookTheme` replaces the theme call in `MainActivity` and `DesktopApp` and gives
   the old screens the cover palette as a Material scheme (`ColorSchemeBridge`). With the switch off it is the old theme.
 - `LocalCosmoShell` is null while the switch is off and the shell state while it is on: the few places in the old roots that draw new

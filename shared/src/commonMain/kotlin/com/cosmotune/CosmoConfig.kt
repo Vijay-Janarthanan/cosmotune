@@ -23,6 +23,9 @@ object CosmoConfig {
     /** Cosmotune tells no server that it is open. Upstream's does, to its own server. */
     const val REPORT_PRESENCE = false
 
-    /** Whether the new interface is on for a fresh install. Off until part two of the new look is done. */
-    const val NEW_LOOK_DEFAULT = false
+    /**
+     * Whether the new interface is on for a fresh install: on since part two of the new look. A device that stored a choice keeps it;
+     * Settings > Appearance > New look switches back to the old look.
+     */
+    const val NEW_LOOK_DEFAULT = true
 }

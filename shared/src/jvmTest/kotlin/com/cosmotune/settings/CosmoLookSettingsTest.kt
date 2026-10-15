@@ -21,15 +21,21 @@ class CosmoLookSettingsTest {
         override fun putBoolean(key: String, value: Boolean) { map[key] = value }
     }
 
+    @Test fun anEmptyStoreStartsWithTheNewLookOn() {
+        assertTrue(CosmoConfig.NEW_LOOK_DEFAULT, "the new look is the default since part two of it was finished")
+        assertEquals(true, CosmoLookSettings(MapStore()).newLook.value, "a fresh install shows the new look")
+    }
+
     @Test fun startsFromTheDefaultsAndRemembersChanges() {
         val store = MapStore()
         val settings = CosmoLookSettings(store)
         assertEquals(CosmoConfig.NEW_LOOK_DEFAULT, settings.newLook.value)
         assertTrue(settings.coverColours.value, "colours follow the cover unless switched off")
-        settings.setNewLook(true)
+        // an explicit choice is kept, also the one that goes against the default
+        settings.setNewLook(false)
         settings.setCoverColours(false)
         val again = CosmoLookSettings(store)
-        assertEquals(true, again.newLook.value)
+        assertEquals(false, again.newLook.value)
         assertEquals(false, again.coverColours.value)
     }
 
