@@ -2631,7 +2631,7 @@ private fun BitChordApp(
                         detailListStates.getOrPut(key) { LazyListState() }
                     }
                     if (key == "history") {
-                        HistoryScreen(
+                        com.cosmotune.ui.library.HistorySwitch(
                             state = historyState,
                             listState = historyListState,
                             currentSong = player.song,
@@ -2646,7 +2646,7 @@ private fun BitChordApp(
                         )
                     } else if (key == "library_show_all") {
                         libraryShowAll?.let { shelf ->
-                            LibraryGridPage(
+                            com.cosmotune.ui.library.LibraryGridSwitch(
                                 shelf = shelf,
                                 gridState = libraryShowAllGridState,
                                 onItemClick = onLibraryItemClick,
@@ -3223,7 +3223,7 @@ private fun BitChordApp(
                                 )
                             },
                         )
-                        else -> LibraryScreen(
+                        else -> com.cosmotune.ui.library.LibrarySwitch(
                             signedIn = signedIn,
                             state = libraryState,
                             listState = libraryListState,
