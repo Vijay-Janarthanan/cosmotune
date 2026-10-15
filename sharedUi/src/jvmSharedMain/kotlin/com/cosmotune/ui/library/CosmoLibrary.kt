@@ -109,8 +109,8 @@ private val CARD_GAP_DOWN = 18.dp
  * folders and the releases kept on it). The parameters are [com.music.bitchord.ui.screens.LibraryScreen]'s, name for name.
  *
  * [showTitle] is not read: the new top bars carry no page title at rest, so the heading stands on the phone and the desktop alike.
- * A playlist that has a tile (the liked one, the mix) is not listed again in the rows; holding the liked tile does nothing
- * (the tile has no hold), holding any other playlist, the mix tile included, or its more button, is [onShelfItemLongPress].
+ * A playlist that has a tile (the liked one, the mix) is not listed again in the rows; holding any playlist, either tile
+ * included, or its more button, is [onShelfItemLongPress] (the menu the old row opened).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -304,6 +304,7 @@ private fun PinTiles(liked: ShelfItem?, mix: ShelfItem?, onClick: (ShelfItem) ->
                 subtitle = localizeCardSubtitle(liked.subtitle).takeIf { it.isNotBlank() },
                 onClick = { onClick(liked) },
                 modifier = Modifier.weight(1f),
+                onLongPress = { onLongPress(liked) },
             )
         } else {
             Spacer(Modifier.weight(1f))

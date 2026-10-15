@@ -200,7 +200,7 @@ class BlocksStructureTest {
         assertEquals(listOf("text", "modifier", "trailing"), names("CosmoHeaders", "CosmoOverline"))
         assertEquals(listOf("title", "modifier", "overline", "subtitle", "large", "actions"), names("CosmoHeaders", "CosmoPageHeader"))
         assertEquals(listOf("shape"), names("CosmoTiles", "cosmoTile"))
-        assertEquals(listOf("title", "subtitle", "onClick", "modifier"), names("CosmoTiles", "CosmoLikedTile"))
+        assertEquals(listOf("title", "subtitle", "onClick", "modifier", "onLongPress"), names("CosmoTiles", "CosmoLikedTile"))
         assertEquals(listOf("title", "subtitle", "covers", "onClick", "modifier", "onLongPress"), names("CosmoTiles", "CosmoMixTile"))
         assertEquals(listOf("label", "selected", "onClick", "modifier"), names("CosmoMood", "CosmoMoodChip"))
         assertEquals(listOf("label", "coverUrl", "onClick", "modifier", "big"), names("CosmoMood", "CosmoMoodTile"))

@@ -149,4 +149,38 @@ class PolishContractTest {
             "the old page still draws Tune",
         )
     }
+
+    // ---- 6. holding the liked tile opens its menu -------------------------------------------------------------------------------
+
+    private val shared = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/"
+
+    @Test fun theMorphBoxCanTakeAHoldAndKeepsItsPlainClickWithout() {
+        val src = SourceContract.read("${shared}components/MorphBox.kt")
+        assertTrue("onLongPress: (() -> Unit)? = null" in SourceContract.parameters(src, "MorphBox"), "an optional hold on the box")
+        val code = SourceContract.code(src).replace(Regex("\\s+"), " ")
+        assertTrue(
+            code.contains("onLongPress == null -> Modifier.clickable(interaction, indication = null, enabled = enabled, role = role, onClick = onClick)"),
+            "without a hold the box is the plain clickable it was",
+        )
+        assertTrue(
+            code.contains("else -> Modifier.combinedClickable(interaction, indication = null, enabled = enabled, role = role, onClick = onClick, onLongClick = onLongPress)"),
+            "with a hold it is a combined clickable on the same interaction source, so the press morph and the state layer still follow it",
+        )
+    }
+
+    @Test fun theLikedTileTakesAnOptionalHoldAndTheLibraryWiresItToTheRowsMenu() {
+        val tiles = SourceContract.read("${shared}blocks/CosmoTiles.kt")
+        assertEquals(
+            listOf("title: String", "subtitle: String?", "onClick: () -> Unit", "modifier: Modifier = Modifier", "onLongPress: (() -> Unit)? = null"),
+            SourceContract.parameters(tiles, "CosmoLikedTile"),
+        )
+        val body = SourceContract.code(SourceContract.functionBody(tiles, "CosmoLikedTile")).replace(Regex("\\s+"), " ")
+        assertTrue(body.contains("onLongPress = onLongPress"), "the hold reaches the box")
+        assertTrue(body.contains(".contextClick(onLongPress)"), "a right click on the desktop is the hold, as on the mix tile")
+        val library = SourceContract.code(SourceContract.read("${shared}library/CosmoLibrary.kt")).replace(Regex("\\s+"), " ")
+        assertTrue(
+            library.contains("CosmoLikedTile( title = liked.title, subtitle = localizeCardSubtitle(liked.subtitle).takeIf { it.isNotBlank() }, onClick = { onClick(liked) }, modifier = Modifier.weight(1f), onLongPress = { onLongPress(liked) }, )"),
+            "holding the liked tile calls the same hold as every other playlist: the menu the old row opened",
+        )
+    }
 }

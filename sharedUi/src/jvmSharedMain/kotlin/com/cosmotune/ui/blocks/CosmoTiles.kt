@@ -85,7 +85,8 @@ internal fun DrawScope.ambientWash(c: CosmoColors, cx: Float, cy: Float, rx: Flo
 /**
  * The pinned "Liked songs" tile (`.liked2`): 172 dp tall, superellipse 26, filled with the hero gradient (`buttonGradientStart` to
  * `buttonGradientEnd` at 145 degrees), a heart in a 52 dp tile at the top left, and at the bottom the title in Archivo (22 sp) and
- * [subtitle]. A screen draws at most one gradient tile.
+ * [subtitle]. A screen draws at most one gradient tile. Hold (or a right click on the desktop) calls [onLongPress], the Library's menu
+ * for the playlist; without it the tile has no hold.
  */
 @Composable
 fun CosmoLikedTile(
@@ -93,6 +94,7 @@ fun CosmoLikedTile(
     subtitle: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null,
 ) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
@@ -102,7 +104,8 @@ fun CosmoLikedTile(
     MorphBox(
         targetFor = { pressed -> BlockMetrics.tileTarget(pressed) },
         onClick = { haptics.play(Haptic.Tap); onClick() },
-        modifier = modifier.fillMaxWidth().height(BlockMetrics.TILE_HEIGHT_DP.dp),
+        modifier = modifier.fillMaxWidth().height(BlockMetrics.TILE_HEIGHT_DP.dp).contextClick(onLongPress),
+        onLongPress = onLongPress,
         stateLayer = onAccent,
         fill = { heroFill(colors) },
     ) {

@@ -1,7 +1,9 @@
 package com.cosmotune.ui.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -51,13 +53,17 @@ internal const val DISABLED_ALPHA = 0.38f
  * [stateLayer] is laid over the fill, clipped to the outline, at [pressedLayerAlpha] while pressed and
  * [STATE_LAYER_HOVERED] under a mouse; [Color.Unspecified] draws none. Reduced motion: no scale, and every spring becomes a
  * 150 ms fade. A disabled control fades to 38 % ([dimWhenDisabled] false lets the caller draw its own disabled look).
- * [floating] only picks the focus ring: the 2 dp ink ring of the C recipe over the B ring of `accentStrong`.
+ * [floating] only picks the focus ring: the 2 dp ink ring of the C recipe over the B ring of `accentStrong`. A control that can be held
+ * (the liked tile's menu) passes [onLongPress]: the box is then a combined clickable on the same interaction source, so the press morph and
+ * the state layer follow the hold as they follow a tap; without it the box is the plain clickable it always was.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun MorphBox(
     targetFor: (pressed: Boolean) -> MorphTarget,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null,
     enabled: Boolean = true,
     toggled: Boolean? = null,
     role: Role = Role.Button,
@@ -95,7 +101,8 @@ internal fun MorphBox(
     val action = when {
         onClick == null -> Modifier
         toggled != null -> Modifier.toggleable(toggled, interaction, indication = null, enabled = enabled, role = role) { onClick() }
-        else -> Modifier.clickable(interaction, indication = null, enabled = enabled, role = role, onClick = onClick)
+        onLongPress == null -> Modifier.clickable(interaction, indication = null, enabled = enabled, role = role, onClick = onClick)
+        else -> Modifier.combinedClickable(interaction, indication = null, enabled = enabled, role = role, onClick = onClick, onLongClick = onLongPress)
     }
     Box(
         modifier
