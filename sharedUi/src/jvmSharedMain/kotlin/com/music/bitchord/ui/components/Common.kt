@@ -758,6 +758,7 @@ fun PullToRefresh(
 /** Slim dismissible-looking prompt shown atop Home while signed out. */
 @Composable
 fun SignInBanner(onSignIn: () -> Unit, modifier: Modifier = Modifier) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoSignInBanner(onSignIn = onSignIn, modifier = modifier)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -794,6 +795,7 @@ fun MessageState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoEmptyState(message = message, modifier = modifier, actionLabel = actionLabel, onAction = onAction)
     Column(
         modifier = modifier
             .fillMaxWidth()

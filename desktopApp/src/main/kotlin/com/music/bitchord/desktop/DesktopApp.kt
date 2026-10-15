@@ -7512,6 +7512,7 @@ private fun SectionTitle(
 
 @Composable
 private fun DesktopLoadingPage(label: String) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoLoadingState(label = label)
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = DesktopAccent)
@@ -7523,11 +7524,13 @@ private fun DesktopLoadingPage(label: String) {
 
 @Composable
 private fun DesktopErrorPage(message: String, onRetry: () -> Unit) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoEmptyState(title = DesktopStrings["d_error_title", "Something went wrong"], message = message, actionLabel = DesktopStrings["d_try_again", "Try again"], onAction = onRetry)
     DesktopEmptyPage(Icons.Rounded.Tune, "Something went wrong", message, onRetry, "Try again")
 }
 
 @Composable
 private fun DesktopEmptyPage(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, message: String, onAction: (() -> Unit)? = null, actionLabel: String? = null) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoEmptyState(title = title, message = message, icon = icon, actionLabel = actionLabel, onAction = onAction)
     Column(Modifier.fillMaxWidth().padding(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(icon, null, tint = DesktopAccent, modifier = Modifier.size(42.dp))
         Spacer(Modifier.height(14.dp))
