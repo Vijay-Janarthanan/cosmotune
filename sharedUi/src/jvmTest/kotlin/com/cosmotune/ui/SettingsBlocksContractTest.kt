@@ -142,7 +142,8 @@ class SettingsBlocksContractTest {
         assertTrue(SourceContract.parameters(loader, "load").contains("intensity: Double = 1.0"), "Now Playing's call without an intensity keeps working")
         val body = SourceContract.code(SourceContract.functionBody(loader, "load"))
         assertTrue(body.contains("intensity") && body.substringBefore("cache[key]?.let").contains("intensity"), "a palette is cached per intensity")
-        assertTrue(body.contains("spec = CoverPaletteSpec(intensity = intensity)"))
+        // P4-19: the setting moves the engine's ceilings too (`forIntensity`), not only the budget
+        assertTrue(body.contains("spec = CoverPaletteSpec.forIntensity(intensity)"))
         for (store in listOf(
             "sharedUi/src/androidMain/kotlin/com/cosmotune/ui/settings/CosmoLookStore.android.kt",
             "sharedUi/src/jvmMain/kotlin/com/cosmotune/ui/settings/CosmoLookStore.jvm.kt",

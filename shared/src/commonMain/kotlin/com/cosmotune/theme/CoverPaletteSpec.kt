@@ -71,7 +71,10 @@ data class CoverPaletteSpec(
 
     // --- the chroma budget and the bright and yellow rules -------------------------------------
 
-    /** Settings > Look: Calm 0.7, Balanced 1.0, Rich 1.25. It multiplies the chroma budget and the accent chroma before the caps. */
+    /**
+     * Settings > Look: Calm 0.7, Balanced 1.0, Rich 1.25. It multiplies the chroma budget and the accent chroma before the caps (the
+     * designer's formula). The app's setting goes through [forIntensity], which moves the caps with it.
+     */
     val intensity: Double = 1.0,
     /** The chroma budget of grounds and surfaces is the seed's chroma times [intensity], but at most this. */
     val groundChromaMax: Double = 0.16,
@@ -268,4 +271,75 @@ data class CoverPaletteSpec(
     val easeY1: Double = 0.0,
     val easeX2: Double = 0.0,
     val easeY2: Double = 1.0,
-)
+) {
+    companion object {
+        /** The most of the sRGB edge the accent and the button stops may take at any setting: 5 % inside it, where the hue still holds. */
+        const val MAX_GAMUT_SHARE = 0.95
+
+        /**
+         * The spec of the Intensity setting (Settings > Appearance; `Intensity.multiplier`: Calm 0.7, Balanced 1.0, Rich 1.25).
+         *
+         * The designer's [intensity] only multiplies the cover's chroma before the ceilings, so a cover already at a ceiling (most real
+         * covers: a seed chroma of 0.15 or more) looked nearly the same at all three settings (Calm against Rich moved the accent by 0 to
+         * 0.05 and the ground by 0 to 0.023). Here the ceilings move with it: every chroma ceiling and floor of the ambient light, the
+         * background stops, the surfaces, the accent and the strong accent, the buttons, the container, the glow, the shadow, the glass
+         * and the skeleton, the ceiling of the chroma budget, and the share of the gamut the accent and the buttons may take
+         * ([gamutMargin], at most [MAX_GAMUT_SHARE]). Not moved: the factors of the formulas, the lightness of every colour, the text,
+         * the scrim, the danger family and every rail; the darkness rail and the contrast loops run after the chroma is chosen, so they
+         * repair whatever more chroma would break.
+         *
+         * 1.0 is the designer's spec, unchanged ([CoverPaletteSpec] with its defaults), so the golden vectors hold for Balanced byte
+         * for byte.
+         */
+        fun forIntensity(intensity: Double): CoverPaletteSpec {
+            val base = CoverPaletteSpec()
+            if (intensity == 1.0) return base
+            val k = intensity
+            fun ChromaRule.scaled() = copy(max = max * k)
+            fun AccentChromaRule.scaled() = copy(min = min * k, max = max * k)
+            return base.copy(
+                intensity = k,
+                groundChromaMax = base.groundChromaMax * k,
+                accentChromaMin = base.accentChromaMin * k,
+                accentChromaMax = base.accentChromaMax * k,
+                gamutMargin = minOf(base.gamutMargin * k, MAX_GAMUT_SHARE),
+                darkAmbient = base.darkAmbient.scaled(),
+                darkBackgroundTop = base.darkBackgroundTop.scaled(),
+                darkBackgroundMid = base.darkBackgroundMid.scaled(),
+                darkBackgroundBottom = base.darkBackgroundBottom.scaled(),
+                darkSurface = base.darkSurface.scaled(),
+                darkSurfaceHigh = base.darkSurfaceHigh.scaled(),
+                darkSurfaceVariant = base.darkSurfaceVariant.scaled(),
+                darkAccentStrongMaxChroma = base.darkAccentStrongMaxChroma * k,
+                darkButtonStart = base.darkButtonStart.scaled(),
+                darkButtonEnd = base.darkButtonEnd.scaled(),
+                darkAccentContainer = base.darkAccentContainer.scaled(),
+                darkGlowChromaMin = base.darkGlowChromaMin * k,
+                darkGlowChromaMax = base.darkGlowChromaMax * k,
+                darkShadow = base.darkShadow.scaled(),
+                lightAmbient = base.lightAmbient.scaled(),
+                lightBackgroundTop = base.lightBackgroundTop.scaled(),
+                lightBackgroundMid = base.lightBackgroundMid.scaled(),
+                lightBackgroundBottom = base.lightBackgroundBottom.scaled(),
+                lightSurface = base.lightSurface.scaled(),
+                lightSurfaceHigh = base.lightSurfaceHigh.scaled(),
+                lightSurfaceVariant = base.lightSurfaceVariant.scaled(),
+                lightAccentChromaMin = base.lightAccentChromaMin * k,
+                lightAccentChromaMax = base.lightAccentChromaMax * k,
+                lightAccentStrongMaxChroma = base.lightAccentStrongMaxChroma * k,
+                lightButtonStart = base.lightButtonStart.scaled(),
+                lightButtonEnd = base.lightButtonEnd.scaled(),
+                lightAccentContainer = base.lightAccentContainer.scaled(),
+                lightGlowChromaMin = base.lightGlowChromaMin * k,
+                lightGlowChromaMax = base.lightGlowChromaMax * k,
+                lightShadow = base.lightShadow.scaled(),
+                darkGlass = base.darkGlass.scaled(),
+                lightGlass = base.lightGlass.scaled(),
+                darkSkeletonBase = base.darkSkeletonBase.scaled(),
+                lightSkeletonBase = base.lightSkeletonBase.scaled(),
+                darkSkeletonShine = base.darkSkeletonShine.scaled(),
+                lightSkeletonShine = base.lightSkeletonShine.scaled(),
+            )
+        }
+    }
+}
