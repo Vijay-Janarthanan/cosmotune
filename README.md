@@ -28,14 +28,17 @@ Needs JDK 21. `./gradlew :desktopApp:run` starts the desktop app;
 ## What it contacts
 
 The music video needs an internet connection. With it on (the default), Cosmotune searches YouTube for each song's
-video by title and artist, and reads the first few hundred kilobytes of the song and video streams from YouTube's
-servers to line them up. It also asks `cdn.jsdelivr.net` (which serves the `Vijay-Janarthanan/OpenCanvas` repository
-on GitHub) for a ready-made sync map, sending only the song's YouTube id, and still talks to the music and cover
-sources it used before. The video lookup sends no account or sign-in data and keeps the maps it measures in the
-app's own folder. On Android the video is not looked up on mobile data (any metered connection) unless you
-turn on Settings > Appearance > "Play animated cover over cellular", which is off by default. Switch the video off
-under Settings > Appearance > "Dynamic YouTube Canvas (OpenCanvas)"; a small start-up request to YouTube is made
-even then.
+video by title and artist, then reads the start of the song's file and of up to six candidate videos' files from
+YouTube's servers to line them up: about 320 KB per file, and more for a file with a large header or another layout,
+up to the whole file. It also asks `cdn.jsdelivr.net` (which serves the `Vijay-Janarthanan/OpenCanvas` repository on
+GitHub) for a ready-made sync map, sending only the song's YouTube id, and still talks to the music and cover sources
+it used before. The video lookup sends no account or sign-in data. The maps it measures are kept in the app's own
+folder and the video itself in the app's own cache folder (up to 150 MB on Android; on the desktop the media cache,
+512 MB by default). On Android the video is not looked up on mobile data (any metered connection) unless you turn on
+Settings > Appearance > "Play animated cover over cellular", which is off by default. Switch the video off under
+Settings > Appearance > "Dynamic YouTube Canvas (OpenCanvas)", which appears only while "Animated cover art" (Android)
+or "Animated canvas" (desktop) is on. Even with the video switched off, the app makes three small requests to YouTube
+each time it starts (two to open the connection and one for an anonymous visitor id), also on mobile data.
 
 ## Disclaimer
 

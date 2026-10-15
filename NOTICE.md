@@ -9,7 +9,8 @@ in `FORK.md`; the last BitChord commit we have taken is in `UPSTREAM.md`.
 
 Cosmotune is not affiliated with, endorsed by, or connected to BitChord, YouTube or Google.
 
-Third-party components keep their own licences; the in-app licence screen lists them.
+Third-party components keep their own licences. The desktop app's licence screen lists them, and for code that is part
+of this tree the licence text is in the `licenses/` folder or next to the code.
 
 ## OpenCanvas
 

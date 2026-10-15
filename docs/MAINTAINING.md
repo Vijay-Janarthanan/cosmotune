@@ -17,6 +17,13 @@ New Cosmotune-only code goes under `com.cosmotune`; the Kotlin packages of upstr
 that merges stay small. `ForkGuardTest` (run with `./gradlew :shared:jvmTest --tests "com.cosmotune.ForkGuard*"`)
 checks these rules.
 
+## The OpenCanvas engine
+
+- The 28 files under `shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/canvas/opencanvas/` are copied from the
+  OpenCanvas repository (https://github.com/Vijay-Janarthanan/OpenCanvas) and must stay byte-identical to it, which is why
+  they have no licence header. Change them there and copy them over; when its licence text or notice changes, refresh
+  `licenses/` too.
+
 ## Tests
 
 `docs/BASELINE.md` lists the tests that already failed before our changes, so a new failure is easy to spot.
