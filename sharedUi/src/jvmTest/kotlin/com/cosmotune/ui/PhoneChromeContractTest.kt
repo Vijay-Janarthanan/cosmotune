@@ -115,7 +115,7 @@ class PhoneChromeContractTest {
         assertTrue(newBranch.contains("CosmoProfileButton("), "the if branch is the new button")
         assertEquals(
             "avatarUrl = account?.thumbnailUrl, name = account?.name ?: stringResource(R.string.sign_in), " +
-                "subtitle = account?.email, entries = entries, onAccount = onClick, modifier = modifier",
+                "subtitle = account?.email?.takeIf { it.isNotBlank() }, entries = entries, onAccount = onClick, modifier = modifier",
             callArguments(newBranch, "CosmoProfileButton("),
         )
     }
@@ -149,6 +149,12 @@ class PhoneChromeContractTest {
         assertTrue(call.contains("entries = listOf("), "the entries come as a list")
         assertEquals(5, Regex("""\bcom\.cosmotune\.ui\.chrome\.CosmoDrawerEntry\(""").findAll(call).count(), "five entries, fully qualified")
         assertEquals(5, Regex("""\bCosmoDrawerEntry\(""").findAll(mainCode).count(), "and no other entry anywhere in the file")
+        // The root draws one page by the order of its `when`: an entry must leave History, a Library "Show all", Discord and
+        // Spotify first, or it would only close the drawer.
+        assertEquals(5, Regex("""\bleavePages\(\)""").findAll(call).count(), "every entry leaves those pages first")
+        for (flag in listOf("showHistory = false", "libraryShowAll = null", "showDiscord = false", "showSpotify = false")) {
+            assertTrue(mainCode.contains("val leavePages = {") && mainCode.substringAfter("val leavePages = {").substringBefore("}").contains(flag), "leavePages resets $flag")
+        }
     }
 
     @Test fun theFiveEntriesAreReplayListenTogetherDownloadsEqualiserSettingsInThatOrderWithTheStatementsTheRootAlreadyRuns() {
