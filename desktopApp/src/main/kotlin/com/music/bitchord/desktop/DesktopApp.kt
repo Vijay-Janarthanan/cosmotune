@@ -3996,7 +3996,7 @@ fun BitChordDesktopApp() {
                             leadHero = false,
                         )
                         destination == DesktopDestination.EXPLORE && selectedMoodGenre != null -> Column(Modifier.fillMaxSize()) {
-                            MoodGenrePlaylistsScreen(
+                            com.cosmotune.ui.search.MoodGenreSwitch(
                                 title = selectedMoodGenre!!.title,
                                 state = moodGenreShelves,
                                 listState = moodGenreListState,
@@ -4009,7 +4009,7 @@ fun BitChordDesktopApp() {
                                 modifier = Modifier.weight(1f),
                             )
                         }
-                        destination == DesktopDestination.EXPLORE -> ExploreScreen(
+                        destination == DesktopDestination.EXPLORE -> com.cosmotune.ui.search.ExploreSwitch(
                             state = exploreState,
                             listState = exploreListState,
                             onCategoryClick = ::openMoodGenre,
@@ -4020,7 +4020,7 @@ fun BitChordDesktopApp() {
                             contentPadding = sharedPagePadding,
                             showTitle = false,
                         )
-                        destination == DesktopDestination.SEARCH -> SearchScreen(
+                        destination == DesktopDestination.SEARCH -> com.cosmotune.ui.search.SearchSwitch(
                             query = query,
                             onQueryChange = ::editQuery,
                             filter = searchFilter,
@@ -4108,6 +4108,7 @@ fun BitChordDesktopApp() {
                             contentPadding = sharedPagePadding,
                             topPadding = 0.dp,
                             showField = false,
+                            browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { selectDestination(DesktopDestination.EXPLORE); openMoodGenre(it) }, onRetry = { exploreReloads++ }),
                         )
                         destination == DesktopDestination.LIBRARY && libraryShowAll != null -> Column(Modifier.fillMaxSize()) {
                             // The phone keeps the grid's sort beside it, in the bar above; here it sits
