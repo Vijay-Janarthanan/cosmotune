@@ -122,7 +122,7 @@ private fun DrawScope.playEdge(outline: Path, floating: Boolean, loading: Boolea
 
 /** The loading blob: one path refilled every frame, turned and scaled in the draw phase. */
 @Composable
-private fun LoadingBlobShape(size: Dp, color: Color, reduced: Boolean) {
+internal fun LoadingBlobShape(size: Dp, color: Color, reduced: Boolean) {
     val phase: State<Float>? = if (reduced) null else {
         rememberInfiniteTransition(label = "blob").animateFloat(0f, 1f, infiniteRepeatable(tween(LoadingBlob.PERIOD_MS, easing = LinearEasing)), label = "blob-phase")
     }
