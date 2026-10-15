@@ -24,6 +24,36 @@ checks these rules.
   they have no licence header. Change them there and copy them over; when its licence text or notice changes, refresh
   `licenses/` too.
 
+## Icons
+
+The logo (a heavy C with a small moon-textured, waning o) is drawn in a design kit that lives in the OpenCanvas
+author's own design folder; it is local only and not in this repository. Every icon file below is a copy of a file
+from that kit, so no script makes them: `tools/make-icons.py`, which drew the old violet placeholder, is gone. To
+change the logo, update the kit and copy the files over, keeping the file names:
+
+- Android, `app/src/main/res/drawable/`: `ic_launcher_background.xml`, `ic_launcher_foreground.xml`,
+  `ic_launcher_monochrome.xml`, `ic_notification_logo.xml` and `ic_logo.xml`; `app/src/main/ic_launcher-playstore.png`
+  (512 px). `mipmap-anydpi/ic_launcher.xml` and `ic_launcher_round.xml` point their `<monochrome>` layer at
+  `ic_launcher_monochrome`, never at the foreground (the system would tint the multi-tone foreground into one blob).
+- Android 12+ splash: `values-v31/themes.xml` and `values-night-v31/themes.xml` (black; the system shows the launcher icon).
+- Shared UI: `sharedUi/src/commonMain/composeResources/drawable/ic_logo.xml`, the same file as the Android `ic_logo.xml`.
+- Desktop: `desktopApp/packaging/icons/AppIcon.png`, `AppIcon.ico` and `AppIcon.icns` (the installers and the Dock);
+  `desktopApp/src/main/composeResources/drawable/logo.svg` (window and tray: it declares `width="1024"` and uses only
+  `rect` and `path`, because the tray draws it with Skia at 22, 32 and 48 px) and `logo_mark.svg` (the header mark).
+
+The rules:
+
+- **Black tile.** Every icon has a black (#000000) background: launcher, Play Store, installers, Dock, window, tray and
+  splash. The mark on it is apricot #FFB98F.
+- **In the app** the mark stands alone on a transparent background: apricot in the dark theme, ink #0B0C0F in the light
+  theme. `ic_logo.xml` is a one-colour mark that every call site tints, so keep its size (28 x 18 dp, viewport 730 x 484).
+  `CosmoBrand` (`shared/src/commonMain/kotlin/com/cosmotune/CosmoBrand.kt`) holds the two colours and `HomeTitle` in
+  `HomeScreen.kt` picks one from the theme's background; the Replay cards and posters draw the mark white on their own dark cards.
+- The kit also has `android/alt/ic_launcher_foreground-flat.xml`, a launcher foreground with a flat o (no craters).
+  It is not used; swap it in for `ic_launcher_foreground.xml` if the two craters look like specks on a real phone.
+- `AppIcon.ico` and `AppIcon.icns` were built from the kit's PNGs with a Pillow script, `source/build_kit_v6.py` in the kit.
+  There is no copy of that script here. Pillow can reopen both files to check them.
+
 ## Tests
 
 `docs/BASELINE.md` lists the tests that already failed before our changes, so a new failure is easy to spot.
