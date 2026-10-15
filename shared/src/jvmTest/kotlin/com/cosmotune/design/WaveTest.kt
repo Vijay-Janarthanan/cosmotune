@@ -39,6 +39,7 @@ class WaveTest {
         assertEquals(2f, Wave.STEP_DP)
         assertEquals(4f, Wave.HANDLE_W_DP)
         assertEquals(24f, Wave.HANDLE_H_DP)
+        assertEquals(3.6f, Wave.PHASE_RAD_PER_S)
     }
 
     @Test

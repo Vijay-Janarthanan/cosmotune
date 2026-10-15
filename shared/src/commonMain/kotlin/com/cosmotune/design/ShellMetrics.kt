@@ -8,6 +8,9 @@ object ShellMetrics {
     const val TAB_BAR_HEIGHT_DP = 64f
     const val CAPSULE_HEIGHT_DP = 64f
     const val CAPSULE_RADIUS_DP = 22f
+    const val TAB_BAR_RADIUS_DP = 32f        // the tab bar is a full pill
+    const val SHEET_INSET_DP = 8f            // bottom sheets and dialogs are detached: inset 8 dp, radius 36 on every corner
+    const val SHEET_RADIUS_DP = 36f
     const val CAPSULE_GAP_DP = 10f
     const val MIN_BOTTOM_DP = 16f
     const val INSET_GAP_DP = 8f

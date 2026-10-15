@@ -29,8 +29,15 @@ class GlassPolicyTest {
     }
 
     @Test
-    fun theAlphasAreTheDesignersValues() {
-        assertEquals(0.64f, GlassPolicy.TINT_ALPHA)
-        assertEquals(0.96f, GlassPolicy.SOLID_ALPHA)
+    fun theGlassNumbersAreTheBcSpecsValues() {
+        assertEquals(0.52f, GlassPolicy.TINT_ALPHA)
+        assertEquals(0.62f, GlassPolicy.TINT_ALPHA_LIGHT)
+        assertEquals(0.46f, GlassPolicy.COVER_TINT_ALPHA)
+        assertEquals(0.94f, GlassPolicy.SOLID_ALPHA)
+        assertEquals(22f, GlassPolicy.BLUR_DP)
+        assertEquals(32f, GlassPolicy.BLUR_DP_DESKTOP)
+        assertEquals(1.6f, GlassPolicy.SATURATION)
+        assertEquals(0.52f, GlassPolicy.tintAlpha(dark = true))
+        assertEquals(0.62f, GlassPolicy.tintAlpha(dark = false))
     }
 }

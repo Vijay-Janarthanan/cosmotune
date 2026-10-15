@@ -23,6 +23,9 @@ object Wave {
     const val HANDLE_W_DP = 4f
     const val HANDLE_H_DP = 24f
 
+    /** The wave's phase advances about this fast while playing (B+C spec); with reduced motion, or paused, it stands still. */
+    const val PHASE_RAD_PER_S = 3.6f
+
     /** Points a buffer needs for a scrubber [width] wide at [step] spacing: `ceil(width / step) + 2`. */
     fun pointCapacity(width: Float, step: Float = STEP_DP): Int = ceil(width / step).toInt() + 2
 
