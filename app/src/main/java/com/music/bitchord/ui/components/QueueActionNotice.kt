@@ -38,11 +38,13 @@ fun QueueActionNoticeHost(
     modifier: Modifier = Modifier,
 ) {
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+    // The new look's toast rises and fades in by itself; the host must not slide it a second time.
+    val newLook = com.cosmotune.ui.theme.LocalCosmoShell.current != null
 
     AnimatedContent(
         targetState = notice,
         transitionSpec = {
-            if (reduceAnimation) {
+            if (reduceAnimation || newLook) {
                 EnterTransition.None togetherWith ExitTransition.None
             } else {
                 (fadeIn() + slideInVertically { height -> height / 2 }) togetherWith

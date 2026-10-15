@@ -151,7 +151,8 @@ class SheetsContractTest {
     @Test fun theToastReplacesTheSurfaceOnlyWhileTheLookIsOnAndTheHostIsUntouched() {
         val code = flat(notice)
         assertEquals(1, Regex(Regex.escape("$look com.cosmotune.ui.sheets.CosmoToast(current.message) else Surface(")).findAll(code).count(), "one condition in front of the Surface")
-        assertTrue("AnimatedContent(" in code && "if (reduceAnimation)" in code && "EnterTransition.None togetherWith ExitTransition.None" in code, "the host keeps its reduce-animation rule")
+        assertTrue("AnimatedContent(" in code && "if (reduceAnimation || newLook)" in code && "EnterTransition.None togetherWith ExitTransition.None" in code, "the host keeps its reduce-animation rule, and does not slide the new toast a second time")
+        assertTrue(code.indexOf("val newLook = com.cosmotune.ui.theme.LocalCosmoShell.current != null") in 0 until code.indexOf("AnimatedContent("), "the look is read once, in composition, before the transition lambda")
         assertTrue("liveRegion = LiveRegionMode.Polite" in code, "the old notice keeps its live region")
         assertTrue("contentKey = { it?.id }" in code, "a repeated action still restarts the notice")
         val toast = flat(sheet("CosmoToast"))
