@@ -1,0 +1,20 @@
+<!--
+  Status-bar / notification variant of the Cosmotune placeholder mark: a C.
+
+  Notification small icons are drawn as a silhouette: the system throws away
+  every colour and keeps only the alpha channel, so the stroke has to be opaque
+  white. The C stays inside the 22x22 content box Android expects inside a
+  24x24 canvas.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <path
+      android:pathData="M20.28,5.64 A9.5,9.5 0 1,0 20.28,18.36"
+      android:strokeColor="#FFFFFFFF"
+      android:strokeWidth="3"
+      android:strokeLineCap="round"
+      android:fillColor="#00000000" />
+</vector>
