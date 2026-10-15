@@ -3077,6 +3077,13 @@ fun BitChordDesktopApp() {
                     }
                 },
                 topBar = { compact ->
+                    if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopTopBar(
+                        compact,
+                        navHistory.isNotEmpty(),
+                        ::goBack,
+                        activeAccount?.avatar ?: activeAccount?.profiles?.firstOrNull()?.avatar,
+                        { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
+                    ) else
                     DesktopTopBar(
                         compact = compact,
                         song = selectedSong,
@@ -3141,6 +3148,42 @@ fun BitChordDesktopApp() {
                     )
                 },
                 bottomBar = { compact ->
+                    if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(
+                        tabs = listOf(
+                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["home", "Home"], com.cosmotune.ui.components.CosmoIcons.Home, com.cosmotune.ui.components.CosmoIcons.HomeFill),
+                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["explore", "Explore"], com.cosmotune.ui.components.CosmoIcons.Grid, com.cosmotune.ui.components.CosmoIcons.Grid),
+                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["library", "Library"], com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.LibraryFill),
+                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["search", "Search"], com.cosmotune.ui.components.CosmoIcons.Search, com.cosmotune.ui.components.CosmoIcons.SearchFill),
+                        ),   // the order of the four destinations below
+                        selectedIndex = when (destination) {
+                            DesktopDestination.LISTEN_NOW -> 0
+                            DesktopDestination.EXPLORE -> 1
+                            DesktopDestination.LIBRARY -> 2
+                            DesktopDestination.SEARCH -> 3
+                            else -> -1
+                        },
+                        onTabSelected = { index ->
+                            selectDestination(
+                                listOf(
+                                    DesktopDestination.LISTEN_NOW, DesktopDestination.EXPLORE,
+                                    DesktopDestination.LIBRARY, DesktopDestination.SEARCH,
+                                )[index],
+                            )
+                        },
+                        song = selectedSong,
+                        isPlaying = playback.isPlaying,
+                        isLoading = playback.isLoading,
+                        position = playerPosition,
+                        durationMs = playback.durationMs,
+                        onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+                        onNext = ::playNext,
+                        onExpand = { overlays.nowPlaying = true },
+                        controlsLocked = partyState.controlsLocked,
+                        onBlockedControl = {},
+                        hazeState = LocalDesktopHaze.current,
+                        onHeightChanged = {},
+                        modifier = Modifier.widthIn(max = com.music.bitchord.ui.components.FLOATING_BAR_MAX_WIDTH).fillMaxWidth(),
+                    ) else
                     DesktopBottomChrome(
                         compact = compact,
                         destination = destination,
@@ -3186,6 +3229,50 @@ fun BitChordDesktopApp() {
                     }
                 },
                 overlay = {
+                    // The floating player bar: before the sheet, so the player (which grows out of it) is drawn over it.
+                    if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopPlayerBarHost(overlays.sidePanel != null) { m ->
+                        selectedSong?.let { current ->
+                            com.cosmotune.ui.shell.CosmoPlayerBar(
+                                song = current,
+                                isPlaying = playback.isPlaying,
+                                isLoading = playback.isLoading,
+                                position = playerPosition,
+                                durationMs = playback.durationMs,
+                                liked = current.videoId in likedIds,
+                                shuffle = shuffle,
+                                repeatMode = when (repeatMode) {
+                                    DesktopRepeatMode.OFF -> RepeatModes.OFF
+                                    DesktopRepeatMode.ONE -> RepeatModes.ONE
+                                    DesktopRepeatMode.ALL -> RepeatModes.ALL
+                                },
+                                controlsLocked = partyState.controlsLocked,
+                                lyricsOn = overlays.sidePanel == DesktopSidePanel.LYRICS,
+                                queueOn = overlays.sidePanel == DesktopSidePanel.QUEUE,
+                                onPlayPause = ::togglePlayPauseFromUser,
+                                onPrevious = ::playPrevious,
+                                onNext = ::playNext,
+                                onToggleShuffle = { setShuffle(!shuffle) },
+                                onCycleRepeat = {
+                                    repeatMode = repeatMode.next()
+                                    persistence.saveString("repeat_mode", repeatMode.name)
+                                },
+                                onToggleLike = { toggleLike(current) },
+                                onSeekFraction = { fraction ->
+                                    val duration = playbackEngine.state.value.durationMs
+                                    if (duration > 0) seekPlayer((fraction * duration).toLong())
+                                },
+                                // A second click on the same button puts the column away, as in Apple Music.
+                                onLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
+                                onQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
+                                onOutput = { overlays.audioOutput = true },
+                                onExpand = { overlays.nowPlaying = true },
+                                onBlockedControl = {},
+                                hazeState = LocalDesktopHaze.current,
+                                modifier = m,
+                                volumeLabel = DesktopStrings["d_volume", "Volume"],
+                            )
+                        }
+                    }
                     DesktopPlayerSheet(
                         visible = overlays.nowPlaying && selectedSong != null,
                         onDismiss = {
@@ -4870,7 +4957,11 @@ private fun DesktopFrame(
                                                 end = 0.dp,
                                                 // Room for the bar that floats over this, so the
                                                 // last row can still be scrolled clear of it.
-                                                bottom = if (compact) 128.dp else 16.dp,
+                                                bottom = when {
+                                                    com.cosmotune.ui.theme.LocalCosmoShell.current != null -> 168.dp
+                                                    compact -> 128.dp
+                                                    else -> 16.dp
+                                                },
                                             ),
                                         )
                                     }
