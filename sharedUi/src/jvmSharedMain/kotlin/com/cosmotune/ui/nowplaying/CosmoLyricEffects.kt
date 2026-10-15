@@ -26,7 +26,7 @@ import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.ui.player.clipShiftedDown
 
 /*
- * What the new lyrics view draws for the words of a line as they are sung (Task P3-13): the fill that crosses each timed piece
+ * What the new lyrics view draws for the words of a line as they are sung (the old view's features, carried over): the fill that crosses each timed piece
  * at a steady rate and fades out at its leading edge, the word that lifts off the line as it is sung, the held note that swells
  * a letter at a time, and the bloom behind it. They are the old panel's effects (`PlayerLyrics.kt`: `sweepTo`, `riseWith`,
  * `growEach`, `glowGrown`), which are private there, written again against the new view's two-copy text (a dim copy and an accent

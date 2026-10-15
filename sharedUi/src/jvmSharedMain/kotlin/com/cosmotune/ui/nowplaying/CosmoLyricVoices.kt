@@ -40,7 +40,7 @@ import com.music.bitchord.data.lyrics.LyricLine
 import kotlin.math.roundToInt
 
 /*
- * The smaller voices of a lyrics row in the new Now Playing (Task P3-13): the second voice that answers or echoes a line (the old
+ * The smaller voices of a lyrics row in the new Now Playing (the old view's feature, carried over): the second voice that answers or echoes a line (the old
  * panel's `line.background`), the romanisation or translation that opens under a line, and the section markers of a plain-text song.
  */
 

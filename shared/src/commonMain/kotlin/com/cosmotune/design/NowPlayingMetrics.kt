@@ -13,7 +13,10 @@ object NowPlayingMetrics {
     const val COVER_DP = 320f
     const val COVER_TOP_DP = 112f
 
-    /** The cover never goes below this, whatever the window; a window that short is a stub until the landscape layout. */
+    /**
+     * The cover never goes below this, whatever the window. Only a small portrait window (a split screen) comes near it: a window
+     * wider than tall takes the landscape or the wide layout ([NowPlayingLayout.choose]).
+     */
     const val COVER_MIN_DP = 96f
 
     /** The least air between the cover's bottom edge and the title stack. */

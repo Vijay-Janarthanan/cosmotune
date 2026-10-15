@@ -36,7 +36,7 @@ import dev.chrisbanes.haze.HazeState
 import org.jetbrains.compose.resources.stringResource
 
 /*
- * Lyric card sharing in the new Now Playing (Task P3-13): long-press a line to start choosing lines, tap to add or drop one, then
+ * Lyric card sharing in the new Now Playing (the old view's feature, carried over): long-press a line to start choosing lines, tap to add or drop one, then
  * Share turns the chosen lines into a card. The choice, its budget (one card holds about five short lines), the order of the
  * lines on the card and the marks for lines that were skipped are the old panel's own `rememberLyricsPicker`, reused as it is;
  * the card itself is drawn by the platform ([com.music.bitchord.ui.player.PlayerHost.LyricsShareSheet], the phone's) and
