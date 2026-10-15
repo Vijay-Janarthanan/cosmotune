@@ -136,4 +136,17 @@ class PolishContractTest {
         val body = SourceContract.functionBody(SourceContract.read("${cosmoDesktop}CosmoDesktopSidePanel.kt"), "cosmoDesktopSidePanelCard").replace(Regex("\\s+"), " ")
         assertTrue(body.trimEnd().endsWith(".cosmoGlass(LocalDesktopHaze.current, shape) }"), "the card is margin and glass, nothing inside: $body")
     }
+
+    // ---- 5. the error page keeps its Tune icon -------------------------------------------------------------------------------------
+
+    @Test fun theDesktopErrorPageHandsItsTuneIconToTheNewState() {
+        val src = SourceContract.read("${desktop}DesktopApp.kt")
+        val statement = SourceContract.firstStatement(SourceContract.functionBody(src, "DesktopErrorPage"))
+        assertTrue("icon = Icons.Rounded.Tune" in statement, "the new state draws the old page's icon, not the default play triangle: $statement")
+        // the old branch's icon is the same one, so the two looks agree
+        assertTrue(
+            SourceContract.code(SourceContract.functionBody(src, "DesktopErrorPage")).contains("DesktopEmptyPage(Icons.Rounded.Tune, "),
+            "the old page still draws Tune",
+        )
+    }
 }

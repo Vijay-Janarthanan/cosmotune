@@ -7575,7 +7575,7 @@ private fun DesktopLoadingPage(label: String) {
 
 @Composable
 private fun DesktopErrorPage(message: String, onRetry: () -> Unit) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoEmptyState(title = DesktopStrings["d_error_title", "Something went wrong"], message = message, actionLabel = DesktopStrings["d_try_again", "Try again"], onAction = onRetry)
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoEmptyState(title = DesktopStrings["d_error_title", "Something went wrong"], message = message, icon = Icons.Rounded.Tune, actionLabel = DesktopStrings["d_try_again", "Try again"], onAction = onRetry)
     DesktopEmptyPage(Icons.Rounded.Tune, "Something went wrong", message, onRetry, "Try again")
 }
 
