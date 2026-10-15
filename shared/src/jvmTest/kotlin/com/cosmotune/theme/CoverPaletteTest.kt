@@ -1,12 +1,14 @@
 package com.cosmotune.theme
 
 import com.materialkolor.hct.Hct
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cbrt
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -815,5 +817,227 @@ class CoverPaletteTest {
         val c = palette(solid(blueColor), 16, 16, dark = false, spec = spec)
         assertRails("flipped on-accent (light)", c, dark = false)
         assertTrue(tone(c.onAccent) <= 15.0, "the on-accent colour became near-black, tone ${tone(c.onAccent)}")
+    }
+
+    // --- covers that go through the quantiser (more than 128 distinct colours) -----------------------
+
+    /** How many distinct colours the engine sees in a cover, counted at 5 bits per channel after sampling. */
+    private fun distinctBins(pixels: IntArray, w: Int, h: Int): Int =
+        CoverPalette.sample(pixels, w, h).map { ((red(it) shr 3) shl 10) or ((green(it) shr 3) shl 5) or (blue(it) shr 3) }.toSet().size
+
+    private fun scaled(base: Int, factor: Double, noise: Int, random: Random): Int {
+        fun channel(v: Int) = (v * factor + random.nextInt(-noise, noise + 1)).roundToInt().coerceIn(0, 255)
+        return rgb(channel(red(base)), channel(green(base)), channel(blue(base)))
+    }
+
+    /**
+     * A 64 x 64 blue gradient (dark navy on the left, light blue on the right, a little lighter towards the bottom)
+     * with a few levels of noise on every channel, and an orange logo in the top-right corner that covers 121 of 4096
+     * pixels (2.95 percent) plus its own noise. Fixed random seed: the same cover on every machine.
+     */
+    private fun noisyBlueGradientWithOrangeLogo(logoSide: Int = 11): IntArray {
+        val random = Random(2026)
+        return IntArray(64 * 64) { i ->
+            val x = i % 64
+            val y = i / 64
+            if (x >= 64 - logoSide && y < logoSide) {
+                scaled(rgb(255, 140, 30), 1.0, 6, random)
+            } else {
+                val t = x / 63.0
+                val base = rgb((20 + 50 * t).roundToInt(), (70 + 70 * t).roundToInt(), (180 + 65 * t).roundToInt())
+                scaled(base, 0.9 + 0.2 * (y / 63.0), 6, random)
+            }
+        }
+    }
+
+    /**
+     * A 64 x 64 photo-like cover: a field with a vertical light gradient, an object (a shaded disc in the middle) that
+     * covers [objectShare] of the pixels, and per-pixel noise on all three channels.
+     */
+    private fun photoLike(field: Int, obj: Int, objectShare: Double, seed: Int): IntArray {
+        val random = Random(seed)
+        val radius = sqrt(objectShare * 64 * 64 / PI)
+        return IntArray(64 * 64) { i ->
+            val x = i % 64
+            val y = i / 64
+            val dx = x - 31.5
+            val dy = y - 31.5
+            val distance = sqrt(dx * dx + dy * dy)
+            if (distance <= radius) {
+                scaled(obj, 0.8 + 0.3 * (1.0 - distance / radius), 14, random)
+            } else {
+                scaled(field, 0.6 + 0.55 * (y / 63.0), 14, random)
+            }
+        }
+    }
+
+    @Test
+    fun aBlueGradientWithNoiseAndASmallOrangeLogoSeedsFromTheBlue() {
+        val pixels = noisyBlueGradientWithOrangeLogo()
+        assertTrue(distinctBins(pixels, 64, 64) > 128, "the test cover must go through the quantiser, it has ${distinctBins(pixels, 64, 64)} colours")
+        val (dark, light) = assertRailsBothThemes("noisy blue gradient, orange logo", pixels, 64, 64)
+        val hue = Hct.fromInt(dark.seed).hue
+        assertFalse(dark.isFallback)
+        // The blue of the gradient has an HCT hue of about 263; the orange logo sits near 56.
+        assertTrue(hueDistance(hue, 263.0) <= 15.0, "the seed hue should be the blue, about 263, was $hue (seed #${dark.seed.toUInt().toString(16)})")
+        assertTrue(hueDistance(hue, 56.0) > 90.0, "the seed must not be the orange logo")
+        assertEquals(dark.seed, light.seed, "the seed does not depend on the theme")
+    }
+
+    @Test
+    fun aCoverThroughTheQuantiserGivesTheSamePaletteEveryTime() {
+        val pixels = noisyBlueGradientWithOrangeLogo()
+        assertTrue(distinctBins(pixels, 64, 64) > 128)
+        val first = palette(pixels, 64, 64)
+        palette(photoLike(rgb(20, 140, 150), rgb(210, 40, 50), 0.3, 7), 64, 64) // another cover in between
+        val second = palette(pixels, 64, 64)
+        assertEquals(first, second)
+        assertEquals(palette(pixels, 64, 64, dark = false), palette(pixels.copyOf(), 64, 64, dark = false))
+    }
+
+    /** A 64 x 64 cover of exactly [bins] distinct 5-bit colours of one blue family, every colour on the same number of pixels. */
+    private fun coverWithBins(bins: Int): IntArray {
+        val lattice = mutableListOf<Int>()
+        for (r in 2..6) for (g in 6..13) for (b in 20..28) lattice += rgb((r shl 3) + 4, (g shl 3) + 4, (b shl 3) + 4)
+        val colours = lattice.take(bins)
+        return IntArray(64 * 64) { i -> colours[i % bins] }
+    }
+
+    @Test
+    fun coversJustBelowAndJustAboveTheBoundaryAgreeOnTheSeedHue() {
+        // 128 colours are read from the histogram, 129 go through the quantiser: the switch must not change the colour of the app.
+        val below = coverWithBins(128)
+        val above = coverWithBins(129)
+        assertEquals(128, distinctBins(below, 64, 64))
+        assertEquals(129, distinctBins(above, 64, 64))
+        val seedBelow = palette(below, 64, 64).seed
+        val seedAbove = palette(above, 64, 64).seed
+        val hueBelow = Hct.fromInt(seedBelow).hue
+        val hueAbove = Hct.fromInt(seedAbove).hue
+        assertTrue(hueDistance(hueBelow, hueAbove) <= 10.0, "hue below the boundary $hueBelow, above $hueAbove")
+        // Both are the blue family of the lattice (HCT hue 255 to 285).
+        assertTrue(hueDistance(hueBelow, 270.0) <= 15.0, "below: $hueBelow")
+        assertTrue(hueDistance(hueAbove, 270.0) <= 15.0, "above: $hueAbove")
+        assertFalse(palette(below, 64, 64).isFallback)
+        assertFalse(palette(above, 64, 64).isFallback)
+    }
+
+    @Test
+    fun aPhotoLikeCoverSeedsFromTheRegionThatCoversMostOfIt() {
+        // A teal field with a red object over 30 percent of the picture. Score ranks a colour by the share of the
+        // picture in its hue neighbourhood (0.7 points per percent) plus a chroma bonus (0.3 points per chroma unit
+        // above 48). The teal's 70 percent is worth about 49 points; the red's 30 percent is worth about 21, and
+        // even a chroma of 100 (+16) cannot make up the 28-point gap. So the larger region wins, as it should: the
+        // field is what the eye reads as "the colour of the cover", the vivid object is an accent.
+        val teal = rgb(20, 140, 150)
+        val red = rgb(210, 40, 50)
+        val pixels = photoLike(field = teal, obj = red, objectShare = 0.3, seed = 11)
+        assertTrue(distinctBins(pixels, 64, 64) > 128, "it must go through the quantiser: ${distinctBins(pixels, 64, 64)} colours")
+        val objectShare = pixels.count { red(it) > green(it) + 60 }.toDouble() / pixels.size
+        assertTrue(objectShare in 0.25..0.35, "the red object covers $objectShare of the cover")
+        val (dark, _) = assertRailsBothThemes("teal with a red object", pixels, 64, 64)
+        val hue = Hct.fromInt(dark.seed).hue
+        val tealHue = Hct.fromInt(teal).hue
+        val redHue = Hct.fromInt(red).hue
+        assertTrue(hueDistance(hue, tealHue) <= 25.0, "the seed should be the teal field (hue $tealHue), was $hue")
+        assertTrue(hueDistance(hue, redHue) > 90.0, "the seed must not be the red object (hue $redHue)")
+    }
+
+    @Test
+    fun theSameCoverWithTheRedObjectOverMostOfItSeedsFromTheRed() {
+        // The mirror of the test above: 60 percent red, 40 percent teal. The rule is "the larger region", not "a hue".
+        val teal = rgb(20, 140, 150)
+        val red = rgb(210, 40, 50)
+        val pixels = photoLike(field = teal, obj = red, objectShare = 0.6, seed = 12)
+        assertTrue(distinctBins(pixels, 64, 64) > 128)
+        val (dark, _) = assertRailsBothThemes("red with a teal border", pixels, 64, 64)
+        val hue = Hct.fromInt(dark.seed).hue
+        assertTrue(hueDistance(hue, Hct.fromInt(red).hue) <= 25.0, "the seed should be the red, was $hue")
+    }
+
+    // --- chroma and hue of the derived colours (where the caps do not bind) -----------------------------
+
+    /** The fallback apricot (#ffb98f) has a chroma of about 30.6, below every cap, so the targets show through unchanged. */
+    private val apricotSeedHct = Hct.fromInt(apricot)
+
+    private fun assertAbout(expected: Double, actual: Double, tolerance: Double, what: String) =
+        assertTrue(abs(actual - expected) <= tolerance, "$what: $actual, expected $expected plus or minus $tolerance")
+
+    @Test
+    fun theDarkPaletteKeepsTheChromaOfTheSeedWhereTheCapsDoNotBind() {
+        val c = solidPalette(white, dark = true)
+        assertTrue(c.isFallback)
+        assertAbout(30.6, apricotSeedHct.chroma, 1.0, "the seed chroma")
+        fun chroma(colour: Int) = Hct.fromInt(colour).chroma
+        // 0.5, 0.4 and 0.3 of the seed's chroma: the caps (28, 22, 16) do not bind. A regression to grey backgrounds fails here.
+        assertAbout(15.3, chroma(c.backgroundTop), 2.0, "backgroundTop chroma")
+        assertAbout(12.2, chroma(c.backgroundMid), 2.0, "backgroundMid chroma")
+        assertAbout(9.2, chroma(c.backgroundBottom), 2.0, "backgroundBottom chroma")
+        assertAbout(10.0, chroma(c.surface), 3.0, "surface chroma")
+        assertAbout(14.0, chroma(c.surfaceVariant), 3.0, "surfaceVariant chroma")
+        // The accent has the seed's chroma held to at least 36; the glow is 48.
+        assertTrue(chroma(c.accent) >= 35.0, "accent chroma ${chroma(c.accent)}")
+        assertTrue(chroma(c.accentStrong) >= 35.0, "accentStrong chroma ${chroma(c.accentStrong)}")
+        assertAbout(48.0, chroma(c.glow), 4.0, "glow chroma")
+        // The gradient's ends ask for 42 and 52. At tone 82 an orange-red cannot be shown with 42 (measured 25.9, the
+        // gamut limit), so the start only has to be clearly coloured; the end reaches its 52.
+        assertTrue(chroma(c.buttonGradientStart) >= 20.0, "button start chroma ${chroma(c.buttonGradientStart)}")
+        assertAbout(52.0, chroma(c.buttonGradientEnd), 4.0, "button end chroma")
+    }
+
+    @Test
+    fun theDarkBackgroundsAndSurfacesKeepTheHueOfTheSeed() {
+        val c = solidPalette(white, dark = true)
+        val seedHue = apricotSeedHct.hue
+        listOf(c.backgroundTop, c.backgroundMid, c.backgroundBottom, c.surface, c.surfaceVariant, c.accent, c.glow).forEach {
+            val hct = Hct.fromInt(it)
+            if (hct.chroma > 6.0) {
+                assertTrue(hueDistance(hct.hue, seedHue) <= 8.0, "#${it.toUInt().toString(16)} has hue ${hct.hue}, the seed's is $seedHue")
+            }
+        }
+    }
+
+    @Test
+    fun theLightPaletteKeepsTheDesignTonesAndSomeColour() {
+        val c = solidPalette(white, dark = false)
+        fun chroma(colour: Int) = Hct.fromInt(colour).chroma
+        assertAbout(98.0, tone(c.backgroundTop), 1.5, "backgroundTop tone")
+        assertAbout(96.0, tone(c.backgroundMid), 1.5, "backgroundMid tone")
+        assertAbout(94.0, tone(c.backgroundBottom), 1.5, "backgroundBottom tone")
+        assertAbout(99.0, tone(c.surface), 1.5, "surface tone")
+        assertAbout(93.0, tone(c.surfaceVariant), 1.5, "surfaceVariant tone")
+        assertAbout(44.0, tone(c.accent), 1.5, "accent tone")
+        assertAbout(38.0, tone(c.accentStrong), 1.5, "accentStrong tone")
+        assertAbout(10.0, tone(c.textPrimary), 1.5, "textPrimary tone")
+        assertAbout(35.0, tone(c.textSecondary), 1.5, "textSecondary tone")
+        assertAbout(70.0, tone(c.glow), 1.5, "glow tone")
+        // The backgrounds are tinted with the seed's hue, not grey. They ask for chroma 6, 10 and 14, but sRGB narrows
+        // towards white and cannot show that at tones 98, 96 and 94: the engine lowers the chroma to what fits
+        // (measured 1.6, 4.7 and 7.7, rising towards the bottom). So: a tint, never above the target, rising downwards.
+        val top = chroma(c.backgroundTop)
+        val mid = chroma(c.backgroundMid)
+        val bottom = chroma(c.backgroundBottom)
+        assertTrue(top in 1.0..6.5, "light backgroundTop chroma $top")
+        assertTrue(mid in 3.5..10.5, "light backgroundMid chroma $mid")
+        assertTrue(bottom in 6.0..14.5, "light backgroundBottom chroma $bottom")
+        assertTrue(top < mid && mid < bottom, "the tint grows from top to bottom: $top, $mid, $bottom")
+        assertTrue(chroma(c.accent) >= 35.0, "light accent chroma ${chroma(c.accent)}")
+        assertAbout(48.0, chroma(c.glow), 4.0, "light glow chroma")
+        listOf(c.backgroundMid, c.backgroundBottom, c.surfaceVariant, c.accent, c.glow).forEach {
+            val hct = Hct.fromInt(it)
+            if (hct.chroma > 6.0) {
+                assertTrue(hueDistance(hct.hue, apricotSeedHct.hue) <= 8.0, "light #${it.toUInt().toString(16)} has hue ${hct.hue}")
+            }
+        }
+    }
+
+    @Test
+    fun aSeedIsASeedWhetherItCameFromTheFallbackOrFromTheCover() {
+        // A solid apricot cover and a white cover (fallback apricot) differ in the flag and nothing else.
+        val fromFallback = solidPalette(white)
+        val fromCover = solidPalette(apricot)
+        assertTrue(fromFallback.isFallback)
+        assertFalse(fromCover.isFallback)
+        assertEquals(fromFallback, fromCover.copy(isFallback = true))
     }
 }
