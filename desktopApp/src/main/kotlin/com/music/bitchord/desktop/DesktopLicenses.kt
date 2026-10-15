@@ -105,6 +105,12 @@ internal object DesktopLicenses {
                     "https://github.com/Vijay-Janarthanan/OpenCanvas",
                     "Finds a song's music video and lines it up with the song.",
                 ),
+                DesktopLicense(
+                    "Material Color Utilities (MaterialKolor)",
+                    "Apache-2.0 AND MIT",
+                    "https://github.com/jordond/materialkolor",
+                    "Picks the main colour of a cover and works in the HCT colour space. Google's code, converted to Kotlin Multiplatform.",
+                ),
             ),
         ),
     )

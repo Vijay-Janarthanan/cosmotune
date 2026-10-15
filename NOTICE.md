@@ -26,5 +26,8 @@ Cosmotune, is distributed under the GPLv3.
 ## Material Color Utilities
 
 Cosmotune picks the main colour of a cover with MaterialKolor's Kotlin port of Google's Material Color Utilities
-(`com.materialkolor:material-color-utilities`, https://github.com/jordond/materialkolor), which is under the MIT licence and
-carries Google's code under the Apache License, version 2.0; both may be combined into a GPLv3 work.
+(`com.materialkolor:material-color-utilities`, https://github.com/jordond/materialkolor). The library's POM names the MIT
+licence (copyright 2025 Jordon de Hoog), and its README puts the module `material-color-utilities`, which is Google's code
+(https://github.com/material-foundation/material-color-utilities) converted to Kotlin, under the Apache License, version 2.0
+(copyright 2021 Google LLC). Both licence texts are in `licenses/`: `MaterialKolor-LICENSE.txt` and
+`MaterialColorUtilities-LICENSE.txt`. Both licences may be combined into a GPLv3 work.
