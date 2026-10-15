@@ -24,6 +24,24 @@ checks these rules.
   they have no licence header. Change them there and copy them over; when its licence text or notice changes, refresh
   `licenses/` too.
 
+## The cover palette
+
+`shared/src/commonMain/kotlin/com/cosmotune/theme/` is the colour engine of the new interface. `CoverPalette` turns the
+pixels of a cover into a `CoverColors` (every colour a screen needs, from one seed colour taken from the cover), `CoverPaletteSpec`
+holds every number of the design, and `Oklab` blends and compares colours. It is pure Kotlin with no Android or Compose types,
+so `CoverPaletteTest` runs it on the desktop JVM. How a screen calls it is at the top of `CoverPalette.kt`.
+
+- To retune the design, change a default in `CoverPaletteSpec` (tones, chroma limits, hue shifts, the caps) and run
+  `CoverPaletteTest`. The tests hold the safety rails (contrast, the luminance and tone caps, the gamut) for every hue, so a
+  retune that breaks one fails there. A tone or chroma that cannot be shown is lowered to fit, never clipped.
+- The seed is chosen in the private function `CoverPalette.chooseSeed`; the colours are derived from it by `derive`. Both
+  use Google's Material Color Utilities, in MaterialKolor's Kotlin Multiplatform port: `com.materialkolor:material-color-utilities`
+  4.1.1 (MIT, with Google's Apache-2.0 code; Android and desktop JVM, no Compose). Its Celebi quantiser mixes a cover of a few flat
+  colours into one blend, so such a cover is read from its colour histogram instead (`maxFlatBins`). To use another picker,
+  replace `chooseSeed`; nothing else needs to change.
+- The library's version follows the Kotlin version: 4.1.1 is built on Kotlin 2.3, and 5.x needs the Kotlin 2.4 standard
+  library. The `FORK.md` row for `shared/build.gradle.kts` says what to do when Kotlin is raised.
+
 ## Icons
 
 The logo (a heavy C with a small moon-textured, waning o) is drawn in a design kit that lives in the OpenCanvas
