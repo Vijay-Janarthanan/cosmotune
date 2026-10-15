@@ -1,10 +1,1 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="1024" height="1024" rx="128" fill="url(#paint0_linear)"/>
-<path d="M712.46,358.1 A230,230 0 1,0 712.46,665.9" fill="none" stroke="#FFFFFF" stroke-width="88" stroke-linecap="round"/>
-<defs>
-<linearGradient id="paint0_linear" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
-<stop stop-color="#7C3AED"/>
-<stop offset="1" stop-color="#EC4899"/>
-</linearGradient>
-</defs>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" rx="128" fill="#000000"/><path fill="#FFB98F" d="M753.321,308.463 A289.638,289.638 0 1,0 808.682,622.128 A9.874,9.874 0 0,0 796.833,608.765 A144.819,144.819 0 0,1 673.407,588.096 A6.583,6.583 0 0,0 664.06,590.005 A144.819,151.402 0 1,1 629.764,386.271 A6.583,6.583 0 0,0 639.177,384.954 A144.819,144.819 0 0,1 746.804,325.118 A9.874,9.874 0 0,0 753.321,308.463 Z"/><path fill="#FFB98F" d="M596.061,430.836 A81.494,81.494 0 1,0 619.034,560.975 A81.494,81.494 0 0,1 596.061,430.836 Z"/></svg>

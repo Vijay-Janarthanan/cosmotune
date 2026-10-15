@@ -1,5 +1,6 @@
 package com.music.bitchord.ui.screens
 
+import com.cosmotune.CosmoBrand
 import com.music.bitchord.ui.components.contextClick
 import com.music.bitchord.ui.AppUi
 import com.music.bitchord.sharedui.resources.*
@@ -50,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -495,11 +497,13 @@ fun CompactTrackRow(
 private fun HomeTitle(title: String, modifier: Modifier = Modifier) {
     val style = MaterialTheme.typography.displayLarge
     val logoHeight = with(LocalDensity.current) { (style.fontSize * LOGO_TO_FONT).toDp() }
+    // The mark stands alone on the page: apricot on a dark theme, ink on a light one.
+    val logoTint = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) CosmoBrand.APRICOT else CosmoBrand.INK
     Column(modifier = modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp)) {
         Icon(
             painter = painterResource(Res.drawable.ic_logo),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onBackground,
+            tint = Color(logoTint),
             modifier = Modifier
                 .padding(bottom = 14.dp)
                 .height(logoHeight)

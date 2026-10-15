@@ -1,20 +1,14 @@
 <!--
-  Status-bar / notification variant of the Cosmotune placeholder mark: a C.
-
-  Notification small icons are drawn as a silhouette: the system throws away
-  every colour and keeps only the alpha channel, so the stroke has to be opaque
-  white. The C stays inside the 22x22 content box Android expects inside a
-  24x24 canvas.
+  Status-bar / notification glyph: the PLAIN master (the Eclipse alone) as a flat white
+  silhouette, alpha only. A 24 dp status-bar icon is seen at the size of a 24 px one, where
+  the C's counter is about 9 dp wide and an o would fill it. Inside the 22 dp content box.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-  <path
-      android:pathData="M20.28,5.64 A9.5,9.5 0 1,0 20.28,18.36"
-      android:strokeColor="#FFFFFFFF"
-      android:strokeWidth="3"
-      android:strokeLineCap="round"
-      android:fillColor="#00000000" />
+    <path
+        android:pathData="M20.374,4.937 A10.051,10.051 0 1,0 22.295,15.821 A0.343,0.343 0 0,0 21.884,15.358 A5.025,5.025 0 0,1 17.601,14.641 A0.228,0.228 0 0,0 17.277,14.707 A5.025,5.254 0 1,1 16.086,7.637 A0.228,0.228 0 0,0 16.413,7.591 A5.025,5.025 0 0,1 20.148,5.515 A0.343,0.343 0 0,0 20.374,4.937 Z"
+        android:fillColor="#FFFFFFFF" />
 </vector>
