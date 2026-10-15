@@ -99,14 +99,25 @@ enum class NowPlayingLayout {
     PORTRAIT, LANDSCAPE, WIDE;
 
     companion object {
-        /** The width from which a landscape window is the wide, two-column desktop layout. */
+        /** The width from which a landscape window can be the wide, two-column desktop layout. */
         const val WIDE_MIN_DP = 840f
 
-        /** Wide: at least 840 dp and wider than tall. Landscape: wider than tall. Otherwise portrait, a square included. */
+        /**
+         * The height from which it is. The wide layout puts the video card 96 dp from the top and keeps 100 dp at the foot for the
+         * player bar, so at 600 dp the card (404 dp, nine by sixteen) and the lyrics (342 dp) still have the room to be worth
+         * drawing; at the 393 dp of a phone on its side they have 197 and 135. It is also the height of the desktop's smallest
+         * window (900 x 600 dp, `Main.kt`), so no desktop window is ever "landscape". Shorter windows get the two panes.
+         */
+        const val WIDE_MIN_HEIGHT_DP = 600f
+
+        /**
+         * Wide: at least [WIDE_MIN_DP] wide and [WIDE_MIN_HEIGHT_DP] tall, and wider than tall. Landscape: any other window wider
+         * than tall (a phone on its side, however wide its screen is). Otherwise portrait, a square included.
+         */
         fun choose(windowWidthDp: Float, windowHeightDp: Float): NowPlayingLayout = when {
-            windowWidthDp >= WIDE_MIN_DP && windowWidthDp > windowHeightDp -> WIDE
-            windowWidthDp > windowHeightDp -> LANDSCAPE
-            else -> PORTRAIT
+            windowWidthDp <= windowHeightDp -> PORTRAIT
+            windowWidthDp >= WIDE_MIN_DP && windowHeightDp >= WIDE_MIN_HEIGHT_DP -> WIDE
+            else -> LANDSCAPE
         }
     }
 }

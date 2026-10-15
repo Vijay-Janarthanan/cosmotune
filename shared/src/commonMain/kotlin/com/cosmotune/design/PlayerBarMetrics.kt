@@ -14,6 +14,9 @@ object PlayerBarMetrics {
     const val PADDING_DP = 16f
     const val GAP_DP = 12f
     const val COVER_DP = 48f
+
+    /** The cover's own corner radius in the bar (`CosmoRadii.coverDesktopBar`; a test keeps the two in step). */
+    const val COVER_RADIUS_DP = 12f
     const val TEXT_MAX_DP = 220f
     const val BUTTON_DP = 40f
     const val PLAY_DP = 48f
@@ -88,5 +91,29 @@ object PlayerBarMetrics {
         }
         val right = (if (plan.output) 3 else 2) * TOUCH_DP + if (plan.volume) VOLUME_MARGIN_DP + VOLUME_DP else 0f
         return 2 * PADDING_DP + left + GAP_DP + middle + GAP_DP + right
+    }
+
+    /**
+     * What the bar looks like to the player that grows out of it ([CapsuleGeometry]), at [widthDp] wide in [plan]: its 28 dp
+     * corners, the cover 16 dp in and centred in the 80 dp height, and the title column from the end of the cover's gap to the
+     * column's own width (the plan's [Plan.textDp], or in [Tier.MINIMAL] what the row leaves: the right group of lyrics and
+     * queue, the play button and two gaps).
+     */
+    fun capsuleGeometry(plan: Plan, widthDp: Float): CapsuleGeometry {
+        val textStart = PADDING_DP + COVER_DP + GAP_DP
+        val textEnd = if (plan.tier == Tier.MINIMAL) {
+            PADDING_DP + 2 * TOUCH_DP + GAP_DP + PLAY_DP + GAP_DP
+        } else {
+            (widthDp - textStart - plan.textDp).coerceAtLeast(0f)
+        }
+        return CapsuleGeometry(
+            cornerRadiusDp = RADIUS_DP,
+            coverInsetLeftDp = PADDING_DP,
+            coverInsetTopDp = (HEIGHT_DP - COVER_DP) / 2f,
+            coverSizeDp = COVER_DP,
+            coverRadiusDp = COVER_RADIUS_DP,
+            textStartDp = textStart,
+            textEndDp = textEnd,
+        )
     }
 }

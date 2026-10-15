@@ -11,6 +11,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import com.cosmotune.design.CapsuleGeometry
 import com.cosmotune.settings.CosmoLookSettings
 import com.cosmotune.theme.CoverColors
 import com.cosmotune.theme.CoverPalette
@@ -103,8 +105,10 @@ class CosmoShellState internal constructor(val settings: CosmoLookSettings, dark
     var capsuleBounds by mutableStateOf<Rect?>(null)
 
     /**
-     * What the mini capsule shows (title, artist, the cover's address), set by the capsule while it is on screen: the
-     * overlay's travelling cover and text are copies of it. Null while there is no capsule.
+     * What the capsule shows (title, artist, the cover's address) and how it is built ([CapsuleLabel.geometry]: corner radius,
+     * cover inset, size and corner, where the words start and end), set by the capsule while it is on screen (the phone's mini
+     * player or the desktop's player bar): the overlay's card, travelling cover and travelling words are copies of it. Null while
+     * there is no capsule, which the overlay takes for the phone's.
      */
     internal var capsuleLabel by mutableStateOf<CapsuleLabel?>(null)
 
@@ -121,9 +125,20 @@ class CosmoShellState internal constructor(val settings: CosmoLookSettings, dark
     val playerSettled: Boolean get() = playerProgress.value >= 1f
 }
 
-/** The mini capsule's own words and picture, copied by the player overlay's morph. */
+/**
+ * The capsule's own words, picture and measurements, copied by the player overlay's morph. [geometry] is where the cover and the
+ * words sit and how round the corners are, so the first frames of the grow are the capsule whatever it is; [titleStyle] and
+ * [artistStyle] are the text styles the capsule draws its words in (null: the phone's).
+ */
 @Immutable
-internal data class CapsuleLabel(val title: String, val artist: String, val coverUrl: String?)
+internal data class CapsuleLabel(
+    val title: String,
+    val artist: String,
+    val coverUrl: String?,
+    val geometry: CapsuleGeometry = CapsuleGeometry.PHONE,
+    val titleStyle: TextStyle? = null,
+    val artistStyle: TextStyle? = null,
+)
 
 /** The palette of a cover with no colour: Cosmotune's own apricot (01-dynamic-colour.md section 3, rule 6). */
 object CosmoBrandPalettes {

@@ -30,11 +30,12 @@ class LandscapeMetricsTest {
     fun theTitleIsDisplayS() = assertEquals(TypeScale.DISPLAY_S, LandscapeMetrics.TITLE_STEP)
 
     @Test
-    fun landscapeIsWhatTheLayoutChooserCallsAWindowWiderThanTallAndNarrowerThanEightHundredFortyDp() {
+    fun landscapeIsWhatTheLayoutChooserCallsAWindowWiderThanTallThatIsNotWide() {
         assertEquals(NowPlayingLayout.LANDSCAPE, NowPlayingLayout.choose(780f, 360f))
         assertEquals(NowPlayingLayout.LANDSCAPE, NowPlayingLayout.choose(839f, 600f))
-        // the plan's rule, kept: from 840 dp wide a landscape window is the wide layout, a phone on its side included
+        // from 840 x 600 a landscape window is the wide desktop layout ...
         assertEquals(NowPlayingLayout.WIDE, NowPlayingLayout.choose(840f, 700f))
-        assertEquals(NowPlayingLayout.WIDE, NowPlayingLayout.choose(851f, 393f))
+        // ... but a phone on its side is not wide however wide it is: it is too short for the wide layout
+        assertEquals(NowPlayingLayout.LANDSCAPE, NowPlayingLayout.choose(851f, 393f))
     }
 }

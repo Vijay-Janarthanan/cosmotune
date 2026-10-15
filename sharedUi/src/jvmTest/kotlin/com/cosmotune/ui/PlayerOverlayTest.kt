@@ -19,6 +19,8 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import com.cosmotune.design.CapsuleGeometry
+import com.cosmotune.design.PlayerBarMetrics
 import com.cosmotune.settings.CosmoLookSettings
 import com.cosmotune.settings.KeyValueStore
 import com.cosmotune.ui.shell.CosmoPlayerOverlay
@@ -77,7 +79,16 @@ class PlayerOverlayTest {
             }
         }
         private var nanos = 0L
-        fun frames(n: Int) { repeat(n) { scene.render(nanos); nanos += 16_000_000L } }
+        private var shot: org.jetbrains.skia.Bitmap? = null
+        fun frames(n: Int) {
+            repeat(n) {
+                val image = scene.render(nanos)
+                shot = org.jetbrains.skia.Bitmap.makeFromImage(image)
+                nanos += 16_000_000L
+            }
+        }
+        /** The colour (ARGB) at ([x], [y]) of the last frame rendered. */
+        fun pixel(x: Int, y: Int): Int = checkNotNull(shot) { "no frame rendered yet" }.getColor(x, y)
         /** Renders frames until [done], at most [max]; returns the number of frames it took, or -1. */
         fun until(max: Int = 300, done: () -> Boolean): Int {
             repeat(max) { if (done()) return it; frames(1) }
@@ -228,6 +239,60 @@ class PlayerOverlayTest {
             assertFalse(h.shell.capsuleHidden)
             assertEquals(0, h.live)
         } finally { h.close() }
+    }
+
+    /**
+     * The first frames of the grow are the capsule it came out of, whichever capsule it is: its corners and its cover are the
+     * capsule's own. The capsule here is as big as the window, so the card has nowhere to grow to and what is left to see in
+     * the first frames is its corners and where its cover is; the player's cover is a 320 dp square elsewhere, so the travelling
+     * cover is a 48 dp one scaled up a little, and where it is says where it started: 8 dp in and down for the phone's capsule,
+     * 16 dp for the desktop's.
+     */
+    @Test fun theFirstFramesOfTheGrowTakeTheCornersAndTheCoverOfTheCapsuleThatSaysSo() {
+        val t = 0.03f
+        val desktop = PlayerBarMetrics.capsuleGeometry(PlayerBarMetrics.planFor(PlayerBarMetrics.Tier.FULL), 800f)
+        val target = Rect(100f, 60f, 420f, 380f)
+        val cornerAlpha = HashMap<String, Int>()
+        val coverLeft = HashMap<String, Int>()
+        for ((name, geometry) in listOf("phone" to CapsuleGeometry.PHONE, "desktop" to desktop)) {
+            val h = Harness(width = 800, height = 400)
+            try {
+                h.shell.capsuleBounds = Rect(0f, 0f, 800f, 400f)
+                h.shell.capsuleLabel = CapsuleLabel("A song", "An artist", null, geometry)
+                h.shell.playerCoverBounds = target
+                h.open = true
+                assertTrue(h.until(max = 20) { h.shell.capsuleHidden && h.progress > 0f } >= 0, "$name: the grow starts")
+                // The travelling cover is composed a frame after the card is up. Hold the grow at 3 % (one frame of the spring is
+                // more than that) so that it can be looked at.
+                h.frames(2)
+                kotlinx.coroutines.runBlocking { h.shell.playerProgress.snapTo(t) }
+                h.frames(1)
+                assertEquals(t, h.progress, 0f, "$name: held at the start of the grow")
+                val cover = h.shell.colors.palette.surfaceVariant
+                assertTrue(h.shell.colors.palette.backgroundBottom != cover, "the test can tell the ground from a cover")
+                // The pixel 3 dp in from the corner: a 22 dp superellipse corner just covers it, a 28 dp one leaves it empty.
+                cornerAlpha[name] = h.pixel(3, 3) ushr 24
+                // Where the cover is: the box of the pixels that are the cover's own colour (inside its rim and its rounded corners).
+                var minX = Int.MAX_VALUE; var minY = Int.MAX_VALUE; var maxX = -1; var maxY = -1
+                for (y in 0 until 200) for (x in 0 until 200) if (h.pixel(x, y) == cover) {
+                    minX = minOf(minX, x); minY = minOf(minY, y); maxX = maxOf(maxX, x); maxY = maxOf(maxY, y)
+                }
+                assertTrue(maxX > 0, "$name: the travelling cover is on screen")
+                // 320 dp laid out, drawn at 48 / 320 of that growing to 1: 56 dp at 3 %, from where the capsule's cover is to where the player's will be
+                val side = 320f * (48f / 320f + (1f - 48f / 320f) * t)
+                val x0 = geometry.coverInsetLeftDp + (target.left - geometry.coverInsetLeftDp) * t
+                val y0 = geometry.coverInsetTopDp + (target.top - geometry.coverInsetTopDp) * t
+                assertEquals(x0, minX.toFloat(), 3f, "$name: the cover's left edge")
+                assertEquals(y0, minY.toFloat(), 3f, "$name: the cover's top edge")
+                assertEquals(x0 + side, maxX.toFloat(), 3f, "$name: the cover's right edge")
+                assertEquals(y0 + side, maxY.toFloat(), 3f, "$name: the cover's bottom edge")
+                coverLeft[name] = minX
+            } finally { h.close() }
+        }
+        assertTrue(coverLeft.getValue("desktop") - coverLeft.getValue("phone") >= 6, "the bar's cover starts 8 dp further in than the phone capsule's: $coverLeft")
+        val phoneCorner = cornerAlpha.getValue("phone")
+        val barCorner = cornerAlpha.getValue("desktop")
+        assertTrue(phoneCorner - barCorner >= 80, "the bar's corners are rounder than the phone capsule's: the corner pixel is $barCorner against $phoneCorner")
     }
 
     @Test fun theProgressNeverLeavesZeroToOneAndEndsOnTheCapsuleWithoutASettle() = harness {

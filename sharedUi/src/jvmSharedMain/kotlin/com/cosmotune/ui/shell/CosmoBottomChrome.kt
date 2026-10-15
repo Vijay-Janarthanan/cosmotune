@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cosmotune.design.CapsuleGeometry
 import com.cosmotune.design.ShellMetrics
 import com.cosmotune.design.SliderMetrics
 import com.cosmotune.design.Springs
@@ -262,8 +263,12 @@ private fun MiniCapsule(
     val next = stringResource(Res.string.widget_next)
     val type = LocalCosmoType.current
 
-    // What the morph copies: published as a value, so an unchanged song writes nothing.
-    val label = remember(song.title, song.artist, coverUrl) { CapsuleLabel(song.title, song.artist, coverUrl) }
+    // What the morph copies: the words and the picture, and how this capsule is built (its corners, where the cover and the
+    // words sit, their styles: the phone's numbers, which the layout below is made of). Published as a value, so an unchanged song
+    // writes nothing.
+    val label = remember(song.title, song.artist, coverUrl, type) {
+        CapsuleLabel(song.title, song.artist, coverUrl, CapsuleGeometry.PHONE, capsuleTitleStyle(type.textFamily), capsuleArtistStyle(type.textFamily))
+    }
     if (shell != null) {
         SideEffect { shell.capsuleLabel = label }
         DisposableEffect(shell) { onDispose { shell.capsuleBounds = null; shell.capsuleLabel = null } }
@@ -307,9 +312,9 @@ private fun MiniCapsule(
                 if (played > 0f) drawRoundRect(ink, Offset(inset, top), Size(width * played, thickness), round)
             },
     ) {
-        Row(Modifier.fillMaxSize().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxSize().padding(CAPSULE_PADDING), verticalAlignment = Alignment.CenterVertically) {
             CoverImage(coverUrl, COVER_SIZE, CosmoRadii.coverMini, shadow = false)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(CAPSULE_COVER_GAP))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                 Text(song.title, style = capsuleTitleStyle(type.textFamily), color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(song.artist, style = capsuleArtistStyle(type.textFamily), color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -339,13 +344,14 @@ internal fun capsuleArtistStyle(family: FontFamily) =
     TextStyle(fontFamily = family, fontSize = 13.sp, lineHeight = 16.sp)
 
 /** The capsule's cover: 48 dp. */
-internal val COVER_SIZE = 48.dp
+internal val COVER_SIZE = CapsuleGeometry.PHONE.coverSizeDp.dp
 
-/** Where the capsule's text starts, from its left edge: 8 dp of padding, the 48 dp cover and a 12 dp gap. */
-internal val CAPSULE_TEXT_START = 8.dp + COVER_SIZE + 12.dp
-
-/** What the capsule keeps to the right of its text: next (48 dp with its touch target), 8 dp, play (48 dp) and 8 dp of padding. */
-internal val CAPSULE_TEXT_END = 48.dp + 8.dp + 48.dp + 8.dp
+/**
+ * The capsule's padding (the cover's inset from the left, top and bottom edges) and the gap between the cover and the words:
+ * [CapsuleGeometry.PHONE]'s numbers, which the morph starts from, so the layout and what it says about itself cannot part.
+ */
+private val CAPSULE_PADDING = CapsuleGeometry.PHONE.coverInsetLeftDp.dp
+private val CAPSULE_COVER_GAP = (CapsuleGeometry.PHONE.textStartDp - CapsuleGeometry.PHONE.coverInsetLeftDp - CapsuleGeometry.PHONE.coverSizeDp).dp
 
 private val PROGRESS_INSET = 18.dp
 private val PROGRESS_BOTTOM = 4.dp

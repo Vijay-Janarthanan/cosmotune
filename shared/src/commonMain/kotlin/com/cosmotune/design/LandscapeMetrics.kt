@@ -4,8 +4,9 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The landscape Now Playing (a window wider than tall and narrower than [NowPlayingLayout.WIDE_MIN_DP]): two panes, the media
- * on the left and the controls on the right. Pure numbers and the one decision made from them; the Compose side draws them.
+ * The landscape Now Playing (a window wider than tall that is not wide: narrower than [NowPlayingLayout.WIDE_MIN_DP] or shorter
+ * than [NowPlayingLayout.WIDE_MIN_HEIGHT_DP], which is every phone on its side): two panes, the media on the left and the controls on
+ * the right. Pure numbers and the one decision made from them; the Compose side draws them.
  */
 object LandscapeMetrics {
     /** The left pane is half the window. */

@@ -42,8 +42,8 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
 /**
- * Now Playing in a window that is wider than tall and narrower than [com.cosmotune.design.NowPlayingLayout.WIDE_MIN_DP]
- * (a phone on its side, a small tablet): two panes, side by side, half the window each ([LandscapeMetrics.MEDIA_FRACTION]).
+ * Now Playing in a window that is wider than tall and not wide ([com.cosmotune.design.NowPlayingLayout.choose]: narrower than 840 dp
+ * or shorter than 600 dp; a phone on its side, a small tablet): two panes, side by side, half the window each ([LandscapeMetrics.MEDIA_FRACTION]).
  * On the left the media ([media]: the video, or the cover, as big as the pane allows), on the right a column: [topBar], then
  * [controls], which is where the title, the lyrics or the queue, the scrubber, the transport and the tools go.
  *

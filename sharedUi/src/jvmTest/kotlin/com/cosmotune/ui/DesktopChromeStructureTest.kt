@@ -58,18 +58,20 @@ class DesktopChromeStructureTest {
             listOf(
                 "song", "isPlaying", "isLoading", "position", "durationMs", "liked", "shuffle", "repeatMode", "controlsLocked", "lyricsOn",
                 "queueOn", "onPlayPause", "onPrevious", "onNext", "onToggleShuffle", "onCycleRepeat", "onToggleLike", "onSeekFraction",
-                "onLyrics", "onQueue", "onOutput", "onExpand", "onBlockedControl", "hazeState", "modifier", "volumeLabel",
+                "onLyrics", "onQueue", "onOutput", "onExpand", "onBlockedControl", "hazeState", "modifier", "volumeLabel", "embedded",
             ),
             parameterNames(signature(bar, "CosmoPlayerBar")),
         )
-        assertTrue("volumeLabel: String? = null" in bar, "the one parameter beyond the brief has a default, so a call written to the brief still compiles")
+        assertTrue("volumeLabel: String? = null" in bar && "embedded: Boolean = false" in bar, "the two parameters beyond the brief have defaults, so a call written to the brief still compiles")
     }
 
     @Test fun thePlayerBarReportsWhereItIsAndGoesInvisibleWhileThePlayerStandsInItsPlace() {
         val text = bar
         assertTrue("capsuleBounds = it.boundsInRoot()" in text, "bounds are reported in root coordinates, for the player to grow from")
-        assertTrue("drawWithContent { if (shell?.capsuleHidden != true) drawContent() }" in text, "not drawn while hidden, decided in the draw phase like the overlay's card")
-        assertTrue("shell.capsuleLabel = label" in text && "shell.capsuleBounds = null; shell.capsuleLabel = null" in text, "what the morph copies is published and withdrawn with the bar")
+        assertTrue("drawWithContent { if (capsuleShell?.capsuleHidden != true) drawContent() }" in text, "not drawn while hidden, decided in the draw phase like the overlay's card")
+        assertTrue("capsuleShell.capsuleLabel = label" in text && "capsuleShell.capsuleBounds = null; capsuleShell.capsuleLabel = null" in text, "what the morph copies is published and withdrawn with the bar")
+        // The bar inside the open player is not the capsule: it has no shell to report to, so it never moves the capsule's bounds or hides itself.
+        assertTrue("val capsuleShell = if (embedded) null else shell" in text, "an embedded bar reports nothing and is never hidden")
     }
 
     @Test fun thePlayerBarIsGlassWithTheBoardsShapeAndHeight() {
@@ -196,11 +198,13 @@ class DesktopChromeStructureTest {
 
     @Test fun theSheetHandsTheNewLookToTheSharedOverlayAndKeepsItsOwnBodyForTheOldOne() {
         val text = sheet
-        val first = text.indexOf("com.cosmotune.ui.theme.LocalCosmoShell.current?.let { shell -> com.cosmotune.ui.shell.CosmoPlayerOverlay(visible, onDismiss, shell, content = content); return }")
+        val first = text.indexOf("com.cosmotune.ui.theme.LocalCosmoShell.current?.let { shell ->\n        com.cosmotune.ui.shell.CosmoPlayerOverlay(visible, onDismiss, shell) { w, h ->")
         assertTrue(first >= 0, "the first statement of the sheet hands over to the overlay")
+        assertTrue("LocalPlayerVolumeLabel provides DesktopStrings[\"d_volume\", \"Volume\"]) { content(w, h) }" in text, "the player's own bar names its volume bar in the desktop's words")
+        assertTrue(text.indexOf("return\n    }", first) in first until text.indexOf("var mounted by remember"), "and the sheet returns before its old body")
         val body = text.indexOf("var mounted by remember { mutableStateOf(visible) }")
         assertTrue(body > first, "the old body follows")
         assertEquals(1, Regex("""fun DesktopPlayerSheet\(""").findAll(text).count())
-        assertTrue(text.substring(text.indexOf("fun DesktopPlayerSheet("), first).count { it == '\n' } < 8, "it is the first statement of the function")
+        assertTrue(text.substring(text.indexOf("fun DesktopPlayerSheet("), first).count { it == '\n' } < 10, "it is the first statement of the function")
     }
 }

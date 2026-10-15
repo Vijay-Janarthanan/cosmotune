@@ -124,16 +124,51 @@ class NowPlayingMetricsTest {
     fun aPhoneOnItsSideIsLandscape() = assertEquals(NowPlayingLayout.LANDSCAPE, NowPlayingLayout.choose(780f, 360f))
 
     @Test
-    fun aWideWindowIsWide() = assertEquals(NowPlayingLayout.WIDE, NowPlayingLayout.choose(1200f, 800f))
+    fun aDesktopWindowIsWide() {
+        assertEquals(NowPlayingLayout.WIDE, NowPlayingLayout.choose(1280f, 800f))
+        assertEquals(NowPlayingLayout.WIDE, NowPlayingLayout.choose(1440f, 900f))
+        // the desktop's own smallest window (Main.kt: 900 x 600 dp) is wide, never landscape
+        assertEquals(NowPlayingLayout.WIDE, NowPlayingLayout.choose(900f, 600f))
+    }
 
     @Test
-    fun theWideLayoutNeedsEightHundredFortyDpAndLandscapeProportions() {
+    fun aBigPhoneOnItsSideIsLandscapeNotWide() {
+        // 851 x 393 and 960 x 412 are phones on their side (6.7 and 7.6 inch screens): wider than 840 dp, nowhere near tall enough
+        assertEquals(NowPlayingLayout.LANDSCAPE, NowPlayingLayout.choose(851f, 393f))
+        assertEquals(NowPlayingLayout.LANDSCAPE, NowPlayingLayout.choose(960f, 412f))
+        // a wide strip of a desktop window too
+        assertEquals(NowPlayingLayout.LANDSCAPE, NowPlayingLayout.choose(1920f, 500f))
+    }
+
+    @Test
+    fun aTallNarrowWindowIsPortraitWhateverItsHeight() {
+        assertEquals(NowPlayingLayout.PORTRAIT, NowPlayingLayout.choose(500f, 1000f))
+        assertEquals(NowPlayingLayout.PORTRAIT, NowPlayingLayout.choose(400f, 1400f))
+        assertEquals(NowPlayingLayout.PORTRAIT, NowPlayingLayout.choose(390f, 844f))
+    }
+
+    @Test
+    fun theWideLayoutNeedsEightHundredFortyByASixHundredAndLandscapeProportions() {
+        assertEquals(840f, NowPlayingLayout.WIDE_MIN_DP, 0f)
+        assertEquals(600f, NowPlayingLayout.WIDE_MIN_HEIGHT_DP, 0f)
         assertEquals(NowPlayingLayout.WIDE, NowPlayingLayout.choose(840f, 600f))
+        // one dp short in either direction is landscape
         assertEquals(NowPlayingLayout.LANDSCAPE, NowPlayingLayout.choose(839f, 600f))
+        assertEquals(NowPlayingLayout.LANDSCAPE, NowPlayingLayout.choose(840f, 599f))
         // tall and wide: still portrait
         assertEquals(NowPlayingLayout.PORTRAIT, NowPlayingLayout.choose(900f, 1200f))
         // square counts as portrait: the width has to be larger
         assertEquals(NowPlayingLayout.PORTRAIT, NowPlayingLayout.choose(700f, 700f))
+        assertEquals(NowPlayingLayout.PORTRAIT, NowPlayingLayout.choose(1000f, 1000f))
+    }
+
+    @Test
+    fun theWideFloorIsWhatTheWideLayoutNeedsAndTheDesktopWindowNeverGoesBelowIt() {
+        // the layout's fixed heights: the video card starts 96 dp down and the player bar takes 100 dp at the foot, so at the
+        // floor the card is still 404 dp tall (more than half of the board's 704) and the lyrics have 342 dp
+        val plan = WideNowPlayingMetrics.plan(NowPlayingLayout.WIDE_MIN_DP, NowPlayingLayout.WIDE_MIN_HEIGHT_DP)
+        assertTrue(plan.video.height >= 400f, "a video card at the floor: ${plan.video}")
+        assertTrue(plan.lyrics.height >= 340f, "lyrics at the floor: ${plan.lyrics}")
     }
 
     // ---- the glow and the stack ------------------------------------------------------------------------------------
