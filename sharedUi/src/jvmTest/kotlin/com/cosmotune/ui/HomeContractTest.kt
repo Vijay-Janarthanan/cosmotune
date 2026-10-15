@@ -96,7 +96,8 @@ class HomeContractTest {
         val at = src.indexOf("val homeWantsExplore =")
         assertTrue(at >= 0, "the extra loader exists")
         val block = src.substring(at, src.indexOf("LaunchedEffect(exploreState)", at))
-        assertTrue("destination == DesktopDestination.LISTEN_NOW" in block, "only on Listen now")
+        assertTrue("destination == DesktopDestination.LISTEN_NOW" in block && "destination == DesktopDestination.SEARCH" in block, "only on Listen now and on Search (its mood grid)")
+        assertTrue("LaunchedEffect(exploreReloads) {" in block && "if (exploreReloads > 0 && homeWantsExplore) loadExplore()" in block, "Retry from either page reloads")
         assertTrue("rememberCosmoLookSettings().newLook" in block, "only while the new look is on: with it off the app loads what it loaded before")
         assertTrue("if (homeWantsExplore && exploreState is UiState.Loading) loadExplore()" in block, "once, while Explore has not arrived")
         // the original loader is as it was
