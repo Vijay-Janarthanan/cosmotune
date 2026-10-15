@@ -3701,6 +3701,15 @@ private fun BitChordApp(
                             // [TopBarDownloadButton], which decides that for
                             // itself rather than being told.
                             TopBarDownloadButton(onClick = { showDownloadManager = true })
+                            // A drawer entry must also leave the pages that are drawn instead of the tab (History, a Library "Show all",
+                            // Discord, Spotify): the root shows one page by the order of its `when`, so without this the entry would only
+                            // close the drawer.
+                            val leavePages = {
+                                showHistory = false
+                                libraryShowAll = null
+                                showDiscord = false
+                                showSpotify = false
+                            }
                             com.cosmotune.ui.chrome.ProfileButtonSwitch(
                                 account = account,
                                 onClick = {
@@ -3718,6 +3727,7 @@ private fun BitChordApp(
                                         icon = CosmoIcons.Replay,
                                         label = stringResource(R.string.replay),
                                         onClick = {
+                                            leavePages()
                                             replayLandingPage = ReplayStoryPage.INTRO
                                             showReplay = true
                                         },
@@ -3726,6 +3736,7 @@ private fun BitChordApp(
                                         icon = CosmoIcons.Together,
                                         label = stringResource(R.string.listen_together),
                                         onClick = {
+                                            leavePages()
                                             showSettings = true
                                             showListenTogether = true
                                         },
@@ -3734,6 +3745,7 @@ private fun BitChordApp(
                                         icon = CosmoIcons.Download,
                                         label = stringResource(R.string.downloads),
                                         onClick = {
+                                            leavePages()
                                             onLibraryItemClick(
                                                 ShelfItem(
                                                     title = context.getString(R.string.downloads),
@@ -3749,6 +3761,7 @@ private fun BitChordApp(
                                         icon = CosmoIcons.Equaliser,
                                         label = stringResource(R.string.equalizer),
                                         onClick = {
+                                            leavePages()
                                             showSettings = true
                                             settingsSubScreen = "equalizer"
                                             showEqualizer = true
@@ -3757,7 +3770,10 @@ private fun BitChordApp(
                                     com.cosmotune.ui.chrome.CosmoDrawerEntry(
                                         icon = CosmoIcons.Settings,
                                         label = stringResource(R.string.settings),
-                                        onClick = { showSettings = true },
+                                        onClick = {
+                                            leavePages()
+                                            showSettings = true
+                                        },
                                     ),
                                 ),
                             )

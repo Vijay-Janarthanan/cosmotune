@@ -32,7 +32,7 @@ fun ProfileButtonSwitch(
         CosmoProfileButton(
             avatarUrl = account?.thumbnailUrl,
             name = account?.name ?: stringResource(R.string.sign_in),
-            subtitle = account?.email,
+            subtitle = account?.email?.takeIf { it.isNotBlank() },
             entries = entries,
             onAccount = onClick,
             modifier = modifier,
