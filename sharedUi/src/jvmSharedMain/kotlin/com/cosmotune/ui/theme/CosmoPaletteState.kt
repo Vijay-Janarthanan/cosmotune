@@ -73,6 +73,8 @@ class CosmoPaletteState(initial: CoverColors, dark: Boolean) {
 class CosmoColors internal constructor(private val state: CosmoPaletteState) {
     val palette: CoverColors get() = state.target
     fun live(field: Int): Color = Color(state.liveArgb(field))
+    /** Whether the theme the palette is heading for is the dark one (for the grain opacity). */
+    val dark: Boolean get() = state.targetDark
 }
 
 @Stable

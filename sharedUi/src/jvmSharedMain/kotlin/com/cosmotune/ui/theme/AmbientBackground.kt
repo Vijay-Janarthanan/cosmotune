@@ -30,6 +30,7 @@ fun DrawScope.drawEllipseGlow(stops: Array<Pair<Float, Color>>, cx: Float, cy: F
 @Composable
 fun Modifier.cosmoAmbientGround(): Modifier {
     val colors = LocalCosmoColors.current
+    val grain = rememberGrainBrush()
     return drawWithCache {
         // Live colours are read here, so the cache is rebuilt only while a fade runs.
         val ambient = colors.live(CoverField.AMBIENT)
@@ -43,6 +44,7 @@ fun Modifier.cosmoAmbientGround(): Modifier {
             drawRect(linear)
             drawEllipseGlow(glowA, 0.18f * size.width, -0.04f * size.height, 0.85f * size.width, 0.48f * size.height)
             drawEllipseGlow(glowB, 1.05f * size.width, 0.38f * size.height, 0.60f * size.width, 0.40f * size.height)
+            drawGrain(grain, colors.dark)
         }
     }
 }
