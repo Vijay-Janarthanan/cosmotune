@@ -1,6 +1,7 @@
 package com.cosmotune.ui
 
 import androidx.compose.runtime.MonotonicFrameClock
+import androidx.compose.runtime.snapshots.Snapshot
 import com.cosmotune.theme.CoverColors
 import com.cosmotune.theme.CoverField
 import com.cosmotune.theme.CoverPalette
@@ -56,6 +57,22 @@ class CosmoPaletteStateTest {
         assertTrue(targets.isNotEmpty() && targets.all { it == red }, "the target (and the Material scheme) changed before the first frame and never again")
         assertTrue(grounds.distinct().size > 10, "the ground moved over many frames")
         assertEquals(red.backgroundTop, state.liveArgb(CoverField.BACKGROUND_TOP))
+    }
+
+    @Test fun aPaletteThatSnapsInStillInvalidatesWhatReadTheGround() = runBlocking {
+        val green = solid(0xFF466044.toInt()); val red = solid(0xFFD4552E.toInt())
+        val state = CosmoPaletteState(green, dark = true)
+        val read = mutableSetOf<Any>()
+        val snapshot = Snapshot.takeSnapshot(readObserver = { read += it })
+        snapshot.enter { state.liveArgb(CoverField.BACKGROUND_TOP) }   // what a drawWithCache lambda reads
+        snapshot.dispose()
+        val changed = mutableSetOf<Any>()
+        val handle = Snapshot.registerApplyObserver { objects, _ -> changed.addAll(objects) }
+        try {
+            withContext(NoFrameClock()) { state.show(red, dark = true, reducedMotion = false, animate = false) }
+            Snapshot.sendApplyNotifications()
+        } finally { handle.dispose() }
+        assertTrue(read.any { it in changed }, "the ground's draw cache is told the palette changed even though no fade ran")
     }
 
     @Test fun theFadeStartsFromTheOldColourAndNeverJumps() = runBlocking {

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
@@ -32,8 +33,14 @@ class CosmoPaletteState(initial: CoverColors, dark: Boolean) {
     private val blend = PaletteBlend(initial.toFieldArray())
     private val progress = Animatable(1f)
 
+    /** Bumped whenever the blend is retargeted, so a palette that snaps in (no fade, [progress] unchanged) still invalidates draw caches. */
+    private var retargets by mutableIntStateOf(0)
+
     /** The colour of [field] (a [com.cosmotune.theme.CoverField] index) on screen now. Read it only in draw-phase lambdas. */
-    fun liveArgb(field: Int): Int = blend.argbAt(field, progress.value)
+    fun liveArgb(field: Int): Int {
+        retargets   // read for its invalidation only
+        return blend.argbAt(field, progress.value)
+    }
 
     /**
      * Heads for [next]. With [animate] false (the first cover after launch, a theme flip) it is there at once, with no frame
@@ -43,7 +50,8 @@ class CosmoPaletteState(initial: CoverColors, dark: Boolean) {
     suspend fun show(next: CoverColors, dark: Boolean, reducedMotion: Boolean, animate: Boolean) {
         if (next == target && dark == targetDark) return finishFade(reducedMotion, animate)
         blend.retarget(next.toFieldArray(), progress.value)   // from the blend on screen, also mid-fade
-        target = next                                         // once, before the first frame: text, icons, Material
+        retargets++
+        target = next                                        // once, before the first frame: text, icons, Material
         targetDark = dark
         if (!animate) { progress.snapTo(1f); return }         // no frame is needed (and none is waited for)
         progress.snapTo(0f)
