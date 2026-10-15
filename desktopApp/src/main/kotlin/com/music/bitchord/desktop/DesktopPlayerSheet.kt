@@ -47,6 +47,8 @@ internal fun DesktopPlayerSheet(
     onDismiss: () -> Unit,
     content: @Composable BoxScope.(windowWidth: Dp, windowHeight: Dp) -> Unit,
 ) {
+    // The new look: the player is the shared overlay that grows out of the player bar, not this sheet.
+    com.cosmotune.ui.theme.LocalCosmoShell.current?.let { shell -> com.cosmotune.ui.shell.CosmoPlayerOverlay(visible, onDismiss, shell, content = content); return }
     // Mounted while it animates out, so the slide down is seen.
     var mounted by remember { mutableStateOf(visible) }
     if (visible) mounted = true
