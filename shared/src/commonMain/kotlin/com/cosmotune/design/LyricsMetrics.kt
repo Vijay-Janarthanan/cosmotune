@@ -95,6 +95,93 @@ object LyricsMetrics {
         return (listWidthPx / scale).roundToInt()
     }
 
+    /**
+     * The width in px a line is laid out at when a lane of [laneWidthPx] is kept clear on its far side (a duet): what is left of the
+     * list after the lane, divided by the largest scale, so that a line drawn at that scale fills what is left and no more.
+     */
+    fun layoutWidthPx(listWidthPx: Int, laneWidthPx: Int, currentScale: Float): Int =
+        layoutWidthPx((listWidthPx - laneWidthPx).coerceAtLeast(0), currentScale)
+
+    /**
+     * Which way along the line a scale grows from, as a fraction of its width: 0 for the left edge and 1 for the right. A line
+     * sung from the [onEnd] side grows from the edge the reader's eye finds it by, the end edge of the reading direction (the
+     * right in a left-to-right layout, the left in a right-to-left one); every other line from its start edge.
+     */
+    fun originFraction(onEnd: Boolean, rtl: Boolean): Float = if (onEnd != rtl) 1f else 0f
+
+    /** Where a line laid out [contentWidthPx] wide goes in a list [listWidthPx] wide, counted from the start edge: against the end edge when [onEnd]. */
+    fun placeOffsetPx(listWidthPx: Int, contentWidthPx: Int, onEnd: Boolean): Int =
+        if (onEnd) (listWidthPx - contentWidthPx).coerceAtLeast(0) else 0
+
+    /** The state of a line with [active] set: a line that is still being sung while a later one has begun (an overlapping voice) is current whatever its index. */
+    fun lineState(index: Int, current: Int, active: Boolean): LineState =
+        if (active) LineState.CURRENT else lineState(index, current)
+
+    // ---- duets ---------------------------------------------------------------------------------------------------------------
+
+    /** The lane kept clear on the far side of a duet line (the old panel's `DUET_LANE`): each voice keeps its own column. */
+    const val DUET_LANE_DP = 44f
+
+    // ---- the background voice ---------------------------------------------------------------------------------------------------
+
+    /** The answering voice is drawn at this strength (the old `BACKING_ALPHA`): a shade behind the lead, and behind a line still to come. */
+    const val BACKING_ALPHA = 0.72f
+
+    /** It opens this long before its first word, so that its words have faded in by the time the fill reaches them. */
+    const val BACKING_LEAD_MS = 250L
+
+    /** It comes in from this scale and this many dp below its place, and its words are fully there when the room is `1 / BACKING_FADE_LEAD` open. */
+    const val BACKING_REST_SCALE = 0.94f
+    const val BACKING_RISE_DP = 6f
+    const val BACKING_FADE_LEAD = 1.6f
+
+    /** The step the answering voice is set at: two below the line's, and never below title-s. */
+    fun backingStep(baseStep: Int): Int = (baseStep - 2).coerceAtLeast(TypeScale.TITLE_S)
+
+    /** The opacity factor of the answering voice at [open] (0 shut, 1 open): ahead of the room being made. */
+    fun backingFade(open: Float): Float = (open * BACKING_FADE_LEAD).coerceIn(0f, 1f)
+
+    /** The scale of the answering voice at [open]. */
+    fun backingScale(open: Float): Float = BACKING_REST_SCALE + (1f - BACKING_REST_SCALE) * open.coerceIn(0f, 1f)
+
+    /** How far below its place, in dp, the answering voice is at [open]. */
+    fun backingRiseDp(open: Float): Float = BACKING_RISE_DP * (1f - open.coerceIn(0f, 1f))
+
+    /** The translation under an answering voice: smaller than the one under a lead. */
+    const val SUB_BACKING_SIZE_SP = 12f
+
+    // ---- the romanisation or translation opening under a line -----------------------------------------------------------------------
+
+    /** The height of a sub-line [naturalPx] tall that is [open] of the way open (a spring may overshoot: never taller than it is). */
+    fun subRevealHeightPx(naturalPx: Int, open: Float): Int = (naturalPx * open.coerceIn(0f, 1f)).roundToInt()
+
+    /** How far up (negative) the words are, behind the line above, at [open]: 0.6 of their height when shut. */
+    fun subRevealShiftPx(naturalPx: Int, open: Float): Float = -naturalPx * (1f - open.coerceIn(0f, 1f)) * 0.6f
+
+    /** The words fade up as the room opens, slowly at first. */
+    fun subRevealAlpha(open: Float): Float = open.coerceIn(0f, 1f).let { it * it }
+
+    /** A line under a finger dips to this much of its size, the way a button does (the old panel's `PRESSED_SCALE`); with reduced motion it stays. */
+    const val PRESSED_SCALE = 0.96f
+
+    fun pressedScale(pressed: Boolean, reducedMotion: Boolean): Float = if (pressed && !reducedMotion) PRESSED_SCALE else 1f
+
+    // ---- the word effects --------------------------------------------------------------------------------------------------------
+
+    /** The leading edge of the fill fades out over this much instead of ending on a cut (the old `WIPE_FEATHER`). */
+    const val WIPE_FEATHER_DP = 30f
+
+    /** How far the word being sung lifts off the line: two dp (the old `WORD_RISE`). */
+    const val WORD_RISE_DP = 2f
+
+    /** The bloom behind a held note: its strongest strength, its spread, and the room kept round the line for it to spread into. */
+    const val GLOW_ALPHA = 0.62f
+    const val GLOW_RADIUS_DP = 6f
+    const val GLOW_ROOM_DP = 10f
+
+    /** The feather's width while the fill is [availablePx] long: squeezed when the fill is shorter than the feather, never negative. */
+    fun featherWidthPx(featherPx: Float, availablePx: Float): Float = minOf(featherPx, availablePx).coerceAtLeast(0f)
+
     /** `animateScrollToItem`'s offset that leaves the item one third of the list's height from the top (a negative offset moves it down). */
     fun followOffsetPx(viewportHeightPx: Int): Int = -(viewportHeightPx / ANCHOR_DIVISOR)
 

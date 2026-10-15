@@ -41,7 +41,8 @@ class NowPlayingPanelsContractTest {
 
     @Test fun theLineBeingSungIsFilledByAClippedAccentCopyOfTheSameText() {
         val src = code(nowPlaying("CosmoLyricsView.kt"))
-        assertTrue(src.contains(".drawWithContent { sweepFill(layoutRef.value, SungFraction.of(lines, index, clock.longValue)) }"))
+        // a line stamped only at its start fills over its slot; one with word timings fills a word at a time (LyricsParityContractTest)
+        assertTrue(src.contains("sweepFill(layoutRef.value, SungFraction.of(env.lines, index, env.clock.longValue))"))
         assertTrue(src.contains("clipRect("), "the copy is clipped")
         assertTrue(src.contains("accent = Color(palette.accentStrong)"), "the copy is accentStrong")
         assertTrue(src.contains("primary = Color(palette.textPrimary)"), "under it the line is textPrimary")
@@ -50,19 +51,19 @@ class NowPlayingPanelsContractTest {
 
     @Test fun theClockIsReadOnlyInADerivedStateAndInDrawLambdas() {
         val src = code(nowPlaying("CosmoLyricsView.kt"))
-        val reads = Regex("""clock\.longValue""").findAll(src).map { it.range.first }.toList()
-        assertEquals(3, reads.size, "the current line, the sweep, the dots of an instrumental")
-        fun lineOf(at: Int) = src.substring(src.lastIndexOf('\n', at) + 1, src.indexOf('\n', at))
-        assertTrue(lineOf(reads[0]).contains("derivedStateOf { if (synced) currentLineAt(lines, clock.longValue) else -1 }"), "the current line is a derived state")
-        assertTrue(lineOf(reads[1]).contains("drawWithContent"), "the sweep reads it while drawing")
-        assertTrue(src.lastIndexOf(".drawBehind {", reads[2]) > src.indexOf("private fun GapDots("), "the dots read it while drawing")
-        assertTrue(src.indexOf("if (opened <= 0f) return@drawBehind") in src.lastIndexOf(".drawBehind {", reads[2])..reads[2], "a closed break does not read the clock")
+        val reads = LyricSourceRules.readsOf(src, "clock.longValue")
+        assertTrue(reads.isNotEmpty())
+        // the current line, the sweep, the lift, the dots of an instrumental: each in a derived state or a draw lambda, never in composition
+        for (at in reads) assertTrue(LyricSourceRules.readsInDrawOrDerived(src, at), "composition reads the clock at offset $at")
+        assertTrue(src.contains("derivedStateOf { if (synced) currentLineAt(lines, clock.longValue) else -1 }"), "the current line is a derived state")
+        assertTrue(src.lastIndexOf(".drawBehind {", src.indexOf("val through = ((clock.longValue")) > src.indexOf("private fun GapDots("), "the dots read it while drawing")
+        assertTrue(src.indexOf("if (opened <= 0f) return@drawBehind") in src.lastIndexOf(".drawBehind {", src.indexOf("val through = ((clock.longValue"))..src.indexOf("val through = ((clock.longValue"), "a closed break does not read the clock")
     }
 
     @Test fun aScaleIsALayerNeverAFontSize() {
         val src = code(nowPlaying("CosmoLyricsView.kt"))
         assertTrue(src.contains("scaleX = k") && src.contains("scaleY = k"), "the scale is drawn by a graphics layer")
-        assertTrue(src.contains("TransformOrigin(if (rtl) 1f else 0f, 0.5f)"), "from the start edge")
+        assertTrue(src.contains("TransformOrigin(LyricsMetrics.originFraction(onEnd, env.rtl), 0.5f)"), "from the edge the line is written from: the start edge, or the end edge of a duet's second voice")
         assertTrue(src.contains("CosmoMotion.slow(reduced)"), "on the slow spring")
         // the one font size set in the file is the romanisation's
         val sizes = Regex("""fontSize\s*=\s*[^,)\n]+""").findAll(src).map { it.value.replace(Regex("\\s+"), " ") }.toList()
@@ -71,7 +72,7 @@ class NowPlayingPanelsContractTest {
 
     @Test fun everyLineIsLaidOutOnceAtAWidthThatLeavesRoomForItsLargestScale() {
         val src = code(nowPlaying("CosmoLyricsView.kt"))
-        assertTrue(src.contains("LyricsMetrics.layoutWidthPx(constraints.maxWidth, style.currentScale)"))
+        assertTrue(src.contains("LyricsMetrics.layoutWidthPx(constraints.maxWidth, lanePx, env.style.currentScale)"), "what is left after a duet's lane, over the largest scale")
         assertTrue(src.contains("type.title(style.baseStep)"), "title(baseStep), the same text for every state")
     }
 
@@ -86,7 +87,7 @@ class NowPlayingPanelsContractTest {
 
     @Test fun aTapOnALineSeeksAndNoLyricsAreSaidInTheMiddle() {
         val src = code(nowPlaying("CosmoLyricsView.kt"))
-        assertTrue(src.contains("onSeekToLine(line.timeMs)"))
+        assertTrue(src.contains("LyricRows.OnTap.SEEK -> env.onSeek(line.timeMs)"))
         assertTrue(src.contains("emptyText: String = stringResource(Res.string.lyrics_not_available)"))
         assertTrue(src.contains("contentAlignment = Alignment.Center"))
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
