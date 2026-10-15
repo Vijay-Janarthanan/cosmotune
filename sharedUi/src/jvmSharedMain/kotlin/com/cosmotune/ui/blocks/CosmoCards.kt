@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +34,7 @@ import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
+import com.music.bitchord.ui.components.LocalShelfRowChrome
 import com.music.bitchord.data.model.ShelfItem
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.ui.components.contextClick
@@ -149,23 +151,29 @@ fun CosmoShelf(
             subtitle = localizeShelfSubtitle(subtitle.orEmpty()).takeIf { it.isNotBlank() },
             onShowAll = onShowAll,
         )
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
-            horizontalArrangement = Arrangement.spacedBy(CosmoSpacing.gutter),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            itemsIndexed(items, key = { index, item -> shelfKey(item, index) }) { index, item ->
-                val width = cardWidth ?: if (leadFirst && index == 0) BlockMetrics.LEAD_CARD_DP.dp else BlockMetrics.SMALL_CARD_DP.dp
-                CosmoCard(
-                    title = item.title,
-                    imageUrl = item.thumbnailUrl,
-                    onClick = { onItemClick(item) },
-                    subtitle = item.subtitle.takeIf { it.isNotBlank() }?.let { localizeCardSubtitle(it) },
-                    width = width,
-                    circle = circles,
-                    onLongPress = onItemLongPress?.let { held -> { held(item) } },
-                    playing = isPlaying && item.isSong(currentSong),
-                )
+        // The row is wrapped in the platform's shelf chrome (the desktop's hover arrows, drag and wheel) exactly as the old
+        // `ShelfRow` does; `ShelfRow` itself has no `verticalAlignment`, and the lead card is taller than the others.
+        val rowState = rememberLazyListState()
+        LocalShelfRowChrome.current.Wrap(rowState) {
+            LazyRow(
+                state = rowState,
+                contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
+                horizontalArrangement = Arrangement.spacedBy(CosmoSpacing.gutter),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                itemsIndexed(items, key = { index, item -> shelfKey(item, index) }) { index, item ->
+                    val width = cardWidth ?: if (leadFirst && index == 0) BlockMetrics.LEAD_CARD_DP.dp else BlockMetrics.SMALL_CARD_DP.dp
+                    CosmoCard(
+                        title = item.title,
+                        imageUrl = item.thumbnailUrl,
+                        onClick = { onItemClick(item) },
+                        subtitle = item.subtitle.takeIf { it.isNotBlank() }?.let { localizeCardSubtitle(it) },
+                        width = width,
+                        circle = circles,
+                        onLongPress = onItemLongPress?.let { held -> { held(item) } },
+                        playing = isPlaying && item.isSong(currentSong),
+                    )
+                }
             }
         }
     }
