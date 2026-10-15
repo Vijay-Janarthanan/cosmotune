@@ -3419,14 +3419,14 @@ private fun BitChordApp(
                     }
                 }
                 BottomFadeScrim(
-                    pageColor = if (cosmoShell != null && !isDetailVisible) Color(cosmoShell.colors.palette.backgroundTop) else chromePageColor,
+                    pageColor = if (cosmoShell != null) Color(cosmoShell.colors.palette.backgroundTop) else chromePageColor,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .rotate(180f)
                         .graphicsLayer { alpha = topFadeAlpha },
                 )
 
-                FrostedTopBar(
+                com.cosmotune.ui.chrome.TopBarSwitch(
                     title = when {
                         showSpotify && detail == null -> stringResource(R.string.spotify)
                         showDiscord -> "Discord"
@@ -3701,7 +3701,7 @@ private fun BitChordApp(
                             // [TopBarDownloadButton], which decides that for
                             // itself rather than being told.
                             TopBarDownloadButton(onClick = { showDownloadManager = true })
-                            TopBarAccountButton(
+                            com.cosmotune.ui.chrome.ProfileButtonSwitch(
                                 account = account,
                                 onClick = {
                                     if (signedIn) {
@@ -3710,13 +3710,63 @@ private fun BitChordApp(
                                     } else showSettings = true
                                 },
                                 onSwipeProfile = { forward -> viewModel.stepProfile(forward) },
+                                // The new look's profile drawer: each entry repeats what the root already does for the same
+                                // page elsewhere (Replay and Downloads from Library, Listen together from the player, the
+                                // equaliser from Settings).
+                                entries = listOf(
+                                    com.cosmotune.ui.chrome.CosmoDrawerEntry(
+                                        icon = CosmoIcons.Replay,
+                                        label = stringResource(R.string.replay),
+                                        onClick = {
+                                            replayLandingPage = ReplayStoryPage.INTRO
+                                            showReplay = true
+                                        },
+                                    ),
+                                    com.cosmotune.ui.chrome.CosmoDrawerEntry(
+                                        icon = CosmoIcons.Together,
+                                        label = stringResource(R.string.listen_together),
+                                        onClick = {
+                                            showSettings = true
+                                            showListenTogether = true
+                                        },
+                                    ),
+                                    com.cosmotune.ui.chrome.CosmoDrawerEntry(
+                                        icon = CosmoIcons.Download,
+                                        label = stringResource(R.string.downloads),
+                                        onClick = {
+                                            onLibraryItemClick(
+                                                ShelfItem(
+                                                    title = context.getString(R.string.downloads),
+                                                    subtitle = context.getString(R.string.downloaded_songs),
+                                                    thumbnailUrl = null,
+                                                    videoId = null,
+                                                    browseId = "local:downloads",
+                                                ),
+                                            )
+                                        },
+                                    ),
+                                    com.cosmotune.ui.chrome.CosmoDrawerEntry(
+                                        icon = CosmoIcons.Equaliser,
+                                        label = stringResource(R.string.equalizer),
+                                        onClick = {
+                                            showSettings = true
+                                            settingsSubScreen = "equalizer"
+                                            showEqualizer = true
+                                        },
+                                    ),
+                                    com.cosmotune.ui.chrome.CosmoDrawerEntry(
+                                        icon = CosmoIcons.Settings,
+                                        label = stringResource(R.string.settings),
+                                        onClick = { showSettings = true },
+                                    ),
+                                ),
                             )
                         }
                     },
                 )
 
                 // Drawn before the bars so their own glass reads on top of it.
-                BottomFadeScrim(
+                if (cosmoShell == null) BottomFadeScrim(
                     withMiniPlayer = player.song != null,
                     // Not the wash: by the foot of the screen the page has finished
                     // easing out of it and into this, so this is what is actually
@@ -3756,13 +3806,15 @@ private fun BitChordApp(
                     }
                 }
 
+                if (cosmoShell != null && selectedTab == TAB_EXPLORE && selectedMoodGenre == null) androidx.compose.runtime.SideEffect { selectedTab = TAB_SEARCH }   // Explore without a mood page has no tab in the new look
                 // The new look's floating chrome (tab capsule and mini capsule). The upstream bars below stay as the else branch.
                 if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(
                     tabs = listOf(
-                        CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(exploreLabel, CosmoIcons.Grid, CosmoIcons.Grid),
-                        CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill), CosmoTab(searchLabel, CosmoIcons.Search, CosmoIcons.SearchFill),
-                    ),   // the order of TAB_HOME, TAB_EXPLORE, TAB_LIBRARY, TAB_SEARCH
-                    selectedIndex = selectedTab, onTabSelected = onTabSelected,
+                        CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(searchLabel, CosmoIcons.Search, CosmoIcons.SearchFill),
+                        CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill),
+                    ),   // Home, Search (Explore lives inside it), Library
+                    selectedIndex = when (selectedTab) { TAB_HOME -> 0; TAB_SEARCH, TAB_EXPLORE -> 1; else -> 2 },
+                    onTabSelected = { index -> onTabSelected(listOf(TAB_HOME, TAB_SEARCH, TAB_LIBRARY)[index]) },
                     song = player.song, isPlaying = player.isPlaying, isLoading = playPauseBusy,
                     position = player.position, durationMs = player.durationMs,
                     onPlayPause = { togglePlayPause() }, onNext = { controller?.seekToNextMediaItem() },
