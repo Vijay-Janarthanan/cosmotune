@@ -20,7 +20,7 @@ import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.SwitchAccount
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
+import com.cosmotune.ui.bridge.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
