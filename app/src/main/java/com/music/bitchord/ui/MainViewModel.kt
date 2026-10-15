@@ -1394,7 +1394,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
         loadHome(startup = true)
-        loadExplore()
+        loadExplore(startup = true)
         if (_signedIn.value) {
             loadLibrary()
             loadAccount()
@@ -1524,13 +1524,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun loadExplore() {
+    fun loadExplore(startup: Boolean = false) {
         _explore.value = UiState.Loading
-        viewModelScope.launch { fetchExplore() }
+        viewModelScope.launch { fetchExplore(startup) }
     }
 
-    private suspend fun fetchExplore() {
-        val state = YtMusicRepository.moodAndGenres().fold(
+    /**
+     * [startup] is true only for the load [init] starts. If that one fails on a host-name lookup the feed stays on
+     * [UiState.Loading] (no error flashes up) and is fetched once more after [StartupRetry.DELAY_MS]. Retry and
+     * [refresh] never pass it, so for them nothing changes.
+     */
+    private suspend fun fetchExplore(startup: Boolean = false) {
+        val result = YtMusicRepository.moodAndGenres()
+        if (startup && StartupRetry.isNameResolutionFailure(result.exceptionOrNull()?.message)) {
+            delay(StartupRetry.DELAY_MS)
+            val loading = _explore.value is UiState.Loading
+            if (StartupRetry.shouldRunDelayedRetry(loading, Feed.EXPLORE in _refreshing.value)) fetchExplore()
+            return
+        }
+        val state = result.fold(
             onSuccess = { sections ->
                 if (sections.isEmpty()) {
                     UiState.Error(text(R.string.nothing_to_explore))

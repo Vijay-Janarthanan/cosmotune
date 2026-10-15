@@ -1,13 +1,14 @@
 package com.cosmotune
 
 /**
- * One automatic second try of the first Home load, for the case that failed only because a host name could
- * not be looked up. Right after a fresh install, a handover from Wi-Fi to mobile data or a wake-up from
- * sleep, the phone can have no usable network for a moment: the first request then fails with
- * `Unable to resolve host "...": No address associated with hostname`, and the feed used to stay on its
- * "No internet connection" error until the person pressed Retry. A few seconds later the same request works.
+ * One automatic second try of the first Home load and of the first Explore load, for the case that failed
+ * only because a host name could not be looked up. Right after a fresh install, a handover from Wi-Fi to
+ * mobile data or a wake-up from sleep, the phone can have no usable network for a moment: the first request
+ * then fails with `Unable to resolve host "...": No address associated with hostname`, and the feed used to
+ * stay on its "No internet connection" error until the person pressed Retry. A few seconds later the same
+ * request works.
  *
- * Only the decision lives here (so it can be tested without a phone); the waiting and the second load are
+ * Only the decisions live here (so they can be tested without a phone); the waiting and the second load are
  * in `MainViewModel`. Any other failure (a rejected request, a timeout, a server error) is not retried: the
  * error is shown at once, as before.
  */
@@ -40,4 +41,12 @@ object StartupRetry {
      */
     fun shouldRetry(message: String?, alreadyRetried: Boolean): Boolean =
         !alreadyRetried && isNameResolutionFailure(message)
+
+    /**
+     * After the wait: the second try of a feed that stayed on its loading placeholders runs only if it is
+     * [stillLoading] (nothing has written a result or an error meanwhile) and no pull to refresh is running
+     * for it ([refreshInFlight]): that pull writes its own result, error included, so the feed is not left waiting.
+     */
+    fun shouldRunDelayedRetry(stillLoading: Boolean, refreshInFlight: Boolean): Boolean =
+        stillLoading && !refreshInFlight
 }

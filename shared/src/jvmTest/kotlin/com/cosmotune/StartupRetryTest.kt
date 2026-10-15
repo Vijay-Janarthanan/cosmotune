@@ -6,8 +6,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * The first Home load is tried once more, a few seconds later, only when it failed because a host name could
- * not be looked up (no network yet, DNS not answering yet) and has not been retried before. Everything else
+ * The first Home load and the first Explore load are tried once more, a few seconds later, only when they failed
+ * because a host name could not be looked up (no network yet, DNS not answering yet). Everything else
  * (a rejected request, a timeout, an empty message) shows its error at once, as before.
  */
 class StartupRetryTest {
@@ -92,6 +92,26 @@ class StartupRetryTest {
             assertFalse(StartupRetry.shouldRetry(message, alreadyRetried = false), "retried $message")
             assertFalse(StartupRetry.shouldRetry(message, alreadyRetried = true), "retried $message")
         }
+    }
+
+    // --- after the wait (Explore keeps its loading placeholders while it waits) --------------------
+
+    @Test
+    fun theSecondTryRunsWhileTheFeedIsStillLoadingAndNoPullToRefreshRuns() {
+        assertTrue(StartupRetry.shouldRunDelayedRetry(stillLoading = true, refreshInFlight = false))
+    }
+
+    @Test
+    fun theSecondTryIsSkippedOnceSomethingHasWrittenTheFeed() {
+        // A result or an error is on screen already (for example from a pull to refresh): leave it alone.
+        assertFalse(StartupRetry.shouldRunDelayedRetry(stillLoading = false, refreshInFlight = false))
+        assertFalse(StartupRetry.shouldRunDelayedRetry(stillLoading = false, refreshInFlight = true))
+    }
+
+    @Test
+    fun theSecondTryIsSkippedWhileAPullToRefreshIsStillRunning() {
+        // The pull writes its own result, error included, so the feed will not be left on its placeholders.
+        assertFalse(StartupRetry.shouldRunDelayedRetry(stillLoading = true, refreshInFlight = true))
     }
 
     @Test
