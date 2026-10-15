@@ -299,6 +299,8 @@ import com.music.bitchord.ui.replay.ReplayShareSheet
 import com.music.bitchord.ui.replay.ReplayStories
 import com.music.bitchord.ui.replay.ReplayStoryPage
 import com.music.bitchord.ui.replay.rememberReplayState
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.shell.CosmoTab
 import com.cosmotune.ui.theme.FollowCover
 import com.cosmotune.ui.theme.cosmoAmbientGround
 import com.music.bitchord.ui.theme.BitChordTheme
@@ -516,7 +518,7 @@ private fun BitChordApp(
     // on its window's own exit animation — the old fast drop, with a copy of the
     // artwork slipping down out of the mini player's cover after it.
     val dismissPlayer: () -> Unit = {
-        if (reducePlayerMotion) showNowPlaying = false else playerSheetMotion.close()
+        if (reducePlayerMotion || cosmoShell != null) showNowPlaying = false else playerSheetMotion.close()
     }
     // The far end of the relay from a widget's artwork. Cleared here rather than
     // where it was set, so the request is spent by being served — see
@@ -3754,6 +3756,21 @@ private fun BitChordApp(
                     }
                 }
 
+                // The new look's floating chrome (tab capsule and mini capsule). The upstream bars below stay as the else branch.
+                if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(
+                    tabs = listOf(
+                        CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(exploreLabel, CosmoIcons.Grid, CosmoIcons.Grid),
+                        CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill), CosmoTab(searchLabel, CosmoIcons.Search, CosmoIcons.SearchFill),
+                    ),   // the order of TAB_HOME, TAB_EXPLORE, TAB_LIBRARY, TAB_SEARCH
+                    selectedIndex = selectedTab, onTabSelected = onTabSelected,
+                    song = player.song, isPlaying = player.isPlaying, isLoading = playPauseBusy,
+                    position = player.position, durationMs = player.durationMs,
+                    onPlayPause = { togglePlayPause() }, onNext = { controller?.seekToNextMediaItem() },
+                    onExpand = { showNowPlaying = true }, controlsLocked = controlsLocked, onBlockedControl = showHostOnlyNotice,
+                    hazeState = hazeState, onHeightChanged = { floatingBarsHeight.intValue = it },
+                    notices = { QueueActionNoticeHost(queueNotice) },
+                    modifier = Modifier.align(Alignment.BottomCenter).widthIn(max = FLOATING_BAR_MAX_WIDTH).fillMaxWidth(),
+                ) else
                 if (glassActive) Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -3842,8 +3859,13 @@ private fun BitChordApp(
 
         val playerRaised = showNowPlaying && playerSong != null
 
+        // The new look's player: a layer over the window that grows out of the mini capsule. The sheet below is the old path.
+        if (cosmoShell != null) playerSong?.let { song ->
+            com.cosmotune.ui.shell.CosmoPlayerOverlay(open = showNowPlaying, onDismiss = { showNowPlaying = false }, shell = cosmoShell) { _, _ -> nowPlaying(song) }
+        }
+
         // ---- Now Playing ----
-        if (playerRaised) {
+        if (playerRaised && cosmoShell == null) {
             // What rememberModalBottomSheetState builds, but able to start open,
             // and with every hide routed through [playerSheetMotion] — a drag
             // released low, a back press, a tap on the scrim. Refused here and
