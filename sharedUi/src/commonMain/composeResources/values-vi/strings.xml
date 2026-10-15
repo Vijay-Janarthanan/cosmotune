@@ -270,4 +270,6 @@
     <string name="cosmo_state_error">Something went wrong</string>
     <string name="cosmo_state_empty">Nothing here yet</string>
     <string name="cosmo_sheet_handle">Sheet handle</string>
+    <string name="cosmo_duration_min">%1$d min</string>
+    <string name="cosmo_duration_h_min">%1$d h %2$d min</string>
 </resources>

@@ -2898,7 +2898,7 @@ private fun BitChordApp(
                                 song
                             }
                         }
-                        DetailScreen(
+                        com.cosmotune.ui.pages.DetailSwitch(
                             page = page,
                             currentSong = player.song,
                             isPlaying = player.isPlaying,
