@@ -239,16 +239,16 @@ class PhoneChromeContractTest {
         }
     }
 
-    @Test fun exploreWithoutAMoodPageHasNoTabSoTheNewLookMovesToSearchAndOnlyTheNewLook() {
+    @Test fun exploreWithoutAMoodPageHasNoTabSoTheNewLookShowsSearchAndOnlyTheNewLook() {
+        // P4-20: this was a SideEffect that moved the saved tab to Search once Explore had composed (one frame of Explore). The tab the
+        // page reads is now derived where it is read (`ShownTab` over `TabRedirect.shown`), so no frame composes Explore first; the
+        // derivation is pinned by PolishContractTest and its rule by TabRedirectTest.
         val text = main
-        val redirect = "if (cosmoShell != null && selectedTab == TAB_EXPLORE && selectedMoodGenre == null) androidx.compose.runtime.SideEffect { selectedTab = TAB_SEARCH }"
-        assertEquals(1, Regex(Regex.escape(redirect)).findAll(text).count(), "one guarded redirect")
-        val redirectAt = text.indexOf(redirect)
-        val chromeComment = text.indexOf("// The new look's floating chrome (tab capsule and mini capsule). The upstream bars below stay as the else branch.")
-        assertTrue(chromeComment > redirectAt, "directly before the chrome's own comment")
-        assertEquals("", text.substring(redirectAt, chromeComment).lines().drop(1).joinToString("").trim(), "nothing but the end of the line lies between the redirect and the comment")
-        assertTrue(text.indexOf("val onTabSelected: (Int) -> Unit = { index ->") < redirectAt, "after the one tab handler")
-        assertTrue(text.indexOf("val selectedMoodGenre by ") in 0 until redirectAt, "the mood state is read above it")
+        assertFalse("androidx.compose.runtime.SideEffect { selectedTab = TAB_SEARCH }" in text, "no correction after the frame")
+        assertEquals(1, Regex(Regex.escape("com.cosmotune.design.TabRedirect.shown(")).findAll(text).count(), "one derivation")
+        assertTrue("newLook = cosmoShell != null" in text, "only the new look")
+        assertTrue(text.indexOf("val selectedMoodGenre by ") in 0 until text.indexOf("com.cosmotune.design.TabRedirect.shown("), "the mood state is read above it")
+        assertTrue(text.indexOf("val onTabSelected: (Int) -> Unit = { index ->") > 0, "the one tab handler is still there")
     }
 
     // ---- the upstream bars and the log ---------------------------------------------------------------------------------------

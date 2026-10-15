@@ -246,4 +246,28 @@ class PolishContractTest {
         assertTrue(row.contains("internal fun rememberStableAction(action: () -> Unit): () -> Unit"), "the helper is in our file")
         assertTrue(row.contains("val latest by rememberUpdatedState(action) return remember { { latest() } }"), "one identity, always the latest action")
     }
+
+    // ---- 9. Explore without a mood page is Search before it composes ------------------------------------------------------------
+
+    @Test fun theShownTabIsDerivedWhereItIsReadNotCorrectedAfterwards() {
+        val src = SourceContract.code(SourceContract.read("${app}MainActivity.kt"))
+        val flat = src.replace(Regex("\\s+"), " ")
+        assertFalse(flat.contains("androidx.compose.runtime.SideEffect { selectedTab = TAB_SEARCH }"), "no correction after the frame is composed")
+        assertTrue(flat.contains("val selectedTabState = rememberSaveable { mutableIntStateOf(0) }"), "the saved tab is held under its own name")
+        assertFalse(flat.contains("var selectedTab by rememberSaveable"), "and is not the variable the page reads")
+        val derived = "var selectedTab by com.cosmotune.ui.chrome.ShownTab(selectedTabState) { stored -> com.cosmotune.design.TabRedirect.shown( stored, newLook = cosmoShell != null, moodPageOpen = selectedMoodGenre != null, exploreTab = TAB_EXPLORE, searchTab = TAB_SEARCH, ) }"
+        val at = flat.replace("( ", "(").replace(", )", ")").indexOf(derived.replace("( ", "(").replace(", )", ")"))
+        assertTrue(at >= 0, "the tab the page reads is derived from the saved one")
+        assertTrue(flat.indexOf("val selectedMoodGenre by ") in 0 until flat.indexOf("var selectedTab by com.cosmotune.ui.chrome.ShownTab("), "after the mood state it reads")
+        assertTrue(flat.indexOf("var selectedTab by com.cosmotune.ui.chrome.ShownTab(") < flat.indexOf("val currentListState = when (selectedTab)"), "and before the first read")
+        // no read or write of the name before it is declared (a local cannot be used above its declaration, so the build says so too)
+        assertEquals(0, Regex("""\bselectedTab\b""").findAll(flat.substring(0, flat.indexOf("var selectedTab by com.cosmotune.ui.chrome.ShownTab("))).count(), "nothing uses the name above it")
+    }
+
+    @Test fun theShownTabDelegateReadsThroughTheRuleAndWritesTheSavedTab() {
+        val src = SourceContract.code(SourceContract.read("app/src/main/java/com/cosmotune/ui/chrome/ShownTab.kt")).replace(Regex("\\s+"), " ")
+        assertTrue(src.contains("class ShownTab(private val stored: MutableIntState, private val shown: (Int) -> Int)"), "a delegate over the saved state")
+        assertTrue(src.contains("operator fun getValue(thisRef: Any?, property: KProperty<*>): Int = shown(stored.intValue)"), "a read gives the shown tab")
+        assertTrue(src.contains("operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) { stored.intValue = value }"), "a write is the saved tab")
+    }
 }

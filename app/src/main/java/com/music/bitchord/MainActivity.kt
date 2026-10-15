@@ -480,7 +480,7 @@ private fun BitChordApp(
     // rather than inside the bar because the page's scroll is what drives it,
     // and the page is a sibling of the bar rather than a child.
     val navBarScroll = rememberFloatingTabBarScrollConnection()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val selectedTabState = rememberSaveable { mutableIntStateOf(0) }
     /**
      * Whether the player's sheet is up. The player is always a full-screen
      * take-over raised over the page, on every window size — the library
@@ -712,6 +712,17 @@ private fun BitChordApp(
     val results by viewModel.results.collectAsStateWithLifecycle()
     val exploreState by viewModel.explore.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
+    // The tab the page reads: the saved one, except that the new look has no Explore tab, so Explore without a mood page is Search. It is
+    // decided here, where the tab is read, so no frame composes Explore first (a correction after the frame showed it for one frame).
+    var selectedTab by com.cosmotune.ui.chrome.ShownTab(selectedTabState) { stored ->
+        com.cosmotune.design.TabRedirect.shown(
+            stored,
+            newLook = cosmoShell != null,
+            moodPageOpen = selectedMoodGenre != null,
+            exploreTab = TAB_EXPLORE,
+            searchTab = TAB_SEARCH,
+        )
+    }
     val moodGenreShelves by viewModel.moodGenreShelves.collectAsStateWithLifecycle()
     val libraryState by viewModel.library.collectAsStateWithLifecycle()
     val filter by viewModel.filter.collectAsStateWithLifecycle()
@@ -3825,7 +3836,6 @@ private fun BitChordApp(
                     }
                 }
 
-                if (cosmoShell != null && selectedTab == TAB_EXPLORE && selectedMoodGenre == null) androidx.compose.runtime.SideEffect { selectedTab = TAB_SEARCH }   // Explore without a mood page has no tab in the new look
                 // The new look's floating chrome (tab capsule and mini capsule). The upstream bars below stay as the else branch.
                 if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(
                     tabs = listOf(
