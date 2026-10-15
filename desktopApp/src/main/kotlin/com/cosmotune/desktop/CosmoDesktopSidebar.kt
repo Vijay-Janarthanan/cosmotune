@@ -102,8 +102,9 @@ internal data class CosmoDesktopPlaylistItem(
  * The desktop's sidebar in the new look (`V2.deskSidebar`, `.d2-side`): 220 dp wide (the page padding and the player bar host
  * depend on it), no glass, no rule beside the page: it stands on the ambient ground. From the top: the window's own caption
  * when the application draws its frame and there is no separate title bar (the old rule), the search field (44 dp, the cap
- * "Ctrl K" outside macOS), the [nav] rows, the Library heading with the [playlists] under it, and Settings at the bottom, clear
- * of the player bar's footprint.
+ * "Ctrl K" outside macOS), the [nav] rows, the Library heading with the [playlists] under it, and Settings at the bottom, 14 dp
+ * above the window's edge: the player bar floats beside the sidebar (it starts 16 dp to its right), never under it, so no
+ * band is kept for it (the board's 110 dp is for a bar that runs under the sidebar).
  *
  * It does what the old sidebar did with the same inputs: the field takes the focus when [focusSearch] is set (then says so with
  * [onSearchFocused]) and gets it back when the window comes back to the front. While Settings is open ([settingsSelected]) no
@@ -154,7 +155,7 @@ internal fun CosmoDesktopSidebar(
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp, bottom = ShellMetrics.desktopBarFootprintDp().dp),
+                .padding(start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp, bottom = ShellMetrics.DESKTOP_BAR_MARGIN_DP.dp),
         ) {
             CosmoSearchField(
                 query = query,

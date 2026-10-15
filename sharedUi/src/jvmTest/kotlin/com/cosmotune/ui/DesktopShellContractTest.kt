@@ -168,7 +168,9 @@ class DesktopShellContractTest {
         for (glass in listOf("cosmoGlass", "desktopWindowGlass", "desktopChromeGlass", "hazeEffect", "LocalDesktopHaze", "HazeState")) {
             assertFalse(glass in code, "the sidebar sits on the ambient ground: no `$glass`")
         }
-        assertHas(sidebar, "bottom = ShellMetrics.desktopBarFootprintDp().dp", "the player bar's footprint")
+        // P4-20: the player bar floats to the right of the sidebar, never under it, so the sidebar keeps only the bar's own bottom margin
+        assertHas(sidebar, "bottom = ShellMetrics.DESKTOP_BAR_MARGIN_DP.dp", "the bar's bottom margin, 14 dp")
+        assertFalse("desktopBarFootprintDp" in code, "no band for a bar that is not under the sidebar")
         assertHas(sidebar, "start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp", "padding 16 12, and 4 under the caption as the old one")
     }
 
@@ -353,10 +355,11 @@ class DesktopShellContractTest {
         assertTrue("top = PANEL_MARGIN" in body && "end = PANEL_MARGIN" in body && "bottom = ShellMetrics.desktopBarFootprintDp().dp" in body, "margins 14 (top, end) and the player bar's footprint at the bottom: $body")
         assertTrue("SuperellipseShape(CosmoRadii.xl)" in body, "a superellipse of 28: $body")
         assertTrue(".cosmoGlass(LocalDesktopHaze.current, shape)" in body, "glass over the window's haze: $body")
-        assertTrue(".padding(PANEL_PADDING)" in body, "padding 14 inside: $body")
-        assertTrue(body.indexOf("cosmoGlass") in body.indexOf("top = PANEL_MARGIN")..body.indexOf(".padding(PANEL_PADDING)"), "margin, then glass, then padding: $body")
+        // P4-20: no padding of the card's own: the column's header (18 dp in) and content (18 dp for the lyrics, 14 dp for the queue)
+        // carry the inset, so a card padding of 14 dp on top of them put the content 28 to 32 dp from the edge (the board: 14)
+        assertFalse("PANEL_PADDING" in code, "the card has no padding of its own: the column's content has its own")
+        assertTrue(".cosmoGlass(LocalDesktopHaze.current, shape)" in body && body.endsWith(".cosmoGlass(LocalDesktopHaze.current, shape) }"), "margin, then glass, and nothing inside it: $body")
         assertHas(panel, "private val PANEL_MARGIN = 14.dp")
-        assertHas(panel, "private val PANEL_PADDING = 14.dp")
         assertFalse("ShellMetrics.DESKTOP_SIDE_PANEL_DP" in code, "the width is the column's own")
     }
 

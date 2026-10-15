@@ -109,4 +109,31 @@ class PolishContractTest {
         assertTrue(text.contains(".then(if (glass) Modifier else Modifier.background(containerColor))"), "the old window colour is untouched")
         assertTrue(text.contains("val materialBehindApp = glass && appBackground"), "the old material rule is untouched")
     }
+
+    // ---- 4. the bottom bands ---------------------------------------------------------------------------------------------------
+
+    @Test fun thePagePadsForExactlyTheFloatingChrome() {
+        val text = frame
+        assertTrue(
+            text.contains(
+                "com.cosmotune.ui.theme.LocalCosmoShell.current != null -> (if (compact) com.cosmotune.design.ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) " +
+                    "else com.cosmotune.design.ShellMetrics.desktopBarFootprintDp()).dp compact -> 128.dp else -> 16.dp",
+            ),
+            "the wide page pads 108 dp for the bar, the compact one 154 dp for the capsules; the old two follow",
+        )
+        assertFalse(text.contains("168.dp"), "no slack: 168 dp was the phone's chrome plus 14")
+    }
+
+    @Test fun theSidebarKeepsNoBandForABarThatFloatsBesideIt() {
+        val src = SourceContract.code(SourceContract.read("${cosmoDesktop}CosmoDesktopSidebar.kt")).replace(Regex("\\s+"), " ")
+        assertTrue(src.contains("bottom = ShellMetrics.DESKTOP_BAR_MARGIN_DP.dp"), "the sidebar's last row sits at the bar's own margin")
+        assertFalse(src.contains("desktopBarFootprintDp"), "the 108 dp band (the board's, where the bar runs under the sidebar) is gone")
+    }
+
+    @Test fun theSidePanelsCardAddsNoPaddingOnTopOfTheColumnsOwn() {
+        val src = SourceContract.code(SourceContract.read("${cosmoDesktop}CosmoDesktopSidePanel.kt"))
+        assertFalse(src.contains("PANEL_PADDING"), "no 14 dp inside the card: the header and content of the column carry 14 to 18 dp themselves")
+        val body = SourceContract.functionBody(SourceContract.read("${cosmoDesktop}CosmoDesktopSidePanel.kt"), "cosmoDesktopSidePanelCard").replace(Regex("\\s+"), " ")
+        assertTrue(body.trimEnd().endsWith(".cosmoGlass(LocalDesktopHaze.current, shape) }"), "the card is margin and glass, nothing inside: $body")
+    }
 }

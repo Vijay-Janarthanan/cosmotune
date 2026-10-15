@@ -5005,7 +5005,8 @@ private fun DesktopFrame(
                                                 // Room for the bar that floats over this, so the
                                                 // last row can still be scrolled clear of it.
                                                 bottom = when {
-                                                    com.cosmotune.ui.theme.LocalCosmoShell.current != null -> 168.dp
+                                                    com.cosmotune.ui.theme.LocalCosmoShell.current != null ->
+                                                        (if (compact) com.cosmotune.design.ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) else com.cosmotune.design.ShellMetrics.desktopBarFootprintDp()).dp
                                                     compact -> 128.dp
                                                     else -> 16.dp
                                                 },

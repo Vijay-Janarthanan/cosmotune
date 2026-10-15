@@ -1,7 +1,6 @@
 package com.cosmotune.design
 
 import java.io.File
-import kotlin.math.max
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -9,8 +8,8 @@ import kotlin.test.fail
 /**
  * Review Focus 3: the old pages pad their lists for the old bars, and the new floating chrome must fit inside that
  * padding, or the last rows could never be scrolled into view. The phone half reads `MainActivity`'s padding; the desktop
- * half (task P3-11) reads `DesktopFrame`'s, which has a line of its own for the new shell. The padding is read from the
- * source file, so a change to it fails this test.
+ * half (task P3-11, then P4-20) reads `DesktopFrame`'s, which has a line of its own for the new shell: exactly the floating
+ * chrome's footprint, no slack. The padding is read from the source file, so a change to it fails this test.
  */
 class ShellClearanceTest {
 
@@ -53,37 +52,48 @@ class ShellClearanceTest {
 
     private val desktopApp = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
 
-    /** The page padding `DesktopFrame` hands its content while the new shell is on: `LocalCosmoShell.current != null -> N.dp`. */
-    private val desktopShellPadding = Regex("""LocalCosmoShell\.current != null -> (\d+)\.dp""")
+    /**
+     * What `DesktopFrame` pads the page's bottom with while the new shell is on: the line `LocalCosmoShell.current != null -> X`,
+     * where X is the player bar's footprint in a wide window and the phone chrome's height (the capsules, the compact window's bar)
+     * in a compact one. The page pads for exactly what floats over it, no more: the bar is 80 dp and two 14 dp margins (108), not
+     * the 168 dp that the phone's chrome plus slack had been (the last row scrolled 60 dp further than the bar needed).
+     */
+    private val desktopShellPadding =
+        Regex("""LocalCosmoShell\.current != null ->\s*\(if \(compact\) com\.cosmotune\.design\.ShellMetrics\.phoneChromeHeightDp\(0f, withMiniPlayer = true\) else com\.cosmotune\.design\.ShellMetrics\.desktopBarFootprintDp\(\)\)\.dp""")
 
-    private fun desktopPaddingWithShell(): Int {
+    /** The padding under the page, in dp, while the new shell is on, worked out from the source line the way the line is written. */
+    private fun desktopPaddingWithShell(compact: Boolean): Float {
         val file = File(root, desktopApp)
         if (!file.isFile) fail("$desktopApp is not where this test expects it; update ShellClearanceTest")
-        val match = desktopShellPadding.find(file.readText())
-            ?: fail(
-                "Could not find `LocalCosmoShell.current != null -> N.dp` in $desktopApp (the bottom padding of DesktopFrame's content " +
-                    "while the new shell is on). The line moved, changed or is missing: the last row could not be scrolled clear of the " +
-                    "floating chrome. Re-check the clearance, then update this test.",
+        if (!desktopShellPadding.containsMatchIn(file.readText()))
+            fail(
+                "Could not find `LocalCosmoShell.current != null -> (if (compact) ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) " +
+                    "else ShellMetrics.desktopBarFootprintDp()).dp` in $desktopApp (the bottom padding of DesktopFrame's content while the new " +
+                    "shell is on). The line moved, changed or is missing: re-check that the last row can be scrolled clear of the floating " +
+                    "chrome and is not padded for more than it, then update this test.",
             )
-        return match.groupValues[1].toInt()
+        return if (compact) ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) else ShellMetrics.desktopBarFootprintDp()
     }
 
-    /** The most the desktop's floating chrome takes from the bottom of the window: the wide window's player bar, or the compact one's phone chrome. */
-    private fun desktopChromeNeedsDp() =
-        max(ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true), ShellMetrics.desktopBarFootprintDp())
+    @Test
+    fun theWideDesktopPagePadsForExactlyThePlayerBarAndTheCompactOneForThePhoneChrome() {
+        assertTrue(desktopPaddingWithShell(compact = false) == 108f, "80 dp for the bar and 14 dp above and below it: ${desktopPaddingWithShell(compact = false)}")
+        assertTrue(desktopPaddingWithShell(compact = true) == 154f, "the compact window's capsules (16 + 64 + 10 + 64 dp): ${desktopPaddingWithShell(compact = true)}")
+    }
 
     @Test
     fun theDesktopPageLeavesRoomForTheFloatingChromeWhileTheNewShellIsOn() {
-        val padding = desktopPaddingWithShell()
-        val needed = desktopChromeNeedsDp()
-        assertTrue(needed >= 154f, "the compact window's capsules (16 + 64 + 10 + 64 dp) are the tallest chrome: $needed dp")
-        assertTrue(padding >= needed, "the new chrome needs $needed dp under the page, DesktopFrame leaves $padding dp")
+        // The wide window floats the bar, the compact one the phone's capsules: each has its own padding, so each is what it needs.
+        assertTrue(desktopPaddingWithShell(compact = false) >= ShellMetrics.desktopBarFootprintDp(), "the bar's footprint fits under the wide page")
+        assertTrue(
+            desktopPaddingWithShell(compact = true) >= ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true),
+            "the capsules fit under the compact page",
+        )
     }
 
     @Test
-    fun theDesktopPlayerBarIsInsideThePaddingAndNeverBiggerThanTheCompactChrome() {
-        assertTrue(ShellMetrics.desktopBarFootprintDp() <= desktopPaddingWithShell(), "the 80 dp bar and its two 14 dp margins fit the page padding")
-        assertTrue(ShellMetrics.desktopBarFootprintDp() <= ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true), "so the one padding serves both modes")
+    fun theDesktopPlayerBarNeverNeedsMoreThanTheCompactChromeDoes() {
+        assertTrue(ShellMetrics.desktopBarFootprintDp() <= ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true), "the wide bar is the smaller of the two")
     }
 
     @Test

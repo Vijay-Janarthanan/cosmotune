@@ -193,11 +193,15 @@ class DesktopChromeStructureTest {
 
     @Test fun thePagePaddingHasALineForTheNewShellAndKeepsTheOldTwo() {
         val text = app
-        val at = text.indexOf("com.cosmotune.ui.theme.LocalCosmoShell.current != null -> 168.dp")
-        assertTrue(at >= 0, "the padding under the page while the new shell is on")
-        val rest = text.substring(at, at + 200)
+        // P4-20: exactly what floats over the page (the wide bar's footprint, the compact window's phone chrome), no longer 168 dp for both
+        val at = Regex("""bottom = when \{\s*com\.cosmotune\.ui\.theme\.LocalCosmoShell\.current != null ->""").find(text)?.range?.first ?: -1
+        assertTrue(at >= 0, "the padding under the page while the new shell is on is the first branch of a `when`")
+        val rest = text.substring(at, at + 500).replace(Regex("\\s+"), " ")
+        assertTrue(
+            "(if (compact) com.cosmotune.design.ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) else com.cosmotune.design.ShellMetrics.desktopBarFootprintDp()).dp" in rest,
+            "the bar's footprint in a wide window, the phone chrome's height in a compact one",
+        )
         assertTrue("compact -> 128.dp" in rest && "else -> 16.dp" in rest, "the old two follow, so with the switch off nothing changes")
-        assertTrue(text.substring(at - 80, at).contains("bottom = when {"), "it is a `when`")
     }
 
     @Test fun theSheetHandsTheNewLookToTheSharedOverlayAndKeepsItsOwnBodyForTheOldOne() {
