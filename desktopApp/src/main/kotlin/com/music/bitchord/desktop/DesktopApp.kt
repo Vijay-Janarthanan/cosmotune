@@ -4010,6 +4010,10 @@ fun BitChordDesktopApp() {
                             loadingMore = homeLoadingMore,
                             recentlyPlayedLoading = homeRecentsLoading,
                             leadHero = false,
+                            // The playing card's indicator, as the Search page below gets it: the engine's live state. Only the new Home
+                            // draws it: the old one never had it on the desktop, and with the look off nothing changes.
+                            currentSong = playback.song.takeIf { cosmoShell != null },
+                            isPlaying = cosmoShell != null && playback.isPlaying,
                         )
                         destination == DesktopDestination.EXPLORE && selectedMoodGenre != null -> Column(Modifier.fillMaxSize()) {
                             com.cosmotune.ui.search.MoodGenreSwitch(

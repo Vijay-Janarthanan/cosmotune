@@ -72,6 +72,28 @@ class PolishContractTest {
         assertFalse(Regex("""LocalCosmoPlaying provides (true|false)""").containsMatchIn(src), "no constant is provided")
     }
 
+    @Test fun theDesktopHomeHearsWhichSongIsPlayingAsTheDesktopSearchDoes() {
+        val src = SourceContract.code(SourceContract.read("${desktop}DesktopApp.kt"))
+        // (the old Home would draw its own indicator from the same two values, and never had them on the desktop: only the new look gets them)
+        for ((page, song, playing) in listOf(
+            Triple("com.cosmotune.ui.home.HomeSwitch", "currentSong = playback.song.takeIf { cosmoShell != null }", "isPlaying = cosmoShell != null && playback.isPlaying"),
+            Triple("com.cosmotune.ui.search.SearchSwitch", "currentSong = playback.song", "isPlaying = playback.isPlaying"),
+        )) {
+            val at = src.indexOf("$page(")
+            assertTrue(at >= 0, "$page is called")
+            val open = at + page.length
+            var depth = 0
+            var end = open
+            while (end < src.length) {
+                when (src[end]) { '(' -> depth++; ')' -> if (--depth == 0) break }
+                end++
+            }
+            val call = src.substring(open, end)
+            assertTrue(call.contains(song), "$page is told the engine's live song")
+            assertTrue(call.contains(playing), "$page is told whether the audio plays: its cards' bars move")
+        }
+    }
+
     // ---- 3. the frame's ambient ground under a window material --------------------------------------------------------------------
 
     private val frame: String
