@@ -24,4 +24,7 @@ object CssGradient {
         out[2] = cx + dx * half
         out[3] = cy + dy * half
     }
+
+    /** The same line with the box first and the angle last, as the glass code reads most naturally. Same result as [endpoints]. */
+    fun line(width: Float, height: Float, angleDeg: Float, out: FloatArray) = endpoints(angleDeg, width, height, out)
 }

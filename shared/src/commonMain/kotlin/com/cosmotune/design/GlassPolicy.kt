@@ -25,9 +25,28 @@ object GlassPolicy {
     const val BLUR_DP_DESKTOP = 32f
     const val SATURATION = 1.6f
 
+    /** The cover tint runs along 100 degrees (CSS angle) and is gone at 70 % of the way. */
+    const val COVER_TINT_ANGLE_DEG = 100f
+    const val COVER_TINT_FADE_END = 0.7f
+
+    /** The shadow under floating glass is a lift of this many dp (the design's `0 10 30 -12` is about a Material elevation of 12). */
+    const val SHADOW_ELEVATION_DP = 12f
+
     private const val FIRST_BLURRING_SDK = 31
 
     fun tintAlpha(dark: Boolean): Float = if (dark) TINT_ALPHA else TINT_ALPHA_LIGHT
+
+    /** Backdrop blur radius: 22 dp on a phone, 32 dp on the desktop ([sdkInt] null). */
+    fun blurDp(sdkInt: Int?): Float = if (sdkInt == null) BLUR_DP_DESKTOP else BLUR_DP
+
+    /** Opacity of the `surfaceHigh` fill: the glass 52 % (62 % in the light theme) over a blur, the nearly solid 94 % without one. */
+    fun fillAlpha(mode: GlassMode, dark: Boolean): Float = if (mode == GlassMode.SOLID) SOLID_ALPHA else tintAlpha(dark)
+
+    /** The specular edge: an inner 1 dp ring (white 14 %, light theme black 8 %) and a top line (white 24 %, light theme 85 %). */
+    fun edgeRingAlpha(dark: Boolean): Float = if (dark) 0.14f else 0.08f
+    fun edgeTopAlpha(dark: Boolean): Float = if (dark) 0.24f else 0.85f
+
+    fun shadowAlpha(dark: Boolean): Float = if (dark) 0.50f else 0.22f
 
     fun mode(sdkInt: Int?, reduceBlur: Boolean, lowRamDevice: Boolean, overVideo: Boolean): GlassMode =
         if (reduceBlur || lowRamDevice || overVideo || (sdkInt != null && sdkInt < FIRST_BLURRING_SDK)) GlassMode.SOLID else GlassMode.BLUR

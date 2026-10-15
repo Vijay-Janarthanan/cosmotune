@@ -820,7 +820,7 @@ fun SettingsScreen(
                     onClick = { AppSettings.setLiquidGlass(!liquidGlass) },
                 )
             }
-            row("new look", "colours follow the cover", "cosmotune", "colour", "color") {
+            row("new look", "colours follow the cover", "preview the look", "cosmotune", "colour", "color") {
                 com.cosmotune.ui.CosmoLookSettingsRows()
             }
             // Left out where the player won't honour it: a window too wide for

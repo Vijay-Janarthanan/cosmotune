@@ -204,4 +204,7 @@
     <string name="cosmo_new_look_summary">The redesigned player and navigation. Still being built.</string>
     <string name="cosmo_cover_colours">Colours follow the cover</string>
     <string name="cosmo_cover_colours_summary">The whole app takes its colour from the song that is playing</string>
+    <string name="cosmo_look_preview">Preview the look</string>
+    <string name="cosmo_look_preview_summary">Colours, buttons and controls under different covers</string>
+    <string name="cosmo_seek_bar">Position in song</string>
 </resources>

@@ -1,7 +1,9 @@
 package com.cosmotune.design
 
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /** The CSS `linear-gradient(<angle>)` line: direction (sin a, -cos a), as long as the box needs to reach the corners. */
 class CssGradientTest {
@@ -33,5 +35,40 @@ class CssGradientTest {
             assertEquals(60f, (l[0] + l[2]) / 2f, 0.001f, "cx at $angle")
             assertEquals(28f, (l[1] + l[3]) / 2f, 0.001f, "cy at $angle")
         }
+    }
+
+    private val out = FloatArray(4)  // for the (width, height, angle) overload
+
+    private fun roundedOut() = out.toList().map { Math.round(it * 1000f) / 1000f }
+
+    @Test fun lineOverloadNinetyDegreesRunsLeftToRight() {
+        CssGradient.line(200f, 100f, 90f, out)
+        assertEquals(listOf(0f, 50f, 200f, 50f), roundedOut())
+    }
+
+    @Test fun lineOverloadOneEightyRunsTopToBottom() {
+        CssGradient.line(200f, 100f, 180f, out)
+        assertEquals(listOf(100f, 0f, 100f, 100f), roundedOut())
+    }
+
+    @Test fun lineOverloadZeroRunsBottomToTop() {
+        CssGradient.line(200f, 100f, 0f, out)
+        assertEquals(listOf(100f, 100f, 100f, 0f), roundedOut())
+    }
+
+    @Test fun lineOverloadAHundredDegreesIsCenteredAndAsLongAsTheCssGradientLine() {
+        val w = 300f
+        val h = 64f
+        CssGradient.line(w, h, 100f, out)
+        // The gradient line of CSS has length |w sin a| + |h cos a| and passes through the centre.
+        val a = Math.toRadians(100.0)
+        val length = abs(w * Math.sin(a)) + abs(h * Math.cos(a))
+        assertEquals(w / 2f, (out[0] + out[2]) / 2f, 1e-3f)
+        assertEquals(h / 2f, (out[1] + out[3]) / 2f, 1e-3f)
+        val dx = (out[2] - out[0]).toDouble()
+        val dy = (out[3] - out[1]).toDouble()
+        assertEquals(length, Math.hypot(dx, dy), 1e-3)
+        // 100 degrees points right and slightly down (y grows downwards).
+        assertTrue(dx > 0.0 && dy > 0.0)
     }
 }
