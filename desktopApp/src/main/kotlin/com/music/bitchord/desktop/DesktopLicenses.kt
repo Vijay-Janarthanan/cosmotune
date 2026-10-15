@@ -99,6 +99,12 @@ internal object DesktopLicenses {
                     "https://github.com/kohlschutter/junixsocket",
                     "Unix domain sockets for the session bus.",
                 ),
+                DesktopLicense(
+                    "OpenCanvas",
+                    "Apache-2.0",
+                    "https://github.com/Vijay-Janarthanan/OpenCanvas",
+                    "Finds a song's music video and lines it up with the song.",
+                ),
             ),
         ),
     )

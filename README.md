@@ -25,6 +25,18 @@ Needs JDK 21. `./gradlew :desktopApp:run` starts the desktop app;
 `./gradlew :app:assembleDevDebug` builds the Android app. Notes for working on the code are in
 `docs/MAINTAINING.md`.
 
+## What it contacts
+
+The music video needs an internet connection. With it on (the default), Cosmotune searches YouTube for each song's
+video by title and artist, and reads the first few hundred kilobytes of the song and video streams from YouTube's
+servers to line them up. It also asks `cdn.jsdelivr.net` (which serves the `Vijay-Janarthanan/OpenCanvas` repository
+on GitHub) for a ready-made sync map, sending only the song's YouTube id, and still talks to the music and cover
+sources it used before. The video lookup sends no account or sign-in data and keeps the maps it measures in the
+app's own folder. On Android the video is not looked up on mobile data (any metered connection) unless you
+turn on Settings > Appearance > "Play animated cover over cellular", which is off by default. Switch the video off
+under Settings > Appearance > "Dynamic YouTube Canvas (OpenCanvas)"; a small start-up request to YouTube is made
+even then.
+
 ## Disclaimer
 
 Cosmotune uses YouTube's own player endpoints, which YouTube does not document and its terms do not
