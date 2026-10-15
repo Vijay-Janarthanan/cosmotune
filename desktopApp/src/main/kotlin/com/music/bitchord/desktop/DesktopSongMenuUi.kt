@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.cosmotune.ui.sheets.cosmoMenuSurface
 import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.ui.icons.BitChordIcons
@@ -318,9 +319,7 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () ->
         Column(
             Modifier
                 .widthIn(min = 232.dp, max = 300.dp)
-                .clip(shape)
-                .desktopCard(shape)
-                .padding(vertical = 6.dp)
+                .then(if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) Modifier.cosmoMenuSurface() else Modifier.clip(shape).desktopCard(shape).padding(vertical = 6.dp))
                 // A menu with every optional row on it is taller than a small window; capped and
                 // scrolled rather than run off the screen.
                 .heightIn(max = 460.dp)

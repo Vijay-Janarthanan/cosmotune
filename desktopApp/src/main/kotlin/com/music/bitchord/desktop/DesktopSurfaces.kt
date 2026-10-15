@@ -150,6 +150,15 @@ internal fun DesktopDialogPanel(
         )
         return
     }
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = maxWidth.dp, hazeState = LocalDesktopHaze.current) {
+            // A prompt opened from a page is a card, and so is anything it opens in turn.
+            CompositionLocalProvider(LocalDesktopPanelIsPage provides false) {
+                content()
+            }
+        }
+        return
+    }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Box(
             Modifier

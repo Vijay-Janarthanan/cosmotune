@@ -328,6 +328,12 @@ fun BrowseActionsSheet(
 /** Which release the sheet is about: the same row the shelf card was. */
 @Composable
 private fun BrowseSheetHeader(target: BrowseTarget) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetHeader(
+        title = target.title,
+        subtitle = target.subtitle.ifBlank { target.type.localizedNoun().replaceFirstChar { it.uppercase(Locale.getDefault()) } },
+        imageUrl = target.thumbnailUrl,
+        circle = target.type == BrowseType.ARTIST,
+    )
     val shape = if (target.type == BrowseType.ARTIST) CircleShape else RoundedCornerShape(8.dp)
     Row(
         modifier = Modifier

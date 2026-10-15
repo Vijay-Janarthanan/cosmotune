@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cosmotune.ui.sheets.cosmoMenuSurface
 import com.music.bitchord.data.settings.AppSettings
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -218,9 +219,7 @@ fun <T : Any> HeldContextMenu(
                 Modifier
                     // Taps between rows land on the menu, not the scrim under it.
                     .pointerInput(Unit) {}
-                    .clip(menuShape)
-                    .background(plate)
-                    .border(0.5.dp, hairline, menuShape),
+                    .then(if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) Modifier.cosmoMenuSurface() else Modifier.clip(menuShape).background(plate).border(0.5.dp, hairline, menuShape)),
             ) {
                 actions(menuItem)
             }

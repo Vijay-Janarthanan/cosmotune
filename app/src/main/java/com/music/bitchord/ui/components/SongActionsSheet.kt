@@ -207,6 +207,9 @@ fun SongActionsSheet(
     // that tint is not guaranteed to read against the theme's surface.
     val palette = if (menu) {
         neutralMenuPalette()
+    } else if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        // The new look: the cover of the song that is playing, not this track's own colours.
+        com.cosmotune.ui.sheets.cosmoSheetPalette()
     } else {
         rememberArtworkPalette(song.thumbnailUrl, artPx = ROW_ART_PX)
     }
@@ -423,6 +426,7 @@ private fun neutralMenuPalette(): ArtworkPalette {
  */
 @Composable
 private fun GroupSeparator(palette: ArtworkPalette) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetGap(menu = LocalActionRowStyle.current == ActionRowStyle.Menu)
     if (LocalActionRowStyle.current == ActionRowStyle.Menu) {
         Box(
             Modifier
@@ -461,6 +465,7 @@ private fun TintedSheet(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetSurface(modifier = modifier, content = content)
     val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
     Box(
         modifier
@@ -793,6 +798,7 @@ internal fun ActionRow(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoActionRow(icon = icon, label = label, value = value, tint = tint, enabled = enabled, menu = LocalActionRowStyle.current == ActionRowStyle.Menu, onClick = onClick)
     val menu = LocalActionRowStyle.current == ActionRowStyle.Menu
     // The popup sits on a surface rather than the page background, so its
     // text follows the surface's colour — the two differ in light mode.
@@ -906,6 +912,7 @@ internal fun SheetTrackHeader(
     modifier: Modifier = Modifier,
     subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetHeader(title = song.title, subtitle = song.artist, imageUrl = song.thumbnailUrl, modifier = modifier)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -942,6 +949,7 @@ internal fun SheetTrackHeader(
 /** The heading over a sheet's second half — "Add to playlist". */
 @Composable
 internal fun SheetHeading(text: String) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetHeading(text = text)
     Text(
         text = text,
         style = MaterialTheme.typography.labelMedium,
