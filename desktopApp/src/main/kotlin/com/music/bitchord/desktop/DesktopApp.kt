@@ -5999,7 +5999,7 @@ private fun DesktopSettingsScreen(
 
                         SettingsToggle(
                             "Dynamic YouTube Canvas (OpenCanvas)",
-                            "Plays the artist's music video behind the song, locked to the song's position. Seeks and skips are followed. Powered by OpenCanvas",
+                            "Plays the artist's music video behind the song, locked to the song's position. Seeks and skips are followed. Looks up the video on YouTube and ready-made sync maps on jsDelivr. Powered by OpenCanvas",
                             openCanvasEnabled,
                             DesktopAppearanceSettings::setOpenCanvasEnabled,
                         )

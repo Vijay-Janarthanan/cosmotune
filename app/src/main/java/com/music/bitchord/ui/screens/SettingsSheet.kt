@@ -924,7 +924,7 @@ fun SettingsScreen(
                 row(openCanvasTitle, "opencanvas", "canvas", "video", divided = false) {
                     SettingsSubRow(
                         title = openCanvasTitle,
-                        subtitle = "Plays the artist's music video behind the song, locked to the song's position. Seeks and skips are followed. Powered by OpenCanvas",
+                        subtitle = "Plays the artist's music video behind the song, locked to the song's position. Seeks and skips are followed. Looks up the video on YouTube and ready-made sync maps on jsDelivr. Powered by OpenCanvas",
                         checked = openCanvasEnabled,
                         onCheckedChange = AppSettings::setOpenCanvasEnabled,
                     )
