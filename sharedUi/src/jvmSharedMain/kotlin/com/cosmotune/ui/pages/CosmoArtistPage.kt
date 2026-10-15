@@ -86,7 +86,6 @@ import com.music.bitchord.sharedui.resources.cosmo_saved
 import com.music.bitchord.sharedui.resources.cosmo_shuffle
 import com.music.bitchord.ui.components.MessageState
 import com.music.bitchord.ui.components.contextClick
-import com.music.bitchord.ui.components.detailSkeleton
 import com.music.bitchord.ui.components.longPressMenuClickable
 import org.jetbrains.compose.resources.stringResource
 
@@ -213,7 +212,7 @@ private fun ArtistList(
         }
 
         when (val state = page.songs) {
-            is UiState.Loading -> detailSkeleton(isArtist = true)
+            is UiState.Loading -> pageSkeleton("skeleton:artist", rowDp = PageMetrics.ROW_DP)
             is UiState.Error -> item(key = "error") { MessageState(state.message) }
             is UiState.Success -> {
                 if (songs.isNotEmpty() || subscription != null) {

@@ -185,4 +185,49 @@ class PolishContractTest {
         assertTrue("if (layout.hasVisualOverflow) continue" in fit, "a size fits when nothing overflows (not only when the last line was ellipsised)")
         assertTrue("if (wholeWords && !LabelFit.breaksOnlyAtSpaces(" in fit, "and, for a name, when no word is broken")
     }
+
+    // ---- the sign-in banner signs in from anywhere on it -------------------------------------------------------------------------
+
+    @Test fun theWholeSignInTileSignsInAndKeepsItsButton() {
+        val body = SourceContract.functionBody(SourceContract.read("$ui/states/CosmoSignInBanner.kt"), "CosmoSignInBanner")
+        val click = ".clickable(interactionSource = interaction, indication = LocalIndication.current, onClickLabel = action, role = Role.Button, onClick = onSignIn)"
+        assertTrue(click in body, "the tile is a button with the same action")
+        assertTrue(body.indexOf(".cosmoFocusRing(interaction, BANNER_RADIUS)") in 0 until body.indexOf(".cosmoTile(SuperellipseShape(BANNER_RADIUS))"), "a focus ring round the tile")
+        assertTrue(body.indexOf(".cosmoTile(SuperellipseShape(BANNER_RADIUS))") < body.indexOf(click) && body.indexOf(click) < body.indexOf(".padding(BANNER_PADDING)"), "the press fills the tile")
+        assertTrue("val action = stringResource(Res.string.sign_in)" in body, "the action is read as \"Sign in\"")
+        assertTrue("CosmoButton(text = stringResource(Res.string.sign_in), onClick = onSignIn" in body, "the button at the end stays")
+    }
+
+    // ---- every skeleton of the new look is the cover's ---------------------------------------------------------------------------
+
+    @Test fun everySkeletonOfTheNewLookDrawsTheCoversSkeletonColours() {
+        // the shared skeletons: every block is a ShimmerBox, which hands over to CosmoShimmer (skelBase, skelShine) as its first statement
+        val skeletons = SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/Skeletons.kt")
+        val shimmer = SourceContract.functionBody(skeletons, "ShimmerBox")
+        assertTrue(
+            SourceContract.firstStatement(shimmer).startsWith("if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoShimmer("),
+            "ShimmerBox is the cover's shimmer in the new look",
+        )
+        val rest = SourceContract.code(skeletons).replace(shimmer, "").lines().filterNot { it.trimStart().startsWith("import ") }.joinToString("\n")
+        for (paint in listOf("drawRect", "background(", "drawWithCache", "drawBehind", "MaterialTheme.colorScheme")) {
+            assertFalse(paint in rest, "outside ShimmerBox no shared skeleton paints anything of its own: $paint")
+        }
+        val cosmo = SourceContract.code(SourceContract.read("$ui/states/CosmoShimmer.kt"))
+        assertTrue("CoverField.SKEL_BASE" in cosmo && "CoverField.SKEL_SHINE" in cosmo, "the cover's skeleton pair")
+        // the new pages draw their own skeleton, at full strength and of the new rows' measure
+        assertTrue("pageSkeleton(\"skeleton:release\", rowDp = PageMetrics.TRACK_ROW_DP)" in code("$ui/pages/CosmoReleasePage.kt"))
+        assertTrue("pageSkeleton(\"skeleton:artist\", rowDp = PageMetrics.ROW_DP)" in code("$ui/pages/CosmoArtistPage.kt"))
+        val parts = SourceContract.read("$ui/pages/PageParts.kt")
+        val skeleton = SourceContract.functionBody(parts, "pageSkeleton")
+        assertTrue(Regex("""CosmoShimmer\(""").findAll(skeleton).count() >= 5, "every block is the cover's shimmer")
+        assertFalse("alpha" in skeleton, "not dimmed over the page")
+        assertTrue("BlockMetrics.ROW_COVER_DP.dp" in skeleton && "SuperellipseShape(12.dp)" in SourceContract.code(parts), "a 52 dp cover of radius 12 (`.skel-row`)")
+        // and no new screen draws a skeleton of its own in other colours
+        val newLook = java.io.File(SourceContract.root, ui).walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        for (file in newLook) {
+            val text = SourceContract.code(file.readText().replace("\r\n", "\n"))
+            assertFalse("detailSkeleton(" in text, "${file.name} draws the old page skeleton")
+            if ("ShimmerBox(" in text || "CosmoShimmer(" in text) assertFalse("surfaceVariant" in text && "Shimmer" in text && "MaterialTheme" in text, "${file.name} paints a skeleton in Material colours")
+        }
+    }
 }
