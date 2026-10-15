@@ -191,6 +191,7 @@ fun PlaylistPickerSheet(
 
 @Composable
 private fun PlaylistRow(playlist: UserPlaylist, selected: Boolean, onClick: () -> Unit) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoPickRow(title = playlist.title, subtitle = playlist.subtitle, imageUrl = playlist.thumbnailUrl, selected = selected, onClick = onClick)
     Row(
         modifier = Modifier
             .fillMaxWidth()

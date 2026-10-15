@@ -54,7 +54,7 @@ fun QueueActionNoticeHost(
         modifier = modifier.fillMaxWidth(),
     ) { current ->
         if (current != null) {
-            Surface(
+            if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) com.cosmotune.ui.sheets.CosmoToast(current.message) else Surface(
                 color = Color(0xFF282828),
                 contentColor = Color.White,
                 shape = RoundedCornerShape(5.dp),

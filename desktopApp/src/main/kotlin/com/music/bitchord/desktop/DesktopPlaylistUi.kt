@@ -334,6 +334,10 @@ internal fun DesktopDeletePlaylistDialog(
  */
 @Composable
 private fun DesktopDialogFrame(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = 480.dp, hazeState = LocalDesktopHaze.current) { content() }
+        return
+    }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Box(
             Modifier
