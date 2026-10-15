@@ -270,4 +270,65 @@ class PolishContractTest {
         assertTrue(src.contains("operator fun getValue(thisRef: Any?, property: KProperty<*>): Int = shown(stored.intValue)"), "a read gives the shown tab")
         assertTrue(src.contains("operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) { stored.intValue = value }"), "a write is the saved tab")
     }
+
+    // ---- 8. the page actions of the phone's top bar are glass circles in the new look ----------------------------------------------
+
+    private fun flat(text: String) = text.replace(Regex("\\s+"), " ").trim()
+
+    @Test fun theTopBarGivesItsActionsSlotTheGlassStyleAndNothingElse() {
+        val bar = flat(SourceContract.code(SourceContract.read("${shared}chrome/CosmoTopBar.kt")))
+        assertTrue(
+            bar.contains("CompositionLocalProvider(LocalCosmoActionStyle provides CosmoActionStyle.GLASS) { actions() }"),
+            "the slot's content (and nothing else of the bar) is composed under the glass style",
+        )
+        val style = flat(SourceContract.code(SourceContract.read("${shared}chrome/CosmoActionStyle.kt")))
+        assertTrue(style.contains("enum class CosmoActionStyle { GLASS }"), "one style")
+        assertTrue(style.contains("val LocalCosmoActionStyle = compositionLocalOf<CosmoActionStyle?> { null }"), "null (no style) where nobody provides it")
+        // the switch only chooses between the two bars: the wrap is the new bar's own
+        assertFalse(SourceContract.read("app/src/main/java/com/cosmotune/ui/chrome/TopBarSwitch.kt").contains("LocalCosmoActionStyle"), "the switch does not know the style")
+    }
+
+    @Test fun theBridgedIconButtonIsMaterialsOwnOutsideTheGlassStyleAndTheGlassButtonInsideIt() {
+        val src = SourceContract.read("${shared}bridge/IconButtonBridge.kt")
+        assertEquals(
+            listOf(
+                "onClick: () -> Unit", "modifier: Modifier = Modifier", "enabled: Boolean = true", "colors: IconButtonColors = IconButtonDefaults.iconButtonColors()",
+                "interactionSource: MutableInteractionSource? = null", "content: @Composable () -> Unit",
+            ),
+            SourceContract.parameters(src, "IconButton"),
+            "Material's own parameter list (material3 1.3.x), so an upstream file takes it by changing one import line",
+        )
+        val body = flat(SourceContract.code(SourceContract.functionBody(src, "IconButton")))
+        assertTrue(
+            body.startsWith("{ if (LocalCosmoShell.current == null || LocalCosmoActionStyle.current != CosmoActionStyle.GLASS) { androidx.compose.material3.IconButton( onClick = onClick, modifier = modifier, enabled = enabled, colors = colors, interactionSource = interactionSource, content = content, ) return }"),
+            "the first statement hands every parameter, by name, to Material's own button unless the look is on and the style is glass: $body",
+        )
+        assertTrue(body.contains("CosmoGlassActionButton(onClick = onClick, modifier = modifier, enabled = enabled, content = content)"), "inside the style it is the glass circle")
+    }
+
+    @Test fun theGlassActionButtonIsTheGlassIconButtonWithASlot() {
+        val src = SourceContract.read("${shared}components/CosmoGlassActionButton.kt")
+        assertEquals(
+            listOf("onClick: () -> Unit", "modifier: Modifier = Modifier", "enabled: Boolean = true", "content: @Composable () -> Unit"),
+            SourceContract.parameters(src, "CosmoGlassActionButton"),
+        )
+        val body = flat(SourceContract.code(SourceContract.functionBody(src, "CosmoGlassActionButton")))
+        assertTrue(body.contains(".minimumInteractiveComponentSize() .size(40.dp)"), "a 40 dp circle that reserves a 48 dp touch target")
+        assertTrue(body.contains("ControlMorph.iconButton(40f, false, pressed, true)"), "the morph of the glass icon button at 40 dp")
+        assertTrue(body.contains("floating = true") && body.contains("role = Role.Button"), "a floating button, a Button")
+        assertTrue(body.contains("fill = { c.glassFill() }") || body.contains("fill = { colors.glassFill() }"), "the glass fill")
+        assertTrue(body.contains("glassEdge(outline, "), "and the glass edge")
+        assertTrue(body.contains("LocalContentColor provides Color(palette.textPrimary)"), "an icon with no tint of its own is drawn in ink")
+        assertTrue(body.contains("Box(Modifier.size(ControlMetrics.iconButtonIconDp(40f).dp), contentAlignment = Alignment.Center) { content() }"), "held to the glass icon button's 20 dp icon")
+        assertFalse(body.contains("live("), "no live colour is read in composition")
+    }
+
+    @Test fun theTwoUpstreamFilesThatDrawTheActionsTakeIconButtonFromTheBridge() {
+        for (file in listOf("${app}MainActivity.kt", "${app}ui/components/DownloadManagerSheet.kt")) {
+            val src = SourceContract.read(file)
+            assertTrue(src.contains("\nimport com.cosmotune.ui.bridge.IconButton\n"), "$file imports the bridge's IconButton")
+            assertFalse(src.contains("\nimport androidx.compose.material3.IconButton\n"), "$file no longer imports Material's")
+            assertEquals(1, Regex("""(?m)^import .*\.IconButton$""").findAll(src).count(), "$file imports IconButton once")
+        }
+    }
 }

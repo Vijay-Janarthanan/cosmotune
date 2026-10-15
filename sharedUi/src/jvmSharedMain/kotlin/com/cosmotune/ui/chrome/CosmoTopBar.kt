@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -136,7 +137,11 @@ fun CosmoTopBar(
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(TopBarMetrics.ACTIONS_GAP), verticalAlignment = Alignment.CenterVertically) { actions() }
+            // The page's actions are the old screens' own Material icon buttons: under the glass style the bridge's IconButton draws each
+            // as a glass circle, like the back button at the other end.
+            Row(horizontalArrangement = Arrangement.spacedBy(TopBarMetrics.ACTIONS_GAP), verticalAlignment = Alignment.CenterVertically) {
+                CompositionLocalProvider(LocalCosmoActionStyle provides CosmoActionStyle.GLASS) { actions() }
+            }
         }
         CosmoPullIndicator(fraction = pullFraction, refreshing = refreshing)
     }
