@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import com.cosmotune.settings.CosmoLookSettings
 import com.cosmotune.theme.CoverColors
@@ -96,6 +97,21 @@ class CosmoShellState internal constructor(val settings: CosmoLookSettings, dark
 
     /** The playing song's album, to let two tracks of one album differ more before the app re-themes. */
     internal var coverAlbum by mutableStateOf<String?>(null)
+
+    /** The mini capsule's rectangle in root coordinates: where the player grows from and shrinks back to. Null while it is not on screen. */
+    var capsuleBounds by mutableStateOf<Rect?>(null)
+
+    /** The player's cover rectangle in root coordinates, set by the player; the travelling cover lands on it. */
+    var playerCoverBounds by mutableStateOf<Rect?>(null)
+
+    /** 0 = the player is a capsule, 1 = it fills the window. Driven by the overlay's morph and by its drag. */
+    val playerProgress = Animatable(0f)
+
+    /** The capsule is invisible while the player stands in its place. */
+    var capsuleHidden by mutableStateOf(false)
+
+    /** True once the morph has finished. Reads [playerProgress]: use it only in `derivedStateOf` or in draw. */
+    val playerSettled: Boolean get() = playerProgress.value >= 1f
 }
 
 /** The palette of a cover with no colour: Cosmotune's own apricot (01-dynamic-colour.md section 3, rule 6). */
