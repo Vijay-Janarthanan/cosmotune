@@ -130,6 +130,7 @@ on it. Comments in the code cite sections of its design document ("spec 6.1"); t
 - `app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt` and
   `desktopApp/src/main/kotlin/com/cosmotune/video/host/DesktopModeHost.kt`: the hosts that draw Video in place of Music's root.
 - The mode is only reachable while `AppModes.available(AppMode.VIDEO)` is true, the new look is on and the stored mode is Video.
+  It is true since the first Cosmotune release; the one-line change in `AppModes.available` takes Video out of the drawer again.
   With the look off, or with the mode on Music, every hook below is a no-op.
 
 ### Hooks into upstream files
