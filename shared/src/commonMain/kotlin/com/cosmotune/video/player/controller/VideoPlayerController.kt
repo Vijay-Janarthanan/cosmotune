@@ -3,11 +3,13 @@ package com.cosmotune.video.player.controller
 import com.cosmotune.video.library.VideoLibrary
 import com.cosmotune.video.model.AudioStream
 import com.cosmotune.video.model.Description
+import com.cosmotune.video.model.ListItem
 import com.cosmotune.video.model.StreamKind
 import com.cosmotune.video.model.StreamSet
 import com.cosmotune.video.model.SubtitleTrack
 import com.cosmotune.video.model.VideoDetails
 import com.cosmotune.video.model.VideoItem
+import com.cosmotune.video.player.LiveWindow
 import com.cosmotune.video.player.LocalBundle
 import com.cosmotune.video.player.MediaInput
 import com.cosmotune.video.player.PlaybackRequest
@@ -64,6 +66,14 @@ import kotlin.jvm.Synchronized
  * it, loads it again. `stop()` pauses, unloads and returns to Idle. A Short that was paused because the UI left stays paused
  * until the pager plays it again. A downloaded video (`playLocal`) makes no source call: its `details` is a stand-in with the
  * bundle's chapters and subtitles, its `segments` are the bundle's.
+ *
+ * Live (spec 5.13; plan task Y-28). A live stream plays its HLS address as it is (Auto, no ladder, no audio track choice), always
+ * from the live edge (no resume, no explicit start), with no history and no SponsorBlock; its `durationMs` is the end of the
+ * engine's seekable window, and seeks stay inside the window, never past the live edge ([LiveWindow]). Previous never seeks a
+ * live stream back to its window's start. When a live stream ends it is loaded again once, if fresh details still call it live (a
+ * dropped stream); a second end within [LIVE_RELOAD_WINDOW_MS] is the end. An upcoming video never reaches the engine: the state
+ * is `UNAVAILABLE` with the premiere as its item, whose `uploadedAtMs` is the start time; a premiere known to be ahead is not even
+ * asked for, and the source refusing one (it does for a stream that has not started) shows the premiere we knew of.
  *
  * Threads. The calls come from the UI thread and the coroutines run on [scope] (any dispatcher): every entry point takes the
  * controller's own lock, and a suspending fetch never holds it. The lock is held across calls into [engine], [library] and
@@ -133,6 +143,9 @@ class VideoPlayerController(
 
         /** The duration the engine reported when it ended, kept for the state of an unloaded ended video. */
         var endedDurationMs = 0L
+
+        /** When this live stream was last loaded again after it ended (a dropped stream gets one more go a minute, spec 5.13). */
+        var liveReloadAtMs: Long? = null
 
         /** Bumped by every reload, so a slow fetch of an older one is dropped. */
         var opSeq = 0
@@ -224,12 +237,16 @@ class VideoPlayerController(
         }
     }
 
-    /** Starts a new load: records nothing (callers did), pauses what was playing, and fetches (remote) or loads (local). */
+    /**
+     * Starts a new load: records nothing (callers did), pauses what was playing, and fetches (remote) or loads (local). A premiere
+     * known to be ahead goes straight to its upcoming state, with no fetch (spec 5.13).
+     */
     @Synchronized
     private fun begin(videoId: String, explicitStartMs: Long?, short: Boolean, local: LocalBundle?, known: VideoItem?) {
         val s = settings.settings.value
+        val previous = load
         val l = Load(videoId, short, local, s.defaultSpeed, loop = short, budget = RefreshBudget(clock = clock))
-        l.knownItem = known ?: queueState.upNext.firstOrNull { it.id == videoId } ?: cache[videoId]?.details?.item
+        l.knownItem = known ?: knownItem(videoId, previous)
         stopWork()
         if (engineLoaded) {
             engineLoaded = false
@@ -239,11 +256,47 @@ class VideoPlayerController(
         endHandled = false
         load = l
         publish()
-        if (local != null && known != null) {
-            applyLocal(l, explicitStartMs, known, local)
-        } else {
-            opJob = scope.launch { startRemote(l, explicitStartMs) }
+        val premiere = l.knownItem?.takeIf { local == null && notStartedYet(it) }
+        when {
+            local != null && known != null -> applyLocal(l, explicitStartMs, known, local)
+            premiere != null -> showUpcoming(l, premiere, details = null)
+            else -> opJob = scope.launch { startRemote(l, explicitStartMs) }
         }
+    }
+
+    /**
+     * What is known of [videoId] before its details arrive: the video [previous] played when it is the same one again, the queue,
+     * the details cache, the related videos of [previous], watch later. The UI shows it while loading; a premiere among them is
+     * recognised without asking the source (spec 5.13).
+     */
+    private fun knownItem(videoId: String, previous: Load?): VideoItem? =
+        previous?.takeIf { it.videoId == videoId }?.let { it.item ?: it.knownItem }
+            ?: queueState.upNext.firstOrNull { it.id == videoId }
+            ?: cache[videoId]?.details?.item
+            ?: previous?.details?.related?.firstNotNullOfOrNull { entry -> (entry as? ListItem.Video)?.item?.takeIf { it.id == videoId } }
+            ?: library.watchLater.value.firstOrNull { it.id == videoId }
+
+    /** A premiere whose start time is known and still ahead: the source would only refuse it. */
+    private fun notStartedYet(item: VideoItem): Boolean {
+        if (!item.isUpcoming) return false
+        val startsAt = item.uploadedAtMs ?: return false
+        return startsAt > clock()
+    }
+
+    /**
+     * An upcoming video (spec 5.13): it never reaches the engine. The state is `UNAVAILABLE` with [item] (the premiere, whose
+     * `uploadedAtMs` is its start time) and the [details] the source gave, if any; nothing is recorded and nothing is asked of
+     * SponsorBlock. "Try again" goes through [begin] again: still ahead, the same state; else the source is asked.
+     */
+    private fun showUpcoming(l: Load, item: VideoItem, details: VideoDetails?) {
+        if (load !== l) return
+        l.item = if (item.isUpcoming) item else item.copy(isUpcoming = true)
+        l.details = details
+        l.live = false
+        l.error = VideoUiError.UNAVAILABLE
+        l.errorFromEngine = false
+        engineLoaded = false
+        publish()
     }
 
     private suspend fun startRemote(l: Load, explicitStartMs: Long?) {
@@ -273,6 +326,12 @@ class VideoPlayerController(
     @Synchronized
     private fun failLoad(l: Load, error: VideoUiError) {
         if (load !== l) return
+        val premiere = l.knownItem?.takeIf { it.isUpcoming }
+        if (error == VideoUiError.UNAVAILABLE && premiere != null) {
+            // The source refuses a stream that has not started (its player answers "offline"): the premiere we knew of (spec 5.13).
+            showUpcoming(l, premiere, details = null)
+            return
+        }
         l.error = error
         l.errorFromEngine = false
         engineLoaded = false
@@ -284,15 +343,20 @@ class VideoPlayerController(
         if (load !== l) return
         val s = settings.settings.value
         val item = if (l.short && !details.item.isShort) details.item.copy(isShort = true) else details.item
+        if (item.isUpcoming) {
+            // A premiere the source still described: no player (spec 5.13).
+            showUpcoming(l, item, details)
+            return
+        }
         l.item = item
         l.details = details
         l.streams = streams
         l.live = details.kind == StreamKind.LIVE
-        l.audioTracks = streams.audio.distinctBy { it.trackId }
+        l.audioTracks = audioTracksOf(l, streams)
         l.subtitleLanguage = pickSubtitle(details.subtitles, s.captionsLanguage)
         if (streams !== details.streams) refreshCachedStreams(l.videoId, streams)
         val start = startPosition(item, explicitStartMs, l.short, l.live, s)
-        val selection = choose(l, streams, pinned = null, s)
+        val selection = select(l, streams, pinned = null, s)
         l.selection = selection
         doLoad(l, buildRequest(l, item, selection.input, start), play = true)
         startSegments(l, s)
@@ -331,15 +395,34 @@ class VideoPlayerController(
         fetchedAtMs = clock(),
     )
 
-    /** An explicit start wins; else the history position when resume is on and the entry is not watched (spec 6.1); Shorts and live start at 0. */
+    /**
+     * Live starts at the live edge, always: 0 with `live` set, which the engines read as their default position (resume and an
+     * explicit start never apply, spec 5.13). Otherwise an explicit start wins; else the history position when resume is on and
+     * the entry is not watched (spec 6.1); Shorts start at 0.
+     */
     private fun startPosition(item: VideoItem, explicitStartMs: Long?, short: Boolean, live: Boolean, s: VideoSettings): Long {
+        if (live) return 0
         if (explicitStartMs != null) return explicitStartMs.coerceAtLeast(0)
-        if (short || live || !s.resume) return 0
+        if (short || !s.resume) return 0
         val stored = library.positionOf(item.id) ?: return 0
         val entry = library.history.value.firstOrNull { it.item.id == item.id }
         if (entry != null && entry.isWatched) return 0
         return stored.coerceAtLeast(0)
     }
+
+    /**
+     * The streams to play: a live stream's HLS address as it is, Auto only, with no ladder (spec 5.13, 6.2; NewPipe can list
+     * video-only streams for a live stream too, which the chooser would take apart); everything else goes to the chooser.
+     */
+    private fun select(l: Load, streams: StreamSet, pinned: QualityOption?, s: VideoSettings): Selection {
+        val hls = streams.hlsUrl
+        if (l.live && hls != null) return Selection(option = null, input = MediaInput.Hls(hls), video = null, audio = null, ladder = emptyList())
+        return choose(l, streams, pinned, s)
+    }
+
+    /** The audio tracks offered: one per track; none for a live stream (its HLS address picks its own). */
+    private fun audioTracksOf(l: Load, streams: StreamSet): List<AudioStream> =
+        if (l.live) emptyList() else streams.audio.distinctBy { it.trackId }
 
     private fun choose(l: Load, streams: StreamSet, pinned: QualityOption?, s: VideoSettings): Selection = chooser.choose(
         streams = streams,
@@ -443,6 +526,11 @@ class VideoPlayerController(
     private fun finishFetch(id: String, result: Result<VideoDetails>) {
         inFlight.remove(id)
         val details = result.getOrNull() ?: return
+        if (details.item.isUpcoming) return     // a premiere may start any minute: asked again next time (spec 5.13)
+        putInCache(id, details)
+    }
+
+    private fun putInCache(id: String, details: VideoDetails) {
         cache[id] = Cached(details, clock())
         while (cache.size > CACHE_MAX) cache.remove(cache.keys.first())
     }
@@ -523,12 +611,13 @@ class VideoPlayerController(
     }
 
     /**
-     * The video ended (spec 6.1): loop; else a Short waits for its pager; else the queue's next; else autoplay's pick; else
-     * nothing is next: the state stays ENDED and the engine is unloaded, so no session or notification outlives the video.
+     * The video ended (spec 6.1): a live stream is loaded again once (a dropped stream, spec 5.13); else loop (never a live
+     * stream); else a Short waits for its pager; else [playOnOrStop].
      */
     private fun onEnded(l: Load) {
         recordNow()
-        if (l.loop) {
+        if (l.live && reloadLive(l)) return
+        if (l.loop && !l.live) {
             l.handled.clear()
             l.seekedInto.clear()
             engine.seekTo(0)
@@ -536,6 +625,14 @@ class VideoPlayerController(
             return
         }
         if (l.short) return
+        playOnOrStop(l)
+    }
+
+    /**
+     * After the end: the queue's next; else autoplay's pick; else nothing is next: the state stays ENDED and the engine is
+     * unloaded, so no session or notification outlives the video.
+     */
+    private fun playOnOrStop(l: Load) {
         val step = queueState.next(l.item)
         if (step != null) {
             queueState = step.queue
@@ -557,6 +654,58 @@ class VideoPlayerController(
         tickerJob?.cancel()
         tickerJob = null
         engine.unload()
+    }
+
+    /**
+     * A live stream ended (spec 5.13). A dropped stream ends too, so it is loaded again: once, then a second end within
+     * [LIVE_RELOAD_WINDOW_MS] is the real end (false: the caller goes on as for any end). Fresh details decide (never the cache):
+     * when the source no longer calls the stream live, or gives no HLS address, the broadcast is over. Meanwhile the state says
+     * LOADING; a failed check shows its error.
+     */
+    private fun reloadLive(l: Load): Boolean {
+        val now = clock()
+        val last = l.liveReloadAtMs
+        if (last != null && now - last < LIVE_RELOAD_WINDOW_MS) return false
+        l.liveReloadAtMs = now
+        engineLoaded = false
+        lastSnap = null
+        tickerJob?.cancel()
+        tickerJob = null
+        val seq = ++l.opSeq
+        opJob?.cancel()
+        opJob = scope.launch {
+            val fresh = try {
+                source.details(l.videoId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                liveReloadFailed(l, seq, e)
+                return@launch
+            }
+            applyLiveReload(l, seq, fresh)
+        }
+        return true
+    }
+
+    @Synchronized
+    private fun applyLiveReload(l: Load, seq: Int, fresh: VideoDetails) {
+        if (load !== l || l.opSeq != seq) return
+        if (!fresh.item.isUpcoming) putInCache(l.videoId, fresh)
+        if (fresh.kind != StreamKind.LIVE || fresh.streams.hlsUrl == null) {
+            playOnOrStop(l)                     // the broadcast is over
+            publish()
+            return
+        }
+        l.details = fresh
+        reloadWith(l, fresh.streams, startMs = 0, play = true, pinned = null)
+    }
+
+    @Synchronized
+    private fun liveReloadFailed(l: Load, seq: Int, error: Throwable) {
+        if (load !== l || l.opSeq != seq) return
+        l.error = ErrorMapping.map(error)
+        l.errorFromEngine = false
+        publish()
     }
 
     // ------------------------------------------------------------------ the tick: history, segments, dropped frames
@@ -605,7 +754,7 @@ class VideoPlayerController(
         SegmentCategory.entries.filter { (s.segmentBehaviours[it] ?: it.defaultBehaviour) != SegmentBehaviour.OFF }.toSet()
 
     private fun startSegments(l: Load, s: VideoSettings) {
-        if (!s.sponsorBlock) return
+        if (!s.sponsorBlock || l.live) return   // no SponsorBlock for live streams (spec 5.13)
         val categories = enabledCategories(s)
         if (categories.isEmpty()) return
         segmentsJob?.cancel()
@@ -739,7 +888,7 @@ class VideoPlayerController(
     @Synchronized
     override fun selectAudioTrack(trackId: String?) {
         val l = load ?: return
-        if (l.local != null) return
+        if (l.local != null || l.live) return
         l.audioTrackId = trackId
         requestReload(l)
     }
@@ -793,9 +942,9 @@ class VideoPlayerController(
         val item = l.item ?: return
         l.opSeq++
         l.streams = streams
-        l.audioTracks = streams.audio.distinctBy { it.trackId }
+        l.audioTracks = audioTracksOf(l, streams)
         refreshCachedStreams(l.videoId, streams)
-        val selection = choose(l, streams, pinned, settings.settings.value)
+        val selection = select(l, streams, pinned, settings.settings.value)
         l.selection = selection
         doLoad(l, buildRequest(l, item, selection.input, startMs), play)
     }
@@ -857,7 +1006,15 @@ class VideoPlayerController(
         }
         if (!engineLoaded) return
         val duration = durationNow(l)
-        val target = if (!l.live && duration > 0) ms.coerceIn(0, duration) else ms.coerceAtLeast(0)
+        val target = when {
+            l.live -> {
+                // Only inside the stream's window and never past the live edge; with no window there is nothing to seek in (spec 5.13).
+                if (LiveWindow.liveEdgeMs(duration) <= LiveWindow.WINDOW_START_MS) return
+                LiveWindow.clampSeek(ms, LiveWindow.WINDOW_START_MS, duration)
+            }
+            duration > 0 -> ms.coerceIn(0, duration)
+            else -> ms.coerceAtLeast(0)
+        }
         engine.seekTo(target)
         for (segment in l.segments) {
             if (target >= segment.startMs && target < segment.endMs) l.seekedInto += segment.uuid
@@ -941,9 +1098,11 @@ class VideoPlayerController(
     override fun playPrevious() {
         val l = load ?: return
         if (l.short) return
-        val step = if (engineLoaded && engine.positionMs() > RESTART_AFTER_MS) null else queueState.previous(l.item ?: l.knownItem)
+        // A live stream has no start to go back to (0 is its window's oldest moment): Previous only plays the video before it.
+        val restart = !l.live && engineLoaded && engine.positionMs() > RESTART_AFTER_MS
+        val step = if (restart) null else queueState.previous(l.item ?: l.knownItem)
         if (step == null) {
-            seekTo(0)                         // more than 3 s in, or nothing before it: back to the start
+            if (!l.live) seekTo(0)            // more than 3 s in, or nothing before it: back to the start
             return
         }
         recordNow()
@@ -1100,5 +1259,8 @@ class VideoPlayerController(
         /** The speed range of spec 6.5. */
         const val MIN_SPEED = 0.25f
         const val MAX_SPEED = 4f
+
+        /** A live stream that ends again within a minute of being loaded again has really ended (spec 5.13: once, then stop). */
+        const val LIVE_RELOAD_WINDOW_MS = 60_000L
     }
 }

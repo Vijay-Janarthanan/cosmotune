@@ -429,9 +429,26 @@
     <string name="video_set_dearrow_thumbs_short">Better thumbnails</string>
     <string name="video_set_dl_ask_short">Ask each time</string>
     <string name="video_set_dl_battery_short">Pause on low battery</string>
+    <!-- Downloads page (Y-33) -->
+    <string name="video_dl_sort">Sort</string>
+    <string name="video_dl_show_items">Show the videos</string>
+    <string name="video_dl_hide_items">Hide the videos</string>
+    <string name="video_dl_delete_confirm">Delete this download?</string>
+    <string name="video_dl_save_copy_failed">Could not save a copy</string>
+    <!-- Comments panel (Y-23) -->
+    <string name="video_comments_empty">No comments yet</string>
+    <string name="video_comments_error">Could not load the comments</string>
     <!-- Subscriptions (Y-21) -->
     <string name="video_feed_updated_now">Updated just now</string>
     <string name="video_feed_refresh">Refresh</string>
     <!-- Download sheet (Y-32) -->
     <string name="video_dl_in_downloads">Already in Downloads</string>
+    <!-- Library pages (Y-22) -->
+    <string name="video_reorder">Reorder</string>
+    <string name="video_move_up">Move up</string>
+    <string name="video_move_down">Move down</string>
+    <string name="video_remove">Remove</string>
+    <string name="video_empty_saved_playlists">No saved playlists yet</string>
+    <!-- Live streams and premieres (Y-28) -->
+    <string name="video_live_starts">Starts %1$s</string>
 </resources>
