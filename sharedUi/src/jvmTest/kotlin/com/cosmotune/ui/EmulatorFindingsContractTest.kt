@@ -1,8 +1,10 @@
 package com.cosmotune.ui
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 /**
  * The defects the real app showed on an emulator and in the desktop exe (task P4-22), pinned by reading the sources
@@ -26,5 +28,43 @@ class EmulatorFindingsContractTest {
         assertTrue("if (fit.visible)" in mix, "and it is left out when there is no room")
         assertFalse("Alignment.BottomStart" in mix || "Alignment.TopEnd" in mix, "neither block is aligned on its own any more: that is what let them overlap")
         assertTrue("maxLines = 2" in mix, "a title takes up to two lines")
+    }
+
+    // ---- the Settings row of the new look is no longer a preview, in every language -----------------------------------------------
+
+    private val resources = java.io.File(SourceContract.root, "sharedUi/src/commonMain/composeResources")
+
+    private fun valueOf(folder: String, key: String): String {
+        val text = java.io.File(resources, "$folder/strings.xml").readText()
+        val match = Regex("""<string name="$key">([^<]*)</string>""").find(text)
+        return (match ?: fail("$folder has no $key")).groupValues[1]
+    }
+
+    private val folders get() = resources.listFiles { f -> f.isDirectory && f.name.startsWith("values") }.orEmpty().map { it.name }.sorted()
+
+    @Test fun theNewLookRowSaysNewLookAndTheRedesignedInterfaceInEnglish() {
+        assertEquals("New look", valueOf("values", "cosmo_new_look"))
+        assertEquals("The redesigned interface. Turn it off to go back to the classic layout.", valueOf("values", "cosmo_new_look_summary"))
+    }
+
+    @Test fun noLanguageKeepsTheOldPreviewWordingAndEveryOtherLanguageHasItsOwnText() {
+        assertEquals(18, folders.size, "the base file and the 17 translations")
+        val english = listOf(valueOf("values", "cosmo_new_look"), valueOf("values", "cosmo_new_look_summary"))
+        for (folder in folders) {
+            for ((i, key) in listOf("cosmo_new_look", "cosmo_new_look_summary").withIndex()) {
+                val value = valueOf(folder, key)
+                assertTrue(value.isNotBlank(), "$folder $key is empty")
+                assertFalse("preview" in value.lowercase() || "Still being built" in value, "$folder $key still calls the new look a preview: $value")
+                if (folder != "values") assertTrue(value != english[i], "$folder $key is still the English text")
+            }
+        }
+    }
+
+    @Test fun thePhoneAndTheDesktopSettingsRowsReadTheSameTwoKeys() {
+        val phone = SourceContract.code(SourceContract.read("app/src/main/java/com/cosmotune/ui/CosmoLookSettingsRows.kt"))
+        val desktop = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoLookDesktopToggles.kt"))
+        for ((name, code) in listOf("phone" to phone, "desktop" to desktop)) {
+            assertTrue("Res.string.cosmo_new_look)" in code && "Res.string.cosmo_new_look_summary)" in code, "the $name row takes its two texts from the shared strings")
+        }
     }
 }

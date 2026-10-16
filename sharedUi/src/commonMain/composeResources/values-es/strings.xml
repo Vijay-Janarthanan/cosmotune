@@ -200,8 +200,8 @@
     <string name="search_library_empty">Busca las canciones de tu carpeta de Música local.</string>
     <string name="search_library_hint">Canciones, artistas y álbumes</string>
     <string name="search_library_no_results">Nada en Música local coincide con “%1$s”.</string>
-    <string name="cosmo_new_look">New look (preview)</string>
-    <string name="cosmo_new_look_summary">The redesigned player and navigation. Still being built.</string>
+    <string name="cosmo_new_look">Nuevo aspecto</string>
+    <string name="cosmo_new_look_summary">La interfaz rediseñada. Desactívala para volver al diseño clásico.</string>
     <string name="cosmo_cover_colours">Colours follow the cover</string>
     <string name="cosmo_cover_colours_summary">The whole app takes its colour from the song that is playing</string>
     <string name="cosmo_look_preview">Preview the look</string>

@@ -200,8 +200,8 @@
     <string name="search_library_empty">आपके लोकल म्यूज़िक फ़ोल्डर के गाने खोजें.</string>
     <string name="search_library_hint">गाने, कलाकार और एल्बम</string>
     <string name="search_library_no_results">लोकल म्यूज़िक में “%1$s” से मेल खाता कुछ नहीं.</string>
-    <string name="cosmo_new_look">New look (preview)</string>
-    <string name="cosmo_new_look_summary">The redesigned player and navigation. Still being built.</string>
+    <string name="cosmo_new_look">नया रूप</string>
+    <string name="cosmo_new_look_summary">नया डिज़ाइन किया गया इंटरफ़ेस। क्लासिक लेआउट पर लौटने के लिए इसे बंद करें।</string>
     <string name="cosmo_cover_colours">Colours follow the cover</string>
     <string name="cosmo_cover_colours_summary">The whole app takes its colour from the song that is playing</string>
     <string name="cosmo_look_preview">Preview the look</string>

@@ -200,8 +200,8 @@
     <string name="search_library_empty">Tìm các bài hát trong thư mục Nhạc cục bộ của bạn.</string>
     <string name="search_library_hint">Bài hát, nghệ sĩ và album</string>
     <string name="search_library_no_results">Không có gì trong Nhạc cục bộ khớp với “%1$s”.</string>
-    <string name="cosmo_new_look">New look (preview)</string>
-    <string name="cosmo_new_look_summary">The redesigned player and navigation. Still being built.</string>
+    <string name="cosmo_new_look">Giao diện mới</string>
+    <string name="cosmo_new_look_summary">Giao diện được thiết kế lại. Tắt để quay lại bố cục cổ điển.</string>
     <string name="cosmo_cover_colours">Colours follow the cover</string>
     <string name="cosmo_cover_colours_summary">The whole app takes its colour from the song that is playing</string>
     <string name="cosmo_look_preview">Preview the look</string>
