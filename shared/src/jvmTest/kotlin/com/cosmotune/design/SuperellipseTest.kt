@@ -91,4 +91,31 @@ class SuperellipseTest {
             assertTrue((x == 0f || x == 100f) && (y == 0f || y == 60f), "point $i is at ($x, $y)")
         }
     }
+
+    // ---- the shadow's stand-in (P4-21) ----
+
+    @Test
+    fun theShadowOfACircularCornerKeepsItsRadius() {
+        assertEquals(12f, Superellipse.shadowRadius(12f, 2f), 1e-4f)
+    }
+
+    @Test
+    fun theShadowStandInMeetsTheSquircleAtFortyFiveDegrees() {
+        // The rounded corner that stands in for the squircle under its shadow passes through the squircle's own 45 degree point:
+        // a circle of radius r' sits r' (1 - 1/sqrt 2) in from each edge there.
+        val (out, _) = outline(100f, 60f, 10f, 4f)
+        val i = 3 * 17 + 8
+        val standIn = Superellipse.shadowRadius(10f, 4f)
+        assertEquals(out[2 * i], standIn * (1f - 1f / kotlin.math.sqrt(2f)), 1e-3f)
+        assertEquals(5.432f, standIn, 1e-3f)
+    }
+
+    @Test
+    fun theStandInIsNeverLargerThanTheSquircleAndScalesWithIt() {
+        for (n in floatArrayOf(2f, 3f, 4f, 6f)) {
+            val r = Superellipse.shadowRadius(20f, n)
+            assertTrue(r in 0f..20.0001f, "n=$n gives $r")
+            assertEquals(2f * r, Superellipse.shadowRadius(40f, n), 1e-3f, "linear in the radius at n=$n")
+        }
+    }
 }

@@ -17,11 +17,14 @@ import androidx.compose.ui.unit.Dp
  * in a headless render of the cover on the light theme). The elevation shadow has no such edge. It needs an opaque or
  * translucent convex outline, which every shape here is, and it never clips the content ([graphicsLayer]'s `clip` stays false).
  * Below Android 9 the spot colour is ignored and the shadow is black, which is the same shape of shadow.
+ *
+ * A superellipse casts its shadow from its rounded-rectangle stand-in ([forShadow], [SuperellipseShape.shadowShape]): the same
+ * shadow to the eye, drawn analytically instead of tessellated from a path on every frame that a scrolling page moves it.
  */
 internal fun Modifier.liftShadow(shape: Shape, elevation: Dp, spot: () -> Color, ambient: () -> Color): Modifier =
     graphicsLayer {
         shadowElevation = elevation.toPx()
-        this.shape = shape
+        this.shape = shape.forShadow()
         clip = false
         spotShadowColor = spot()
         ambientShadowColor = ambient()
@@ -36,7 +39,7 @@ internal class Lift(val shape: Shape, val elevation: Dp, val spot: () -> Color, 
 /** [lift] in this layer: its elevation, shape and the two colours, read now; never a clip. */
 internal fun GraphicsLayerScope.applyLift(lift: Lift) {
     shadowElevation = lift.elevation.toPx()
-    shape = lift.shape
+    shape = lift.shape.forShadow()
     clip = false
     spotShadowColor = lift.spot()
     ambientShadowColor = lift.ambient()

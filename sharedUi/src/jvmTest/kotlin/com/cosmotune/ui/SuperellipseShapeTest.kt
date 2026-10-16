@@ -7,8 +7,11 @@ import androidx.compose.ui.graphics.asSkiaPath
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.cosmotune.design.Superellipse
 import com.cosmotune.ui.components.MorphPath
 import com.cosmotune.ui.components.SuperellipseShape
+import com.cosmotune.ui.components.forShadow
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -52,5 +55,34 @@ class SuperellipseShapeTest {
         assertSame(first, second, "one Path for the whole morph")
         val b = second.getBounds()
         near(120f, b.right); near(80f, b.bottom)
+    }
+
+    // ---- the shadow's stand-in (P4-21) ----
+
+    @Test fun theShadowIsCastFromARoundedRectangleThroughTheSquirclesFortyFiveDegreePoint() {
+        // 10 dp at density 2 is 20 px
+        val rr = (SuperellipseShape(10.dp).shadowShape.createOutline(Size(200f, 100f), LayoutDirection.Ltr, density) as Outline.Rounded).roundRect
+        near(Superellipse.shadowRadius(20f, 4f), rr.topLeftCornerRadius.x)
+        near(Superellipse.shadowRadius(20f, 4f), rr.bottomRightCornerRadius.y)
+        near(0f, rr.left); near(0f, rr.top); near(200f, rr.right); near(100f, rr.bottom)
+    }
+
+    @Test fun theStandInClampsTheRadiusAsTheSuperellipseDoes() {
+        // 100 dp (200 px) on a 100 x 60 box: the superellipse's corner is clamped to 30 px, and the stand-in is made from that
+        val rr = (SuperellipseShape(100.dp).shadowShape.createOutline(Size(100f, 60f), LayoutDirection.Ltr, density) as Outline.Rounded).roundRect
+        near(Superellipse.shadowRadius(30f, 4f), rr.topLeftCornerRadius.x)
+    }
+
+    @Test fun onlyASuperellipseIsStoodInFor() {
+        val squircle = SuperellipseShape(12.dp)
+        assertSame(squircle.shadowShape, squircle.forShadow())
+        val round = RoundedCornerShape(8.dp)
+        assertSame(round, round.forShadow())
+    }
+
+    @Test fun everyLiftCastsItsShadowFromTheStandIn() {
+        val shadows = SourceContract.code(SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/components/Shadows.kt"))
+        assertTrue("this.shape = shape.forShadow()" in shadows, "liftShadow")
+        assertTrue("shape = lift.shape.forShadow()" in shadows, "applyLift (a MorphBox's lift)")
     }
 }

@@ -74,7 +74,7 @@ fun Modifier.cosmoTile(shape: Shape): Modifier {
     return tileLift(shape, colors)
         .clip(shape)
         .drawWithCache {
-            val edge = tileEdge(shape.createOutline(size, layoutDirection, this), colors)
+            val edge = tileEdge(shape, colors)
             onDrawBehind {
                 drawRect(tileFill(colors))
                 edge()
@@ -204,7 +204,7 @@ fun CosmoMixTile(
             .contextClick(onLongPress)
             .clip(shape)
             .drawWithCache {
-                val edge = tileEdge(shape.createOutline(size, layoutDirection, this), colors)
+                val edge = tileEdge(shape, colors)
                 onDrawBehind {
                     drawRect(groundFill(colors))
                     ambientWash(colors, cx = 1f, cy = 0f, rx = 1.2f, ry = 0.9f)

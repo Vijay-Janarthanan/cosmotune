@@ -12,8 +12,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -94,18 +92,19 @@ private val COVER_ELEVATION = 14.dp
 /**
  * The cover's rim (`.cv::after`): an inner ring of white 14 % (0.5 dp) and a fine top line of white 16 %. Drawn on top of the picture.
  * In the light theme a white ring vanishes on a pale cover over a pale page, so it also takes the tile's hairline (`--hl` light: the
- * ink at 6 %), read while drawing; reading the palette in the cache rebuilds it when the theme flips.
+ * ink at 6 %), read while drawing; reading the palette in the cache rebuilds it when the theme flips. The strokes along the
+ * superellipse come from masks made once per size ([outlineStroke]): stroked directly, every cover of a scrolling page cost the
+ * RenderThread a fresh mask on every frame.
  */
 private fun Modifier.coverRim(shape: Shape, colors: CosmoColors): Modifier = drawWithCache {
     val outline = shape.createOutline(size, layoutDirection, this)
-    val ring = Stroke(1.dp.toPx())                      // the clip shows half of it: 0.5 dp
-    val top = topLightBrush(Color.White.copy(alpha = 0.16f), size.height)
-    val topStroke = Stroke(2.dp.toPx())                 // 1 dp inside
+    val ring = outlineStroke(shape, outline, size, layoutDirection, 1.dp.toPx())          // the clip shows half of it: 0.5 dp
+    val top = outlineStroke(shape, outline, size, layoutDirection, 2.dp.toPx(), fadePx = topLightFade(size.height))  // 1 dp inside
     keepRedrawnWith(colors.palette)
     val light = !colors.dark
     onDrawBehind {
-        drawOutline(outline, Color.White.copy(alpha = 0.14f), style = ring)
-        drawOutline(outline, top, style = topStroke)
-        if (light) drawOutline(outline, colors.live(CoverField.TEXT_PRIMARY).copy(alpha = TileDepth.hairlineAlpha(dark = false)), style = ring)
+        ring.draw(this, Color.White.copy(alpha = 0.14f))
+        top.draw(this, Color.White.copy(alpha = 0.16f))
+        if (light) ring.draw(this, colors.live(CoverField.TEXT_PRIMARY).copy(alpha = TileDepth.hairlineAlpha(dark = false)))
     }
 }
