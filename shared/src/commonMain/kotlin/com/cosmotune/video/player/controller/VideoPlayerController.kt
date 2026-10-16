@@ -2,11 +2,13 @@ package com.cosmotune.video.player.controller
 
 import com.cosmotune.video.library.VideoLibrary
 import com.cosmotune.video.model.AudioStream
+import com.cosmotune.video.model.Description
 import com.cosmotune.video.model.StreamKind
 import com.cosmotune.video.model.StreamSet
 import com.cosmotune.video.model.SubtitleTrack
 import com.cosmotune.video.model.VideoDetails
 import com.cosmotune.video.model.VideoItem
+import com.cosmotune.video.player.LocalBundle
 import com.cosmotune.video.player.MediaInput
 import com.cosmotune.video.player.PlaybackRequest
 import com.cosmotune.video.player.PlaybackUiState
@@ -55,6 +57,13 @@ import kotlin.jvm.Synchronized
  * call, a finished fetch); the playhead is never in it, [positionMs] reads the engine. `queue` in the state is what plays
  * after the current video; the played ones are kept inside for Previous.
  *
+ * What screens must know of the state. `queue` is the items after the current video (not the whole list); Previous works from
+ * a trail kept inside. When a video ends and nothing is next (no loop, no queue, no autoplay pick) the state stays `ENDED` so
+ * a page can offer "Replay", and the engine is unloaded (`VideoPlayerEngine.unload`); play on an ENDED video, or a seek in
+ * it, loads it again. `stop()` pauses, unloads and returns to Idle. A Short that was paused because the UI left stays paused
+ * until the pager plays it again. A downloaded video (`playLocal`) makes no source call: its `details` is a stand-in with the
+ * bundle's chapters and subtitles, its `segments` are the bundle's.
+ *
  * Threads. The calls come from the UI thread and the coroutines run on [scope] (any dispatcher): every entry point takes the
  * controller's own lock, and a suspending fetch never holds it. The lock is held across calls into [engine], [library] and
  * [settings], so an engine must not block on the thread of a caller of the controller from inside a method (the engines
@@ -83,7 +92,7 @@ class VideoPlayerController(
     private class Load(
         val videoId: String,
         val short: Boolean,
-        val local: MediaInput.LocalFiles?,
+        val local: LocalBundle?,
         var speed: Float,
         var loop: Boolean,
         val budget: RefreshBudget,
@@ -117,6 +126,12 @@ class VideoPlayerController(
 
         /** True when [error] came from the engine, so a later healthy snapshot clears it. */
         var errorFromEngine = false
+
+        /** The video ended with nothing next and the engine was unloaded: the state stays ENDED until it is played again. */
+        var endedUnloaded = false
+
+        /** The duration the engine reported when it ended, kept for the state of an unloaded ended video. */
+        var endedDurationMs = 0L
 
         /** Bumped by every reload, so a slow fetch of an older one is dropped. */
         var opSeq = 0
@@ -159,7 +174,7 @@ class VideoPlayerController(
     override fun play(videoId: String, startMs: Long?, queue: List<VideoItem>, short: Boolean) {
         val current = load
         if (current != null && current.videoId == videoId && current.local == null && current.short == short &&
-            current.error == null && !hasEnded()
+            current.error == null && !hasEnded(current)
         ) {
             // The video is already on (a card of the playing video was tapped): keep it going; honour a start and a queue.
             if (queue.isNotEmpty() && !short) {
@@ -181,9 +196,9 @@ class VideoPlayerController(
     }
 
     @Synchronized
-    override fun playLocal(item: VideoItem, files: MediaInput.LocalFiles, startMs: Long?) {
+    override fun playLocal(item: VideoItem, bundle: LocalBundle, startMs: Long?) {
         val current = load
-        if (current != null && current.videoId == item.id && current.local != null && current.error == null && !hasEnded()) {
+        if (current != null && current.videoId == item.id && current.local != null && current.error == null && !hasEnded(current)) {
             if (startMs != null) seekTo(startMs)
             return
         }
@@ -191,7 +206,7 @@ class VideoPlayerController(
         if (current != null && !current.short && current.videoId != item.id) {
             queueState = queueState.withPlayed(current.item ?: current.knownItem)
         }
-        begin(item.id, startMs, short = false, local = files, known = item)
+        begin(item.id, startMs, short = false, local = bundle, known = item)
     }
 
     @Synchronized
@@ -210,7 +225,7 @@ class VideoPlayerController(
 
     /** Starts a new load: records nothing (callers did), pauses what was playing, and fetches (remote) or loads (local). */
     @Synchronized
-    private fun begin(videoId: String, explicitStartMs: Long?, short: Boolean, local: MediaInput.LocalFiles?, known: VideoItem?) {
+    private fun begin(videoId: String, explicitStartMs: Long?, short: Boolean, local: LocalBundle?, known: VideoItem?) {
         val s = settings.settings.value
         val l = Load(videoId, short, local, s.defaultSpeed, loop = short, budget = RefreshBudget(clock = clock))
         l.knownItem = known ?: queueState.upNext.firstOrNull { it.id == videoId } ?: cache[videoId]?.details?.item
@@ -282,16 +297,38 @@ class VideoPlayerController(
         startSegments(l, s)
     }
 
+    /** A download: no source call. The bundle's chapters, subtitles and segments stand in for the details and the SponsorBlock fetch. */
     @Synchronized
-    private fun applyLocal(l: Load, explicitStartMs: Long?, item: VideoItem, files: MediaInput.LocalFiles) {
+    private fun applyLocal(l: Load, explicitStartMs: Long?, item: VideoItem, bundle: LocalBundle) {
         if (load !== l) return
         val s = settings.settings.value
+        val tracks = bundle.subtitles.map { SubtitleTrack(it.path, "text/vtt", it.language, it.label, it.autoGenerated) }
+        val enabled = enabledCategories(s)
         l.item = item
         l.live = false
+        l.details = offlineDetails(item, bundle, tracks)
+        l.segments = bundle.segments.filter { it.category in enabled }
+        l.subtitleLanguage = pickSubtitle(tracks, s.captionsLanguage)
         val start = startPosition(item, explicitStartMs, short = false, live = false, s)
-        doLoad(l, buildRequest(l, item, files, start), play = true)
-        startSegments(l, s)
+        doLoad(l, buildRequest(l, item, bundle.files, start), play = true)
     }
+
+    /** What the watch page gets for a download: the item, the chapters and the subtitles; no description, related, comments or streams. */
+    private fun offlineDetails(item: VideoItem, bundle: LocalBundle, tracks: List<SubtitleTrack>) = VideoDetails(
+        item = item,
+        description = Description("", emptyList()),
+        likeCount = null,
+        category = null,
+        tags = emptyList(),
+        chapters = bundle.chapters,
+        related = emptyList(),
+        subtitles = tracks,
+        storyboard = null,
+        kind = StreamKind.VIDEO,
+        streams = StreamSet(emptyList(), emptyList(), emptyList(), null, null, null, emptyMap(), null),
+        subscriberCount = null,
+        fetchedAtMs = clock(),
+    )
 
     /** An explicit start wins; else the history position when resume is on and the entry is not watched (spec 6.1); Shorts and live start at 0. */
     private fun startPosition(item: VideoItem, explicitStartMs: Long?, short: Boolean, live: Boolean, s: VideoSettings): Long {
@@ -318,6 +355,7 @@ class VideoPlayerController(
         videoId = item.id,
         input = input,
         subtitles = if (l.local != null) emptyList() else l.details?.subtitles.orEmpty(),
+        localSubtitles = l.local?.subtitles.orEmpty(),
         headers = l.streams?.requestHeaders.orEmpty(),
         startMs = startMs,
         live = l.live,
@@ -483,7 +521,10 @@ class VideoPlayerController(
         l.errorFromEngine = true
     }
 
-    /** The video ended (spec 6.1): loop; else a Short waits for its pager; else the queue's next; else autoplay's pick; else it stays ended. */
+    /**
+     * The video ended (spec 6.1): loop; else a Short waits for its pager; else the queue's next; else autoplay's pick; else
+     * nothing is next: the state stays ENDED and the engine is unloaded, so no session or notification outlives the video.
+     */
     private fun onEnded(l: Load) {
         recordNow()
         if (l.loop) {
@@ -501,10 +542,20 @@ class VideoPlayerController(
             return
         }
         if (autoplay && l.local == null) {
-            val pick = queueState.autoplayPick(l.item, l.details?.related.orEmpty(), library.history.value) ?: return
-            queueState = queueState.withPlayed(l.item)
-            begin(pick.id, null, short = false, local = null, known = pick)
+            val pick = queueState.autoplayPick(l.item, l.details?.related.orEmpty(), library.history.value)
+            if (pick != null) {
+                queueState = queueState.withPlayed(l.item)
+                begin(pick.id, null, short = false, local = null, known = pick)
+                return
+            }
         }
+        l.endedUnloaded = true
+        l.endedDurationMs = durationNow(l)
+        engineLoaded = false
+        lastSnap = null
+        tickerJob?.cancel()
+        tickerJob = null
+        engine.unload()
     }
 
     // ------------------------------------------------------------------ the tick: history, segments, dropped frames
@@ -756,6 +807,10 @@ class VideoPlayerController(
             retry(l)
             return
         }
+        if (l.endedUnloaded) {
+            replay(l, 0)
+            return
+        }
         if (!engineLoaded) return
         val snap = lastSnap ?: engine.snapshot.value
         when {
@@ -784,9 +839,20 @@ class VideoPlayerController(
         }
     }
 
+    /** An ended video, unloaded, plays again from [startMs] (a Replay, or a drag back on its scrubber). */
+    private fun replay(l: Load, startMs: Long) {
+        val item = l.item ?: l.knownItem
+        begin(l.videoId, startMs, l.short, local = l.local, known = item)
+    }
+
     @Synchronized
     override fun seekTo(ms: Long) {
         val l = load ?: return
+        if (l.endedUnloaded) {
+            val duration = l.endedDurationMs
+            replay(l, if (duration > 0) ms.coerceIn(0, duration) else ms.coerceAtLeast(0))
+            return
+        }
         if (!engineLoaded) return
         val duration = durationNow(l)
         val target = if (!l.live && duration > 0) ms.coerceIn(0, duration) else ms.coerceAtLeast(0)
@@ -800,8 +866,11 @@ class VideoPlayerController(
 
     @Synchronized
     override fun seekBy(deltaMs: Long) {
-        if (load == null || !engineLoaded) return
-        seekTo(engine.positionMs() + deltaMs)
+        val l = load ?: return
+        when {
+            l.endedUnloaded -> seekTo(l.endedDurationMs + deltaMs)
+            engineLoaded -> seekTo(engine.positionMs() + deltaMs)
+        }
     }
 
     @Synchronized
@@ -928,6 +997,7 @@ class VideoPlayerController(
         recordNow()
         stopWork()
         if (engineLoaded) engine.pause()
+        engine.unload()
         engineLoaded = false
         lastSnap = null
         load = null
@@ -946,7 +1016,7 @@ class VideoPlayerController(
         skipClearJob = null
     }
 
-    private fun hasEnded(): Boolean = engineLoaded && lastSnap?.status == PlayerStatus.ENDED
+    private fun hasEnded(l: Load): Boolean = l.endedUnloaded || (engineLoaded && lastSnap?.status == PlayerStatus.ENDED)
 
     // ------------------------------------------------------------------ the state
 
@@ -962,6 +1032,7 @@ class VideoPlayerController(
         val error = l.error
         val status = when {
             error != null -> PlayerStatus.ERROR
+            l.endedUnloaded -> PlayerStatus.ENDED
             snap == null -> PlayerStatus.LOADING
             else -> snap.status
         }
@@ -973,7 +1044,7 @@ class VideoPlayerController(
             status = status,
             error = error,
             playing = error == null && snap?.playing == true,
-            durationMs = snap?.durationMs?.takeIf { it > 0 } ?: knownDurationMs(l),
+            durationMs = snap?.durationMs?.takeIf { it > 0 } ?: if (l.endedUnloaded) l.endedDurationMs else knownDurationMs(l),
             bufferedMs = snap?.bufferedMs ?: 0,
             speed = l.speed,
             ladder = selection?.ladder ?: emptyList(),

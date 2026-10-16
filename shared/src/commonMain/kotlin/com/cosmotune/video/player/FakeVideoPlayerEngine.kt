@@ -11,7 +11,8 @@ import kotlin.jvm.Synchronized
  * An engine in memory (plan task Y-2, step 3), for the controller's tests and the chrome: it records every call, keeps a
  * virtual clock that [advance] moves (the playhead moves with it while playing, at the speed set, and the video ends at
  * its duration), and [fail] reports an error such as googlevideo's 403 ([PlayerErrorKind.SOURCE_EXPIRED]). A load is
- * [PlayerStatus.READY] at once with [durationOnLoadMs] (0 for a live request) and does not start playing.
+ * [PlayerStatus.READY] at once with [durationOnLoadMs] (0 for a live request) and does not start playing. [unload] counts
+ * in [unloadCount] and leaves the engine idle (it is not a [Call]: the recorded calls stay as they were).
  */
 class FakeVideoPlayerEngine(override val capabilities: EngineCapabilities = DEFAULT_CAPABILITIES) : VideoPlayerEngine {
 
@@ -83,6 +84,10 @@ class FakeVideoPlayerEngine(override val capabilities: EngineCapabilities = DEFA
     var released: Boolean = false
         private set
 
+    /** How many times [unload] was called. */
+    var unloadCount: Int = 0
+        private set
+
     @Synchronized
     override fun positionMs(): Long = position
 
@@ -146,6 +151,13 @@ class FakeVideoPlayerEngine(override val capabilities: EngineCapabilities = DEFA
     override fun selectSubtitle(language: String?) {
         recorded += Call.SelectSubtitle(language)
         subtitleLanguage = language
+    }
+
+    @Synchronized
+    override fun unload() {
+        unloadCount += 1
+        snapshotFlow.value = PlayerSnapshot.Idle
+        position = 0
     }
 
     @Synchronized
