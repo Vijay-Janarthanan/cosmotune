@@ -421,4 +421,7 @@
     <string name="video_dl_hide_items">Hide the videos</string>
     <string name="video_dl_delete_confirm">Delete this download?</string>
     <string name="video_dl_save_copy_failed">Could not save a copy</string>
+    <!-- Subscriptions (Y-21) -->
+    <string name="video_feed_updated_now">Updated just now</string>
+    <string name="video_feed_refresh">Refresh</string>
 </resources>
