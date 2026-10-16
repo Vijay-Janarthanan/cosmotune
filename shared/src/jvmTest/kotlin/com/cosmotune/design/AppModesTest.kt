@@ -5,12 +5,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** The mode switch of the profile drawer: only Music works; Video and Library show "Later" (spec section 11, ruling O1). */
+/** The mode switch of the profile drawer: Music and Video work; Library shows "Later" (spec section 11, ruling O1). */
 class AppModesTest {
     @Test
-    fun onlyMusicIsAvailable() {
+    fun musicAndVideoAreAvailable() {
         assertTrue(AppModes.available(AppMode.MUSIC))
-        assertFalse(AppModes.available(AppMode.VIDEO))
+        assertTrue(AppModes.available(AppMode.VIDEO))
         assertFalse(AppModes.available(AppMode.LIBRARY))
     }
 
@@ -20,7 +20,7 @@ class AppModesTest {
     }
 
     @Test
-    fun everyModeIsAnsweredAndExactlyOneIsAvailable() {
-        assertEquals(1, AppMode.entries.count { AppModes.available(it) })
+    fun everyModeIsAnsweredAndExactlyTwoAreAvailable() {
+        assertEquals(2, AppMode.entries.count { AppModes.available(it) })
     }
 }
