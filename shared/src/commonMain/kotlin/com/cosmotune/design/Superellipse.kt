@@ -38,4 +38,16 @@ object Superellipse {
         }
         return n
     }
+
+    /**
+     * The radius of the circular corner that stands in for a superellipse corner of [radius] and [exponent] under its elevation
+     * shadow: the circle through the superellipse's own 45 degree point, `r (1 - 2^(-1/n)) / (1 - 2^(-1/2))` (0.543 r for the
+     * design's n = 4, r itself for a circle). A soft shadow cannot show the fraction of a pixel between the two curves, and the
+     * platform draws a rounded rectangle's shadow analytically where a path's is tessellated on the CPU again on every frame
+     * that it moves (P4-21).
+     */
+    fun shadowRadius(radius: Float, exponent: Float): Float {
+        val n = exponent.coerceAtLeast(1f)
+        return radius * (1f - 2f.pow(-1f / n)) / (1f - 2f.pow(-0.5f))
+    }
 }

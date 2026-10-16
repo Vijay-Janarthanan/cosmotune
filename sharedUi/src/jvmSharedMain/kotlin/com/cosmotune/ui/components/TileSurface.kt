@@ -3,10 +3,8 @@ package com.cosmotune.ui.components
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.CacheDrawScope
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -38,22 +36,23 @@ internal fun tileLiftOf(shape: Shape, colors: CosmoColors, elevation: Dp = TileD
     Lift(shape, elevation, spot = { colors.live(CoverField.SHADOW).copy(alpha = 1f) }, ambient = { TILE_AMBIENT })
 
 /**
- * The highlight over a tile's fill (`--hl`), drawn inside [outline] (the caller has clipped to the shape): a 1 dp top-lit rim in white
- * (10 % dark, 80 % light) fading down the sides, and a 0.5 dp hairline in the ink (`textPrimary`, the colour the screens draw the
- * palette's `outline` with) at 7 % dark, 6 % light. Made in a draw cache: the strokes and the rim are built once per size and per
- * palette (the theme picks the rim, and reading the palette here rebuilds the cache when it changes); the ink is read live by the
- * drawing that comes back.
+ * The highlight over a tile's fill (`--hl`), drawn inside [shape]'s outline (the caller has clipped to the shape): a 1 dp top-lit rim in
+ * white (10 % dark, 80 % light) fading down the sides, and a 0.5 dp hairline in the ink (`textPrimary`, the colour the screens draw the
+ * palette's `outline` with) at 7 % dark, 6 % light. Made in a draw cache: the strokes are built once per size and per palette (the
+ * theme picks the rim, and reading the palette here rebuilds the cache when it changes), a superellipse's from masks kept across
+ * tiles of one size ([outlineStroke]); the ink is read live by the drawing that comes back.
  */
-internal fun CacheDrawScope.tileEdge(outline: Outline, colors: CosmoColors): DrawScope.() -> Unit {
+internal fun CacheDrawScope.tileEdge(shape: Shape, colors: CosmoColors): DrawScope.() -> Unit {
     keepRedrawnWith(colors.palette)
-    val rim = topLightBrush(Color.White.copy(alpha = TileDepth.rimAlpha(colors.dark)), size.height)
+    val outline = shape.createOutline(size, layoutDirection, this)
+    val rimColor = Color.White.copy(alpha = TileDepth.rimAlpha(colors.dark))
     // the clip shows the inner half of each stroke
-    val rimStroke = Stroke((TileDepth.RIM_DP * 2f).dp.toPx())
-    val hairStroke = Stroke((TileDepth.HAIRLINE_DP * 2f).dp.toPx())
+    val rim = outlineStroke(shape, outline, size, layoutDirection, (TileDepth.RIM_DP * 2f).dp.toPx(), fadePx = topLightFade(size.height))
+    val hair = outlineStroke(shape, outline, size, layoutDirection, (TileDepth.HAIRLINE_DP * 2f).dp.toPx())
     val hairAlpha = TileDepth.hairlineAlpha(colors.dark)
     return {
-        drawOutline(outline, rim, style = rimStroke)
-        drawOutline(outline, colors.live(CoverField.TEXT_PRIMARY).copy(alpha = hairAlpha), style = hairStroke)
+        rim.draw(this, rimColor)
+        hair.draw(this, colors.live(CoverField.TEXT_PRIMARY).copy(alpha = hairAlpha))
     }
 }
 

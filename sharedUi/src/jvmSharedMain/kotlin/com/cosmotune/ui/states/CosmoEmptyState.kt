@@ -166,7 +166,7 @@ private fun EmptyArt(icon: ImageVector, colors: CosmoColors) {
                     .graphicsLayer { rotationZ = tile.degrees }
                     .clip(TILE_SHAPE)
                     .drawWithCache {
-                        val edge = tileEdge(TILE_SHAPE.createOutline(size, layoutDirection, this), colors)
+                        val edge = tileEdge(TILE_SHAPE, colors)
                         onDrawBehind {
                             drawRect(tonalFill(colors), alpha = tile.alpha)
                             edge()
