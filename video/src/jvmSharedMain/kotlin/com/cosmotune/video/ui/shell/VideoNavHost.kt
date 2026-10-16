@@ -70,7 +70,7 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
 
                 is VideoRoute.Subscriptions -> com.cosmotune.video.ui.subscriptions.SubscriptionsPage(contentPadding, wide)
 
-                is VideoRoute.Library -> VideoPlaceholder(r)   // Y-22 replaces this line
+                is VideoRoute.Library -> com.cosmotune.video.ui.library.LibraryPage(contentPadding, wide)   // Y-22
 
                 is VideoRoute.Search -> VideoPlaceholder(r)   // Y-18 replaces this line
 
@@ -84,21 +84,21 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
 
                 is VideoRoute.LocalPlaylist -> VideoPlaceholder(r)   // Y-20 replaces this line
 
-                is VideoRoute.History -> VideoPlaceholder(r)   // Y-22 replaces this line
+                is VideoRoute.History -> com.cosmotune.video.ui.library.HistoryPage(contentPadding, wide)   // Y-22
 
-                is VideoRoute.WatchLater -> VideoPlaceholder(r)   // Y-22 replaces this line
+                is VideoRoute.WatchLater -> com.cosmotune.video.ui.library.WatchLaterPage(contentPadding, wide)   // Y-22
 
-                is VideoRoute.Liked -> VideoPlaceholder(r)   // Y-22 replaces this line
+                is VideoRoute.Liked -> com.cosmotune.video.ui.library.LikedPage(contentPadding, wide)   // Y-22
 
-                is VideoRoute.SavedPlaylists -> VideoPlaceholder(r)   // Y-22 replaces this line
+                is VideoRoute.SavedPlaylists -> com.cosmotune.video.ui.library.SavedPlaylistsPage(contentPadding, wide)   // Y-22
 
-                is VideoRoute.Channels -> VideoPlaceholder(r)   // Y-22 replaces this line
+                is VideoRoute.Channels -> com.cosmotune.video.ui.library.ChannelsPage(contentPadding, wide)   // Y-22
 
                 is VideoRoute.Downloads -> VideoPlaceholder(r)   // Y-33 replaces this line
 
                 is VideoRoute.Settings -> VideoPlaceholder(r)   // Y-25 replaces this line
 
-                is VideoRoute.Import -> VideoPlaceholder(r)   // Y-22 replaces this line
+                is VideoRoute.Import -> com.cosmotune.video.ui.library.ImportPage(contentPadding, wide)   // Y-22
             }
         }
     }
