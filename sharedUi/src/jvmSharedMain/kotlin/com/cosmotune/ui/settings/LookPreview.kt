@@ -67,6 +67,7 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.CosmoSegmented
 import com.cosmotune.ui.components.CosmoSwitch
 import com.cosmotune.ui.components.PlayMorphButton
+import com.cosmotune.ui.components.trackFocusModality
 import com.cosmotune.ui.components.CosmoSlider
 import com.cosmotune.ui.components.CoverFrame
 import com.cosmotune.ui.components.SuperellipseShape
@@ -126,7 +127,7 @@ internal fun LookPreviewScreen(onClose: () -> Unit, startDark: Boolean = isSyste
         val ink = Color(palette.textPrimary)
         val ink2 = Color(palette.textSecondary)
         val type = LocalCosmoType.current
-        Box(Modifier.fillMaxSize().cosmoAmbientGround(), contentAlignment = Alignment.TopCenter) {
+        Box(Modifier.trackFocusModality().fillMaxSize().cosmoAmbientGround(), contentAlignment = Alignment.TopCenter) {
             Column(
                 Modifier
                     .widthIn(max = 720.dp)

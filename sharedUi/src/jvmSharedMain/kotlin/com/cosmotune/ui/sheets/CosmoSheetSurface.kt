@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.bridge.CosmoSheetHandle
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.components.cosmoGlass
+import com.cosmotune.ui.components.trackFocusModality
 import com.cosmotune.ui.theme.CosmoRadii
 
 /** `--r-sheet`: 36 dp on every corner. */
@@ -40,7 +41,9 @@ fun CosmoSheetSurface(modifier: Modifier = Modifier, content: @Composable Column
     val density = LocalDensity.current
     val windowHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
     Column(
+        // The sheet's window does not see the main window's keys: the rows' rings follow its own.
         modifier
+            .trackFocusModality()
             .fillMaxWidth()
             .heightIn(max = windowHeight * SHEET_MAX_HEIGHT_SHARE)
             .padding(start = CosmoRadii.sheetInset, end = CosmoRadii.sheetInset, bottom = CosmoRadii.sheetInset)

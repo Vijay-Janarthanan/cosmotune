@@ -102,6 +102,7 @@ import com.cosmotune.ui.components.STATE_LAYER_PRESSED
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.components.cosmoFocusRing
 import com.cosmotune.ui.components.cosmoGlass
+import com.cosmotune.ui.components.trackFocusModality
 import com.cosmotune.ui.components.keepRedrawnWith
 import com.cosmotune.ui.components.tonalFill
 import com.cosmotune.ui.theme.CosmoColors
@@ -278,6 +279,8 @@ private fun DrawerLayer(
     BoxWithConstraints(
         modifier
             .fillMaxSize()
+            // The drawer's window does not see the main window's keys: its own rows' rings follow its own keys.
+            .trackFocusModality()
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) { back(); true } else false
             }

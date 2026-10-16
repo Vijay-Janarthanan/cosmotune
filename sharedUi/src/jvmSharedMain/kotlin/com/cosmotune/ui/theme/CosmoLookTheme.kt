@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.LocalPlatformContext
 import com.cosmotune.theme.PaletteChoice
+import com.cosmotune.ui.components.FocusModalityRoot
 import com.cosmotune.ui.settings.rememberCosmoLookSettings
 import kotlinx.coroutines.delay
 
@@ -59,17 +60,20 @@ fun CosmoLookTheme(
             shapes = if (newLook) CosmoMaterialShapes else legacyShapes,
         ) {
             // The locals below are provided whether the switch is on or off (their values differ), never `content` itself
-            // inside an `if`: another call tree would throw away the app's state when the switch flips.
-            CompositionLocalProvider(
-                LocalCosmoType provides type,
-                LocalCosmoShell provides (if (newLook) shell else null),
-                LocalCosmoColors provides shell.colors,
-                LocalReducedMotion provides reduced,
-                // The ambient ground's text colour for an untinted icon or text; Material surfaces still set their own.
-                LocalContentColor provides (if (newLook) Color(target.textPrimary) else LocalContentColor.current),
-                LocalRippleConfiguration provides (if (newLook) CosmoRipple else LocalRippleConfiguration.current),
-                content = content,
-            )
+            // inside an `if`: another call tree would throw away the app's state when the switch flips. The box around them is there
+            // in both cases too; with the switch on it also tells the focus rings whether the keyboard is in use.
+            FocusModalityRoot(enabled = newLook) {
+                CompositionLocalProvider(
+                    LocalCosmoType provides type,
+                    LocalCosmoShell provides (if (newLook) shell else null),
+                    LocalCosmoColors provides shell.colors,
+                    LocalReducedMotion provides reduced,
+                    // The ambient ground's text colour for an untinted icon or text; Material surfaces still set their own.
+                    LocalContentColor provides (if (newLook) Color(target.textPrimary) else LocalContentColor.current),
+                    LocalRippleConfiguration provides (if (newLook) CosmoRipple else LocalRippleConfiguration.current),
+                    content = content,
+                )
+            }
         }
     }
 }
