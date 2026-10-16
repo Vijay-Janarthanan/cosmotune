@@ -11,8 +11,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.design.CssGradient
@@ -106,15 +104,16 @@ fun Modifier.cosmoGlass(
             )
         } else null
         val ring = (if (dark) Color.White else Color.Black).copy(alpha = GlassPolicy.edgeRingAlpha(dark))
-        val top = topLightBrush(Color.White.copy(alpha = GlassPolicy.edgeTopAlpha(dark)), size.height)
-        // The shape clips every stroke to its inside, so a 2 dp stroke shows 1 dp.
-        val stroke = Stroke(INNER_EDGE_STROKE.toPx())
+        val top = Color.White.copy(alpha = GlassPolicy.edgeTopAlpha(dark))
+        // The shape clips every stroke to its inside, so a 2 dp stroke shows 1 dp. A superellipse's comes from a kept mask.
+        val ringStroke = outlineStroke(shape, outline, size, layoutDirection, INNER_EDGE_STROKE.toPx())
+        val topStroke = outlineStroke(shape, outline, size, layoutDirection, INNER_EDGE_STROKE.toPx(), fadePx = topLightFade(size.height))
         onDrawWithContent {
             drawRect(fill)
             if (coverTint != null) drawRect(coverTint) else drawRect(tint!!.invoke(this))
             drawContent()
-            drawOutline(outline, ring, style = stroke)
-            drawOutline(outline, top, style = stroke)
+            ringStroke.draw(this, ring)
+            topStroke.draw(this, top)
         }
     }
 }
@@ -134,7 +133,7 @@ internal fun rememberGlassMode(hasBackdrop: Boolean, overVideo: Boolean): GlassM
 internal val INNER_EDGE_STROKE = 2.dp
 
 /** The fine highlight along the top edge of a surface: [color] at the top, gone within 20 dp (or half the height), so it follows the corners and vanishes down the sides. */
-internal fun androidx.compose.ui.unit.Density.topLightBrush(color: Color, heightPx: Float): Brush {
-    val fade = max(1f, min(heightPx / 2f, 20.dp.toPx()))
-    return Brush.verticalGradient(0f to color, 1f to color.copy(alpha = 0f), startY = 0f, endY = fade)
-}
+internal fun androidx.compose.ui.unit.Density.topLightBrush(color: Color, heightPx: Float): Brush = fadeBrush(color, topLightFade(heightPx))
+
+/** How far below the top edge [topLightBrush] has faded out: 20 dp, or half the height, and at least a pixel. */
+internal fun androidx.compose.ui.unit.Density.topLightFade(heightPx: Float): Float = max(1f, min(heightPx / 2f, 20.dp.toPx()))

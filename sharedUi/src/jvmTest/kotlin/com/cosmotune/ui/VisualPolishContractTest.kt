@@ -36,7 +36,7 @@ class VisualPolishContractTest {
         val tiles = SourceContract.read("$ui/blocks/CosmoTiles.kt")
         val tile = SourceContract.functionBody(tiles, "cosmoTile")
         assertTrue(Regex("""tileLift\(shape, colors\)\s*\.clip\(shape\)""").containsMatchIn(tile), "the lift comes first, outside the clip")
-        assertTrue("drawRect(tileFill(colors))" in tile && "tileEdge(shape.createOutline(size, layoutDirection, this), colors)" in tile, "the fill, then the rim and the hairline")
+        assertTrue("drawRect(tileFill(colors))" in tile && "tileEdge(shape, colors)" in tile, "the fill, then the rim and the hairline")
         assertTrue(tile.indexOf("drawRect(tileFill(colors))") < tile.indexOf("edge()"), "the edge is drawn over the fill")
         val mix = SourceContract.functionBody(tiles, "CosmoMixTile")
         assertTrue(mix.indexOf(".tileLift(shape, colors)") in 0 until mix.indexOf(".clip(shape)"), "the mix tile is lifted outside its clip")
@@ -48,7 +48,7 @@ class VisualPolishContractTest {
         assertTrue("lift = lift" in mood && "tileLiftOf(SuperellipseShape(BlockMetrics.MOOD_TILE_RADIUS_DP.dp), colors)" in mood, "the mood tile is lifted")
         assertTrue("tileEdge(outline, colors)" in mood, "and edged along its morphing outline")
         val art = SourceContract.functionBody(SourceContract.read("$ui/states/CosmoEmptyState.kt"), "EmptyArt")
-        assertTrue("tileEdge(TILE_SHAPE.createOutline(size, layoutDirection, this), colors)" in art, "the empty state's back tiles keep a tile's edge")
+        assertTrue("tileEdge(TILE_SHAPE, colors)" in art, "the empty state's back tiles keep a tile's edge")
         // the sign-in banner, the New playlist cell, the About and latest-release tiles and the search cards are the tile fill
         for ((file, call) in listOf(
             "states/CosmoSignInBanner.kt" to ".cosmoTile(SuperellipseShape(BANNER_RADIUS))",
@@ -74,7 +74,7 @@ class VisualPolishContractTest {
         assertTrue("spotShadowColor = lift.spot()" in code("$ui/components/Shadows.kt"), "read in the layer block")
         val cover = code("$ui/components/CoverImage.kt")
         assertTrue(
-            "if (light) drawOutline(outline, colors.live(CoverField.TEXT_PRIMARY).copy(alpha = TileDepth.hairlineAlpha(dark = false)), style = ring)" in cover,
+            "if (light) ring.draw(this, colors.live(CoverField.TEXT_PRIMARY).copy(alpha = TileDepth.hairlineAlpha(dark = false)))" in cover,
             "a pale cover keeps an edge on a pale page",
         )
     }
