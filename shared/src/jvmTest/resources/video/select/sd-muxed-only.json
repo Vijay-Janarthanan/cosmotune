@@ -1,0 +1,9 @@
+{
+  "description": "An old upload that only has one muxed 360p stream (video and audio together), nothing else. Made up (no real address).",
+  "durationMs": 61000,
+  "videoOnly": [],
+  "muxed": [
+    {"itag": 18, "mime": "video/mp4", "codec": "H264", "codecs": "avc1.42001E, mp4a.40.2", "w": 640, "h": 360, "fps": 30, "kbps": 600, "ranges": false}
+  ],
+  "audio": []
+}
