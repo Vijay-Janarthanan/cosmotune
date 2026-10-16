@@ -59,20 +59,20 @@ class ShellClearanceTest {
      * the 168 dp that the phone's chrome plus slack had been (the last row scrolled 60 dp further than the bar needed).
      */
     private val desktopShellPadding =
-        Regex("""LocalCosmoShell\.current != null ->\s*\(if \(compact\) com\.cosmotune\.design\.ShellMetrics\.phoneChromeHeightDp\(0f, withMiniPlayer = true\) else com\.cosmotune\.design\.ShellMetrics\.desktopBarFootprintDp\(\)\)\.dp""")
+        Regex("""LocalCosmoShell\.current != null ->\s*com\.cosmotune\.design\.ShellMetrics\.desktopPageBottomDp\(compact, songShown = LocalNowPlaying\.current != null\)\.dp""")
 
     /** The padding under the page, in dp, while the new shell is on, worked out from the source line the way the line is written. */
-    private fun desktopPaddingWithShell(compact: Boolean): Float {
+    private fun desktopPaddingWithShell(compact: Boolean, songShown: Boolean = true): Float {
         val file = File(root, desktopApp)
         if (!file.isFile) fail("$desktopApp is not where this test expects it; update ShellClearanceTest")
         if (!desktopShellPadding.containsMatchIn(file.readText()))
             fail(
-                "Could not find `LocalCosmoShell.current != null -> (if (compact) ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) " +
-                    "else ShellMetrics.desktopBarFootprintDp()).dp` in $desktopApp (the bottom padding of DesktopFrame's content while the new " +
+                "Could not find `LocalCosmoShell.current != null -> ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp` " +
+                    "in $desktopApp (the bottom padding of DesktopFrame's content while the new " +
                     "shell is on). The line moved, changed or is missing: re-check that the last row can be scrolled clear of the floating " +
                     "chrome and is not padded for more than it, then update this test.",
             )
-        return if (compact) ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) else ShellMetrics.desktopBarFootprintDp()
+        return ShellMetrics.desktopPageBottomDp(compact, songShown)
     }
 
     @Test
@@ -89,6 +89,13 @@ class ShellClearanceTest {
             desktopPaddingWithShell(compact = true) >= ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true),
             "the capsules fit under the compact page",
         )
+    }
+
+    @Test
+    fun theDesktopPageReservesRoomOnlyWhileTheBarOrTheCapsulesAreThere() {
+        // no song, no bar in a wide window: the page's content scrolls to the window's own edge; the compact window keeps its capsule
+        assertTrue(desktopPaddingWithShell(compact = false, songShown = false) == 0f, "nothing floats over a wide page without a song")
+        assertTrue(desktopPaddingWithShell(compact = true, songShown = false) == 80f, "the tab capsule alone floats over a compact one (16 + 64 dp)")
     }
 
     @Test

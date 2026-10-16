@@ -138,10 +138,10 @@ class PolishContractTest {
         val text = frame
         assertTrue(
             text.contains(
-                "com.cosmotune.ui.theme.LocalCosmoShell.current != null -> (if (compact) com.cosmotune.design.ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) " +
-                    "else com.cosmotune.design.ShellMetrics.desktopBarFootprintDp()).dp compact -> 128.dp else -> 16.dp",
+                "com.cosmotune.ui.theme.LocalCosmoShell.current != null -> " +
+                    "com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp compact -> 128.dp else -> 16.dp",
             ),
-            "the wide page pads 108 dp for the bar, the compact one 154 dp for the capsules; the old two follow",
+            "the wide page pads 108 dp for the bar while a song is selected, the compact one 154 dp (80 without a song) for the capsules; the old two follow",
         )
         assertFalse(text.contains("168.dp"), "no slack: 168 dp was the phone's chrome plus 14")
     }

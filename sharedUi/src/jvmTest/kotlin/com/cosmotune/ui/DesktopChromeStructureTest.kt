@@ -198,8 +198,8 @@ class DesktopChromeStructureTest {
         assertTrue(at >= 0, "the padding under the page while the new shell is on is the first branch of a `when`")
         val rest = text.substring(at, at + 500).replace(Regex("\\s+"), " ")
         assertTrue(
-            "(if (compact) com.cosmotune.design.ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) else com.cosmotune.design.ShellMetrics.desktopBarFootprintDp()).dp" in rest,
-            "the bar's footprint in a wide window, the phone chrome's height in a compact one",
+            "com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp" in rest,
+            "the bar's footprint in a wide window with a song, the phone chrome's height in a compact one, nothing for a wide one without (P4-22)",
         )
         assertTrue("compact -> 128.dp" in rest && "else -> 16.dp" in rest, "the old two follow, so with the switch off nothing changes")
     }

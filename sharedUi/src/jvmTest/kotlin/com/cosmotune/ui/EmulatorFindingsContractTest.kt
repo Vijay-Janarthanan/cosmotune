@@ -71,6 +71,30 @@ class EmulatorFindingsContractTest {
         assertTrue("if (showAlbum) { Text(" in row && "Column(Modifier.weight(1f))" in row, "without the column the title and the artist (weight 1) take its room")
     }
 
+    // ---- the desktop page scrolls to the window's edge: the bar's room is content padding, and only while the bar is there --------------
+
+    private val desktopApp = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+
+    @Test fun theDesktopFramePadsTheContentForTheBarByTheSharedRuleAndOnlyWithASong() {
+        val frame = SourceContract.code(SourceContract.functionBody(SourceContract.read(desktopApp), "DesktopFrame")).replace(Regex("\\s+"), " ")
+        assertTrue(
+            "LocalCosmoShell.current != null -> com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp" in frame,
+            "the new look pads by the pure rule, with whether a song is selected",
+        )
+        assertTrue("compact -> 128.dp" in frame && "else -> 16.dp" in frame, "the old look pads as it did")
+    }
+
+    @Test fun theNewLooksSettingsListScrollsBehindTheBarInsteadOfEndingAboveIt() {
+        val code = SourceContract.code(SourceContract.read(desktopApp)).replace(Regex("\\s+"), " ")
+        assertTrue(
+            "val settingsBehindBar = com.cosmotune.ui.theme.LocalCosmoShell.current != null && overlays.settingsPage == DesktopSettingsPage.MAIN" in code,
+            "only the new look's main Settings list, so the old look and the sub-screens are as they were",
+        )
+        assertTrue("padding(bottom = if (settingsBehindBar) 0.dp else contentPadding.calculateBottomPadding())" in code, "the box is no shorter than the window then")
+        assertTrue("LocalDesktopBottomInset provides if (settingsBehindBar) contentPadding.calculateBottomPadding() else 0.dp" in code, "and its list gets the room as padding")
+        assertTrue("contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp + LocalDesktopBottomInset.current)" in code, "inside the scroll")
+    }
+
     @Test fun thePhoneAndTheDesktopSettingsRowsReadTheSameTwoKeys() {
         val phone = SourceContract.code(SourceContract.read("app/src/main/java/com/cosmotune/ui/CosmoLookSettingsRows.kt"))
         val desktop = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoLookDesktopToggles.kt"))

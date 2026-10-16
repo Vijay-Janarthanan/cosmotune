@@ -3659,10 +3659,17 @@ fun BitChordDesktopApp() {
                     when {
                         // Settings and its pages stand in for the page, held to the width the
                         // Settings card had. Its prompts are still cards, over the page.
-                        overlays.settingsPage != null -> Box(
-                            Modifier.fillMaxSize().padding(bottom = contentPadding.calculateBottomPadding()),
+                        overlays.settingsPage != null -> {
+                        // The new look's Settings list scrolls behind the floating bar (its content padding, not a shorter box, so no hard edge
+                        // shows above the window's bottom); the pages of its sub-screens have scrolls of their own and keep the shorter box.
+                        val settingsBehindBar = com.cosmotune.ui.theme.LocalCosmoShell.current != null && overlays.settingsPage == DesktopSettingsPage.MAIN
+                        Box(
+                            Modifier.fillMaxSize().padding(bottom = if (settingsBehindBar) 0.dp else contentPadding.calculateBottomPadding()),
                         ) {
-                            CompositionLocalProvider(LocalDesktopPanelIsPage provides true) {
+                            CompositionLocalProvider(
+                                LocalDesktopPanelIsPage provides true,
+                                LocalDesktopBottomInset provides if (settingsBehindBar) contentPadding.calculateBottomPadding() else 0.dp,
+                            ) {
                             when (overlays.settingsPage!!) {
                                 DesktopSettingsPage.MAIN -> DesktopSettingsScreen(
                                     query = settingsQuery,
@@ -3922,6 +3929,7 @@ fun BitChordDesktopApp() {
                                 DesktopSettingsPage.LICENSES -> DesktopLicensesPage(onDismiss = ::goBack)
                             }
                             }
+                        }
                         }
                         overlays.replay -> DesktopReplayPage(
                             summary = replaySummary,
@@ -5011,7 +5019,7 @@ private fun DesktopFrame(
                                                 // last row can still be scrolled clear of it.
                                                 bottom = when {
                                                     com.cosmotune.ui.theme.LocalCosmoShell.current != null ->
-                                                        (if (compact) com.cosmotune.design.ShellMetrics.phoneChromeHeightDp(0f, withMiniPlayer = true) else com.cosmotune.design.ShellMetrics.desktopBarFootprintDp()).dp
+                                                        com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp
                                                     compact -> 128.dp
                                                     else -> 16.dp
                                                 },
@@ -5758,7 +5766,7 @@ private fun DesktopSettingsScreen(
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     state = listState,
-                    contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp + LocalDesktopBottomInset.current),
                 ) {
             DesktopSettingsSection.entries.forEach { section ->
             if (section == DesktopSettingsSection.PLAYBACK) item {

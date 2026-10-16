@@ -28,4 +28,16 @@ object ShellMetrics {
         bottomOffsetDp(navigationInsetDp) + TAB_BAR_HEIGHT_DP + if (withMiniPlayer) CAPSULE_GAP_DP + CAPSULE_HEIGHT_DP else 0f
 
     fun desktopBarFootprintDp() = DESKTOP_BAR_HEIGHT_DP + 2 * DESKTOP_BAR_MARGIN_DP
+
+    /**
+     * What the desktop page keeps under its scrolling content, as the content padding of its list (not as padding that shortens the
+     * list: the content then scrolls behind the floating chrome, to the window's own bottom edge). A wide window floats the player
+     * bar, but only while a song is selected: [songShown] false reserves nothing. A compact window floats the tab capsule always
+     * and the mini player over it with a song.
+     */
+    fun desktopPageBottomDp(compact: Boolean, songShown: Boolean): Float = when {
+        compact -> phoneChromeHeightDp(0f, withMiniPlayer = songShown)
+        songShown -> desktopBarFootprintDp()
+        else -> 0f
+    }
 }
