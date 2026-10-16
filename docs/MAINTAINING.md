@@ -116,6 +116,143 @@ branches (`BridgeContractTest` compares the lists); a file that starts to import
 A merge conflict on a hook line: take upstream's line, then re-apply the hook from its `FORK.md` row. Run
 `./gradlew :shared:jvmTest :sharedUi:jvmTest :desktopApp:compileKotlin :app:assembleDevDebug` after any merge that touches these files.
 
+## Video mode
+
+Video mode is the second mode of the profile drawer: its own screens, a Media3 player on Android and a libmpv player on the
+desktop, reading a video site's public pages with no account. It sits in its own module and packages, and Music never depends
+on it. Comments in the code cite sections of its design document ("spec 6.1"); that document is not in this repository.
+
+- `video/`: the module `:video` (screens, player chrome, the two engines, the two services, its strings in
+  `video/src/commonMain/composeResources/values/strings.xml`, English only).
+- `shared/src/*/kotlin/com/cosmotune/video/`: the contracts, fakes, stores, web clients, selection logic, importers, feed and download
+  engine. `jvmSharedMain/.../video/source/newpipe/` is the only place that imports `org.schabi.newpipe`
+  (`NewPipeImportGuardTest` checks it).
+- `app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt` and
+  `desktopApp/src/main/kotlin/com/cosmotune/video/host/DesktopModeHost.kt`: the hosts that draw Video in place of Music's root.
+- The mode is only reachable while `AppModes.available(AppMode.VIDEO)` is true, the new look is on and the stored mode is Video.
+  With the look off, or with the mode on Music, every hook below is a no-op.
+
+### Hooks into upstream files
+
+These are the only places where a file that came from upstream, or a build file, knows about Video. Each has a row in `FORK.md`.
+Find a site by its quoted text: line numbers drift.
+
+| File | Anchor (quoted) | Change | How to re-apply |
+| :-- | :-- | :-- | :-- |
+| `settings.gradle.kts` | `include(":desktopApp")` | adds `include(":video")` after it | add the line |
+| `app/build.gradle.kts` | the first `implementation(project(":sharedUi"))`, the one after `newPipeExtractorStripped` | adds `implementation(project(":video"))` after it | add the line |
+| `desktopApp/build.gradle.kts` | `implementation(project(":sharedUi"))` | adds `implementation(project(":video"))` after it | add the line |
+| `desktopApp/build.gradle.kts` | the packaged runtime's `modules(...)` list, after `jdk.dynalink` | adds `"jdk.httpserver"`: the desktop player reads the video through a loopback range proxy built on `com.sun.net.httpserver` | add the entry again if the list is rewritten |
+| `shared/build.gradle.kts` | `jvmTest.dependencies {` | adds `implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")`, `implementation("org.xerial:sqlite-jdbc:3.47.1.0")` and `implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")` (test classpath only; the main code keeps NewPipe `compileOnly`) | add the three lines; keep the NewPipe tag equal to the one in `app` and `desktopApp` |
+| `shared/build.gradle.kts` | `commonMain.dependencies`, the first line | `api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")`: the Video contracts in common code expose `StateFlow` | add the line first |
+| `shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/innertube/StreamResolver.kt` | `private val init by lazy { NewPipe.init(OkHttpDownloader()) }` | `private val init by lazy { com.cosmotune.video.source.newpipe.NewPipeHost.install(OkHttpDownloader()) }`: NewPipe has one downloader per process, and the router installed here sends Music's calls to Music's downloader and Video's to Video's | put the line back; `NewPipeRoutingTest` proves Music keeps its empty answer for `next` |
+| `app/src/main/java/com/music/bitchord/MainActivity.kt` | `BoxWithConstraints(Modifier.fillMaxSize()) {` followed by `BitChordApp(` | the call is wrapped in `com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {` ... `}`: one added line before `BitChordApp(` and one `}` after its closing `)` | wrap the call again |
+| `app/src/main/AndroidManifest.xml` | `android:name=".MainActivity"` | adds `android:supportsPictureInPicture="true"` after `android:launchMode="singleTask"` | add the attribute; the activity's `configChanges` already hold what picture-in-picture needs |
+| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt` | `) { contentPadding ->` of the `DesktopFrame` call | first line inside: `if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)` | add the line first |
+| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt` | `modifier = Modifier.onPreviewKeyEvent { event ->` | first line inside: `if (com.cosmotune.video.host.DesktopModeHost.active) return@onPreviewKeyEvent false` | add the line first |
+| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt` | `com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),` | two lines after it: `com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },` and `com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),` ("Play as a song" and "Watch the music video") | add the two lines to the provider list |
+| `shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/canvas/CanvasArtwork.kt` | `val headers: Map<String, String> = emptyMap(),` | adds `val videoId: String? = null,` after it: the music video's id, filled by our `OpenCanvasProvider` | add the field with its default |
+| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopCanvas.kt`, `DesktopCanvasVideo.kt`, `DesktopCanvasSources.kt` | the `DesktopCanvasArtwork(` parameter list; `internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(`; `DesktopOpenCanvasProvider` | the same `videoId: String? = null` parameter, `videoId = videoId,` in `toShared()`, and the provider passes it on | add the parameter and pass it through |
+| `sharedUi/src/commonMain/composeResources/values*/strings.xml` (18 files) | `</resources>` | appends `<string name="cosmo_watch_music_video">Watch the music video</string>` before it | add the key to every locale file, English text in each (`CosmoStringsTest` fails when one lacks a `cosmo_*` key) |
+
+The last four rows belong to the link with Music (Now Playing's "Watch the music video", Video's "Play as a song"); the rest are
+Video's own wiring. Our own files that know about the stored mode and the drawer (`CosmoLookSettings.kt`, `CosmoProfileDrawer.kt`,
+`CosmoBottomChrome.kt`, `CosmoPaletteState.kt`) carry no `FORK.md` row and do not mention Video's package.
+
+### Removing Video mode
+
+1. **Make it unreachable, in one line.** In `shared/src/commonMain/kotlin/com/cosmotune/design/AppModes.kt` make
+   `AppModes.available` answer false for `AppMode.VIDEO` again (`mode == AppMode.MUSIC`). The drawer shows Video as "Later", the
+   hosts draw Music, and a stored Video falls back to Music. This alone is enough for a release that has to drop the mode.
+2. **To remove the code**, delete `video/`, `shared/src/*/kotlin/com/cosmotune/video/` (main and test source sets),
+   `shared/src/jvmTest/resources/video/`, `app/src/*/java/com/cosmotune/video/` and `desktopApp/src/*/kotlin/com/cosmotune/video/`.
+3. **Revert the rows above**: the `StreamResolver` line goes back to `private val init by lazy { NewPipe.init(OkHttpDownloader()) }`;
+   take out `include(":video")`, the two `implementation(project(":video"))` lines, the three test dependencies and the coroutines
+   line of `shared/build.gradle.kts`, `"jdk.httpserver"`, the manifest attribute, the `PhoneModeHost` wrapper in `MainActivity.kt`, the
+   lines in `DesktopApp.kt`, `videoId` in `CanvasArtwork.kt` and the desktop canvas files, and `cosmo_watch_music_video` in the 18
+   string files. Delete the Video rows of `FORK.md`.
+4. **Our own files that still call Video**: `desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopChrome.kt`,
+   `CosmoDesktopSidebar.kt` and `CosmoDesktopSidePanel.kt` each test `com.cosmotune.video.host.desktopVideoShown()` (or call
+   `VideoDesktopBack`, `videoDesktopDrawerEntries()` and `VideoDesktopSidebar`): keep the Music branch. Two pins in
+   `sharedUi/src/jvmTest` quote those lines: `DesktopChromeStructureTest.kt` and `DesktopShellContractTest.kt`. `LegalTextsTest` goes
+   with `video/`.
+5. **Find what is left**: `grep -rl "com.cosmotune.video" --include=*.kt --include=*.kts --include=*.xml .` must print nothing, then run
+   `./gradlew :shared:jvmTest :sharedUi:jvmTest :desktopApp:compileKotlin :app:assembleDevDebug` and the guard. `LegalTextsTest` fails
+   when a file outside the Video folders mentions the package and this section does not name it: add the name here when you add a hook.
+6. **Words**: delete the three Video paragraphs of `README.md` (under "What it contacts", "Disclaimer" and "Acknowledgements"),
+   the "Video mode" section of `NOTICE.md` and this section. The data folder Video kept on a device (`filesDir/video/` on Android,
+   `~/.local/share/cosmotune/video/` on the desktop) is harmless and stays.
+
+### Bumping NewPipeExtractor
+
+NewPipe's state is one per process: Music's fallback resolver and Video share one copy, so there is one version for both
+(today v0.26.3; v0.26.4's player-script parser failed on Music's WEB_REMIX formats, see the comment in `app/build.gradle.kts`).
+
+1. **Change the tag in all three modules together.** `app/build.gradle.kts` (the `newPipeExtractorRaw` dependency, and the jar
+   name `NewPipeExtractor-v0.26.3-noutils.jar` in the task `stripNewPipeExtractorUtils`), `desktopApp/build.gradle.kts`, and
+   `shared/build.gradle.kts` (`compileOnly` for the main code and `implementation` for `jvmTest`). `VideoModuleStructureTest` pins
+   the version in `shared/build.gradle.kts`: change the pin in the same commit.
+2. **Re-derive `app`'s dependency list.** The app consumes a stripped jar, so what the extractor itself needs (nanojson, jsoup, jsr305,
+   protobuf-javalite, rhino, rhino-engine) is listed by hand after `implementation(files(newPipeExtractorStripped))`. Run
+   `./gradlew :app:dependencies --configuration prodReleaseRuntimeClasspath` with the extractor declared as an ordinary
+   dependency for the moment (or read the new tag's published `.module` file) and update the versions.
+3. **Compare the patched `Utils.java`**: `app/src/main/java/org/schabi/newpipe/extractor/utils/Utils.java` is Music's copy for
+   Android below API 33; check it against the new tag's `Utils` and carry the patch over.
+4. **Tests**: `:shared:jvmTest` (`NewPipeRoutingTest`, `NewPipeMapperTest` and `SearchReplayTest` build the library's own objects, so a
+   changed signature fails to compile there), `:video:jvmTest`, `:desktopApp:compileKotlin` and `:app:assembleDevDebug`. Once, by
+   hand, with the network: `NewPipeLiveTest` (`VIDEO_LIVE=true` in the environment).
+5. **By hand**: play ten Music tracks that need the NewPipe fallback (one of them age-restricted), and three videos in Video mode (an
+   ordinary one, a Short and a live stream); on the desktop too.
+6. **Record the result** in the message of the commit that bumps the tag: old and new tag, the ten tracks and three videos, and
+   anything that got worse. Re-record the search files only when the replay tests ask for it (see the recorded test files below).
+
+### Bumping the libmpv runtime
+
+The desktop's libmpv comes from `org.openani.mediamp:mediamp-mpv-runtime-<platform>` (`windows-x64`, `linux-x64`, `macos-arm64`,
+`macos-x64`), one version for all of them, declared once in `video/build.gradle.kts`:
+`implementation("org.openani.mediamp:mediamp-mpv-runtime-$mpvPlatform:0.5.1") { isTransitive = false }` (today 0.5.1).
+
+- Change the number there. `MpvNatives.RUNTIME_VERSION` (`video/src/jvmMain/kotlin/com/cosmotune/video/player/desktop/MpvNatives.kt`) is
+  the fallback name of the cache folder `<cache>/cosmotune/mpv/<version>/`, and `MpvNativesTest` fails when it differs from the
+  build: change both.
+- Read the new package's POM for its licences and update the libmpv paragraph of `NOTICE.md` when they change (libmpv is LGPL-2.1-or-later
+  on Windows and macOS and GPL-3.0 on Linux today).
+- `:video:jvmTest` extracts the libraries of the machine's own platform into a scratch folder and loads them (`MpvNativesTest`). By hand on the desktop: a
+  video, a live stream, a video with a separate audio track, speed and subtitles. The Linux and macOS libraries have never been run:
+  say so in the commit if they still have not been.
+- The installer grows or shrinks with the package (22 to 30 MB compressed per platform).
+
+### The recorded test files
+
+Everything under `shared/src/jvmTest/resources/video/` has one of these origins. No network is used by a unit test: a recorded
+answer is replayed, and anything recorded is scrubbed before it is committed.
+
+- `shared/src/jvmTest/resources/video/newpipe/` (`search_all_*`, `search_videos_*`, `search_shorts_*`): real answers of the video
+  site's search, recorded with `shared/src/jvmTest/kotlin/com/cosmotune/video/source/newpipe/fixtures/Recorder.kt` and replayed by
+  `ReplayDownloader`. To record again (network needed, by hand): run `com.cosmotune.video.source.newpipe.fixtures.RecorderKt` with the
+  `:shared` `jvmTest` runtime classpath, from the repository root; `--only=<scenario>` records one scenario, `--rescrub` makes no
+  request and applies the scrubber and the slimmer again to the files already there. A search gives different pages from one request
+  to the next, so a recording is the only stable test input.
+- The scrubber (`FixtureScrubber`, in `Recorder.kt`) replaces the values of `ip=` (digits), `ei`, `sig`, `lsig`, `n` and `pot` in
+  stream addresses, `VISITOR_INFO1_LIVE`, `visitorData` and `visitor_data` (also in the key and value form), and the country the
+  site guessed from the connection, with fixed placeholders, and drops every `Set-Cookie` header, keeping only `Content-Type`. The
+  recorder refuses to write a file that `FixtureScrubber.problems` still flags, and `FixturesAreScrubbedTest` checks every committed
+  file again. `FixtureSlimmer` also drops what the extractor never reads (menus, feedback forms, tracking tokens); the replayed answers are
+  equal in content, not byte for byte. Never commit a recording that did not go through the recorder. The files hold the titles,
+  channel names and counts of public videos: look at them before the repository goes public.
+- `shared/src/jvmTest/resources/video/feed/`: public RSS feed pages saved on 2026-10-16. Every description is replaced by
+  `(description removed)` (they carried business addresses and affiliate links); nothing else is changed (no visitor, cookie or
+  signature value was in them). One file is a 404 page, for the retry tests.
+- `shared/src/jvmTest/resources/video/segments/`: written by hand in the shape of the live answers of SponsorBlock, DeArrow and the
+  dislike service (field names, number forms, nulls); a real answer is tens of kilobytes about other people's videos.
+- `shared/src/jvmTest/resources/video/select/`: made-up stream lists for the quality ladder and the selector, with addresses on
+  `media.cosmotune.invalid`.
+- `shared/src/jvmTest/resources/video/importers/`: written for Cosmotune from the formats' descriptions; its README lists them. The
+  ZIP archives and the NewPipe database are built by the tests. `ThirdPartyFixturesTest` also runs the importers on NewPipe's and
+  NewPipeExtractor's own test files (GPL-3.0) when they are on disk: copy them into the folder, or set `VIDEO_IMPORT_FIXTURES` to
+  the folders that hold them; without them its tests are skipped. They are not part of this repository (`NOTICE.md` covers them if
+  they are added).
+
 ## Icons
 
 The logo (a heavy C with a small moon-textured, waning o) is drawn in a design kit that lives in the OpenCanvas
