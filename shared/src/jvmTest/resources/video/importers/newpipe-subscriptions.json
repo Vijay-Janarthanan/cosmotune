@@ -1,0 +1,36 @@
+{
+  "app_version": "0.27.0",
+  "app_version_int": 1010,
+  "subscriptions": [
+    {
+      "service_id": 0,
+      "url": "https://www.youtube.com/channel/UCDVWqyfkrFAZd6_6X-yZl_D",
+      "name": "Northern Lights Workshop"
+    },
+    {
+      "service_id": 0,
+      "url": "https://www.youtube.com/channel/UCcI08WoHmiXWnhREl-Asie_",
+      "name": "Paper, Scissors & Stone"
+    },
+    {
+      "service_id": 3,
+      "url": "https://framatube.example/video-channels/maker@framatube.example",
+      "name": "A PeerTube channel"
+    },
+    {
+      "service_id": 0,
+      "url": "https://www.youtube.com/channel/UCys64KT2rumOT-zNtTKjCSF",
+      "name": "Cooking \"Slow\", Daily"
+    },
+    {
+      "service_id": 0,
+      "url": "https://www.youtube.com/channel/UCDVWqyfkrFAZd6_6X-yZl_D",
+      "name": "Northern Lights Workshop (again)"
+    },
+    {
+      "service_id": 0,
+      "url": "https://www.youtube.com/channel/UCbLRCIe2GWM1wYovdzuMobW",
+      "name": "T\u00ebst Ch\u00e4nnel \u4e2d\u6587"
+    }
+  ]
+}

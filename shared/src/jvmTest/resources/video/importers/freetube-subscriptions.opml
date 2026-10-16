@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="1.1">
+  <head>
+    <title>Subscriptions (fixture)</title>
+  </head>
+  <body>
+    <!-- <outline text="Commented out" xmlUrl="https://www.youtube.com/feeds/videos.xml?channel_id=UCBacU3lzDPXzaLLkPZCLk1V"/> -->
+    <outline text="YouTube Subscriptions" title="YouTube Subscriptions">
+      <outline text="Northern Lights Workshop" title="Northern Lights Workshop" type="rss" xmlUrl="https://www.youtube.com/feeds/videos.xml?channel_id=UCDVWqyfkrFAZd6_6X-yZl_D" htmlUrl="https://www.youtube.com/channel/UCDVWqyfkrFAZd6_6X-yZl_D"/>
+      <outline text="Paper, Scissors &amp; Stone" title="Paper, Scissors &amp; Stone" type="rss" xmlUrl="https://www.youtube.com/feeds/videos.xml?channel_id=UCcI08WoHmiXWnhREl-Asie_"/>
+      <outline TEXT='Quotes &quot;and&quot; &#x4E2D;&#25991;' type='rss' XMLURL='https://www.youtube.com/feeds/videos.xml?channel_id=UCys64KT2rumOT-zNtTKjCSF'/>
+      <outline text="Folder inside">
+        <outline text="Deep one" xmlUrl="https://www.youtube.com/feeds/videos.xml?channel_id=UCbLRCIe2GWM1wYovdzuMobW"></outline>
+      </outline>
+      <outline text="A playlist feed" title="A playlist feed" type="rss" xmlUrl="https://www.youtube.com/feeds/videos.xml?playlist_id=PLfixtureplaylist000000000000000"/>
+      <outline text="Northern Lights Workshop again" xmlUrl="https://www.youtube.com/feeds/videos.xml?channel_id=UCDVWqyfkrFAZd6_6X-yZl_D"/>
+    </outline>
+  </body>
+</opml>
