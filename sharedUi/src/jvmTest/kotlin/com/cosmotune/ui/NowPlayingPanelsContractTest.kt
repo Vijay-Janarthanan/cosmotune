@@ -167,7 +167,8 @@ class NowPlayingPanelsContractTest {
         val src = code(raw)
         assertTrue(src.contains("type.title(if (title.length > TypeScale.LONG_TITLE_CHARS) TypeScale.TITLE_M else TypeScale.TITLE_L)"))
         assertTrue(src.contains("if (if (landscape) panel != null else queueOpen) 1f else 0f"), "a panel folds away what its card covers")
-        assertEquals(3, Regex("""position\.positionMs""").findAll(src).count())
+        // Y-26 (Video mode): the fourth is the "Watch the music video" action, read only when the tool is pressed.
+        assertEquals(4, Regex("""position\.positionMs""").findAll(src).count())
         assertTrue(src.contains("playSize = if (landscape) LandscapeMetrics.PLAY_BUTTON_DP.dp else 80.dp"))
         assertTrue(src.contains("LandscapeMetrics.TITLE_STEP"), "display(DISPLAY_S) in two panes")
         assertTrue(src.contains("val arrival = remember(song.videoId)"), "the title's arrival lives in the stack: a title folded away and back does not arrive again")
