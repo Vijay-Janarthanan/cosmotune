@@ -110,6 +110,9 @@ internal class MpvPlayer(
     private var decoder: String? = null
     private var error: PlayerError? = null
     private var remote = false
+
+    /** Whether the current load is a live stream (written under [lock]; read by [positionMs] too). */
+    @Volatile private var live = false
     private var lastError: String? = null
 
     // The playhead, guarded by [clock].
@@ -183,6 +186,7 @@ internal class MpvPlayer(
         synchronized(lock) {
             reset(requested = true)
             this.remote = remote
+            this.live = live
             issued = generation
             jumpClock(if (live) 0 else startMs)
             cues.value = emptyList()
@@ -268,7 +272,8 @@ internal class MpvPlayer(
             var ms = clockMs
             if (clockRunning) ms += ((System.nanoTime() - clockAtNanos) / 1_000_000.0 * clockSpeed).toLong()
             val duration = durationMs
-            if (duration > 0 && ms > duration) ms = duration
+            // A live stream has no end to stop at (Y-28).
+            if (!live && duration > 0 && ms > duration) ms = duration
             return ms.coerceAtLeast(0)
         }
     }
@@ -446,11 +451,15 @@ internal class MpvPlayer(
         decoder = null
         error = null
         lastError = null
+        live = false
     }
 
     /** Publishes the snapshot's mpv part and sets the playhead's clock going or stopped. Under [lock]. */
     private fun publish() {
         val announced = pending()
+        // A live stream's duration is the end of its window (Y-28): what can be sought in is what mpv has read since it joined (its
+        // cache keeps it), from 0 to the end of the cache; FFmpeg gives a live playlist no duration of its own.
+        val window = if (live) bufferedMs else durationMs
         val status = when {
             announced -> PlayerStatus.LOADING
             error != null -> PlayerStatus.ERROR
@@ -465,7 +474,7 @@ internal class MpvPlayer(
                 it.copy(status = status, playing = playing, speed = speed, error = null)
             } else {
                 it.copy(
-                    status = status, playing = playing, durationMs = durationMs, bufferedMs = bufferedMs, speed = speed,
+                    status = status, playing = playing, durationMs = window, bufferedMs = bufferedMs, speed = speed,
                     videoWidth = videoWidth, videoHeight = videoHeight, error = error, decoderName = decoder,
                     droppedFrames = (frameDrops + decoderDrops).toInt(),
                 )

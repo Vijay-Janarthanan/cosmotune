@@ -58,6 +58,7 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.tabular
 import com.cosmotune.video.design.VideoMetrics
+import com.cosmotune.video.player.LiveWindow
 import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.PlayerKeyAction
 import com.cosmotune.video.player.PlayerStatus
@@ -66,6 +67,7 @@ import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoUiError
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_badge_live
+import com.cosmotune.video.resources.video_badge_upcoming
 import com.cosmotune.video.resources.video_captions
 import com.cosmotune.video.resources.video_collapse
 import com.cosmotune.video.resources.video_error_age
@@ -81,6 +83,7 @@ import com.cosmotune.video.resources.video_error_unavailable
 import com.cosmotune.video.resources.video_exit_fullscreen
 import com.cosmotune.video.resources.video_full_window
 import com.cosmotune.video.resources.video_fullscreen
+import com.cosmotune.video.resources.video_live_starts
 import com.cosmotune.video.resources.video_next
 import com.cosmotune.video.resources.video_pip
 import com.cosmotune.video.resources.video_player_settings
@@ -94,6 +97,11 @@ import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.ui.VideoIcons
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 
 /*
  * The chrome's numbers that VideoMetrics does not carry, each from spec 6.5 or 5.4:
@@ -281,7 +289,7 @@ internal fun BoxScope.ChromeControls(
             .padding(start = metrics.bottomSideDp.dp, end = metrics.bottomSideDp.dp, bottom = metrics.bottomBottomDp.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (state.live) LiveBadge() else TimeText(playhead, state.durationMs, onGlass = false, onInput = onInput)
+        if (state.live) LiveStatus(playback, state, playhead, onInput) else TimeText(playhead, state.durationMs, onGlass = false, onInput = onInput)
         Spacer(Modifier.weight(1f))
         val fullscreen = layout == PlayerLayout.FULLSCREEN
         CosmoIconButton(
@@ -464,16 +472,29 @@ internal fun TimeText(playhead: Playhead, durationMs: Long, onGlass: Boolean, on
 @Composable
 internal fun LiveBadge(modifier: Modifier = Modifier) {
     val palette = LocalCosmoColors.current.palette
+    PlayerBadge(stringResource(Res.string.video_badge_live), fill = palette.danger, ink = palette.onDanger, modifier)
+}
+
+/** The Upcoming badge (spec 5.0, 5.13): as the Live badge, on `accentContainer` with `onAccentContainer` text. */
+@Composable
+internal fun UpcomingBadge(modifier: Modifier = Modifier) {
+    val palette = LocalCosmoColors.current.palette
+    PlayerBadge(stringResource(Res.string.video_badge_upcoming), fill = palette.accentContainer, ink = palette.onAccentContainer, modifier)
+}
+
+/** A badge of spec 5.0 over the video: 20 high, padding 0 6, radius 6, 12 sp 650 tabular, in the palette's [fill] and [ink]. */
+@Composable
+private fun PlayerBadge(label: String, fill: Int, ink: Int, modifier: Modifier) {
     val type = LocalCosmoType.current
     val style = remember(type) { TextStyle(fontFamily = type.textFamily, fontWeight = FontWeight(LIVE_WEIGHT), fontSize = VideoMetrics.BADGE_SP.sp).tabular() }
     Box(
         modifier
             .heightIn(min = VideoMetrics.BADGE_H_DP.dp)
-            .background(Color(palette.danger), RoundedCornerShape(VideoMetrics.BADGE_RADIUS_DP.dp))
+            .background(Color(fill), RoundedCornerShape(VideoMetrics.BADGE_RADIUS_DP.dp))
             .padding(horizontal = VideoMetrics.BADGE_PAD_H_DP.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(stringResource(Res.string.video_badge_live), style = style, color = Color(palette.onDanger), maxLines = 1)
+        Text(label, style = style, color = Color(ink), maxLines = 1)
     }
 }
 
@@ -529,7 +550,7 @@ private fun FullWindowBarContent(
         verticalArrangement = Arrangement.Center,
     ) {
         Box(Modifier.fillMaxWidth().height(VideoMetrics.QUEUE_BUTTON_DP.dp)) {
-            if (state.live) LiveBadge(Modifier.align(Alignment.CenterStart))
+            if (state.live) LiveStatus(playback, state, playhead, onInput, Modifier.align(Alignment.CenterStart))
             else TimeText(playhead, state.durationMs, onGlass = true, onInput = onInput, modifier = Modifier.align(Alignment.CenterStart))
             Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
                 if (queue) QueueButton(previous = true, playback, onInput, VideoMetrics.CHROME_ICON_DP, CosmoIconButtonStyle.PLAIN)
@@ -568,23 +589,29 @@ private fun FullWindowBarContent(
 
 /**
  * The error (spec 5.4, 6.1): the message of the [VideoUiError] in white over the black of the box, and "Try again" (a C secondary
- * button), which plays the video again with fresh details.
+ * button), which plays the video again with fresh details. An upcoming video ([LiveWindow.isUpcoming], spec 5.13) shows the
+ * Upcoming badge and its start time instead ("Starts 18 Oct 2026, 20:00"; the source's own words when it gave no time); "Try
+ * again" then looks whether it has started.
  */
 @Composable
 internal fun PlayerErrorState(state: PlaybackUiState, onRetry: () -> Unit, modifier: Modifier = Modifier) {
     val type = LocalCosmoType.current
-    val message = stringResource(errorMessage(state.error ?: VideoUiError.STOPPED))
+    val upcoming = LiveWindow.isUpcoming(state)
+    val message = if (upcoming) upcomingText(state) else stringResource(errorMessage(state.error ?: VideoUiError.STOPPED))
     Column(
         modifier.fillMaxWidth(ERROR_WIDTH_SHARE).padding(TOP_ROW_PAD_DP.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(BOTTOM_PAD_SIDE_DP.dp),
     ) {
-        Text(
-            message,
-            style = type.forText(type.body(), message),
-            color = Color.White,
-            textAlign = TextAlign.Center,
-        )
+        if (upcoming) UpcomingBadge()
+        if (message.isNotEmpty()) {
+            Text(
+                message,
+                style = type.forText(type.body(), message),
+                color = Color.White,
+                textAlign = TextAlign.Center,
+            )
+        }
         if (state.item != null) {
             CosmoButton(text = stringResource(Res.string.video_retry), onClick = onRetry, kind = CosmoButtonKind.QUIET, size = CosmoButtonSize.SMALL, floating = true)
         }
@@ -593,6 +620,18 @@ internal fun PlayerErrorState(state: PlaybackUiState, onRetry: () -> Unit, modif
 
 /** The error's message stays within 80 % of the box. */
 private const val ERROR_WIDTH_SHARE = 0.8f
+
+/** An upcoming video's line: "Starts" and its start time, or the source's own words ("Premieres in 2 days") without a time. */
+@Composable
+private fun upcomingText(state: PlaybackUiState): String {
+    val start = LiveWindow.upcomingStartMs(state) ?: return state.item?.uploadedText.orEmpty()
+    val time = remember(start) { startTimeText(start) }
+    return stringResource(Res.string.video_live_starts, time)
+}
+
+/** A start time in the device's language and time zone: the medium date and the short time ("18 Oct 2026, 20:00"). */
+internal fun startTimeText(epochMs: Long, zone: ZoneId = ZoneId.systemDefault(), locale: Locale = Locale.getDefault()): String =
+    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(locale).withZone(zone).format(Instant.ofEpochMilli(epochMs))
 
 /** The `video_error_*` text of each error (spec 5.4, 6.1). */
 internal fun errorMessage(error: VideoUiError): StringResource = when (error) {
@@ -646,8 +685,10 @@ fun performPlayerKey(
         }
         is PlayerKeyAction.SeekBy -> playback.seekBy(action.deltaMs)
         is PlayerKeyAction.SeekToFraction -> {
-            if (state.durationMs <= 0) return false
-            playback.seekTo((state.durationMs * action.fraction).toLong())
+            // A live stream's tenths are of its window up to the live edge (spec 5.13).
+            val span = if (state.live) LiveWindow.liveEdgeMs(state.durationMs) else state.durationMs
+            if (span <= 0) return false
+            playback.seekTo((span * action.fraction).toLong())
         }
         is PlayerKeyAction.Volume -> {
             val controls = platform ?: return false
