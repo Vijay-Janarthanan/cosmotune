@@ -112,6 +112,34 @@ class LegalTextsTest {
         assertTrue("NewPipe" in text && "GPL-3.0" in text)
     }
 
+    // Y-34: what the NOTICE says is checked against the landed code, so a bump or a change of the settings shows here.
+
+    @Test fun theNoticeNamesTheVersionsTheBuildDeclares() {
+        val text = flat(notice)
+        val mpv = Regex("""mediamp-mpv-runtime-<platform>`, version ([0-9.]+)""").find(text)?.groupValues?.get(1)
+        assertEquals(com.cosmotune.video.player.desktop.MpvNatives.RUNTIME_VERSION, mpv, "the NOTICE's libmpv runtime is the one the engine falls back to")
+        val declared = Regex("""mediamp-mpv-runtime-\${'$'}mpvPlatform:([0-9.]+)""").find(doc("video/build.gradle.kts"))?.groupValues?.get(1)
+        assertEquals(declared, mpv, "and the one video/build.gradle.kts declares")
+        val newPipe = Regex("""NewPipeExtractor:(v[0-9.]+)""").find(doc("shared/build.gradle.kts"))?.groupValues?.get(1)
+        assertTrue(newPipe != null && "version $newPipe" in text && "at the tag $newPipe" in text, "the NOTICE names NewPipeExtractor $newPipe")
+    }
+
+    @Test fun theSettingsCreditTheThreeServicesAndEachCanBeSwitchedOffAsTheNoticeSays() {
+        assertTrue("Video settings credit the three services, and each of them can be switched off there" in flat(notice))
+        val dir = "video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/settings"
+        val settings = VideoSourceContract.code(doc("$dir/VideoSettingsPage.kt")) + VideoSourceContract.code(doc("$dir/SegmentSettings.kt"))
+        for (link in listOf("url = SPONSORBLOCK_URL", "url = DEARROW_URL", "url = DISLIKES_URL")) assertTrue("AttributionLink(" in settings && link in settings, "the credit $link")
+        for (field in listOf("sponsorBlock", "deArrowTitles", "deArrowThumbnails", "dislikes")) assertTrue("$field = " in settings, "a switch writes $field")
+    }
+
+    @Test fun theDesktopLicenceScreenListsWhatTheNoticeNames() {
+        val licences = doc("desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopLicenses.kt")
+        for (name in listOf("\"NewPipeExtractor\"", "\"libmpv\"", "\"mediamp runtime packages\"", "\"SponsorBlock data\"", "\"DeArrow data\"", "\"Return YouTube Dislike\"")) {
+            assertTrue(name in licences, "the desktop's licence screen lists $name")
+        }
+        assertTrue("https://mpv.io" in licences && "https://github.com/open-ani/mediamp" in licences && "CC BY-NC-SA 4.0" in licences)
+    }
+
     @Test fun theNoticeKeepsEverythingItHadAndStaysGplv3() {
         for (heading in listOf("OpenCanvas", "Material Color Utilities", "Archivo and Hanken Grotesk")) {
             assertTrue(Regex("(?m)^## ${Regex.escape(heading)}\\s*$").containsMatchIn(notice), "`## $heading` is still there")
