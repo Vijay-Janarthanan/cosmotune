@@ -40,10 +40,21 @@ Settings > Appearance > "Dynamic YouTube Canvas (OpenCanvas)", which appears onl
 or "Animated canvas" (desktop) is on. Even with the video switched off, the app makes three small requests to YouTube
 each time it starts (two to open the connection and one for an anonymous visitor id), also on mobile data.
 
+**Video mode** looks videos up on YouTube with no account and no cookies: search, video pages, comments, channel and
+RSS feeds, thumbnails and the video files. When it is on, SponsorBlock gets the first four characters of a hash of each
+video id you open (`sponsor.ajay.app`); DeArrow gets the same for titles and the video id for thumbnails
+(`sponsor.ajay.app`, `dearrow-thumb.ajay.app`); Return YouTube Dislike gets the video id of each video page you open
+(`returnyoutubedislikeapi.com`). Each can be switched off in Video settings. Your history, subscriptions and
+playlists are kept on the device.
+
 ## Disclaimer
 
 Cosmotune uses YouTube's own player endpoints, which YouTube does not document and its terms do not
 allow for third-party apps. Use it at your own risk.
+
+**Video mode.** Cosmotune is not affiliated with, authorised or endorsed by YouTube or Google. Video mode reads
+YouTube's public pages without an account, which YouTube's terms do not allow for third-party apps. Use it at your own
+risk. The mode can be switched off by an update if asked.
 
 ## Acknowledgements
 
@@ -51,5 +62,10 @@ Cosmotune started as a fork of [BitChord](https://github.com/kushagrasinghx/BitC
 shares much of its playback engine. Its ideas and look draw on open-source players such as
 [NewPipe](https://github.com/TeamNewPipe/NewPipe), [LibreTube](https://github.com/libre-tube/LibreTube),
 [SimpMusic](https://github.com/maxrave-dev/SimpMusic) and [Namida](https://github.com/namidaco/namida).
-The music-video canvas is [OpenCanvas](https://github.com/Vijay-Janarthanan/OpenCanvas). Licences and
-notices are in `NOTICE.md`.
+The music-video canvas is [OpenCanvas](https://github.com/Vijay-Janarthanan/OpenCanvas).
+
+Video mode reads its catalogue with [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor)
+(GPL-3.0-or-later), plays video on the desktop with [libmpv](https://mpv.io/) (taken from the runtime packages of
+[mediamp](https://github.com/open-ani/mediamp)), and uses the data of [SponsorBlock](https://sponsor.ajay.app/) (skippable
+segments), [DeArrow](https://dearrow.ajay.app/) (titles and thumbnails) and
+[Return YouTube Dislike](https://returnyoutubedislike.com/) (dislike counts). Licences and notices are in `NOTICE.md`.

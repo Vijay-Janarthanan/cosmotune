@@ -68,7 +68,7 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
             when (r) {
                 is VideoRoute.Home -> VideoPlaceholder(r)   // Y-17 replaces this line
 
-                is VideoRoute.Subscriptions -> VideoPlaceholder(r)   // Y-21 replaces this line
+                is VideoRoute.Subscriptions -> com.cosmotune.video.ui.subscriptions.SubscriptionsPage(contentPadding, wide)
 
                 is VideoRoute.Library -> VideoPlaceholder(r)   // Y-22 replaces this line
 
@@ -96,7 +96,7 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
 
                 is VideoRoute.Downloads -> VideoPlaceholder(r)   // Y-33 replaces this line
 
-                is VideoRoute.Settings -> VideoPlaceholder(r)   // Y-25 replaces this line
+                is VideoRoute.Settings -> com.cosmotune.video.ui.settings.VideoSettingsPage(contentPadding, wide)
 
                 is VideoRoute.Import -> VideoPlaceholder(r)   // Y-22 replaces this line
             }
