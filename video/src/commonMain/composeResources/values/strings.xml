@@ -408,4 +408,9 @@
     <string name="video_disclaimer_title">Before you watch</string>
     <string name="video_disclaimer_text">Cosmotune is not affiliated with, authorised or endorsed by YouTube or Google. Video mode reads the public pages of YouTube without an account, which the terms of YouTube do not allow for third-party apps. Use it at your own risk.</string>
     <string name="video_disclaimer_ok">Got it</string>
+    <!-- Player chrome (Y-15) -->
+    <string name="video_replay">Replay</string>
+    <string name="video_seek_bar">Position in the video</string>
+    <string name="video_on">On</string>
+    <string name="video_time_toggle">Switch between the time played and the time left</string>
 </resources>
