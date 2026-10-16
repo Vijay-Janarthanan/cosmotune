@@ -24,6 +24,7 @@ import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.player.VideoUiError
 import com.cosmotune.video.segments.SegmentCategory
+import com.cosmotune.video.segments.SegmentMath
 import com.cosmotune.video.segments.SegmentProvider
 import com.cosmotune.video.segments.SkipSegment
 import com.cosmotune.video.settings.SegmentBehaviour
@@ -623,7 +624,8 @@ class VideoPlayerController(
     @Synchronized
     private fun applySegments(l: Load, found: List<SkipSegment>) {
         if (load !== l) return
-        l.segments = found
+        // The 2 s re-upload rule and the merge of overlapping categories that share a behaviour (spec 7.1; SegmentMath, Y-6).
+        l.segments = SegmentMath.prepare(found, durationNow(l), settings.settings.value.segmentBehaviours)
         publish()
     }
 

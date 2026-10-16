@@ -16,6 +16,7 @@ import com.cosmotune.video.player.SubtitleCue
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.player.VideoSurfaceProvider
+import com.cosmotune.video.select.BandwidthWarmUp
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -83,6 +84,9 @@ class DesktopVideoEngine internal constructor(
     @Volatile private var released = false
     @Volatile private var audioOnly = false
     @Volatile private var subtitleLanguage: String? = null
+
+    /** The proxy's bandwidth counts after its first 5 s of measuring (spec 6.4). */
+    private val bandwidthWarmUp = BandwidthWarmUp(clock = { System.nanoTime() / 1_000_000 })
 
     // The engine thread's own state.
     private var renderer: MpvRenderer? = null
@@ -270,6 +274,8 @@ class DesktopVideoEngine internal constructor(
         val proxy = ensureProxy()
             ?: return Target("", remote = true, direct = false, error = PlayerError(PlayerErrorKind.UNSUPPORTED, "the loopback server is not available"))
         currentToken = proxy.reset()
+        // The proxy measures from its first transfer; what it measures counts after 5 s (spec 6.4).
+        bandwidthWarmUp.begin()
         val videoUrl = video?.let { proxy.register(it.url, headers, it.contentLength) }
         // A muxed stream carries its own sound: its audio is not added again.
         val audioUrl = audio?.takeIf { video?.hasAudio != true }?.let { proxy.register(it.url, headers, it.contentLength) }
@@ -362,7 +368,9 @@ class DesktopVideoEngine internal constructor(
         if (token == currentToken) playerRef?.markExpired("the source answered 403")
     }
 
-    private fun onBandwidth(kbps: Int) {
+    private fun onBandwidth(measured: Int) {
+        // Nothing for the first 5 s of measuring: one 2 MiB piece is not a measure (spec 6.4; the selector takes any value as known).
+        val kbps = bandwidthWarmUp.gate(measured) ?: return
         snapshotFlow.update {
             val old = it.bandwidthKbps
             if (old == null || abs(kbps - old) * 10 >= old) it.copy(bandwidthKbps = kbps) else it

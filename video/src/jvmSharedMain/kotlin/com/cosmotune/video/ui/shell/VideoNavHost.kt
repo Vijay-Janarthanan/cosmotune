@@ -32,6 +32,9 @@ import com.cosmotune.video.nav.VideoTab
  * Each page keeps its saved state (a list's place, a field's text) while it is in a stack: it is `rememberSaveable` state, kept
  * per entry of the stacks, and dropped when the entry is popped or replaced. Changing page cross-fades (150 ms under reduced
  * motion), and changing between two tab roots does not.
+ *
+ * Beside the page stands the action host (`VideoActionsHost`): the save-to-playlist sheet, the new-playlist dialog, the download
+ * sheet and the toast that the pages' `rememberVideoActions()` asks for, once for every page.
  */
 @Composable
 fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide: Boolean) {
@@ -99,6 +102,9 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
             }
         }
     }
+
+    // The sheets, the dialog and the toast the pages' action handler asks for (Y-16): once, beside the page.
+    com.cosmotune.video.ui.actions.VideoActionsHost(contentPadding)
 }
 
 /** The page on top of the stack: its route, and the key that tells its entry from every other one (see [VideoNavigator.pageKeys]). */

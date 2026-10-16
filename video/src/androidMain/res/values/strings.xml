@@ -2,4 +2,7 @@
 <resources>
     <!-- The name of Video's playback notification channel in the system settings (Android resources: the channel is made by Media3's notification provider). -->
     <string name="video_notification_channel">Video playback</string>
+    <!-- The notification's queue buttons (previous and next video). -->
+    <string name="video_notification_previous">Previous</string>
+    <string name="video_notification_next">Next</string>
 </resources>
