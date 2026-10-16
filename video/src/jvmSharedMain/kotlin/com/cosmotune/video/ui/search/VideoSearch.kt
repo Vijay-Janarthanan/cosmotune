@@ -117,7 +117,8 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
     val typed = if (sidebar) DesktopVideoState.query else own
     val submitted = route.query.trim()
     val mode = searchMode(typed, submitted)
-    if (sidebar) LaunchedEffect(route.query) { DesktopVideoState.query = route.query }
+    // Opened by typing in the sidebar from another page (Y-34): the typed text stays, and the page shows its suggestions.
+    if (sidebar) LaunchedEffect(route.query) { if (!DesktopVideoState.takeKeepTyped()) DesktopVideoState.query = route.query }
     if (!sidebar) {
         LaunchedEffect(Unit) {
             if (route.query.isEmpty()) {

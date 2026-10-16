@@ -139,7 +139,7 @@ internal fun VideoDesktopSidebarContent(focusSearch: Boolean, onSearchFocused: (
         ) {
             CosmoSearchField(
                 query = DesktopVideoState.query,
-                onQueryChange = { DesktopVideoState.query = it },
+                onQueryChange = { DesktopVideoState.query = it; openSidebarSuggestions(navigator, it) },
                 onSubmit = { submitSidebarSearch(navigator, DesktopVideoState.query) },
                 placeholder = stringResource(Res.string.video_search),
                 focusRequester = focusRequester,
@@ -198,6 +198,16 @@ internal fun submitSidebarSearch(navigator: VideoNavigator, query: String) {
     val q = query.trim()
     if (q.isNotEmpty()) DesktopVideoState.graph?.library?.addSearch(q)
     navigator.push(VideoRoute.Search(q))
+}
+
+/**
+ * Typing in the sidebar's field while another page is on show opens the search page, which shows the suggestions for what is typed
+ * (as Music's sidebar does); on a search page the page itself follows the text. The page keeps the text ([DesktopVideoState.keepTyped]).
+ */
+internal fun openSidebarSuggestions(navigator: VideoNavigator, text: String) {
+    if (text.isBlank() || navigator.top is VideoRoute.Search) return
+    DesktopVideoState.keepTyped = true
+    navigator.push(VideoRoute.Search(""))
 }
 
 /** One navigation row: its two icons (the second while it is [selected]), its [label] and what a click does. */
