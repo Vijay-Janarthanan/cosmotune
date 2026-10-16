@@ -72,7 +72,7 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
 
                 is VideoRoute.Library -> com.cosmotune.video.ui.library.LibraryPage(contentPadding, wide)   // Y-22
 
-                is VideoRoute.Search -> VideoPlaceholder(r)   // Y-18 replaces this line
+                is VideoRoute.Search -> com.cosmotune.video.ui.search.VideoSearch(r, contentPadding, wide)
 
                 is VideoRoute.Watch -> VideoPlaceholder(r)   // Y-19 replaces this line
 
