@@ -122,7 +122,7 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
-        // Y-27: the first-run notice goes here (the desktop page)
+        com.cosmotune.video.ui.notice.FirstRunNoticeLayer()
 
     }
 }
