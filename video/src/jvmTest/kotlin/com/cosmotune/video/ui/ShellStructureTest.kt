@@ -460,7 +460,8 @@ class ShellStructureTest {
     @Test fun theSearchFieldSharesItsStateWithThePageThroughTheDesktopState() {
         val sidebar = VideoSourceContract.code(desktop("VideoDesktopSidebarContent"))
         assertTrue("DesktopVideoState.query" in sidebar && "DesktopVideoState.focusSearch = false" in sidebar)
-        assertTrue("navigator.push(VideoRoute.Search(query))   // Y-18 may replace this line" in desktop("VideoDesktopSidebarContent"), "the one line the search task owns")
+        // the one function the search task (Y-18) owns: it records the query, then pushes the search page (SearchStructureTest pins its body)
+        assertTrue("navigator.push(VideoRoute.Search(q))" in VideoSourceContract.functionBody(desktop("VideoDesktopSidebarContent"), "submitSidebarSearch"), "Enter pushes the search page")
         val page = VideoSourceContract.code(desktop("VideoDesktopEntry"))
         assertTrue("Key.K" in page && "event.isMetaPressed" in page && "event.isCtrlPressed" in page, "Ctrl K, Cmd K on macOS")
         assertTrue("DesktopVideoState.requestSearchFocus()" in page)
