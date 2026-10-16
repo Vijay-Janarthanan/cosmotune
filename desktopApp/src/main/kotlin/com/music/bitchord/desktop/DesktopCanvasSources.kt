@@ -607,6 +607,7 @@ internal object DesktopOpenCanvasProvider {
             syncMap = clip.syncMap,
             videoDurationMs = clip.videoDurationMs,
             headers = clip.headers,
+            videoId = clip.videoId,
         )
     }
 }

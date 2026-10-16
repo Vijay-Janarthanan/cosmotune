@@ -42,6 +42,8 @@ data class CanvasArtwork(
     val videoDurationMs: Long = 0L,
     /** HTTP headers every request for [url] must carry (googlevideo checks them against the client that minted the URL). */
     val headers: Map<String, String> = emptyMap(),
+    /** The music video's YouTube id, when OpenCanvas found one (Video mode's "Watch the music video"). */
+    val videoId: String? = null,
 ) {
     /**
      * Whether this clip really belongs to the track we asked about.

@@ -161,6 +161,8 @@ fun CosmoNowPlaying(
     remember(position) { CanvasSyncSource.attach(position) }
     DisposableEffect(position) { onDispose { CanvasSyncSource.detach(position) } }
     val canvas = rememberCanvasArtwork(song)
+    // "Watch the music video" (Video mode's link): only when Video is available and the canvas is a music video that follows the song.
+    val watchMusicVideo = rememberWatchMusicVideo(song, canvas, position)
     // True only while the mobile-data guard is the reason there is no video; the top bar then carries the host's line that says so.
     val blockedByMobileData = rememberCanvasBlockedByMobileData(song)
     // The next song's clip is looked up while this one plays, so skipping to it shows the video at once. Same guards as the
@@ -259,7 +261,7 @@ fun CosmoNowPlaying(
             lyricsOpen = panels.lyricsOpen, onToggleLyrics = panels::toggleLyrics, onOpenOutput = openAudioOutput,
             onTogether = { if (inParty) sheets.members = true else onListenTogether() },
             queueOpen = panels.queueOpen, onToggleQueue = panels::toggleQueue,
-            landscape = landscape, panel = panel, modifier = m,
+            landscape = landscape, panel = panel, modifier = m, onWatchMusicVideo = watchMusicVideo,
         )
     }
     val lyricsPanel: @Composable (Modifier, LyricsStyle, Dp) -> Unit = { m, style, topPadding ->
@@ -324,7 +326,7 @@ fun CosmoNowPlaying(
                     song = song, playedBy = playedBy, coverUrl = remoteArt, queueSelected = panels.queueOpen,
                     onSelectTab = { if (it == 0) panels.openLyrics() else panels.openQueue() },
                     hasVideo = canvas != null, videoOn = canvas != null && !videoHidden, onToggleVideo = { videoHidden = !videoHidden },
-                    onOpenOrigin = openOrigin, onOpenMenu = onOpenMenu, modifier = m,
+                    onOpenOrigin = openOrigin, onOpenMenu = onOpenMenu, modifier = m, onWatchMusicVideo = watchMusicVideo,
                 )
             },
             panel = { m ->
