@@ -437,6 +437,7 @@ private fun DownloadPrefsDto.toDomain() = DownloadPrefs(
             "rung" -> if (quality.height > 0) DownloadQuality.Rung(quality.height, quality.fps.coerceAtLeast(0)) else DownloadQuality.Auto
             else -> DownloadQuality.Auto
         },
-        subtitles = SubtitlePick(subtitles.enabled, subtitles.language?.takeIf { it.isNotBlank() }),
+        // "" (each video's original language) and null (the app's language first) are different choices: kept as written (Y-34)
+        subtitles = SubtitlePick(subtitles.enabled, subtitles.language),
     ),
 )

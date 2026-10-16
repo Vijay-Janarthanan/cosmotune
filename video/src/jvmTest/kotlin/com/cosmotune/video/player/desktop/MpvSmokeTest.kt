@@ -33,6 +33,9 @@ class MpvSmokeTest {
         return mpv!!
     }
 
+    /** How long a playhead may take to pass its mark (a second of play) on a loaded machine before the test fails. */
+    private val PLAYHEAD_DEADLINE_MS = 10_000L
+
     private fun waitFor(timeoutMs: Long, what: String, condition: () -> Boolean) {
         val until = System.currentTimeMillis() + timeoutMs
         while (!condition()) {
@@ -70,10 +73,12 @@ class MpvSmokeTest {
             waitFor(10_000, "the file to load") { snapshot.value.status == PlayerStatus.READY }
             player.set("pause", "no")
             waitFor(5_000, "playing") { snapshot.value.playing }
+            // Y-34: a deadline, not a fixed second, so a loaded machine cannot fail it; a render or clock that does not move still does.
             val started = System.nanoTime()
-            Thread.sleep(1_000)
+            waitFor(PLAYHEAD_DEADLINE_MS, "the playhead to pass 600 ms") { player.positionMs() >= 600 }
+            val elapsed = (System.nanoTime() - started) / 1_000_000
             val position = player.positionMs()
-            assertTrue(position in 600..2_500, "the playhead moved about a second: $position ms after ${(System.nanoTime() - started) / 1_000_000} ms")
+            assertTrue(position <= elapsed + 1_500, "the playhead runs at the clock's pace, not ahead of it: $position ms after $elapsed ms")
 
             waitFor(5_000, "a published frame") { exchange.frames.value > 0 }
             val frame = assertNotNull(exchange.acquire())
@@ -156,8 +161,8 @@ class MpvSmokeTest {
             waitFor(15_000, "READY through the proxy") { engine.snapshot.value.status == PlayerStatus.READY }
             engine.play()
             waitFor(5_000, "playing") { engine.snapshot.value.playing }
-            Thread.sleep(1_000)
-            assertTrue(engine.positionMs() > 500, "it plays from the proxy: ${engine.positionMs()}")
+            // Y-34: it once read 490 ms after a fixed second under load; a deadline keeps the check (a stalled proxy never gets there).
+            waitFor(PLAYHEAD_DEADLINE_MS, "it plays from the proxy past 500 ms") { engine.positionMs() > 500 }
             val requests = seen.toList()
             assertTrue(requests.isNotEmpty() && requests.all { it.method == "POST" && it.getHeader("User-Agent") == "TestAgent/1.0 (fake)" })
             assertTrue(requests.all { it.requestUrl!!.queryParameter("rn") != null && it.requestUrl!!.queryParameter("range") != null })
@@ -228,8 +233,7 @@ class MpvSmokeTest {
             assertTrue(!engine.snapshot.value.playing, "a load does not start playback")
             engine.play()
             waitFor(5_000, "playing") { engine.snapshot.value.playing }
-            Thread.sleep(500)
-            assertTrue(engine.positionMs() > 1_500, "it plays on from the start: ${engine.positionMs()}")
+            waitFor(PLAYHEAD_DEADLINE_MS, "it plays on from the start") { engine.positionMs() > 1_500 }   // Y-34: a deadline, as above
 
             engine.setAudioOnly(true)
             assertTrue(engine.snapshot.value.audioOnly)

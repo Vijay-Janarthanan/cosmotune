@@ -246,6 +246,15 @@ class LibraryCodecTest {
     }
 
     @Test
+    fun theRememberedSubtitleLanguageKeepsTheEmptyTagApartFromNone() {
+        // Y-34: "" is "each video's original language" to the download engine, null "the app's language first"; a restart keeps them apart
+        for (language in listOf("", null, "en", "pt-BR")) {
+            val s = VideoSettings(downloads = DownloadPrefs(true, DownloadRequest(DownloadQuality.Auto, SubtitlePick(true, language))))
+            assertEquals(language, codec.decodeSettings(codec.encodeSettings(s)).downloads.remembered.subtitles.language, "language \"$language\"")
+        }
+    }
+
+    @Test
     fun aNewerSettingsVersionIsRefused() {
         assertFailsWith<LibraryFormatException> { codec.decodeSettings("""{"version":3}""") }
     }

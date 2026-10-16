@@ -27,4 +27,17 @@ internal object DesktopVideoState {
     fun requestSearchFocus() {
         focusSearch = true
     }
+
+    /**
+     * Set when typing in the sidebar opened the search page from another page: that page keeps what is typed (and shows its
+     * suggestions) instead of taking its route's empty query. Read once with [takeKeepTyped].
+     */
+    var keepTyped = false
+
+    /** Whether the search page now opening keeps the typed text; clears the flag. */
+    fun takeKeepTyped(): Boolean {
+        val keep = keepTyped
+        keepTyped = false
+        return keep
+    }
 }

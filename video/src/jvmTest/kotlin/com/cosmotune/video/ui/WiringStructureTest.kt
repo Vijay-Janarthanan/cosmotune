@@ -326,6 +326,15 @@ class WiringStructureTest {
         assertIs<VideoRoute.Shorts>(f.navigator.top, "a card's tap on a Short opens the pager too")
     }
 
+    @Test fun playHandsTheCardsItemToThePlaybackNotOnlyItsId() {
+        // Y-34: a premiere tapped on a card shows "Upcoming" because the playback knows the item the card showed
+        val f = Fixture()
+        val card = FakeVideoSource.videos[3].copy(title = "As the card showed it", isUpcoming = true, uploadedAtMs = FakeVideoSource.NOW_MS + 86_400_000L)
+        f.handler.play(card)
+        assertEquals(VideoRoute.Watch(card.id), f.navigator.top)
+        assertEquals(card, f.playback.state.value.item, "the fake shows the item it was handed; by id it would show its own sample")
+    }
+
     @Test fun theOtherActionsDoWhatTheSheetSays() {
         val f = Fixture()
         val video = FakeVideoSource.videos[4]

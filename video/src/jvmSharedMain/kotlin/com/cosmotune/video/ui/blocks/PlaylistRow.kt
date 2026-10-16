@@ -14,9 +14,10 @@ import org.jetbrains.compose.resources.stringResource
  * A playlist in a list (spec 5.3): the shape of a [VideoRow] (160 x 90, padding 8 16, the title over the meta line), its thumbnail
  * carrying the count strip (the right 40 % in black at 60 % with the video count over `CosmoIcons.List`), and the owner and the
  * count as the meta line ("Owner · 30 videos"; either alone when the other is unknown). No more button: a playlist has no sheet.
+ * [desktop] gives it the desktop's thumbnail (168 x 94.5), as [VideoRow] has, for a wide page where video rows stand beside it.
  */
 @Composable
-fun PlaylistRow(item: PlaylistItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun PlaylistRow(item: PlaylistItem, onClick: () -> Unit, modifier: Modifier = Modifier, desktop: Boolean = false) {
     val count = item.videoCount
     val owner = item.ownerName?.takeIf { it.isNotBlank() }
     val countText = count?.let {
@@ -32,7 +33,7 @@ fun PlaylistRow(item: PlaylistItem, onClick: () -> Unit, modifier: Modifier = Mo
         thumbnail = {
             ThumbnailFrame(
                 url = item.thumbnailUrl,
-                modifier = Modifier.rowThumbnailSize(desktop = false),
+                modifier = Modifier.rowThumbnailSize(desktop),
                 shape = ThumbnailShape,
                 countStrip = count?.let { VideoText.compact(it) },
             )

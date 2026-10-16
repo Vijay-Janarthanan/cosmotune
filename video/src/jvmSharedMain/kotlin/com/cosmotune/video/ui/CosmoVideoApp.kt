@@ -84,6 +84,7 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
         VideoPipLayer(graph)
         return
     }
+    com.cosmotune.video.ui.shell.VideoBackgroundLifecycle(graph.playback, onWatch = route is VideoRoute.Watch)   // Y-34: leaving from any page
 
     val fullScreen = route is VideoRoute.Shorts
     val onWatch = route is VideoRoute.Watch

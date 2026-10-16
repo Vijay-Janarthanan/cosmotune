@@ -102,7 +102,7 @@ class VideoActionHandler internal constructor(
             navigator.openShort(item, ShortsOrigin.Related(item.id), list)
         } else {
             navigator.push(VideoRoute.Watch(item.id))
-            graph.playback.play(item.id)
+            graph.playback.play(item)   // the card's item: a premiere shows "Upcoming" at once (spec 5.13)
         }
     }
 

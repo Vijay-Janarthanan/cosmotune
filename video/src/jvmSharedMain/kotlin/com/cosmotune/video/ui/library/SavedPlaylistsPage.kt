@@ -34,7 +34,7 @@ fun SavedPlaylistsPage(contentPadding: PaddingValues, wide: Boolean) {
             }
         }
         items(saved, key = { "playlist:" + it.id }) { playlist ->
-            PlaylistRow(playlist, onClick = { navigator.push(VideoRoute.Playlist(playlist.id)) }, modifier = cell)
+            PlaylistRow(playlist, onClick = { navigator.push(VideoRoute.Playlist(playlist.id)) }, modifier = cell, desktop = wide)
         }
     }
 }

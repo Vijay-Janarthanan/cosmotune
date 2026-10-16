@@ -53,6 +53,13 @@ class FakeVideoPlayback(
         if (queue.isNotEmpty()) flow.update { it.copy(queue = queue) }
     }
 
+    /** As [play] with the id (recorded as `play(id)`), but shows [item] itself rather than the one [lookup] finds. */
+    override fun play(item: VideoItem, startMs: Long?, queue: List<VideoItem>, short: Boolean) {
+        record("play(${item.id})")
+        show(item, startMs, short)
+        if (queue.isNotEmpty()) flow.update { it.copy(queue = queue) }
+    }
+
     override fun prefetch(videoId: String) = record("prefetch($videoId)")
 
     override fun setMuted(muted: Boolean) {

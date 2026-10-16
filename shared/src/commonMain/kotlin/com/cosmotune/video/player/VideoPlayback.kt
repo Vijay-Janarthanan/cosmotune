@@ -82,6 +82,13 @@ interface VideoPlayback {
      */
     fun play(videoId: String, startMs: Long? = null, queue: List<VideoItem> = emptyList(), short: Boolean = false)
 
+    /**
+     * [play] for the [item] a card showed: the item is known before the source answers, so a premiere that has not started shows
+     * "Upcoming" and its start time at once instead of the source's refusal (spec 5.13). The default plays the id.
+     */
+    fun play(item: VideoItem, startMs: Long? = null, queue: List<VideoItem> = emptyList(), short: Boolean = false) =
+        play(item.id, startMs, queue, short)
+
     /** Resolves the next Short's details and stream addresses into the cache (spec 5.15); does not touch the engine. */
     fun prefetch(videoId: String)
 

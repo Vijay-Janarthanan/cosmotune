@@ -407,6 +407,52 @@ class VideoPlayerControllerLiveTest {
         assertEquals(listOf("fakevideo01"), r.loads.map { it.videoId }, "only the video reached the engine")
     }
 
+    // ---------------------------------------------------------------- a card's item (Y-34)
+
+    @Test
+    fun aPremiereTappedOnACardIsUpcomingWithoutAsking() = runTest {
+        val r = rig()
+        r.controller.play(item("fakevideo12"))   // in no queue, cache or watch later: only the card knew it
+        runCurrent()
+        assertEquals(0, r.detailsAsked("fakevideo12"), "the card said it starts in two days")
+        assertTrue(LiveWindow.isUpcoming(r.state))
+        assertEquals(FakeVideoSource.NOW_MS + 2 * 86_400_000L, LiveWindow.upcomingStartMs(r.state))
+        assertTrue(r.loads.isEmpty())
+    }
+
+    @Test
+    fun aCardPremiereTheSourceRefusesShowsThePremiereAndItsTime() = runTest {
+        val r = rig()
+        val card = item("fakevideo12").copy(uploadedAtMs = FakeVideoSource.NOW_MS - 60_000)   // its time has come: asked
+        r.source.fake.failNext(VideoSourceError.NotAvailable("not started"))
+        r.controller.play(card)
+        runCurrent()
+        assertEquals(1, r.detailsAsked("fakevideo12"))
+        assertEquals(VideoUiError.UNAVAILABLE, r.state.error)
+        assertTrue(LiveWindow.isUpcoming(r.state), "Upcoming, not plain not-available")
+        assertEquals(card.uploadedAtMs, LiveWindow.upcomingStartMs(r.state))
+        // Played by its id alone, the same refusal is plain not-available (nothing knew the item).
+        val u = rig()
+        u.source.fake.failNext(VideoSourceError.NotAvailable("not started"))
+        open(u, "fakevideo12")
+        assertFalse(LiveWindow.isUpcoming(u.state))
+    }
+
+    @Test
+    fun aVideoTappedOnACardPlaysAsByItsId() = runTest {
+        val r = rig()
+        r.controller.play(item("fakevideo01"))
+        runCurrent()
+        assertEquals(1, r.detailsAsked("fakevideo01"))
+        assertEquals(listOf("fakevideo01"), r.loads.map { it.videoId })
+        assertEquals("fakevideo01", r.state.item?.id)
+        assertNull(r.state.error)
+        // The same card again while it plays keeps it going: no second load.
+        r.controller.play(item("fakevideo01"))
+        runCurrent()
+        assertEquals(1, r.loads.size)
+    }
+
     private companion object {
         /** The controller's window for a second drop: a minute. */
         val LiveWindowMinute = VideoPlayerController.LIVE_RELOAD_WINDOW_MS
