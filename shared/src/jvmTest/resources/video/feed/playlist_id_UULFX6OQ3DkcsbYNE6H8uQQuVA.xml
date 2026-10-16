@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+ <link rel="self" href="http://www.youtube.com/feeds/videos.xml?playlist_id=UULFX6OQ3DkcsbYNE6H8uQQuVA"/>
+ <id>yt:playlist:UULFX6OQ3DkcsbYNE6H8uQQuVA</id>
+ <yt:playlistId>UULFX6OQ3DkcsbYNE6H8uQQuVA</yt:playlistId>
+ <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+ <title>Videos</title>
+ <author>
+  <name>MrBeast</name>
+  <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+ </author>
+ <published>2021-10-13T07:10:08+00:00</published>
+ <entry>
+  <id>yt:video:plN7JMbadRg</id>
+  <yt:videoId>plN7JMbadRg</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Eat Everything In A Grocery Store, Win $1,000,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=plN7JMbadRg"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-10-03T16:00:01+00:00</published>
+  <updated>2026-10-16T05:42:11+00:00</updated>
+  <media:group>
+   <media:title>Eat Everything In A Grocery Store, Win $1,000,000</media:title>
+   <media:content url="https://www.youtube.com/v/plN7JMbadRg?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/plN7JMbadRg/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="4044989" average="5.00" min="1" max="5"/>
+    <media:statistics views="264174125"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:v9QtM6qnG50</id>
+  <yt:videoId>v9QtM6qnG50</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>I Built A City To Save Kids From Illegal Labor</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=v9QtM6qnG50"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-09-19T16:00:01+00:00</published>
+  <updated>2026-10-02T00:17:09+00:00</updated>
+  <media:group>
+   <media:title>I Built A City To Save Kids From Illegal Labor</media:title>
+   <media:content url="https://www.youtube.com/v/v9QtM6qnG50?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/v9QtM6qnG50/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2308060" average="5.00" min="1" max="5"/>
+    <media:statistics views="101715648"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:gTKS8SAwUzE</id>
+  <yt:videoId>gTKS8SAwUzE</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>I Survived The Most Extreme Places On Earth</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=gTKS8SAwUzE"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-09-05T16:00:01+00:00</published>
+  <updated>2026-09-30T07:22:12+00:00</updated>
+  <media:group>
+   <media:title>I Survived The Most Extreme Places On Earth</media:title>
+   <media:content url="https://www.youtube.com/v/gTKS8SAwUzE?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/gTKS8SAwUzE/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="1546494" average="5.00" min="1" max="5"/>
+    <media:statistics views="127480083"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:Qtl8lJwbd4g</id>
+  <yt:videoId>Qtl8lJwbd4g</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Escape 100 Cops, Win $500,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=Qtl8lJwbd4g"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-08-22T16:00:05+00:00</published>
+  <updated>2026-09-30T02:52:25+00:00</updated>
+  <media:group>
+   <media:title>Escape 100 Cops, Win $500,000</media:title>
+   <media:content url="https://www.youtube.com/v/Qtl8lJwbd4g?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/Qtl8lJwbd4g/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2154602" average="5.00" min="1" max="5"/>
+    <media:statistics views="119575213"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:Af6i6ChAVTw</id>
+  <yt:videoId>Af6i6ChAVTw</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Last To Leave Mansion, Keeps It</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=Af6i6ChAVTw"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-08-08T16:00:01+00:00</published>
+  <updated>2026-10-01T18:23:30+00:00</updated>
+  <media:group>
+   <media:title>Last To Leave Mansion, Keeps It</media:title>
+   <media:content url="https://www.youtube.com/v/Af6i6ChAVTw?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/Af6i6ChAVTw/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2420205" average="5.00" min="1" max="5"/>
+    <media:statistics views="128300324"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:lVylRtlPOIE</id>
+  <yt:videoId>lVylRtlPOIE</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>I Granted 100 Kids Their Biggest Wish!</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=lVylRtlPOIE"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-07-25T16:00:05+00:00</published>
+  <updated>2026-09-30T09:47:56+00:00</updated>
+  <media:group>
+   <media:title>I Granted 100 Kids Their Biggest Wish!</media:title>
+   <media:content url="https://www.youtube.com/v/lVylRtlPOIE?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/lVylRtlPOIE/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="1760142" average="5.00" min="1" max="5"/>
+    <media:statistics views="68873265"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:iYlODtkyw_I</id>
+  <yt:videoId>iYlODtkyw_I</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Survive 30 Days Chained To A Stranger, Win $250,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=iYlODtkyw_I"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-06-27T16:00:05+00:00</published>
+  <updated>2026-09-30T12:24:58+00:00</updated>
+  <media:group>
+   <media:title>Survive 30 Days Chained To A Stranger, Win $250,000</media:title>
+   <media:content url="https://www.youtube.com/v/iYlODtkyw_I?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/iYlODtkyw_I/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="1734158" average="5.00" min="1" max="5"/>
+    <media:statistics views="103035375"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:__fmDj0ZJ1Q</id>
+  <yt:videoId>__fmDj0ZJ1Q</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>50 YouTube Legends Fight For $1,000,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=__fmDj0ZJ1Q"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-06-13T16:00:00+00:00</published>
+  <updated>2026-10-04T14:32:52+00:00</updated>
+  <media:group>
+   <media:title>50 YouTube Legends Fight For $1,000,000</media:title>
+   <media:content url="https://www.youtube.com/v/__fmDj0ZJ1Q?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/__fmDj0ZJ1Q/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2302623" average="5.00" min="1" max="5"/>
+    <media:statistics views="91827041"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:GpQSUjNsNm0</id>
+  <yt:videoId>GpQSUjNsNm0</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>7 Days Stranded in The Arctic</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=GpQSUjNsNm0"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-05-30T16:00:02+00:00</published>
+  <updated>2026-10-01T16:12:57+00:00</updated>
+  <media:group>
+   <media:title>7 Days Stranded in The Arctic</media:title>
+   <media:content url="https://www.youtube.com/v/GpQSUjNsNm0?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/GpQSUjNsNm0/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2809458" average="5.00" min="1" max="5"/>
+    <media:statistics views="139753806"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:AaMdXZMvT3w</id>
+  <yt:videoId>AaMdXZMvT3w</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Survive 30 Days On An Island With Your Ex, Win $250,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=AaMdXZMvT3w"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-05-16T16:00:01+00:00</published>
+  <updated>2026-10-02T21:32:56+00:00</updated>
+  <media:group>
+   <media:title>Survive 30 Days On An Island With Your Ex, Win $250,000</media:title>
+   <media:content url="https://www.youtube.com/v/AaMdXZMvT3w?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/AaMdXZMvT3w/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2094496" average="5.00" min="1" max="5"/>
+    <media:statistics views="115918874"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:6Zy5VLcEbZc</id>
+  <yt:videoId>6Zy5VLcEbZc</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>I Stranded 100 People In The Wilderness For $250,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=6Zy5VLcEbZc"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-05-02T16:00:01+00:00</published>
+  <updated>2026-10-14T00:36:08+00:00</updated>
+  <media:group>
+   <media:title>I Stranded 100 People In The Wilderness For $250,000</media:title>
+   <media:content url="https://www.youtube.com/v/6Zy5VLcEbZc?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/6Zy5VLcEbZc/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2939358" average="5.00" min="1" max="5"/>
+    <media:statistics views="189477331"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:zRtGL0-5rg4</id>
+  <yt:videoId>zRtGL0-5rg4</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Last To Leave Grocery Store, Wins $250,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=zRtGL0-5rg4"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-04-18T16:00:01+00:00</published>
+  <updated>2026-09-30T18:05:24+00:00</updated>
+  <media:group>
+   <media:title>Last To Leave Grocery Store, Wins $250,000</media:title>
+   <media:content url="https://www.youtube.com/v/zRtGL0-5rg4?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/zRtGL0-5rg4/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="3500503" average="5.00" min="1" max="5"/>
+    <media:statistics views="206952553"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:DXVHmGoCTco</id>
+  <yt:videoId>DXVHmGoCTco</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>50 Streamers Fight for $1,000,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=DXVHmGoCTco"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-04-04T16:00:01+00:00</published>
+  <updated>2026-10-02T20:57:06+00:00</updated>
+  <media:group>
+   <media:title>50 Streamers Fight for $1,000,000</media:title>
+   <media:content url="https://www.youtube.com/v/DXVHmGoCTco?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/DXVHmGoCTco/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2755336" average="5.00" min="1" max="5"/>
+    <media:statistics views="129491179"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:JFtlf8RoPZY</id>
+  <yt:videoId>JFtlf8RoPZY</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Trapped On An Island Until I Build A Boat</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=JFtlf8RoPZY"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-03-21T16:00:00+00:00</published>
+  <updated>2026-10-01T17:47:17+00:00</updated>
+  <media:group>
+   <media:title>Trapped On An Island Until I Build A Boat</media:title>
+   <media:content url="https://www.youtube.com/v/JFtlf8RoPZY?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/JFtlf8RoPZY/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="3144116" average="5.00" min="1" max="5"/>
+    <media:statistics views="172420840"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:AoN1K4c7VKE</id>
+  <yt:videoId>AoN1K4c7VKE</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Survive 30 Days Stranded With Your Ex, Win $250,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=AoN1K4c7VKE"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-03-07T17:00:02+00:00</published>
+  <updated>2026-10-16T01:48:23+00:00</updated>
+  <media:group>
+   <media:title>Survive 30 Days Stranded With Your Ex, Win $250,000</media:title>
+   <media:content url="https://www.youtube.com/v/AoN1K4c7VKE?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/AoN1K4c7VKE/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2571699" average="5.00" min="1" max="5"/>
+    <media:statistics views="139977266"/>
+   </media:community>
+  </media:group>
+ </entry>
+</feed>
