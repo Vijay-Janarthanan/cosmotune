@@ -112,6 +112,52 @@ object BlockMetrics {
 
     fun tileTarget(pressed: Boolean): MorphTarget = MorphTarget(TILE_RADIUS_DP, 4f, if (pressed) TILE_PRESSED_SCALE else 1f)
 
+    // ---- the mix tile's fan and text (`.fan`, `.mix-txt`) ----
+    /** `.fan`: a box of 132 x 96 dp, 14 dp under the tile's top and 12 dp in from its end, that the three covers are fanned in. */
+    const val MIX_FAN_WIDTH_DP = 132f
+    const val MIX_FAN_HEIGHT_DP = 96f
+    const val MIX_FAN_TOP_DP = 14f
+    const val MIX_FAN_END_DP = 12f
+
+    /** `.mix-txt`: the title and the line under it stand 14 dp in from each side and 12 dp over the bottom. */
+    const val MIX_TEXT_SIDE_DP = 14f
+    const val MIX_TEXT_BOTTOM_DP = 12f
+
+    /** The least air between the fan and the text (the rotated covers reach a little past their box). */
+    const val MIX_FAN_GAP_DP = 6f
+
+    /** The highest the fan may stand when the text needs room: 8 dp under the top of the tile. */
+    const val MIX_FAN_TOP_MIN_DP = 8f
+
+    /** The smallest the fan is drawn: below half its size the covers are too small to read and it is left out. */
+    const val MIX_FAN_MIN_SCALE = 0.5f
+
+    /** Where and how large a mix tile draws its fan: [scale] of its 132 x 96 box from the top corner at the end, [topDp] under the tile's top. */
+    class MixFanFit(val scale: Float, val topDp: Float, val visible: Boolean)
+
+    /**
+     * The width of the title and the line under it in a mix tile [tileWidthDp] wide: the tile less the text's two sides (never negative).
+     */
+    fun mixTextWidthDp(tileWidthDp: Float): Float = (tileWidthDp - 2f * MIX_TEXT_SIDE_DP).coerceAtLeast(0f)
+
+    /**
+     * How the fan of a mix tile [tileHeightDp] tall gives way to a text block [textHeightDp] tall standing [MIX_TEXT_BOTTOM_DP] over
+     * its bottom. The boards draw one line of title: the fan, 14 dp under the top, then has room. A title of two lines lifts the text
+     * and the fan first moves up (to [MIX_FAN_TOP_MIN_DP]), then shrinks, from its top corner, so that its bottom stays
+     * [MIX_FAN_GAP_DP] over the text; below [MIX_FAN_MIN_SCALE] (a very large font) it is not drawn at all.
+     */
+    fun mixFanFit(tileHeightDp: Float, textHeightDp: Float): MixFanFit {
+        val textTop = tileHeightDp - MIX_TEXT_BOTTOM_DP - textHeightDp
+        // what is left under the highest place the fan may stand, down to the gap over the text
+        val room = textTop - MIX_FAN_GAP_DP - MIX_FAN_TOP_MIN_DP
+        if (room >= MIX_FAN_HEIGHT_DP) {
+            return MixFanFit(scale = 1f, topDp = minOf(MIX_FAN_TOP_DP, textTop - MIX_FAN_GAP_DP - MIX_FAN_HEIGHT_DP), visible = true)
+        }
+        val scale = room / MIX_FAN_HEIGHT_DP
+        if (scale < MIX_FAN_MIN_SCALE) return MixFanFit(scale = 0f, topDp = MIX_FAN_TOP_MIN_DP, visible = false)
+        return MixFanFit(scale = scale, topDp = MIX_FAN_TOP_MIN_DP, visible = true)
+    }
+
     fun moodTileHeightDp(big: Boolean): Float = if (big) MOOD_TILE_BIG_DP else MOOD_TILE_DP
 
     /**

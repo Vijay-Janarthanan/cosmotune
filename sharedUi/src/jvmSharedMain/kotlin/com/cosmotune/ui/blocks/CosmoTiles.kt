@@ -20,14 +20,18 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.design.BlockMetrics
@@ -172,7 +176,8 @@ internal fun tileSubtitleStyle(type: com.cosmotune.ui.theme.CosmoType): TextStyl
 /**
  * A mix (`.mix2`, `.fan`): 172 dp tall; the cover's ground (`backgroundTop` to `backgroundBottom`) with a wash of `ambient` from the
  * top corner, lifted and edged like every tile, three of its [covers] fanned at the top right, each with its shadow, and the title
- * (Archivo 22 sp) and [subtitle] at the bottom left. Hold calls [onLongPress].
+ * (Archivo 22 sp, up to two lines) and [subtitle] at the bottom left. The text keeps its place and the fan gives way to it: a title of
+ * two lines lifts the fan and shrinks it, so the two never overlap ([BlockMetrics.mixFanFit]). Hold calls [onLongPress].
  */
 @Composable
 fun CosmoMixTile(
@@ -207,41 +212,71 @@ fun CosmoMixTile(
                 }
             },
     ) {
-        // The first three covers, in the fan's order; a mix with fewer keeps its covers in the middle of the fan.
-        val shown = covers.take(FAN.size)
-        val slots = when (shown.size) { 1 -> listOf(1); 2 -> listOf(1, 2); else -> listOf(0, 1, 2) }
-        Box(Modifier.align(Alignment.TopEnd).padding(top = 14.dp, end = 12.dp).size(132.dp, 96.dp)) {
-            shown.forEachIndexed { index, url ->
-                val place = FAN[slots[index]]
-                CoverImage(
-                    url = url,
-                    size = 76.dp,
-                    radius = 14.dp,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = place.top.dp, end = place.right.dp)
-                        .graphicsLayer { rotationZ = place.degrees },
-                    shadow = true,
-                )
+        // The fan and the text share the tile's room: the text takes what its lines need and the fan gives way (BlockMetrics.mixFanFit).
+        Layout(
+            content = {
+                MixFan(covers)
+                Column {
+                    Text(
+                        text = title,
+                        style = type.forText(tileTitleStyle(type), title),
+                        color = Color(palette.textPrimary),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (!subtitle.isNullOrBlank()) {
+                        Text(
+                            text = subtitle,
+                            style = type.forText(tileSubtitleStyle(type), subtitle),
+                            color = Color(palette.textSecondary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) { measurables, constraints ->
+            val width = constraints.maxWidth
+            val height = constraints.maxHeight
+            val side = BlockMetrics.MIX_TEXT_SIDE_DP.dp.roundToPx()
+            val text = measurables[1].measure(Constraints(maxWidth = BlockMetrics.mixTextWidthDp(width.toDp().value).dp.roundToPx()))
+            val fan = measurables[0].measure(Constraints.fixed(BlockMetrics.MIX_FAN_WIDTH_DP.dp.roundToPx(), BlockMetrics.MIX_FAN_HEIGHT_DP.dp.roundToPx()))
+            val fit = BlockMetrics.mixFanFit(tileHeightDp = height.toDp().value, textHeightDp = text.height.toDp().value)
+            // The fan is scaled in the layer (drawn, not recomposed) from its top corner at the end side, which stays where the board puts it.
+            val origin = TransformOrigin(if (layoutDirection == LayoutDirection.Rtl) 0f else 1f, 0f)
+            layout(width, height) {
+                text.placeRelative(side, height - BlockMetrics.MIX_TEXT_BOTTOM_DP.dp.roundToPx() - text.height)
+                if (fit.visible) {
+                    fan.placeRelativeWithLayer(width - BlockMetrics.MIX_FAN_END_DP.dp.roundToPx() - fan.width, fit.topDp.dp.roundToPx()) {
+                        scaleX = fit.scale
+                        scaleY = fit.scale
+                        transformOrigin = origin
+                    }
+                }
             }
         }
-        Column(Modifier.align(Alignment.BottomStart).padding(start = 14.dp, end = 14.dp, bottom = 12.dp)) {
-            Text(
-                text = title,
-                style = type.forText(tileTitleStyle(type), title),
-                color = Color(palette.textPrimary),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+    }
+}
+
+/** The mix's first three [covers] in the fan's 132 x 96 box; a mix with fewer keeps its covers in the middle of the fan. */
+@Composable
+private fun MixFan(covers: List<String?>) {
+    val shown = covers.take(FAN.size)
+    val slots = when (shown.size) { 1 -> listOf(1); 2 -> listOf(1, 2); else -> listOf(0, 1, 2) }
+    Box(Modifier.size(BlockMetrics.MIX_FAN_WIDTH_DP.dp, BlockMetrics.MIX_FAN_HEIGHT_DP.dp)) {
+        shown.forEachIndexed { index, url ->
+            val place = FAN[slots[index]]
+            CoverImage(
+                url = url,
+                size = 76.dp,
+                radius = 14.dp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = place.top.dp, end = place.right.dp)
+                    .graphicsLayer { rotationZ = place.degrees },
+                shadow = true,
             )
-            if (!subtitle.isNullOrBlank()) {
-                Text(
-                    text = subtitle,
-                    style = type.forText(tileSubtitleStyle(type), subtitle),
-                    color = Color(palette.textSecondary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
     }
 }
