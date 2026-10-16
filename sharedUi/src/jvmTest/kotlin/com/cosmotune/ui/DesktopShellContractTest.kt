@@ -282,7 +282,8 @@ class DesktopShellContractTest {
         val call = squash(callAt(SourceContract.code(chrome), "CosmoProfileButton("))
         assertTrue("avatarUrl = accountAvatar" in call, call)
         assertTrue("name = accountName?.takeIf { it.isNotBlank() } ?: DesktopStrings[\"accounts\", \"Accounts\"]" in call, call)
-        assertTrue("subtitle = null" in call && "entries = entries" in call && "onAccount = onOpenAccounts" in call, call)
+        // Y-3: while the mode is Video the drawer lists Video's entries; Music's `entries` is the else branch.
+        assertTrue("subtitle = null" in call && "entries = if (video) com.cosmotune.video.ui.desktop.videoDesktopDrawerEntries() else entries" in call && "onAccount = onOpenAccounts" in call, call)
         assertFalse("fun Avatar(" in chrome, "the old avatar is gone from the new bar")
         assertHas(chrome, "AVATAR_SIZE: Dp = 36.dp", "the avatar stays 36 dp")
     }

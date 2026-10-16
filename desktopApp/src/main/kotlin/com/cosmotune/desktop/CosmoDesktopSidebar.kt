@@ -109,6 +109,9 @@ internal data class CosmoDesktopPlaylistItem(
  * It does what the old sidebar did with the same inputs: the field takes the focus when [focusSearch] is set (then says so with
  * [onSearchFocused]) and gets it back when the window comes back to the front. While Settings is open ([settingsSelected]) no
  * other row shows as selected: the old sidebar lit both.
+ *
+ * While the mode is Video ([com.cosmotune.video.host.desktopVideoShown]) the whole sidebar is Video's (`VideoDesktopSidebar`), which
+ * gets the same window caption this one would have drawn; the arguments for Music's rows are not used.
  */
 @Composable
 internal fun CosmoDesktopSidebar(
@@ -122,6 +125,7 @@ internal fun CosmoDesktopSidebar(
     focusSearch: Boolean,
     onSearchFocused: () -> Unit,
 ) {
+    if (com.cosmotune.video.host.desktopVideoShown()) return VideoSidebar(focusSearch = focusSearch, onSearchFocused = onSearchFocused)
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(focusSearch) { if (focusSearch) { runCatching { focusRequester.requestFocus() }; onSearchFocused() } }
     val windowInfo = LocalWindowInfo.current
@@ -142,16 +146,7 @@ internal fun CosmoDesktopSidebar(
     val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
     Column(Modifier.width(ShellMetrics.DESKTOP_SIDEBAR_DP.dp).fillMaxHeight()) {
         // The sidebar runs to the top of the window, so its head is the window's caption: the three buttons, and room to take hold of the window by.
-        if (inlineCaption) {
-            DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(CAPTION_HEIGHT)) {
-                Box(
-                    Modifier.fillMaxSize().padding(start = if (DesktopPlatform.isMac) 16.dp else 10.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    DesktopWindowButtons()
-                }
-            }
-        }
+        if (inlineCaption) SidebarCaption()
         Column(
             Modifier
                 .fillMaxSize()
@@ -207,6 +202,38 @@ internal fun CosmoDesktopSidebar(
         }
     }
 }
+
+/** The sidebar's head when the application draws its own window frame: the window's three buttons, and room to take hold of the window by. */
+@Composable
+private fun SidebarCaption() {
+    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(CAPTION_HEIGHT)) {
+        Box(
+            Modifier.fillMaxSize().padding(start = if (DesktopPlatform.isMac) 16.dp else 10.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            DesktopWindowButtons()
+        }
+    }
+}
+
+/**
+ * Video's sidebar in this one's place. It keeps the window's caption where this sidebar would have drawn it (the same rule as
+ * [CosmoDesktopSidebar]'s `inlineCaption`): without it a window that draws its own frame and has no separate title bar would lose
+ * its buttons and its drag area while the mode is Video.
+ */
+@Composable
+private fun VideoSidebar(focusSearch: Boolean, onSearchFocused: () -> Unit) {
+    val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
+    val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
+    com.cosmotune.video.ui.desktop.VideoDesktopSidebar(
+        focusSearch = focusSearch,
+        onSearchFocused = onSearchFocused,
+        caption = if (inlineCaption) CAPTION else null,
+    )
+}
+
+/** [SidebarCaption] as the lambda that Video's sidebar takes, made once. */
+private val CAPTION: @Composable () -> Unit = { SidebarCaption() }
 
 /**
  * The sidebar's list of playlists: the account's first (selected while that page is open), then the ones kept on this computer.
