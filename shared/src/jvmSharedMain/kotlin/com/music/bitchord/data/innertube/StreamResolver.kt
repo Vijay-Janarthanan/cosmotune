@@ -175,7 +175,7 @@ object StreamResolver {
         }
     }
 
-    private val init by lazy { NewPipe.init(OkHttpDownloader()) }
+    private val init by lazy { com.cosmotune.video.source.newpipe.NewPipeHost.install(OkHttpDownloader()) }
 
     /**
      * The extractor's own leash on [Http.client].
