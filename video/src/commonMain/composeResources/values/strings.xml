@@ -415,4 +415,10 @@
     <string name="video_time_toggle">Switch between the time played and the time left</string>
     <!-- Shared actions (Y-16) -->
     <string name="video_link_copied">Link copied</string>
+    <!-- Downloads page (Y-33) -->
+    <string name="video_dl_sort">Sort</string>
+    <string name="video_dl_show_items">Show the videos</string>
+    <string name="video_dl_hide_items">Hide the videos</string>
+    <string name="video_dl_delete_confirm">Delete this download?</string>
+    <string name="video_dl_save_copy_failed">Could not save a copy</string>
 </resources>
