@@ -556,6 +556,9 @@ compose.desktop {
                 "java.xml",
                 "jdk.crypto.ec",
                 "jdk.dynalink",
+                // Video mode's desktop player reads the video through a loopback range proxy (com.sun.net.httpserver);
+                // without this module the slim production runtime cannot serve it, while development runs work.
+                "jdk.httpserver",
                 // JavaFX WebEngine returns JavaScript objects through netscape.javascript.JSObject.
                 // Without this module the slim production runtime crashes in twkExecuteScript,
                 // while development runs work because the full JDK already contains it.
