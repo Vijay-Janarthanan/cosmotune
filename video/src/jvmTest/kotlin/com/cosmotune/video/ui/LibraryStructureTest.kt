@@ -84,7 +84,8 @@ class LibraryStructureTest {
             val line = lines.single { it.trim().startsWith("is VideoRoute.$route ->") }.trim()
             assertEquals("is VideoRoute.$route -> com.cosmotune.video.ui.library.$page(contentPadding, wide)   // Y-22", line)
         }
-        assertTrue(lines.single { it.trim().startsWith("is VideoRoute.LocalPlaylist ->") }.trim().endsWith("// Y-20 replaces this line"))
+        // Y-20 has taken its line (the channel and playlist pages): it is no longer a placeholder, and not Y-22's
+        assertEquals("is VideoRoute.LocalPlaylist -> com.cosmotune.video.ui.playlist.PlaylistPage(null, r.id, contentPadding, wide)", lines.single { it.trim().startsWith("is VideoRoute.LocalPlaylist ->") }.trim())
         assertFalse(Regex("""(?m)^import com\.cosmotune\.video\.ui\.library""").containsMatchIn(text), "the branches need no import line")
         assertTrue("com.cosmotune.video.ui.actions.VideoActionsHost(contentPadding)" in text, "Y-16's action host stays")
     }

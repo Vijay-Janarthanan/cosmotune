@@ -201,11 +201,8 @@ class ChannelPlaylistStructureTest {
                 assertTrue(key in declared, "$file uses $key, which strings.xml does not declare")
             }
         }
-        // the three strings this task adds stand together under a comment of their own, English only
-        val lines = strings.lines()
-        val at = lines.indexOfFirst { "(Y-20)" in it }
-        assertTrue(at > 0, "the comment of this task's strings")
-        assertEquals(listOf("video_remove", "video_move_up", "video_move_down"), lines.subList(at + 1, at + 4).map { Regex("""name="(\w+)"""").find(it)!!.groupValues[1] })
+        // the three short labels of the rows (Remove, Move up, Move down) are Y-22's keys, which the Library pages and these share
+        for (key in listOf("video_remove", "video_move_up", "video_move_down")) assertTrue(key in declared, "$key is declared once")
     }
 
     @Test fun noColourIsPickedByHand() {
