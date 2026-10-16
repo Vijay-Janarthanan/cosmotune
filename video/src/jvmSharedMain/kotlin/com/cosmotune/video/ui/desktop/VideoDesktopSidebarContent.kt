@@ -193,9 +193,11 @@ internal fun VideoDesktopSidebarContent(focusSearch: Boolean, onSearchFocused: (
     }
 }
 
-/** Enter in the sidebar's search field. */
+/** Enter in the sidebar's search field: the query joins the recent searches, then the search page shows its results (a second search replaces the first). */
 internal fun submitSidebarSearch(navigator: VideoNavigator, query: String) {
-    navigator.push(VideoRoute.Search(query))   // Y-18 may replace this line
+    val q = query.trim()
+    if (q.isNotEmpty()) DesktopVideoState.graph?.library?.addSearch(q)
+    navigator.push(VideoRoute.Search(q))
 }
 
 /** One navigation row: its two icons (the second while it is [selected]), its [label] and what a click does. */

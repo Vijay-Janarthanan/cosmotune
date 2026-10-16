@@ -222,7 +222,10 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
 
     override fun load(request: PlaybackRequest) {
         if (released) return
-        val start = request.startMs.coerceAtLeast(0)
+        val from = request.startMs.coerceAtLeast(0)
+        // A live stream starts at its default position, the live edge less the target offset (Y-28, spec 5.13, 6.2): a start of 0
+        // would be the oldest moment of its window.
+        val start = if (request.live) C.TIME_UNSET else from
         val item = try {
             mediaItemOf(request)
         } catch (e: IllegalArgumentException) {
@@ -246,7 +249,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         VideoRequestHeaders.current = VideoRequestHeaders.StreamSetRequests(request.headers, rangeRules = request.input !is MediaInput.Hls)
         // True as soon as this returns: loading, not playing, no error, nothing of the previous video.
         requestedLoads.incrementAndGet()
-        anchor = Anchor(start, SystemClock.elapsedRealtime(), advancing = false, speed = speed, durationMs = 0)
+        anchor = Anchor(from, SystemClock.elapsedRealtime(), advancing = false, speed = speed, durationMs = 0)
         snapshotValues.update {
             it.copy(
                 status = PlayerStatus.LOADING, playing = false, durationMs = 0, bufferedMs = 0, videoWidth = 0, videoHeight = 0,
@@ -548,8 +551,8 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
             current != null -> PlayerStatus.LOADING
             else -> PlayerStatus.IDLE
         }
-        val live = current?.live == true || c?.isCurrentMediaItemLive == true
-        val durationMs = if (c == null || live || c.duration == C.TIME_UNSET) 0L else c.duration.coerceAtLeast(0)
+        // A live stream's duration is its window's (Y-28): the end of what can be sought, with the position counted inside it.
+        val durationMs = if (c == null || c.duration == C.TIME_UNSET) 0L else c.duration.coerceAtLeast(0)
         val playing = c != null && error == null && c.playWhenReady && state != Player.STATE_ENDED && state != Player.STATE_IDLE
         val nowSpeed = c?.playbackParameters?.speed ?: speed
         // A new meter (the service built a new player) starts from a table of typical speeds: it counts after 5 s (spec 6.4).
