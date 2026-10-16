@@ -95,7 +95,8 @@ class VisualPolishContractTest {
         assertTrue("val ink = if (!isOn && tint != null) tint else Color(" in SourceContract.code(button), "the tint is the resting ink; an on state keeps its own")
         val tools = SourceContract.functionBody(SourceContract.read("$ui/nowplaying/NowPlayingControls.kt"), "Tools")
         assertTrue("val resting = Color(LocalCosmoColors.current.palette.textSecondary)" in tools, "secondary ink, read in composition")
-        assertEquals(4, Regex("""tint = resting""").findAll(tools).count(), "lyrics, output, Listen Together and the queue")
+        // Y-26 (Video mode): a fifth, "Watch the music video", drawn only when Video can play the song's music video.
+        assertEquals(5, Regex("""tint = resting""").findAll(tools).count(), "lyrics, output, Listen Together, the music video and the queue")
         assertFalse(".live(" in tools, "a composition colour, not a live one")
     }
 

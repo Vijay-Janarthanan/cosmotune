@@ -62,6 +62,7 @@ import com.music.bitchord.sharedui.resources.Res
 import com.music.bitchord.sharedui.resources.cosmo_collapse_player
 import com.music.bitchord.sharedui.resources.cosmo_video_hide
 import com.music.bitchord.sharedui.resources.cosmo_video_show
+import com.music.bitchord.sharedui.resources.cosmo_watch_music_video
 import com.music.bitchord.sharedui.resources.more
 import com.music.bitchord.sharedui.resources.open_lyrics
 import com.music.bitchord.sharedui.resources.played_by
@@ -131,6 +132,9 @@ private fun Modifier.placed(box: WideNowPlayingMetrics.Box, left: Dp, top: Dp): 
  * secondary ink: a tap on that line goes where the phone's caption goes), then the Lyrics | Queue tabs, the video button (only
  * when the song has a video), More and the button that closes the player; 14 dp apart. The tabs are the two panels of the left
  * column, one of them always showing.
+ *
+ * The wide page has no tools row, so [onWatchMusicVideo] ("Watch the music video", Video mode's link) puts its button here, just
+ * before the video button; null leaves the header as it is.
  */
 @Composable
 internal fun NowPlayingWideHeader(
@@ -145,6 +149,7 @@ internal fun NowPlayingWideHeader(
     onOpenOrigin: () -> Unit,
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    onWatchMusicVideo: (() -> Unit)? = null,
 ) {
     val dismiss = LocalCosmoPlayerDismiss.current
     val type = LocalCosmoType.current
@@ -173,6 +178,9 @@ internal fun NowPlayingWideHeader(
             )
         }
         CosmoSegmented(listOf(stringResource(Res.string.open_lyrics), stringResource(Res.string.queue)), if (queueSelected) 1 else 0, onSelectTab)
+        if (onWatchMusicVideo != null) {
+            CosmoIconButton(CosmoIcons.Video, stringResource(Res.string.cosmo_watch_music_video), onWatchMusicVideo, style = CosmoIconButtonStyle.TONAL, size = HEADER_BUTTON)
+        }
         if (hasVideo) {
             CosmoIconButton(
                 if (videoOn) CosmoIcons.Video else CosmoIcons.VideoOff,
