@@ -30,7 +30,6 @@ import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.graph.VideoGraph
 import com.cosmotune.video.graph.rememberVideoGraph
 import com.cosmotune.video.nav.VideoRoute
-import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.TopBarScroll
 import com.cosmotune.video.ui.shell.VideoAccent
@@ -80,7 +79,7 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
     VideoBackHandler(enabled = navigator.canPop) { navigator.pop() }
     OpenPendingVideo(host, navigator)
 
-    val pip = false   // Y-19 replaces this line
+    val pip = com.cosmotune.video.player.rememberPictureInPicture().active
     if (pip) {
         VideoPipLayer(graph)
         return
@@ -131,13 +130,14 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
 }
 
 /**
- * While the phone is in picture-in-picture the window is the picture and nothing else: the player's surface, fitted, on black (the
- * black of a full window is the documented exception to "colours come from the palette").
+ * While the phone is in picture-in-picture the window is the picture and nothing else: `VideoPlayerBox(layout = FULLSCREEN, chrome =
+ * false)`, fitted, with its subtitles, on black (the black of a full window is the documented exception to "colours come from the
+ * palette"), and the window's life while the watch page is away (Y-19's `WatchPictureInPicture`).
  */
 @Composable
 private fun VideoPipLayer(graph: VideoGraph) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        graph.surface?.Surface(Modifier.fillMaxSize(), VideoScale.FIT)
+        com.cosmotune.video.ui.watch.WatchPictureInPicture(graph.playback, graph.surface, Modifier.fillMaxSize())
     }
 }
 
