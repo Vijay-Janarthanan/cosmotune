@@ -328,7 +328,7 @@ private fun PageItems.playlistItems(ui: ChannelUi, line: PageLine) {
     val paged = ui.model.tab(ChannelTab.PLAYLISTS)
     val playlists = paged.items.mapNotNull { (it as? ListItem.Playlist)?.item }.distinctBy { it.id }
     rows(playlists, key = { _, playlist -> "p:${playlist.id}" }, contentType = "playlist") { playlist ->
-        PlaylistRow(item = playlist, onClick = { ui.onOpenPlaylist(playlist.id) }, modifier = line.fit(Modifier))
+        PlaylistRow(item = playlist, onClick = { ui.onOpenPlaylist(playlist.id) }, modifier = line.fit(Modifier), desktop = ui.wide)
     }
     pagedStatus("tab-${ChannelTab.PLAYLISTS}", paged)
 }
