@@ -78,11 +78,11 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
 
                 is VideoRoute.Shorts -> VideoPlaceholder(r)   // Y-31 replaces this line
 
-                is VideoRoute.Channel -> VideoPlaceholder(r)   // Y-20 replaces this line
+                is VideoRoute.Channel -> com.cosmotune.video.ui.channel.ChannelPage(r, contentPadding, wide)
 
-                is VideoRoute.Playlist -> VideoPlaceholder(r)   // Y-20 replaces this line
+                is VideoRoute.Playlist -> com.cosmotune.video.ui.playlist.PlaylistPage(r.playlistId, null, contentPadding, wide)
 
-                is VideoRoute.LocalPlaylist -> VideoPlaceholder(r)   // Y-20 replaces this line
+                is VideoRoute.LocalPlaylist -> com.cosmotune.video.ui.playlist.PlaylistPage(null, r.id, contentPadding, wide)
 
                 is VideoRoute.History -> VideoPlaceholder(r)   // Y-22 replaces this line
 

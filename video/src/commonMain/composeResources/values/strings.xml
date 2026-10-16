@@ -415,4 +415,8 @@
     <string name="video_time_toggle">Switch between the time played and the time left</string>
     <!-- Shared actions (Y-16) -->
     <string name="video_link_copied">Link copied</string>
+    <!-- Channel and playlist pages (Y-20) -->
+    <string name="video_remove">Remove</string>
+    <string name="video_move_up">Move up</string>
+    <string name="video_move_down">Move down</string>
 </resources>
