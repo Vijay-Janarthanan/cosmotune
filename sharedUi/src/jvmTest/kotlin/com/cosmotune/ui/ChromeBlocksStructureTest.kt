@@ -122,14 +122,38 @@ class ChromeBlocksStructureTest {
         assertTrue("Springs.REDUCED_MS" in code, "and the drawer takes it from there")
     }
 
-    @Test fun theDrawerIsAFocusablePopupThatTheBackKeyAndEscapeClose() {
+    @Test fun theDrawerIsDrawnInAFullScreenWindowThatTheBackKeyAndEscapeClose() {
         val code = SourceContract.code(drawer)
-        assertTrue(Regex("""Popup\(\s*popupPositionProvider\s*=\s*WindowOrigin""").containsMatchIn(code), "a popup at the window's origin")
-        assertTrue("PopupProperties(focusable = true, dismissOnBackPress = true" in code, "focusable, so it receives the back key")
-        assertTrue("onDismissRequest = onDismiss" in code, "which calls onDismiss")
+        assertTrue(Regex("""DrawerWindow\(onDismissRequest = onDismiss\)""").containsMatchIn(code), "the drawer's window, which the Back key dismisses")
+        assertFalse("Popup(" in code, "no popup of its own: a popup is capped at the visible display frame and stopped short of the navigation bar")
         assertTrue("Key.Escape" in code && "onPreviewKeyEvent" in code, "Escape does the same on the desktop")
-        assertTrue("): IntOffset = IntOffset.Zero" in code, "positioned at 0,0")
         assertTrue(Regex("""paneTitle\s*=\s*profile""").containsMatchIn(code) && "Res.string.cosmo_profile" in code, "the panel is announced as the profile pane")
+    }
+
+    @Test fun onThePhoneTheWindowIsAnEdgeToEdgeDialogAndOnTheDesktopAPopupAtTheOrigin() {
+        val common = SourceContract.code(SourceContract.read("$dir/DrawerWindow.kt")).replace(Regex("\\s+"), " ")
+        assertTrue("internal expect fun DrawerWindow(onDismissRequest: () -> Unit, content: @Composable () -> Unit)" in common, "one declaration for both")
+        val android = SourceContract.code(SourceContract.read("sharedUi/src/androidMain/kotlin/com/cosmotune/ui/chrome/DrawerWindow.android.kt")).replace(Regex("\\s+"), " ")
+        assertTrue("Dialog(" in android && "Popup(" !in android, "a dialog window on the phone")
+        for (property in listOf("dismissOnBackPress = true", "dismissOnClickOutside = false", "usePlatformDefaultWidth = false", "decorFitsSystemWindows = false")) {
+            assertTrue(property in android, "the dialog has $property: edge to edge, behind the status bar and the navigation bar")
+        }
+        assertTrue("window.setDimAmount(0f)" in android && "FLAG_DIM_BEHIND" in android, "the platform's dim is off: the drawer's scrim is the only one")
+        assertTrue("window.isNavigationBarContrastEnforced = false" in android, "and the system draws no contrast scrim over the navigation bar")
+        val jvm = SourceContract.code(SourceContract.read("sharedUi/src/jvmMain/kotlin/com/cosmotune/ui/chrome/DrawerWindow.jvm.kt")).replace(Regex("\\s+"), " ")
+        assertTrue(Regex("""Popup\( popupPositionProvider = WindowOrigin""").containsMatchIn(jvm), "a popup at the window's origin on the desktop")
+        assertTrue("PopupProperties(focusable = true, dismissOnBackPress = true" in jvm, "focusable, so it receives the back key")
+        assertTrue("onDismissRequest = onDismissRequest" in jvm, "which calls onDismiss")
+        assertTrue("): IntOffset = IntOffset.Zero" in jvm, "positioned at 0,0")
+    }
+
+    @Test fun thePanelRunsTheWholeHeightAndItsContentKeepsClearOfTheBarsByTheSharedMetrics() {
+        val layer = SourceContract.code(SourceContract.functionBody(drawer, "DrawerLayer")).replace(Regex("\\s+"), " ")
+        val chain = layer.substringAfter("Column( Modifier .align(Alignment.CenterStart)")
+        assertTrue(".fillMaxHeight()" in chain.substringBefore(".cosmoGlass("), "the panel is as tall as the window")
+        assertTrue(chain.indexOf(".cosmoGlass(") < chain.indexOf(".padding("), "the glass fills the panel, bars included; the padding is inside it")
+        assertTrue("top = DrawerMetrics.panelTopPaddingDp(statusTop.value).dp" in chain, "8 dp under the status bar")
+        assertTrue("bottom = DrawerMetrics.panelBottomPaddingDp(navBottom.value).dp" in chain, "28 dp over the bottom, or the navigation bar when it is taller")
     }
 
     @Test fun theDrawerStaysMountedThroughItsExitAndCloseIsReducedToAFade() {

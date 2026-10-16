@@ -85,18 +85,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupPositionProvider
-import androidx.compose.ui.window.PopupProperties
 import com.cosmotune.design.AppMode
 import com.cosmotune.design.AppModes
+import com.cosmotune.design.DrawerMetrics
 import com.cosmotune.design.TypeScale
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.components.CosmoButton
@@ -147,8 +142,9 @@ data class CosmoDrawerEntry(val icon: ImageVector, val label: String, val aside:
 /**
  * The profile drawer (`.drawer` of the boards): from the start edge, [PANEL_WIDTH] wide (at most 85 % of the window), full
  * height, with end corners of 17 dp, on the C glass surface (solid: it floats over a screen that already has two blurred
- * layers, and has no [dev.chrisbanes.haze.HazeState] to sample) under a black scrim at 56 %. It is a full-window [Popup], so
- * it covers the bars on both platforms; a tap on the scrim, the Back key or Escape ([onDismiss]), or a drag or fling towards
+ * layers, and has no [dev.chrisbanes.haze.HazeState] to sample) under a black scrim at 56 %. It is drawn in a [DrawerWindow],
+ * a window as large as the screen with the bars under it, so the panel and the scrim cover them on both platforms; the content
+ * keeps clear of the bars by [DrawerMetrics]. A tap on the scrim, the Back key or Escape ([onDismiss]), or a drag or fling towards
  * the start closes it (RTL mirrors).
  *
  * Inside, top to bottom: the head (avatar, [name], [subtitle]; a tap is [onAccount], or nothing while that is null), the
@@ -184,14 +180,10 @@ fun CosmoProfileDrawer(
     val shown by remember(open) { derivedStateOf { open || slide.value > 0f } }
     if (!shown) return
 
-    // Read here, in the window that has the bars: a popup's own window may not report them.
+    // Read here, in the window that has the bars: the drawer's own window may not report them.
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    Popup(
-        popupPositionProvider = WindowOrigin,
-        onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = false, clippingEnabled = false),
-    ) {
+    DrawerWindow(onDismissRequest = onDismiss) {
         DrawerLayer(
             slide = slide,
             statusTop = statusTop,
@@ -344,7 +336,10 @@ private fun DrawerLayer(
                     // A tap on the panel's own background must not fall through to the scrim.
                     .pointerInput(Unit) { detectTapGestures(onTap = {}) }
                     .semantics { paneTitle = profile; isTraversalGroup = true }
-                    .padding(top = statusTop + PANEL_TOP, bottom = max(PANEL_BOTTOM, navBottom)),
+                    .padding(
+                        top = DrawerMetrics.panelTopPaddingDp(statusTop.value).dp,
+                        bottom = DrawerMetrics.panelBottomPaddingDp(navBottom.value).dp,
+                    ),
             ) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     DrawerHead(name, subtitle, avatarUrl, onAccount)
@@ -361,11 +356,6 @@ private fun DrawerLayer(
 
         later?.let { mode -> LaterCard(mode, navBottom, onClose = { later = null }) }
     }
-}
-
-/** The popup sits at the window's top left corner; its content fills the window. */
-private object WindowOrigin : PopupPositionProvider {
-    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset = IntOffset.Zero
 }
 
 // ---- Head ----------------------------------------------------------------------------------------------------------------------
@@ -680,9 +670,6 @@ private const val PANEL_MAX_SHARE = 0.85f
 /** 22 / 1.3: the end corners (`--r-lg`). */
 private val PANEL_SHAPE = RoundedCornerShape(topStart = 0.dp, topEnd = 17.dp, bottomEnd = 17.dp, bottomStart = 0.dp)
 
-/** The status bar and 8 dp above the head, 28 dp (or the navigation bar, if it is taller) under the foot. */
-private val PANEL_TOP = 8.dp
-private val PANEL_BOTTOM = 28.dp
 private val AVATAR = 48.dp
 
 /** The black behind the drawer (a documented exception to "no colour by hand": a scrim) and behind the "later" card. */
