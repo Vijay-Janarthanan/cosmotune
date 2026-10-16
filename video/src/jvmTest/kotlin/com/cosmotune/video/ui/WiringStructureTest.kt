@@ -90,14 +90,11 @@ class WiringStructureTest {
     }
 
     @Test fun noFakeIsLeftInEitherFactoryButTheShortsSlotOfY31() {
+        // Y-31 replaced the Shorts slot with its queue engine: no fake is left in either factory.
         for ((name, text) in listOf("android" to androidFactory, "desktop" to desktopFactory)) {
             val fakes = VideoSourceContract.code(text).lines().filter { "Fake" in it }.map { it.trim() }
-            assertEquals(
-                listOf("import com.cosmotune.video.shorts.FakeShortsFeed", "val shorts = FakeShortsFeed()"),
-                fakes,
-                "$name: only the Shorts slot (Y-31's line) still holds a fake",
-            )
-            assertTrue("val shorts = FakeShortsFeed()   // Y-31 replaces this line" in text, "$name: the Shorts line keeps its marker for Y-31")
+            assertEquals(emptyList(), fakes, "$name: no slot holds a fake")
+            assertTrue("val shorts = ShortsQueueEngine(source, feed, library, settings)" in text, "$name: the Shorts slot is Y-31's engine")
         }
     }
 
@@ -114,7 +111,7 @@ class WiringStructureTest {
             "playback" to "VideoPlayerController(source, engine, library, settings, segments, StreamSelector(), SegmentPolicy, metered, scope, clock)",
             "surface" to "engine",
             "music" to "HostMusicBridge(relay.links)",
-            "shorts" to "FakeShortsFeed()",
+            "shorts" to "ShortsQueueEngine(source, feed, library, settings)",
         )
         val android = common + mapOf(
             "downloads" to "AndroidDownloadController(application, source, settings, scope, segments)",
