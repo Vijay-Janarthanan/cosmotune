@@ -66,7 +66,7 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
         holder.SaveableStateProvider(shown.key) {
             val r = shown.route
             when (r) {
-                is VideoRoute.Home -> VideoPlaceholder(r)   // Y-17 replaces this line
+                is VideoRoute.Home -> com.cosmotune.video.ui.home.VideoHome(contentPadding, wide)
 
                 is VideoRoute.Subscriptions -> VideoPlaceholder(r)   // Y-21 replaces this line
 
