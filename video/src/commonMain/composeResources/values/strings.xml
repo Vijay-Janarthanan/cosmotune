@@ -441,4 +441,10 @@
     <!-- Subscriptions (Y-21) -->
     <string name="video_feed_updated_now">Updated just now</string>
     <string name="video_feed_refresh">Refresh</string>
+    <!-- Library pages (Y-22) -->
+    <string name="video_reorder">Reorder</string>
+    <string name="video_move_up">Move up</string>
+    <string name="video_move_down">Move down</string>
+    <string name="video_remove">Remove</string>
+    <string name="video_empty_saved_playlists">No saved playlists yet</string>
 </resources>
