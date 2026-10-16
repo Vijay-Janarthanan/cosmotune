@@ -101,6 +101,17 @@ class CosmoShellState internal constructor(val settings: CosmoLookSettings, dark
     /** The playing song's album, to let two tracks of one album differ more before the app re-themes. */
     internal var coverAlbum by mutableStateOf<String?>(null)
 
+    /**
+     * Sets the three values [FollowCover] sets, for a caller that has a picture's address and no song: Video's accent follows the
+     * playing video's thumbnail through the same palette engine (null for all three: the brand palette). Not composable; call it
+     * from a side effect, as [FollowCover] does.
+     */
+    fun followCover(url: String?, nextUrl: String?, album: String?) {
+        coverUrl = url
+        nextCoverUrl = nextUrl
+        coverAlbum = album
+    }
+
     /** The mini capsule's rectangle in root coordinates: where the player grows from and shrinks back to. Null while it is not on screen. */
     var capsuleBounds by mutableStateOf<Rect?>(null)
 

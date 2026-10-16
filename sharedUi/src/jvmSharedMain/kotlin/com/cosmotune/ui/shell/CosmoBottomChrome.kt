@@ -36,6 +36,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -61,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cosmotune.design.AppMode
 import com.cosmotune.design.CapsuleGeometry
 import com.cosmotune.design.ShellMetrics
 import com.cosmotune.design.SliderMetrics
@@ -104,6 +106,9 @@ data class CosmoTab(val label: String, val icon: ImageVector, val selectedIcon: 
  * [onHeightChanged] gets the column's height in pixels including that bottom offset, for upstream's `FloatingBarsTapGuard`.
  * Both capsules are glass over [hazeState]: that makes two blurred layers on this screen, the most there may be.
  * [controlsLocked] is a party whose host has taken the controls: "next" then answers with [onBlockedControl].
+ *
+ * [mode] is the mode this chrome belongs to: while the stored mode ([com.cosmotune.settings.CosmoLookSettings.mode]) is another
+ * one it draws nothing (Music's compact desktop bar steps aside in Video; Video's shell passes [AppMode.VIDEO]).
  */
 @Composable
 fun CosmoBottomChrome(
@@ -124,7 +129,9 @@ fun CosmoBottomChrome(
     onHeightChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
     notices: @Composable () -> Unit = {},
+    mode: AppMode = AppMode.MUSIC,
 ) {
+    if ((LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value ?: AppMode.MUSIC) != mode) return
     val density = LocalDensity.current
     val navInsetDp = with(density) { WindowInsets.navigationBars.getBottom(density).toDp().value }
     Column(

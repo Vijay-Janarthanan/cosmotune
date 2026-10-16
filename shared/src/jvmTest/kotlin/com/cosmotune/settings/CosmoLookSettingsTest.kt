@@ -1,6 +1,7 @@
 package com.cosmotune.settings
 
 import com.cosmotune.CosmoConfig
+import com.cosmotune.design.AppMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -60,6 +61,38 @@ class CosmoLookSettingsTest {
         assertEquals(0, settings.intensity.value)
         store.map["intensity"] = 99
         assertEquals(2, CosmoLookSettings(store).intensity.value, "a stored value out of range is clamped when read")
+    }
+
+    @Test fun anEmptyStoreReadsTheMusicMode() {
+        assertEquals(AppMode.MUSIC, CosmoLookSettings(MapStore()).mode.value, "Music is the mode until the owner chooses another")
+    }
+
+    @Test fun theModeRoundTripsThroughANewSettingsOnTheSameStore() {
+        val store = MapStore()
+        val settings = CosmoLookSettings(store)
+        settings.setMode(AppMode.VIDEO)
+        assertEquals(AppMode.VIDEO, settings.mode.value, "the flow follows at once")
+        assertEquals(AppMode.VIDEO.ordinal, store.map["app_mode"], "kept as the enum's ordinal under the key `app_mode`")
+        assertEquals(AppMode.VIDEO, CosmoLookSettings(store).mode.value)
+        settings.setMode(AppMode.MUSIC)
+        assertEquals(AppMode.MUSIC, CosmoLookSettings(store).mode.value)
+    }
+
+    @Test fun aStoredModeNoOneKnowsReadsAsMusic() {
+        val store = MapStore()
+        store.map["app_mode"] = 7
+        assertEquals(AppMode.MUSIC, CosmoLookSettings(store).mode.value)
+        store.map["app_mode"] = -1
+        assertEquals(AppMode.MUSIC, CosmoLookSettings(store).mode.value)
+    }
+
+    @Test fun aStoreThatKnowsNothingOfIntegersStaysOnMusic() {
+        val store = BooleansOnlyStore()
+        val settings = CosmoLookSettings(store)
+        assertEquals(AppMode.MUSIC, settings.mode.value)
+        settings.setMode(AppMode.VIDEO)
+        assertEquals(AppMode.VIDEO, settings.mode.value, "the flow still follows, even where nothing is kept")
+        assertEquals(AppMode.MUSIC, CosmoLookSettings(store).mode.value, "and a new settings starts on Music again")
     }
 
     @Test fun aStoreThatKnowsNothingOfIntegersStaysBalanced() {

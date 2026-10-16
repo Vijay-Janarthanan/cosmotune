@@ -4,8 +4,11 @@ import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.snapshots.Snapshot
 import com.cosmotune.theme.CoverColors
 import com.cosmotune.theme.CoverField
+import com.cosmotune.settings.CosmoLookSettings
+import com.cosmotune.settings.KeyValueStore
 import com.cosmotune.theme.CoverPalette
 import com.cosmotune.ui.theme.CosmoPaletteState
+import com.cosmotune.ui.theme.CosmoShellState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -158,6 +161,22 @@ class CosmoPaletteStateTest {
         withContext(NoFrameClock()) { state.show(light, dark = false, reducedMotion = false, animate = false) }
         assertEquals(false, state.targetDark)
         assertEquals(light, state.target)
+    }
+
+    @Test fun followCoverSetsTheThreeValuesTheSongFollowerSets() {
+        val shell = CosmoShellState(CosmoLookSettings(object : KeyValueStore {
+            override fun getBoolean(key: String, default: Boolean) = default
+            override fun putBoolean(key: String, value: Boolean) {}
+        }), dark = true)
+        assertEquals(null, shell.coverUrl)
+        shell.followCover("https://example.invalid/t.jpg", "https://example.invalid/n.jpg", "album-1")
+        assertEquals("https://example.invalid/t.jpg", shell.coverUrl)
+        assertEquals("https://example.invalid/n.jpg", shell.nextCoverUrl)
+        assertEquals("album-1", shell.coverAlbum)
+        shell.followCover(null, null, null)   // nothing playing: the brand palette again
+        assertEquals(null, shell.coverUrl)
+        assertEquals(null, shell.nextCoverUrl)
+        assertEquals(null, shell.coverAlbum)
     }
 
     @Test fun aClockThatThrowsReallyFailsAnAnimatedShow() {

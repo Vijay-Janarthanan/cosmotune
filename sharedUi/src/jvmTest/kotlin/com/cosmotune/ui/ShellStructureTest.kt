@@ -55,8 +55,20 @@ class ShellStructureTest {
             listOf(
                 "tabs", "selectedIndex", "onTabSelected", "song", "isPlaying", "isLoading", "position", "durationMs", "onPlayPause", "onNext",
                 "onExpand", "controlsLocked", "onBlockedControl", "hazeState", "onHeightChanged", "modifier", "notices",
+                // Video mode (Y-1): the mode this chrome belongs to, last, so every caller that passes its arguments by name is untouched.
+                "mode",
             ),
             parameterNames(signature(chrome, "CosmoBottomChrome")),
+        )
+    }
+
+    @Test fun theChromeStepsAsideForAnotherModeAsItsFirstStatement() {
+        assertTrue("mode: AppMode = AppMode.MUSIC," in signature(chrome, "CosmoBottomChrome").replace(Regex("\\s+"), " "), "the mode defaults to Music, so Music's callers are untouched")
+        val body = SourceContract.functionBody(chrome, "CosmoBottomChrome")
+        assertEquals(
+            "if ((LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value ?: AppMode.MUSIC) != mode) return",
+            SourceContract.firstStatement(body),
+            "a chrome that belongs to another mode draws nothing",
         )
     }
 

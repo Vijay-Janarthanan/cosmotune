@@ -64,6 +64,11 @@ kotlin {
         }
         jvmTest.dependencies {
             implementation("com.squareup.okhttp3:mockwebserver:5.3.2")
+            // Video mode's tests (com.cosmotune.video): NewPipe's own objects built in memory, the database import, coroutines.
+            // Test classpath only: the main code keeps NewPipe compileOnly.
+            implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
+            implementation("org.xerial:sqlite-jdbc:3.47.1.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
         }
     }
 }
