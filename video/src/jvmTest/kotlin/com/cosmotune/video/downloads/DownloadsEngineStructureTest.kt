@@ -106,6 +106,11 @@ class DownloadsEngineStructureTest {
         assertTrue("class VideoDownloadService : Service()" in service)
         assertTrue("ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC" in service && "ServiceCompat.startForeground(" in service)
         assertTrue("ContextCompat.startForegroundService(" in service && ".addAction(" in service && ".setProgress(" in service)
+        // its own channel and id: not the player's (Y-11: "video_playback", 0x7669), not Media3's default 1001 (Music's
+        // playback), not Music's downloads (0x8175) or WebDAV uploads (0x8176)
+        assertTrue("const val CHANNEL_ID = \"cosmotune_video_downloads\"" in service)
+        val id = Regex("""const val NOTIFICATION_ID = (0x[0-9A-Fa-f]+)""").find(service)!!.groupValues[1].removePrefix("0x").toInt(16)
+        assertTrue(id !in setOf(0x7669, 1001, 0x8175, 0x8176), "the download notification has an id of its own: $id")
         val controller = flat("$android/AndroidDownloadController.kt")
         for (key in listOf("video_dl_notification", "video_dl_channel", "video_dl_pause")) {
             assertTrue("Res.string.$key" in controller, "the notification uses $key")
