@@ -395,12 +395,14 @@ class MainActivity : AppCompatActivity() {
                 // A measured constraint cannot be stale — it is the very width
                 // the split is about to be laid out in.
                 BoxWithConstraints(Modifier.fillMaxSize()) {
+                    com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {
                     BitChordApp(
                         darkTheme = darkTheme,
                         windowWidth = maxWidth,
                         windowHeight = maxHeight,
                         appBackdrop = appBackdrop,
                     )
+                    }
                 }
                 }
             }

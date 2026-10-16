@@ -49,6 +49,9 @@ import org.jetbrains.compose.resources.painterResource
  * The strip moves the window and maximises it on a double click, like the old bar. A [compact] window has no sidebar to carry the
  * window's own buttons, so, when the application draws its own window frame and there is no separate title bar, they lead
  * this bar instead (the rule of `DesktopTopBar`).
+ *
+ * While the mode is Video ([com.cosmotune.video.host.desktopVideoShown]) the bar is the same, but the back button follows Video's
+ * pages (`VideoDesktopBack`) instead of [canGoBack] and [onBack], and the drawer lists Video's entries instead of [entries].
  */
 @Composable
 internal fun CosmoDesktopTopBar(
@@ -62,6 +65,9 @@ internal fun CosmoDesktopTopBar(
 ) {
     val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
     val inlineCaption = compact && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
+    val video = com.cosmotune.video.host.desktopVideoShown()
+    val backEnabled = if (video) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack
+    val back: () -> Unit = if (video) ({ com.cosmotune.video.ui.desktop.VideoDesktopBack.goBack() }) else onBack
     DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT)) {
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             if (inlineCaption) {
@@ -80,15 +86,15 @@ internal fun CosmoDesktopTopBar(
                 )
                 Spacer(Modifier.width(14.dp))
                 CosmoIconButton(
-                    CosmoIcons.ChevronLeft, DesktopStrings["back", "Back"], onBack,
-                    style = CosmoIconButtonStyle.TONAL, size = 40.dp, enabled = canGoBack,
+                    CosmoIcons.ChevronLeft, DesktopStrings["back", "Back"], back,
+                    style = CosmoIconButtonStyle.TONAL, size = 40.dp, enabled = backEnabled,
                 )
                 Spacer(Modifier.weight(1f))
                 CosmoProfileButton(
                     avatarUrl = accountAvatar,
                     name = accountName?.takeIf { it.isNotBlank() } ?: DesktopStrings["accounts", "Accounts"],
                     subtitle = null,
-                    entries = entries,
+                    entries = if (video) com.cosmotune.video.ui.desktop.videoDesktopDrawerEntries() else entries,
                     onAccount = onOpenAccounts,
                     size = AVATAR_SIZE,
                 )
@@ -101,10 +107,12 @@ internal fun CosmoDesktopTopBar(
  * Where the floating player bar goes. [content] gets the modifier that places it: it sits 14 dp above the bottom of the window,
  * clear of the sidebar (220 dp and a 16 dp margin) and, while [panelOpen] (the lyrics or queue column, 360 dp), of the column
  * (and a 16 dp margin); the margin follows the column as it slides, over the same 260 ms. In a window narrower than 980 dp
- * (compact) the sidebar is gone and the phone's chrome is the bottom bar, so this draws nothing.
+ * (compact) the sidebar is gone and the phone's chrome is the bottom bar, so this draws nothing. It draws nothing either while the
+ * mode is Video ([com.cosmotune.video.host.desktopVideoShown]): the music player bar stands aside there.
  */
 @Composable
 internal fun CosmoDesktopPlayerBarHost(panelOpen: Boolean, content: @Composable (Modifier) -> Unit) {
+    if (com.cosmotune.video.host.desktopVideoShown()) return
     val reduced = LocalReducedMotion.current
     val end by animateDpAsState(
         if (panelOpen) (ShellMetrics.DESKTOP_SIDE_PANEL_DP + SIDE_MARGIN).dp else SIDE_MARGIN.dp,

@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -110,6 +111,7 @@ import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.CosmoType
 import com.cosmotune.ui.theme.LocalCosmoColors
+import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.ui.theme.tabular
@@ -149,8 +151,10 @@ data class CosmoDrawerEntry(val icon: ImageVector, val label: String, val aside:
  * the start closes it (RTL mirrors).
  *
  * Inside, top to bottom: the head (avatar, [name], [subtitle]; a tap is [onAccount], or nothing while that is null), the
- * mode switch, the [entries] and the foot with the logo and the "not affiliated" line. Only Music works: Video and Library
- * carry a "Later" tag, stay unselected and open a card that says when they come ([AppModes]).
+ * mode switch, the [entries] and the foot with the logo and the "not affiliated" line. The switch shows the stored mode
+ * ([com.cosmotune.settings.CosmoLookSettings.mode]); a mode that works ([AppModes]) is stored when it is tapped and the drawer closes,
+ * and a mode that does not (Video until it ships, and Library) carries a "Later" tag, stays unselected and opens a card that says
+ * when it comes.
  *
  * It slides in over 280 ms and out over 200 ms (reduced motion: a 150 ms fade) and stays composed until the exit has run.
  * The slide, the drag and the scrim are read in draw and layer blocks only, so a finger or a frame recomposes nothing.
@@ -347,7 +351,7 @@ private fun DrawerLayer(
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     DrawerHead(name, subtitle, avatarUrl, onAccount)
                     Separator()
-                    ModeSwitch(onChooseMusic = onDismiss, onLater = { later = it })
+                    ModeSwitch(onChosen = onDismiss, onLater = { later = it })
                     Spacer(Modifier.height(14.dp))
                     Separator()
                     Spacer(Modifier.height(10.dp))
@@ -420,12 +424,16 @@ private fun Avatar(avatarUrl: String?, size: Dp, modifier: Modifier = Modifier) 
 
 // ---- Modes ---------------------------------------------------------------------------------------------------------------------
 
-/** "Mode" and its three radio rows. Music is the current mode; the other two are not available and open the "later" card. */
+/**
+ * "Mode" and its three radio rows. The current mode is the stored one (Music where there is no shell to store it). A tap on a mode
+ * that works stores it and calls [onChosen] (it closes the drawer); a mode that does not work opens the "later" card.
+ */
 @Composable
-private fun ModeSwitch(onChooseMusic: () -> Unit, onLater: (AppMode) -> Unit) {
+private fun ModeSwitch(onChosen: () -> Unit, onLater: (AppMode) -> Unit) {
     val palette = LocalCosmoColors.current.palette
     val type = LocalCosmoType.current
-    val current = AppMode.MUSIC
+    val settings = LocalCosmoShell.current?.settings
+    val current = settings?.mode?.collectAsState()?.value ?: AppMode.MUSIC
     Text(
         text = stringResource(Res.string.cosmo_mode),
         style = type.sized(12f, 700),
@@ -442,7 +450,7 @@ private fun ModeSwitch(onChooseMusic: () -> Unit, onLater: (AppMode) -> Unit) {
                 // A mode that does not work never becomes the selected one.
                 selected = available && mode == current,
                 later = !available,
-                onClick = { if (available) onChooseMusic() else onLater(mode) },
+                onClick = { if (available) { settings?.setMode(mode); onChosen() } else onLater(mode) },
             )
         }
     }

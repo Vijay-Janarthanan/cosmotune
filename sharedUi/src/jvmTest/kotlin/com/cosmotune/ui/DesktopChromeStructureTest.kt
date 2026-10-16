@@ -138,7 +138,9 @@ class DesktopChromeStructureTest {
         assertTrue("DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT))" in text && "TOP_BAR_HEIGHT: Dp = 56.dp" in text, "a 56 dp drag area")
         assertTrue("compact && DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled" in text, "the old bar's rule for the window buttons in a compact window")
         assertTrue("painterResource(Res.drawable.logo_mark)" in text && "Modifier.size(width = 28.dp, height = 18.dp)" in text, "the untinted mark at 28 x 18 dp")
-        assertTrue("CosmoIcons.ChevronLeft" in text && "CosmoIconButtonStyle.TONAL" in text && "enabled = canGoBack" in text, "a tonal back button")
+        assertTrue("CosmoIcons.ChevronLeft" in text && "CosmoIconButtonStyle.TONAL" in text && "enabled = backEnabled" in text, "a tonal back button")
+        // Y-3: the button is enabled by `backEnabled`, which is canGoBack in Music and Video's own back in Video.
+        assertTrue("val backEnabled = if (video) com.cosmotune.video.ui.desktop.VideoDesktopBack.canGoBack else canGoBack" in text, "Music's rule is the else branch")
         assertTrue("AVATAR_SIZE: Dp = 36.dp" in text, "a 36 dp avatar")
     }
 

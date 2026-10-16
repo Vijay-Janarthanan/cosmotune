@@ -74,7 +74,12 @@ class ChromeBlocksStructureTest {
         assertTrue("selectableGroup()" in code, "in a selectable group")
         assertEquals(1, Regex("""\bselected\s*=\s*available\s*&&\s*mode\s*==\s*current""").findAll(code).count(), "selected needs the mode to be available")
         assertTrue(Regex("""val\s+available\s*=\s*AppModes\.available\(mode\)""").containsMatchIn(code), "availability comes from AppModes")
-        assertTrue(Regex("""val\s+current\s*=\s*AppMode\.MUSIC""").containsMatchIn(code), "the current mode is Music")
+        // Y-3: the current mode is the stored one (Music only where there is no shell to ask), no longer hard-wired to Music.
+        assertTrue(
+            Regex("""val\s+current\s*=\s*settings\?\.mode\?\.collectAsState\(\)\?\.value\s*\?:\s*AppMode\.MUSIC""").containsMatchIn(code),
+            "the current mode is the stored one, Music without a shell",
+        )
+        assertTrue("LocalCosmoShell.current?.settings" in code, "read from the shell's settings")
         // No other row may be handed `selected = true` or a selection that skips the check.
         val selectedArguments = Regex("""\bselected\s*=\s*([^,)\n]+)""").findAll(code).map { it.groupValues[1].trim() }.toList()
         assertTrue(selectedArguments.none { it == "true" }, "no mode is hard-wired to selected: $selectedArguments")
@@ -82,7 +87,11 @@ class ChromeBlocksStructureTest {
 
     @Test fun aModeThatIsNotAvailableOpensTheLaterCardAndStaysUnselected() {
         val code = SourceContract.code(drawer)
-        assertTrue(Regex("""onClick\s*=\s*\{\s*if\s*\(available\)\s*onChooseMusic\(\)\s*else\s*onLater\(mode\)\s*\}""").containsMatchIn(code), "an unavailable mode asks for the card")
+        // Y-3: an available mode is stored, then the drawer closes (onChosen, formerly onChooseMusic); an unavailable one asks for the card.
+        assertTrue(
+            Regex("""onClick\s*=\s*\{\s*if\s*\(available\)\s*\{\s*settings\?\.setMode\(mode\);\s*onChosen\(\)\s*\}\s*else\s*onLater\(mode\)\s*\}""").containsMatchIn(code),
+            "an unavailable mode asks for the card, an available one is stored",
+        )
         assertTrue(Regex("""later\s*=\s*!available""").containsMatchIn(code), "and carries the Later tag")
         assertTrue("later = it" in code, "the card remembers which mode was asked for")
         // Both modes' card texts exist, and the board's notification switch is not built.

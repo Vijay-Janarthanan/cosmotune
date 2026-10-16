@@ -3030,6 +3030,7 @@ fun BitChordDesktopApp() {
                     )
                 },
                 modifier = Modifier.onPreviewKeyEvent { event ->
+                    if (com.cosmotune.video.host.DesktopModeHost.active) return@onPreviewKeyEvent false
                     if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
                     when {
                         event.key == Key.MediaPlayPause -> {
@@ -3623,6 +3624,7 @@ fun BitChordDesktopApp() {
                     }
                 },
             ) { contentPadding ->
+                if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)
                 // Desktop pages start at the same top edge as Library. Only preserve space for the
                 // floating player/navigation bar at the bottom in compact windows.
                 val sharedPagePadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
