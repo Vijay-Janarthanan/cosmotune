@@ -3626,6 +3626,12 @@ fun BitChordDesktopApp() {
                 // Desktop pages start at the same top edge as Library. Only preserve space for the
                 // floating player/navigation bar at the bottom in compact windows.
                 val sharedPagePadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
+                // Every page of the new look starts 28 dp in from the sidebar (`.d2-main`, `.dh-bento`). Home, the album and playlist page and the
+                // artist page keep that margin themselves; the pages built from the phone's blocks keep its 16 dp and are moved in by the rest.
+                val pageInset = if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) 0f else com.cosmotune.design.ShellMetrics.desktopPageInsetDp(
+                    pageKeepsPhoneMargin = overlays.settingsPage == null && !overlays.replay && openedArtist == null && openedCollection == null &&
+                        destination != DesktopDestination.LISTEN_NOW,
+                )
                 CompositionLocalProvider(
                     LocalPullToRefreshEnabled provides false,
                     LocalShelfRowChrome provides DesktopShelfRowChrome,
@@ -3654,7 +3660,8 @@ fun BitChordDesktopApp() {
                                     if (event.type == PointerEventType.Press && event.buttons.isBackPressed) goBack()
                                 }
                             }
-                        },
+                        }
+                        .padding(horizontal = pageInset.dp),
                 ) {
                     when {
                         // Settings and its pages stand in for the page, held to the width the

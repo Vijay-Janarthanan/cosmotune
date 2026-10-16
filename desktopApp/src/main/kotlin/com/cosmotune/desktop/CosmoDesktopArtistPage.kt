@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.design.ArtistPlay
+import com.cosmotune.design.ShellMetrics
 import com.cosmotune.design.TypeScale
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.blocks.CosmoListRow
@@ -90,8 +91,11 @@ private val BANNER_TEXT_BOTTOM = 22.dp
 /** The banner's picture is clear down to 30 % of its height, then fades into the page (`transparent 30%`). */
 private const val BANNER_FADE_FROM = 0.3f
 
-/** The two columns' padding and gap, and their widths: 1.4 to 1. */
-private val COLUMNS_PADDING = 32.dp
+/**
+ * The two columns' padding and gap, and their widths: 1.4 to 1. The padding is the desktop's page margin, the same as Home's and the
+ * album and playlist page's (the board's 32 is the older one; `.d2-main` and `.dh-bento` say 28).
+ */
+private val COLUMNS_PADDING = ShellMetrics.DESKTOP_PAGE_MARGIN_DP.dp
 private val COLUMNS_GAP = 28.dp
 private const val POPULAR_WEIGHT = 1.4f
 private const val ABOUT_WEIGHT = 1f

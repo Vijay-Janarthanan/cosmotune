@@ -27,6 +27,20 @@ object ShellMetrics {
     fun phoneChromeHeightDp(navigationInsetDp: Float, withMiniPlayer: Boolean) =
         bottomOffsetDp(navigationInsetDp) + TAB_BAR_HEIGHT_DP + if (withMiniPlayer) CAPSULE_GAP_DP + CAPSULE_HEIGHT_DP else 0f
 
+    /** `.d2-main { padding: 16px 28px 110px }` and the margin of `.dh-bento`: every desktop page starts this far from the sidebar. */
+    const val DESKTOP_PAGE_MARGIN_DP = 28f
+
+    /** The margin the phone's blocks keep themselves (`--margin`, `CosmoSpacing.margin`). */
+    const val PHONE_PAGE_MARGIN_DP = 16f
+
+    /**
+     * How far in the box that holds a desktop page moves it at each side: a page of the phone's blocks ([pageKeepsPhoneMargin]) keeps
+     * its 16 dp and needs the 12 that the desktop's margin has more; Home, the album and playlist page and the artist page keep the
+     * desktop's 28 dp themselves and need none.
+     */
+    fun desktopPageInsetDp(pageKeepsPhoneMargin: Boolean): Float =
+        if (pageKeepsPhoneMargin) DESKTOP_PAGE_MARGIN_DP - PHONE_PAGE_MARGIN_DP else 0f
+
     fun desktopBarFootprintDp() = DESKTOP_BAR_HEIGHT_DP + 2 * DESKTOP_BAR_MARGIN_DP
 
     /**

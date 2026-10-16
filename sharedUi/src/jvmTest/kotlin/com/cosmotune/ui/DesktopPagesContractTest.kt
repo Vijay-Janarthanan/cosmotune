@@ -165,7 +165,7 @@ class DesktopPagesContractTest {
         assertTrue(Regex("""kind = CosmoButtonKind\.TONAL,\s*size = CosmoButtonSize\.SMALL""").containsMatchIn(page), "Follow is TONAL SMALL")
         assertTrue("onToggleSubscription != null" in page, "Follow only when the account can")
         assertTrue(Regex("""POPULAR_WEIGHT = 1\.4f""").containsMatchIn(page) && Regex("""ABOUT_WEIGHT = 1f""").containsMatchIn(page), "columns 1.4 to 1")
-        assertTrue(Regex("""COLUMNS_GAP = 28\.dp""").containsMatchIn(page) && Regex("""COLUMNS_PADDING = 32\.dp""").containsMatchIn(page), "gap 28, padding 0 32")
+        assertTrue(Regex("""COLUMNS_GAP = 28\.dp""").containsMatchIn(page) && Regex("""COLUMNS_PADDING = ShellMetrics\.DESKTOP_PAGE_MARGIN_DP\.dp""").containsMatchIn(page), "gap 28, padding 0 28: the desktop page margin, not the older board's 32 (P4-22)")
         assertTrue("fontSize = 14.sp, lineHeight = 14.sp * 1.6f" in page, "About is 14 sp on lines 1.6 tall")
         assertTrue("CosmoShelf(" in page && "cardWidth = SHELF_CARD" in page && Regex("""SHELF_CARD = 150\.dp""").containsMatchIn(page), "the shelves are CosmoShelf with 150 dp cards")
         assertTrue("onShelfItemClick(it, shelf.title)" in page, "a card calls onShelfItemClick(item, the shelf's title)")

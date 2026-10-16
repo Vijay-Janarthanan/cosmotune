@@ -95,6 +95,27 @@ class EmulatorFindingsContractTest {
         assertTrue("contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp + LocalDesktopBottomInset.current)" in code, "inside the scroll")
     }
 
+    // ---- one content margin for every desktop page ---------------------------------------------------------------------------------
+
+    @Test fun everyFamilyOfDesktopPagesStandsAtTheSameMargin() {
+        assertEquals(com.cosmotune.design.ShellMetrics.PHONE_PAGE_MARGIN_DP, com.cosmotune.ui.theme.CosmoSpacing.margin.value, "the phone's blocks keep 16, which the inset adds to")
+        val collection = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopCollectionPage.kt"))
+        assertTrue(Regex("""PAGE_PADDING_X = ${com.cosmotune.design.ShellMetrics.DESKTOP_PAGE_MARGIN_DP.toInt()}\.dp""").containsMatchIn(collection), "the album and playlist page keeps the desktop's margin itself")
+        val artist = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopArtistPage.kt"))
+        assertTrue("COLUMNS_PADDING = ShellMetrics.DESKTOP_PAGE_MARGIN_DP.dp" in artist, "and so does the artist page")
+    }
+
+    @Test fun theBoxThatHoldsADesktopPageMovesThePhoneBlockPagesInByTheMissingTwelve() {
+        val code = SourceContract.code(SourceContract.read(desktopApp)).replace(Regex("\\s+"), " ")
+        assertTrue(
+            "val pageInset = if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) 0f else com.cosmotune.design.ShellMetrics.desktopPageInsetDp( " +
+                "pageKeepsPhoneMargin = overlays.settingsPage == null && !overlays.replay && openedArtist == null && openedCollection == null && " +
+                "destination != DesktopDestination.LISTEN_NOW, )" in code,
+            "every page but Settings, Replay, the artist, the collection and Home is made of the phone's blocks; the look off has no inset",
+        )
+        assertTrue(".padding(horizontal = pageInset.dp), ) { when {" in code, "in the one box the pages stand in, after its pointer handling")
+    }
+
     @Test fun thePhoneAndTheDesktopSettingsRowsReadTheSameTwoKeys() {
         val phone = SourceContract.code(SourceContract.read("app/src/main/java/com/cosmotune/ui/CosmoLookSettingsRows.kt"))
         val desktop = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoLookDesktopToggles.kt"))
