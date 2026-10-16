@@ -86,6 +86,7 @@ import com.music.bitchord.sharedui.resources.cosmo_type_playlist
 import com.music.bitchord.sharedui.resources.cosmo_type_single
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /*
@@ -258,7 +259,7 @@ private fun CollectionHero(
     val credit = remember(parts) { parts.firstOrNull(::isCredit).orEmpty() }
     val year = remember(parts) { parts.firstOrNull { it.matches(YEAR) } }
     val typeLabel = collectionTypeLabel(collection.type, parts)
-    val countText = if (songs.isNotEmpty()) stringResource(SharedRes.string.cosmo_song_count, songs.size) else null
+    val countText = if (songs.isNotEmpty()) pluralStringResource(SharedRes.plurals.cosmo_song_count, songs.size, songs.size) else null
     val seconds = remember(songs) { songs.sumOf { it.durationText.durationMillis() / 1_000L } }
     val facts = listOfNotNull(year, countText, if (seconds > 0) formatDuration(seconds) else null).joinToString(" · ")
     // The services hang motion artwork off the release, so a page for one asks for it directly rather than picking a track and

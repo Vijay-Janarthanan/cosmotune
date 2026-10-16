@@ -244,7 +244,10 @@
     <string name="cosmo_suggested">Suggested</string>
     <string name="cosmo_add">Add</string>
     <string name="cosmo_latest_release">Latest release</string>
-    <string name="cosmo_song_count">%1$d songs</string>
+    <plurals name="cosmo_song_count">
+        <item quantity="one">%1$d chanson</item>
+        <item quantity="other">%1$d chansons</item>
+    </plurals>
     <string name="cosmo_search_in_list">Find in this list</string>
     <string name="cosmo_back">Back</string>
     <string name="cosmo_close">Close</string>

@@ -252,7 +252,7 @@ class PagesContractTest {
 
     @Test fun everyStringTheSharedPagesSayIsAKeyThatExists() {
         val english = SourceContract.read(strings)
-        val declared = Regex("""<string name="([a-z0-9_]+)"""").findAll(english).map { it.groupValues[1] }.toSet()
+        val declared = Regex("""<(?:string|plurals) name="([a-z0-9_]+)"""").findAll(english).map { it.groupValues[1] }.toSet()
         for (name in pageFiles) {
             val used = Regex("""import com\.music\.bitchord\.sharedui\.resources\.(\w+)""").findAll(page(name)).map { it.groupValues[1] }.filter { it != "Res" }.toList()
             for (key in used) assertTrue(key in declared, "$name uses the string $key, which values/strings.xml does not have")

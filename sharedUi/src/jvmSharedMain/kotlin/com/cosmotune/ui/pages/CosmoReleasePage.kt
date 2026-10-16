@@ -72,6 +72,7 @@ import com.music.bitchord.sharedui.resources.play
 import com.music.bitchord.ui.components.ExplicitSongTitle
 import com.music.bitchord.ui.components.MessageState
 import com.music.bitchord.ui.player.PlayerBackHandler
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -141,7 +142,7 @@ fun CosmoReleasePage(
         ReleaseMeta.Kind.PLAYLIST -> stringResource(Res.string.cosmo_type_playlist)
         null -> null
     }
-    val songsText = if (parts.songCount > 0) stringResource(Res.string.cosmo_song_count, parts.songCount) else null
+    val songsText = if (parts.songCount > 0) pluralStringResource(Res.plurals.cosmo_song_count, parts.songCount, parts.songCount) else null
     val durationText = parts.playtime?.let { playtime ->
         if (playtime.hours > 0) stringResource(Res.string.cosmo_duration_h_min, playtime.hours, playtime.minutes)
         else stringResource(Res.string.cosmo_duration_min, playtime.minutes)
