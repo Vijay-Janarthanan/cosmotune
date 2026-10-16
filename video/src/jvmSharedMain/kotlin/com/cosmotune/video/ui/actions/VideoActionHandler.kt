@@ -24,10 +24,17 @@ import com.cosmotune.video.model.VideoDetails
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.nav.VideoRoute
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_dl_added
+import com.cosmotune.video.resources.video_dl_already
+import com.cosmotune.video.resources.video_dl_in_downloads
+import com.cosmotune.video.resources.video_dl_toast_change
+import com.cosmotune.video.resources.video_dl_toast_started
+import com.cosmotune.video.resources.video_dl_view
 import com.cosmotune.video.resources.video_link_copied
 import com.cosmotune.video.shorts.ShortsOrigin
 import com.cosmotune.video.ui.blocks.VideoAction
 import com.cosmotune.video.ui.blocks.VideoSheetContext
+import com.cosmotune.video.ui.downloads.DownloadToast
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.VideoNavigator
 import com.cosmotune.video.ui.shorts.openShort
@@ -155,11 +162,17 @@ fun rememberVideoActions(): VideoActionHandler {
     return remember(graph, navigator, state, sharer) { VideoActionHandler(graph, navigator, state, sharer) }
 }
 
-/** What a toast of the action host says. */
-internal enum class ActionToastKind { LINK_COPIED }
+/**
+ * What a toast of the action host says: "Link copied"; the download host's (plan task Y-32, spec 5.16) "Downloading in 720p · Change",
+ * "Added to Downloads · View", "Already downloaded" and "Already in Downloads · View".
+ */
+internal enum class ActionToastKind { LINK_COPIED, DOWNLOAD_STARTED, DOWNLOAD_ADDED, ALREADY_DOWNLOADED, ALREADY_IN_DOWNLOADS }
 
-/** One toast; [serial] tells two toasts of the same kind apart, so a second copy shows again. */
-internal data class ActionToast(val kind: ActionToastKind, val serial: Int)
+/**
+ * One toast; [serial] tells two toasts of the same kind apart, so a second copy shows again. [detail] fills its text (the quality of
+ * "Downloading in 720p"); [onAction] is its button (Change, View), when it has one.
+ */
+internal data class ActionToast(val kind: ActionToastKind, val serial: Int, val detail: String? = null, val onAction: (() -> Unit)? = null)
 
 /**
  * What the action host shows, set by the handlers and cleared by the host: the download that waits for its sheet, the video that
@@ -175,9 +188,9 @@ internal class VideoActionsState {
         private set
     private var serial = 0
 
-    fun showToast(kind: ActionToastKind) {
+    fun showToast(kind: ActionToastKind, detail: String? = null, onAction: (() -> Unit)? = null) {
         serial += 1
-        toast = ActionToast(kind, serial)
+        toast = ActionToast(kind, serial, detail, onAction)
     }
 
     /** Takes [shown] away, unless another toast has replaced it since. */
@@ -228,13 +241,37 @@ private fun ActionToastHost(state: VideoActionsState, contentPadding: PaddingVal
     val toast = state.toast ?: return
     val message = when (toast.kind) {
         ActionToastKind.LINK_COPIED -> stringResource(Res.string.video_link_copied)
+        ActionToastKind.DOWNLOAD_STARTED -> stringResource(Res.string.video_dl_toast_started, toast.detail.orEmpty())
+        ActionToastKind.DOWNLOAD_ADDED -> stringResource(Res.string.video_dl_added)
+        ActionToastKind.ALREADY_DOWNLOADED -> stringResource(Res.string.video_dl_already)
+        ActionToastKind.ALREADY_IN_DOWNLOADS -> stringResource(Res.string.video_dl_in_downloads)
+    }
+    val actionLabel = when (toast.kind) {
+        ActionToastKind.DOWNLOAD_STARTED -> stringResource(Res.string.video_dl_toast_change)
+        ActionToastKind.DOWNLOAD_ADDED, ActionToastKind.ALREADY_IN_DOWNLOADS -> stringResource(Res.string.video_dl_view)
+        ActionToastKind.LINK_COPIED, ActionToastKind.ALREADY_DOWNLOADED -> null
     }
     LaunchedEffect(toast) {
         delay(TOAST_MS)
         state.clearToast(toast)
     }
     Box(Modifier.fillMaxSize().padding(bottom = contentPadding.calculateBottomPadding()), contentAlignment = Alignment.BottomCenter) {
-        key(toast.serial) { CosmoToast(message, Modifier.widthIn(max = FLOATING_BAR_MAX_WIDTH)) }
+        key(toast.serial) {
+            val action = toast.onAction
+            if (action != null && actionLabel != null) {
+                DownloadToast(
+                    message = message,
+                    action = actionLabel,
+                    onAction = {
+                        state.clearToast(toast)
+                        action()
+                    },
+                    modifier = Modifier.widthIn(max = FLOATING_BAR_MAX_WIDTH),
+                )
+            } else {
+                CosmoToast(message, Modifier.widthIn(max = FLOATING_BAR_MAX_WIDTH))
+            }
+        }
     }
 }
 

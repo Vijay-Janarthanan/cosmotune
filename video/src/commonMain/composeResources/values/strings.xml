@@ -441,6 +441,8 @@
     <!-- Subscriptions (Y-21) -->
     <string name="video_feed_updated_now">Updated just now</string>
     <string name="video_feed_refresh">Refresh</string>
+    <!-- Download sheet (Y-32) -->
+    <string name="video_dl_in_downloads">Already in Downloads</string>
     <!-- Library pages (Y-22) -->
     <string name="video_reorder">Reorder</string>
     <string name="video_move_up">Move up</string>
