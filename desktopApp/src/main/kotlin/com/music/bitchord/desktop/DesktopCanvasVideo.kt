@@ -292,6 +292,7 @@ internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(
     source = if (source == DesktopCanvasSource.SPOTIFY) CanvasSource.SPOTIFY else CanvasSource.OTHER,
     syncMap = syncMap,
     videoDurationMs = videoDurationMs,
+    videoId = videoId,
 )
 
 /** A frame this much ahead of the song waits for it; this much behind is dropped. */

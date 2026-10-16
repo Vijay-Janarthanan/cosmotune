@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,13 +60,16 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.tabular
 import com.cosmotune.video.design.VideoMetrics
+import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.Storyboard
+import com.cosmotune.video.player.LiveWindow
 import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.PlayerKeyMap
 import com.cosmotune.video.player.ScrubberGeometry
 import com.cosmotune.video.player.StoryboardFrame
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_live
 import com.cosmotune.video.resources.video_seek_bar
 import com.cosmotune.video.settings.VideoSettings
 import org.jetbrains.compose.resources.stringResource
@@ -96,6 +100,10 @@ private const val BUBBLE_CHAPTER_SP = 12.5f
  * The band is the 48 dp touch target; the line is at its bottom edge ([lineAtBottom], the page: the player's bottom edge) or its
  * middle. [onGlass] draws it in ink for the full window's bar, whose bubble rises [bubbleLiftDp] more to clear the bar. The playhead
  * is read only while drawing.
+ *
+ * A live stream (spec 5.13; plan task Y-28): the bar is its window from its start to the live edge ([LiveWindow]), so the dot sits
+ * at the end while the stream is live and nothing past the edge can be picked; no segments, chapters or storyboard; the bubble says
+ * how far behind live the drag is ("-1:05"). A window too short to seek in draws no bar.
  */
 @Composable
 internal fun PlayerScrubber(
@@ -110,28 +118,32 @@ internal fun PlayerScrubber(
     modifier: Modifier = Modifier,
     bubbleLiftDp: Float = 0f,
 ) {
-    val duration = state.durationMs
+    val live = state.live
+    val duration = if (live) LiveWindow.liveEdgeMs(state.durationMs) else state.durationMs
     if (duration <= 0) {
         Box(modifier)
         return
     }
     val colors = LocalCosmoColors.current
-    val showSegments = settings.sponsorBlock && settings.segmentsOnBar
+    val showSegments = settings.sponsorBlock && settings.segmentsOnBar && !live
     val ranges = remember(state.segments, duration, showSegments) {
         if (showSegments) ScrubberGeometry.ranges(state.segments, duration) else emptyList()
     }
-    val chapters = state.details?.chapters.orEmpty()
+    val chapters = if (live) emptyList() else state.details?.chapters.orEmpty()
     val gaps = remember(chapters, duration) { ScrubberGeometry.chapterStarts(chapters, duration).toFloatArray() }
     val buffered = ScrubberGeometry.fraction(state.bufferedMs, duration)
     val drag = remember { ScrubDrag() }
     val interaction = remember { MutableInteractionSource() }
     val label = stringResource(Res.string.video_seek_bar)
     val shownSecond = playhead.second.longValue
+    // The span a gesture seeks in, read when it lands: a live stream's edge moves every second or so, and a drag must not restart
+    // (and be lost) each time it does, so the gestures below are keyed on the playback and read this.
+    val span by rememberUpdatedState(duration)
 
     fun finish(seek: Boolean) {
         if (!drag.active.value) return
         if (seek) {
-            playback.seekTo((drag.fraction.floatValue * duration).toLong())
+            playback.seekTo((drag.fraction.floatValue * span).toLong())
             playhead.refresh()
         }
         drag.active.value = false
@@ -174,14 +186,14 @@ internal fun PlayerScrubber(
             }
             .focusable(interactionSource = interaction)
             .cosmoFocusRing(interaction, radius = VideoMetrics.SCRUB_DOT_DP.dp, floating = true)
-            .pointerInput(duration) {
+            .pointerInput(playback) {
                 detectTapGestures { offset ->
                     onInput()
-                    playback.seekTo((offset.x / size.width.coerceAtLeast(1) * duration).toLong().coerceIn(0, duration))
+                    playback.seekTo((offset.x / size.width.coerceAtLeast(1) * span).toLong().coerceIn(0, span))
                     playhead.refresh()
                 }
             }
-            .pointerInput(duration) {
+            .pointerInput(playback) {
                 detectHorizontalDragGestures(
                     onDragStart = { offset ->
                         drag.fraction.floatValue = (offset.x / size.width.coerceAtLeast(1)).coerceIn(0f, 1f)
@@ -226,8 +238,9 @@ internal fun PlayerScrubber(
             ScrubBubble(
                 drag = drag,
                 durationMs = duration,
-                state = state,
-                storyboard = state.details?.storyboard,
+                chapters = chapters,
+                storyboard = if (live) null else state.details?.storyboard,
+                live = live,
                 lineAtBottom = lineAtBottom,
                 liftDp = bubbleLiftDp,
             )
@@ -296,14 +309,23 @@ private fun DrawScope.piece(start: Float, end: Float, top: Float, line: Float, c
 /**
  * The bubble over the dragged dot (spec 6.5): C glass, the storyboard frame 160 x 90 (radius 12) when the video has one, the time and
  * the chapter's title. It follows the dot in the layout phase and stays inside the line's width; it recomposes only when the shown
- * second, frame or chapter changes.
+ * second, frame or chapter changes. For a [live] stream the time is how far behind the live edge the drag is ("-1:05"), "Live" at it.
  */
 @Composable
-private fun ScrubBubble(drag: ScrubDrag, durationMs: Long, state: PlaybackUiState, storyboard: Storyboard?, lineAtBottom: Boolean, liftDp: Float) {
+private fun ScrubBubble(
+    drag: ScrubDrag,
+    durationMs: Long,
+    chapters: List<Chapter>,
+    storyboard: Storyboard?,
+    live: Boolean,
+    lineAtBottom: Boolean,
+    liftDp: Float,
+) {
     val type = LocalCosmoType.current
     val palette = LocalCosmoColors.current.palette
-    val chapters = state.details?.chapters.orEmpty()
     val second by remember(durationMs) { derivedStateOf { (drag.fraction.floatValue * durationMs).toLong() / 1000 } }
+    val behindSecond by remember(durationMs) { derivedStateOf { (durationMs - (drag.fraction.floatValue * durationMs).toLong()).coerceAtLeast(0) / 1000 } }
+    val liveLabel = stringResource(Res.string.video_live)
     val chapter by remember(chapters, durationMs) {
         derivedStateOf { ScrubberGeometry.chapterIndexAt(chapters, (drag.fraction.floatValue * durationMs).toLong()) }
     }
@@ -332,7 +354,12 @@ private fun ScrubBubble(drag: ScrubDrag, durationMs: Long, state: PlaybackUiStat
         val board = storyboard
         val shownFrame = frame
         if (board != null && shownFrame != null) StoryboardImage(board, shownFrame)
-        Text(ScrubberGeometry.timeLabel(second * 1000), style = timeStyle, color = Color(palette.textPrimary), maxLines = 1)
+        val time = when {
+            !live -> ScrubberGeometry.timeLabel(second * 1000)
+            behindSecond <= 0 -> liveLabel
+            else -> "-" + ScrubberGeometry.timeLabel(behindSecond * 1000)
+        }
+        Text(time, style = timeStyle, color = Color(palette.textPrimary), maxLines = 1)
         chapters.getOrNull(chapter)?.let {
             Text(
                 it.title,
