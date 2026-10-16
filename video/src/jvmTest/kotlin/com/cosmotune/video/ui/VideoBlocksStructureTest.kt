@@ -82,7 +82,7 @@ class VideoBlocksStructureTest {
     }
 
     @Test fun theRowsStripChipsMetaLineAndSheetKeepTheBriefsParameters() {
-        assertEquals(listOf("item: PlaylistItem", "onClick: () -> Unit", "modifier: Modifier = Modifier"), params("PlaylistRow", "PlaylistRow"))
+        assertEquals(listOf("item: PlaylistItem", "onClick: () -> Unit", "modifier: Modifier = Modifier", "desktop: Boolean = false"), params("PlaylistRow", "PlaylistRow"))   // Y-34: desktop
         assertEquals(
             listOf("item: ChannelItem", "subscribed: Boolean", "onClick: () -> Unit", "onSubscribe: () -> Unit", "modifier: Modifier = Modifier"),
             params("ChannelStrip", "ChannelRow"),

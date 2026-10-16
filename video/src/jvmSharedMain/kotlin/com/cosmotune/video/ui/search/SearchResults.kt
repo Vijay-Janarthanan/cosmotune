@@ -34,7 +34,6 @@ import com.cosmotune.ui.states.CosmoEmptyState
 import com.cosmotune.ui.states.CosmoShimmer
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.video.design.VideoMetrics
-import com.cosmotune.video.design.VideoText
 import com.cosmotune.video.model.ChannelItem
 import com.cosmotune.video.model.ListItem
 import com.cosmotune.video.model.PageToken
@@ -45,9 +44,7 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_error_bot
 import com.cosmotune.video.resources.video_error_network
 import com.cosmotune.video.resources.video_error_parsing
-import com.cosmotune.video.resources.video_count_videos
 import com.cosmotune.video.resources.video_list_error
-import com.cosmotune.video.resources.video_meta_join
 import com.cosmotune.video.resources.video_no_results
 import com.cosmotune.video.resources.video_no_results_hint
 import com.cosmotune.video.resources.video_retry
@@ -56,10 +53,8 @@ import com.cosmotune.video.source.VideoSource
 import com.cosmotune.video.source.VideoSourceError
 import com.cosmotune.video.ui.blocks.ChannelRow
 import com.cosmotune.video.ui.blocks.PlaylistRow
-import com.cosmotune.video.ui.blocks.ThumbnailFrame
 import com.cosmotune.video.ui.blocks.ThumbnailShape
 import com.cosmotune.video.ui.blocks.VideoRow
-import com.cosmotune.video.ui.blocks.VideoRowFrame
 import com.cosmotune.video.ui.blocks.rowThumbnailSize
 import com.cosmotune.video.ui.branding.rememberVideoThumbnail
 import com.cosmotune.video.ui.branding.rememberVideoTitle
@@ -68,7 +63,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /*
@@ -339,7 +333,7 @@ private fun ResultRow(entry: ListItem, wide: Boolean, callbacks: SearchRowCallba
             onClick = { callbacks.onChannel(entry.item) },
             onSubscribe = { callbacks.onSubscribe(entry.item) },
         )
-        is ListItem.Playlist -> SearchPlaylistRow(entry.item, wide, onClick = { callbacks.onPlaylist(entry.item) })
+        is ListItem.Playlist -> PlaylistRow(item = entry.item, onClick = { callbacks.onPlaylist(entry.item) }, desktop = wide)
     }
 }
 
@@ -356,45 +350,6 @@ private fun SearchVideoRow(item: VideoItem, wide: Boolean, downloaded: Boolean, 
         desktop = wide,
         title = title,
         downloaded = downloaded,
-    )
-}
-
-/**
- * A playlist row. On the phone it is [PlaylistRow]; on a wide page it is the same row with the desktop's thumbnail (168 x 94.5, as the
- * video rows beside it have), which the block does not offer: built from the block's own frame and thumbnail, with its meta line.
- */
-@Composable
-private fun SearchPlaylistRow(item: PlaylistItem, wide: Boolean, onClick: () -> Unit) {
-    if (!wide) {
-        PlaylistRow(item = item, onClick = onClick)
-        return
-    }
-    val count = item.videoCount
-    val owner = item.ownerName?.takeIf { it.isNotBlank() }
-    val countText = count?.let {
-        val quantity = it.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
-        pluralStringResource(Res.plurals.video_count_videos, quantity, quantity)
-    }
-    val meta = when {
-        owner != null && countText != null -> stringResource(Res.string.video_meta_join, owner, countText)
-        owner != null -> owner
-        else -> countText.orEmpty()
-    }
-    VideoRowFrame(
-        thumbnail = {
-            ThumbnailFrame(
-                url = item.thumbnailUrl,
-                modifier = Modifier.rowThumbnailSize(desktop = true),
-                shape = ThumbnailShape,
-                countStrip = count?.let { VideoText.compact(it) },
-            )
-        },
-        title = item.title,
-        meta = meta,
-        onClick = onClick,
-        onMore = null,
-        modifier = Modifier,
-        trailing = null,
     )
 }
 

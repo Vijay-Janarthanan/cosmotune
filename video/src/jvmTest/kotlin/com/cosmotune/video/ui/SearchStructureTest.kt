@@ -167,7 +167,8 @@ class SearchStructureTest {
     @Test fun theRowsAreTheBlocksOfThePageAndThePageHostsTheVideoSheet() {
         val results = code("SearchResults")
         assertTrue("VideoRow(" in results && "ChannelRow(" in results && "PlaylistRow(" in results)
-        assertTrue("rowThumbnailSize(desktop = true)" in results && "VideoRowFrame(" in results, "a wide page's playlist row has the desktop thumbnail the block lacks")
+        // Y-34: the block now has the desktop thumbnail, so a wide page's playlist row is the block with `desktop = wide`
+        assertTrue("PlaylistRow(item = entry.item, onClick = { callbacks.onPlaylist(entry.item) }, desktop = wide)" in results, "a wide page's playlist row has the desktop thumbnail")
         assertTrue("rememberVideoTitle(" in results && "rememberVideoThumbnail(" in results, "DeArrow only through Y-16's helpers")
         val page = code("VideoSearch")
         assertTrue("rememberVideoActions()" in page && "VideoActionsSheet(" in page && "rememberDownloadedIds()" in page)
