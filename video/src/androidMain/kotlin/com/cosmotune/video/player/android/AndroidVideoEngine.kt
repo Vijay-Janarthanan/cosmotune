@@ -41,6 +41,7 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.media3.ui.compose.ContentFrame
@@ -58,6 +59,7 @@ import com.cosmotune.video.player.SubtitleCue
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.player.VideoSurfaceProvider
+import com.cosmotune.video.select.BandwidthWarmUp
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -152,6 +154,10 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     private var seenReady = false
     private var videoDecoder: String? = null
     private var ticking = false
+
+    /** The meter whose estimate is reported, and its first 5 s (spec 6.4: the bandwidth counts after them; Y-5 relies on null). */
+    private var measuredMeter: DefaultBandwidthMeter? = null
+    private val bandwidthWarmUp = BandwidthWarmUp(clock = SystemClock::elapsedRealtime)
 
     // Dropped frames since the load, from the video decoder's live counters (one counters object per decoder session).
     private var droppedBefore = 0
@@ -546,7 +552,13 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         val durationMs = if (c == null || live || c.duration == C.TIME_UNSET) 0L else c.duration.coerceAtLeast(0)
         val playing = c != null && error == null && c.playWhenReady && state != Player.STATE_ENDED && state != Player.STATE_IDLE
         val nowSpeed = c?.playbackParameters?.speed ?: speed
-        val bitrate = VideoPlayerHolder.bandwidthMeter?.bitrateEstimate ?: 0L
+        // A new meter (the service built a new player) starts from a table of typical speeds: it counts after 5 s (spec 6.4).
+        val meter = VideoPlayerHolder.bandwidthMeter
+        if (meter !== measuredMeter) {
+            measuredMeter = meter
+            bandwidthWarmUp.restart()
+        }
+        val bitrate = meter?.bitrateEstimate ?: 0L
         val size = c?.videoSize
         snapshotValues.value = PlayerSnapshot(
             status = status,
@@ -559,7 +571,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
             audioOnly = audioOnly,
             muted = muted,
             error = error,
-            bandwidthKbps = if (bitrate > 0) (bitrate / 1000).toInt() else null,
+            bandwidthKbps = bandwidthWarmUp.gate(if (bitrate > 0) (bitrate / 1000).toInt() else null),
             decoderName = videoDecoder,
             droppedFrames = droppedSinceLoad(holderPlayer),
         )

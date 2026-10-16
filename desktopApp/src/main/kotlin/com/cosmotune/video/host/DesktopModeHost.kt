@@ -16,6 +16,7 @@ import com.cosmotune.design.AppModes
 import com.cosmotune.desktop.LocalCosmoPlayPause
 import com.cosmotune.desktop.LocalCosmoPlaying
 import com.cosmotune.ui.theme.LocalCosmoShell
+import com.cosmotune.video.graph.stopVideoForMusic
 import com.cosmotune.video.ui.PendingVideo
 import com.cosmotune.video.ui.VideoHostLinks
 import com.cosmotune.video.ui.desktop.VideoDesktopPage
@@ -82,5 +83,9 @@ fun DesktopVideoPage(contentPadding: PaddingValues) {
             onPendingHandled = { DesktopModeHost.askedVideo = null },
         )
     }
+    // Audio is exclusive across the modes: Music starting while a video plays (the system's media controls can start it) stops the
+    // video; a video starting pauses Music through `pauseMusic` above.
+    val musicPlaying = LocalCosmoPlaying.current
+    LaunchedEffect(musicPlaying) { if (musicPlaying) stopVideoForMusic() }
     VideoDesktopPage(contentPadding, links)
 }

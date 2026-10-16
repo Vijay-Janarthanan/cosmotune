@@ -2,14 +2,23 @@ package com.cosmotune.video.player.android
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.os.Bundle
+import android.view.KeyEvent
 import androidx.annotation.OptIn
+import androidx.core.content.IntentCompat
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionError
+import androidx.media3.session.SessionResult
 import com.cosmotune.video.R
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 
 /**
  * The service that keeps Video's player alive in the background and lets system controllers and headsets reach it (spec 6.2,
@@ -61,7 +70,74 @@ class VideoPlaybackService : MediaSessionService() {
             .setId(SESSION_ID)
             .apply { sessionActivity()?.let { setSessionActivity(it) } }
             .setBitmapLoader(VideoPlayerHolder.bitmapLoader(this))
+            .setCallback(QueueButtonsCallback)
+            .setMediaButtonPreferences(queueButtonPreferences())
             .build()
+    }
+
+    /**
+     * Previous and next in the notification (and on the lock screen): the player holds one video and the queue is the controller's
+     * (plan task Y-10), so the two buttons are custom commands in the back and forward slots, which [QueueButtonsCallback] hands
+     * to [queueButtons].
+     */
+    private fun queueButtonPreferences(): List<CommandButton> = listOf(
+        CommandButton.Builder(CommandButton.ICON_PREVIOUS)
+            .setDisplayName(getString(R.string.video_notification_previous))
+            .setSessionCommand(PREVIOUS_COMMAND)
+            .setSlots(CommandButton.SLOT_BACK)
+            .build(),
+        CommandButton.Builder(CommandButton.ICON_NEXT)
+            .setDisplayName(getString(R.string.video_notification_next))
+            .setSessionCommand(NEXT_COMMAND)
+            .setSlots(CommandButton.SLOT_FORWARD)
+            .build(),
+    )
+
+    /**
+     * Lets the notification's controller send the two queue commands and answers them; a headset's or a car's previous and next
+     * keys (which a player of one item would ignore) go the same way. Everything else is Media3's default.
+     */
+    private object QueueButtonsCallback : MediaSession.Callback {
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            val accepted = MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
+            if (!session.isMediaNotificationController(controller)) return accepted.build()
+            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().add(PREVIOUS_COMMAND).add(NEXT_COMMAND).build()
+            return accepted.setAvailableSessionCommands(commands).build()
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            when (customCommand.customAction) {
+                ACTION_PREVIOUS -> queueButtons?.previous()
+                ACTION_NEXT -> queueButtons?.next()
+                else -> return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
+            }
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+
+        override fun onMediaButtonEvent(session: MediaSession, controllerInfo: MediaSession.ControllerInfo, intent: Intent): Boolean {
+            val event = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_KEY_EVENT, KeyEvent::class.java) ?: return false
+            val buttons = queueButtons ?: return false
+            val forward = when (event.keyCode) {
+                KeyEvent.KEYCODE_MEDIA_NEXT -> true
+                KeyEvent.KEYCODE_MEDIA_PREVIOUS -> false
+                else -> return false
+            }
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                if (forward) buttons.next() else buttons.previous()
+            }
+            return true
+        }
+    }
+
+    /** Where the queue's previous and next go: the graph points it at its controller (plan task Y-16). Called on the main thread. */
+    interface QueueButtons {
+        fun previous()
+        fun next()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
@@ -105,5 +181,15 @@ class VideoPlaybackService : MediaSessionService() {
 
         /** The request code of the session activity, so it is not Music's PendingIntent (request code 0 on the same launch intent). */
         private const val SESSION_ACTIVITY_REQUEST = 0x7669
+
+        /** The custom commands of the notification's previous and next buttons. */
+        const val ACTION_PREVIOUS = "com.cosmotune.video.PREVIOUS"
+        const val ACTION_NEXT = "com.cosmotune.video.NEXT"
+        private val PREVIOUS_COMMAND = SessionCommand(ACTION_PREVIOUS, Bundle.EMPTY)
+        private val NEXT_COMMAND = SessionCommand(ACTION_NEXT, Bundle.EMPTY)
+
+        /** The queue the buttons and the headset's previous and next keys drive; null (the buttons do nothing) until the graph is built. */
+        @Volatile
+        var queueButtons: QueueButtons? = null
     }
 }

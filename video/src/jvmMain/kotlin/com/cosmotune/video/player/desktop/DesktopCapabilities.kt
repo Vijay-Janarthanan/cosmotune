@@ -36,9 +36,16 @@ object DesktopCapabilities {
         autoCeilingHeight = AUTO_CEILING_HEIGHT,
     )
 
-    /** The height in pixels of the tallest screen's current display mode, or [FALLBACK_DISPLAY_HEIGHT] without one. */
+    /**
+     * The height in pixels of the largest picture a landscape video can fill on any screen: each screen's shorter side (a monitor
+     * turned upright is as wide as a video's frame is high; Y-5 caps Auto at this height), the largest of them, or
+     * [FALLBACK_DISPLAY_HEIGHT] without a screen.
+     */
     fun largestDisplayHeight(): Int = runCatching {
         if (GraphicsEnvironment.isHeadless()) return@runCatching null
-        GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.maxOfOrNull { it.displayMode.height }
+        GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices.maxOfOrNull { landscapeHeight(it.displayMode.width, it.displayMode.height) }
     }.getOrNull()?.takeIf { it > 0 } ?: FALLBACK_DISPLAY_HEIGHT
+
+    /** The height of a landscape picture that fills a screen of [width] x [height] pixels: its shorter side. */
+    internal fun landscapeHeight(width: Int, height: Int): Int = minOf(width, height)
 }
