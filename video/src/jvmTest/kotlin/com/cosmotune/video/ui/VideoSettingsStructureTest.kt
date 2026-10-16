@@ -59,7 +59,8 @@ class VideoSettingsStructureTest {
         assertEquals("is VideoRoute.Settings -> com.cosmotune.video.ui.settings.VideoSettingsPage(contentPadding, wide)", line.trim())
         val at = lines.indexOf(line)
         assertTrue(lines[at - 1].isBlank() && lines[at + 1].isBlank(), "the blank lines around the branch stay")
-        assertEquals("is VideoRoute.Import -> VideoPlaceholder(r)   // Y-22 replaces this line", lines[at + 2].trim(), "the next branch is untouched")
+        // Y-34: the next branch is the Import route's, whatever page Y-22 put on it
+        assertTrue(lines[at + 2].trim().startsWith("is VideoRoute.Import ->"), "the next branch is still the Import route: ${lines[at + 2].trim()}")
         assertFalse("import com.cosmotune.video.ui.settings" in host, "no import line was added for the page: the name is fully qualified")
     }
 
