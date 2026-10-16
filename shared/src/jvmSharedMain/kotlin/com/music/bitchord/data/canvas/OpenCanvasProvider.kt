@@ -127,6 +127,7 @@ object OpenCanvasProvider {
             syncMap = track.syncMap(),
             videoDurationMs = track.videoDurationMs,
             headers = track.videoHeaders,
+            videoId = track.videoId,
         )
     }
 }

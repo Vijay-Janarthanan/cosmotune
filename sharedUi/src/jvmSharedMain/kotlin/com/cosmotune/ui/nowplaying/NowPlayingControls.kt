@@ -58,6 +58,8 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.CoverImage
 import com.cosmotune.ui.components.PlayMorphButton
 import com.cosmotune.ui.components.WaveScrubber
+import com.cosmotune.ui.modes.LocalModeLinks
+import com.cosmotune.ui.modes.musicVideoLink
 import com.cosmotune.ui.shell.LocalCosmoPlayerDismiss
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.CosmoRadii
@@ -65,6 +67,7 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.ui.theme.tabular
+import com.music.bitchord.data.canvas.CanvasArtwork
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.BACK_RESTARTS_AFTER_MS
 import com.music.bitchord.playback.PlaybackPosition
@@ -74,6 +77,7 @@ import com.music.bitchord.sharedui.resources.cosmo_collapse_player
 import com.music.bitchord.sharedui.resources.cosmo_playing_from
 import com.music.bitchord.sharedui.resources.cosmo_video_hide
 import com.music.bitchord.sharedui.resources.cosmo_video_show
+import com.music.bitchord.sharedui.resources.cosmo_watch_music_video
 import com.music.bitchord.sharedui.resources.like
 import com.music.bitchord.sharedui.resources.listen_together
 import com.music.bitchord.sharedui.resources.more
@@ -186,6 +190,9 @@ internal const val TOP_BAR_BELOW_STATUS_DP = 4 + 48
  * the room they leave, so the stack is the transport and the tools. In a [landscape] window the stack fills the height it is
  * given: the title (one line) and the artist take the room above the scrubber, and [panel] (the lyrics or the queue) takes it
  * in their place, the scrubber folding away with them; the transport and the tools stay at the foot, the play button 64 dp.
+ *
+ * [onWatchMusicVideo] ([rememberWatchMusicVideo]) adds "Watch the music video" to the tools when Video mode can play the song's
+ * music video; null leaves the four tools as they are.
  */
 @Composable
 internal fun NowPlayingStack(
@@ -224,6 +231,7 @@ internal fun NowPlayingStack(
     modifier: Modifier = Modifier,
     landscape: Boolean = false,
     panel: (@Composable BoxScope.() -> Unit)? = null,
+    onWatchMusicVideo: (() -> Unit)? = null,
 ) {
     // Back restarts the song once it is a few seconds in; derived, so this scope hears about the playhead once, at that point.
     val pastRestartPoint by remember(position) { derivedStateOf { position.positionMs > BACK_RESTARTS_AFTER_MS } }
@@ -281,7 +289,7 @@ internal fun NowPlayingStack(
             shuffleEnabled = shuffleEnabled, onToggleShuffle = onToggleShuffle, repeatMode = repeatMode, onCycleRepeat = onCycleRepeat,
             playSize = if (landscape) LandscapeMetrics.PLAY_BUTTON_DP.dp else 80.dp,
         )
-        Tools(lyricsOpen, onToggleLyrics, onOpenOutput, onTogether, queueOpen, onToggleQueue)
+        Tools(lyricsOpen, onToggleLyrics, onOpenOutput, onTogether, queueOpen, onToggleQueue, onWatchMusicVideo)
     }
 }
 
@@ -507,6 +515,9 @@ private fun Transport(
  * Lyrics, output, Listen Together and the queue (`.np2-tools`), 14 dp under the transport, 40 dp plain buttons. Lyrics and the
  * queue are toggles. At rest the icons are in secondary ink, as the board draws them (`.np2-tools .ib { color: var(--c-text-2) }`);
  * a tool that is on keeps the toggle's own ink (`.ib.is-on`). Portrait and landscape both draw this row.
+ *
+ * With [onWatchMusicVideo] a fifth tool, "Watch the music video" (Video mode's link, spec section 9), stands between Listen
+ * Together and the queue, so the two panel toggles keep the ends of the row; it rests like the others.
  */
 @Composable
 private fun Tools(
@@ -516,6 +527,7 @@ private fun Tools(
     onTogether: () -> Unit,
     queueOpen: Boolean,
     onToggleQueue: () -> Unit,
+    onWatchMusicVideo: (() -> Unit)?,
 ) {
     val resting = Color(LocalCosmoColors.current.palette.textSecondary)
     Row(
@@ -526,6 +538,23 @@ private fun Tools(
         CosmoIconButton(CosmoIcons.Lyrics, stringResource(Res.string.open_lyrics), onToggleLyrics, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, on = lyricsOpen, tint = resting)
         CosmoIconButton(CosmoIcons.Devices, stringResource(Res.string.audio_output), onOpenOutput, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, tint = resting)
         CosmoIconButton(CosmoIcons.Together, stringResource(Res.string.listen_together), onTogether, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, tint = resting)
+        if (onWatchMusicVideo != null) {
+            CosmoIconButton(CosmoIcons.Video, stringResource(Res.string.cosmo_watch_music_video), onWatchMusicVideo, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, tint = resting)
+        }
         CosmoIconButton(CosmoIcons.Queue, stringResource(Res.string.queue), onToggleQueue, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, on = queueOpen, tint = resting)
+    }
+}
+
+/**
+ * The action of "Watch the music video" for the song that plays, or null when the tool is not drawn ([musicVideoLink]): Video mode
+ * is available (its host provides [LocalModeLinks]), and [canvas] is a music video that OpenCanvas found and that follows the song
+ * (an id and a map). Decided once per canvas; the playhead is read when the tool is pressed, so the video opens at the song's moment
+ * then and nothing here recomposes with the position.
+ */
+@Composable
+internal fun rememberWatchMusicVideo(song: Song, canvas: CanvasArtwork?, position: PlaybackPosition): (() -> Unit)? {
+    val links = LocalModeLinks.current
+    return remember(links, canvas, song.title, song.artist, position) {
+        musicVideoLink(links, canvas, song.title, song.artist) { position.positionMs }
     }
 }
