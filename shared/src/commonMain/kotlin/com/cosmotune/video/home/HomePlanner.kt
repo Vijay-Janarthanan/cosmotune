@@ -73,20 +73,20 @@ object HomePlanner {
     /**
      * "Up next for you": the related videos of the last three distinct videos in [lastWatched] ([related] holds a watched video's
      * related list by its id), taken one from each in turn, minus every video that is in [history] (watched, or started), minus
-     * the repeats, minus the Shorts while [hideShorts], at most [FOR_YOU_MAX]. Channels and playlists in a related list are not
-     * videos and are left out. A watched video with no related list yet gives nothing; the others carry on.
+     * the repeats, minus every Short (Shorts are shown only in the Shorts shelf and the pager, whether they are shown or hidden),
+     * at most [FOR_YOU_MAX]. Channels and playlists in a related list are not videos and are left out. A watched video with no
+     * related list yet gives nothing; the others carry on.
      */
     fun forYou(
         lastWatched: List<HistoryEntry>,
         related: Map<String, List<ListItem>>,
         history: List<HistoryEntry>,
-        hideShorts: Boolean,
     ): List<VideoItem> {
         val seen = HashSet<String>(history.size * 2)
         for (entry in history) seen.add(entry.item.id)
         val lists = recentWatches(lastWatched).map { watched ->
             related[watched.item.id].orEmpty().mapNotNull { (it as? ListItem.Video)?.item }
-                .filter { it.id !in seen && ShortsFilter.keep(it, hideShorts) }
+                .filter { it.id !in seen && !ShortsFilter.isShort(it) }
         }
         return interleave(lists, FOR_YOU_MAX)
     }
@@ -128,10 +128,10 @@ object HomePlanner {
 
     /**
      * "From your subscriptions": the [SUBSCRIPTIONS_MAX] newest of [feed] (newest first; an item with no date comes last), a video
-     * once, without the Shorts while [hideShorts].
+     * once, without its Shorts (they go to the Shorts shelf, whether Shorts are shown or hidden).
      */
-    fun subscriptionsShelf(feed: List<VideoItem>, hideShorts: Boolean): List<VideoItem> =
-        newestFirst(feed.filter { ShortsFilter.keep(it, hideShorts) }).distinctBy { it.id }.take(SUBSCRIPTIONS_MAX)
+    fun subscriptionsShelf(feed: List<VideoItem>): List<VideoItem> =
+        newestFirst(feed.filterNot(ShortsFilter::isShort)).distinctBy { it.id }.take(SUBSCRIPTIONS_MAX)
 
     /**
      * The shelves to draw above the kiosk, top to bottom, from which ones have something to show: Continue watching, From your

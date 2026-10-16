@@ -61,7 +61,7 @@ class HomeStructureTest {
         val src = VideoSourceContract.read("shared/src/commonMain/kotlin/com/cosmotune/video/home/HomePlanner.kt")
         assertEquals(listOf("history: List<HistoryEntry>"), VideoSourceContract.parameters(src, "continueWatching"))
         assertEquals(
-            listOf("lastWatched: List<HistoryEntry>", "related: Map<String, List<ListItem>>", "history: List<HistoryEntry>", "hideShorts: Boolean"),
+            listOf("lastWatched: List<HistoryEntry>", "related: Map<String, List<ListItem>>", "history: List<HistoryEntry>"),   // Y-34: Shorts always left out, no switch
             VideoSourceContract.parameters(src, "forYou"),
         )
         assertEquals(
@@ -97,8 +97,8 @@ class HomeStructureTest {
         for (key in listOf("video_shelf_continue", "video_shelf_subscriptions", "video_shelf_for_you", "video_shorts")) {
             assertTrue("Res.string.$key" in screen, "the shelf title is the string $key")
         }
-        assertTrue("HomePlanner.continueWatching(history)" in screen && "HomePlanner.subscriptionsShelf(feedItems, hideShorts)" in screen)
-        assertTrue("HomePlanner.forYou(recent, related, history, hideShorts)" in screen && "HomePlanner.shorts(feedItems, fromRelated, model.items)" in screen)
+        assertTrue("HomePlanner.continueWatching(history)" in screen && "HomePlanner.subscriptionsShelf(feedItems)" in screen)
+        assertTrue("HomePlanner.forYou(recent, related, history)" in screen && "HomePlanner.shorts(feedItems, fromRelated, model.items)" in screen)
         assertTrue("source.details(id).related" in code("HomeKiosk"), "Up next for you reads the related list of the videos watched")
         assertTrue("watchedFraction(entry.positionMs, entry.durationMs)" in screen && "watched = continueWatched" in screen, "Continue watching has the watched bars")
     }

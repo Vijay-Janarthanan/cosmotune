@@ -129,58 +129,58 @@ class HomePlannerTest {
 
     @Test fun forYouTakesOneFromEachWatchedVideoInTurn() {
         val relatedByVideo = mapOf("wa" to related(a1, a2, a3), "wb" to related(b1, b2), "wc" to related(c1, c2, c3))
-        val picked = HomePlanner.forYou(listOf(watchedC, watchedA, watchedB), relatedByVideo, listOf(watchedA, watchedB, watchedC), hideShorts = false)
+        val picked = HomePlanner.forYou(listOf(watchedC, watchedA, watchedB), relatedByVideo, listOf(watchedA, watchedB, watchedC))
         assertEquals(listOf("a1", "b1", "c1", "a2", "b2", "c2", "a3", "c3"), ids(picked))
     }
 
     @Test fun forYouUsesOnlyTheLastThreeDistinctWatches() {
         val fourth = entry("wd", lastWatchedMs = 50)
         val relatedByVideo = mapOf("wa" to related(a1), "wb" to related(b1), "wc" to related(c1), "wd" to related(video("d1")))
-        val picked = HomePlanner.forYou(listOf(watchedA, watchedB, watchedC, fourth), relatedByVideo, listOf(watchedA, watchedB, watchedC, fourth), false)
+        val picked = HomePlanner.forYou(listOf(watchedA, watchedB, watchedC, fourth), relatedByVideo, listOf(watchedA, watchedB, watchedC, fourth))
         assertEquals(listOf("a1", "b1", "c1"), ids(picked))
     }
 
     @Test fun forYouLeavesOutAnythingInTheHistory() {
         val relatedByVideo = mapOf("wa" to related(a1, a2), "wb" to related(b1))
         val history = listOf(watchedA, watchedB, entry("a1", positionMs = 1_000), entry("b1", positionMs = 590_000))
-        val picked = HomePlanner.forYou(listOf(watchedA, watchedB), relatedByVideo, history, hideShorts = false)
+        val picked = HomePlanner.forYou(listOf(watchedA, watchedB), relatedByVideo, history)
         assertEquals(listOf("a2"), ids(picked), "a started video and a finished one are both out")
     }
 
     @Test fun forYouShowsAVideoOnlyOnce() {
         val relatedByVideo = mapOf("wa" to related(a1, b1, a2), "wb" to related(b1, b2), "wc" to related(a1, b1, c1))
-        val picked = HomePlanner.forYou(listOf(watchedA, watchedB, watchedC), relatedByVideo, emptyList(), hideShorts = false)
+        val picked = HomePlanner.forYou(listOf(watchedA, watchedB, watchedC), relatedByVideo, emptyList())
         assertEquals(listOf("a1", "b1", "c1", "a2", "b2"), ids(picked))
     }
 
-    @Test fun forYouDropsShortsOnlyWhileTheyAreHidden() {
+    @Test fun forYouAlwaysLeavesShortsOut() {
+        // Y-34: Shorts appear only in the Shorts shelf and the pager, whether Shorts are shown or hidden
         val s = short("s1")
         val relatedByVideo = mapOf("wa" to related(s, a1))
-        assertEquals(listOf("s1", "a1"), ids(HomePlanner.forYou(listOf(watchedA), relatedByVideo, emptyList(), hideShorts = false)))
-        assertEquals(listOf("a1"), ids(HomePlanner.forYou(listOf(watchedA), relatedByVideo, emptyList(), hideShorts = true)))
+        assertEquals(listOf("a1"), ids(HomePlanner.forYou(listOf(watchedA), relatedByVideo, emptyList())))
     }
 
     @Test fun forYouKeepsOnlyVideosOfTheRelatedLists() {
         val channel = ListItem.Channel(ChannelItem("UCfakechannel0000000002", "Another", null, null, null, null))
         val playlist = ListItem.Playlist(PlaylistItem("PLfake", "A playlist", null, null, null, 3))
         val relatedByVideo = mapOf("wa" to listOf(channel, ListItem.Video(a1), playlist, ListItem.Video(a2)))
-        assertEquals(listOf("a1", "a2"), ids(HomePlanner.forYou(listOf(watchedA), relatedByVideo, emptyList(), false)))
+        assertEquals(listOf("a1", "a2"), ids(HomePlanner.forYou(listOf(watchedA), relatedByVideo, emptyList())))
     }
 
     @Test fun forYouCarriesOnWhenOneWatchHasNoRelatedVideosYet() {
         val relatedByVideo = mapOf("wb" to related(b1, b2))
-        assertEquals(listOf("b1", "b2"), ids(HomePlanner.forYou(listOf(watchedA, watchedB, watchedC), relatedByVideo, emptyList(), false)))
+        assertEquals(listOf("b1", "b2"), ids(HomePlanner.forYou(listOf(watchedA, watchedB, watchedC), relatedByVideo, emptyList())))
     }
 
     @Test fun forYouHoldsAtMostTwelve() {
         val many = (1..20).map { video("m$it") }
-        val picked = HomePlanner.forYou(listOf(watchedA), mapOf("wa" to related(*many.toTypedArray())), emptyList(), false)
+        val picked = HomePlanner.forYou(listOf(watchedA), mapOf("wa" to related(*many.toTypedArray())), emptyList())
         assertEquals((1..12).map { "m$it" }, ids(picked))
     }
 
     @Test fun forYouOfNothingIsNothing() {
-        assertTrue(HomePlanner.forYou(emptyList(), emptyMap(), emptyList(), false).isEmpty())
-        assertTrue(HomePlanner.forYou(listOf(watchedA), emptyMap(), emptyList(), false).isEmpty())
+        assertTrue(HomePlanner.forYou(emptyList(), emptyMap(), emptyList()).isEmpty())
+        assertTrue(HomePlanner.forYou(listOf(watchedA), emptyMap(), emptyList()).isEmpty())
     }
 
     // ---- shorts -----------------------------------------------------------------------------------------------------------
@@ -228,23 +228,23 @@ class HomePlannerTest {
 
     @Test fun theSubscriptionsShelfHoldsTheTenNewestFeedItems() {
         val feed = (1..14).map { video("f$it", uploadedAtMs = 10_000L - it) }
-        assertEquals((1..10).map { "f$it" }, ids(HomePlanner.subscriptionsShelf(feed, hideShorts = false)))
+        assertEquals((1..10).map { "f$it" }, ids(HomePlanner.subscriptionsShelf(feed)))
     }
 
     @Test fun theSubscriptionsShelfIsNewestFirstWithTheUndatedLast() {
         val feed = listOf(video("old", uploadedAtMs = 100), video("undated"), video("new", uploadedAtMs = 900))
-        assertEquals(listOf("new", "old", "undated"), ids(HomePlanner.subscriptionsShelf(feed, hideShorts = false)))
+        assertEquals(listOf("new", "old", "undated"), ids(HomePlanner.subscriptionsShelf(feed)))
     }
 
-    @Test fun theSubscriptionsShelfDropsShortsOnlyWhileTheyAreHidden() {
+    @Test fun theSubscriptionsShelfAlwaysLeavesShortsOut() {
+        // Y-34: the feed's Shorts go to the Shorts shelf, never to this one
         val feed = listOf(video("v1", uploadedAtMs = 900), short("s1", 800), video("v2", uploadedAtMs = 700))
-        assertEquals(listOf("v1", "s1", "v2"), ids(HomePlanner.subscriptionsShelf(feed, hideShorts = false)))
-        assertEquals(listOf("v1", "v2"), ids(HomePlanner.subscriptionsShelf(feed, hideShorts = true)))
+        assertEquals(listOf("v1", "v2"), ids(HomePlanner.subscriptionsShelf(feed)))
     }
 
     @Test fun theSubscriptionsShelfShowsAVideoOnce() {
         val feed = listOf(video("v1", uploadedAtMs = 900), video("v1", uploadedAtMs = 900), video("v2", uploadedAtMs = 100))
-        assertEquals(listOf("v1", "v2"), ids(HomePlanner.subscriptionsShelf(feed, hideShorts = false)))
+        assertEquals(listOf("v1", "v2"), ids(HomePlanner.subscriptionsShelf(feed)))
     }
 
     // ---- the order of the shelves -----------------------------------------------------------------------------------------

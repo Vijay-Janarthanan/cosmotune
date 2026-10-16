@@ -111,8 +111,8 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     LaunchedEffect(model, recentIds) { model.loadRelated(recentIds) }
 
     val related = model.related
-    val subscriptionsShelf = remember(feedItems, hideShorts) { HomePlanner.subscriptionsShelf(feedItems, hideShorts) }
-    val forYou = remember(recent, related, history, hideShorts) { HomePlanner.forYou(recent, related, history, hideShorts) }
+    val subscriptionsShelf = remember(feedItems) { HomePlanner.subscriptionsShelf(feedItems) }
+    val forYou = remember(recent, related, history) { HomePlanner.forYou(recent, related, history) }
     val kioskItems = remember(model.items, hideShorts) { ShortsFilter.filter(model.items, hideShorts) { it } }
     val shorts = remember(feedItems, related, recentIds, model.items, hideShorts) {
         if (hideShorts) {
