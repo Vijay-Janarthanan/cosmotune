@@ -30,6 +30,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -67,7 +68,6 @@ import com.cosmotune.video.segments.Votes
 import com.cosmotune.video.segments.VotesProvider
 import com.cosmotune.video.select.ShortsFilter
 import com.cosmotune.video.settings.VideoSettings
-import com.cosmotune.video.source.VideoSource
 import com.cosmotune.video.ui.actions.VideoActionHandler
 import com.cosmotune.video.ui.actions.rememberDownloadedIds
 import com.cosmotune.video.ui.actions.rememberVideoActions
@@ -193,7 +193,7 @@ fun WatchPage(route: VideoRoute.Watch, contentPadding: PaddingValues, wide: Bool
  * What both layouts show (one value per recomposition): [info] (null while nothing is known of the video yet: [loading] draws the
  * shimmer), the [title] as shown and the [originalTitle] DeArrow replaced, the [description] (null when empty: a download keeps
  * none), the [chapters], the [related] videos (Shorts left out with "Hide Shorts"; none offline), whether the page is [offline] (a
- * download playing and the source out of reach: no related videos, comments or dislike count, spec 5.4 "Offline"), [autoplay] and
+ * download playing from its bundle: no related videos, comments or dislike count, and no source call, spec 5.4 "Offline"), [autoplay] and
  * whether the comments show.
  */
 @Immutable
@@ -215,12 +215,10 @@ internal data class WatchView(
 private fun rememberWatchView(videoId: String, state: PlaybackUiState, settings: VideoSettings): WatchView {
     val graph = LocalVideoGraph.current
     val own = state.details?.takeIf { it.item.id == videoId }
-    // A download plays with a stand-in for the details (no description, no related videos): the page asks the source once for the
-    // real ones, which come back when the network does (spec 5.4 "Offline").
-    val standIn = own != null && WatchRules.isOfflineStandIn(own)
-    val fetched by produceState<VideoDetails?>(null, videoId, standIn) { value = if (standIn) detailsOrNull(graph.source, videoId) else null }
-    val details = if (standIn) fetched ?: own else own
-    val offline = standIn && fetched == null
+    // A download plays with a stand-in for the details (no description, no related videos): the page is offline then and calls
+    // nothing of the source for it (spec 5.4 "Offline"; the video is already the playback's, from its local bundle).
+    val offline = own != null && WatchRules.isOfflineStandIn(own)
+    val details = own
     val item = details?.item ?: state.item?.takeIf { it.id == videoId }
     val votes by produceState<Votes?>(null, videoId, settings.dislikes, offline) {
         value = if (settings.dislikes && !offline) votesOrNull(graph.votes, videoId) else null
@@ -230,7 +228,7 @@ private fun rememberWatchView(videoId: String, state: PlaybackUiState, settings:
     val downloadedLabel by rememberDownloadedLabel(graph.downloads, videoId)
     val title = if (item != null) rememberVideoTitle(item) else ""
     val related = remember(details?.related, settings.hideShorts) { WatchRules.relatedVideos(details, settings.hideShorts) }
-    val chapters = own?.chapters?.takeIf { it.isNotEmpty() } ?: details?.chapters.orEmpty()
+    val chapters = details?.chapters.orEmpty()
     val info = item?.let {
         WatchInfo(
             item = it,
@@ -269,14 +267,6 @@ private fun rememberDownloadedLabel(downloads: DownloadController, videoId: Stri
         downloads.downloads.value.firstOrNull { it.item.id == videoId && it.state is DownloadState.Done }?.choice?.label
     }
     return flow.collectAsState(initial)
-}
-
-private suspend fun detailsOrNull(source: VideoSource, videoId: String): VideoDetails? = try {
-    source.details(videoId)
-} catch (e: CancellationException) {
-    throw e
-} catch (e: Throwable) {
-    null
 }
 
 private suspend fun votesOrNull(votes: VotesProvider, videoId: String): Votes? = try {
@@ -450,7 +440,12 @@ private fun WatchPagePhone(
             )
         }
         if (commentsOpen && view.commentsShown) {
-            CommentsPanel(videoId = view.videoId, sheet = true, onDismiss = { commentsOpen = false }, modifier = panel.fillMaxSize())
+            CommentsPanel(
+                videoId = view.videoId,
+                sheet = true,
+                onDismiss = { commentsOpen = false },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(top = top, bottom = contentPadding.calculateBottomPadding()),
+            )
         }
     }
 }

@@ -351,7 +351,20 @@ class WatchStructureTest {
         val wide = flat(file("WatchPageWide"))
         assertTrue("CommentsPanel( videoId = view.videoId, sheet = false," in wide)
         assertTrue("CosmoSegmented(options = labels, selectedIndex = selected" in wide)
-        assertTrue("CommentsPanel(videoId = view.videoId, sheet = true," in flat(file("WatchPage")), "the phone's sheet under the player")
+        val page = flat(file("WatchPage"))
+        assertTrue("CommentsPanel( videoId = view.videoId, sheet = true, onDismiss = { commentsOpen = false }, modifier = Modifier.align(Alignment.BottomCenter).padding(top = top," in page, "the phone's sheet under the player, removed on dismiss")
+        val phone = VideoSourceContract.code(VideoSourceContract.functionBody(file("WatchPage"), "WatchPagePhone"))
+        assertTrue(phone.indexOf("VideoBackHandler(") in 0 until phone.indexOf("CommentsPanel("), "the page's Back is registered before the panel's, so the replies level goes first")
+    }
+
+    @Test fun aDownloadPlayingFromItsBundleIsNotReloadedFromTheSource() {
+        val page = VideoSourceContract.code(file("WatchPage"))
+        assertFalse("graph.source" in page || ".details(" in page, "the page asks the source nothing: the controller loads, the page only reads its state")
+        // the playLocal-then-push of the Downloads page finds the video on: Keep, no play
+        assertEquals(WatchEntry.Keep, WatchRules.entry(VideoRoute.Watch(video.id), currentId = video.id, currentShort = false, lastRoute = null))
+        // Music's link with a start time: played from it, or a seek when the video is on
+        assertEquals(WatchEntry.Seek(61_000), WatchRules.entry(VideoRoute.Watch(video.id, 61_000), video.id, false, null))
+        assertTrue("WatchEntry.Play -> playback.play(route.videoId, route.startMs)" in flat(file("WatchPage")))
     }
 
     @Test fun theNumbersAreTheSpecs() {
