@@ -12,7 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
  * details, the engine's status and error, the quality ladder and choice, audio tracks, subtitles, SponsorBlock's
  * segments and its pending skip, last skip and muted segment, the queue, autoplay, loop, live, the aspect ratio
  * (width / height), audio-only, muted, and whether a Short is playing ([short], spec 5.15). The position is not here: it
- * is read with [VideoPlayback.positionMs] in draw-phase code.
+ * is read with [VideoPlayback.positionMs] in draw-phase code. [queue] is the items after the current one; [status] stays
+ * [PlayerStatus.ENDED] when a video ends and nothing is next.
  */
 data class PlaybackUiState(
     val item: VideoItem?,
@@ -135,6 +136,20 @@ interface VideoPlayback {
     /** Stops and records the position (spec 6.1). */
     fun stop()
 
-    /** Plays a download from its files (offline: no details fetch; segments only when online). */
-    fun playLocal(item: VideoItem, files: MediaInput.LocalFiles, startMs: Long? = null)
+    /**
+     * Plays a download from its [bundle] (spec 5.4 "Offline", 6.1): the files, with the subtitles, the chapters and the
+     * SponsorBlock segments saved with them. No source call is made: the state's `details` is a stand-in made of the item and
+     * the bundle's chapters and subtitles (no description, no related videos), `segments` are the bundle's (for the
+     * categories the settings still enable), and history is written as for any video. Nothing plays on after it ends but the
+     * queue (a downloaded video has no related list). [startMs] wins over the history position, as for [play].
+     *
+     * What screens must know of the state, here and for every video: `queue` is the items after the current one (not the
+     * whole list; Previous works from a trail the controller keeps); when a video ends and nothing is next (no loop, no
+     * queue, no autoplay pick) the state stays `ENDED` so a page can offer "Replay", and the engine is unloaded; a Short that
+     * was paused because the UI left stays paused until the pager plays it again.
+     */
+    fun playLocal(item: VideoItem, bundle: LocalBundle, startMs: Long? = null)
+
+    /** Plays a download that has only its [files]: [playLocal] with a bundle of no subtitles, chapters or segments. */
+    fun playLocal(item: VideoItem, files: MediaInput.LocalFiles, startMs: Long? = null) = playLocal(item, LocalBundle(files), startMs)
 }

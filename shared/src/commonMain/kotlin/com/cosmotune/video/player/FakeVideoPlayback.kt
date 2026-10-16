@@ -148,12 +148,14 @@ class FakeVideoPlayback(
     override fun stop() {
         record("stop()")
         position = 0
+        engine.unload()
         flow.value = PlaybackUiState.Idle
     }
 
-    override fun playLocal(item: VideoItem, files: MediaInput.LocalFiles, startMs: Long?) {
+    override fun playLocal(item: VideoItem, bundle: LocalBundle, startMs: Long?) {
         record("playLocal(${item.id})")
         show(item, startMs, short = false)
+        flow.update { it.copy(segments = bundle.segments) }
     }
 
     private fun show(item: VideoItem, startMs: Long?, short: Boolean) {
