@@ -185,7 +185,16 @@ class VideoPlayerController(
     // ------------------------------------------------------------------ opening a video
 
     @Synchronized
-    override fun play(videoId: String, startMs: Long?, queue: List<VideoItem>, short: Boolean) {
+    override fun play(videoId: String, startMs: Long?, queue: List<VideoItem>, short: Boolean) =
+        open(videoId, startMs, queue, short, known = null)
+
+    /** A card's item is known before the source answers: a premiere still ahead goes to its upcoming state with no fetch. */
+    @Synchronized
+    override fun play(item: VideoItem, startMs: Long?, queue: List<VideoItem>, short: Boolean) =
+        open(item.id, startMs, queue, short, known = item)
+
+    @Synchronized
+    private fun open(videoId: String, startMs: Long?, queue: List<VideoItem>, short: Boolean, known: VideoItem?) {
         val current = load
         if (current != null && current.videoId == videoId && current.local == null && current.short == short &&
             current.error == null && !hasEnded(current)
@@ -206,7 +215,7 @@ class VideoPlayerController(
                 else -> queueState
             }
         }
-        begin(videoId, startMs, short, local = null, known = null)
+        begin(videoId, startMs, short, local = null, known = known)
     }
 
     @Synchronized
