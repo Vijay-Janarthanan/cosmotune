@@ -415,4 +415,7 @@
     <string name="video_time_toggle">Switch between the time played and the time left</string>
     <!-- Shared actions (Y-16) -->
     <string name="video_link_copied">Link copied</string>
+    <!-- Comments panel (Y-23) -->
+    <string name="video_comments_empty">No comments yet</string>
+    <string name="video_comments_error">Could not load the comments</string>
 </resources>
