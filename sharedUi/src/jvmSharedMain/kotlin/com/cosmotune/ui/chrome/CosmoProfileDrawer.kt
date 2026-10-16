@@ -153,7 +153,7 @@ data class CosmoDrawerEntry(val icon: ImageVector, val label: String, val aside:
  * Inside, top to bottom: the head (avatar, [name], [subtitle]; a tap is [onAccount], or nothing while that is null), the
  * mode switch, the [entries] and the foot with the logo and the "not affiliated" line. The switch shows the stored mode
  * ([com.cosmotune.settings.CosmoLookSettings.mode]); a mode that works ([AppModes]) is stored when it is tapped and the drawer closes,
- * and a mode that does not (Video until it ships, and Library) carries a "Later" tag, stays unselected and opens a card that says
+ * and a mode that does not (Library) carries a "Later" tag, stays unselected and opens a card that says
  * when it comes.
  *
  * It slides in over 280 ms and out over 200 ms (reduced motion: a 150 ms fade) and stays composed until the exit has run.
