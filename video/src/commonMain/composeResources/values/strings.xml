@@ -415,4 +415,7 @@
     <string name="video_time_toggle">Switch between the time played and the time left</string>
     <!-- Shared actions (Y-16) -->
     <string name="video_link_copied">Link copied</string>
+    <!-- Subscriptions (Y-21) -->
+    <string name="video_feed_updated_now">Updated just now</string>
+    <string name="video_feed_refresh">Refresh</string>
 </resources>
