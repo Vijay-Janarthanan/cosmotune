@@ -146,7 +146,8 @@ private fun ShortsHeading(header: @Composable () -> Unit) {
  * A grid of Shorts (spec 5.0: a channel's Shorts tab, the search's Shorts filter). On the phone 3 columns 4 dp apart inside the 16 dp
  * page margin (106 x 188 at 360 dp, radius 16); when [wide], [VideoMetrics.shortsGridColumns] of the width (3 to 8) 12 dp apart inside
  * the desktop's 28 dp margin. [onOpen] opens a card; [onLoadMore] is called when the last visible card is within three rows of the
- * end; [contentPadding] is the page's (its sides add to the margin). Cards are keyed by video id; a hold or right click opens the
+ * end. [contentPadding] is the page's: as the grids of Video mode do, the page gives the side margin in it (the search page does);
+ * when it gives no sides at all, the grid keeps the margin itself. Cards are keyed by video id; a hold or right click opens the
  * video sheet here.
  */
 @Composable
@@ -167,8 +168,9 @@ fun ShortsGrid(
     val state = rememberLazyGridState()
     BoxWithConstraints(modifier) {
         val layout = ShortsGridLayout.of(maxWidth.value, wide)
-        val start = layout.sideDp.dp + contentPadding.calculateStartPadding(direction)
-        val end = layout.sideDp.dp + contentPadding.calculateEndPadding(direction)
+        val noSides = layout.keepsMargin(contentPadding.calculateStartPadding(direction).value, contentPadding.calculateEndPadding(direction).value)
+        val start = if (noSides) layout.sideDp.dp else contentPadding.calculateStartPadding(direction)
+        val end = if (noSides) layout.sideDp.dp else contentPadding.calculateEndPadding(direction)
         val cardWidth = layout.cardWidthDp((maxWidth - start - end).value).dp
         LaunchedEffect(state, items.size, layout.columns) {
             snapshotFlow { (state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) >= items.size - LOAD_MORE_ROWS * layout.columns }
@@ -212,6 +214,9 @@ fun ShortsGrid(
  */
 internal data class ShortsGridLayout(val columns: Int, val gapDp: Float, val sideDp: Float) {
     fun cardWidthDp(contentWidthDp: Float): Float = (contentWidthDp - (columns - 1) * gapDp) / columns
+
+    /** Whether the grid keeps the side margin ([sideDp]) itself: the page's padding gives no sides ([startDp], [endDp]) at all. */
+    fun keepsMargin(startDp: Float, endDp: Float): Boolean = startDp <= 0f && endDp <= 0f
 
     companion object {
         /** The phone's grid, or the wide one ([VideoMetrics.shortsGridColumns]) for a page [widthDp] wide when [wide]. */

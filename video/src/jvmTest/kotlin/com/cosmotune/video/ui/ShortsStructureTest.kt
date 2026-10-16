@@ -442,6 +442,12 @@ class ShortsStructureTest {
         assertEquals(12f, desk.gapDp)
         assertEquals(28f, desk.sideDp)
         assertEquals(3, ShortsGridLayout.of(600f, wide = true).columns, "a narrow wide page keeps three columns")
+        // the page gives the side margin in its padding (the search page does); a padding with no sides leaves it to the grid
+        assertTrue(phone.keepsMargin(0f, 0f))
+        assertFalse(phone.keepsMargin(16f, 16f))
+        assertFalse(desk.keepsMargin(28f, 0f))
+        val grid = VideoSourceContract.code(shorts("ShortsStubs"))
+        assertTrue("val start = if (noSides) layout.sideDp.dp else contentPadding.calculateStartPadding(direction)" in grid)
     }
 
     // ---- Helpers ---------------------------------------------------------------------------------------------------------------
