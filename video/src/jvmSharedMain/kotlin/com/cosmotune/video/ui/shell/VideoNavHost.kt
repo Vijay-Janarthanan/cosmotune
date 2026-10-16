@@ -76,7 +76,7 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
 
                 is VideoRoute.Watch -> com.cosmotune.video.ui.watch.WatchPage(r, contentPadding, wide)
 
-                is VideoRoute.Shorts -> VideoPlaceholder(r)   // Y-31 replaces this line
+                is VideoRoute.Shorts -> com.cosmotune.video.ui.shorts.ShortsScreen(r, contentPadding, wide)
 
                 is VideoRoute.Channel -> VideoPlaceholder(r)   // Y-20 replaces this line
 

@@ -27,7 +27,7 @@ import com.cosmotune.video.segments.SponsorBlockClient
 import com.cosmotune.video.segments.WebServicesHttp
 import com.cosmotune.video.select.StreamSelector
 import com.cosmotune.video.settings.VideoSettingsStore
-import com.cosmotune.video.shorts.FakeShortsFeed
+import com.cosmotune.video.shorts.ShortsQueueEngine
 import com.cosmotune.video.source.newpipe.NewPipeVideoSource
 import com.cosmotune.video.ui.VideoHostLinks
 import kotlinx.coroutines.CoroutineScope
@@ -96,7 +96,7 @@ private object AndroidVideoProcess {
 
         val music = HostMusicBridge(relay.links)   // Y-16 replaces this line (the host's bridge: it stays)
 
-        val shorts = FakeShortsFeed()   // Y-31 replaces this line
+        val shorts = ShortsQueueEngine(source, feed, library, settings)
 
         wire(application, library, settings, source, playback)
         return VideoGraph(
