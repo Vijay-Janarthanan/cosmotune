@@ -94,7 +94,7 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
 
                 is VideoRoute.Channels -> VideoPlaceholder(r)   // Y-22 replaces this line
 
-                is VideoRoute.Downloads -> VideoPlaceholder(r)   // Y-33 replaces this line
+                is VideoRoute.Downloads -> com.cosmotune.video.ui.downloads.DownloadsPage(contentPadding, wide)   // Y-33: the Downloads page
 
                 is VideoRoute.Settings -> com.cosmotune.video.ui.settings.VideoSettingsPage(contentPadding, wide)
 
