@@ -418,4 +418,7 @@
     <!-- Comments panel (Y-23) -->
     <string name="video_comments_empty">No comments yet</string>
     <string name="video_comments_error">Could not load the comments</string>
+    <!-- Subscriptions (Y-21) -->
+    <string name="video_feed_updated_now">Updated just now</string>
+    <string name="video_feed_refresh">Refresh</string>
 </resources>
