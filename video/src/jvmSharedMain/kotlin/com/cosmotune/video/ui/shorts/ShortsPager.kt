@@ -47,6 +47,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.AsyncImage
 import com.cosmotune.design.TypeScale
 import com.cosmotune.ui.components.CosmoButton
@@ -88,7 +91,6 @@ import com.cosmotune.video.ui.player.errorMessage
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.VideoBackHandler
 import com.music.bitchord.ui.components.FLOATING_BAR_MAX_WIDTH
-import com.music.bitchord.ui.rememberIsForeground
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -686,8 +688,19 @@ private fun ShortsPhonePager(route: VideoRoute.Shorts, queue: ShortsQueue, contr
     val startPage = remember(queue) { queue.indexOf(route.startVideoId) }
     val pagerState = rememberPagerState(initialPage = startPage) { queue.pageCount }
     DriveShorts(queue, pagerState, controller)
-    val foreground = rememberIsForeground()
-    LaunchedEffect(controller, foreground) { controller.onForeground(foreground) }
+    // Out of sight (stopped, as the watch page counts it) the Short pauses; started again, it plays on.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, controller) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> controller.onForeground(false)
+                Lifecycle.Event.ON_START -> controller.onForeground(true)
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         VerticalPager(
