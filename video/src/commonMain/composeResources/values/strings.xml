@@ -415,6 +415,29 @@
     <string name="video_time_toggle">Switch between the time played and the time left</string>
     <!-- Shared actions (Y-16) -->
     <string name="video_link_copied">Link copied</string>
+    <!-- Video settings (Y-25) -->
+    <string name="video_set_device">Device</string>
+    <string name="video_set_clear_search_confirm">Clear your recent searches on this device?</string>
+    <!-- One-line titles for the rows of Video settings (Y-25): a settings row keeps its title to one line, which these fit beside a switch at 360 dp -->
+    <string name="video_set_resume_short">Resume playback</string>
+    <string name="video_set_background_short">Background play</string>
+    <string name="video_set_pip_when">When you leave the app</string>
+    <string name="video_set_captions_background_short">Text background</string>
+    <string name="video_set_sponsorblock_on_short">Use SponsorBlock</string>
+    <string name="video_set_sponsorblock_bar_short">Segments on the bar</string>
+    <string name="video_set_dearrow_titles_short">Better titles</string>
+    <string name="video_set_dearrow_thumbs_short">Better thumbnails</string>
+    <string name="video_set_dl_ask_short">Ask each time</string>
+    <string name="video_set_dl_battery_short">Pause on low battery</string>
+    <!-- Downloads page (Y-33) -->
+    <string name="video_dl_sort">Sort</string>
+    <string name="video_dl_show_items">Show the videos</string>
+    <string name="video_dl_hide_items">Hide the videos</string>
+    <string name="video_dl_delete_confirm">Delete this download?</string>
+    <string name="video_dl_save_copy_failed">Could not save a copy</string>
+    <!-- Comments panel (Y-23) -->
+    <string name="video_comments_empty">No comments yet</string>
+    <string name="video_comments_error">Could not load the comments</string>
     <!-- Subscriptions (Y-21) -->
     <string name="video_feed_updated_now">Updated just now</string>
     <string name="video_feed_refresh">Refresh</string>
