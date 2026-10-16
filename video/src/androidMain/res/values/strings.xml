@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The name of Video's playback notification channel in the system settings (Android resources: the channel is made by Media3's notification provider). -->
+    <string name="video_notification_channel">Video playback</string>
+</resources>
