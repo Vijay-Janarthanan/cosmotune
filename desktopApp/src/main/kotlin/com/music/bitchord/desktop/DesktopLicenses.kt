@@ -91,7 +91,8 @@ internal object DesktopLicenses {
                     "NewPipeExtractor",
                     "GPL-3.0-or-later",
                     "https://github.com/TeamNewPipe/NewPipeExtractor",
-                    "Stream URL deobfuscation, the same component the Android build uses.",
+                    "Stream URL deobfuscation, the same component the Android build uses. " +
+                        "Video mode also finds its videos, channels, playlists, comments and streams with it.",
                 ),
                 DesktopLicense(
                     "GraalVM JavaScript",
@@ -122,6 +123,42 @@ internal object DesktopLicenses {
                     "Apache-2.0 AND MIT",
                     "https://github.com/jordond/materialkolor",
                     "Picks the main colour of a cover and works in the HCT colour space. Google's code, converted to Kotlin Multiplatform.",
+                ),
+            ),
+        ),
+        DesktopLicenseGroup(
+            "Video mode",
+            listOf(
+                DesktopLicense(
+                    "libmpv",
+                    "LGPL-2.1-or-later (Windows, macOS); GPL-3.0 (Linux)",
+                    "https://mpv.io",
+                    "Plays video. Taken unchanged from the mediamp runtime packages, with the libraries it is built from " +
+                        "(FFmpeg, libass, libplacebo and others, each under its own licence), and loaded as a separate shared library.",
+                ),
+                DesktopLicense(
+                    "mediamp runtime packages",
+                    "Apache-2.0",
+                    "https://github.com/open-ani/mediamp",
+                    "The packages libmpv is taken from (org.openani.mediamp:mediamp-mpv-runtime).",
+                ),
+                DesktopLicense(
+                    "SponsorBlock data",
+                    "CC BY-NC-SA 4.0",
+                    "https://sponsor.ajay.app/",
+                    "Skippable segments, the work of SponsorBlock's contributors. Read over the network; can be switched off in Video settings.",
+                ),
+                DesktopLicense(
+                    "DeArrow data",
+                    "CC BY-NC-SA 4.0",
+                    "https://dearrow.ajay.app/",
+                    "Titles and thumbnails, the work of DeArrow's contributors. Read over the network; can be switched off in Video settings.",
+                ),
+                DesktopLicense(
+                    "Return YouTube Dislike",
+                    "Public API, within its stated limits",
+                    "https://returnyoutubedislike.com/",
+                    "Dislike counts: archived counts and an estimate from its users' votes. Can be switched off in Video settings.",
                 ),
             ),
         ),
