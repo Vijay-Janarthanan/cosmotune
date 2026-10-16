@@ -125,7 +125,7 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
         if (!fullScreen) {
             VideoBottomChrome(navigator, graph.playback, hazeState, capsuleShown, Modifier.align(Alignment.BottomCenter))
         }
-        // Y-27: the first-run notice goes here
+        com.cosmotune.video.ui.notice.FirstRunNoticeLayer()
 
     }
 }

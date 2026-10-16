@@ -40,3 +40,50 @@ variable fonts under the SIL Open Font License, version 1.1, bundled unmodified,
 (https://github.com/google/fonts, `ofl/archivo` and `ofl/hankengrotesk`); they are in `sharedUi/src/commonMain/composeResources/font/`.
 The licence texts are in `licenses/Archivo-OFL.txt` and `licenses/HankenGrotesk-OFL.txt`. The fonts stay under the OFL; they are
 not sold on their own, and the combined program, Cosmotune, is distributed under the GPLv3.
+
+## Video mode
+
+Video mode, the second mode of the profile drawer, reads a video site's public pages without an account and plays what it
+finds. It uses the libraries and the data below.
+
+### NewPipeExtractor
+
+Video mode finds videos, channels, playlists, comments and streams with NewPipeExtractor
+(https://github.com/TeamNewPipe/NewPipeExtractor), version v0.26.3, by the NewPipe team and its contributors. Music already used
+it to find a song's stream; there is one copy of it in the app, and both modes use it. It is licensed GPL-3.0-or-later: the licence
+file is the GNU General Public License, version 3, and the source headers allow version 3 or any later version. It is combined into
+Cosmotune, which is distributed under the GPLv3. Its source is at the address above, at the tag v0.26.3.
+
+### libmpv
+
+The desktop app plays video with libmpv (https://mpv.io/). Cosmotune does not build it: it takes it, unchanged, from the runtime
+packages of the mediamp project (`org.openani.mediamp:mediamp-mpv-runtime-<platform>`, version 0.5.1,
+https://github.com/open-ani/mediamp, Apache-2.0) on Maven Central. In those packages libmpv is LGPL-2.1-or-later on Windows and
+macOS and GPL-3.0 on Linux. They also carry the libraries libmpv is built from (FFmpeg, libass, libplacebo, FreeType, HarfBuzz,
+OpenSSL and others), each under its own licence. The first time a video is played on the desktop the app copies the libraries into
+its cache folder (`<cache>/cosmotune/mpv/<version>/`) and loads libmpv from there as a separate shared library; it is not linked
+into the app's own code. The GPLv3 of Cosmotune allows combining with LGPL-2.1-or-later and GPL-3.0 code.
+
+### SponsorBlock, DeArrow and Return YouTube Dislike
+
+Uses SponsorBlock data from https://sponsor.ajay.app/ under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/).
+The segments are the work of SponsorBlock's contributors; Video mode asks for them with the first four characters of a hash of the
+video id, and skips, mutes or marks what they describe. SponsorBlock is by Ajay Ramachandran.
+
+Uses DeArrow data from https://sponsor.ajay.app/ under CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/). The
+titles and thumbnails (the thumbnails come from https://dearrow-thumb.ajay.app/) are the work of DeArrow's contributors. DeArrow is
+by Ajay Ramachandran; its site is https://dearrow.ajay.app/.
+
+Dislike counts come from Return YouTube Dislike (https://returnyoutubedislike.com/): archived counts and an estimate made from the
+votes of its users, read from its public API (https://returnyoutubedislikeapi.com/) within the limits it states.
+
+CC BY-NC-SA 4.0 lets the data be shared with credit, for non-commercial use, under the same licence. Cosmotune is free and shows
+no ads. The data is not code and is not combined into the program: it is read over the network and shown. Video settings credit the
+three services, and each of them can be switched off there; Video mode works without them.
+
+### Test files
+
+Video mode's importer tests read the files in `shared/src/jvmTest/resources/video/importers/`, which were written for Cosmotune.
+One optional test, `ThirdPartyFixturesTest`, also reads the files that NewPipe and NewPipeExtractor keep for their own tests
+(GPL-3.0, by the NewPipe team and its contributors); those files are not part of this repository. A copy placed in
+`shared/src/jvmTest/resources/video/importers/` stays under GPL-3.0, with its authors' notices, as Cosmotune is.
