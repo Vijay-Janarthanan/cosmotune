@@ -3,6 +3,7 @@ package com.cosmotune.video.host
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
@@ -13,6 +14,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.design.AppMode
 import com.cosmotune.design.AppModes
+import com.cosmotune.settings.CosmoLookSettings
+import com.cosmotune.ui.modes.LocalModeLinks
+import com.cosmotune.ui.modes.ModeLinks
 import com.cosmotune.ui.theme.CosmoShellState
 import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.video.ui.CosmoVideoApp
@@ -41,6 +45,10 @@ import com.music.bitchord.playback.MusicLink
  * Links that other apps hand to the activity ([MusicLink]) are served inside Music's composition. While Video is on screen a link to
  * one video is Video's (it opens the watch page); any other (an album, an artist, a search, "play music") switches the mode to Music so that
  * Music serves it.
+ *
+ * Music's own way into Video, "Watch the music video" in its Now Playing (spec section 9), reads [LocalModeLinks], which this host
+ * provides around both slots only while Video is available and the new look is on ([phoneModeLinks]); otherwise Music sees null
+ * and draws no such tool.
  */
 @Composable
 fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Unit) {
@@ -53,9 +61,14 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     val holder = rememberSaveableStateHolder()
     // A video that Music asked for ("Watch the music video", Y-26 sets it); Video opens it first.
     val asked = remember { mutableStateOf<PendingVideo?>(null) }
-    // The same call tree whether the new look is on or off: the look switch must not rebuild Music's root (part one, D2).
-    if (videoShell == null) holder.SaveableStateProvider("music") { music() }
-    else holder.SaveableStateProvider("video") { PhoneVideo(videoShell, windowWidth, windowHeight, asked) }
+    // Music's way into Video: no shell (the look off) or Video not available, no links. One identity per shell, so the static local
+    // changes only when the look does.
+    val links = remember(shell, asked) { shell?.let { phoneModeLinks(it.settings, asked) } }
+    CompositionLocalProvider(LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) }) {
+        // The same call tree whether the new look is on or off: the look switch must not rebuild Music's root (part one, D2).
+        if (videoShell == null) holder.SaveableStateProvider("music") { music() }
+        else holder.SaveableStateProvider("video") { PhoneVideo(videoShell, windowWidth, windowHeight, asked) }
+    }
 }
 
 /** Video's screen with the phone's links, and the routing of the links that arrive while it is on screen. */
@@ -91,6 +104,18 @@ private fun rememberPhoneLinks(shell: CosmoShellState, asked: MutableState<Pendi
             onPendingHandled = { if (asked.value != null) asked.value = null else MusicLink.handled() },
         )
     }
+
+/**
+ * Music's way into Video on the phone (spec section 9): "Watch the music video" keeps the video and its moment in [asked], which
+ * [rememberPhoneLinks] hands to Video first, then makes Video the mode, so Video opens the watch page as it appears. Music is left
+ * playing: the video takes audio focus when it starts, and the platform pauses Music then (W2).
+ */
+internal fun phoneModeLinks(settings: CosmoLookSettings, asked: MutableState<PendingVideo?>): ModeLinks = object : ModeLinks {
+    override fun watchMusicVideo(videoId: String, title: String, artist: String, atVideoMs: Long?) {
+        asked.value = PendingVideo(videoId, atVideoMs)
+        settings.setMode(AppMode.VIDEO)
+    }
+}
 
 /** The video that a link asks for, or null: only a link to one video ([LinkRequest.Track]) is Video's. */
 internal fun videoOf(request: LinkRequest?): PendingVideo? = (request as? LinkRequest.Track)?.let { PendingVideo(it.videoId, null) }

@@ -130,8 +130,10 @@ class NowPlayingContractTest {
     @Test fun onlyTheTimesReadThePlayhead() {
         val controls = code(nowPlaying("NowPlayingControls.kt"))
         val reads = Regex("""position\.positionMs""").findAll(controls).map { it.range.first }.toList()
-        // the scrubber's lambda, the restart-point derived state and the times
-        assertEquals(3, reads.size, "three reads of the playhead")
+        // the scrubber's lambda, the restart-point derived state, the times, and (Y-26, Video mode) the "Watch the music video"
+        // action, which reads it only when the tool is pressed
+        assertEquals(4, reads.size, "four reads of the playhead")
+        assertTrue("musicVideoLink(links, canvas, song.title, song.artist) { position.positionMs }" in controls, "the fourth is the tool's action, never composition")
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
         assertFalse(screen.contains("position.positionMs"), "the screen itself never reads the playhead")
     }
