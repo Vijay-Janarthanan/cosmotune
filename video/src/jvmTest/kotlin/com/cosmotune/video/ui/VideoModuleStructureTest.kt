@@ -185,7 +185,8 @@ class VideoModuleStructureTest {
     @Test fun theDesktopEntryPointsHaveTheSignaturesOfThePlan() {
         val src = read("$ui/desktop/VideoDesktopEntry.kt")
         assertEquals(listOf("contentPadding: PaddingValues", "host: VideoHostLinks"), VideoSourceContract.parameters(src, "VideoDesktopPage"))
-        assertEquals(listOf("focusSearch: Boolean", "onSearchFocused: () -> Unit"), VideoSourceContract.parameters(src, "VideoDesktopSidebar"))
+        // Y-14 added one optional parameter at the end (the window caption a host that replaces its whole sidebar hands over); the two of the plan stay first
+        assertEquals(listOf("focusSearch: Boolean", "onSearchFocused: () -> Unit", "caption: (@Composable () -> Unit)? = null"), VideoSourceContract.parameters(src, "VideoDesktopSidebar"))
         assertEquals(emptyList(), VideoSourceContract.parameters(src, "videoDesktopDrawerEntries"))
         val flat = VideoSourceContract.code(src).replace(Regex("\\s+"), " ")
         assertTrue("fun videoDesktopDrawerEntries(): List<CosmoDrawerEntry>" in flat)
