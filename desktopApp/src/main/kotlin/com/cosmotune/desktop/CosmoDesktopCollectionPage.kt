@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.cosmotune.design.CollectionColumns
 import com.cosmotune.design.CoverArt
 import com.cosmotune.design.TypeScale
 import com.cosmotune.theme.CoverField
@@ -155,6 +156,10 @@ internal fun CosmoDesktopCollectionPage(
                 song.albumName.orEmpty().contains(needle, ignoreCase = true)
         }
     }
+    val isAlbum = collection.type == BrowseType.ALBUM
+    // The album column is for rows that name an album: an album's rows are all on it, and a playlist whose feed names none of them
+    // would have a dash on every row. Decided on every row loaded, not on the filtered ones, so the column does not come and go while typing.
+    val showAlbum = remember(songs, isAlbum) { CollectionColumns.showsAlbum(isAlbum, songs.map { it.albumName }) }
     val bottom = contentPadding.calculateBottomPadding()
     val direction = LocalLayoutDirection.current
     Box(
@@ -200,14 +205,13 @@ internal fun CosmoDesktopCollectionPage(
                     )
                 }
             }
-            val isAlbum = collection.type == BrowseType.ALBUM
             itemsIndexed(shownSongs, key = { _, (index, song) -> "${song.videoId}-$index" }) { position, (index, song) ->
                 CollectionTrackRow(
                     song = song,
                     number = index + 1,
                     // Striped by place on screen, not track number, so a filtered list still alternates.
                     striped = position % 2 == 1,
-                    showAlbum = !isAlbum,
+                    showAlbum = showAlbum,
                     isCurrent = song.isSameTrackAs(nowPlaying),
                     isPlaying = isPlaying,
                     liked = song.videoId in likedIds,
@@ -484,8 +488,8 @@ private fun formatDuration(totalSeconds: Long): String {
 // ---- a track ----
 
 /**
- * `.d2-tracks li`: four columns, the number (or the bars) in 36 dp, the title over the artist, the album (a release has none to
- * say: every row of it is on it), the actions and the duration in 60 dp. A Spotify track that has no match is dimmed and does
+ * `.d2-tracks li`: four columns, the number (or the bars) in 36 dp, the title over the artist, the album (only when [showAlbum]: a
+ * release has none to say, and a playlist that names no album would show a dash on every row), the actions and the duration in 60 dp. A Spotify track that has no match is dimmed and does
  * nothing; one still being matched shows a spinner for its number.
  */
 @Composable

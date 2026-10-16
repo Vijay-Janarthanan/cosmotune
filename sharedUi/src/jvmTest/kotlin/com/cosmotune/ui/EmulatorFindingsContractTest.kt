@@ -60,6 +60,17 @@ class EmulatorFindingsContractTest {
         }
     }
 
+    // ---- the desktop playlist page has no album column when no row has an album --------------------------------------------------
+
+    @Test fun theDesktopCollectionPageDecidesTheAlbumColumnOnEveryRowItHasLoadedWithTheSharedRule() {
+        val page = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopCollectionPage.kt")).replace(Regex("\\s+"), " ")
+        assertTrue("val showAlbum = remember(songs, isAlbum) { CollectionColumns.showsAlbum(isAlbum, songs.map { it.albumName }) }" in page, "the shared rule, over all the rows, not the filtered ones")
+        assertTrue("showAlbum = showAlbum," in page, "and the rows get its answer")
+        assertFalse("showAlbum = !isAlbum" in page, "the old rule, which drew a dash on every row of a playlist without albums, is gone")
+        val row = SourceContract.code(SourceContract.functionBody(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopCollectionPage.kt"), "CollectionTrackRow")).replace(Regex("\\s+"), " ")
+        assertTrue("if (showAlbum) { Text(" in row && "Column(Modifier.weight(1f))" in row, "without the column the title and the artist (weight 1) take its room")
+    }
+
     @Test fun thePhoneAndTheDesktopSettingsRowsReadTheSameTwoKeys() {
         val phone = SourceContract.code(SourceContract.read("app/src/main/java/com/cosmotune/ui/CosmoLookSettingsRows.kt"))
         val desktop = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoLookDesktopToggles.kt"))
