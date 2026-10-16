@@ -51,6 +51,8 @@ kotlin {
         jvmMain.get().dependsOn(jvmSharedMain)
 
         commonMain.dependencies {
+            // The Video contracts (com.cosmotune.video) expose Flow and StateFlow in common code; jvmSharedMain declares the same version.
+            api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             // Models in this module intentionally have no Android or Compose dependency.
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
             // Google's Material Color Utilities (the image quantiser, the scorer and the HCT colour
