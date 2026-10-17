@@ -28,6 +28,7 @@ import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 
 fun main() {
+    com.cosmotune.desktop.TorConnection.install()
     // Before any WebView exists, so the sign-in window can start over with an empty jar.
     DesktopWebCookies.install()
     DesktopWindowVisibility.install()

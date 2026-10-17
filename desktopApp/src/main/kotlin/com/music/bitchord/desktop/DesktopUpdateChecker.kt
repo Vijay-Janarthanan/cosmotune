@@ -39,6 +39,7 @@ internal object DesktopUpdateChecker {
     private val json = Json { ignoreUnknownKeys = true }
 
     private val http = HttpClient(CIO) {
+        engine { com.cosmotune.desktop.TorConnection.proxyUrl?.let { proxy = io.ktor.client.engine.ProxyBuilder.http(io.ktor.http.Url(it)) } }
         install(HttpTimeout) {
             requestTimeoutMillis = 15_000
             connectTimeoutMillis = 10_000

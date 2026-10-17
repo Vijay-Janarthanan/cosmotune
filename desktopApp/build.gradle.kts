@@ -1,5 +1,9 @@
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
+import java.net.URI
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -37,6 +41,52 @@ val nativeClassifier = when (targetOs) {
     "linux" -> "linux-x86_64"
     "macos" -> if (isArm64) "macosx-arm64" else "macosx-x86_64"
     else -> error("Cosmotune desktop supports Linux, Windows, and macOS only")
+}
+
+val torPlatform = when (targetOs) {
+    "macos" -> if (isArm64) "macos-aarch64" else "macos-x86_64"
+    "windows" -> "windows-x86_64"
+    else -> "linux-x86_64"
+}
+val torVersion = "15.0.25"
+val torSha256 = mapOf(
+    "macos-aarch64" to "a3febb6179152b0b4f56a0f5cc57bf5cc8ecef7db35e7c3e9d5a044c8158c26c",
+    "macos-x86_64" to "e1ae4d4a734d28bb590839188511deb3cebc26fcbce9df66d01b2c452060fe95",
+    "windows-x86_64" to "c1988c701de2f24f7d098d1d6d7f507b58f27740d097f29c246e0524d639b252",
+    "linux-x86_64" to "19cf18726eecb362e0f21d27afa9ea9efe5da928bfdfbb1ceb5fe54519e87f4a",
+).getValue(torPlatform)
+val torResources = layout.buildDirectory.dir("generated/tor-resources")
+val prepareTorBundle by tasks.registering {
+    inputs.property("platform", torPlatform)
+    inputs.property("version", torVersion)
+    inputs.property("sha256", torSha256)
+    outputs.dir(torResources)
+    doLast {
+        val archive = layout.buildDirectory.file("tor-downloads/$torPlatform.tar.gz").get().asFile
+        archive.parentFile.mkdirs()
+        if (!archive.exists()) {
+            check(!gradle.startParameter.isOffline) { "Tor bundle is not cached. Build once online to prepare $torPlatform." }
+            val connection = URI("https://dist.torproject.org/torbrowser/$torVersion/tor-expert-bundle-$torPlatform-$torVersion.tar.gz")
+                .toURL().openConnection().apply { connectTimeout = 30_000; readTimeout = 120_000 }
+            val partial = File(archive.parentFile, archive.name + ".part")
+            connection.getInputStream().use { input -> partial.outputStream().use { input.copyTo(it) } }
+            Files.move(partial.toPath(), archive.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+        archive.inputStream().use { input ->
+            val buffer = ByteArray(65536)
+            while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
+        }
+        check(digest.digest().joinToString("") { "%02x".format(it) } == torSha256) { "Tor archive checksum mismatch: $archive" }
+        val destination = torResources.get().dir("tor-bundle").asFile
+        project.sync { from(tarTree(resources.gzip(archive))); into(destination) }
+        val names = destination.walkTopDown().filter { it.isFile }.map { it.relativeTo(destination).invariantSeparatorsPath }.sorted().toList()
+        File(destination, "files.txt").writeText(names.joinToString("\n"))
+    }
+}
+tasks.named<ProcessResources>("processResources") {
+    dependsOn(prepareTorBundle)
+    from(torResources)
 }
 private fun localProperty(name: String): String = rootProject.file("local.properties")
     .takeIf { it.isFile }

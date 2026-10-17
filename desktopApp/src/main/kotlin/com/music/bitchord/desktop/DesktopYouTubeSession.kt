@@ -26,7 +26,7 @@ internal object DesktopYouTubeSession {
 
     private val visitorData = AtomicReference<String?>(null)
     private val visitorPattern = Regex("""Cg[A-Za-z0-9_%-]{40,}""")
-    private val client = HttpClient(CIO)
+    private val client = HttpClient(CIO) { engine { com.cosmotune.desktop.TorConnection.proxyUrl?.let { proxy = io.ktor.client.engine.ProxyBuilder.http(io.ktor.http.Url(it)) } } }
 
     /**
      * Whether the visitor id in hand came from the signed-in shell rather than being minted

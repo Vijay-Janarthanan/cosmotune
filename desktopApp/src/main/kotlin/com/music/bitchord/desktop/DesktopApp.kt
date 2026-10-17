@@ -5744,6 +5744,8 @@ private fun DesktopSettingsScreen(
     onOpenLicenses: () -> Unit,
 ) {
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
+    val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
+    val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
     val sourceProbeKey = sourceConfigs
         .filter { it.kind.needsServer && it.isComplete }
         .joinToString { "${it.id}@${it.baseUrl}" }
@@ -6418,6 +6420,18 @@ private fun DesktopSettingsScreen(
             }
             }
             item {
+                SettingsGroup("Restricted network · experimental") {
+                    SettingsToggle(
+                        "Connect through Tor",
+                        if (torEnabled != com.cosmotune.desktop.TorConnection.active) {
+                            "Restart Cosmotune to ${if (torEnabled) "enable Tor" else "return to a direct connection"}."
+                        } else {
+                            "$torStatus. Routes HTTPS requests through Tor. Plain-HTTP sources are unavailable; music services may block Tor. Changes require a restart."
+                        },
+                        torEnabled,
+                        com.cosmotune.desktop.TorConnection::select,
+                    )
+                }
                 DesktopSettingsFooter(onLicenses = onOpenLicenses)
             }
         }
@@ -6548,11 +6562,12 @@ private fun DesktopSourceSettingsRow(
     onMoveDown: (() -> Unit)? = null,
 ) {
     val enabledAlpha = if (config.enabled) 1f else 0.45f
+    val sourceInset = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 16.dp else 0.dp
     Row(
         Modifier
             .fillMaxWidth()
             .desktopRowClickable(enabled = onEdit != null) { onEdit?.invoke() }
-            .padding(vertical = 11.dp),
+            .padding(horizontal = sourceInset, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -6576,6 +6591,7 @@ private fun DesktopSourceSettingsRow(
             Text(config.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 when {
+                    !config.enabled -> "Disabled"
                     // The ceiling in force, not the switch, is why this one is being passed over —
                     // worth saying, or the row reads as enabled and silently unused.
                     skippedByQuality -> "Skipped at this audio quality"
@@ -6688,6 +6704,7 @@ private fun DesktopSourceEditorDialog(
                     label = { Text(DesktopStrings["d_addon_url", "Addon URL"]) },
                     placeholder = { Text("https://example.com/addon") },
                     singleLine = true,
+                    enabled = !checking,
                 )
                 Text(
                     DesktopStrings[
@@ -6705,6 +6722,7 @@ private fun DesktopSourceEditorDialog(
                     label = { Text(DesktopStrings["d_name_optional", "Name (optional)"]) },
                     placeholder = { Text(DesktopStrings["d_my_music_source", "My music source"]) },
                     singleLine = true,
+                    enabled = !checking,
                 )
                 (message ?: status)?.let {
                     Text(it, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
@@ -6713,7 +6731,7 @@ private fun DesktopSourceEditorDialog(
         },
         dismissButton = {
             Row {
-                if (!isNew) TextButton(onClick = onRemove) { Text(DesktopStrings["remove", "Remove"]) }
+                if (!isNew) TextButton(onClick = onRemove, enabled = !checking) { Text(DesktopStrings["remove", "Remove"]) }
                 TextButton(onClick = onDismiss) { Text(DesktopStrings["cancel", "Cancel"]) }
             }
         },

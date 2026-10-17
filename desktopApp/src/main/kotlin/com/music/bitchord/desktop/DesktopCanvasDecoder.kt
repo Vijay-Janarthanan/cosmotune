@@ -89,6 +89,7 @@ internal class DesktopCanvasDecoder {
     fun open(url: String, headers: Map<String, String> = emptyMap()): Result<Unit> = runCatching {
         DesktopAudioDecoder.ensureNetworkReady()
         val options = AVDictionary(null)
+        com.cosmotune.desktop.TorConnection.configureNative(options, url)
         if (headers.isNotEmpty()) {
             av_dict_set(
                 options,

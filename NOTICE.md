@@ -87,3 +87,12 @@ Video mode's importer tests read the files in `shared/src/jvmTest/resources/vide
 One optional test, `ThirdPartyFixturesTest`, also reads the files that NewPipe and NewPipeExtractor keep for their own tests
 (GPL-3.0, by the NewPipe team and its contributors); those files are not part of this repository. A copy placed in
 `shared/src/jvmTest/resources/video/importers/` stays under GPL-3.0, with its authors' notices, as Cosmotune is.
+
+## Optional Tor client
+
+Desktop builds include the Tor Expert Bundle 15.0.25 from https://dist.torproject.org/torbrowser/15.0.25/.
+Tor is distributed under its upstream BSD-style licence. The complete bundle's component notices
+(including Tor, OpenSSL, libevent and bundled transports) are included in the application's
+`tor-bundle/docs/` resources and copied alongside the client when enabled. Upstream source and
+licence information: https://gitlab.torproject.org/tpo/core/tor and the bundle's `docs/tor.txt`.
+Cosmotune is not affiliated with or endorsed by the Tor Project.

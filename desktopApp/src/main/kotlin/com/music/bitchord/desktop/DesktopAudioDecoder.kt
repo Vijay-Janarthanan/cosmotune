@@ -144,6 +144,7 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
         ensureNetwork()
 
         val options = AVDictionary(null)
+        com.cosmotune.desktop.TorConnection.configureNative(options, url)
         if (headers.isNotEmpty()) {
             // FFmpeg wants one blob with CRLF between fields, not a dictionary.
             val block = headers.entries.joinToString("") { (name, value) -> "$name: $value\r\n" }

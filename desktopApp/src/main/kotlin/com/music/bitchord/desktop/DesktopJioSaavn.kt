@@ -71,6 +71,7 @@ internal object DesktopJioSaavn {
     }
 
     private val client = HttpClient(CIO) {
+        engine { com.cosmotune.desktop.TorConnection.proxyUrl?.let { proxy = io.ktor.client.engine.ProxyBuilder.http(io.ktor.http.Url(it)) } }
         install(ContentNegotiation) { json(json) }
     }
 

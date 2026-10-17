@@ -44,6 +44,7 @@ object DesktopScrobbling {
     private const val LISTENBRAINZ_ENDPOINT = "https://api.listenbrainz.org/1/submit-listens"
 
     private val client = HttpClient(CIO) {
+        engine { com.cosmotune.desktop.TorConnection.proxyUrl?.let { proxy = io.ktor.client.engine.ProxyBuilder.http(io.ktor.http.Url(it)) } }
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
