@@ -12,11 +12,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The 52 icons (the 30 of the shell and the player, the 22 of part two), drawn by Compose's own vector parser: no window needed. */
+/** The 54 icons (the 30 of the shell and the player, the 22 of part two), drawn by Compose's own vector parser: no window needed. */
 class CosmoIconsTest {
 
     private val expected = listOf(
-        "home", "home-fill", "search", "search-fill", "library", "library-fill", "grid", "play", "pause", "next", "prev",
+        "canvas", "canvas-off", "home", "home-fill", "search", "search-fill", "library", "library-fill", "grid", "play", "pause", "next", "prev",
         "shuffle", "repeat", "repeat-one", "heart", "heart-fill", "more", "more-v", "queue", "lyrics", "devices", "together",
         "chevron-down", "chevron-left", "chevron-right", "check", "video", "video-off", "expand", "volume",
         // part two
@@ -41,11 +41,11 @@ class CosmoIconsTest {
         return vector.root.flatMap { walk(it) }
     }
 
-    @Test fun hasExactlyTheFiftyTwoNames() {
-        assertEquals(52, expected.size)
-        assertEquals(52, expected.toSet().size, "no name twice")
+    @Test fun hasExactlyTheFiftyFourNames() {
+        assertEquals(54, expected.size)
+        assertEquals(54, expected.toSet().size, "no name twice")
         assertEquals(expected.toSet(), CosmoIcons.all.keys)
-        assertEquals(52, CosmoIcons.all.size)
+        assertEquals(54, CosmoIcons.all.size)
     }
 
     @Test fun theTwentyTwoNewOnesAreNamedAfterTheirAssetKeys() {
@@ -56,7 +56,7 @@ class CosmoIconsTest {
 
     @Test fun namesAreUniqueAndMatchTheKeys() {
         val vectors = CosmoIcons.all
-        assertEquals(52, vectors.values.map { it.name }.toSet().size, "every vector has its own name")
+        assertEquals(54, vectors.values.map { it.name }.toSet().size, "every vector has its own name")
         vectors.forEach { (key, v) -> assertEquals(key, v.name) }
     }
 

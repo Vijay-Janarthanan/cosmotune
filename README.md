@@ -3,11 +3,11 @@
 Music that plays with its video, remembers what you like and picks what comes next.
 For Android, Windows, Linux and macOS. Free, open source (GPLv3).
 
-Early alpha.
+**Beta software — feedback and bug reports are welcome.**
 
 ## Download
 
-Releases: https://github.com/Vijay-Janarthanan/cosmotune/releases
+[**Download the beta**](https://github.com/Vijay-Janarthanan/cosmotune/releases/tag/v1.0.0-beta1) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 | Platform | File |
 | :-- | :-- |
@@ -19,11 +19,30 @@ Releases: https://github.com/Vijay-Janarthanan/cosmotune/releases
 Cosmotune is not signed by Apple. If macOS says the app is damaged, open Terminal and run
 `xattr -cr /Applications/Cosmotune.app`, then open it again.
 
+## Made for listening
+
+- A music player with colours that follow the album artwork.
+- Synced music-video backgrounds powered by OpenCanvas, with selectable video quality.
+- A dedicated video mode with search, channels, subscriptions and playlists.
+- Lyrics, queues, downloads and playback controls across phone and desktop.
+- Local listening history and preferences; no Cosmotune account required.
+
+Android and desktop are supported today. An iOS app is not available yet.
+
+## Feedback and contributing
+
+Found a layout or playback problem? [Open an issue](https://github.com/Vijay-Janarthanan/cosmotune/issues)
+with your app version, operating system, steps to reproduce and a screenshot when helpful.
+For display issues, include your screen size and display/text scaling. Remove private information from logs.
+
+Contributions are welcome. Read [the maintenance guide](docs/MAINTAINING.md) before changing code;
+[FORK.md](FORK.md) records the changes we keep when merging upstream.
+
 ## Build
 
 Needs JDK 21. `./gradlew :desktopApp:run` starts the desktop app;
 `./gradlew :app:assembleDevDebug` builds the Android app. Notes for working on the code are in
-`docs/MAINTAINING.md`.
+[the maintenance guide](docs/MAINTAINING.md).
 
 ## What it contacts
 
@@ -68,4 +87,4 @@ Video mode reads its catalogue with [NewPipeExtractor](https://github.com/TeamNe
 (GPL-3.0-or-later), plays video on the desktop with [libmpv](https://mpv.io/) (taken from the runtime packages of
 [mediamp](https://github.com/open-ani/mediamp)), and uses the data of [SponsorBlock](https://sponsor.ajay.app/) (skippable
 segments), [DeArrow](https://dearrow.ajay.app/) (titles and thumbnails) and
-[Return YouTube Dislike](https://returnyoutubedislike.com/) (dislike counts). Licences and notices are in `NOTICE.md`.
+[Return YouTube Dislike](https://returnyoutubedislike.com/) (dislike counts). Licences and notices are in [NOTICE.md](NOTICE.md).

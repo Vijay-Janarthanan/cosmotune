@@ -194,7 +194,7 @@ fun SourcesScreen(
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
     ) {
-        Text(
+        if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) Text(
             text = stringResource(R.string.source),
             style = MaterialTheme.typography.displayLarge,
             color = MaterialTheme.colorScheme.onBackground,
@@ -850,7 +850,6 @@ private fun SourceRow(
                     health is SourceHealth.Rejected -> MaterialTheme.colorScheme.error
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                maxLines = 2,
             )
         }
         Spacer(Modifier.width(8.dp))

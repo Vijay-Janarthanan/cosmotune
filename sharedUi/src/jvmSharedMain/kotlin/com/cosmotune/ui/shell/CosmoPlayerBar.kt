@@ -377,7 +377,7 @@ private fun TimeText(text: String, modifier: Modifier, align: TextAlign) {
 private fun VolumeBar(label: String?) {
     val volume = PlayerPlatform.host.volume
     val level by volume.level.collectAsStateWithLifecycle()
-    CosmoSlider(level, onValueChange = volume::set, modifier = Modifier.width(PlayerBarMetrics.VOLUME_DP.dp), contentDescription = label)
+    CosmoSlider(level, onValueChange = volume::set, modifier = Modifier.width(PlayerBarMetrics.VOLUME_DP.dp), contentDescription = label, compact = true)
 }
 
 /**

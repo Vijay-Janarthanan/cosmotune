@@ -294,13 +294,15 @@ jobs:
 
       - run: ls -lh dist
 
-      - name: Draft the release
+      - name: Publish the release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Cosmotune ${{ github.ref_name }}
-          draft: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

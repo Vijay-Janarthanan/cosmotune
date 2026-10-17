@@ -183,7 +183,7 @@ internal fun NowPlayingWideHeader(
         }
         if (hasVideo) {
             CosmoIconButton(
-                if (videoOn) CosmoIcons.Video else CosmoIcons.VideoOff,
+                if (videoOn) CosmoIcons.Canvas else CosmoIcons.CanvasOff,
                 stringResource(if (videoOn) Res.string.cosmo_video_hide else Res.string.cosmo_video_show),
                 onToggleVideo,
                 style = CosmoIconButtonStyle.TONAL, size = HEADER_BUTTON, on = videoOn,

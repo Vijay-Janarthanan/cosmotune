@@ -379,7 +379,7 @@ fun SettingsScreen(
             .verticalScroll(scrollState)
             .padding(contentPadding),
     ) {
-        Text(
+        if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) Text(
             text = stringResource(R.string.settings),
             style = MaterialTheme.typography.displayLarge,
             color = MaterialTheme.colorScheme.onBackground,

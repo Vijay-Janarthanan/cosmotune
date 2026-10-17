@@ -134,7 +134,7 @@ internal fun NowPlayingTopBar(
             )
             PlayingFrom(song, playedBy, onOpenOrigin, Modifier.weight(1f))
             CosmoIconButton(
-                if (videoOn) CosmoIcons.Video else CosmoIcons.VideoOff,
+                if (videoOn) CosmoIcons.Canvas else CosmoIcons.CanvasOff,
                 stringResource(if (videoOn) Res.string.cosmo_video_hide else Res.string.cosmo_video_show),
                 onToggleVideo,
                 style = CosmoIconButtonStyle.GLASS, size = 40.dp, on = videoOn, enabled = hasVideo,

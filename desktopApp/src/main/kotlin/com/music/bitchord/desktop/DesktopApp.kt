@@ -5752,6 +5752,7 @@ private fun DesktopSettingsScreen(
     onOpenIntegrations: () -> Unit,
     onOpenLicenses: () -> Unit,
 ) {
+    val settingsInset = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 16.dp else 0.dp
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
     val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
@@ -5795,7 +5796,7 @@ private fun DesktopSettingsScreen(
                     SettingsGroup(DesktopStrings["playback", "Playback"]) {
                     if (!automix) {
                         if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
-                        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 10.dp)) {
                             Text(DesktopStrings["crossfade", "Crossfade"], style = MaterialTheme.typography.bodyLarge)
                             Text(
                                 if (crossfadeSeconds == 0) "Off" else "${crossfadeSeconds}s",
@@ -5822,7 +5823,7 @@ private fun DesktopSettingsScreen(
                         onAutomixChange,
                     )
                     if (settingsRowVisible(DesktopStrings["automix_performance", "Automix performance"], DesktopStrings["automix_performance_subtitle", "Sets how much CPU background analysis may use"])) {
-                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
                             Text(DesktopStrings["automix_performance", "Automix performance"], fontWeight = FontWeight.Medium)
                             Text(
                                 DesktopStrings["automix_performance_subtitle", "Sets how much CPU background analysis may use"],
@@ -5993,7 +5994,7 @@ private fun DesktopSettingsScreen(
                     var limitMb by remember { mutableStateOf(DesktopMediaCache.limitMb()) }
                     var cleared by remember { mutableStateOf<String?>(null) }
                     if (settingsRowVisible(DesktopStrings["song_cache_limit", "Song cache limit"])) {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 10.dp)) {
                         Text(DesktopStrings["song_cache_limit", "Song cache limit"], style = MaterialTheme.typography.bodyLarge)
                         Text(
                             if (limitMb > DesktopMediaCache.WARNING_MB) {
@@ -6101,7 +6102,7 @@ private fun DesktopSettingsScreen(
                             "Sets the material for the sidebar and top bar",
                         ]
                         if (settingsRowVisible(materialTitle, materialSubtitle)) {
-                            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
                                 Text(materialTitle, fontWeight = FontWeight.Medium)
                                 Text(materialSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
                                 Spacer(Modifier.height(10.dp))
@@ -6275,7 +6276,7 @@ private fun DesktopSettingsScreen(
             if (section == DesktopSettingsSection.AUDIO_QUALITY) item {
                 SettingsGroup(DesktopStrings["audio_quality", "Audio quality"]) {
                     if (settingsRowVisible(DesktopStrings["audio_quality", "Audio quality"])) {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             DesktopAudioQuality.entries.forEach { rung ->
                                 FilterChip(
@@ -6317,7 +6318,7 @@ private fun DesktopSettingsScreen(
             if (section == DesktopSettingsSection.OUTPUT_PRECISION) item {
                 SettingsGroup(DesktopStrings["d_output_precision", "Output precision"]) {
                     if (settingsRowVisible(DesktopStrings["d_output_precision", "Output precision"])) {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf("PCM_16" to "16-bit PCM", "FLOAT_32" to "32-bit float").forEach { (value, label) ->
                                 FilterChip(
@@ -6345,7 +6346,7 @@ private fun DesktopSettingsScreen(
                 SettingsGroup(DesktopStrings["download_channel_name", "Downloads"]) {
                     if (settingsRowVisible(DesktopStrings["download_channel_name", "Downloads"])) {
                     Row(
-                        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         listOf("STANDARD" to "Standard", "HIGH" to "High", "LOSSLESS" to "Lossless").forEach { (value, label) ->

@@ -49,6 +49,8 @@ private val REPEAT = listOf("M4.5 11V9.5A2.5 2.5 0 0 1 7 7h12.5", "m17 4.5 2.5 2
 
 /** The 52 icons of the new look: the 30 of the shell, Home, Search, Library and Now Playing, and the 22 that part two's screens add. */
 object CosmoIcons {
+    val Canvas by icon("canvas") { rect(5f, 3f, 14f, 18f, 2f); circle(9f, 8f, 1f); stroke("M5 17l5-5 3 3 3-4 3 4") }
+    val CanvasOff by icon("canvas-off") { rect(5f, 3f, 14f, 18f, 2f); stroke("M3 3l18 18") }
     val Home by icon("home") { stroke(HOME) }
     val HomeFill by icon("home-fill") { fill(HOME) }
     val Search by icon("search") { circle(10.5f, 10.5f, 6.25f); stroke("m15.2 15.2 4.8 4.8") }
@@ -120,7 +122,7 @@ object CosmoIcons {
     val List by icon("list") { stroke("M8.5 6.5H20"); stroke("M8.5 12H20"); stroke("M8.5 17.5H20"); stroke("M4 6.5h.5"); stroke("M4 12h.5"); stroke("M4 17.5h.5") }
 
     val all: Map<String, ImageVector> by lazy {
-        listOf(Home, HomeFill, Search, SearchFill, Library, LibraryFill, Grid, Play, Pause, Next, Previous, Shuffle, Repeat, RepeatOne,
+        listOf(Canvas, CanvasOff, Home, HomeFill, Search, SearchFill, Library, LibraryFill, Grid, Play, Pause, Next, Previous, Shuffle, Repeat, RepeatOne,
             Heart, HeartFill, More, MoreVertical, Queue, Lyrics, Devices, Together, ChevronDown, ChevronLeft, ChevronRight, Check,
             Video, VideoOff, Expand, Volume,
             Download, Downloaded, ChevronUp, Plus, Close, Settings, Equaliser, VolumeLow, Timer, Share, Replay, Cellular, Clock, Pin,

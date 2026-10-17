@@ -45,6 +45,7 @@ fun CosmoSlider(
     modifier: Modifier = Modifier,
     onValueChangeFinished: () -> Unit = {},
     contentDescription: String? = null,
+    compact: Boolean = false,
 ) {
     val colors = LocalCosmoColors.current
     val interaction = remember { MutableInteractionSource() }
@@ -66,6 +67,17 @@ fun CosmoSlider(
             .scrubGestures(onValueChange, onValueChangeFinished),
     ) {
         Canvas(Modifier.fillMaxSize()) {
+            if (compact) {
+                val radius = 4.dp.toPx()
+                val centre = radius + shown * (size.width - 2 * radius).coerceAtLeast(0f)
+                val mid = size.height / 2f
+                val track = 3.dp.toPx()
+                val ink = colors.live(CoverField.TEXT_PRIMARY)
+                drawRoundRect(ink.copy(alpha = SliderMetrics.trackAlpha(colors.dark)), Offset(radius, mid - track / 2), Size((size.width - 2 * radius).coerceAtLeast(0f), track), CornerRadius(track / 2))
+                drawRoundRect(colors.live(CoverField.ACCENT), Offset(radius, mid - track / 2), Size((centre - radius).coerceAtLeast(0f), track), CornerRadius(track / 2))
+                drawCircle(ink, radius, Offset(centre, mid))
+                return@Canvas
+            }
             val width = size.width
             val mid = size.height / 2f
             val half = SliderMetrics.HALF_SLOT_DP.dp.toPx()
