@@ -229,8 +229,8 @@ class DownloadRunner(
     }
 
     private fun publish() {
-        entryFlow.value = state.entries
         batchFlow.value = state.batchStates()
+        entryFlow.value = state.entries
     }
 
     private suspend fun save() {

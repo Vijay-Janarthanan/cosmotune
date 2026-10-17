@@ -344,6 +344,9 @@ class DownloadRunnerTest {
         runner.enqueueBatch(info, listOf("fakeplvideo01", "fakeplvideo02", "fakeplvideo03").map(::item), request(DownloadQuality.Auto, subtitles = false))
         assertEquals(BatchState(info, total = 2, done = 0, paused = false), runner.batches.value.single())
         await(runner, "every download done") { list -> list.takeIf { l -> l.size == 3 && l.all { it.state is DownloadState.Done } } }
+        eventually("the batch state reflects completion") {
+            runner.batches.value.singleOrNull() == BatchState(info, total = 2, done = 2, paused = false)
+        }
         assertEquals(BatchState(info, total = 2, done = 2, paused = false), runner.batches.value.single())
         // one at a time: the requests of one video never interleave with another's
         val order = seen.map { it.path!!.substringAfterLast('/') }
