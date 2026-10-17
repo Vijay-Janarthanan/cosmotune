@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -116,9 +118,9 @@ class DownloadRunner(
     private val subtitles: SubtitleFetcher = SubtitleFetcher(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    private val store: DownloadsFile.Io = FileDownloadsIo(platform.stateDir),
 ) : DownloadController {
     private val lock = Any()
-    private val store = FileDownloadsIo(platform.stateDir)
     private var state: DownloadQueueState = DownloadsFile.load(store)
     private val entryFlow = MutableStateFlow(state.entries)
     private val batchFlow = MutableStateFlow(state.batchStates())
@@ -231,9 +233,21 @@ class DownloadRunner(
         batchFlow.value = state.batchStates()
     }
 
-    private fun save() {
-        val snapshot = synchronized(lock) { state }
-        runCatching { DownloadsFile.save(store, snapshot) }
+    private suspend fun save() {
+        var retryDelay = 50L
+        while (true) {
+            coroutineContext.ensureActive()
+            val snapshot = synchronized(lock) { state }
+            try {
+                DownloadsFile.save(store, snapshot)
+                return
+            } catch (_: IOException) {
+                // Windows readers and scanners can briefly prevent replacement. Keep the save
+                // pending, including the final state when no later queue event will request one.
+                delay(retryDelay)
+                retryDelay = (retryDelay * 2).coerceAtMost(5_000L)
+            }
+        }
     }
 
     private fun conditionsOf(s: VideoSettings) = QueueConditions(

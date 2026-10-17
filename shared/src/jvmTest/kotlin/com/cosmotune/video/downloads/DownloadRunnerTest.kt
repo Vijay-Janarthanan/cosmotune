@@ -220,6 +220,26 @@ class DownloadRunnerTest {
         assertEquals(movie.length() to 21_000_000_000L, runner.storage())
     }
 
+    @Test fun aTemporarilyLockedFileDoesNotLoseTheFinalDownloadState() {
+        val disk = FileDownloadsIo(platform.stateDir)
+        val refused = AtomicInteger()
+        val store = object : DownloadsFile.Io by disk {
+            override fun rename(from: String, to: String) {
+                if (to == DownloadsFile.NAME && "\"done\"" in disk.read(from).orEmpty() && refused.getAndIncrement() < 3) {
+                    throw java.nio.file.AccessDeniedException(to)
+                }
+                disk.rename(from, to)
+            }
+        }
+        val runner = DownloadRunner(LocalSource(), settings, scope, platform, FakeSegmentProvider(), store = store)
+        runner.enqueue(item("fakevideo01"), request())
+        done(runner, "fakevideo01")
+        eventually("the final state is saved after a sharing violation") {
+            DownloadsFile.decode(disk.read(DownloadsFile.NAME).orEmpty())?.entries?.singleOrNull()?.state is DownloadState.Done
+        }
+        assertTrue(refused.get() >= 4, "the failed replacements must have been retried")
+    }
+
     @Test fun whenTheJoinFailsBothFilesAreKeptAndTheEntryPlaysFromThePair() {
         platform.joinWorks = false
         val runner = runner()
