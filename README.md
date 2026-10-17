@@ -7,7 +7,7 @@ For Android, Windows, Linux and macOS. Free, open source (GPLv3).
 
 ## Download
 
-[**Download the beta**](https://github.com/Vijay-Janarthanan/cosmotune/releases/tag/v1.0.0-beta1) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
+[**Download the beta**](https://github.com/Vijay-Janarthanan/cosmotune/releases/tag/v1.0.0-beta2) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 | Platform | File |
 | :-- | :-- |

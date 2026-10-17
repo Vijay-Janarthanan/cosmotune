@@ -177,3 +177,4 @@ New files we added are not listed here.
 - `app/build.gradle.kts`: beta1 suffix and version code 2 for the first beta; keep application IDs and signing unchanged.
 - `.github/workflows/release.yml`: the existing tag build publishes a public release, marks hyphenated version tags as prereleases and generates release notes. Keep the existing platform jobs and tag/manual triggers.
 - `README.md`: beta download link, feature summary, supported-platform status and contribution guidance; preserve network disclosures and acknowledgements.
+- Beta2 follow-up: allow addon and output-permission descriptions in `SourcesScreen.kt` to wrap at enlarged font sizes; Android version code 3 and beta2 suffix, with the README download targeting beta2.

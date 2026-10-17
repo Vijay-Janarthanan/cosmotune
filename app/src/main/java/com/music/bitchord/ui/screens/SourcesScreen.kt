@@ -658,7 +658,6 @@ private fun AddSourceRow(onClick: () -> Unit) {
                 text = stringResource(R.string.add_addon_detail),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
             )
         }
     }
@@ -738,7 +737,6 @@ private fun BluetoothCodecPermissionRow() {
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
             )
         }
     }
