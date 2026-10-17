@@ -176,9 +176,12 @@ class DesktopCanvasTest {
 
     private fun song(videoId: String) = Song(videoId, "Song", "Artist", null)
 
+    private fun songKey(videoId: String) = com.cosmotune.canvas.canvasSongKey(videoId,
+        DesktopAppearanceSettings.openCanvasEnabled.value, DesktopAppearanceSettings.openCanvasResolution.value)
+
     @Test
     fun `a canvas found earlier is not served once the remembered answers are dropped`() = runBlocking {
-        DesktopCanvasClient.resolve("song|clear-1", withAlbum = false) { artwork("Song", "Artist") }
+        DesktopCanvasClient.resolve(songKey("clear-1"), withAlbum = false) { artwork("Song", "Artist") }
         assertNotNull(DesktopCanvasClient.cached(song("clear-1")), "the hit is remembered")
 
         DesktopCanvasClient.forgetAll()
@@ -188,7 +191,7 @@ class DesktopCanvasTest {
 
     @Test
     fun `a lookup that was running when the answers were dropped is not remembered afterwards`() = runBlocking {
-        DesktopCanvasClient.resolve("song|clear-2", withAlbum = false) {
+        DesktopCanvasClient.resolve(songKey("clear-2"), withAlbum = false) {
             DesktopCanvasClient.forgetAll()
             artwork("Song", "Artist")
         }

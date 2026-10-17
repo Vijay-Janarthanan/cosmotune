@@ -53,6 +53,7 @@ class ModeHooksContractTest {
         assertEquals("modifier = Modifier.onPreviewKeyEvent { event ->", lines[lines.indexOf(keys) - 1], "the first line inside the key handler")
         // Y-26 adds two provider lines of its own (the plan's hook table, row 10): they are the only other mentions allowed.
         val later = listOf(
+            "val videoModeShown = com.cosmotune.video.host.desktopVideoShown()",
             "com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },",
             "com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),",
         )

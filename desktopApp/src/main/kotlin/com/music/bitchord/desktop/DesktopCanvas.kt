@@ -160,7 +160,7 @@ object DesktopCanvasClient {
         val openCanvasActive = DesktopAppearanceSettings.openCanvasEnabled.value
         val openCanvasRes = DesktopAppearanceSettings.openCanvasResolution.value
         val seconds = song.durationMillis() / 1_000L
-        val key = "song|${song.videoId}"
+        val key = com.cosmotune.canvas.canvasSongKey(song.videoId, openCanvasActive, openCanvasRes)
         // An answer that already stands needs neither the lock nor any lookup.
         synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(album != null) } }?.let { return it.artwork }
 
@@ -192,7 +192,11 @@ object DesktopCanvasClient {
 
     /** A canvas already worked out for [song], without going near the network. */
     fun cached(song: Song): DesktopCanvasArtwork? =
-        synchronized(cache) { cache["song|${song.videoId}"]?.takeIf { it.fresh }?.artwork }
+        synchronized(cache) {
+            cache[com.cosmotune.canvas.canvasSongKey(song.videoId,
+                DesktopAppearanceSettings.openCanvasEnabled.value,
+                DesktopAppearanceSettings.openCanvasResolution.value)]?.takeIf { it.fresh }?.artwork
+        }
 
     /**
      * The canvas for a release, for an album page's header.

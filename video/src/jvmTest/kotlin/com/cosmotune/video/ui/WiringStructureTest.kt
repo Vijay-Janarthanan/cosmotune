@@ -246,6 +246,7 @@ class WiringStructureTest {
         )
         val builders = File(root, "video/src").walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
+            .filterNot { "/jvmTest/" in it.invariantSeparatorsPath }
             .filter { needle in VideoSourceContract.code(it.readText()) }
             .map { it.relativeTo(root).invariantSeparatorsPath }
             .toSet()

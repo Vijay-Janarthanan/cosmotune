@@ -114,6 +114,8 @@ kotlin {
         }
 
         jvmTest.dependencies {
+            // The opt-in live playback test resolves actual streams before handing them to libmpv.
+            implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
             // The test framework and the structure tests. Every test of this module.
             implementation(kotlin("test"))
             implementation("junit:junit:4.13.2")

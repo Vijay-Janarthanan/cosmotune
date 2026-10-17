@@ -42,6 +42,12 @@ class MusicLinkContractTest {
 
     private fun count(text: String, what: String) = Regex(Regex.escape(what)).findAll(text).count()
 
+    @Test fun enteringVideoDismissesTheMusicOverlay() {
+        val source = flat(desktopApp)
+        assertTrue("if (!videoModeShown) DesktopPlayerSheet(" in source)
+        assertTrue("LaunchedEffect(videoModeShown) { if (videoModeShown) { DesktopWindowMode.exit() overlays.nowPlaying = false cosmoShell?.playerProgress?.snapTo(0f) cosmoShell?.capsuleHidden = false } }" in source)
+    }
+
     /** A recorder of what the hosts are asked. */
     private class Recorder : ModeLinks {
         val asked = ArrayList<List<Any?>>()

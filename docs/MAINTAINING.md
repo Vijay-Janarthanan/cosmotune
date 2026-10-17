@@ -287,3 +287,8 @@ The rules:
 ## Tests
 
 `docs/BASELINE.md` lists the tests that already failed before our changes, so a new failure is easy to spot.
+
+The opt-in desktop network playback test in `video/src/jvmTest` also declares NewPipeExtractor in
+`video/build.gradle.kts`; keep that test dependency in step with the three application declarations when bumping it.
+The synthetic blue 1920 x 1080 clip in `desktopApp/src/test/resources/canvas/full-hd.mp4` was generated locally
+with FFmpeg's `color` source (one second, H.264) for the decoder clarity regression test.

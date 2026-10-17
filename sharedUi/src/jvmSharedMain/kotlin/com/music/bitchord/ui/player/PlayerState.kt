@@ -59,8 +59,8 @@ internal fun rememberCanvasArtwork(song: Song): CanvasArtwork? {
     //
     // The OpenCanvas switch is the exception: turning it off has to take its
     // video away, and a clip carried over across a version switch (below)
-    // would otherwise outlive it. A change of stream resolution only asks again.
-    var canvas by remember(song.title, song.artist, openCanvasEnabled) { mutableStateOf<CanvasArtwork?>(null) }
+    // would otherwise outlive it. A resolution change also drops the old rendition.
+    var canvas by remember(song.title, song.artist, openCanvasEnabled, openCanvasResolution) { mutableStateOf<CanvasArtwork?>(null) }
     LaunchedEffect(song.videoId, song.albumName, canvasAllowedNow, prioritizeSpotifyCanvas, openCanvasEnabled, openCanvasResolution) {
         if (!canvasAllowedNow) {
             canvas = null

@@ -188,7 +188,7 @@ internal class DesktopCanvasDecoder {
         sourceHeight = context.height()
         check(sourceWidth > 0 && sourceHeight > 0) { "the clip has no size" }
 
-        // Scaled down on the way out.
+        // Preserve up to full HD, matching the highest OpenCanvas quality setting.
         val scale = minOf(1.0, MAX_EDGE.toDouble() / maxOf(sourceWidth, sourceHeight))
         width = ((sourceWidth * scale).toInt() / 2) * 2
         height = ((sourceHeight * scale).toInt() / 2) * 2
@@ -227,6 +227,7 @@ internal class DesktopCanvasDecoder {
     // After a seek the decoder starts at the keyframe before the target; frames earlier than this
     // are decoded but neither converted nor returned, so the first frame handed back is the target.
     private var skipUntilMs = -1L
+    private var draining = false
 
     private fun ptsToMs(pts: Long): Long = pts * 1_000L * timeBaseNum / timeBaseDen
 
@@ -242,6 +243,7 @@ internal class DesktopCanvasDecoder {
         val pts = target * timeBaseDen / (1_000L * timeBaseNum)
         if (av_seek_frame(container, streamIndex, pts, AVSEEK_FLAG_BACKWARD) < 0) return false
         avcodec_flush_buffers(context)
+        draining = false
         skipUntilMs = target - frameIntervalMillis / 2
         lastPtsMs = target
         return true
@@ -279,10 +281,17 @@ internal class DesktopCanvasDecoder {
                 return true
             }
             if (av_read_frame(container, pkt) < 0) {
+                // Frame-threaded codecs retain delayed frames until an empty packet signals EOF.
+                if (!draining) {
+                    avcodec_send_packet(context, null)
+                    draining = true
+                    continue
+                }
                 if (!loop || looped) return false
                 looped = true
                 av_seek_frame(container, streamIndex, 0, AVSEEK_FLAG_BACKWARD)
                 avcodec_flush_buffers(context)
+                draining = false
                 continue
             }
             if (pkt.stream_index() == streamIndex) avcodec_send_packet(context, pkt)
@@ -342,11 +351,12 @@ internal class DesktopCanvasDecoder {
         streamIndex = -1
         sourceWidth = 0
         sourceHeight = 0
+        draining = false
     }
 
     private companion object {
-        /** Plenty for a sleeve, and a quarter of the pixels of the source. */
-        const val MAX_EDGE = 540
+        /** Full HD in either orientation; larger label artwork remains bounded. */
+        const val MAX_EDGE = 1920
 
         /** Thirty frames a second is motion; sixty is just more bitmaps. */
         const val MIN_INTERVAL_MS = 33L

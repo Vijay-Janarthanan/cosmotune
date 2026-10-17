@@ -117,10 +117,10 @@ object CanvasRepository {
         // stands instead.
         val album = song.albumName
         val spotifyFirst = AppSettings.prioritizeSpotifyCanvas.value
-        val key = cacheKey("song|${song.videoId}", spotifyFirst)
 
         val openCanvasActive = AppSettings.openCanvasEnabled.value
         val openCanvasRes = AppSettings.openCanvasResolution.value
+        val key = cacheKey(com.cosmotune.canvas.canvasSongKey(song.videoId, openCanvasActive, openCanvasRes), spotifyFirst)
 
         val seconds = song.durationMillis() / 1_000L
 
@@ -210,7 +210,8 @@ object CanvasRepository {
      */
     fun cached(song: Song): CanvasArtwork? {
         val key = cacheKey(
-            base = "song|${song.videoId}",
+            base = com.cosmotune.canvas.canvasSongKey(song.videoId,
+                AppSettings.openCanvasEnabled.value, AppSettings.openCanvasResolution.value),
             spotifyFirst = AppSettings.prioritizeSpotifyCanvas.value,
         )
         return synchronized(cache) { cache[key]?.takeIf { it.fresh }?.artwork }

@@ -202,6 +202,10 @@ class DesktopVideoEngine internal constructor(
         executor.shutdown()
     }
 
+    /** Off the UI thread, wait for native teardown before the process or test harness exits. */
+    internal fun awaitRelease(timeoutMs: Long): Boolean =
+        executor.awaitTermination(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+
     // ---- VideoSurfaceProvider -----------------------------------------------------------------------------------------
 
     /** Draws the newest frame, placed by [scale], and tells the renderer the space's pixel size (spec 6.3). */

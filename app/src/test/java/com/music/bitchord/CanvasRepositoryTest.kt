@@ -3,6 +3,7 @@ package com.music.bitchord
 import com.music.bitchord.data.canvas.CanvasArtwork
 import com.music.bitchord.data.canvas.CanvasRepository
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.data.settings.AppSettings
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -16,11 +17,15 @@ class CanvasRepositoryTest {
 
     private fun song(videoId: String) = Song(videoId, "Song", "Artist", null)
 
+    private fun songKey(videoId: String) = com.cosmotune.canvas.canvasSongKey(videoId,
+        AppSettings.openCanvasEnabled.value, AppSettings.openCanvasResolution.value) +
+        "|spotifyFirst=${AppSettings.prioritizeSpotifyCanvas.value}"
+
     private val clip = CanvasArtwork(url = "https://example.invalid/clip.mp4", title = "Song", artist = "Artist")
 
     @Test
     fun `a canvas found earlier is not served once the remembered answers are dropped`() = runBlocking {
-        CanvasRepository.resolve("song|clear-1|spotifyFirst=false", withAlbum = false) { clip }
+        CanvasRepository.resolve(songKey("clear-1"), withAlbum = false) { clip }
         assertNotNull("the hit is remembered", CanvasRepository.cached(song("clear-1")))
 
         CanvasRepository.forgetAll()
@@ -30,7 +35,7 @@ class CanvasRepositoryTest {
 
     @Test
     fun `a lookup that was running when the answers were dropped is not remembered afterwards`() = runBlocking {
-        CanvasRepository.resolve("song|clear-2|spotifyFirst=false", withAlbum = false) {
+        CanvasRepository.resolve(songKey("clear-2"), withAlbum = false) {
             CanvasRepository.forgetAll()
             clip
         }

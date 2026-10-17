@@ -3299,7 +3299,16 @@ fun BitChordDesktopApp() {
                             )
                         }
                     }
-                    DesktopPlayerSheet(
+                    val videoModeShown = com.cosmotune.video.host.desktopVideoShown()
+                    LaunchedEffect(videoModeShown) {
+                        if (videoModeShown) {
+                            DesktopWindowMode.exit()
+                            overlays.nowPlaying = false
+                            cosmoShell?.playerProgress?.snapTo(0f)
+                            cosmoShell?.capsuleHidden = false
+                        }
+                    }
+                    if (!videoModeShown) DesktopPlayerSheet(
                         visible = overlays.nowPlaying && selectedSong != null,
                         onDismiss = {
                             DesktopWindowMode.exit()
