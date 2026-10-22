@@ -223,6 +223,13 @@ fun CosmoNowPlaying(
     val colors = rememberPlayerColors(shell, hasVideo = canvas != null && !wide, videoShown = videoShown && !wide, reduced = reduced)
     val lightTheme = shell != null && !LocalCosmoColors.current.dark
 
+    // NP-1: over a video on the portrait page the controls can be minimized to a slim bar and expanded again; the video is not
+    // touched. It applies under the same condition as the dark scrims, with no lyrics or queue open (see [rememberControlsSheet]).
+    val panelOpen = panels.lyricsOpen || panels.queueOpen
+    val portrait = layout == NowPlayingLayout.PORTRAIT
+    val controlsApply = videoShown && portrait && !panelOpen
+    val controlsSheet = rememberControlsSheet(shell, applies = controlsApply, panelOpen = panelOpen, videoComing = wantVideo && portrait, reduced = reduced)
+
     // ---- what the page is made of ----------------------------------------------------------------------------------------
     val playerHaze = remember { HazeState() }
     val stackHeightPx = remember { mutableIntStateOf(0) }
@@ -286,9 +293,23 @@ fun CosmoNowPlaying(
         NowPlayingBackdrop(
             canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal, lyricsOpen = panels.lyricsOpen,
             onRenderedChanged = { rendered = it }, hazeState = playerHaze, modifier = Modifier.fillMaxSize(),
+            controls = controlsSheet.progressState,
         )
-        // Measured with its own padding, so the cover and the panels know how much of the window the stack takes.
-        stack(Modifier.align(Alignment.BottomCenter).onSizeChanged { stackHeightPx.intValue = it.height }, false, null)
+        // The stack is measured with its own padding, so the cover and the panels know how much of the window it takes. Over a
+        // video it can be minimized to the bar (NP-1); otherwise the sheet is the stack alone, as it always was.
+        NowPlayingControlsSheet(
+            sheet = controlsSheet, enabled = controlsApply, reveal = reveal, stackHeightPx = stackHeightPx,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            stack = { m -> stack(m.onSizeChanged { stackHeightPx.intValue = it.height }, false, null) },
+            dock = { m, onExpand ->
+                NowPlayingDock(
+                    song = song, coverUrl = remoteArt, isPlaying = isPlaying, isLoading = isLoading, position = position,
+                    durationMs = durationMs, controlsLocked = controlsLocked, hasPrevious = hasPrevious, hasNext = hasNext,
+                    onPrevious = onPrevious, onNext = onNext, onPlayPause = onPlayPause, onBlockedControl = onBlockedControl,
+                    onExpand = onExpand, modifier = m,
+                )
+            },
+        )
         // Above the stack: on its way into the chip it passes over the title. It takes no touches.
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = coverShown.value }) {
             NowPlayingCover(url = remoteArt, reveal = reveal, chipOrigin = chipOrigin, stackHeightPx = stackHeightPx, shell = shell)

@@ -25,6 +25,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
     private val coverColoursFlow = MutableStateFlow(store.getBoolean(KEY_COVER_COLOURS, true))
     private val intensityFlow = MutableStateFlow(Intensity.clamp(store.getInt(KEY_INTENSITY, Intensity.DEFAULT)))
     private val modeFlow = MutableStateFlow(modeOf(store.getInt(KEY_MODE, AppMode.MUSIC.ordinal)))
+    private val npControlsMinimizedFlow = MutableStateFlow(store.getBoolean(KEY_NP_CONTROLS_MINIMIZED, false))
     val newLook: StateFlow<Boolean> = newLookFlow.asStateFlow()
     val coverColours: StateFlow<Boolean> = coverColoursFlow.asStateFlow()
 
@@ -37,6 +38,12 @@ class CosmoLookSettings(private val store: KeyValueStore) {
      */
     val mode: StateFlow<AppMode> = modeFlow.asStateFlow()
 
+    /**
+     * Whether Now Playing's controls are minimized to the slim bar over a video (NP-1). Kept across songs and restarts; false
+     * (expanded) until the person minimizes them. It only ever shows while a video plays on the phone's portrait page.
+     */
+    val nowPlayingControlsMinimized: StateFlow<Boolean> = npControlsMinimizedFlow.asStateFlow()
+
     fun setNewLook(on: Boolean) { store.putBoolean(KEY_NEW_LOOK, on); newLookFlow.value = on }
     fun setCoverColours(on: Boolean) { store.putBoolean(KEY_COVER_COLOURS, on); coverColoursFlow.value = on }
 
@@ -45,6 +52,11 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         val kept = Intensity.clamp(index)
         store.putInt(KEY_INTENSITY, kept)
         intensityFlow.value = kept
+    }
+
+    fun setNowPlayingControlsMinimized(minimized: Boolean) {
+        store.putBoolean(KEY_NP_CONTROLS_MINIMIZED, minimized)
+        npControlsMinimizedFlow.value = minimized
     }
 
     fun setMode(mode: AppMode) {
@@ -57,6 +69,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_NEW_LOOK = "new_look"
         const val KEY_COVER_COLOURS = "cover_colours"
         const val KEY_INTENSITY = "intensity"
+        const val KEY_NP_CONTROLS_MINIMIZED = "np_controls_minimized"
 
         private fun modeOf(stored: Int): AppMode = AppMode.entries.getOrNull(stored) ?: AppMode.MUSIC
     }

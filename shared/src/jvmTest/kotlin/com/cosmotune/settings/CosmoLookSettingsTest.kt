@@ -95,6 +95,18 @@ class CosmoLookSettingsTest {
         assertEquals(AppMode.MUSIC, CosmoLookSettings(store).mode.value, "and a new settings starts on Music again")
     }
 
+    @Test fun nowPlayingsControlsStartExpandedAndRememberTheChoice() {
+        val store = MapStore()
+        val settings = CosmoLookSettings(store)
+        assertEquals(false, settings.nowPlayingControlsMinimized.value, "first ever use is expanded")
+        settings.setNowPlayingControlsMinimized(true)
+        assertEquals(true, settings.nowPlayingControlsMinimized.value, "the flow follows at once")
+        assertEquals(true, store.map["np_controls_minimized"], "kept under the key `np_controls_minimized`")
+        assertEquals(true, CosmoLookSettings(store).nowPlayingControlsMinimized.value, "and survives a restart")
+        settings.setNowPlayingControlsMinimized(false)
+        assertEquals(false, CosmoLookSettings(store).nowPlayingControlsMinimized.value)
+    }
+
     @Test fun aStoreThatKnowsNothingOfIntegersStaysBalanced() {
         val store = BooleansOnlyStore()
         val settings = CosmoLookSettings(store)
