@@ -16,4 +16,8 @@ dependencies {
     testImplementation(compose.desktop.currentOs)
 }
 
-tasks.test { useJUnit() }
+tasks.test {
+    useJUnit()
+    // Without a display on every system, as on the Linux runner, so a test that reaches for AWT fails on Windows too.
+    systemProperty("java.awt.headless", "true")
+}

@@ -105,6 +105,12 @@ kotlin {
     }
 }
 
+// The tests run without a display on every system, as they do on the Linux runner (and as :desktopApp's do), so a test that
+// reaches for AWT fails here on Windows too instead of only in CI.
+tasks.withType<Test>().configureEach {
+    systemProperty("java.awt.headless", "true")
+}
+
 android {
     namespace = "com.cosmotune.music.sharedui"
     compileSdk = 36
