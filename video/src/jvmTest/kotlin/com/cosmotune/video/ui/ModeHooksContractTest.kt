@@ -213,9 +213,11 @@ class ModeHooksContractTest {
         val roots = listOf(
             File(VideoSourceContract.root, "sharedUi/src"),
             File(VideoSourceContract.root, "shared/src"),
-            File(VideoSourceContract.root, "app/src/main/java/com/music"),
-            File(VideoSourceContract.root, "desktopApp/src/main/kotlin/com/music"),
+            File(VideoSourceContract.root, "app/src/main/java/com/cosmotune/music"),
+            File(VideoSourceContract.root, "desktopApp/src/main/kotlin/com/cosmotune/music"),
         )
+        // a folder that is not there walks to nothing and the check would pass on no files (the rename moved com/music)
+        for (root in roots) assertTrue(root.isDirectory, "${root.relativeTo(VideoSourceContract.root).invariantSeparatorsPath} is a folder of the code")
         val offenders = roots.flatMap { root ->
             root.walkTopDown()
                 .filter { it.isFile && it.extension == "kt" && "/build/" !in it.invariantSeparatorsPath }
