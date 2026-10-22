@@ -54,7 +54,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test -Pcosmotune.version=${{ steps.version.outputs.value }}
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Build deb, rpm and the app image
         run: |
@@ -128,7 +128,7 @@ jobs:
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
 
       - name: Tests
-        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test "-Pcosmotune.version=${{ steps.version.outputs.value }}"
+        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue "-Pcosmotune.version=${{ steps.version.outputs.value }}"
 
       - name: Build msi, exe and the app image
         run: |
@@ -196,7 +196,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test -Pcosmotune.version=${{ steps.version.outputs.value }}
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Build DMG, PKG and the app bundle
         run: |

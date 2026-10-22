@@ -2,8 +2,9 @@ package com.cosmotune.ui
 
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.cosmo_song_count
-import kotlinx.coroutines.runBlocking
-import org.jetbrains.compose.resources.getPluralString
+import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.unit.Density
+import org.jetbrains.compose.resources.pluralStringResource
 import java.io.File
 import java.util.Locale
 import kotlin.test.Test
@@ -21,12 +22,23 @@ import kotlin.test.fail
  */
 class SongCountPluralTest {
 
-    /** The text of `cosmo_song_count` for [quantity] in the language [tag], as the library resolves it. */
+    /**
+     * The text of `cosmo_song_count` for [quantity] in the language [tag], as the library resolves it: through
+     * `pluralStringResource`, the call both pages make, composed in an off-screen scene. Not through the suspending
+     * `getPluralString(resource, ...)`: that one builds its environment from the machine, reading the screen density through AWT,
+     * which throws `HeadlessException` on a runner without a display. The composable takes the language from the default locale
+     * (set here, as before), the density from the scene and nothing from AWT; its string load is synchronous on the JVM.
+     */
     private fun count(tag: String, quantity: Int): String {
         val saved = Locale.getDefault()
         Locale.setDefault(Locale.forLanguageTag(tag))
         try {
-            return runBlocking { getPluralString(Res.plurals.cosmo_song_count, quantity, quantity) }
+            var text: String? = null
+            val scene = ImageComposeScene(width = 1, height = 1, density = Density(1f)) {
+                text = pluralStringResource(Res.plurals.cosmo_song_count, quantity, quantity)
+            }
+            scene.close()
+            return text ?: fail("$tag, $quantity: the scene composed no text")
         } finally {
             Locale.setDefault(saved)
         }

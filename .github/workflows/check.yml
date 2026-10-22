@@ -30,7 +30,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
         run: ./gradlew :desktopApp:createDistributable
@@ -77,7 +77,7 @@ jobs:
         run: cmake --version
 
       - name: Tests
-        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test
+        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
         run: .\gradlew.bat :desktopApp:createDistributable
@@ -125,7 +125,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
         run: ./gradlew :desktopApp:createDistributable
