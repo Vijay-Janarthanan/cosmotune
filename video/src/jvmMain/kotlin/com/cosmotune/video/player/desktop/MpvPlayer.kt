@@ -82,7 +82,7 @@ internal class MpvPlayer(
     }
 
     /** The mpv handle. */
-    val handle: Pointer = mpv.mpv_create() ?: throw IllegalStateException("mpv_create returned null")
+    val handle: Pointer = run { MpvNatives.useCNumericLocale(); mpv.mpv_create() } ?: throw IllegalStateException("mpv_create returned null")
 
     private val lock = Any()
 

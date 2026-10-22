@@ -47,15 +47,9 @@ class MpvSmokeTest {
     @Test
     fun aHandleIsCreatedInitialisedAndDestroyed() {
         val mpv = mpvOrSkip()
+        MpvNatives.useCNumericLocale()
         val handle = assertNotNull(mpv.mpv_create())
-        val voResult = mpv.mpv_set_option_string(handle, "vo", "libmpv")
-        if (voResult != 0 && System.getProperty("os.name").contains("mac", ignoreCase = true)) {
-            // The first run on a macOS runner (Apple Silicon): the libmpv of the runtime package loads but refuses the render
-            // output the player is built on. Video playback on macOS is therefore unverified in this release (README says so).
-            mpv.mpv_terminate_destroy(handle)
-            assumeTrue("macOS: this libmpv refuses vo=libmpv (code $voResult); video playback on macOS is not verified", false)
-        }
-        assertEquals(0, voResult, "vo=libmpv is accepted")
+        assertEquals(0, mpv.mpv_set_option_string(handle, "vo", "libmpv"))
         assertTrue(mpv.mpv_initialize(handle) >= 0)
         assertEquals(0, mpv.mpv_command(handle, arrayOf("set", "pause", "yes")))
         mpv.mpv_terminate_destroy(handle)
