@@ -1,8 +1,8 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.innertube.InnertubeParser
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.durationMillis
+import com.cosmotune.music.data.innertube.InnertubeParser
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.durationMillis
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement

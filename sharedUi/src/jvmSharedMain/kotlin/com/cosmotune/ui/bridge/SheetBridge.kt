@@ -27,8 +27,8 @@ import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_sheet_handle
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_sheet_handle
 import org.jetbrains.compose.resources.stringResource
 
 /** `--r-sheet`. */

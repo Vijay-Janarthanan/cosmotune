@@ -16,7 +16,7 @@ class ShellClearanceTest {
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }
         .first { File(it, "settings.gradle.kts").isFile }
 
-    private val mainActivity = "app/src/main/java/com/music/bitchord/MainActivity.kt"
+    private val mainActivity = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
 
     private val paddings = Regex("""bottom = if \(player\.song != null\) (\d+)\.dp else (\d+)\.dp""")
 
@@ -50,7 +50,7 @@ class ShellClearanceTest {
 
     // ---- The desktop half ----
 
-    private val desktopApp = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+    private val desktopApp = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
 
     /**
      * What `DesktopFrame` pads the page's bottom with while the new shell is on: the line `LocalCosmoShell.current != null -> X`,

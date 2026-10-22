@@ -29,10 +29,10 @@ import com.cosmotune.ui.components.cosmoFocusRing
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.personalized_recommendations
-import com.music.bitchord.sharedui.resources.sign_in
-import com.music.bitchord.sharedui.resources.sign_in_youtube_music
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.personalized_recommendations
+import com.cosmotune.music.sharedui.resources.sign_in
+import com.cosmotune.music.sharedui.resources.sign_in_youtube_music
 import org.jetbrains.compose.resources.stringResource
 
 /** The tile's corner (a B tile: `--r-card`, the superellipse) and what is inside it. */

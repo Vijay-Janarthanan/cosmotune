@@ -1,8 +1,8 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.GrowingWord
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.lyrics.LyricWord
+import com.cosmotune.music.data.lyrics.GrowingWord
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricWord
 
 /**
  * The maths of the word-by-word fill and of the words lifting as they are sung: which timed piece of a line holds the edge,

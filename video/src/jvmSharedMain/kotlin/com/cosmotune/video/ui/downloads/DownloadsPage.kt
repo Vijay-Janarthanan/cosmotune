@@ -73,15 +73,15 @@ import com.cosmotune.video.ui.blocks.VideoChips
 import com.cosmotune.video.ui.blocks.rememberMetaStyle
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.VideoNavigator
-import com.music.bitchord.sharedui.resources.cosmo_state_empty
-import com.music.bitchord.ui.components.FLOATING_BAR_MAX_WIDTH
+import com.cosmotune.music.sharedui.resources.cosmo_state_empty
+import com.cosmotune.music.ui.components.FLOATING_BAR_MAX_WIDTH
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /**
  * The Downloads page (spec 5.10): where everything downloaded is watched later. "Downloads" in `display(DISPLAY_M)` with the sort

@@ -228,17 +228,17 @@ class HomeStructureTest {
                 assertFalse(Regex("""text\s*=\s*"""").containsMatchIn(args), "$name: a literal text")
             }
             assertFalse(Regex("""contentDescription\s*=\s*"""").containsMatchIn(text), "$name: a literal description")
-            for (import in Regex("""import com\.music\.bitchord\.[\w.]+""").findAll(text).map { it.value }) {
+            for (import in Regex("""import com\.cosmotune\.music\.[\w.]+""").findAll(text).map { it.value }) {
                 assertTrue(
                     import in listOf(
-                        "import com.music.bitchord.ui.components.LocalShelfRowChrome",
-                        "import com.music.bitchord.ui.haptics.Haptic",
-                        "import com.music.bitchord.ui.haptics.rememberHaptics",
-                        "import com.music.bitchord.sharedui.resources.cosmo_home_afternoon",
-                        "import com.music.bitchord.sharedui.resources.cosmo_home_evening",
-                        "import com.music.bitchord.sharedui.resources.cosmo_home_late",
-                        "import com.music.bitchord.sharedui.resources.cosmo_home_morning",
-                        "import com.music.bitchord.sharedui.resources.Res",
+                        "import com.cosmotune.music.ui.components.LocalShelfRowChrome",
+                        "import com.cosmotune.music.ui.haptics.Haptic",
+                        "import com.cosmotune.music.ui.haptics.rememberHaptics",
+                        "import com.cosmotune.music.sharedui.resources.cosmo_home_afternoon",
+                        "import com.cosmotune.music.sharedui.resources.cosmo_home_evening",
+                        "import com.cosmotune.music.sharedui.resources.cosmo_home_late",
+                        "import com.cosmotune.music.sharedui.resources.cosmo_home_morning",
+                        "import com.cosmotune.music.sharedui.resources.Res",
                     ),
                     "$name imports $import from Music",
                 )

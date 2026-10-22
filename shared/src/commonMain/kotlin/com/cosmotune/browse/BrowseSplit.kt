@@ -1,7 +1,7 @@
 package com.cosmotune.browse
 
-import com.music.bitchord.data.model.MoodGenre
-import com.music.bitchord.data.model.MoodGenreSection
+import com.cosmotune.music.data.model.MoodGenre
+import com.cosmotune.music.data.model.MoodGenreSection
 
 /**
  * Explore's buttons, split for the two new screens: the moods go to Home's chip row and Search's idle grid, the genres to

@@ -1,8 +1,8 @@
 package com.cosmotune.desktop
 
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.ui.player.LyricsShareLine
-import com.music.bitchord.ui.player.LyricsShareRequest
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.ui.player.LyricsShareLine
+import com.cosmotune.music.ui.player.LyricsShareRequest
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO

@@ -12,8 +12,8 @@ import kotlin.test.assertTrue
  * the live palette only while drawing.
  */
 class SettingsBlocksContractTest {
-    private val sheetPath = "app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt"
-    private val desktopPath = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+    private val sheetPath = "app/src/main/java/com/cosmotune/music/ui/screens/SettingsSheet.kt"
+    private val desktopPath = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
     private val blocksPath = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/settings/CosmoSettingsBlocks.kt"
     private val themePath = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/theme/CosmoLookTheme.kt"
     private val loaderPath = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/theme/CoverPaletteLoader.kt"

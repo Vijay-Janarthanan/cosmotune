@@ -3,7 +3,7 @@ package com.cosmotune.ui.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.music.bitchord.ui.player.PlayerPlatform
+import com.cosmotune.music.ui.player.PlayerPlatform
 
 /**
  * Reduced motion means the app's "Reduce animation" or the system's animator scale at 0 (handoff section 5).

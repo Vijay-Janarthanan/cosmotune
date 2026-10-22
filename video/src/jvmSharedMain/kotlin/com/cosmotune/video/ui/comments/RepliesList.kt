@@ -40,8 +40,8 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_replies
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
-import com.music.bitchord.sharedui.resources.cosmo_back
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.cosmo_back
 
 /*
  * The replies of one comment (spec 5.9), inside the panel: a back row ("N replies" with an arrow, and the close button on the sheet),

@@ -1,7 +1,7 @@
 package com.cosmotune.design
 
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.isSameTrackAs
 
 /**
  * What the big play button of an artist page does and shows (the phone's `CosmoArtistPage` and the desktop's `CosmoDesktopArtistPage`

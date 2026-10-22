@@ -15,7 +15,7 @@ See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for validation and rema
 
 ## Keeping in step with upstream
 
-Cosmotune began as a fork of BitChord and still takes fixes from it by hand, on request, not on a schedule.
+Cosmotune began as a fork of an upstream project (named in `UPSTREAM.md` and `NOTICE.md`) and still takes fixes from it by hand, on request, not on a schedule.
 
 - `UPSTREAM.md` names the last upstream commit we have taken.
 - `FORK.md` lists every edit we made to a file that came from upstream, with how to merge it. Read the row
@@ -26,13 +26,16 @@ Cosmotune began as a fork of BitChord and still takes fixes from it by hand, on 
   security, features, files in the ledger that changed). It needs a git remote called `upstream` that points at
   the original repository.
 
-New Cosmotune-only code goes under `com.cosmotune`; the Kotlin packages of upstream files keep their names so
-that merges stay small. `ForkGuardTest` (run with `./gradlew :shared:jvmTest --tests "com.cosmotune.ForkGuard*"`)
-checks these rules.
+New Cosmotune-only code goes under `com.cosmotune`. The files that came from upstream live in `com.cosmotune.music`
+(moved there from upstream's own package in one commit; see the rename row at the end of the table in `FORK.md`), so a
+change taken from upstream has to be moved to the renamed folder and names (by hand, or by rewriting the paths and the
+package of upstream's patch before applying it). `ForkGuardTest` (run with
+`./gradlew :shared:jvmTest --tests "com.cosmotune.ForkGuard*"`) checks these rules, and `OldNameScanTest` fails when the
+upstream name comes back anywhere outside its short allowlist.
 
 ## The OpenCanvas engine
 
-- The 28 files under `shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/canvas/opencanvas/` are copied from the
+- The 28 files under `shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/` are copied from the
   OpenCanvas repository (https://github.com/Vijay-Janarthanan/OpenCanvas) and must stay byte-identical to it, which is why
   they have no licence header. Change them there and copy them over; when its licence text or notice changes, refresh
   `licenses/` too.
@@ -94,14 +97,14 @@ test in `sharedUi/src/jvmTest` that reads the source: `NowPlayingContractTest`, 
 `BlocksStructureTest`, `StatesContractTest`, `DesktopChromeStructureTest`, `DesktopShellContractTest`, `DesktopPagesContractTest`,
 `BridgeContractTest`, `PolishContractTest`, `VisualPolishContractTest` and `UpstreamHooksContractTest` (the theme calls, the palette
 that follows the song, the phone's ground, the way to the switch in Settings, the desktop's licence entries). `app/...` below is
-`app/src/main/java/com/music/bitchord`, `desktop/...` is `desktopApp/src/main/kotlin/com/music/bitchord/desktop` and `components/...`
-is `sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components`.
+`app/src/main/java/com/cosmotune/music`, `desktop/...` is `desktopApp/src/main/kotlin/com/cosmotune/music/desktop` and `components/...`
+is `sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components`.
 
 | Hook | Upstream site (found by its text) | Ours | How to re-apply after a merge |
 | :-- | :-- | :-- | :-- |
-| Theme | `app/.../MainActivity.kt`: the `BitChordTheme(darkTheme = darkTheme)` call | `com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { BitChordTheme(darkTheme = darkTheme, content = it) })` | wrap upstream's call again as `legacy`; its block stays the content |
-| Theme | `desktop/.../DesktopApp.kt`: `MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography())` in `BitChordDesktopApp` | `CosmoLookTheme(dark = true, legacy = { MaterialTheme(..., content = it) })` (the desktop is dark only) | the same |
-| Theme | first lines inside it: `MainActivity.kt` `BitChordApp` and the desktop's theme content | `val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current`, then `cosmoShell?.FollowCover(song, nextSong)` | keep both lines first; without `FollowCover` the colours stop following the song |
+| Theme | `app/.../MainActivity.kt`: the `CosmotuneTheme(darkTheme = darkTheme)` call | `com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { CosmotuneTheme(darkTheme = darkTheme, content = it) })` | wrap upstream's call again as `legacy`; its block stays the content |
+| Theme | `desktop/.../DesktopApp.kt`: `MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography())` in `CosmotuneDesktopApp` | `CosmoLookTheme(dark = true, legacy = { MaterialTheme(..., content = it) })` (the desktop is dark only) | the same |
+| Theme | first lines inside it: `MainActivity.kt` `CosmotuneApp` and the desktop's theme content | `val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current`, then `cosmoShell?.FollowCover(song, nextSong)` | keep both lines first; without `FollowCover` the colours stop following the song |
 | Switch | `NowPlayingScreen(` and its import, both roots | `NowPlayingSwitch` (`sharedUi/.../ui/nowplaying/`) | rename the call and the import |
 | Switch | `HomeScreen(` (phone `TAB_HOME ->`, desktop `LISTEN_NOW ->`) | `com.cosmotune.ui.home.HomeSwitch(` + `browse = CosmoBrowse(exploreState, ...)`; the desktop also passes `currentSong`/`isPlaying` only with the look on | rename, add the `browse` line after `title = ...` |
 | Switch | `MoodGenrePlaylistsScreen(`, `ExploreScreen(`, `SearchScreen(`, both roots | `com.cosmotune.ui.search.MoodGenreSwitch(`, `ExploreSwitch(`, `SearchSwitch(` (+ `browse`) | rename; Search gets the `browse` line |
@@ -159,14 +162,14 @@ Find a site by its quoted text: line numbers drift.
 | `desktopApp/build.gradle.kts` | the packaged runtime's `modules(...)` list, after `jdk.dynalink` | adds `"jdk.httpserver"`: the desktop player reads the video through a loopback range proxy built on `com.sun.net.httpserver` | add the entry again if the list is rewritten |
 | `shared/build.gradle.kts` | `jvmTest.dependencies {` | adds `implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")`, `implementation("org.xerial:sqlite-jdbc:3.47.1.0")` and `implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")` (test classpath only; the main code keeps NewPipe `compileOnly`) | add the three lines; keep the NewPipe tag equal to the one in `app` and `desktopApp` |
 | `shared/build.gradle.kts` | `commonMain.dependencies`, the first line | `api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")`: the Video contracts in common code expose `StateFlow` | add the line first |
-| `shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/innertube/StreamResolver.kt` | `private val init by lazy { NewPipe.init(OkHttpDownloader()) }` | `private val init by lazy { com.cosmotune.video.source.newpipe.NewPipeHost.install(OkHttpDownloader()) }`: NewPipe has one downloader per process, and the router installed here sends Music's calls to Music's downloader and Video's to Video's | put the line back; `NewPipeRoutingTest` proves Music keeps its empty answer for `next` |
-| `app/src/main/java/com/music/bitchord/MainActivity.kt` | `BoxWithConstraints(Modifier.fillMaxSize()) {` followed by `BitChordApp(` | the call is wrapped in `com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {` ... `}`: one added line before `BitChordApp(` and one `}` after its closing `)` | wrap the call again |
+| `shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/innertube/StreamResolver.kt` | `private val init by lazy { NewPipe.init(OkHttpDownloader()) }` | `private val init by lazy { com.cosmotune.video.source.newpipe.NewPipeHost.install(OkHttpDownloader()) }`: NewPipe has one downloader per process, and the router installed here sends Music's calls to Music's downloader and Video's to Video's | put the line back; `NewPipeRoutingTest` proves Music keeps its empty answer for `next` |
+| `app/src/main/java/com/cosmotune/music/MainActivity.kt` | `BoxWithConstraints(Modifier.fillMaxSize()) {` followed by `CosmotuneApp(` | the call is wrapped in `com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {` ... `}`: one added line before `CosmotuneApp(` and one `}` after its closing `)` | wrap the call again |
 | `app/src/main/AndroidManifest.xml` | `android:name=".MainActivity"` | adds `android:supportsPictureInPicture="true"` after `android:launchMode="singleTask"` | add the attribute; the activity's `configChanges` already hold what picture-in-picture needs |
-| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt` | `) { contentPadding ->` of the `DesktopFrame` call | first line inside: `if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)` | add the line first |
-| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt` | `modifier = Modifier.onPreviewKeyEvent { event ->` | first line inside: `if (com.cosmotune.video.host.DesktopModeHost.active) return@onPreviewKeyEvent false` | add the line first |
-| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt` | `com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),` | two lines after it: `com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },` and `com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),` ("Play as a song" and "Watch the music video") | add the two lines to the provider list |
-| `shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/canvas/CanvasArtwork.kt` | `val headers: Map<String, String> = emptyMap(),` | adds `val videoId: String? = null,` after it: the music video's id, filled by our `OpenCanvasProvider` | add the field with its default |
-| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopCanvas.kt`, `DesktopCanvasVideo.kt`, `DesktopCanvasSources.kt` | the `DesktopCanvasArtwork(` parameter list; `internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(`; `DesktopOpenCanvasProvider` | the same `videoId: String? = null` parameter, `videoId = videoId,` in `toShared()`, and the provider passes it on | add the parameter and pass it through |
+| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt` | `) { contentPadding ->` of the `DesktopFrame` call | first line inside: `if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)` | add the line first |
+| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt` | `modifier = Modifier.onPreviewKeyEvent { event ->` | first line inside: `if (com.cosmotune.video.host.DesktopModeHost.active) return@onPreviewKeyEvent false` | add the line first |
+| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt` | `com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),` | two lines after it: `com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },` and `com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),` ("Play as a song" and "Watch the music video") | add the two lines to the provider list |
+| `shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/CanvasArtwork.kt` | `val headers: Map<String, String> = emptyMap(),` | adds `val videoId: String? = null,` after it: the music video's id, filled by our `OpenCanvasProvider` | add the field with its default |
+| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopCanvas.kt`, `DesktopCanvasVideo.kt`, `DesktopCanvasSources.kt` | the `DesktopCanvasArtwork(` parameter list; `internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(`; `DesktopOpenCanvasProvider` | the same `videoId: String? = null` parameter, `videoId = videoId,` in `toShared()`, and the provider passes it on | add the parameter and pass it through |
 | `sharedUi/src/commonMain/composeResources/values*/strings.xml` (18 files) | `</resources>` | appends `<string name="cosmo_watch_music_video">Watch the music video</string>` before it | add the key to every locale file, English text in each (`CosmoStringsTest` fails when one lacks a `cosmo_*` key) |
 
 The last four rows belong to the link with Music (Now Playing's "Watch the music video", Video's "Play as a song"); the rest are

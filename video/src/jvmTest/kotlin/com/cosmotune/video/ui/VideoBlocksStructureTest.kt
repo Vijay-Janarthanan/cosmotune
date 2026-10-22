@@ -369,10 +369,10 @@ class VideoBlocksStructureTest {
 
     @Test fun theBlocksImportOnlyPartTwosBlocksAndTheTwoClickModifiersFromMusic() {
         for (file in all) {
-            val imports = Regex("""(?m)^import (com\.music\.bitchord\.[\w.]+)""").findAll(block(file)).map { it.groupValues[1] }.toSet()
+            val imports = Regex("""(?m)^import (com\.cosmotune\.music\.[\w.]+)""").findAll(block(file)).map { it.groupValues[1] }.toSet()
             val allowed = setOf(
-                "com.music.bitchord.ui.components.longPressMenuClickable", "com.music.bitchord.ui.components.contextClick",
-                "com.music.bitchord.ui.components.LocalShelfRowChrome",
+                "com.cosmotune.music.ui.components.longPressMenuClickable", "com.cosmotune.music.ui.components.contextClick",
+                "com.cosmotune.music.ui.components.LocalShelfRowChrome",
             )
             assertTrue(allowed.containsAll(imports), "$file imports from Music: ${imports - allowed}")
         }

@@ -46,16 +46,16 @@ import com.cosmotune.ui.components.PlayMorphButton
 import com.cosmotune.ui.components.cosmoGlass
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.playback.BACK_RESTARTS_AFTER_MS
-import com.music.bitchord.playback.PlaybackPosition
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_np_controls_expand
-import com.music.bitchord.sharedui.resources.cosmo_np_controls_minimized_state
-import com.music.bitchord.sharedui.resources.widget_next
-import com.music.bitchord.sharedui.resources.widget_previous
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.playback.BACK_RESTARTS_AFTER_MS
+import com.cosmotune.music.playback.PlaybackPosition
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_np_controls_expand
+import com.cosmotune.music.sharedui.resources.cosmo_np_controls_minimized_state
+import com.cosmotune.music.sharedui.resources.widget_next
+import com.cosmotune.music.sharedui.resources.widget_previous
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 import org.jetbrains.compose.resources.stringResource
 
 /**

@@ -8,11 +8,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.cosmotune.ui.browse.CosmoBrowse
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.ui.screens.HomeScreen
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.ui.screens.HomeScreen
 
 /**
  * The one entry point of Home: the new screen while the new look is on (the shell exists), the old one while it is off.

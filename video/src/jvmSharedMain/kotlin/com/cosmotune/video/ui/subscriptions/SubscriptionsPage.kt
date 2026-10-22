@@ -87,8 +87,8 @@ import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.VideoNavigator
 import com.cosmotune.video.ui.shorts.ShortsShelf
 import com.cosmotune.video.ui.shorts.openShort
-import com.music.bitchord.ui.LocalPullToRefreshEnabled
-import com.music.bitchord.ui.components.PullToRefresh
+import com.cosmotune.music.ui.LocalPullToRefreshEnabled
+import com.cosmotune.music.ui.components.PullToRefresh
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map

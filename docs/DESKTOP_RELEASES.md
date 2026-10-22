@@ -8,10 +8,10 @@ breaks one of the rules below, the update check silently stops working for Linux
 ## 1. One version, stamped from one place
 
 - The version is a plain string such as `1.8` or `1.8-beta1`. No leading `v`.
-- `desktopApp/build.gradle.kts` reads it from `-Pbitchord.version=...` and falls back to a default
+- `desktopApp/build.gradle.kts` reads it from `-Pcosmotune.version=...` and falls back to a default
   (`appVersion`). CI passes the tag with the `v` removed (`v1.8` becomes `1.8`).
-- The app reads the same value at runtime from the `bitchord.version` system property. It is baked
-  into every package by `jvmArgs("-Dbitchord.version=$appVersion")` in the `compose.desktop`
+- The app reads the same value at runtime from the `cosmotune.version` system property. It is baked
+  into every package by `jvmArgs("-Dcosmotune.version=$appVersion")` in the `compose.desktop`
   block of `desktopApp/build.gradle.kts`, which covers exe, msi, deb, rpm and the AppImage (it
   wraps the same app image, so `appimage.sh` needs nothing). Do not remove that line, and do not
   add a separate launcher that skips it: the app would then report the hardcoded fallback and the
@@ -65,11 +65,11 @@ look for macOS files yet, so Mac users get the release page.
 
 ## 4. How the app finds an update
 
-`desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopUpdateChecker.kt`, shown as a dialog
-from `BitChordDesktopApp` in `DesktopApp.kt`:
+`desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopUpdateChecker.kt`, shown as a dialog
+from `CosmotuneDesktopApp` in `DesktopApp.kt`:
 
 1. At launch it calls `GET https://api.github.com/repos/Vijay-Janarthanan/cosmotune/releases/latest`.
-2. It strips the `v` from `tag_name` and compares it with `bitchord.version` (numeric, dot by dot;
+2. It strips the `v` from `tag_name` and compares it with `cosmotune.version` (numeric, dot by dot;
    a `-beta` current version is older than the same release).
 3. If newer, it picks the asset for the running OS and shows "Update available" with Download and
    Later. Download opens the asset URL in the browser. If no asset matches it opens the release
@@ -91,7 +91,7 @@ What this means for releasing:
 
 Before publishing, confirm each of these on the built files, not just in the source:
 
-- [ ] Version stamped (`-Pbitchord.version=<v>`). Launch each built file and check Settings shows the
+- [ ] Version stamped (`-Pcosmotune.version=<v>`). Launch each built file and check Settings shows the
       same version.
 - [ ] `desktopVersionCode` is higher than the last published build.
 - [ ] The three files are named exactly as in section 3.
@@ -108,7 +108,7 @@ Before publishing, confirm each of these on the built files, not just in the sou
 Run an old build with the version forced low, against the real latest release:
 
 ```bash
-./gradlew :desktopApp:run -Pbitchord.version=0.1
+./gradlew :desktopApp:run -Pcosmotune.version=0.1
 ```
 
 The dialog should appear. Run it with the current published version and it should not.

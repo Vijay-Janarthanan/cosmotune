@@ -5,9 +5,9 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.ui.screens.HistoryScreen
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.ui.screens.HistoryScreen
 
 /**
  * The one entry point of the History page: the new list while the new look is on (the shell exists), the old one while it is off.

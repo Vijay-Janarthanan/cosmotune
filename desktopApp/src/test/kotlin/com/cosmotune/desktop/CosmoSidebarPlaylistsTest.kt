@@ -1,7 +1,7 @@
 package com.cosmotune.desktop
 
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.desktop.DesktopPlaylist
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.desktop.DesktopPlaylist
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

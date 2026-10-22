@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
  * ones keep.
  */
 class DesktopPagesContractTest {
-    private val app = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+    private val app = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
     private val dir = "desktopApp/src/main/kotlin/com/cosmotune/desktop"
     private val collectionFile = "$dir/CosmoDesktopCollectionPage.kt"
     private val artistFile = "$dir/CosmoDesktopArtistPage.kt"

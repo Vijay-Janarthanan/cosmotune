@@ -47,8 +47,8 @@ import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.selected as selectedString
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.selected as selectedString
 import org.jetbrains.compose.resources.stringResource
 
 /*

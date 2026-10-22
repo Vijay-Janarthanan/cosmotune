@@ -23,8 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import bitchord.desktopapp.generated.resources.Res
-import bitchord.desktopapp.generated.resources.logo_mark
+import cosmotune.desktopapp.generated.resources.Res
+import cosmotune.desktopapp.generated.resources.logo_mark
 import com.cosmotune.design.ShellMetrics
 import com.cosmotune.ui.chrome.CosmoDrawerEntry
 import com.cosmotune.ui.chrome.CosmoProfileButton
@@ -32,11 +32,11 @@ import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.desktop.DesktopPlatform
-import com.music.bitchord.desktop.DesktopStrings
-import com.music.bitchord.desktop.DesktopTitleBarDragArea
-import com.music.bitchord.desktop.DesktopTitleBarSetting
-import com.music.bitchord.desktop.DesktopWindowButtons
+import com.cosmotune.music.desktop.DesktopPlatform
+import com.cosmotune.music.desktop.DesktopStrings
+import com.cosmotune.music.desktop.DesktopTitleBarDragArea
+import com.cosmotune.music.desktop.DesktopTitleBarSetting
+import com.cosmotune.music.desktop.DesktopWindowButtons
 import org.jetbrains.compose.resources.painterResource
 
 /**

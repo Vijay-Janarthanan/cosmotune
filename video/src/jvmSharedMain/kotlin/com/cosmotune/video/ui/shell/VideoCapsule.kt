@@ -10,8 +10,8 @@ import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.PlayerStatus
 import com.cosmotune.video.player.VideoPlayback
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.playback.PlaybackPosition
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.playback.PlaybackPosition
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map

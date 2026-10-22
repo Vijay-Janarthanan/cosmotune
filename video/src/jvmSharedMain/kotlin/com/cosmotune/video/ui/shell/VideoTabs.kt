@@ -18,7 +18,7 @@ import com.cosmotune.video.resources.video_tab_home
 import com.cosmotune.video.resources.video_tab_library
 import com.cosmotune.video.resources.video_tab_subscriptions
 import com.cosmotune.video.ui.VideoIcons
-import com.music.bitchord.ui.components.FLOATING_BAR_MAX_WIDTH
+import com.cosmotune.music.ui.components.FLOATING_BAR_MAX_WIDTH
 import dev.chrisbanes.haze.HazeState
 import org.jetbrains.compose.resources.stringResource
 

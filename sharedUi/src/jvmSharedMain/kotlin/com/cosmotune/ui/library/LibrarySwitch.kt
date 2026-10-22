@@ -7,12 +7,12 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.LibraryPage
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.ui.screens.LibraryLink
-import com.music.bitchord.ui.screens.LibraryScreen
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.LibraryPage
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.ui.screens.LibraryLink
+import com.cosmotune.music.ui.screens.LibraryScreen
 
 /**
  * The one entry point of the Library page: the new page while the new look is on (the shell exists), the old one while it is off.

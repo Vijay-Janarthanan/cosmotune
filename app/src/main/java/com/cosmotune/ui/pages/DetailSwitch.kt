@@ -13,17 +13,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.cosmotune.design.ReleaseMeta
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.R
-import com.music.bitchord.data.canvas.AppleArtistArtRepository
-import com.music.bitchord.data.model.BrowseType
-import com.music.bitchord.data.model.DetailPage
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.LibraryState
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.data.settings.SongSort
-import com.music.bitchord.ui.screens.DetailScreen
+import com.cosmotune.music.R
+import com.cosmotune.music.data.canvas.AppleArtistArtRepository
+import com.cosmotune.music.data.model.BrowseType
+import com.cosmotune.music.data.model.DetailPage
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.LibraryState
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.data.settings.SongSort
+import com.cosmotune.music.ui.screens.DetailScreen
 
 /**
  * The one entry point of the album, playlist and artist pages: the new pages while the new look is on (the shell exists), the old

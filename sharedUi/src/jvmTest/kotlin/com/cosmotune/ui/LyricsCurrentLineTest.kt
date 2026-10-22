@@ -2,7 +2,7 @@ package com.cosmotune.ui
 
 import com.cosmotune.lyrics.SungFraction
 import com.cosmotune.ui.nowplaying.currentLineAt
-import com.music.bitchord.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricLine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

@@ -24,9 +24,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.music.bitchord.sharedui.resources.drag_to_reorder
+import com.cosmotune.music.sharedui.resources.drag_to_reorder
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /*
  * Reordering the rows of your own playlist (spec 5.6): a handle at the end of the row is dragged, the rows it passes slide aside, the

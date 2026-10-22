@@ -13,10 +13,10 @@ import kotlin.test.assertTrue
  * literal text is pinned here, with the look-off half where there is one.
  */
 class UpstreamHooksContractTest {
-    private val mainActivity = "app/src/main/java/com/music/bitchord/MainActivity.kt"
-    private val settingsSheet = "app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt"
-    private val desktopApp = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
-    private val desktopLicenses = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopLicenses.kt"
+    private val mainActivity = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
+    private val settingsSheet = "app/src/main/java/com/cosmotune/music/ui/screens/SettingsSheet.kt"
+    private val desktopApp = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
+    private val desktopLicenses = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopLicenses.kt"
 
     private fun flat(path: String): String = SourceContract.code(SourceContract.read(path)).replace(Regex("\\s+"), " ")
 
@@ -31,8 +31,8 @@ class UpstreamHooksContractTest {
         val src = flat(mainActivity)
         assertEquals(
             1,
-            count(src, "com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { BitChordTheme(darkTheme = darkTheme, content = it) }) {"),
-            "the phone's theme call is the look theme with the old BitChordTheme as its legacy theme",
+            count(src, "com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { CosmotuneTheme(darkTheme = darkTheme, content = it) }) {"),
+            "the phone's theme call is the look theme with the old CosmotuneTheme as its legacy theme",
         )
     }
 
@@ -51,7 +51,7 @@ class UpstreamHooksContractTest {
         val src = flat(mainActivity)
         val shell = "val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current"
         val follow = "cosmoShell?.FollowCover(player.song, player.queue.getOrNull(player.queueIndex + 1))"
-        assertEquals(1, count(src, shell), "BitChordApp reads the shell once")
+        assertEquals(1, count(src, shell), "CosmotuneApp reads the shell once")
         assertEquals(1, count(src, follow), "the cover colours follow the playing song and preload the next one's")
         assertTrue(src.indexOf(shell) < src.indexOf(follow))
         assertTrue("import com.cosmotune.ui.theme.FollowCover" in src)

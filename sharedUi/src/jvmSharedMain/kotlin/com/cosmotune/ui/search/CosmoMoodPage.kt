@@ -10,13 +10,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.blocks.CosmoPageHeader
 import com.cosmotune.ui.blocks.CosmoShelf
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.retry
-import com.music.bitchord.ui.components.MessageState
-import com.music.bitchord.ui.components.feedSkeleton
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.retry
+import com.cosmotune.music.ui.components.MessageState
+import com.cosmotune.music.ui.components.feedSkeleton
 import org.jetbrains.compose.resources.stringResource
 
 /**

@@ -1,6 +1,6 @@
 package com.cosmotune.video.segments
 
-import com.music.bitchord.data.DebugLog
+import com.cosmotune.music.data.DebugLog
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import okhttp3.HttpUrl.Companion.toHttpUrl

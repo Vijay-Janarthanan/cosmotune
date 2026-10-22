@@ -29,8 +29,8 @@ import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 
 /** The check mark of the on thumb, `M7 12.5l3.2 3.2L17 9` on a 24 unit grid (components-v3bc.css, `.sw2.is-on::after`). */
 private val CHECK_X = floatArrayOf(7f, 10.2f, 17f)

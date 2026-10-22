@@ -8,7 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.music.bitchord.data.model.ShelfItem
+import com.cosmotune.music.data.model.ShelfItem
 
 @Composable
 fun DesktopLibraryActions(item: ShelfItem, pinned: Boolean, onPin: () -> Unit, onOpen: () -> Unit, onDismiss: () -> Unit) {

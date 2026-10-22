@@ -2,6 +2,7 @@
 # One-shot installer for the Listen Together server on an Oracle Cloud
 # (or any Ubuntu 22.04/24.04) VM. Safe to re-run: it rebuilds and restarts.
 #
+# deployed service name: renaming needs a new deployment
 #   sudo DOMAIN=jam.bitchord.kushagrasingh.in bash deploy/setup.sh
 #
 # First run on a fresh VM also takes DEPLOY_PUBKEY (the public half of the
@@ -12,6 +13,7 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
+# deployed service name: renaming needs a new deployment
 DOMAIN="${DOMAIN:?set DOMAIN, e.g. DOMAIN=jam.bitchord.kushagrasingh.in}"
 GO_VERSION="${GO_VERSION:-1.27.0}"
 BACKEND_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -35,17 +37,20 @@ if ! /usr/local/go/bin/go version 2>/dev/null | grep -q "go$GO_VERSION"; then
 fi
 
 echo "== build"
+# deployed service name: renaming needs a new deployment
 id bitchord >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin bitchord
 install -d -o bitchord -g bitchord /opt/bitchord-jam
 (cd "$BACKEND_DIR" && /usr/local/go/bin/go build -o /opt/bitchord-jam/server .)
 chown bitchord:bitchord /opt/bitchord-jam/server
 
 echo "== service"
+# deployed service name: renaming needs a new deployment
 install -m 644 "$BACKEND_DIR/deploy/bitchord-jam.service" /etc/systemd/system/bitchord-jam.service
 systemctl daemon-reload
 systemctl enable bitchord-jam
 systemctl restart bitchord-jam
 # The CPU keepalive burner is retired; clean it off VMs that still have it.
+# deployed service name: renaming needs a new deployment
 if [ -f /etc/systemd/system/bitchord-keepalive.service ]; then
   systemctl disable --now bitchord-keepalive || true
   rm -f /etc/systemd/system/bitchord-keepalive.service
@@ -65,6 +70,7 @@ if ! cmp -s /tmp/Caddyfile /etc/caddy/Caddyfile; then
 fi
 
 echo "== deploy hook"
+# deployed service name: renaming needs a new deployment
 echo "$DOMAIN" > /etc/bitchord-domain
 install -m 755 "$BACKEND_DIR/deploy/bitchord-deploy.sh" /usr/local/sbin/bitchord-deploy
 
@@ -73,8 +79,10 @@ if [ -n "${DEPLOY_PUBKEY:-}" ]; then
   # The GitHub Actions key may only run the deploy hook (forced command).
   id deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/bash deploy
   install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+  # deployed service name: renaming needs a new deployment
   printf 'command="sudo /usr/local/sbin/bitchord-deploy",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n' "$DEPLOY_PUBKEY" > /home/deploy/.ssh/authorized_keys
   chown deploy:deploy /home/deploy/.ssh/authorized_keys && chmod 600 /home/deploy/.ssh/authorized_keys
+  # deployed service name: renaming needs a new deployment
   echo 'deploy ALL=(root) NOPASSWD: /usr/local/sbin/bitchord-deploy' > /etc/sudoers.d/bitchord-deploy
   chmod 440 /etc/sudoers.d/bitchord-deploy && visudo -cf /etc/sudoers.d/bitchord-deploy
 fi

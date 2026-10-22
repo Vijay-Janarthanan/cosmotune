@@ -133,7 +133,7 @@ class LegalTextsTest {
     }
 
     @Test fun theDesktopLicenceScreenListsWhatTheNoticeNames() {
-        val licences = doc("desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopLicenses.kt")
+        val licences = doc("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopLicenses.kt")
         for (name in listOf("\"NewPipeExtractor\"", "\"libmpv\"", "\"mediamp runtime packages\"", "\"SponsorBlock data\"", "\"DeArrow data\"", "\"Return YouTube Dislike\"")) {
             assertTrue(name in licences, "the desktop's licence screen lists $name")
         }
@@ -239,14 +239,14 @@ class LegalTextsTest {
         "shared/build.gradle.kts" to "api(\"org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2\")",
         "shared/build.gradle.kts" to "implementation(\"org.xerial:sqlite-jdbc:3.47.1.0\")",
         "shared/build.gradle.kts" to "implementation(\"org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2\")",
-        "shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/innertube/StreamResolver.kt" to
+        "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/innertube/StreamResolver.kt" to
             "com.cosmotune.video.source.newpipe.NewPipeHost.install(OkHttpDownloader())",
-        "app/src/main/java/com/music/bitchord/MainActivity.kt" to
+        "app/src/main/java/com/cosmotune/music/MainActivity.kt" to
             "com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {",
         "app/src/main/AndroidManifest.xml" to "android:supportsPictureInPicture=\"true\"",
-        "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt" to
+        "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt" to
             "if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)",
-        "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt" to
+        "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt" to
             "if (com.cosmotune.video.host.DesktopModeHost.active) return@onPreviewKeyEvent false",
     )
 
@@ -289,8 +289,8 @@ class LegalTextsTest {
             .toList()
         assertTrue(found.isNotEmpty(), "the walk found the hooks")
         for (known in listOf(
-            "app/src/main/java/com/music/bitchord/MainActivity.kt",
-            "shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/innertube/StreamResolver.kt",
+            "app/src/main/java/com/cosmotune/music/MainActivity.kt",
+            "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/innertube/StreamResolver.kt",
             "desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopSidebar.kt",
         )) assertTrue(known in found, "the walk sees $known")
         assertTrue(found.none { it.startsWith("video/") || it.contains("/com/cosmotune/video/") }, "the Video folders are left out of the walk")

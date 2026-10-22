@@ -38,7 +38,7 @@ jobs:
       - name: The analyser is in the jar
         run: |
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/lib/app/desktopApp*.jar)
-          jar tf "$jar" | grep -q 'native/libbitchord_analysis.so'
+          jar tf "$jar" | grep -q 'native/libcosmotune_analysis.so'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
 
       - name: Upload test reports
@@ -86,10 +86,10 @@ jobs:
         shell: bash
         run: |
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/app/desktopApp*.jar)
-          jar tf "$jar" | grep -q 'native/bitchord_analysis.dll'
+          jar tf "$jar" | grep -q 'native/cosmotune_analysis.dll'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
           # WinRT, so only MSVC can build it and only this job ever does.
-          jar tf "$jar" | grep -q 'native/bitchord_smtc.dll'
+          jar tf "$jar" | grep -q 'native/cosmotune_smtc.dll'
 
       - name: Upload test reports
         if: failure()

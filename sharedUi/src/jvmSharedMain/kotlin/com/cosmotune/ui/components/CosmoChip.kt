@@ -26,8 +26,8 @@ import com.cosmotune.design.ControlMorph
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 
 /** The weight of a chip label, `.chip2` in `components-v3bc.css`. */
 private const val CHIP_WEIGHT = 620

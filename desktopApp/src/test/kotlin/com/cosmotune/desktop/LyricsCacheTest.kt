@@ -1,10 +1,10 @@
 package com.cosmotune.desktop
 
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.lyrics.LyricsSource
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.desktop.DesktopLyrics
-import com.music.bitchord.desktop.DesktopLyricsClient
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricsSource
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.desktop.DesktopLyrics
+import com.cosmotune.music.desktop.DesktopLyricsClient
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 

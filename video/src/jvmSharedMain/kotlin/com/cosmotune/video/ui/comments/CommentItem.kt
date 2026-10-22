@@ -59,9 +59,9 @@ import com.cosmotune.video.ui.blocks.rememberMetaStyle
 import com.cosmotune.video.ui.blocks.rememberTitleStyle
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
-import com.music.bitchord.sharedui.resources.cosmo_read_more
-import com.music.bitchord.sharedui.resources.cosmo_show_less
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.cosmo_read_more
+import com.cosmotune.music.sharedui.resources.cosmo_show_less
 
 /*
  * One comment (spec 5.9): a 32 dp avatar, 12 dp, then the author (13 sp, 650) with the age (12.5 sp, `textTertiary`), the text (14.5 sp,

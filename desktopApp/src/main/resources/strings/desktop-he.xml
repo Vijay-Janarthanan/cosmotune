@@ -10,13 +10,13 @@
     <string name="d_autoplay_wont_suggest_a_song_already_played_or_suggested">הפעלה אוטומטית לא תציע שיר שכבר הושמע או הוצע בפעילות הזו</string>
     <string name="d_available_offline">זמין במצב לא מקוון</string>
     <string name="d_back_to_explore">חזרה לגילוי</string>
-    <string name="d_bitchord_is_free_software_and_so_is_everything_it_is_bui">Cosmotune היא תוכנה חופשית, וכך גם כל מה שהיא בנויה עליו.</string>
-    <string name="d_bitchord_youtube_music_session">Cosmotune — חיבור ל-YouTube Music</string>
+    <string name="d_cosmotune_is_free_software_and_so_is_everything_it_is_bui">Cosmotune היא תוכנה חופשית, וכך גם כל מה שהיא בנויה עליו.</string>
+    <string name="d_cosmotune_youtube_music_session">Cosmotune — חיבור ל-YouTube Music</string>
     <string name="d_blur_unfocused_lyrics">טשטוש שורות שאינן בפוקוס</string>
     <string name="d_choose_something_to_play">בחר משהו להשמעה</string>
     <string name="d_close_player">סגור את הנגן</string>
     <string name="d_close_up_next">סגור את הבא בתור</string>
-    <string name="d_closing_the_window_leaves_bitchord_in_the_tray_instead_o">סגירת החלון משאירה את Cosmotune במגש במקום לצאת</string>
+    <string name="d_closing_the_window_leaves_cosmotune_in_the_tray_instead_o">סגירת החלון משאירה את Cosmotune במגש במקום לצאת</string>
     <string name="d_continue_playing">המשך להאזין</string>
     <string name="d_custom_module">מודול מותאם אישית</string>
     <string name="d_discord_rich_presence_last_fm_and_listenbrainz">Last.fm ו-ListenBrainz</string>
@@ -51,7 +51,7 @@
     <string name="d_paste_the_cookie_header_for_music_youtube_com">הדבק את כותרת ה-Cookie עבור music.youtube.com.</string>
     <string name="d_playback_speed">מהירות ההשמעה</string>
     <string name="d_playlists_on_this_computer">פלייליסטים במחשב הזה</string>
-    <string name="d_quit_bitchord">צא מ-Cosmotune</string>
+    <string name="d_quit_cosmotune">צא מ-Cosmotune</string>
     <string name="d_recently_played_on_this_computer">הושמע לאחרונה במחשב הזה</string>
     <string name="d_recents">אחרונים</string>
     <string name="d_remove_from_playlist">הסר מהפלייליסט</string>
@@ -60,7 +60,7 @@
     <string name="d_scroll_right">גלול ימינה</string>
     <string name="d_search_your_music">חפש במוזיקה שלך</string>
     <string name="d_shorten_long_gaps_rather_than_playing_them_out">קצר שתיקות ארוכות במקום להשמיע אותן במלואן</string>
-    <string name="d_show_bitchord_in_the_system_tray_with_playback_controls">הצג את Cosmotune במגש המערכת, עם פקדי השמעה</string>
+    <string name="d_show_cosmotune_in_the_system_tray_with_playback_controls">הצג את Cosmotune במגש המערכת, עם פקדי השמעה</string>
     <string name="d_show_motion_artwork_when_it_is_available">הצג עטיפה מונפשת כשהיא זמינה</string>
     <string name="d_sign_in_to_last_fm">התחבר ל-Last.fm</string>
     <string name="d_song">שיר</string>

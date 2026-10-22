@@ -26,8 +26,8 @@ import com.cosmotune.ui.nowplaying.WordLifter
 import com.cosmotune.ui.nowplaying.edgeOn
 import com.cosmotune.ui.nowplaying.featherEdge
 import com.cosmotune.ui.nowplaying.sweepWords
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.lyrics.LyricWord
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricWord
 import org.jetbrains.skia.Bitmap
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,8 +1,8 @@
 package com.cosmotune.lyrics
 
 import com.cosmotune.design.LyricsMetrics
-import com.music.bitchord.data.lyrics.LyricAlignment
-import com.music.bitchord.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricAlignment
+import com.cosmotune.music.data.lyrics.LyricLine
 
 /**
  * Duets: the decisions the new lyrics view makes to lay the two voices out on opposite sides of the page (the old panel's

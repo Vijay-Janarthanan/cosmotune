@@ -9,6 +9,11 @@
    because they hold the same credentials in cleartext.
 -->
 <full-backup-content>
+    <exclude domain="sharedpref" path="cosmotune_auth.xml" />
+    <exclude domain="sharedpref" path="cosmotune_auth_plain.xml" />
+    <exclude domain="sharedpref" path="cosmotune_sources.xml" />
+    <exclude domain="sharedpref" path="cosmotune_sources_plain.xml" />
+    <!-- the same stores under their names before the rename (kept on the device, never deleted: LegacyDataMigration) -->
     <exclude domain="sharedpref" path="bitchord_auth.xml" />
     <exclude domain="sharedpref" path="bitchord_auth_plain.xml" />
     <exclude domain="sharedpref" path="bitchord_sources.xml" />

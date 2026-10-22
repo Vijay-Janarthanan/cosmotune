@@ -1,6 +1,6 @@
 package com.cosmotune.video.source.newpipe
 
-import com.music.bitchord.data.TrackLog
+import com.cosmotune.music.data.TrackLog
 import okhttp3.CookieJar
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer

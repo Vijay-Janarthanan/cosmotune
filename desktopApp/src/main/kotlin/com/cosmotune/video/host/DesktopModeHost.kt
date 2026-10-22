@@ -22,7 +22,7 @@ import com.cosmotune.video.graph.stopVideoForMusic
 import com.cosmotune.video.ui.PendingVideo
 import com.cosmotune.video.ui.VideoHostLinks
 import com.cosmotune.video.ui.desktop.VideoDesktopPage
-import com.music.bitchord.data.model.Song
+import com.cosmotune.music.data.model.Song
 
 /**
  * The desktop's side of Video mode (hook table rows 8 and 9). The window keeps Music's frame; while the stored mode is Video

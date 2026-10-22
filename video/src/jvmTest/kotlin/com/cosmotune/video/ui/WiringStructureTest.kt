@@ -142,7 +142,7 @@ class WiringStructureTest {
     @Test fun theThreeWebServicesSayTheAppsVersion() {
         assertTrue("val agent = WebServicesHttp.userAgent(appVersion(application))" in androidFactory)
         assertTrue("application.packageManager.getPackageInfo(application.packageName, 0).versionName" in androidFactory)
-        assertTrue("val agent = WebServicesHttp.userAgent(System.getProperty(\"bitchord.version\") ?: FALLBACK_VERSION)" in desktopFactory)
+        assertTrue("val agent = WebServicesHttp.userAgent(System.getProperty(\"cosmotune.version\") ?: FALLBACK_VERSION)" in desktopFactory)
         for (text in listOf(androidFactory, desktopFactory)) assertEquals(3, Regex("""userAgent = agent""").findAll(text).count(), "SponsorBlock, DeArrow and RYD")
     }
 

@@ -6,9 +6,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.archivo_variable
-import com.music.bitchord.sharedui.resources.hanken_grotesk_variable
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.archivo_variable
+import com.cosmotune.music.sharedui.resources.hanken_grotesk_variable
 import org.jetbrains.compose.resources.Font
 
 /** One instance cut from a variable font: the weight axis, and the width axis for Archivo (null for Hanken Grotesk). */

@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
  * after the delegate, the old call after the new one, the card only under the look.
  */
 class DesktopShellContractTest {
-    private val desktopDir = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/"
+    private val desktopDir = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/"
     private val cosmoDir = "desktopApp/src/main/kotlin/com/cosmotune/desktop/"
 
     private val app get() = SourceContract.read(desktopDir + "DesktopApp.kt")
@@ -121,7 +121,7 @@ class DesktopShellContractTest {
         val body = SourceContract.functionBody(app, "DesktopSidebar")
         val rest = body.substringAfter(SourceContract.firstStatement(body))
         for (kept in listOf(
-            "DesktopSearchField(", "desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f)", "DesktopSidebarItem(BitChordIcons.Home", "Your playlists will appear here",
+            "DesktopSearchField(", "desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f)", "DesktopSidebarItem(CosmotuneIcons.Home", "Your playlists will appear here",
             "DesktopSidebarItem(Icons.Rounded.Settings", "SIDEBAR_CAPTION_HEIGHT", "searchFocusRequester.requestFocus()",
         )) assertTrue(kept in rest, "the old body still has `$kept`")
         assertEquals(1, Regex("""\bfun DesktopSidebarItem\(""").findAll(app).count(), "the old row is still declared")
@@ -345,7 +345,8 @@ class DesktopShellContractTest {
         for (kept in listOf("private val SIDE_PANEL_WIDTH = 360.dp", "private const val SLIDE_MS = 260", "expandHorizontally(", "shrinkHorizontally(", "onClick = onClose", "DesktopToolbarButton(onClick = onClose")) {
             assertTrue(kept in code, "the width, the slide and the close button stay: `$kept`")
         }
-        assertEquals(3, Regex("""com\.cosmotune""").findAll(SourceContract.code(text)).count(), "three lines choose by the look and no more")
+        // `com.cosmotune.music` is the file's own package since the rename (FORK.md); only the calls into our code count.
+        assertEquals(3, Regex("""com\.cosmotune(?!\.music\b)""").findAll(SourceContract.code(text)).count(), "three lines choose by the look and no more")
         assertTrue("desktopChromeGlass" in text, "the old glass call is still in the file")
     }
 
@@ -379,12 +380,12 @@ class DesktopShellContractTest {
         val table = lines.filter { it.startsWith("|") }
         assertTrue(table.size > 90, "the table was read")
         for (row in table) assertEquals(5, row.count { it == '|' }, "four columns (no pipe inside a cell): ${row.take(120)}")
-        val appRows = table.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt`") && "CosmoDesktopSidebar" in it }
+        val appRows = table.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt`") && "CosmoDesktopSidebar" in it }
         assertEquals(1, appRows.size, "one new row for the sites of DesktopApp.kt")
         for (word in listOf("DesktopSidebar", "CosmoTab", "CosmoDrawerEntry", "LocalDesktopHaze", "isCtrlPressed", "accountName")) {
             assertTrue(word in appRows.single(), "the row names $word")
         }
-        val panelRows = table.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopSidePanel.kt`") }
+        val panelRows = table.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopSidePanel.kt`") }
         assertEquals(1, panelRows.size, "one row for DesktopSidePanel.kt")
         assertTrue("cosmoDesktopSidePanelCard" in panelRows.single() && "DesktopDivider" in panelRows.single(), "the row names the card and the divider")
     }

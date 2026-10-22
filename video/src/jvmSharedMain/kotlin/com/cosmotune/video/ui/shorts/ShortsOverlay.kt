@@ -69,9 +69,9 @@ import com.cosmotune.video.resources.video_subscribed
 import com.cosmotune.video.resources.video_unmute
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.blocks.ChannelAvatar
-import com.music.bitchord.sharedui.resources.cosmo_back
+import com.cosmotune.music.sharedui.resources.cosmo_back
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /*
  * What lies over a Short (spec 5.15): the scrims, the top row, the right rail, the bottom block, the pause glyph and the 2x pill.

@@ -13,7 +13,7 @@ private class PreferencesStore(private val node: Preferences) : KeyValueStore {
     override fun putInt(key: String, value: Int) = node.putInt(key, value)
 }
 
-// Our own child of the desktop settings node, apart from the app's own keys and from an installed BitChord.
+// Our own child of the desktop settings node, apart from the app's own keys and from an installed copy of the upstream app.
 private val processWide: CosmoLookSettings by lazy {
     CosmoLookSettings(PreferencesStore(Preferences.userRoot().node("com.cosmotune.desktop").node("look")))
 }

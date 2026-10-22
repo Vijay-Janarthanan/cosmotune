@@ -11,8 +11,8 @@ import kotlin.test.assertTrue
  * look-off rule (with the look off the old line runs as before).
  */
 class PolishContractTest {
-    private val app = "app/src/main/java/com/music/bitchord/"
-    private val desktop = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/"
+    private val app = "app/src/main/java/com/cosmotune/music/"
+    private val desktop = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/"
     private val cosmoDesktop = "desktopApp/src/main/kotlin/com/cosmotune/desktop/"
 
     // ---- 1. the equaliser toggle ticks once -----------------------------------------------------------------------------------

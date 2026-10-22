@@ -62,9 +62,9 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_create
 import com.cosmotune.video.resources.video_new_playlist
 import com.cosmotune.video.resources.video_playlist_name
-import com.music.bitchord.sharedui.resources.cancel
+import com.cosmotune.music.sharedui.resources.cancel
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /**
  * "New playlist" (spec 5.12, from the save-to-playlist sheet): part two's dialog card (layer C: the 40 % scrim, the glass card) over

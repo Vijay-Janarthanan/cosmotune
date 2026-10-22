@@ -113,5 +113,5 @@ REM The portable build is the app image, zipped.
 gradlew.bat :desktopApp:createDistributable
 ```
 
-Pass `-Pbitchord.version=1.2.3` to stamp a version other than the one in
+Pass `-Pcosmotune.version=1.2.3` to stamp a version other than the one in
 `desktopApp/build.gradle.kts`; a release build takes it from the tag.

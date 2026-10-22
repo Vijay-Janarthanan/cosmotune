@@ -1,7 +1,7 @@
 package com.cosmotune.design
 
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
 
 /**
  * What the new Home draws at the top of its feed, decided from the shelves the feed sent (pure, so it is tested): the hero is the

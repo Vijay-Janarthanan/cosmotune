@@ -12,8 +12,8 @@ import kotlin.test.assertTrue
  * whatever the look, the drawer stores the mode, the desktop chrome follows it, and Music never imports Video.
  */
 class ModeHooksContractTest {
-    private val mainActivity = "app/src/main/java/com/music/bitchord/MainActivity.kt"
-    private val desktopApp = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+    private val mainActivity = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
+    private val desktopApp = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
     private val phoneHost = "app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt"
     private val desktopHost = "desktopApp/src/main/kotlin/com/cosmotune/video/host/DesktopModeHost.kt"
     private val drawer = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/chrome/CosmoProfileDrawer.kt"
@@ -34,8 +34,8 @@ class ModeHooksContractTest {
 
     @Test fun mainActivityDrawsTheRootInsideThePhoneModeHostAndNamesVideoNowhereElse() {
         val wrap = "BoxWithConstraints(Modifier.fillMaxSize()) { com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) { " +
-            "BitChordApp( darkTheme = darkTheme, windowWidth = maxWidth, windowHeight = maxHeight, appBackdrop = appBackdrop, ) } }"
-        assertEquals(1, count(flat(mainActivity), wrap), "the BitChordApp call and its arguments stand untouched inside the host's block")
+            "CosmotuneApp( darkTheme = darkTheme, windowWidth = maxWidth, windowHeight = maxHeight, appBackdrop = appBackdrop, ) } }"
+        assertEquals(1, count(flat(mainActivity), wrap), "the CosmotuneApp call and its arguments stand untouched inside the host's block")
         assertEquals(1, count(read(mainActivity), "com.cosmotune.video"), "the host is the only mention of Video in the file")
         assertFalse(importOfVideo.containsMatchIn(read(mainActivity)), "a full name, not an import")
     }
@@ -233,9 +233,9 @@ class ModeHooksContractTest {
     @Test fun forkMdHasARowForEachUpstreamFileThisTaskEditsWithFourColumns() {
         val rows = read("FORK.md").lines().filter { it.startsWith("|") }
         fun columns(row: String) = row.trim().removePrefix("|").removeSuffix("|").split("|").size
-        val phone = rows.filter { it.startsWith("| `app/src/main/java/com/music/bitchord/MainActivity.kt`") && "com.cosmotune.video.host.PhoneModeHost" in it }
+        val phone = rows.filter { it.startsWith("| `app/src/main/java/com/cosmotune/music/MainActivity.kt`") && "com.cosmotune.video.host.PhoneModeHost" in it }
         assertEquals(1, phone.size, "one row for the wrap in MainActivity.kt")
-        val desktop = rows.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt`") && "desktopVideoShown" in it && "DesktopModeHost.active" in it }
+        val desktop = rows.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt`") && "desktopVideoShown" in it && "DesktopModeHost.active" in it }
         assertEquals(1, desktop.size, "one row for both lines in DesktopApp.kt")
         for (row in phone + desktop) assertEquals(4, columns(row), "four columns: $row")
         val broken = rows.filter { columns(it) != 4 && !it.startsWith("| :--") }

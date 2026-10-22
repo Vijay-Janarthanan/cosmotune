@@ -11,20 +11,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.os.LocaleListCompat
 import androidx.media3.session.MediaController
 import com.cosmotune.ui.listening.*
-import com.music.bitchord.data.LocalMediaRepository
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.settings.AppSettings
-import com.music.bitchord.data.settings.AudioQuality
-import com.music.bitchord.data.sources.SourceRegistry
-import com.music.bitchord.data.sources.SourceResolver
-import com.music.bitchord.data.sources.TrackMatcher
-import com.music.bitchord.data.spotify.LocalPlaylistStore
-import com.music.bitchord.data.stats.ListeningStats
-import com.music.bitchord.data.stats.ReplayPeriod
-import com.music.bitchord.download.Downloads
-import com.music.bitchord.playback.QueueShuffle
-import com.music.bitchord.playback.playSongs
-import com.music.bitchord.playback.toMediaItem
+import com.cosmotune.music.data.LocalMediaRepository
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.settings.AppSettings
+import com.cosmotune.music.data.settings.AudioQuality
+import com.cosmotune.music.data.sources.SourceRegistry
+import com.cosmotune.music.data.sources.SourceResolver
+import com.cosmotune.music.data.sources.TrackMatcher
+import com.cosmotune.music.data.spotify.LocalPlaylistStore
+import com.cosmotune.music.data.stats.ListeningStats
+import com.cosmotune.music.data.stats.ReplayPeriod
+import com.cosmotune.music.download.Downloads
+import com.cosmotune.music.playback.QueueShuffle
+import com.cosmotune.music.playback.playSongs
+import com.cosmotune.music.playback.toMediaItem
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -67,7 +67,7 @@ fun PhoneListeningTools(
             if (!same) LocalPlaylistStore.savePlaylist(title, songs)
         },
         restore = { session ->
-            check(!com.music.bitchord.data.listentogether.ListenTogether.state.value.inParty) { "Leave Listen Together before opening a saved session." }
+            check(!com.cosmotune.music.data.listentogether.ListenTogether.state.value.inParty) { "Leave Listen Together before opening a saved session." }
             val player = checkNotNull(controller) { "The player is starting. Try again in a moment." }
             val items = withContext(Dispatchers.Default) { session.tracks.map { it.song().toMediaItem() } }
             player.pause()
@@ -79,7 +79,7 @@ fun PhoneListeningTools(
             player.pause()
         },
         play = { songs ->
-            check(!com.music.bitchord.data.listentogether.ListenTogether.state.value.inParty) { "Leave Listen Together before opening a smart playlist." }
+            check(!com.cosmotune.music.data.listentogether.ListenTogether.state.value.inParty) { "Leave Listen Together before opening a smart playlist." }
             checkNotNull(controller) { "The player is starting. Try again in a moment." }.playSongs(songs, 0)
         },
         openRelease = openRelease, findMusic = findMusic, importMusic = importMusic,
@@ -133,8 +133,8 @@ fun PhoneListeningTools(
                 if (stream != null) ListeningNetwork.readMedia(stream.url, stream.headers)
                 else {
                     require(owned == null) { "Source unavailable" }
-                    val url = com.music.bitchord.data.innertube.StreamResolver.resolve(song.videoId)
-                    ListeningNetwork.readMedia(url, com.music.bitchord.data.innertube.StreamResolver.mediaHeadersFor(url))
+                    val url = com.cosmotune.music.data.innertube.StreamResolver.resolve(song.videoId)
+                    ListeningNetwork.readMedia(url, com.cosmotune.music.data.innertube.StreamResolver.mediaHeadersFor(url))
                 }
             }
         } },
@@ -147,8 +147,8 @@ fun PhoneListeningTools(
             }
         },
         sourceSummary = "Checks use your enabled sources and current streaming quality.",
-        languageChoices = listOf("" to context.getString(com.music.bitchord.R.string.system)) +
-            com.music.bitchord.ui.components.SUPPORTED_LANGUAGES.map { it.tag to context.getString(it.nameRes) },
+        languageChoices = listOf("" to context.getString(com.cosmotune.music.R.string.system)) +
+            com.cosmotune.music.ui.components.SUPPORTED_LANGUAGES.map { it.tag to context.getString(it.nameRes) },
         existingUser = library.songs.isNotEmpty(),
     )
     ListeningTools(open, host, onDismiss)

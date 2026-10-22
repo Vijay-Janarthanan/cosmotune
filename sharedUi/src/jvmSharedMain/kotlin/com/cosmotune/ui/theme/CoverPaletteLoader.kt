@@ -7,11 +7,11 @@ import coil3.request.SuccessResult
 import com.cosmotune.theme.CoverColors
 import com.cosmotune.theme.CoverPalette
 import com.cosmotune.theme.CoverPaletteSpec
-import com.music.bitchord.data.model.ROW_ART_PX
-import com.music.bitchord.data.model.artworkAt
-import com.music.bitchord.ui.graphics.argbPixels
-import com.music.bitchord.ui.graphics.forPixelAccess
-import com.music.bitchord.ui.graphics.toImageBitmap
+import com.cosmotune.music.data.model.ROW_ART_PX
+import com.cosmotune.music.data.model.artworkAt
+import com.cosmotune.music.ui.graphics.argbPixels
+import com.cosmotune.music.ui.graphics.forPixelAccess
+import com.cosmotune.music.ui.graphics.toImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

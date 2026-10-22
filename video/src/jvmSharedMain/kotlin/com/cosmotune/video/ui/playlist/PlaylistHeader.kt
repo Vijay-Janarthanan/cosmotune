@@ -78,11 +78,11 @@ import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.blocks.ThumbnailFrame
 import com.cosmotune.video.ui.blocks.ThumbnailShape
 import com.cosmotune.video.ui.blocks.rememberMetaStyle
-import com.music.bitchord.sharedui.resources.cosmo_shuffle
-import com.music.bitchord.sharedui.resources.more
+import com.cosmotune.music.sharedui.resources.cosmo_shuffle
+import com.cosmotune.music.sharedui.resources.more
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /*
  * The head of a playlist page (spec 5.6): the thumbnail, what the page is, the title, the owner, the count and the time, and the actions.

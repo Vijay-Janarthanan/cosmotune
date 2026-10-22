@@ -13,12 +13,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.blocks.CosmoCard
 import com.cosmotune.ui.blocks.shelfKey
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.ui.components.LIBRARY_GRID_SPACING
-import com.music.bitchord.ui.components.PAGE_GUTTER
-import com.music.bitchord.ui.components.libraryGrid
-import com.music.bitchord.ui.screens.localizeCardSubtitle
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.ui.components.LIBRARY_GRID_SPACING
+import com.cosmotune.music.ui.components.PAGE_GUTTER
+import com.cosmotune.music.ui.components.libraryGrid
+import com.cosmotune.music.ui.screens.localizeCardSubtitle
 
 /**
  * Everything an artist's shelf holds, as a grid ("Show all" on an artist page): the same cards as the shelf, at the width the Library's

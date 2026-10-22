@@ -59,7 +59,7 @@ import com.cosmotune.video.ui.blocks.VideoShelfCard
 import com.cosmotune.video.ui.blocks.uniqueKeys
 import com.cosmotune.video.ui.branding.rememberVideoThumbnail
 import com.cosmotune.video.ui.branding.rememberVideoTitle
-import com.music.bitchord.ui.components.LocalShelfRowChrome
+import com.cosmotune.music.ui.components.LocalShelfRowChrome
 
 /*
  * The pieces the library pages share (plan task Y-22; spec 5.0, 5.8): the page's list and its width on a wide window, the page

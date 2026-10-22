@@ -68,11 +68,11 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.ui.theme.tabular
-import com.music.bitchord.data.model.artworkAt
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.now_playing
-import com.music.bitchord.ui.components.contextClick
-import com.music.bitchord.ui.components.longPressMenuClickable
+import com.cosmotune.music.data.model.artworkAt
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.now_playing
+import com.cosmotune.music.ui.components.contextClick
+import com.cosmotune.music.ui.components.longPressMenuClickable
 import org.jetbrains.compose.resources.stringResource
 
 /*

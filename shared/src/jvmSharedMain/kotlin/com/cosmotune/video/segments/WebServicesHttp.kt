@@ -47,11 +47,11 @@ object WebServicesHttp {
         .build()
 
     /**
-     * `Cosmotune/<version>`. [version] is the app's; the desktop application sets the `bitchord.version` property, and
+     * `Cosmotune/<version>`. [version] is the app's; the desktop application sets the `cosmotune.version` property, and
      * without either the build's `1.0.0` stands (CosmoConfig holds the name, not a version).
      */
     fun userAgent(version: String? = null): String =
-        "${CosmoConfig.APP_NAME}/${version ?: System.getProperty("bitchord.version") ?: DEFAULT_VERSION}"
+        "${CosmoConfig.APP_NAME}/${version ?: System.getProperty("cosmotune.version") ?: DEFAULT_VERSION}"
 
     /** Whether [id] looks like a video id: 1 to 64 characters of letters, digits, `-` and `_`. Anything else is never sent. */
     internal fun isVideoId(id: String): Boolean =

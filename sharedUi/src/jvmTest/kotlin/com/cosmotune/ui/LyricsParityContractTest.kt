@@ -143,7 +143,7 @@ class LyricsParityContractTest {
         assertTrue(view.contains("lifter.lift(this, layout, env.clock.longValue)"))
         assertTrue(view.contains("val bloom = !reduced && !reduceDynamicBlur && lyricsBlur && renderEffectBlurSupported"), "the old settings, as the old panel read them")
         assertTrue(view.contains("env.bloom && lifter?.hasHeldWords == true && lineState == LineState.CURRENT"), "a bloom only for a line with a held word")
-        assertTrue(effects.contains("import com.music.bitchord.ui.player.clipShiftedDown"), "the platform's sub-pixel shift is reused")
+        assertTrue(effects.contains("import com.cosmotune.music.ui.player.clipShiftedDown"), "the platform's sub-pixel shift is reused")
         assertTrue(effects.contains("LyricsMetrics.WORD_RISE_DP.dp.toPx()"))
         assertTrue(effects.contains("word.sampleInto(char - wordFirst, positionMs, growth)"))
     }

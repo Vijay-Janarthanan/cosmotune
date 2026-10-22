@@ -1,6 +1,6 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricLine
 import kotlin.math.min
 
 /** How much of the current lyric line has been sung, 0 to 1, for the fill that follows the singer. */

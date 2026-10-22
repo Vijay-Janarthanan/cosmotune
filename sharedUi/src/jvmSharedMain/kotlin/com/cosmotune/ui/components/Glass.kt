@@ -18,8 +18,8 @@ import com.cosmotune.design.GlassMode
 import com.cosmotune.design.GlassPolicy
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.music.bitchord.ui.components.optimizedHazeEffect
-import com.music.bitchord.ui.player.PlayerPlatform
+import com.cosmotune.music.ui.components.optimizedHazeEffect
+import com.cosmotune.music.ui.player.PlayerPlatform
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint

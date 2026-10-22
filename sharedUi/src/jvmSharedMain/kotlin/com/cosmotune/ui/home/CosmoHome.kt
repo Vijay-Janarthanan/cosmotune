@@ -45,28 +45,28 @@ import com.cosmotune.ui.blocks.isSong
 import com.cosmotune.ui.browse.CosmoBrowse
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.MoodGenre
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_home_afternoon
-import com.music.bitchord.sharedui.resources.cosmo_home_evening
-import com.music.bitchord.sharedui.resources.cosmo_home_late
-import com.music.bitchord.sharedui.resources.cosmo_home_morning
-import com.music.bitchord.sharedui.resources.cosmo_moods
-import com.music.bitchord.sharedui.resources.retry
-import com.music.bitchord.ui.components.MessageState
-import com.music.bitchord.ui.components.PullToRefresh
-import com.music.bitchord.ui.components.ShelfRow
-import com.music.bitchord.ui.components.ShimmerBox
-import com.music.bitchord.ui.components.SignInBanner
-import com.music.bitchord.ui.components.feedMoreSkeleton
-import com.music.bitchord.ui.components.feedSkeleton
-import com.music.bitchord.ui.components.recentlyPlayedSkeleton
-import com.music.bitchord.ui.screens.localizeShelfSubtitle
-import com.music.bitchord.ui.screens.localizeShelfTitle
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.MoodGenre
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_home_afternoon
+import com.cosmotune.music.sharedui.resources.cosmo_home_evening
+import com.cosmotune.music.sharedui.resources.cosmo_home_late
+import com.cosmotune.music.sharedui.resources.cosmo_home_morning
+import com.cosmotune.music.sharedui.resources.cosmo_moods
+import com.cosmotune.music.sharedui.resources.retry
+import com.cosmotune.music.ui.components.MessageState
+import com.cosmotune.music.ui.components.PullToRefresh
+import com.cosmotune.music.ui.components.ShelfRow
+import com.cosmotune.music.ui.components.ShimmerBox
+import com.cosmotune.music.ui.components.SignInBanner
+import com.cosmotune.music.ui.components.feedMoreSkeleton
+import com.cosmotune.music.ui.components.feedSkeleton
+import com.cosmotune.music.ui.components.recentlyPlayedSkeleton
+import com.cosmotune.music.ui.screens.localizeShelfSubtitle
+import com.cosmotune.music.ui.screens.localizeShelfTitle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -79,7 +79,7 @@ import java.util.Locale
  * bento (the hero and up to two mixes), and then every shelf of the feed. A page 840 dp wide or wider gets the desktop's layout:
  * margins of 28, the bento on twelve columns, the heading in `display(DISPLAY_L)`.
  *
- * The parameters are [com.music.bitchord.ui.screens.HomeScreen]'s, then [browse] (Explore's moods, which the chip row shows; null
+ * The parameters are [com.cosmotune.music.ui.screens.HomeScreen]'s, then [browse] (Explore's moods, which the chip row shows; null
  * hides the row). [HomeSwitch] is the one caller. [leadHero] only chooses the loading skeleton here: the new Home always has a hero.
  */
 @OptIn(ExperimentalMaterial3Api::class)

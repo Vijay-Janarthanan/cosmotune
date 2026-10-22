@@ -13,8 +13,8 @@ import kotlin.test.assertTrue
  */
 class PhoneChromeContractTest {
     private val chromeDir = "app/src/main/java/com/cosmotune/ui/chrome/"
-    private val frostedPath = "app/src/main/java/com/music/bitchord/ui/components/FrostedTopBar.kt"
-    private val mainPath = "app/src/main/java/com/music/bitchord/MainActivity.kt"
+    private val frostedPath = "app/src/main/java/com/cosmotune/music/ui/components/FrostedTopBar.kt"
+    private val mainPath = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
 
     private val topBarSwitch get() = SourceContract.read("${chromeDir}TopBarSwitch.kt")
     private val profileSwitch get() = SourceContract.read("${chromeDir}ProfileButtonSwitch.kt")
@@ -257,7 +257,8 @@ class PhoneChromeContractTest {
     @Test fun theUpstreamBarsAreStillThereForTheLookOff() {
         val src = frosted
         assertTrue(Regex("""\nfun FrostedTopBar\(""").containsMatchIn(src) && Regex("""\nfun TopBarAccountButton\(""").containsMatchIn(src), "both old composables are declared, untouched")
-        assertFalse(src.contains("com.cosmotune"), "no edit in the old bar's file")
+        // The file's own package is `com.cosmotune.music` since the rename (FORK.md); any other `com.cosmotune` is an edit.
+        assertFalse(Regex("""com\.cosmotune(?!\.music\b)""").containsMatchIn(src), "no edit in the old bar's file")
         assertTrue("if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(" in main && "if (glassActive) Column(" in main && "FloatingBottomBar(" in main, "part one's chrome and the old chain are still the two branches")
     }
 

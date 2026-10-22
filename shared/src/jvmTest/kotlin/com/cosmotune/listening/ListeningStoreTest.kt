@@ -1,7 +1,7 @@
 package com.cosmotune.listening
 
-import com.music.bitchord.data.model.QueueTier
-import com.music.bitchord.data.model.Song
+import com.cosmotune.music.data.model.QueueTier
+import com.cosmotune.music.data.model.Song
 import java.nio.file.Files
 import kotlin.test.*
 
@@ -102,11 +102,11 @@ class ListeningStoreTest {
 
     @Test fun restoredTracksKeepRecordingOriginAndQueueIdentity() {
         val original = song("one").copy(
-            artists = listOf(com.music.bitchord.data.model.ArtistRef("Artist", "artist-id")),
+            artists = listOf(com.cosmotune.music.data.model.ArtistRef("Artist", "artist-id")),
             albumName = "Album", albumId = "album-id", localUri = "file:///music/song.flac", localPath = "/music/song.flac",
             downloadFormat = "FLAC", sourceQuality = "LOSSLESS", localDateAddedSeconds = 100,
             localDateModifiedSeconds = 200, isExplicit = true, isVideo = false, isVideoOrigin = true,
-            playbackSource = "My playlist", playbackSourceType = com.music.bitchord.data.model.PlaybackSourceType.BROWSE,
+            playbackSource = "My playlist", playbackSourceType = com.cosmotune.music.data.model.PlaybackSourceType.BROWSE,
             playbackSourceId = "playlist-id", queueEntryId = "entry-id", setVideoId = "playlist-entry", radioName = "Station",
         )
         val first = store()

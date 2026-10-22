@@ -1,7 +1,7 @@
 package com.cosmotune.desktop
 
-import com.music.bitchord.data.canvas.OpenCanvasProvider
-import com.music.bitchord.desktop.DesktopCanvasDecoder
+import com.cosmotune.music.data.canvas.OpenCanvasProvider
+import com.cosmotune.music.desktop.DesktopCanvasDecoder
 import com.opencanvas.core.stream.ProgressiveRangeSource
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient

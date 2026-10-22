@@ -42,7 +42,7 @@ class MaterialBridgeTest {
     /** Material's own defaults: sizes 57..11 sp, tracking from +0.5 to -0.25 sp. */
     private val materialDefaults = Typography()
 
-    /** The phone's `BitChordTypography` (`Theme.kt`): SF Pro, heavy and tight, only some styles set. */
+    /** The phone's `CosmotuneTypography` (`Theme.kt`): SF Pro, heavy and tight, only some styles set. */
     private val phone = Typography(
         displayLarge = TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.W800, fontSize = 34.sp, letterSpacing = (-0.8).sp),
         headlineLarge = TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.W800, fontSize = 30.sp, letterSpacing = (-0.7).sp),

@@ -46,10 +46,10 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_channel_about
 import com.cosmotune.video.resources.video_channel_joined
 import com.cosmotune.video.resources.video_channel_links
-import com.music.bitchord.sharedui.resources.cosmo_read_more
-import com.music.bitchord.sharedui.resources.cosmo_show_less
+import com.cosmotune.music.sharedui.resources.cosmo_read_more
+import com.cosmotune.music.sharedui.resources.cosmo_show_less
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /*
  * The About tab of a channel (spec 5.5): the description in a tile, the join date, the links.

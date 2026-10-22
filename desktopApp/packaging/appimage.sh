@@ -38,7 +38,7 @@ Exec=Cosmotune
 Icon=cosmotune
 Categories=AudioVideo;Audio;Player;
 Terminal=false
-StartupWMClass=com-music-bitchord-desktop-MainKt
+StartupWMClass=com-cosmotune-music-desktop-MainKt
 DESKTOP
 
 # appimagetool reads the icon by the desktop entry; the desktop reads .DirIcon.

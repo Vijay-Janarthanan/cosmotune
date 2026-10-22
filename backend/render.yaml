@@ -1,4 +1,4 @@
-# Render blueprint for BitChord Listen Together (Go backend)
+# Render blueprint for Cosmotune Listen Together (Go backend)
 #
 # Deploy this service manually on Render Dashboard (Recommended):
 # - New -> Web Service, connect repo
@@ -13,6 +13,7 @@
 
 services:
   - type: web
+    # deployed service name: renaming needs a new deployment
     name: bitchord-listen-together
     runtime: go
     plan: free

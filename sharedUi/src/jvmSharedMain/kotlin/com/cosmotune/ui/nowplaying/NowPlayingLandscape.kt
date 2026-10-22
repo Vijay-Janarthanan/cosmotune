@@ -35,9 +35,9 @@ import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.CosmoShellState
 import com.cosmotune.ui.theme.cosmoAmbientGround
-import com.music.bitchord.data.canvas.CanvasArtwork
-import com.music.bitchord.ui.player.CanvasArtworkPlayer
-import com.music.bitchord.ui.player.CanvasContentMode
+import com.cosmotune.music.data.canvas.CanvasArtwork
+import com.cosmotune.music.ui.player.CanvasArtworkPlayer
+import com.cosmotune.music.ui.player.CanvasContentMode
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 

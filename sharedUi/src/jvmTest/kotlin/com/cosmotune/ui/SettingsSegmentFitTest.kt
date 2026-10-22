@@ -74,7 +74,7 @@ class SettingsSegmentFitTest {
     }
 
     @Test fun outputPrecisionAndRefreshRateFit() {
-        val settings = SourceContract.read("app/src/main/java/com/music/bitchord/data/settings/AppSettings.kt")
+        val settings = SourceContract.read("app/src/main/java/com/cosmotune/music/data/settings/AppSettings.kt")
         val enum = settings.substringAfter("enum class OutputPcmMode(").substringBefore("}")
         val pcm = Regex("""[A-Z_0-9]+\("([^"]+)"\)""").findAll(enum).map { it.groupValues[1] }.toList()
         assertTrue(pcm.size == 2, "OutputPcmMode's labels: $pcm")

@@ -1,7 +1,7 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.artistForLyricsSearch
-import com.music.bitchord.data.lyrics.forLyricsSearch
+import com.cosmotune.music.data.lyrics.artistForLyricsSearch
+import com.cosmotune.music.data.lyrics.forLyricsSearch
 import java.text.Normalizer
 import java.util.Locale
 import kotlin.math.abs

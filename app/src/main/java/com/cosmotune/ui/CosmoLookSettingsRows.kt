@@ -25,23 +25,23 @@ import com.cosmotune.ui.settings.CosmoLookPreviewDialog
 import com.cosmotune.ui.settings.CosmoSettingsInsets
 import com.cosmotune.ui.settings.CosmoSettingsSegmented
 import com.cosmotune.ui.settings.rememberCosmoLookSettings
-import com.music.bitchord.sharedui.resources.Res as SharedRes
-import com.music.bitchord.sharedui.resources.cosmo_cover_colours
-import com.music.bitchord.sharedui.resources.cosmo_cover_colours_summary
-import com.music.bitchord.sharedui.resources.cosmo_intensity
-import com.music.bitchord.sharedui.resources.cosmo_intensity_balanced
-import com.music.bitchord.sharedui.resources.cosmo_intensity_calm
-import com.music.bitchord.sharedui.resources.cosmo_intensity_rich
-import com.music.bitchord.sharedui.resources.cosmo_intensity_summary
-import com.music.bitchord.sharedui.resources.cosmo_look_preview
-import com.music.bitchord.sharedui.resources.cosmo_look_preview_summary
-import com.music.bitchord.sharedui.resources.cosmo_new_look
-import com.music.bitchord.sharedui.resources.cosmo_new_look_summary
-import com.music.bitchord.ui.screens.ROW_INSET
-import com.music.bitchord.ui.screens.RowDivider
-import com.music.bitchord.ui.screens.SegmentedControl
-import com.music.bitchord.ui.screens.SettingsRow
-import com.music.bitchord.ui.screens.TEXT_INSET
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.cosmo_cover_colours
+import com.cosmotune.music.sharedui.resources.cosmo_cover_colours_summary
+import com.cosmotune.music.sharedui.resources.cosmo_intensity
+import com.cosmotune.music.sharedui.resources.cosmo_intensity_balanced
+import com.cosmotune.music.sharedui.resources.cosmo_intensity_calm
+import com.cosmotune.music.sharedui.resources.cosmo_intensity_rich
+import com.cosmotune.music.sharedui.resources.cosmo_intensity_summary
+import com.cosmotune.music.sharedui.resources.cosmo_look_preview
+import com.cosmotune.music.sharedui.resources.cosmo_look_preview_summary
+import com.cosmotune.music.sharedui.resources.cosmo_new_look
+import com.cosmotune.music.sharedui.resources.cosmo_new_look_summary
+import com.cosmotune.music.ui.screens.ROW_INSET
+import com.cosmotune.music.ui.screens.RowDivider
+import com.cosmotune.music.ui.screens.SegmentedControl
+import com.cosmotune.music.ui.screens.SettingsRow
+import com.cosmotune.music.ui.screens.TEXT_INSET
 import org.jetbrains.compose.resources.stringResource
 
 /**

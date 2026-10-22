@@ -58,20 +58,20 @@ import com.cosmotune.ui.components.tonalFill
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.tabular
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.isMatchMissing
-import com.music.bitchord.data.model.isMatchPending
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.more
-import com.music.bitchord.sharedui.resources.play_next
-import com.music.bitchord.sharedui.resources.queue
-import com.music.bitchord.sharedui.resources.selected as selectedString
-import com.music.bitchord.ui.AppUi
-import com.music.bitchord.ui.components.DownloadedBadge
-import com.music.bitchord.ui.components.ExplicitSongTitle
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
-import com.music.bitchord.ui.player.rememberRemoteArtworkUrl
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.isMatchMissing
+import com.cosmotune.music.data.model.isMatchPending
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.more
+import com.cosmotune.music.sharedui.resources.play_next
+import com.cosmotune.music.sharedui.resources.queue
+import com.cosmotune.music.sharedui.resources.selected as selectedString
+import com.cosmotune.music.ui.AppUi
+import com.cosmotune.music.ui.components.DownloadedBadge
+import com.cosmotune.music.ui.components.ExplicitSongTitle
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.player.rememberRemoteArtworkUrl
 import kotlin.math.abs
 import org.jetbrains.compose.resources.stringResource
 

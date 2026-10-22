@@ -20,10 +20,10 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.design.LyricsMetrics
 import com.cosmotune.lyrics.LyricParticles
 import com.cosmotune.lyrics.WordFill
-import com.music.bitchord.data.lyrics.CharGrowth
-import com.music.bitchord.data.lyrics.GrowingWord
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.ui.player.clipShiftedDown
+import com.cosmotune.music.data.lyrics.CharGrowth
+import com.cosmotune.music.data.lyrics.GrowingWord
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.ui.player.clipShiftedDown
 
 /*
  * What the new lyrics view draws for the words of a line as they are sung (the old view's features, carried over): the fill that crosses each timed piece

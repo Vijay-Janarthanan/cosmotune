@@ -1,9 +1,9 @@
 package com.cosmotune.ui.browse
 
 import androidx.compose.runtime.Stable
-import com.music.bitchord.data.model.MoodGenre
-import com.music.bitchord.data.model.MoodGenreSection
-import com.music.bitchord.data.model.UiState
+import com.cosmotune.music.data.model.MoodGenre
+import com.cosmotune.music.data.model.MoodGenreSection
+import com.cosmotune.music.data.model.UiState
 
 /**
  * Explore's moods and genres, handed to the new Home and Search by the roots (decision E4): the roots already hold the

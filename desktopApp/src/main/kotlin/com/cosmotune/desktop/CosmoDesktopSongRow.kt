@@ -70,10 +70,10 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.ui.theme.tabular
-import com.music.bitchord.data.model.ROW_ART_PX
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.desktop.DesktopArtwork
-import com.music.bitchord.desktop.DesktopStrings
+import com.cosmotune.music.data.model.ROW_ART_PX
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.desktop.DesktopArtwork
+import com.cosmotune.music.desktop.DesktopStrings
 
 /*
  * The desktop's rows in the new look (`v2/screens-v2.css` `.d2-tracks li`): 54 dp, radius 18, 16 dp in from each side, washed in

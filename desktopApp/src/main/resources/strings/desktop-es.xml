@@ -10,13 +10,13 @@
     <string name="d_autoplay_wont_suggest_a_song_already_played_or_suggested">La reproducción automática no sugerirá una canción ya reproducida o sugerida en esta sesión</string>
     <string name="d_available_offline">Disponible sin conexión</string>
     <string name="d_back_to_explore">Volver a Explorar</string>
-    <string name="d_bitchord_is_free_software_and_so_is_everything_it_is_bui">Cosmotune es software libre, y también lo es todo aquello sobre lo que está construido.</string>
-    <string name="d_bitchord_youtube_music_session">Cosmotune — sesión de YouTube Music</string>
+    <string name="d_cosmotune_is_free_software_and_so_is_everything_it_is_bui">Cosmotune es software libre, y también lo es todo aquello sobre lo que está construido.</string>
+    <string name="d_cosmotune_youtube_music_session">Cosmotune — sesión de YouTube Music</string>
     <string name="d_blur_unfocused_lyrics">Desenfocar la letra no activa</string>
     <string name="d_choose_something_to_play">Elige algo para reproducir</string>
     <string name="d_close_player">Cerrar el reproductor</string>
     <string name="d_close_up_next">Cerrar A continuación</string>
-    <string name="d_closing_the_window_leaves_bitchord_in_the_tray_instead_o">Al cerrar la ventana, Cosmotune queda en la bandeja en lugar de salir</string>
+    <string name="d_closing_the_window_leaves_cosmotune_in_the_tray_instead_o">Al cerrar la ventana, Cosmotune queda en la bandeja en lugar de salir</string>
     <string name="d_continue_playing">Seguir escuchando</string>
     <string name="d_custom_module">Módulo personalizado</string>
     <string name="d_discord_rich_presence_last_fm_and_listenbrainz">Last.fm y ListenBrainz</string>
@@ -51,7 +51,7 @@
     <string name="d_paste_the_cookie_header_for_music_youtube_com">Pega la cabecera Cookie de music.youtube.com.</string>
     <string name="d_playback_speed">Velocidad de reproducción</string>
     <string name="d_playlists_on_this_computer">Listas en este ordenador</string>
-    <string name="d_quit_bitchord">Salir de Cosmotune</string>
+    <string name="d_quit_cosmotune">Salir de Cosmotune</string>
     <string name="d_recently_played_on_this_computer">Reproducido hace poco en este ordenador</string>
     <string name="d_recents">Recientes</string>
     <string name="d_remove_from_playlist">Quitar de la lista</string>
@@ -60,7 +60,7 @@
     <string name="d_scroll_right">Desplazar a la derecha</string>
     <string name="d_search_your_music">Busca en tu música</string>
     <string name="d_shorten_long_gaps_rather_than_playing_them_out">Acortar los silencios largos en vez de reproducirlos enteros</string>
-    <string name="d_show_bitchord_in_the_system_tray_with_playback_controls">Mostrar Cosmotune en la bandeja del sistema, con controles de reproducción</string>
+    <string name="d_show_cosmotune_in_the_system_tray_with_playback_controls">Mostrar Cosmotune en la bandeja del sistema, con controles de reproducción</string>
     <string name="d_show_motion_artwork_when_it_is_available">Mostrar la portada animada cuando esté disponible</string>
     <string name="d_sign_in_to_last_fm">Iniciar sesión en Last.fm</string>
     <string name="d_song">CANCIÓN</string>

@@ -215,9 +215,9 @@ class ChannelPlaylistStructureTest {
 
     @Test fun thePagesTakeOnlyPartTwosBlocksAndTheWorkOfTheOtherTasksThroughTheirStubsAndHandler() {
         for (file in all) {
-            val imports = Regex("""(?m)^import (com\.music\.bitchord\.[\w.]+)""").findAll(source(file)).map { it.groupValues[1] }.toSet()
+            val imports = Regex("""(?m)^import (com\.cosmotune\.music\.[\w.]+)""").findAll(source(file)).map { it.groupValues[1] }.toSet()
             // part two's resources, and nothing of Music's screens or its player
-            assertTrue(imports.all { it.startsWith("com.music.bitchord.sharedui.resources.") }, "$file imports from Music: $imports")
+            assertTrue(imports.all { it.startsWith("com.cosmotune.music.sharedui.resources.") }, "$file imports from Music: $imports")
         }
         val page = code("channel/ChannelPage")
         for (name in listOf("ShortsShelf(", "ShortsGrid(", "openShort(", "rememberVideoActions()", "rememberDownloadedIds()", "actions.play(", "actions.downloadBatch(", "VideoActionsSheet(")) {

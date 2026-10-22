@@ -12,9 +12,9 @@ import kotlin.test.assertTrue
  */
 class HomeContractTest {
     private val home = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/home"
-    private val oldScreenPath = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/screens/HomeScreen.kt"
-    private val phoneRoot = "app/src/main/java/com/music/bitchord/MainActivity.kt"
-    private val desktopRoot = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+    private val oldScreenPath = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/screens/HomeScreen.kt"
+    private val phoneRoot = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
+    private val desktopRoot = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
 
     private fun file(name: String): String = SourceContract.read("$home/$name")
     private fun code(name: String): String = SourceContract.code(file(name))

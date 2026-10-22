@@ -94,14 +94,14 @@ class BridgeContractTest {
 
     // ---- the import swaps -----------------------------------------------------------------------------------------------
 
-    private val app = "app/src/main/java/com/music/bitchord/"
-    private val desktop = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/"
+    private val app = "app/src/main/java/com/cosmotune/music/"
+    private val desktop = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/"
 
     private val swapped: Map<String, List<String>> = mapOf(
         "Switch" to listOf("AccountAndScrobblingScreen", "DiscordScreen", "EqualizerScreen", "ListenTogetherScreen", "SettingsSheet", "SourcesScreen", "SpotifyCanvasAuthScreen")
             .map { "${app}ui/screens/$it.kt" } +
             listOf("DesktopApp", "DesktopEqualizerUi", "DesktopIntegrationsDialog", "DesktopListenTogetherUi").map { "$desktop$it.kt" },
-        "CircularProgressIndicator" to listOf("sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/Common.kt") +
+        "CircularProgressIndicator" to listOf("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/Common.kt") +
             listOf("AccountChannelDialog", "CastDialog", "DownloadManagerSheet", "PlaylistPickerSheet", "ReorderPlaylistSheet", "SongActionsSheet")
                 .map { "${app}ui/components/$it.kt" } +
             listOf("ListenTogetherScreen", "SpotifyLibraryScreen").map { "${app}ui/screens/$it.kt" } +
@@ -150,9 +150,9 @@ class BridgeContractTest {
         val left = listOf(
             "${app}ui/components/MiniPlayer.kt", "${app}ui/components/GlassNavBar.kt", "${app}ui/components/FrostedTopBar.kt",
             "${app}ui/player/AndroidLyricsShareSheet.kt",
-            "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerControls.kt",
-            "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerLyrics.kt",
-            "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/LyricsProviderSheet.kt",
+            "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/player/PlayerControls.kt",
+            "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/player/PlayerLyrics.kt",
+            "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/player/LyricsProviderSheet.kt",
         )
         for (file in left) {
             val src = read(file)

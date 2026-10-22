@@ -37,9 +37,9 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_list_error
 import com.cosmotune.video.resources.video_retry
 import com.cosmotune.video.ui.blocks.ThumbnailShape
-import com.music.bitchord.sharedui.resources.cosmo_state_empty
+import com.cosmotune.music.sharedui.resources.cosmo_state_empty
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /*
  * What the phone's list and the wide page's grid have in common (plan task Y-20): a page writes its items once, to a [PageItems], and

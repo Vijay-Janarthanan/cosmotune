@@ -65,7 +65,7 @@ private object DesktopVideoProcess {
     // One slot per line, a blank line between slots: the wiring task replaces its lines, the Shorts task only its own.
     private fun build(): VideoGraph {
         val files = FileLibraryFiles(videoLibraryDir(LibraryPlatform.Desktop))
-        val agent = WebServicesHttp.userAgent(System.getProperty("bitchord.version") ?: FALLBACK_VERSION)
+        val agent = WebServicesHttp.userAgent(System.getProperty("cosmotune.version") ?: FALLBACK_VERSION)
 
         val source = NewPipeVideoSource(clock)
 
@@ -119,5 +119,5 @@ private object DesktopVideoProcess {
     }
 
     /** The version the desktop application reports when it was started without one (as its settings footer and update check do). */
-    private const val FALLBACK_VERSION = "1.0.0-alpha1"
+    private const val FALLBACK_VERSION = "1.0.0"
 }

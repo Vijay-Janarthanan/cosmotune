@@ -34,12 +34,12 @@ import com.cosmotune.ui.components.cosmoGlass
 import com.cosmotune.ui.components.liftShadow
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.data.model.HEADER_ART_PX
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.artworkAt
-import com.music.bitchord.ui.components.contextClick
-import com.music.bitchord.ui.components.longPressMenuClickable
-import com.music.bitchord.ui.screens.localizeCardSubtitle
+import com.cosmotune.music.data.model.HEADER_ART_PX
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.artworkAt
+import com.cosmotune.music.ui.components.contextClick
+import com.cosmotune.music.ui.components.longPressMenuClickable
+import com.cosmotune.music.ui.screens.localizeCardSubtitle
 
 /*
  * The hero of Home (`screens-v2.css` `.hero2`, `.hero-txt`, `.tag2`, `.play2`; `screens-v3.css` `.dh-bento .hero2` for the wide

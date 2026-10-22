@@ -53,9 +53,9 @@ import com.cosmotune.ui.sheets.SurfaceSheetSwitch
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.sharedui.resources.cancel
+import com.cosmotune.music.sharedui.resources.cancel
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /** One row of a [ChoiceSheet]: the [value] it stands for and the [label] it shows. */
 @Immutable

@@ -63,17 +63,17 @@ import com.cosmotune.video.ui.blocks.VideoShelfCard
 import com.cosmotune.video.ui.blocks.uniqueKeys
 import com.cosmotune.video.ui.branding.rememberVideoThumbnail
 import com.cosmotune.video.ui.branding.rememberVideoTitle
-import com.music.bitchord.sharedui.resources.cosmo_home_afternoon
-import com.music.bitchord.sharedui.resources.cosmo_home_evening
-import com.music.bitchord.sharedui.resources.cosmo_home_late
-import com.music.bitchord.sharedui.resources.cosmo_home_morning
-import com.music.bitchord.ui.components.LocalShelfRowChrome
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.sharedui.resources.cosmo_home_afternoon
+import com.cosmotune.music.sharedui.resources.cosmo_home_evening
+import com.cosmotune.music.sharedui.resources.cosmo_home_late
+import com.cosmotune.music.sharedui.resources.cosmo_home_morning
+import com.cosmotune.music.ui.components.LocalShelfRowChrome
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import java.util.Locale
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /*
  * The parts Home is built of that the shared blocks do not give (plan task Y-17): the heading with the time-of-day greeting, the chip

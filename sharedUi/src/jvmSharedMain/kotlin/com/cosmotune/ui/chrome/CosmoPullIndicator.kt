@@ -43,8 +43,8 @@ import com.cosmotune.ui.components.tonalFill
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_refreshing
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_refreshing
 import kotlin.math.max
 import org.jetbrains.compose.resources.stringResource
 

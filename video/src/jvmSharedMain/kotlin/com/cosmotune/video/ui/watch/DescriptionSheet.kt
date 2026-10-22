@@ -45,9 +45,9 @@ import com.cosmotune.video.ui.blocks.ThumbnailFrame
 import com.cosmotune.video.ui.blocks.rememberMetaStyle
 import com.cosmotune.video.ui.blocks.rememberTitleStyle
 import com.cosmotune.video.ui.blocks.videoClickable
-import com.music.bitchord.sharedui.resources.cosmo_close
+import com.cosmotune.music.sharedui.resources.cosmo_close
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /*
  * The description sheet (spec 5.4: "the full text with tappable timestamps and links, then the chapters as rows with a 96 x 54

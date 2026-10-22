@@ -30,8 +30,8 @@ import com.cosmotune.ui.components.CosmoButtonSize
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.show_all
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.show_all
 import org.jetbrains.compose.resources.stringResource
 
 /*

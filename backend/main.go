@@ -18,13 +18,13 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/KabirSinghBhatia/BitChord/backend/clock"
-	"github.com/KabirSinghBhatia/BitChord/backend/codes"
-	"github.com/KabirSinghBhatia/BitChord/backend/config"
-	"github.com/KabirSinghBhatia/BitChord/backend/hub"
-	"github.com/KabirSinghBhatia/BitChord/backend/party"
-	"github.com/KabirSinghBhatia/BitChord/backend/presence"
-	"github.com/KabirSinghBhatia/BitChord/backend/protocol"
+	"github.com/Vijay-Janarthanan/cosmotune/backend/clock"
+	"github.com/Vijay-Janarthanan/cosmotune/backend/codes"
+	"github.com/Vijay-Janarthanan/cosmotune/backend/config"
+	"github.com/Vijay-Janarthanan/cosmotune/backend/hub"
+	"github.com/Vijay-Janarthanan/cosmotune/backend/party"
+	"github.com/Vijay-Janarthanan/cosmotune/backend/presence"
+	"github.com/Vijay-Janarthanan/cosmotune/backend/protocol"
 )
 
 var (
@@ -74,7 +74,7 @@ func main() {
 	handler := corsMiddleware(mux)
 
 	addr := fmt.Sprintf("0.0.0.0:%d", config.Port)
-	log.Printf("BitChord Listen Together (Go) starting on %s...", addr)
+	log.Printf("Cosmotune Listen Together (Go) starting on %s...", addr)
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -223,6 +223,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
+		// deployed service name: renaming needs a new deployment
 		"service":    "bitchord-listen-together",
 		"members":    store.MemberCount(),
 		"parties":    store.Len(),

@@ -1,6 +1,6 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.YouTubeMusicLyrics
+import com.cosmotune.music.data.lyrics.YouTubeMusicLyrics
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.*

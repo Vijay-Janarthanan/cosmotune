@@ -64,9 +64,9 @@ import com.cosmotune.video.resources.video_delete
 import com.cosmotune.video.resources.video_delete_playlist_confirm
 import com.cosmotune.video.resources.video_playlist_name
 import com.cosmotune.video.resources.video_rename
-import com.music.bitchord.sharedui.resources.cancel
+import com.cosmotune.music.sharedui.resources.cancel
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /*
  * The two dialogs of your own playlist's More menu (spec 5.6): Rename and Delete, through part two's dialog card (layer C: the 40 %

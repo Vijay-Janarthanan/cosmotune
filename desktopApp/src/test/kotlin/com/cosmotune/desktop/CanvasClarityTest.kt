@@ -1,6 +1,6 @@
 package com.cosmotune.desktop
 
-import com.music.bitchord.desktop.DesktopCanvasDecoder
+import com.cosmotune.music.desktop.DesktopCanvasDecoder
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals

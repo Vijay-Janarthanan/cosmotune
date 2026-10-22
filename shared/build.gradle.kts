@@ -76,6 +76,6 @@ kotlin {
 }
 
 android {
-    namespace = "com.music.bitchord.shared"
+    namespace = "com.cosmotune.music.shared"
     compileSdk = 36
 }

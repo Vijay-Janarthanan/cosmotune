@@ -27,7 +27,7 @@ val LocalCosmoColors = staticCompositionLocalOf<CosmoColors> { error("CosmoLookT
 val LocalReducedMotion = staticCompositionLocalOf { false }
 
 /**
- * The app theme with the new look switch in it. [legacy] is the old theme call (BitChordTheme on the
+ * The app theme with the new look switch in it. [legacy] is the old theme call (CosmotuneTheme on the
  * phone, the desktop MaterialTheme). The structure below is the same whether the switch is on or off,
  * so turning it on in Settings keeps every remembered state of the app.
  *

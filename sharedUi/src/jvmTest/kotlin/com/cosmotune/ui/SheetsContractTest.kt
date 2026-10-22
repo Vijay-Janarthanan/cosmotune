@@ -18,8 +18,8 @@ class SheetsContractTest {
         "CosmoSheetSurface", "CosmoActionRow", "CosmoSheetHeader", "CosmoToast", "CosmoMenuSurface", "CosmoDialogCard", "CosmoSheetPalette",
     )
 
-    private val phone = "app/src/main/java/com/music/bitchord/ui/components"
-    private val desktop = "desktopApp/src/main/kotlin/com/music/bitchord/desktop"
+    private val phone = "app/src/main/java/com/cosmotune/music/ui/components"
+    private val desktop = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop"
     private val songSheet = SourceContract.read("$phone/SongActionsSheet.kt")
     private val browseSheet = SourceContract.read("$phone/BrowseActionsSheet.kt")
     private val notice = SourceContract.read("$phone/QueueActionNotice.kt")

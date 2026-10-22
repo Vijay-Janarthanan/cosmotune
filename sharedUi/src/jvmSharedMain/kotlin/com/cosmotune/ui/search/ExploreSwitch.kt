@@ -7,10 +7,10 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.data.model.MoodGenre
-import com.music.bitchord.data.model.MoodGenreSection
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.ui.screens.ExploreScreen
+import com.cosmotune.music.data.model.MoodGenre
+import com.cosmotune.music.data.model.MoodGenreSection
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.ui.screens.ExploreScreen
 
 /**
  * The one entry point of the Explore page: with the new look on it is the browse page of Search (moods and genres, no longer a
