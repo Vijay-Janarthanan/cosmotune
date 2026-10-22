@@ -47,6 +47,9 @@ import dev.chrisbanes.haze.hazeSource
  * in two `derivedStateOf`: a fade of the video recomposes nothing. The clip's own alpha goes through `presentationAlpha`, not
  * a Compose layer: on the phone the clip is a `TextureView`, which does not reliably take a Compose layer's alpha (the old
  * player says so at `CanvasArtworkPlayer`'s `update`).
+ *
+ * [controls] is the controls panel's progress (NP-1: 0 expanded, 1 minimized to the slim bar; none on a page without one): the
+ * bottom scrim fades with it to a quarter of its strength ([ControlsSheetRules.bottomScrimStrength]), read while drawing.
  */
 @Composable
 internal fun NowPlayingBackdrop(
@@ -58,6 +61,7 @@ internal fun NowPlayingBackdrop(
     onRenderedChanged: (Boolean) -> Unit,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
+    controls: State<Float>? = null,
 ) {
     // The spring settles on 1 a little at a time; the clip is opaque long before, so the ground goes at 99.9 %.
     val groundShown by remember(reveal) { derivedStateOf { reveal.value < 0.999f } }
@@ -75,7 +79,7 @@ internal fun NowPlayingBackdrop(
                 presentationAlpha = { reveal.value.coerceIn(0f, 1f) },
             )
         }
-        if (scrimsShown) Box(Modifier.fillMaxSize().nowPlayingScrims(reveal, lyricsOpen))
+        if (scrimsShown) Box(Modifier.fillMaxSize().nowPlayingScrims(reveal, lyricsOpen, controls))
     }
 }
 
@@ -87,7 +91,7 @@ internal fun NowPlayingBackdrop(
  * (a few a frame, only while it runs) and recomposes nothing. Nothing is allocated while the picture is still.
  */
 @Composable
-private fun Modifier.nowPlayingScrims(reveal: State<Float>, lyricsOpen: Boolean): Modifier {
+private fun Modifier.nowPlayingScrims(reveal: State<Float>, lyricsOpen: Boolean, controls: State<Float>?): Modifier {
     val colors = LocalCosmoColors.current
     return graphicsLayer { alpha = reveal.value.coerceIn(0f, 1f) }.drawWithCache {
         val width = size.width
@@ -112,7 +116,7 @@ private fun Modifier.nowPlayingScrims(reveal: State<Float>, lyricsOpen: Boolean)
         onDrawBehind {
             drawRect(topBrush, size = Size(width, topHeight))
             if (lyricsOpen) drawRect(bottomBrush, size = Size(width, height))
-            else drawRect(bottomBrush, topLeft = Offset(0f, bottomTop), size = Size(width, bottomHeight))
+            else drawRect(bottomBrush, topLeft = Offset(0f, bottomTop), size = Size(width, bottomHeight), alpha = ControlsSheetRules.bottomScrimStrength(controls?.value ?: 0f))
             // The glow is a radial gradient squashed to an ellipse, centred 1.15 bands down its own band.
             clipRect(0f, height - band, width, height) {
                 translate(0f, height - band) {

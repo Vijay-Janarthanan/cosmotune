@@ -278,4 +278,8 @@
     <string name="cosmo_duration_min">%1$d min</string>
     <string name="cosmo_duration_h_min">%1$d h %2$d min</string>
     <string name="cosmo_watch_music_video">Watch the music video</string>
+    <string name="cosmo_np_controls_minimize">Minimize controls</string>
+    <string name="cosmo_np_controls_expand">Expand controls</string>
+    <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
+    <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
 </resources>
