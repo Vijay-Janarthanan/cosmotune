@@ -111,6 +111,9 @@ class DesktopPlaybackEngine(
 
     @Volatile private var playbackSpeed = 1f
     @Volatile private var volume = 1f
+    @Volatile private var loudnessNormalization = true
+
+    fun setLoudnessNormalization(enabled: Boolean) { loudnessNormalization = enabled }
     @Volatile private var paused = true
     // Volatile, every one of them: these are set from the UI thread when a setting changes and read
     // from the audio thread on the next block.
@@ -143,6 +146,7 @@ class DesktopPlaybackEngine(
         var startUs: Long,
     ) {
         var gain = 1f
+        val normalizer = com.cosmotune.audio.LoudnessNormalizer()
         var finished = false
         var tempo: DesktopTempoBuffer? = null
         var tempoRate = 1.0
@@ -947,6 +951,11 @@ class DesktopPlaybackEngine(
     private fun readSource(track: Track): FloatArray? {
         val block = track.decoder.readSamples() ?: return null
         val count = track.decoder.sampleCount
+        track.normalizer.process(
+            block, count, track.decoder.outputFormat.channels, track.decoder.outputFormat.sampleRate,
+            if (track.stream.sourceId == "youtube") com.music.bitchord.data.innertube.StreamResolver.loudnessDbFor(track.song.videoId) else null,
+            loudnessNormalization,
+        )
         val from = track.decoder.outputFormat.sampleRate
         val to = sink.format.sampleRate
         if (from <= 0 || to <= 0 || from == to) {

@@ -1,10 +1,10 @@
 package com.music.bitchord.data.lyrics
 
+import com.cosmotune.lyrics.RecordingMatch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import java.text.Normalizer
 import java.util.Locale
 import kotlin.math.abs
 
@@ -103,8 +103,11 @@ object LrcRed {
         val wantedArtists = artistsOf(artist)
         val seconds = durationMs / 1000.0
 
-        fun distance(hit: Hit): Double =
-            if (durationMs > 0 && hit.duration != null) abs(hit.duration - seconds) else 0.0
+        fun distance(hit: Hit): Double = when {
+            durationMs <= 0 -> 0.0
+            hit.duration == null || !hit.duration.isFinite() || hit.duration <= 0 -> Double.POSITIVE_INFINITY
+            else -> abs(hit.duration - seconds)
+        }
 
         return hits
             .filter { hit ->
@@ -112,7 +115,7 @@ object LrcRed {
                 hit.isrc?.let(::documentUrl) != null &&
                     coreOf(name) == wantedTitle &&
                     versionOf(name) == wantedVersion &&
-                    (wantedArtists.isEmpty() || artistsOf(hit.artist.orEmpty()).any { it in wantedArtists }) &&
+                    wantedArtists.isNotEmpty() && artistsOf(hit.artist.orEmpty()).any { it in wantedArtists } &&
                     distance(hit) <= DURATION_TOLERANCE_SECONDS
             }
             .minByOrNull(::distance)
@@ -133,19 +136,10 @@ object LrcRed {
     private fun artistsOf(artist: String): Set<String> =
         artist.split(ARTIST_SEPARATORS).map(::normalized).filter { it.isNotEmpty() }.toSet()
 
-    /** Lower case, accents off ("ROSÉ" is "rose"), and only letters and digits. */
-    private fun normalized(value: String): String =
-        Normalizer.normalize(value, Normalizer.Form.NFD)
-            .replace(COMBINING_MARKS, "")
-            .lowercase(Locale.ROOT)
-            .map { if (it.isLetterOrDigit()) it else ' ' }
-            .joinToString("")
-            .replace(WHITESPACE, " ")
-            .trim()
+    /** Fold Latin accents while preserving Indic vowel signs and other script marks. */
+    private fun normalized(value: String): String = RecordingMatch.normalize(value)
 
     private val BRACKETED = Regex("""[(\[][^)\]]*[)\]]""")
-    private val COMBINING_MARKS = Regex("""\p{Mn}+""")
-    private val WHITESPACE = Regex("""\s+""")
     private val ARTIST_SEPARATORS = Regex(
         """\s*(?:,|&|;|/|\s+and\s+|\s+x\s+|\s+with\s+|\s+feat\.?\s+|\s+ft\.?\s+)\s*""",
         RegexOption.IGNORE_CASE,
@@ -156,6 +150,10 @@ object LrcRed {
         "live", "remix", "remixed", "mix", "acoustic", "unplugged", "instrumental",
         "karaoke", "cappella", "acapella", "demo", "edit", "version", "cover",
         "sped", "slowed", "reverb", "nightcore", "lofi", "orchestral", "extended",
+        // Explicit language qualifiers identify dubbed versions. The actual lyric
+        // script is never used to guess or reject a song's language.
+        "tamil", "telugu", "hindi", "malayalam", "kannada", "bengali", "marathi",
+        "punjabi", "english", "spanish", "korean", "japanese", "தமிழ்", "తెలుగు",
     )
 
     @Serializable

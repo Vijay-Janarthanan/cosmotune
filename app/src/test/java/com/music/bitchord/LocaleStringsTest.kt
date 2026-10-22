@@ -56,7 +56,12 @@ class LocaleStringsTest(private val tag: String) {
 
     @Test
     fun strings_containsAllBaseKeys() {
-        val localeFile = File(resDir, "values-$tag/strings.xml")
+        val qualifier = when (tag) {
+            "zh-CN" -> "zh"
+            "zh-TW" -> "zh-rTW"
+            else -> tag
+        }
+        val localeFile = File(resDir, "values-$qualifier/strings.xml")
         assertTrue("values-$tag/strings.xml must exist", localeFile.exists())
 
         val missingKeys = baseKeys - translatableKeys(parse(localeFile))

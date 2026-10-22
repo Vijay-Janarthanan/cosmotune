@@ -73,8 +73,15 @@ internal object DesktopAppUiHost : AppUiHost {
         _homeRecentsViewType.value = value
     }
 
-    /** Nothing is pinned here: the desktop has no pin action to put anything first. */
-    override val pinnedPlaylists: StateFlow<List<String>> = MutableStateFlow(emptyList())
+    private val pins = MutableStateFlow(persistence.string("pinned_playlists").lineSequence().filter { it.isNotBlank() }.distinct().take(5).toList())
+    override val pinnedPlaylists: StateFlow<List<String>> = pins
+
+    fun togglePinnedPlaylist(id: String) {
+        if (id.isBlank()) return
+        val next = if (id in pins.value) pins.value - id else (listOf(id) + pins.value).take(5)
+        persistence.saveString("pinned_playlists", next.joinToString("\n"))
+        pins.value = next
+    }
 
     private val _librarySort = MutableStateFlow(
         runCatching { LibrarySort.valueOf(persistence.string(KEY_LIBRARY_SORT, LibrarySort.DEFAULT.name)) }

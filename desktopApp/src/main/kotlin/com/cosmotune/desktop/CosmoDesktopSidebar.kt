@@ -192,6 +192,14 @@ internal fun CosmoDesktopSidebar(
                             color = Color(LocalCosmoColors.current.palette.textTertiary),
                             modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 6.dp),
                         )
+                        nav.firstOrNull { it.icon == com.cosmotune.ui.components.CosmoIcons.Library }?.let { library ->
+                            com.cosmotune.ui.components.CosmoButton(
+                                text = DesktopStrings["library", "Library"],
+                                onClick = library.onClick,
+                                kind = com.cosmotune.ui.components.CosmoButtonKind.TEXT,
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
                     }
                 } else {
                     itemsIndexed(playlists, key = { index, _ -> keys[index] }) { _, playlist -> SidebarPlaylistRow(playlist) }

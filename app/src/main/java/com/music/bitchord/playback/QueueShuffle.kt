@@ -44,6 +44,13 @@ object QueueShuffle {
     fun setEnabled(enabled: Boolean) {
         _enabled.value = enabled
     }
+
+    /** Restore a saved running order without reshuffling it a second time. */
+    fun restoreSavedOrder(songs: List<Song>, enabled: Boolean) {
+        original = songs.map { it.queueEntryId ?: it.videoId }
+        _enabled.value = enabled
+        AppSettings.setShuffleEnabled(enabled)
+    }
     /** Entry IDs in their pre-shuffle order. Empty while shuffle is off. */
     private var original: List<String> = emptyList()
 

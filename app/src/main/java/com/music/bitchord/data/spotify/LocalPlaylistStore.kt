@@ -54,6 +54,10 @@ object LocalPlaylistStore {
                         albumId = sObj.optString("albumId", null).takeIf { !it.isNullOrBlank() && it != "null" },
                         albumName = sObj.optString("albumName", null).takeIf { !it.isNullOrBlank() && it != "null" },
                         isVideo = sObj.optBoolean("isVideo", false),
+                        isVideoOrigin = sObj.optBoolean("isVideoOrigin", sObj.optBoolean("isVideo", false)),
+                        localUri = sObj.optString("localUri", "").takeIf { it.isNotBlank() && it != "null" },
+                        localPath = sObj.optString("localPath", "").takeIf { it.isNotBlank() && it != "null" },
+                        localDateAddedSeconds = sObj.optLong("localDateAddedSeconds", 0L).takeIf { it > 0L },
                     )
                     songs.add(song)
                 }
@@ -64,7 +68,7 @@ object LocalPlaylistStore {
     }
 
     fun savePlaylist(title: String, songs: List<Song>): LocalPlaylist {
-        val id = "sp_local_" + System.currentTimeMillis()
+        val id = "sp_local_" + java.util.UUID.randomUUID()
         val playlist = LocalPlaylist(id = id, title = title, songs = songs)
         val updated = listOf(playlist) + _playlists.value.filterNot { it.id == id }
         _playlists.value = updated
@@ -114,6 +118,10 @@ object LocalPlaylistStore {
                     sObj.put("albumId", song.albumId)
                     sObj.put("albumName", song.albumName)
                     sObj.put("isVideo", song.isVideo)
+                    sObj.put("isVideoOrigin", song.isVideoOrigin)
+                    sObj.put("localUri", song.localUri)
+                    sObj.put("localPath", song.localPath)
+                    sObj.put("localDateAddedSeconds", song.localDateAddedSeconds)
                     songsArray.put(sObj)
                 }
                 pObj.put("songs", songsArray)

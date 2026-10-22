@@ -1,5 +1,8 @@
 package com.music.bitchord.data.lyrics
 
+import com.cosmotune.lyrics.RecordingMatch
+import com.cosmotune.lyrics.lrcOffsetMs
+import com.cosmotune.lyrics.withLrcOffset
 import com.music.bitchord.data.Http
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,8 +52,8 @@ object LrcLib {
             .addQueryParameter("duration", seconds.toString())
             .build()
         val body = get(url.toString()) ?: return null
-        return (json.parseToJsonElement(body) as? JsonObject)
-            ?.get("syncedLyrics")?.jsonPrimitive?.contentOrNull
+        val hit = json.parseToJsonElement(body) as? JsonObject ?: return null
+        return bestHit(listOf(hit), title, artist, seconds * 1_000L)
     }
 
     /**
@@ -64,14 +67,23 @@ object LrcLib {
             .build()
         val body = get(url.toString()) ?: return null
         val hits = json.parseToJsonElement(body) as? JsonArray ?: return null
-        return hits.mapNotNull { it as? JsonObject }
+        return bestHit(hits.mapNotNull { it as? JsonObject }, title, artist, seconds * 1_000L)
+    }
+
+    internal fun bestHit(hits: List<JsonObject>, title: String, artist: String, durationMs: Long): String? =
+        hits
             .filter { it["syncedLyrics"]?.jsonPrimitive?.contentOrNull?.isNotBlank() == true }
+            .filter {
+                RecordingMatch.accepts(title, artist, durationMs,
+                    it["trackName"]?.jsonPrimitive?.contentOrNull,
+                    it["artistName"]?.jsonPrimitive?.contentOrNull,
+                    it["duration"]?.jsonPrimitive?.doubleOrNull?.takeIf(Double::isFinite)?.times(1_000)?.toLong())
+            }
             .minByOrNull {
                 val d = it["duration"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                abs(d - seconds)
+                abs(d * 1_000 - durationMs)
             }
             ?.get("syncedLyrics")?.jsonPrimitive?.contentOrNull
-    }
 
     private fun get(url: String): String? {
         val request = Request.Builder().url(url).header("User-Agent", AGENT).build()
@@ -89,20 +101,19 @@ object LrcLib {
      * with nothing after it closes the final line, so it always survives.
      */
     fun parseLrc(lrc: String): List<LyricLine> {
-        val all = lrc.lineSequence().mapNotNull { line ->
-            val match = STAMP.find(line) ?: return@mapNotNull null
-            val (minutes, seconds, fraction) = match.destructured
-            // Two digits mean centiseconds, three mean milliseconds.
-            val fractionMs = when (fraction.length) {
-                2 -> fraction.toLong() * 10
-                3 -> fraction.toLong()
-                else -> 0L
-            }
-            val body = line.substring(match.range.last + 1)
+        val offset = lrcOffsetMs(lrc)
+        val all = lrc.lineSequence().flatMap { line ->
+            // Repeated timestamps repeat the chorus; they are not lyric text.
+            val marks = STAMP.findAll(line).takeWhile { match ->
+                line.substring(0, match.range.first).replace(STAMP, "").isBlank()
+            }.toList()
+            if (marks.isEmpty()) return@flatMap emptySequence()
+            val body = line.substring(marks.last().range.last + 1)
             // Detect the RTL marker that was written by [toEnhancedLrc].
             val (text, alignment) = stripAlignmentMarker(body)
-            LyricLine(
-                timeMs = minutes.toLong() * 60_000 + seconds.toLong() * 1_000 + fractionMs,
+            val originalTime = msOf(marks.first())
+            marks.asSequence().map { match -> LyricLine(
+                timeMs = originalTime,
                 // Stripped rather than rebuilt from the runs below: the spacing
                 // and punctuation between two words belong to the line, and
                 // re-joining the words with single spaces would quietly rewrite
@@ -110,7 +121,7 @@ object LrcLib {
                 text = text.replace(WORD_STAMP, "").trim(),
                 words = parseWordRuns(text),
                 alignment = alignment,
-            )
+            ).withLrcOffset(originalTime - msOf(match)).withLrcOffset(offset) }
         }.sortedBy { it.timeMs }.toList()
 
         val kept = all.filterIndexed { index, line ->
@@ -151,7 +162,7 @@ object LrcLib {
      * YouTube Music titles are noisy — "(From "Raees")", "| Official Video",
      * "(Lyrical)" — and LRCLIB matches on the plain song name.
      */
-    private fun String.clean(): String = this
+    private fun String.clean(): String = forLyricsSearch()
         .replace(NOISE, " ")
         .substringBefore(" | ")
         .replace(Regex("\\s+"), " ")
@@ -192,6 +203,7 @@ object LrcLib {
     private fun msOf(mark: MatchResult): Long {
         val (minutes, seconds, fraction) = mark.destructured
         val fractionMs = when (fraction.length) {
+            1 -> fraction.toLong() * 100
             2 -> fraction.toLong() * 10
             3 -> fraction.toLong()
             else -> 0L
@@ -199,10 +211,10 @@ object LrcLib {
         return minutes.toLong() * 60_000 + seconds.toLong() * 1_000 + fractionMs
     }
 
-    private val STAMP = Regex("""\[(\d{1,2}):(\d{2})[.:](\d{2,3})]""")
+    private val STAMP = Regex("""\[(\d{1,3}):([0-5]\d)(?:[.:](\d{1,3}))?]""")
     private val WORD_STAMP = Regex("""<(\d{1,3}):(\d{2})[.:](\d{2,3})>""")
     private val NOISE = Regex(
-        """\((?:from|feat\.?|official|lyrical|video|audio|remix)[^)]*\)|\[[^]]*]|""" +
+        """[(\[]\s*(?:from|feat\.?|official|lyrical|video|audio)\b[^)\]]*[)\]]|""" +
             """\b(?:official (?:video|audio|music video)|lyrical|full song|4k video)\b""",
         RegexOption.IGNORE_CASE,
     )

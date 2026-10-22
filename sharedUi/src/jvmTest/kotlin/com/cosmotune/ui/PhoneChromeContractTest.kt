@@ -141,14 +141,14 @@ class PhoneChromeContractTest {
         assertEquals(names.sorted(), SourceContract.names(SourceContract.parameters(frosted, "FrostedTopBar")).sorted(), "and those are all of the old bar's parameters")
     }
 
-    @Test fun theProfileButtonCallPassesFiveDrawerEntriesAndTheOldArguments() {
+    @Test fun theProfileButtonCallPassesSixDrawerEntriesAndTheOldArguments() {
         val call = callArguments(mainCode, "com.cosmotune.ui.chrome.ProfileButtonSwitch(")
         assertTrue(call.contains("account = account,"), "account")
         assertTrue(call.contains("onSwipeProfile = { forward -> viewModel.stepProfile(forward) },"), "the old swipe stays, the old branch still uses it")
         assertTrue(call.contains("if (signedIn) {") && call.contains("viewModel.loadChannels()") && call.contains("showAccountSelector = true") && call.contains("else showSettings = true"), "the head's tap is the old avatar tap")
         assertTrue(call.contains("entries = listOf("), "the entries come as a list")
-        assertEquals(5, Regex("""\bcom\.cosmotune\.ui\.chrome\.CosmoDrawerEntry\(""").findAll(call).count(), "five entries, fully qualified")
-        assertEquals(5, Regex("""\bCosmoDrawerEntry\(""").findAll(mainCode).count(), "and no other entry anywhere in the file")
+        assertEquals(6, Regex("""\bcom\.cosmotune\.ui\.chrome\.CosmoDrawerEntry\(""").findAll(call).count(), "six entries, fully qualified")
+        assertEquals(6, Regex("""\bCosmoDrawerEntry\(""").findAll(mainCode).count(), "and no other entry anywhere in the file")
         // The root draws one page by the order of its `when`: an entry must leave History, a Library "Show all", Discord and
         // Spotify first, or it would only close the drawer.
         assertEquals(5, Regex("""\bleavePages\(\)""").findAll(call).count(), "every entry leaves those pages first")
@@ -157,12 +157,13 @@ class PhoneChromeContractTest {
         }
     }
 
-    @Test fun theFiveEntriesAreReplayListenTogetherDownloadsEqualiserSettingsInThatOrderWithTheStatementsTheRootAlreadyRuns() {
+    @Test fun listeningToolsPrecedesTheExistingFiveEntriesWithoutChangingTheirActions() {
         val call = callArguments(mainCode, "com.cosmotune.ui.chrome.ProfileButtonSwitch(")
         val list = callArguments(call.substringAfter("entries = listOf"), "(")
         val parts = list.split("com.cosmotune.ui.chrome.CosmoDrawerEntry(").drop(1).map { squash(it) }
-        assertEquals(5, parts.size)
-        val (replay, together, downloads, equaliser, settings) = parts
+        assertEquals(6, parts.size)
+        assertTrue("listeningToolsOpen = true" in parts.first(), "listening tools opens over the current page")
+        val (replay, together, downloads, equaliser, settings) = parts.drop(1)
         assertTrue(replay.startsWith("icon = CosmoIcons.Replay, label = stringResource(R.string.replay),"), replay)
         assertTrue("replayLandingPage = ReplayStoryPage.INTRO" in replay && "showReplay = true" in replay, "Replay lands on its intro: $replay")
         assertTrue(together.startsWith("icon = CosmoIcons.Together, label = stringResource(R.string.listen_together),"), together)

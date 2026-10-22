@@ -117,7 +117,8 @@ object LyricsRepository {
         // Settled before anyone is asked for words, so every source that can
         // name the recording does. What the caller knows beats what we worked
         // out last time, and both beat asking again.
-        val known = isrc?.takeIf { it.isNotBlank() } ?: isrcs[videoId]
+        val known = isrc?.takeIf { it.isNotBlank() }
+            ?: isrcs[RecordingKey(videoId, searchTitle, searchArtist, durationMs, album)]
         val hit = if (known == null) {
             identify(videoId, searchTitle, searchArtist, durationMs, album, sequence)
         } else {
@@ -199,7 +200,7 @@ object LyricsRepository {
             LyricsSource.BINI_LYRICS ->
                 (hit?.let { BiniLyrics.lyricsFor(it, get) }
                     ?: BiniLyrics.lyrics(title, artist, durationMs, album, isrc, get))
-                    ?.also { remember(videoId, it.isrc) }
+                    ?.also { remember(RecordingKey(videoId, title, artist, durationMs, album), it.isrc) }
                     ?.lines
             LyricsSource.UNISON -> Unison.lyrics(title, artist, durationMs, album)
             LyricsSource.SIMP_MUSIC -> SimpMusicLyrics.lyrics(videoId, durationMs)
@@ -258,7 +259,7 @@ object LyricsRepository {
             runCatching { BiniLyrics.identify(title, artist, durationMs, album) }.getOrNull()
         }
         if (hit == null) return null
-        remember(videoId, hit.isrc)
+        remember(RecordingKey(videoId, title, artist, durationMs, album), hit.isrc)
         return hit
     }
 
@@ -273,15 +274,23 @@ object LyricsRepository {
      * did before any of this, and keeping it on disk would mean keeping a
      * wrong answer on disk too.
      */
-    private val isrcs: MutableMap<String, String> = Collections.synchronizedMap(
-        object : LinkedHashMap<String, String>(REMEMBERED, 0.75f, true) {
-            override fun removeEldestEntry(eldest: Map.Entry<String, String>) = size > REMEMBERED
+    private data class RecordingKey(
+        val videoId: String,
+        val title: String,
+        val artist: String,
+        val durationMs: Long,
+        val album: String?,
+    )
+
+    private val isrcs: MutableMap<RecordingKey, String> = Collections.synchronizedMap(
+        object : LinkedHashMap<RecordingKey, String>(REMEMBERED, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<RecordingKey, String>) = size > REMEMBERED
         },
     )
 
-    private fun remember(videoId: String, isrc: String?) {
-        if (isrc.isNullOrBlank() || videoId.isEmpty()) return
-        isrcs.put(videoId, isrc)
+    private fun remember(key: RecordingKey, isrc: String?) {
+        if (isrc.isNullOrBlank() || key.videoId.isEmpty()) return
+        isrcs[key] = isrc
     }
 
     /**

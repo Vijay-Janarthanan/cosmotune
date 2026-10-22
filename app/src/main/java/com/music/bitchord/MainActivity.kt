@@ -602,6 +602,7 @@ private fun BitChordApp(
     var discordDialog by remember { mutableStateOf<DiscordDialog?>(null) }
     var songActions by remember { mutableStateOf<Song?>(null) }
     var showLyricsOffset by remember { mutableStateOf(false) }
+    var listeningToolsOpen by remember { mutableStateOf(false) }
     /**
      * Whether the track menu that is up was opened from the player.
      *
@@ -2445,6 +2446,33 @@ private fun BitChordApp(
         )
     }
 
+    val listeningLibraryPage = (libraryState as? UiState.Success)?.data
+    val listeningHistory = (historyState as? UiState.Success)?.data.orEmpty()
+    com.cosmotune.listening.PhoneListeningTools(
+        open = listeningToolsOpen,
+        onDismiss = { listeningToolsOpen = false },
+        library = com.cosmotune.listening.ListeningLibrary(
+            songs = listeningLibraryPage?.likedSongs.orEmpty() + listeningLibraryPage?.librarySongs.orEmpty() + localPlaylists.flatMap { it.songs } + listeningHistory + player.queue,
+            likedIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
+            recentIds = listeningHistory.mapTo(mutableSetOf()) { it.videoId },
+        ),
+        queue = { com.cosmotune.ui.listening.ListeningQueue(player.queue, player.queueIndex, player.position.positionMs, player.repeatMode, shuffleEnabled) },
+        controller = controller,
+        findMusic = {
+            showSettings = false; showReplay = false; showHistory = false; showSpotify = false; showDiscord = false
+            libraryShowAll = null; settingsSubScreen = null; showEqualizer = false
+            selectedTab = TAB_SEARCH; viewModel.clearDetail()
+        },
+        importMusic = { showSpotifyImportDialog = true },
+        openRelease = { id, title ->
+            showSettings = false; showReplay = false; showHistory = false; libraryShowAll = null
+            viewModel.openDetail(id, title)
+        },
+        startLocal = {
+            showSettings = false; showReplay = false; showHistory = false; libraryShowAll = null
+            onLibraryItemClick(ShelfItem(context.getString(R.string.local_music), "", null, null, "local:all"))
+        },
+    )
     Box(
         Modifier
             .fillMaxSize()
@@ -2837,6 +2865,7 @@ private fun BitChordApp(
                         }
                         LocalMusicScreen(
                             songs = localSongs,
+                            onFindMusic = if (page.browseId == "local:downloads") ({ viewModel.clearDetail(); selectedTab = TAB_SEARCH }) else null,
                             collections = downloadCollections,
                             isDownloads = page.browseId == "local:downloads",
                             currentSong = player.song,
@@ -3739,6 +3768,11 @@ private fun BitChordApp(
                                 // page elsewhere (Replay and Downloads from Library, Listen together from the player, the
                                 // equaliser from Settings).
                                 entries = listOf(
+                                    com.cosmotune.ui.chrome.CosmoDrawerEntry(
+                                        icon = CosmoIcons.Library,
+                                        label = "Your listening",
+                                        onClick = { listeningToolsOpen = true },
+                                    ),
                                     com.cosmotune.ui.chrome.CosmoDrawerEntry(
                                         icon = CosmoIcons.Replay,
                                         label = stringResource(R.string.replay),

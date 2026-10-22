@@ -1323,4 +1323,6 @@
     <string name="canvas_paused_on_mobile_data">Video is paused on mobile data</string>
     <string name="canvas_allow_on_mobile_data">Allow</string>
     <string name="canvas_allow_on_mobile_data_description">Allow video on mobile data</string>
+    <string name="chinese_simplified">Китайский (упрощённый)</string>
+    <string name="chinese_traditional">Китайский (традиционный)</string>
 </resources>

@@ -1,5 +1,18 @@
 # Working on the code
 
+## Listening tools
+
+`com.cosmotune.listening` in `shared` owns versioned saved sessions, smart rules, followed artists/inbox, setup choices and the last diagnostic report. `com.cosmotune.ui.listening` in `sharedUi` owns their adaptive interface. `PhoneListeningTools` and `DesktopListeningTools` supply real platform playback, playlist stores, file choosers and settings. Player layouts are unchanged.
+
+- Storage is `filesDir/cosmotune-listening.json` on Android and `$XDG_DATA_HOME/cosmotune/listening.json` (default `~/.local/share/cosmotune/listening.json`) on desktop. Writes use a temporary file, fsync and atomic replacement where available. Invalid originals are retained for recovery.
+- Listening export/import transfers metadata, sessions, rules and inbox entries. It is additive by stable ID; existing local edits win. It excludes credentials and media, includes local paths, and skips unavailable files on restore. This is explicit file transfer, not automatic cloud synchronization or a full account/library backup.
+- Saved session repeat values follow Media3: 0 off, 1 one, 2 all. Preserve duplicate queue entries, their order/identity and the current playhead. Restore paused. Do not restore while participating in Listen Together.
+- Release checks are manual. The first successful artist fetch establishes its baseline; later newly discovered release IDs enter the persistent inbox. No background notifications are scheduled.
+- Diagnostics use the configured transport and actual playback source, report catalogue/media separately, bound time and byte reads, and never serialize request headers, signed URLs or raw exception messages.
+- `uiTests` is a separate JVM module for real Compose interactions and screenshots. Its test dispatcher dependencies must not be moved onto the existing offscreen `sharedUi:jvmTest` classpath. Run `:uiTests:test` alongside `:shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :app:testDevDebugUnitTest`. Screenshots are in `uiTests/build/reports/listening-ui/`.
+
+See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for validation and remaining device checks, and `FORK.md` for upstream integration sites.
+
 ## Keeping in step with upstream
 
 Cosmotune began as a fork of BitChord and still takes fixes from it by hand, on request, not on a schedule.

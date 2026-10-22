@@ -1208,4 +1208,6 @@
     <string name="canvas_paused_on_mobile_data">Video is paused on mobile data</string>
     <string name="canvas_allow_on_mobile_data">Allow</string>
     <string name="canvas_allow_on_mobile_data_description">Allow video on mobile data</string>
+    <string name="chinese_simplified">Tiếng Trung giản thể</string>
+    <string name="chinese_traditional">Tiếng Trung phồn thể</string>
 </resources>

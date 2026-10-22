@@ -173,6 +173,13 @@ internal object DesktopPlayerHost : PlayerHost {
     override fun AudioPipelineDialog(hazeState: HazeState, isPlaying: Boolean, onDismiss: () -> Unit) {
         pipelineDialog?.invoke(onDismiss)
     }
+
+    override val lyricsShareAvailable: Boolean get() = true
+
+    @Composable
+    override fun LyricsShareSheet(hazeState: HazeState, request: com.music.bitchord.ui.player.LyricsShareRequest, onDismiss: () -> Unit) {
+        com.cosmotune.desktop.DesktopLyricsShare(request, onDismiss)
+    }
 }
 
 /**

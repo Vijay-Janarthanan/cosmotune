@@ -1,10 +1,12 @@
 package com.music.bitchord.data.lyrics
 
+import com.cosmotune.lyrics.RecordingMatch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import kotlin.math.abs
 
 /**
  * Apple Music TTML again, from a third host — and the only one here that will
@@ -76,7 +78,24 @@ object BiniLyrics {
         val body = lyricsGet(url.toString()) ?: return@withContext null
         val response = runCatching { lyricsJson.decodeFromString<Response>(body) }.getOrNull()
             ?: return@withContext null
-        response.results?.firstOrNull()
+        bestHit(response.results.orEmpty(), title, artist, durationMs, isrc)
+    }
+
+    /** Do not let one fuzzy hit lend the wrong recording id to every other provider. */
+    internal fun bestHit(
+        hits: List<Hit>,
+        title: String,
+        artist: String,
+        durationMs: Long,
+        isrc: String? = null,
+    ): Hit? {
+        if (!isrc.isNullOrBlank()) {
+            return hits.firstOrNull { it.isrc?.trim()?.equals(isrc.trim(), ignoreCase = true) == true }
+        }
+        return hits.filter {
+            RecordingMatch.accepts(title, artist, durationMs, it.trackName, it.artistName,
+                it.duration?.toLong()?.times(1_000))
+        }.minByOrNull { abs((it.duration?.toLong()?.times(1_000) ?: durationMs) - durationMs) }
     }
 
     /**

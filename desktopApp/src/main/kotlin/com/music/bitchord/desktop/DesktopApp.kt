@@ -619,6 +619,8 @@ fun BitChordDesktopApp() {
     val downloadInProgress = downloadQueue.keys
     var playlists by remember { mutableStateOf(persistence.playlists()) }
     var statsRevision by remember { mutableStateOf(0L) }
+    var listeningToolsOpen by remember { mutableStateOf(false) }
+    var libraryActionTarget by remember { mutableStateOf<ShelfItem?>(null) }
     var replayPeriod by remember { mutableStateOf(DesktopReplayPeriod.ALL_TIME) }
     val replayHolder = remember { DesktopAccounts.active()?.name.orEmpty() }
     var replaySummary by remember { mutableStateOf(DesktopListeningStats.summary()) }
@@ -675,6 +677,7 @@ fun BitChordDesktopApp() {
     var spatialAudio by remember { mutableStateOf(persistence.boolean("spatial_audio", false)) }
     var dolbyAtmos by remember { mutableStateOf(persistence.boolean("dolby_atmos", true)) }
     var skipSilence by remember { mutableStateOf(persistence.boolean("skip_silence", false)) }
+    var loudnessNormalization by remember { mutableStateOf(persistence.boolean("loudness_normalization", true)) }
     var outputPrecision by remember { mutableStateOf(persistence.string("output_precision", "PCM_16")) }
     // The blob backdrop the mesh replaced, kept as an opt-out.
     var legacyMeshGradient by remember { mutableStateOf(persistence.boolean("legacy_mesh_gradient", false)) }
@@ -1728,6 +1731,7 @@ fun BitChordDesktopApp() {
     LaunchedEffect(eqEnabled, eqMode, eqToneX, eqToneY, eqFocused, eqBalance, eqBands) {
         playbackEngine.setEqualizer(eqEnabled, DesktopEqualizerSettings.curve(), eqBalance)
     }
+    LaunchedEffect(loudnessNormalization) { playbackEngine.setLoudnessNormalization(loudnessNormalization) }
     LaunchedEffect(spatialAudio, skipSilence, outputPrecision) {
         playbackEngine.setSpatialAudio(spatialAudio)
         playbackEngine.setSkipSilence(skipSilence)
@@ -1822,6 +1826,7 @@ fun BitChordDesktopApp() {
     // The provider picked for this track in the player's lyrics drawer, if any.
     var lyricsOnly by remember(selectedSong?.videoId) { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
+    var lyricsOffsetOpen by remember { mutableStateOf(false) }
     var lyricsError by remember { mutableStateOf<String?>(null) }
     var canvas by remember { mutableStateOf<DesktopCanvasArtwork?>(null) }
 
@@ -3018,6 +3023,62 @@ fun BitChordDesktopApp() {
             com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },
             com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),
         ) {
+            libraryActionTarget?.let { item ->
+                val pins by DesktopAppUiHost.pinnedPlaylists.collectAsState()
+                com.cosmotune.desktop.DesktopLibraryActions(item, item.browseId in pins,
+                    onPin = { item.browseId?.let(DesktopAppUiHost::togglePinnedPlaylist) },
+                    onOpen = { openLibraryItem(item) }, onDismiss = { libraryActionTarget = null })
+            }
+            val listeningLibraryPage = (libraryState as? UiState.Success)?.data
+            com.cosmotune.desktop.DesktopListeningTools(
+                open = listeningToolsOpen,
+                onDismiss = { listeningToolsOpen = false },
+                library = com.cosmotune.listening.ListeningLibrary(
+                    songs = downloads + localSongs + listeningLibraryPage?.likedSongs.orEmpty() + listeningLibraryPage?.librarySongs.orEmpty() + playlists.flatMap { it.songs } + history + liveQueue.songs,
+                    likedIds = likedIds,
+                    downloadedIds = downloads.mapTo(mutableSetOf()) { it.videoId },
+                    recentIds = history.mapTo(mutableSetOf()) { it.videoId },
+                ),
+                queue = { com.cosmotune.ui.listening.ListeningQueue(liveQueue.songs, liveQueue.index, playbackEngine.state.value.positionMs,
+                    when (repeatMode) { DesktopRepeatMode.OFF -> 0; DesktopRepeatMode.ONE -> 1; DesktopRepeatMode.ALL -> 2 }, shuffle) },
+                createPlaylist = { title, songs ->
+                    if (playlists.none { it.title == title && it.songs.map(Song::videoId) == songs.map(Song::videoId) }) {
+                        val next = playlists + DesktopPlaylist(title = title, songs = songs)
+                        withContext(Dispatchers.IO) { persistence.savePlaylists(next) }
+                        playlists = next
+                    }
+                },
+                restore = { session ->
+                    check(!DesktopListenTogether.state.value.inParty) { "Leave Listen Together before opening a saved session." }
+                    liveQueue = DesktopQueue(session.tracks.map { it.song() }, session.index)
+                    selectedSong = liveQueue.current
+                    shuffle = session.shuffle
+                    preShuffleOrder = if (shuffle) liveQueue.songs.map(DesktopQueue::orderKey) else emptyList()
+                    repeatMode = when (session.repeat) { 1 -> DesktopRepeatMode.ONE; 2 -> DesktopRepeatMode.ALL; else -> DesktopRepeatMode.OFF }
+                    persistence.saveBoolean("shuffle", shuffle)
+                    persistence.saveString("repeat_mode", repeatMode.name)
+                    saveQueue()
+                    playbackEngine.load(checkNotNull(liveQueue.current), playWhenReady = false, startAtMs = session.positionMs)
+                },
+                play = { songs ->
+                    check(!DesktopListenTogether.state.value.inParty) { "Leave Listen Together before opening a smart playlist." }
+                    playSongs(songs)
+                },
+                openRelease = { id, _ -> openAlbum(id) },
+                findMusic = { selectDestination(DesktopDestination.SEARCH) },
+                importMusic = { spotifyImportOpen = true },
+                applySetup = { preferences, lowData ->
+                    if (lowData) {
+                        audioQuality = DesktopAudioQuality.LOW
+                        persistence.saveAudioQuality(audioQuality)
+                        animatedCanvas = false
+                        persistence.saveBoolean("animated_canvas", false)
+                    }
+                    if (preferences.preferLocal) selectDestination(DesktopDestination.LOCAL_MUSIC)
+                    DesktopStrings.setLanguage(preferences.contentLanguage)
+                },
+                sourceSummary = listOfNotNull(playback.streamSourceId?.let { "Playing source: $it" }, playback.streamFormat?.summary).joinToString(" · "),
+            )
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.
                 containerColor = DesktopBackground,
@@ -3108,6 +3169,7 @@ fun BitChordDesktopApp() {
                         accountName = activeAccount?.name,
                         // The profile drawer's entries. Settings and Replay stand in place of the page, so they leave each other first.
                         entries = listOf(
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Library, "Your listening", onClick = { listeningToolsOpen = true }),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Replay, DesktopStrings["replay", "Replay"], onClick = { overlays.settingsPage = null; overlays.replay = true }),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Together, DesktopStrings["listen_together", "Listen together"], onClick = { overlays.listenTogether = true }),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings["downloads", "Downloads"], onClick = { selectDestination(DesktopDestination.DOWNLOADS) }),
@@ -3423,8 +3485,8 @@ fun BitChordDesktopApp() {
                             lyricsProviderStates = providerStates,
                             onSelectLyricsProvider = { source -> lyricsOnly = source.label },
                             lyricsUnavailable = sharedLyricsUnavailable,
-                            lyricsOffsetOpen = false,
-                            onDismissLyricsOffset = {},
+                            lyricsOffsetOpen = lyricsOffsetOpen,
+                            onDismissLyricsOffset = { lyricsOffsetOpen = false },
                             windowWidth = windowWidth,
                             windowHeight = windowHeight,
                         )
@@ -3457,6 +3519,14 @@ fun BitChordDesktopApp() {
                                         playbackEngine.reloadCurrent(forceSourceRefresh = true)
                                     }.takeIf { DesktopOriginalVersion.isPinned(current.videoId) },
                                     onDismiss = { playerMenuOpen = false },
+                                    onLyricsOffset = { lyricsOffsetOpen = true },
+                                    onRetryLyrics = {
+                                        DesktopLyricsClient.invalidate(current.videoId)
+                                        val alternatives = DesktopLyricsClient.enabledSources(lyricsOrder, lyricsOn)
+                                            .filter { it != lyrics?.source }
+                                        lyricsOnly = alternatives.firstOrNull()
+                                        if (alternatives.isEmpty()) DesktopPlayerHost.showMessage("Enable another lyrics source in Settings")
+                                    },
                                 )
                             }
                         }
@@ -3794,6 +3864,8 @@ fun BitChordDesktopApp() {
                                         persistence.saveBoolean("dolby_atmos", it)
                                         DesktopAddonSource.clearCompletedTrackCalls()
                                     },
+                                    loudnessNormalization = loudnessNormalization,
+                                    onLoudnessNormalizationChange = { loudnessNormalization = it; persistence.saveBoolean("loudness_normalization", it) },
                                     skipSilence = skipSilence,
                                     onSkipSilenceChange = {
                                         skipSilence = it
@@ -4033,7 +4105,7 @@ fun BitChordDesktopApp() {
                             browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { selectDestination(DesktopDestination.EXPLORE); openMoodGenre(it) }, onRetry = { exploreReloads++ }),
                             signedIn = youtubeSignedIn,
                             onSignIn = { overlays.accounts = true },
-                            onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },
+                            onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) else if (item.browseId != null) libraryActionTarget = item },
                             onLoadMore = ::loadMoreHome,
                             loadingMore = homeLoadingMore,
                             recentlyPlayedLoading = homeRecentsLoading,
@@ -4177,7 +4249,7 @@ fun BitChordDesktopApp() {
                                 shelf = libraryShowAll!!,
                                 gridState = libraryGridState,
                                 onItemClick = ::openLibraryItem,
-                                onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },
+                                onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) else if (item.browseId != null) libraryActionTarget = item },
                                 contentPadding = PaddingValues(bottom = sharedPagePadding.calculateBottomPadding()),
                                 modifier = Modifier.weight(1f),
                                 onNewPlaylist = { overlays.playlistDialog = true }
@@ -4189,7 +4261,7 @@ fun BitChordDesktopApp() {
                             state = libraryState,
                             listState = libraryListState,
                             onShelfItemClick = ::openLibraryItem,
-                            onShelfItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },
+                            onShelfItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) else if (item.browseId != null) libraryActionTarget = item },
                             onNewPlaylist = { overlays.playlistDialog = true },
                             onImportSpotifyPlaylist = { spotifyImportOpen = true },
                             onShowAll = { shelf -> libraryShowAll = shelf },
@@ -4243,6 +4315,7 @@ fun BitChordDesktopApp() {
                         destination == DesktopDestination.DOWNLOADS -> Box(Modifier.fillMaxSize()) {
                             DesktopDownloadsPage(
                                 downloads = downloads,
+                                onFindMusic = { selectDestination(DesktopDestination.SEARCH) },
                                 onSongClick = { playSong(it, source = DesktopQueueSource(DesktopStrings["downloads", "Downloads"], PlaybackSourceType.BROWSE)) },
                                 contentPadding = contentPadding,
                                 menu = { song -> songMenu(song) },
@@ -5425,6 +5498,7 @@ private fun DesktopHistoryPage(
 @Composable
 private fun DesktopDownloadsPage(
     downloads: List<Song>,
+    onFindMusic: () -> Unit,
     onSongClick: (Song) -> Unit,
     contentPadding: PaddingValues,
     menu: (@Composable (Song) -> Unit)? = null,
@@ -5440,6 +5514,7 @@ private fun DesktopDownloadsPage(
         emptyTitle = DesktopStrings["d_no_downloads", "No downloads"],
         emptyDescription = DesktopStrings["d_downloaded_songs_will_appear_here", "Downloaded songs will appear here."],
         persistenceKey = "downloaded",
+        onEmptyAction = onFindMusic,
     )
 }
 
@@ -5454,6 +5529,7 @@ private fun DesktopLocalMusicPage(
     emptyTitle: String = "No local music",
     emptyDescription: String = "Put audio files in your Music folder and reopen this page.",
     persistenceKey: String = "local",
+    onEmptyAction: (() -> Unit)? = null,
     menu: (@Composable (Song) -> Unit)? = null,
 ) {
     val persistence = remember { DesktopPersistence() }
@@ -5529,7 +5605,7 @@ private fun DesktopLocalMusicPage(
             }
             Spacer(Modifier.height(8.dp))
             if (songs.isEmpty()) {
-                DesktopEmptyPage(emptyIcon, emptyTitle, emptyDescription)
+                DesktopEmptyPage(emptyIcon, emptyTitle, emptyDescription, onEmptyAction, DesktopStrings["search", "Search"])
             } else if (drillDown != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { drillDown = null }) { Icon(Icons.Rounded.ArrowBack, DesktopStrings["back", "Back"]) }
@@ -5729,6 +5805,8 @@ private fun DesktopSettingsScreen(
     onSpatialAudioChange: (Boolean) -> Unit,
     dolbyAtmos: Boolean,
     onDolbyAtmosChange: (Boolean) -> Unit,
+    loudnessNormalization: Boolean,
+    onLoudnessNormalizationChange: (Boolean) -> Unit,
     skipSilence: Boolean,
     onSkipSilenceChange: (Boolean) -> Unit,
     outputPrecision: String,
@@ -5785,6 +5863,11 @@ private fun DesktopSettingsScreen(
                         modifier = Modifier.padding(start = 24.dp).width(280.dp),
                     )
                 }
+                com.cosmotune.ui.settings.SettingsCategories(
+                    listOf(DesktopStrings["playback", "Playback"], DesktopStrings["appearance", "Appearance"], DesktopStrings["download_channel_name", "Downloads"], DesktopStrings["sources_order_header", "Sources · tried in this order"], DesktopStrings["lyrics", "Lyrics"], DesktopStrings["local_music", "Local Music"]),
+                    settingsQuery,
+                    onQueryChange,
+                )
                 CompositionLocalProvider(LocalSettingsQuery provides settingsQuery.trim()) {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
@@ -5849,6 +5932,12 @@ private fun DesktopSettingsScreen(
                             )
                         }
                     }
+                    SettingsToggle(
+                        DesktopStrings["loudness_normalization", "Loudness normalization"],
+                        "Balances YouTube tracks using their loudness metadata. Sources without metadata keep their original level.",
+                        loudnessNormalization,
+                        onLoudnessNormalizationChange,
+                    )
                     val eqOn by DesktopEqualizerSettings.enabled.collectAsState()
                     SettingsToggle(
                         DesktopStrings["skip_silence", "Skip silence"],

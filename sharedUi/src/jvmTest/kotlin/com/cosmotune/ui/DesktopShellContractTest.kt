@@ -288,16 +288,17 @@ class DesktopShellContractTest {
         assertHas(chrome, "AVATAR_SIZE: Dp = 36.dp", "the avatar stays 36 dp")
     }
 
-    @Test fun theTopBarCallPassesTheAccountNameAndFiveEntriesInOrder() {
+    @Test fun theTopBarCallPassesTheAccountNameAndSixEntriesInOrder() {
         val text = app
         val callAt = text.indexOf("if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopTopBar(")
         assertTrue(callAt >= 0)
         val call = squash(balanced(text, text.indexOf('(', callAt + "if (cosmoShell != null) com.cosmotune.desktop".length)))
         assertTrue("accountName = activeAccount?.name," in call, call)
         assertTrue("entries = listOf(" in call, call)
-        assertEquals(5, Regex("""com\.cosmotune\.ui\.chrome\.CosmoDrawerEntry\(""").findAll(call).count(), "five entries")
+        assertEquals(6, Regex("""com\.cosmotune\.ui\.chrome\.CosmoDrawerEntry\(""").findAll(call).count(), "six entries")
         val parts = call.substringAfter("entries = listOf(").split("com.cosmotune.ui.chrome.CosmoDrawerEntry(").drop(1)
-        val (replay, together, downloads, equaliser, settings) = parts
+        assertTrue("listeningToolsOpen = true" in parts.first(), "the first entry opens listening tools")
+        val (replay, together, downloads, equaliser, settings) = parts.drop(1)
         assertTrue(replay.startsWith("com.cosmotune.ui.components.CosmoIcons.Replay, DesktopStrings[\"replay\", \"Replay\"],"), replay)
         assertTrue("overlays.replay = true" in replay, "Replay opens the page")
         assertTrue(replay.indexOf("overlays.settingsPage = null") in 0 until replay.indexOf("overlays.replay = true"), "and leaves Settings first, which outranks it: $replay")

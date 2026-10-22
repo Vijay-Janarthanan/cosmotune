@@ -393,6 +393,12 @@ fun SettingsScreen(
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
         )
 
+        com.cosmotune.ui.settings.SettingsCategories(
+            categories = listOf(stringResource(R.string.playback), stringResource(R.string.appearance), stringResource(R.string.downloads), stringResource(R.string.local_music), stringResource(R.string.storage)),
+            query = searchQuery,
+            onSelect = { searchQuery = it },
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
         SearchableSettingsGroup(search) {
             val accountTitle = stringResource(R.string.account_integrations)
             // What the row opens is the scrobbling screen, so the services it

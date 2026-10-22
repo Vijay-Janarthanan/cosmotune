@@ -443,6 +443,7 @@ private fun ModeSwitch(onChosen: () -> Unit, onLater: (AppMode) -> Unit) {
     Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (mode in AppMode.entries) {
             val available = AppModes.available(mode)
+            if (!available) continue
             ModeRow(
                 icon = when (mode) { AppMode.MUSIC -> CosmoIcons.Waveform; AppMode.VIDEO -> CosmoIcons.Video; AppMode.LIBRARY -> CosmoIcons.Library },
                 title = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music; AppMode.VIDEO -> Res.string.cosmo_mode_video; AppMode.LIBRARY -> Res.string.library }),

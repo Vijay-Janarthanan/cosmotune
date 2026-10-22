@@ -1291,4 +1291,6 @@
     <string name="canvas_paused_on_mobile_data">मोबाइल डेटा पर वीडियो रुका हुआ है</string>
     <string name="canvas_allow_on_mobile_data">अनुमति दें</string>
     <string name="canvas_allow_on_mobile_data_description">मोबाइल डेटा पर वीडियो की अनुमति दें</string>
+    <string name="chinese_simplified">सरलीकृत चीनी</string>
+    <string name="chinese_traditional">पारंपरिक चीनी</string>
 </resources>

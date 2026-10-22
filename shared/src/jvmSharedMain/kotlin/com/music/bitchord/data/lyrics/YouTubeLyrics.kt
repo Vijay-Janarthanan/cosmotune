@@ -1,8 +1,14 @@
 package com.music.bitchord.data.lyrics
 
 import com.music.bitchord.data.innertube.Innertube
+import com.music.bitchord.data.innertube.InnertubeParser
+import com.music.bitchord.data.YtMusicRepository
+import com.music.bitchord.data.model.SearchFilter
+import com.music.bitchord.data.model.SearchResult
+import com.cosmotune.lyrics.YouTubeLyricsRecording
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -10,26 +16,56 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.longOrNull
 
-/** Lyrics exposed by YouTube Music's Lyrics tab for the exact playing video. */
+/** YouTube Music plain lyrics, with catalogue identity verified for music-video uploads. */
 object YouTubeMusicLyrics {
     suspend fun lyrics(videoId: String): List<LyricLine>? = withContext(Dispatchers.IO) {
         if (!YOUTUBE_ID.matches(videoId)) return@withContext null
         val next = runCatching { Innertube.next(videoId) }.getOrNull() ?: return@withContext null
-        val endpoint = next.objectsNamed("tabRenderer")
-            .firstOrNull { it.youtubeStrings().any { text -> text.equals("Lyrics", ignoreCase = true) } }
-            ?.objectsNamed("browseEndpoint")?.firstOrNull()
-            ?: next.objectsNamed("tabRenderer").drop(1).firstNotNullOfOrNull {
-                it.objectsNamed("browseEndpoint").firstOrNull()
-            }
+        val playing = InnertubeParser.parseWatchQueue(next).firstOrNull { it.videoId == videoId }
             ?: return@withContext null
+        val lyricContext = if (!playing.isVideo && playing.albumId?.startsWith("MPRE") == true) next else {
+            // YouTube can attach a dubbed song's Lyrics tab to a Tamil video. Even the correct
+            // MPLY endpoint is not proof of identity for an upload. Find a catalogue track whose
+            // release explicitly links this video; never guess language from the lyric script.
+            val catalogue = withTimeoutOrNull(6_000) {
+                val query = "${playing.title.forLyricsSearch()} ${playing.artist.artistForLyricsSearch()}"
+                val candidates = YtMusicRepository.search(query, SearchFilter.SONGS).getOrNull()
+                    .orEmpty().filterIsInstance<SearchResult.Track>().map { it.song }
+                YouTubeLyricsRecording.counterpart(videoId, candidates) { albumId ->
+                    YouTubeLyricsRecording.albumTracks(Innertube.browse(albumId))
+                }
+            } ?: return@withContext null
+            runCatching { Innertube.next(catalogue.videoId) }.getOrNull() ?: return@withContext null
+        }
+        val endpoint = lyricsEndpoint(lyricContext) ?: return@withContext null
         val browseId = (endpoint["browseId"] as? JsonPrimitive)?.contentOrNull
             ?: return@withContext null
         val params = (endpoint["params"] as? JsonPrimitive)?.contentOrNull
         val page = runCatching { Innertube.browse(browseId, params) }.getOrNull() ?: return@withContext null
+        parsePage(page)
+    }
+
+    internal fun lyricsEndpoint(next: JsonElement): JsonObject? =
+        next.objectsNamed("tabRenderer").filter { tab ->
+            (tab["unselectable"] as? JsonPrimitive)?.contentOrNull != "true"
+        }.firstNotNullOfOrNull { tab ->
+            val labelledLyrics = tab["title"]?.youtubeStrings()
+                ?.any { it.equals("Lyrics", ignoreCase = true) } == true
+            tab.objectsNamed("browseEndpoint").firstOrNull { endpoint ->
+                val browseId = (endpoint["browseId"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                val typedLyrics = endpoint.objectsNamed("browseEndpointContextMusicConfig")
+                    .any { (it["pageType"] as? JsonPrimitive)?.contentOrNull == "MUSIC_PAGE_TYPE_TRACK_LYRICS" }
+                // The Lyrics label is localized. Its endpoint id/type remains stable.
+                // An arbitrary second tab can instead be Related, with an unrelated description.
+                typedLyrics || browseId.startsWith("MPLYt") || labelledLyrics
+            }
+        }
+
+    internal fun parsePage(page: JsonElement): List<LyricLine>? {
         val shelf = page.objectsNamed("musicDescriptionShelfRenderer").firstOrNull()
-            ?: return@withContext null
+            ?: return null
         val text = shelf["description"]?.youtubeStrings()?.joinToString("").orEmpty().trim()
-        text.lineSequence().map(String::trim).filter(String::isNotEmpty)
+        return text.lineSequence().map(String::trim).filter(String::isNotEmpty)
             .map { LyricLine(0L, it) }.toList().takeIf { it.isNotEmpty() }
     }
 }

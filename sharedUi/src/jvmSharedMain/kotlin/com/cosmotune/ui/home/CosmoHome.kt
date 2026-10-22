@@ -209,16 +209,19 @@ fun CosmoHome(
                                     )
                                 } else {
                                     // CosmoShelf puts the feed's English titles and strap lines into the app's language itself.
+                                    val displayedItems = HomePlan.shelfItems(state.data, plan, index)
+                                    if (displayedItems.isNotEmpty()) {
                                     CosmoShelf(
                                         title = shelf.title,
                                         subtitle = shelf.subtitle,
-                                        items = shelf.items,
+                                        items = displayedItems,
                                         onItemClick = { onItemClick(it, shelf.title) },
                                         modifier = Modifier.padding(horizontal = extra),
                                         onItemLongPress = onItemLongPress,
                                         currentSong = currentSong,
                                         isPlaying = isPlaying,
                                     )
+                                    }
                                 }
                             }
                         }

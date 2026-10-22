@@ -148,6 +148,7 @@ fun LocalMusicScreen(
      * reason there are none, which "0 songs" on its own doesn't give.
      */
     emptyMessage: String? = null,
+    onFindMusic: (() -> Unit)? = null,
     /**
      * One of the Artists / Albums groupings, held rather than tapped — the
      * album/playlist menu, with the rows it covers already in hand. Nothing
@@ -378,7 +379,7 @@ fun LocalMusicScreen(
                             .fillMaxSize()
                             .padding(bodyContentPadding),
                     ) {
-                        MessageState(message = emptyMessage)
+                        MessageState(message = emptyMessage, actionLabel = if (onFindMusic != null) stringResource(R.string.search) else null, onAction = onFindMusic)
                     }
                 }
 

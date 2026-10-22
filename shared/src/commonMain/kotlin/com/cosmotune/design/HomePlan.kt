@@ -6,8 +6,8 @@ import com.music.bitchord.data.model.ShelfItem
 /**
  * What the new Home draws at the top of its feed, decided from the shelves the feed sent (pure, so it is tested): the hero is the
  * first item of the first shelf (Recents leads the feed when it exists, so the hero then continues the last song), and the mix
- * tiles are the next two shelves that have at least three items. Every shelf, hero's and mixes' included, is still drawn as a
- * shelf below.
+ * tiles are the next two shelves that have at least three items. Every shelf is still drawn below; ordinary rails omit their
+ * repeated hero when other items remain, while Recents retains the complete history.
  */
 object HomePlan {
     /** The feed's own title of the shelf of recently played songs (`HomeScreen.RECENTS_TITLE`). */
@@ -42,6 +42,13 @@ object HomePlan {
 
     /** The line under a mix title when the shelf has no strapline of its own: its first two item titles. */
     fun fallbackSubtitle(shelf: HomeShelf): String = shelf.items.take(2).joinToString(", ") { it.title }
+
+    /** Recents deliberately keeps its full history; ordinary browse rails need not repeat their hero. */
+    fun shelfItems(shelves: List<HomeShelf>, plan: Plan?, index: Int): List<ShelfItem> {
+        val items = shelves.getOrNull(index)?.items.orEmpty()
+        if (plan == null || items.size <= 1 || index != plan.heroShelfIndex || isRecents(shelves, index)) return items
+        return items.drop(1)
+    }
 
     /**
      * The place of the first shelf in the list's items: the header comes first, then the sign-in [banner], the [moods] row, the

@@ -1,5 +1,7 @@
 package com.music.bitchord.data.lyrics
 
+import com.cosmotune.lyrics.lrcOffsetMs
+import com.cosmotune.lyrics.withLrcOffset
 /**
  * Enhanced ("A2") LRC — a normal LRC line with a stamp in front of each word:
  *
@@ -33,6 +35,7 @@ object EnhancedLrc {
         // caller is better served parsing it as one.
         if (rows.none { it.words.isNotEmpty() }) return emptyList()
 
+        val offset = lrcOffsetMs(lrc)
         return rows.mapIndexedNotNull { index, row ->
             if (row.words.isEmpty()) {
                 val text = decodeEntities(row.plain)
@@ -58,7 +61,7 @@ object EnhancedLrc {
                 text = words.joinToString(" ") { it.text },
                 words = words,
             )
-        }.withInstrumentalGaps()
+        }.map { it.withLrcOffset(offset) }.withInstrumentalGaps()
     }
 
     private class Row(val timeMs: Long, val words: List<MatchResult>, val plain: String)

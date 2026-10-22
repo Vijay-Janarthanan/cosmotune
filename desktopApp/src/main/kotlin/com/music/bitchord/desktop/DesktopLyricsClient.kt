@@ -49,9 +49,22 @@ object DesktopLyricsClient {
     internal fun enabledSources(order: List<String>, enabled: Set<String>): List<String> =
         order.filter { it in enabled }
 
+    internal data class LookupKey(
+        val song: Song,
+        val durationMs: Long,
+        val providers: List<LyricsSource>,
+        val prioritizeSyllables: Boolean,
+        val allowEmbedded: Boolean,
+    )
+
     private class Cached(val createdAt: Long, val result: Result<DesktopLyrics>)
 
-    private val cache = ConcurrentHashMap<String, Cached>()
+    private val cache = ConcurrentHashMap<LookupKey, Cached>()
+
+    /** A rejected provider result must not be reused by the next lookup. */
+    fun invalidate(videoId: String) {
+        cache.keys.removeIf { it.song.videoId == videoId }
+    }
 
     /**
      * The track's lyrics from the configured providers — or, with [only], from that one provider,
@@ -74,32 +87,45 @@ object DesktopLyricsClient {
         // the feature being off.
         if (asked.isEmpty()) return Result.failure(IllegalStateException("No lyrics sources are enabled"))
 
-        val cacheKey = "${song.videoId}|$durationMs|${only.orEmpty()}"
-        cache[cacheKey]?.takeIf { System.currentTimeMillis() - it.createdAt < CACHE_TTL_MS }?.let { return it.result }
-
-        // A downloaded or local file carries its own words; asking servers for a string already
-        // on disk is a round trip, and it is why a download showed nothing offline.
-        val embedded = if (only == null) embedded(song) else null
-        val result = if (embedded != null) {
-            Result.success(DesktopLyrics("Downloaded", embedded))
-        } else {
-            val found = LyricsRepository.lyrics(
-                videoId = song.videoId,
-                title = song.title,
-                artist = song.artist,
-                durationMs = durationMs,
-                album = song.albumName,
-                sources = asked.toSet(),
-                order = asked,
-                prioritizeSyllableSync = persistence.boolean(KEY_PRIORITIZE_SYLLABLES, false),
-            )
-            if (found == null) {
-                Result.failure(IllegalStateException("Lyrics unavailable"))
+        val prioritizeSyllables = persistence.boolean(KEY_PRIORITIZE_SYLLABLES, false)
+        val cacheKey = LookupKey(song, durationMs, asked.toList(), prioritizeSyllables, only == null)
+        return cachedLookup(cacheKey) {
+            // A downloaded or local file carries its own words; asking servers for a string already
+            // on disk is a round trip, and it is why a download showed nothing offline.
+            val embedded = if (only == null) embedded(song) else null
+            if (embedded != null) {
+                Result.success(DesktopLyrics("Downloaded", embedded))
             } else {
-                Result.success(DesktopLyrics(found.source.label, found.lines))
+                val found = LyricsRepository.lyrics(
+                    videoId = song.videoId,
+                    title = song.title,
+                    artist = song.artist,
+                    durationMs = durationMs,
+                    album = song.albumName,
+                    sources = asked.toSet(),
+                    order = asked,
+                    prioritizeSyllableSync = prioritizeSyllables,
+                )
+                if (found == null) {
+                    Result.failure(IllegalStateException("Lyrics unavailable"))
+                } else {
+                    Result.success(DesktopLyrics(found.source.label, found.lines))
+                }
             }
         }
-        cache[cacheKey] = Cached(System.currentTimeMillis(), result)
+    }
+
+    /** Kept separate so cache policy can be exercised with controlled, offline providers. */
+    internal suspend fun cachedLookup(key: LookupKey, fetch: suspend () -> Result<DesktopLyrics>): Result<DesktopLyrics> {
+        cache[key]?.takeIf { System.currentTimeMillis() - it.createdAt < CACHE_TTL_MS }?.let { return it.result }
+        val result = fetch()
+        // Temporary provider failures must be retryable immediately.
+        if (result.isSuccess) {
+            val now = System.currentTimeMillis()
+            cache.entries.removeIf { now - it.value.createdAt >= CACHE_TTL_MS }
+            if (cache.size >= 256) cache.keys.firstOrNull()?.let(cache::remove)
+            cache[key] = Cached(now, result)
+        }
         return result
     }
 

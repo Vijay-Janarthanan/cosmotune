@@ -31,6 +31,8 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Share
@@ -126,6 +128,8 @@ internal fun DesktopSongMenuFor(
     onRevertToOriginal: (() -> Unit)?,
     onUpgradeQuality: (() -> Unit)?,
     onDismiss: () -> Unit,
+    onLyricsOffset: (() -> Unit)? = null,
+    onRetryLyrics: (() -> Unit)? = null,
 ) {
     val close = onDismiss
     DesktopSongMenu(
@@ -158,6 +162,8 @@ internal fun DesktopSongMenuFor(
         onSleepAfterTrack = { actions.onSleepAfterTrack(); close() },
         onShare = { actions.onShare(song); close() },
         onDismiss = close,
+        onLyricsOffset = onLyricsOffset?.let { { it(); close() } },
+        onRetryLyrics = onRetryLyrics?.let { { it(); close() } },
     )
 }
 
@@ -189,6 +195,8 @@ internal fun DesktopSongMenu(
     onSleepAfterTrack: () -> Unit,
     onShare: () -> Unit,
     onDismiss: () -> Unit,
+    onLyricsOffset: (() -> Unit)? = null,
+    onRetryLyrics: (() -> Unit)? = null,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
     val liked = likeStatus == LikeStatus.LIKE
@@ -198,6 +206,12 @@ internal fun DesktopSongMenu(
     val isOffline = song.localUri != null
 
     DesktopMenuSurface(onDismiss = onDismiss) {
+        onLyricsOffset?.let {
+            DesktopMenuRow(Icons.Rounded.Tune, DesktopStrings["lyrics_offset", "Lyrics timing"], onClick = it)
+        }
+        onRetryLyrics?.let {
+            DesktopMenuRow(Icons.Rounded.Refresh, "Try another lyrics source", onClick = it)
+        }
         if (pickingSleepTimer) {
             DesktopMenuHeader("Sleep timer") { pickingSleepTimer = false }
             DesktopMenuDivider()
