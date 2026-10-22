@@ -207,6 +207,9 @@ Open the disk image and drag Cosmotune to Applications. Cosmotune is not signed 
 the app and choose **Open**, or open **System Settings > Privacy & Security** and choose **Open Anyway**. If macOS says the app is
 damaged, open Terminal and run `xattr -cr /Applications/Cosmotune.app`, then open it again.
 
+Video mode's player has not been verified on macOS yet: the music side is complete there, but video playback may not start. Reports
+from Mac users are welcome.
+
 </details>
 
 ## Questions
