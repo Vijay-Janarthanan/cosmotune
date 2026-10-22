@@ -292,6 +292,14 @@ jobs:
           merge-multiple: true
           path: dist
 
+      - name: Add file names that stay the same from one version to the next
+        run: |
+          cd dist
+          for f in Cosmotune-*; do
+            stable=$(printf '%s' "$f" | sed -E 's/^Cosmotune-.*-(android|windows|linux|macos)-/Cosmotune-\1-/')
+            if [ "$stable" != "$f" ] && [ ! -e "$stable" ]; then cp "$f" "$stable"; fi
+          done
+
       - run: ls -lh dist
 
       - name: Publish the release
