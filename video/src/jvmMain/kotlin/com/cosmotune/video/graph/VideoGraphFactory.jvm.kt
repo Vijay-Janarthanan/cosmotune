@@ -119,5 +119,5 @@ private object DesktopVideoProcess {
     }
 
     /** The version the desktop application reports when it was started without one (as its settings footer and update check do). */
-    private const val FALLBACK_VERSION = "1.0.0-alpha1"
+    private const val FALLBACK_VERSION = "1.0.0"
 }

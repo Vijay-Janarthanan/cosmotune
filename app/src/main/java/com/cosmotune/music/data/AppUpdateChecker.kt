@@ -213,15 +213,6 @@ object AppUpdateChecker {
         )
     }
 
-    /** A version split into its numeric dotted parts and whether it carries a "-suffix" (e.g. "-beta2"). */
-    private data class ParsedVersion(val parts: List<Int>, val isPreRelease: Boolean)
-
-    private fun parseVersion(raw: String): ParsedVersion {
-        val dash = raw.indexOf('-')
-        val base = if (dash >= 0) raw.substring(0, dash) else raw
-        return ParsedVersion(base.split(".").map { it.toIntOrNull() ?: 0 }, dash >= 0)
-    }
-
     /**
      * Numeric, dot-separated comparison — "1.10" outranks "1.9" — with one
      * extra rule: a "-betaN" build (see the debug build type's
@@ -229,15 +220,7 @@ object AppUpdateChecker {
      * plain release of the same numbers, since the beta by definition predates
      * the tag it was testing toward. Without this, a beta and the release it
      * matches compare equal and testers never get nudged onto the real build.
+     * The rule is shared with the desktop's checker: [com.cosmotune.ReleaseVersion], tested by `ReleaseVersionTest`.
      */
-    private fun isNewer(latest: String, current: String): Boolean {
-        val l = parseVersion(latest)
-        val c = parseVersion(current)
-        for (i in 0 until maxOf(l.parts.size, c.parts.size)) {
-            val a = l.parts.getOrElse(i) { 0 }
-            val b = c.parts.getOrElse(i) { 0 }
-            if (a != b) return a > b
-        }
-        return c.isPreRelease && !l.isPreRelease
-    }
+    private fun isNewer(latest: String, current: String): Boolean = com.cosmotune.ReleaseVersion.isNewer(latest, current)
 }

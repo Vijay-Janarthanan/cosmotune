@@ -34,7 +34,7 @@ internal object DesktopUpdateChecker {
 
     private const val LATEST_RELEASE_URL = com.cosmotune.CosmoConfig.LATEST_RELEASE_API
 
-    val currentVersion: String = System.getProperty("cosmotune.version") ?: "1.0.0-alpha1"
+    val currentVersion: String = System.getProperty("cosmotune.version") ?: "1.0.0"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -87,23 +87,9 @@ internal object DesktopUpdateChecker {
         return null
     }
 
-    private class Parsed(val parts: List<Int>, val preRelease: Boolean)
-
-    private fun parse(raw: String): Parsed {
-        val dash = raw.indexOf('-')
-        val base = if (dash >= 0) raw.substring(0, dash) else raw
-        return Parsed(base.split('.').map { it.toIntOrNull() ?: 0 }, dash >= 0)
-    }
-
-    /** Numeric comparison, with a `-betaN` build counted as older than the plain release it leads up to. */
-    internal fun isNewer(latest: String, current: String): Boolean {
-        val l = parse(latest)
-        val c = parse(current)
-        for (i in 0 until maxOf(l.parts.size, c.parts.size)) {
-            val a = l.parts.getOrElse(i) { 0 }
-            val b = c.parts.getOrElse(i) { 0 }
-            if (a != b) return a > b
-        }
-        return c.preRelease && !l.preRelease
-    }
+    /**
+     * Numeric comparison, with a `-betaN` build counted as older than the plain release it leads up to; the rule
+     * is shared with the phone's `AppUpdateChecker` and tested by `ReleaseVersionTest`.
+     */
+    internal fun isNewer(latest: String, current: String): Boolean = com.cosmotune.ReleaseVersion.isNewer(latest, current)
 }
