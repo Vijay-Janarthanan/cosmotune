@@ -14,7 +14,7 @@ import kotlin.test.fail
  */
 class DesktopChromeStructureTest {
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "settings.gradle.kts").isFile }
-    private val desktopDir = "desktopApp/src/main/kotlin/com/music/bitchord/desktop"
+    private val desktopDir = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop"
 
     private fun read(path: String): String {
         val file = File(root, path)

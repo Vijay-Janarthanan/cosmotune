@@ -46,20 +46,20 @@ import com.cosmotune.ui.components.tonalFill
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.new_playlist
-import com.music.bitchord.sharedui.resources.saved_to_youtube_music
-import com.music.bitchord.ui.AppUi
-import com.music.bitchord.ui.components.LIBRARY_GRID_SPACING
-import com.music.bitchord.ui.components.libraryGrid
-import com.music.bitchord.ui.screens.localizeCardSubtitle
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.new_playlist
+import com.cosmotune.music.sharedui.resources.saved_to_youtube_music
+import com.cosmotune.music.ui.AppUi
+import com.cosmotune.music.ui.components.LIBRARY_GRID_SPACING
+import com.cosmotune.music.ui.components.libraryGrid
+import com.cosmotune.music.ui.screens.localizeCardSubtitle
 import org.jetbrains.compose.resources.stringResource
 
 /**
  * What a shelf's "Show all" opens onto in the new look: the shelf's cards at the same [libraryGrid] width, run down the screen
- * (12 dp across, 20 dp down, 16 dp from the sides). The parameters are [com.music.bitchord.ui.screens.LibraryGridPage]'s.
+ * (12 dp across, 20 dp down, 16 dp from the sides). The parameters are [com.cosmotune.music.ui.screens.LibraryGridPage]'s.
  *
  * The cards are read live, not trusted to arrive sorted: this page is opened from a snapshot, and a pin toggled from its own
  * hold menu must move the card at once. Pinning wins over the default order, but an explicit sort reorders the whole grid, the

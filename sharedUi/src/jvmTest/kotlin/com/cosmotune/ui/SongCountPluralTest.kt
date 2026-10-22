@@ -1,7 +1,7 @@
 package com.cosmotune.ui
 
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_song_count
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_song_count
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.compose.resources.getPluralString
 import java.io.File

@@ -51,9 +51,9 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.ink
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.clear_search
-import com.music.bitchord.sharedui.resources.search
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.clear_search
+import com.cosmotune.music.sharedui.resources.search
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -62,7 +62,7 @@ import org.jetbrains.compose.resources.stringResource
  * submits (it works once something is typed), the text, a clear button while there is text, and the [keyHint] (a key cap such
  * as "/") while there is not.
  *
- * It behaves as the old [com.music.bitchord.ui.components.SearchField] did: the keyboard's search key, Enter on the desktop and
+ * It behaves as the old [com.cosmotune.music.ui.components.SearchField] did: the keyboard's search key, Enter on the desktop and
  * the magnifier all call [onSubmit], then drop the focus and hide the keyboard; clearing the text keeps the field focused so the
  * next search can be typed at once. [onFocusChanged] hears when the field gains or loses focus (the desktop shows its results
  * panel while it has it).

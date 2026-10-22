@@ -1,9 +1,9 @@
 package com.cosmotune.design
 
-import com.music.bitchord.data.model.BrowseType
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.durationMillis
+import com.cosmotune.music.data.model.BrowseType
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.durationMillis
 
 /**
  * What an album, single, EP or playlist page says about itself, from what the page has: the word for what it is, the year, the

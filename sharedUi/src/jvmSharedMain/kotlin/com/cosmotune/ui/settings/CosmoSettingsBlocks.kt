@@ -95,9 +95,9 @@ import com.cosmotune.ui.theme.CosmoType
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.ui.components.thumbnailBorder
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.components.thumbnailBorder
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 import kotlin.math.min
 
 /*

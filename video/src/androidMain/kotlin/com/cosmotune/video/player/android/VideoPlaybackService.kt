@@ -170,10 +170,10 @@ class VideoPlaybackService : MediaSessionService() {
     }
 
     companion object {
-        /** The notification channel of Video's playback ("Video playback"); Music's is `bitchord_playback`. */
+        /** The notification channel of Video's playback ("Video playback"); Music's is `cosmotune_playback`. */
         const val CHANNEL_ID = "video_playback"
 
-        /** The session's id; Music's session is `BitChordPlayback`. */
+        /** The session's id; Music's session is `CosmotunePlayback`. */
         const val SESSION_ID = "CosmotuneVideo"
 
         /** The notification's id; Music's provider uses Media3's default 1001, Music's downloads 0x8175, its uploads 0x8176. */

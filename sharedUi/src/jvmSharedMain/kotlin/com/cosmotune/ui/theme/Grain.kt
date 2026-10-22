@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import com.music.bitchord.ui.graphics.imageBitmapOf
+import com.cosmotune.music.ui.graphics.imageBitmapOf
 
 /**
  * Film grain over the ambient ground: it breaks up the 8-bit banding of the slow gradients (`--grain`, `--grain-op` in

@@ -71,8 +71,8 @@ import com.cosmotune.video.ui.blocks.rememberMetaStyle
 import com.cosmotune.video.ui.shell.VideoBackHandler
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
-import com.music.bitchord.sharedui.resources.cosmo_close
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.cosmo_close
 
 /*
  * The panel around the list (spec 5.9): the sheet of the phone, a detached solid-glass card that the caller places under the player, or

@@ -35,11 +35,11 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_np_controls_expand
-import com.music.bitchord.sharedui.resources.cosmo_np_controls_expanded_state
-import com.music.bitchord.sharedui.resources.cosmo_np_controls_minimize
-import com.music.bitchord.sharedui.resources.cosmo_np_controls_minimized_state
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_np_controls_expand
+import com.cosmotune.music.sharedui.resources.cosmo_np_controls_expanded_state
+import com.cosmotune.music.sharedui.resources.cosmo_np_controls_minimize
+import com.cosmotune.music.sharedui.resources.cosmo_np_controls_minimized_state
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource

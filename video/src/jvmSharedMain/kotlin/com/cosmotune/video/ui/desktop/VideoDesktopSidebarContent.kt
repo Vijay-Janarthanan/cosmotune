@@ -83,8 +83,8 @@ import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.shell.VideoNavigator
 import kotlinx.coroutines.yield
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
-import com.music.bitchord.sharedui.resources.playlists
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.playlists
 
 /**
  * The body of the desktop's Video sidebar (spec 5.1), in the look of Music's own (`CosmoDesktopSidebar`, which this copies and does

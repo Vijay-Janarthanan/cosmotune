@@ -11,7 +11,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.cosmotune.listening.*
 import com.cosmotune.ui.listening.*
-import com.music.bitchord.data.model.Song
+import com.cosmotune.music.data.model.Song
 import org.junit.Rule
 import org.junit.Test
 import java.io.File

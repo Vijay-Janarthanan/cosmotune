@@ -1,7 +1,7 @@
 package com.cosmotune.browse
 
-import com.music.bitchord.data.model.MoodGenre
-import com.music.bitchord.data.model.MoodGenreSection
+import com.cosmotune.music.data.model.MoodGenre
+import com.cosmotune.music.data.model.MoodGenreSection
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

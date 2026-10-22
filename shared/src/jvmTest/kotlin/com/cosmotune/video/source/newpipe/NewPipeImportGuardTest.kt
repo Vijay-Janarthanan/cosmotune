@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 /**
  * NewPipe stays behind `VideoSource` (plan task Y-4, step 7): nothing of Video outside
  * `shared/src/<source set>/kotlin/com/cosmotune/video/source/newpipe/` mentions `org.schabi.newpipe`, so a rewrite of the
- * extractor's stream API (NewPipe issue #858) touches one folder. Music's own files (`com.music.bitchord`) are not Video's.
+ * extractor's stream API (NewPipe issue #858) touches one folder. Music's own files (`com.cosmotune.music`) are not Video's.
  */
 class NewPipeImportGuardTest {
 

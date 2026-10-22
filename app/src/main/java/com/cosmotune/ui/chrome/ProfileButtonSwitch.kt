@@ -4,9 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.R
-import com.music.bitchord.data.model.Account
-import com.music.bitchord.ui.components.TopBarAccountButton
+import com.cosmotune.music.R
+import com.cosmotune.music.data.model.Account
+import com.cosmotune.music.ui.components.TopBarAccountButton
 
 /**
  * The phone's one avatar button at the end of the top bar: [CosmoProfileButton] (the avatar that opens the profile drawer) while

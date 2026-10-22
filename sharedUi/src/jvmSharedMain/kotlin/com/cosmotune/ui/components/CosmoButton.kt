@@ -27,8 +27,8 @@ import com.cosmotune.theme.CoverColors
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 
 /** PRIMARY is the cover's gradient, TONAL its container, QUIET a faint wash of ink, TEXT no fill at all. */
 enum class CosmoButtonKind { PRIMARY, TONAL, QUIET, TEXT }

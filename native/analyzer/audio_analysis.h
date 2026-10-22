@@ -3,7 +3,7 @@
  * analyzer this file is adapted from almost unchanged: the mix-out budget,
  * phrase detection and cue scoring below were tuned against real material,
  * and reimplementing them from a description would produce different numbers
- * that BitChord's transition policy is not calibrated for.
+ * that Cosmotune's transition policy is not calibrated for.
  *
  * Copyright (C) 2026 SFG545 (original Orchard implementation)
  * Copyright (C) 2026 Kushagra Singh (BitChord adaptation)
@@ -43,7 +43,7 @@
 #include <string>
 #include <vector>
 
-namespace bitchord::smart {
+namespace cosmotune::smart {
 
 // Times are seconds, confidence/probability values are nominally in [0, 1],
 // and ordered event vectors use playback order unless stated otherwise.
@@ -147,4 +147,4 @@ TempoResult AnalyzeTempo(
   double audible_start
 );
 
-}  // namespace bitchord::smart
+}  // namespace cosmotune::smart

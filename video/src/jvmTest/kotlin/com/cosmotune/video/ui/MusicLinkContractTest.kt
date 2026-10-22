@@ -3,7 +3,7 @@ package com.cosmotune.video.ui
 import com.cosmotune.ui.modes.ModeLinks
 import com.cosmotune.ui.modes.musicVideoLink
 import com.cosmotune.ui.modes.musicVideoMomentMs
-import com.music.bitchord.data.canvas.CanvasArtwork
+import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.opencanvas.core.sync.SyncMap
 import com.opencanvas.core.sync.SyncSegment
 import java.io.File
@@ -26,12 +26,12 @@ class MusicLinkContractTest {
     private val modeLinks = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/modes/ModeLinks.kt"
     private val phoneHost = "app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt"
     private val desktopHost = "desktopApp/src/main/kotlin/com/cosmotune/video/host/DesktopModeHost.kt"
-    private val desktopApp = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
-    private val canvasArtwork = "shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/canvas/CanvasArtwork.kt"
-    private val openCanvas = "shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/canvas/OpenCanvasProvider.kt"
-    private val desktopCanvas = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopCanvas.kt"
-    private val desktopCanvasVideo = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopCanvasVideo.kt"
-    private val desktopCanvasSources = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopCanvasSources.kt"
+    private val desktopApp = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
+    private val canvasArtwork = "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/CanvasArtwork.kt"
+    private val openCanvas = "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/OpenCanvasProvider.kt"
+    private val desktopCanvas = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopCanvas.kt"
+    private val desktopCanvasVideo = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopCanvasVideo.kt"
+    private val desktopCanvasSources = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopCanvasSources.kt"
 
     private fun read(path: String) = VideoSourceContract.read(path)
 
@@ -234,10 +234,10 @@ class MusicLinkContractTest {
         val rows = read("FORK.md").lines().filter { it.startsWith("|") }
         fun columns(row: String) = row.trim().removePrefix("|").removeSuffix("|").split("|").size
         val ours = listOf(
-            rows.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt`") && "LocalModeLinks" in it && "LocalDesktopPlaySong" in it },
-            rows.filter { it.startsWith("| `shared/src/jvmSharedMain/kotlin/com/music/bitchord/data/canvas/CanvasArtwork.kt`") && "videoId" in it },
+            rows.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt`") && "LocalModeLinks" in it && "LocalDesktopPlaySong" in it },
+            rows.filter { it.startsWith("| `shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/CanvasArtwork.kt`") && "videoId" in it },
             rows.filter { it.startsWith("| `sharedUi/src/commonMain/composeResources/values*/strings.xml`") && "cosmo_watch_music_video" in it },
-            rows.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopCanvas.kt`") && "DesktopCanvasVideo.kt" in it && "DesktopCanvasSources.kt" in it && "videoId" in it },
+            rows.filter { it.startsWith("| `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopCanvas.kt`") && "DesktopCanvasVideo.kt" in it && "DesktopCanvasSources.kt" in it && "videoId" in it },
         )
         for (found in ours) assertEquals(1, found.size, "one new row each: $found")
         for (row in ours.flatten()) assertEquals(4, columns(row), "four columns: ${row.take(80)}")

@@ -86,7 +86,7 @@ class VideoModuleStructureTest {
         assertTrue("implementation(\"net.java.dev.jna:jna:5.19.1\")" in module)
         assertTrue("org.openani.mediamp:mediamp-mpv-runtime-\$mpvPlatform:0.5.1\") { isTransitive = false }" in module, "the natives come without their transitive dependencies")
         for (platform in listOf("windows-x64", "linux-x64", "macos-arm64", "macos-x64")) assertTrue("\"$platform\"" in module, "the natives of $platform")
-        assertTrue("\"bitchord.target\"" in module, "the platform is chosen as the desktop chooses its classifier")
+        assertTrue("\"cosmotune.target\"" in module, "the platform is chosen as the desktop chooses its classifier")
         assertTrue("compileOnly(\"org.bytedeco:ffmpeg:7.1.1-1.5.12\")" in module && "compileOnly(\"org.bytedeco:javacpp:1.5.12\")" in module, "the remux libraries are compile-only: the desktop app supplies the natives")
         assertTrue("implementation(\"org.xerial:sqlite-jdbc:3.47.1.0\")" in module)
         assertTrue("jna-platform:5.19.1" in read("desktopApp/build.gradle.kts"), "the desktop ships the same JNA")

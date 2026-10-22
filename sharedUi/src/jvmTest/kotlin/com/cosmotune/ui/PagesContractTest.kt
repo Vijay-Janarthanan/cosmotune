@@ -3,9 +3,9 @@ package com.cosmotune.ui
 import com.cosmotune.design.BlockMetrics
 import com.cosmotune.ui.pages.isArtists
 import com.cosmotune.ui.pages.matchingQuery
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.Song
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.Song
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,8 +20,8 @@ import kotlin.test.fail
  */
 class PagesContractTest {
     private val switchPath = "app/src/main/java/com/cosmotune/ui/pages/DetailSwitch.kt"
-    private val screenPath = "app/src/main/java/com/music/bitchord/ui/screens/DetailScreen.kt"
-    private val mainPath = "app/src/main/java/com/music/bitchord/MainActivity.kt"
+    private val screenPath = "app/src/main/java/com/cosmotune/music/ui/screens/DetailScreen.kt"
+    private val mainPath = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
     private val pagesDir = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/pages"
     private val pageFiles = listOf("CosmoReleasePage", "CosmoArtistPage", "CosmoShelfGridPage", "PageParts")
     private val strings = "sharedUi/src/commonMain/composeResources/values/strings.xml"
@@ -254,7 +254,7 @@ class PagesContractTest {
         val english = SourceContract.read(strings)
         val declared = Regex("""<(?:string|plurals) name="([a-z0-9_]+)"""").findAll(english).map { it.groupValues[1] }.toSet()
         for (name in pageFiles) {
-            val used = Regex("""import com\.music\.bitchord\.sharedui\.resources\.(\w+)""").findAll(page(name)).map { it.groupValues[1] }.filter { it != "Res" }.toList()
+            val used = Regex("""import com\.cosmotune\.music\.sharedui\.resources\.(\w+)""").findAll(page(name)).map { it.groupValues[1] }.filter { it != "Res" }.toList()
             for (key in used) assertTrue(key in declared, "$name uses the string $key, which values/strings.xml does not have")
             assertTrue(
                 Regex("""Text\(\s*(text = )?"[A-Za-z]""").find(SourceContract.code(page(name))) == null,

@@ -32,9 +32,9 @@ import com.cosmotune.ui.theme.CosmoShellState
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.cosmoAmbientGround
 import com.cosmotune.ui.theme.drawEllipseGlow
-import com.music.bitchord.data.canvas.CanvasArtwork
-import com.music.bitchord.ui.player.CanvasArtworkPlayer
-import com.music.bitchord.ui.player.CanvasContentMode
+import com.cosmotune.music.data.canvas.CanvasArtwork
+import com.cosmotune.music.ui.player.CanvasArtworkPlayer
+import com.cosmotune.music.ui.player.CanvasContentMode
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 

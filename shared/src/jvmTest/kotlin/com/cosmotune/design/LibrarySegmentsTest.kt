@@ -1,9 +1,9 @@
 package com.cosmotune.design
 
-import com.music.bitchord.data.YtMusicRepository
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.settings.LibrarySort
+import com.cosmotune.music.data.YtMusicRepository
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.settings.LibrarySort
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

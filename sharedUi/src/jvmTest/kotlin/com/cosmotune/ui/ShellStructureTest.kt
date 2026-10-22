@@ -14,7 +14,7 @@ import kotlin.test.fail
 class ShellStructureTest {
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "settings.gradle.kts").isFile }
     private val shellDir = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/shell"
-    private val mainActivityPath = "app/src/main/java/com/music/bitchord/MainActivity.kt"
+    private val mainActivityPath = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
 
     private fun read(path: String): String {
         val file = File(root, path)

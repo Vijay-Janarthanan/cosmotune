@@ -52,36 +52,36 @@ import com.cosmotune.ui.components.CosmoSegmented
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.LibraryPage
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.albums
-import com.music.bitchord.sharedui.resources.artists
-import com.music.bitchord.sharedui.resources.cosmo_library_folders
-import com.music.bitchord.sharedui.resources.cosmo_state_empty
-import com.music.bitchord.sharedui.resources.downloaded
-import com.music.bitchord.sharedui.resources.import_spotify
-import com.music.bitchord.sharedui.resources.import_spotify_subtitle
-import com.music.bitchord.sharedui.resources.library
-import com.music.bitchord.sharedui.resources.library_sign_in_description
-import com.music.bitchord.sharedui.resources.more
-import com.music.bitchord.sharedui.resources.new_playlist
-import com.music.bitchord.sharedui.resources.on_device
-import com.music.bitchord.sharedui.resources.pinned
-import com.music.bitchord.sharedui.resources.playlists
-import com.music.bitchord.sharedui.resources.retry
-import com.music.bitchord.sharedui.resources.saved_to_youtube_music
-import com.music.bitchord.sharedui.resources.sign_in
-import com.music.bitchord.sharedui.resources.spotify_logo
-import com.music.bitchord.ui.AppUi
-import com.music.bitchord.ui.components.MessageState
-import com.music.bitchord.ui.components.PullToRefresh
-import com.music.bitchord.ui.components.libraryGrid
-import com.music.bitchord.ui.components.librarySkeleton
-import com.music.bitchord.ui.screens.LibraryLink
-import com.music.bitchord.ui.screens.localizeCardSubtitle
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.LibraryPage
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.albums
+import com.cosmotune.music.sharedui.resources.artists
+import com.cosmotune.music.sharedui.resources.cosmo_library_folders
+import com.cosmotune.music.sharedui.resources.cosmo_state_empty
+import com.cosmotune.music.sharedui.resources.downloaded
+import com.cosmotune.music.sharedui.resources.import_spotify
+import com.cosmotune.music.sharedui.resources.import_spotify_subtitle
+import com.cosmotune.music.sharedui.resources.library
+import com.cosmotune.music.sharedui.resources.library_sign_in_description
+import com.cosmotune.music.sharedui.resources.more
+import com.cosmotune.music.sharedui.resources.new_playlist
+import com.cosmotune.music.sharedui.resources.on_device
+import com.cosmotune.music.sharedui.resources.pinned
+import com.cosmotune.music.sharedui.resources.playlists
+import com.cosmotune.music.sharedui.resources.retry
+import com.cosmotune.music.sharedui.resources.saved_to_youtube_music
+import com.cosmotune.music.sharedui.resources.sign_in
+import com.cosmotune.music.sharedui.resources.spotify_logo
+import com.cosmotune.music.ui.AppUi
+import com.cosmotune.music.ui.components.MessageState
+import com.cosmotune.music.ui.components.PullToRefresh
+import com.cosmotune.music.ui.components.libraryGrid
+import com.cosmotune.music.ui.components.librarySkeleton
+import com.cosmotune.music.ui.screens.LibraryLink
+import com.cosmotune.music.ui.screens.localizeCardSubtitle
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -104,7 +104,7 @@ private val CARD_GAP_DOWN = 18.dp
 /**
  * The signed-in library, as four segments: Playlists (the Replay cards, the liked and a pinned tile, the New playlist and Import
  * rows, the playlists and any other shelf), Albums (a grid), Artists (rows with round covers) and Downloaded (the device's
- * folders and the releases kept on it). The parameters are [com.music.bitchord.ui.screens.LibraryScreen]'s, name for name.
+ * folders and the releases kept on it). The parameters are [com.cosmotune.music.ui.screens.LibraryScreen]'s, name for name.
  *
  * [showTitle] is not read: the new top bars carry no page title at rest, so the heading stands on the phone and the desktop alike.
  * A playlist that has a tile (the liked one, the mix) is not listed again in the rows; holding any playlist, either tile

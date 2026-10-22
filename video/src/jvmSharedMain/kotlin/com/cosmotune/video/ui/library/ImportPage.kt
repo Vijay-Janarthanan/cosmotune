@@ -77,15 +77,15 @@ import com.cosmotune.video.resources.video_import_summary
 import com.cosmotune.video.resources.video_import_takeout
 import com.cosmotune.video.resources.video_set_export
 import com.cosmotune.video.ui.VideoIcons
-import com.music.bitchord.sharedui.resources.cancel
-import com.music.bitchord.sharedui.resources.cosmo_close
-import com.music.bitchord.ui.components.FLOATING_BAR_MAX_WIDTH
+import com.cosmotune.music.sharedui.resources.cancel
+import com.cosmotune.music.sharedui.resources.cosmo_close
+import com.cosmotune.music.ui.components.FLOATING_BAR_MAX_WIDTH
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import java.time.LocalDate
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /**
  * Import and export (spec 8.1, 8.2): the heading; "Import" with a row for each kind of file (NewPipe subscriptions, a NewPipe backup,

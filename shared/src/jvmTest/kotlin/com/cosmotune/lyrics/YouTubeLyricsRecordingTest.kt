@@ -1,6 +1,6 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.model.Song
+import com.cosmotune.music.data.model.Song
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json

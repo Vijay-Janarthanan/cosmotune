@@ -12,8 +12,8 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import com.cosmotune.ui.components.cosmoFocusRing
-import com.music.bitchord.ui.components.contextClick
-import com.music.bitchord.ui.components.longPressMenuClickable
+import com.cosmotune.music.ui.components.contextClick
+import com.cosmotune.music.ui.components.longPressMenuClickable
 
 /**
  * What every card and row of Video mode does with a finger, a mouse and a keyboard, written once: a tap calls [onClick]; a hold

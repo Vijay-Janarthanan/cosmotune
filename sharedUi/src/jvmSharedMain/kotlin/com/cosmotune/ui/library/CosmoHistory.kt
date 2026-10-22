@@ -7,19 +7,19 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.cosmotune.ui.blocks.CosmoSongRow
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.data.model.isSameTrackAs
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.retry
-import com.music.bitchord.ui.components.MessageState
-import com.music.bitchord.ui.components.songListSkeleton
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.retry
+import com.cosmotune.music.ui.components.MessageState
+import com.cosmotune.music.ui.components.songListSkeleton
 import org.jetbrains.compose.resources.stringResource
 
 /**
  * What the account has been listening to, most recent first, in the new look: a plain list of song rows with no dividers and no
  * heading (the top bar names the page, and no single cover stands for a history). The parameters are
- * `com.music.bitchord.ui.screens.HistoryScreen`'s (it lives in `app`, which this module cannot see: `HistorySwitch` there chooses).
+ * `com.cosmotune.music.ui.screens.HistoryScreen`'s (it lives in `app`, which this module cannot see: `HistorySwitch` there chooses).
  *
  * Tapping a row plays it with the rest of the history behind it, so the list doubles as a queue that has already been approved
  * once. The rows are keyed on the video id and the index: the feed is deduplicated on the id, but a list keyed on something that

@@ -51,7 +51,7 @@ class AndroidEngineStructureTest {
         val text = flat(service)
         assertTrue("class VideoPlaybackService : MediaSessionService()" in text)
         assertTrue("override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession" in text)
-        assertTrue("const val SESSION_ID = \"CosmotuneVideo\"" in text, "a session id of its own (Music's is BitChordPlayback)")
+        assertTrue("const val SESSION_ID = \"CosmotuneVideo\"" in text, "a session id of its own (Music's is CosmotunePlayback)")
         assertTrue("const val CHANNEL_ID = \"video_playback\"" in text)
         assertTrue("setNotificationId(NOTIFICATION_ID)" in text, "not Media3's default 1001, which Music's notification uses")
         val id = Regex("""const val NOTIFICATION_ID = (0x[0-9a-fA-F]+|\d+)""").find(text)!!.groupValues[1]
@@ -235,7 +235,7 @@ class AndroidEngineStructureTest {
     @Test fun nothingInAndroidMainReferencesMusicsPlayback() {
         val offenders = File(root, "video/src/androidMain").walkTopDown()
             .filter { it.isFile && (it.extension == "kt" || it.extension == "xml") }
-            .filter { "com.music.bitchord.playback" in it.readText() }
+            .filter { "com.cosmotune.music.playback" in it.readText() }
             .map { it.relativeTo(root).path }
             .toList()
         assertEquals(emptyList(), offenders)

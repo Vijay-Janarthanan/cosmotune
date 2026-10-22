@@ -5,8 +5,8 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import com.cosmotune.design.AppMode
 import com.cosmotune.design.AppModes
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.ui.player.PlayerPlatform
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.ui.player.PlayerPlatform
 
 /**
  * Tells the shell which cover is playing and which comes next. Call it from the root, where the song is known.

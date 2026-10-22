@@ -1,6 +1,6 @@
 package com.cosmotune.design
 
-import com.music.bitchord.data.model.Song
+import com.cosmotune.music.data.model.Song
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

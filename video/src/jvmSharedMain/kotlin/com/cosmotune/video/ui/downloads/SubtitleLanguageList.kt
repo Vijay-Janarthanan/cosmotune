@@ -22,9 +22,9 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_dl_auto_generated
 import com.cosmotune.video.resources.video_dl_each_original
 import com.cosmotune.video.resources.video_dl_subtitle_language
-import com.music.bitchord.sharedui.resources.cosmo_back
+import com.cosmotune.music.sharedui.resources.cosmo_back
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /** Room under the last row, as the other sheets keep. */
 private val LIST_END = 8.dp

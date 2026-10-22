@@ -4,7 +4,7 @@
 # used, because it is reached by reflection, by a service loader, or from native code.
 
 # The entry point.
--keep class com.music.bitchord.desktop.MainKt { *; }
+-keep class com.cosmotune.music.desktop.MainKt { *; }
 
 # Kotlin metadata and coroutines' internals.
 -keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod, RuntimeVisibleAnnotations
@@ -13,12 +13,12 @@
 -keep class kotlinx.coroutines.** { *; }
 
 # kotlinx.serialization generates serializers and looks them up by name.
--keep,includedescriptorclasses class com.music.bitchord.**$$serializer { *; }
--keepclassmembers class com.music.bitchord.** {
+-keep,includedescriptorclasses class com.cosmotune.music.**$$serializer { *; }
+-keepclassmembers class com.cosmotune.music.** {
     *** Companion;
     *** serializer(...);
 }
--keepclasseswithmembers class com.music.bitchord.** {
+-keepclasseswithmembers class com.cosmotune.music.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 -keep class kotlinx.serialization.** { *; }
@@ -60,7 +60,7 @@
 -dontwarn org.schabi.newpipe.**
 
 # Our own JNI entry points: the analyser's symbol names encode this package.
--keep class com.music.bitchord.playback.smart.** { *; }
+-keep class com.cosmotune.music.playback.smart.** { *; }
 
 # Anything with a native method, and whatever it is called from.
 -keepclasseswithmembernames class * {

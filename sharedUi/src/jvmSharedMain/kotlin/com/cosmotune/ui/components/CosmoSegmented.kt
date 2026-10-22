@@ -46,8 +46,8 @@ import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 import kotlin.math.min
 
 /** The weight of a segment label, `.seg2` in `components-v3bc.css`. */

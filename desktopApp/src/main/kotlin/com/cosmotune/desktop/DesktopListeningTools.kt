@@ -3,8 +3,8 @@ package com.cosmotune.desktop
 import androidx.compose.runtime.Composable
 import com.cosmotune.listening.*
 import com.cosmotune.ui.listening.*
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.desktop.*
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.desktop.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout

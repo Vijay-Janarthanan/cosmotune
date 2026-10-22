@@ -152,7 +152,7 @@
     <string name="widget_previous">Precedente</string>
     <string name="widget_artwork">Copertina album</string>
     <string name="widget_nothing_played">Nulla ancora riprodotto</string>
-    <string name="widget_open_bitchord">Apri Cosmotune</string>
+    <string name="widget_open_cosmotune">Apri Cosmotune</string>
     <string name="widget_preview_title">Titolo brano</string>
     <string name="widget_preview_artist">Artista</string>
     <string name="download_quality">Qualità download</string>
@@ -374,7 +374,7 @@
     <string name="start_radio">Avvia radio</string>
     <string name="playing_radio">Riproduzione radio %1$s</string>
     <string name="radio_started">Radio %1$s avviata</string>
-    <string name="saved_to_bitchord_folder">Salvato in Musica/Cosmotune</string>
+    <string name="saved_to_cosmotune_folder">Salvato in Musica/Cosmotune</string>
     <string name="nothing_downloading">Nessun download in corso</string>
     <string name="nothing_to_explore">Niente da esplorare al momento</string>
     <string name="no_youtube_music_results">Nessun risultato da YouTube Music</string>
@@ -661,7 +661,7 @@
     </plurals>
     <string name="no_local_albums">Niente qui appartiene ancora a un album o playlist. Scarica un album o una playlist completa e apparirà qui.</string>
     <string name="play_your_replay">Riproduci il tuo Replay</string>
-    <string name="counted_on_device_with_bitchord">Conteggiato su questo dispositivo con Cosmotune</string>
+    <string name="counted_on_device_with_cosmotune">Conteggiato su questo dispositivo con Cosmotune</string>
     <string name="this_month">Questo mese</string>
     <string name="this_year">Quest\'anno</string>
     <string name="all_time">Sempre</string>

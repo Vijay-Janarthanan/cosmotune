@@ -14,11 +14,11 @@ import kotlin.test.fail
  */
 class LibraryContractTest {
     private val library = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/library"
-    private val oldLibrary = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/screens/LibraryScreen.kt"
-    private val oldHistory = "app/src/main/java/com/music/bitchord/ui/screens/HistoryScreen.kt"
+    private val oldLibrary = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/screens/LibraryScreen.kt"
+    private val oldHistory = "app/src/main/java/com/cosmotune/music/ui/screens/HistoryScreen.kt"
     private val historySwitch = "app/src/main/java/com/cosmotune/ui/library/HistorySwitch.kt"
-    private val mainActivity = "app/src/main/java/com/music/bitchord/MainActivity.kt"
-    private val desktopApp = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+    private val mainActivity = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
+    private val desktopApp = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
 
     private fun lib(name: String): String = SourceContract.read("$library/$name.kt")
 

@@ -1,9 +1,9 @@
 package com.cosmotune.listening
 
-import com.music.bitchord.data.model.QueueTier
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.ArtistRef
-import com.music.bitchord.data.model.PlaybackSourceType
+import com.cosmotune.music.data.model.QueueTier
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.ArtistRef
+import com.cosmotune.music.data.model.PlaybackSourceType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable

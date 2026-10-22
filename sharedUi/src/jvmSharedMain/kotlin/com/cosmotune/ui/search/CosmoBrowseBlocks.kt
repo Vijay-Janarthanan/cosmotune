@@ -23,15 +23,15 @@ import com.cosmotune.ui.blocks.CosmoOverline
 import com.cosmotune.ui.components.CosmoChip
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.theme.CosmoSpacing
-import com.music.bitchord.data.model.MoodGenre
-import com.music.bitchord.data.model.MoodGenreSection
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_search_genres
-import com.music.bitchord.sharedui.resources.cosmo_search_moods
-import com.music.bitchord.sharedui.resources.retry
-import com.music.bitchord.ui.components.MessageState
-import com.music.bitchord.ui.components.ShimmerBox
+import com.cosmotune.music.data.model.MoodGenre
+import com.cosmotune.music.data.model.MoodGenreSection
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_search_genres
+import com.cosmotune.music.sharedui.resources.cosmo_search_moods
+import com.cosmotune.music.sharedui.resources.retry
+import com.cosmotune.music.ui.components.MessageState
+import com.cosmotune.music.ui.components.ShimmerBox
 import org.jetbrains.compose.resources.stringResource
 
 /*

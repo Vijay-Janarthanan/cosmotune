@@ -262,10 +262,10 @@ class ForkGuardTest {
         )
         // A quoted name that is, or ends in, the whole lowercase word: "bitchord", ".bitchord", "bitchord/media",
         // "org.mpris.MediaPlayer2.bitchord", "com.music.bitchord.desktop". Property names such as
-        // bitchord.version, bitchord.lastfm.key and bitchord.listentogether.server, and names such as
-        // bitchord-cookies or bitchord_window (temporary files, threads, native libraries), do not match:
-        // they are internal and are kept so that upstream merges stay free of conflicts. The capitalised
-        // name shown to people ("BitChord") is the business of userFacingTextDoesNotNameTheUpstreamApp.
+        // bitchord.version and names such as bitchord-cookies or bitchord_window do not match here: since the
+        // rename (FORK.md, last row) the code has none of them either, and OldNameScanTest fails on any of
+        // them. The capitalised name shown to people ("BitChord") is the business of
+        // userFacingTextDoesNotNameTheUpstreamApp.
         val stateName = Regex("^(?:com\\.(?:music|dev)\\.bitchord(?:\\..*)?|(?:.*[./\\\\])?bitchord(?:[/\\\\].*)?)$")
 
         val offenders = mutableListOf<String>()

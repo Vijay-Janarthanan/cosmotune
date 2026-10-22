@@ -3,7 +3,7 @@ package com.cosmotune.ui.modes
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.staticCompositionLocalOf
-import com.music.bitchord.data.canvas.CanvasArtwork
+import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.opencanvas.core.sync.CanvasSyncPolicy
 import com.opencanvas.core.sync.SyncMap
 

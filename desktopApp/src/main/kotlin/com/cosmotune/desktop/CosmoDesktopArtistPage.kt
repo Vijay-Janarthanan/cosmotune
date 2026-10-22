@@ -57,25 +57,25 @@ import com.cosmotune.ui.components.PlayMorphButton
 import com.cosmotune.ui.theme.CosmoType
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.data.model.ArtistPage
-import com.music.bitchord.data.model.BrowseType
-import com.music.bitchord.data.model.HEADER_ART_PX
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.SubscriptionState
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.data.model.isSameTrackAs
-import com.music.bitchord.desktop.DesktopArtwork
-import com.music.bitchord.desktop.DesktopStrings
-import com.music.bitchord.desktop.browseTypeOf
-import com.music.bitchord.sharedui.resources.Res as SharedRes
-import com.music.bitchord.sharedui.resources.cosmo_about
-import com.music.bitchord.sharedui.resources.cosmo_follow
-import com.music.bitchord.sharedui.resources.cosmo_following
-import com.music.bitchord.sharedui.resources.cosmo_popular
-import com.music.bitchord.sharedui.resources.cosmo_state_empty
-import com.music.bitchord.sharedui.resources.show_all
-import com.music.bitchord.ui.components.MessageState
+import com.cosmotune.music.data.model.ArtistPage
+import com.cosmotune.music.data.model.BrowseType
+import com.cosmotune.music.data.model.HEADER_ART_PX
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.SubscriptionState
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.desktop.DesktopArtwork
+import com.cosmotune.music.desktop.DesktopStrings
+import com.cosmotune.music.desktop.browseTypeOf
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.cosmo_about
+import com.cosmotune.music.sharedui.resources.cosmo_follow
+import com.cosmotune.music.sharedui.resources.cosmo_following
+import com.cosmotune.music.sharedui.resources.cosmo_popular
+import com.cosmotune.music.sharedui.resources.cosmo_state_empty
+import com.cosmotune.music.sharedui.resources.show_all
+import com.cosmotune.music.ui.components.MessageState
 import org.jetbrains.compose.resources.stringResource
 
 /*

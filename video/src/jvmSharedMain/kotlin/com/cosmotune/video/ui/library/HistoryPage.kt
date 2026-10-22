@@ -85,9 +85,9 @@ import com.cosmotune.video.ui.actions.rememberVideoActions
 import com.cosmotune.video.ui.blocks.VideoActionsSheet
 import com.cosmotune.video.ui.blocks.VideoSheetContext
 import com.cosmotune.video.ui.blocks.rememberNowMs
-import com.music.bitchord.sharedui.resources.cancel
+import com.cosmotune.music.sharedui.resources.cancel
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /**
  * Watch history (spec 5.8): the heading with the page's menu (Pause history as a switch; Clear history, which asks first in a dialog

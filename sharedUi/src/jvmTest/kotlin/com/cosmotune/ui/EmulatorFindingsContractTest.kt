@@ -73,7 +73,7 @@ class EmulatorFindingsContractTest {
 
     // ---- the desktop page scrolls to the window's edge: the bar's room is content padding, and only while the bar is there --------------
 
-    private val desktopApp = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+    private val desktopApp = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
 
     @Test fun theDesktopFramePadsTheContentForTheBarByTheSharedRuleAndOnlyWithASong() {
         val frame = SourceContract.code(SourceContract.functionBody(SourceContract.read(desktopApp), "DesktopFrame")).replace(Regex("\\s+"), " ")

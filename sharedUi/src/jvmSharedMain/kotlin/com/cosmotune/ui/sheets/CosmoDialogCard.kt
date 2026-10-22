@@ -21,8 +21,8 @@ import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.components.cosmoGlass
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.CosmoSpacing
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_close
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_close
 import dev.chrisbanes.haze.HazeState
 import org.jetbrains.compose.resources.stringResource
 

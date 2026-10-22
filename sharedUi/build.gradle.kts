@@ -106,7 +106,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.music.bitchord.sharedui"
+    namespace = "com.cosmotune.music.sharedui"
     compileSdk = 36
     defaultConfig {
         minSdk = 26
@@ -115,6 +115,6 @@ android {
 
 compose.resources {
     publicResClass = true
-    packageOfResClass = "com.music.bitchord.sharedui.resources"
+    packageOfResClass = "com.cosmotune.music.sharedui.resources"
     generateResClass = always
 }

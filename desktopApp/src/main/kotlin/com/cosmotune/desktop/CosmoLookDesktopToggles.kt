@@ -20,17 +20,17 @@ import com.cosmotune.ui.settings.CosmoSettingsInsets
 import com.cosmotune.ui.settings.CosmoSettingsRow
 import com.cosmotune.ui.settings.CosmoSettingsSegmented
 import com.cosmotune.ui.settings.rememberCosmoLookSettings
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_cover_colours
-import com.music.bitchord.sharedui.resources.cosmo_cover_colours_summary
-import com.music.bitchord.sharedui.resources.cosmo_intensity
-import com.music.bitchord.sharedui.resources.cosmo_intensity_balanced
-import com.music.bitchord.sharedui.resources.cosmo_intensity_calm
-import com.music.bitchord.sharedui.resources.cosmo_intensity_rich
-import com.music.bitchord.sharedui.resources.cosmo_intensity_summary
-import com.music.bitchord.sharedui.resources.cosmo_look_preview
-import com.music.bitchord.sharedui.resources.cosmo_new_look
-import com.music.bitchord.sharedui.resources.cosmo_new_look_summary
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_cover_colours
+import com.cosmotune.music.sharedui.resources.cosmo_cover_colours_summary
+import com.cosmotune.music.sharedui.resources.cosmo_intensity
+import com.cosmotune.music.sharedui.resources.cosmo_intensity_balanced
+import com.cosmotune.music.sharedui.resources.cosmo_intensity_calm
+import com.cosmotune.music.sharedui.resources.cosmo_intensity_rich
+import com.cosmotune.music.sharedui.resources.cosmo_intensity_summary
+import com.cosmotune.music.sharedui.resources.cosmo_look_preview
+import com.cosmotune.music.sharedui.resources.cosmo_new_look
+import com.cosmotune.music.sharedui.resources.cosmo_new_look_summary
 import org.jetbrains.compose.resources.stringResource
 
 /**

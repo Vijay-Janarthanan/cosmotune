@@ -32,7 +32,7 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.ui.player.PlayerBack
+import com.cosmotune.music.ui.player.PlayerBack
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

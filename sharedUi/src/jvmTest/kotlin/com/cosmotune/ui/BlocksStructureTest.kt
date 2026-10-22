@@ -22,8 +22,8 @@ class BlocksStructureTest {
         return SourceContract.read("$dir/$name.kt")
     }
 
-    private val common = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/Common.kt"
-    private val searchField = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/SearchField.kt"
+    private val common = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/Common.kt"
+    private val searchField = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/SearchField.kt"
 
     // ---- the delegates ----
 

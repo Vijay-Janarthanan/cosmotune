@@ -32,11 +32,11 @@ import com.cosmotune.design.LoadingBlob
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.pause
-import com.music.bitchord.sharedui.resources.play
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.pause
+import com.cosmotune.music.sharedui.resources.play
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 import org.jetbrains.compose.resources.stringResource
 
 /**

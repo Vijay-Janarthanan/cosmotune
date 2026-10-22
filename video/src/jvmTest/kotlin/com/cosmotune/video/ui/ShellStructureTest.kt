@@ -554,12 +554,12 @@ class ShellStructureTest {
     @Test fun theShellReadsNoMusicStateOtherThanTheBlocksItIsGiven() {
         // Music never depends on :video, and Video reaches into Music only through VideoHostLinks and the shared building blocks
         for ((name, source) in shellFiles) {
-            val imports = Regex("""(?m)^import (com\.music\.bitchord\.[\w.]+)""").findAll(source).map { it.groupValues[1] }.toList()
+            val imports = Regex("""(?m)^import (com\.cosmotune\.music\.[\w.]+)""").findAll(source).map { it.groupValues[1] }.toList()
             for (import in imports) {
                 assertTrue(
                     import in setOf(
-                        "com.music.bitchord.data.model.Song", "com.music.bitchord.playback.PlaybackPosition", "com.music.bitchord.ui.components.FLOATING_BAR_MAX_WIDTH",
-                    ) || import.startsWith("com.music.bitchord.sharedui.resources."),
+                        "com.cosmotune.music.data.model.Song", "com.cosmotune.music.playback.PlaybackPosition", "com.cosmotune.music.ui.components.FLOATING_BAR_MAX_WIDTH",
+                    ) || import.startsWith("com.cosmotune.music.sharedui.resources."),
                     "$name imports $import",
                 )
             }

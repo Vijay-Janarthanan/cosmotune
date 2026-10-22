@@ -51,7 +51,7 @@ import com.cosmotune.ui.theme.CosmoShellState
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.ui.player.PlayerBackHandler
+import com.cosmotune.music.ui.player.PlayerBackHandler
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt

@@ -1,6 +1,6 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricLine
 
 /**
  * Which lines of a song are being sung at a moment, for songs whose voices overlap (the call and the answer of a duet): the

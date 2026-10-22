@@ -102,7 +102,7 @@ class VisualPolishContractTest {
 
     // ---- the album, playlist and add-to-playlist sheets on the song sheet's surface ------------------------------------------------
 
-    private val mainActivity = "app/src/main/java/com/music/bitchord/MainActivity.kt"
+    private val mainActivity = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
 
     @Test fun theSurfaceSheetIsASwitchOfTheBridgesSheet() {
         val src = SourceContract.read("$ui/sheets/SurfaceSheetSwitch.kt")
@@ -129,7 +129,7 @@ class VisualPolishContractTest {
         assertTrue(Regex("""SurfaceSheetSwitch\(\s*onDismissRequest = \{ browseActions = null \},\s*containerColor = MaterialTheme\.colorScheme\.background,\s*\) \{\s*browseMenuBody\(target, SongActionsPresentation\.Sheet\)""").containsMatchIn(main), "the browse sheet's host")
         assertTrue(Regex("""containerColor = Color\.Transparent,\s*dragHandle = null,\s*scrimColor = com\.cosmotune\.ui\.sheets\.cosmoSheetScrim\(\),\s*\) \{\s*songMenuBody\(song, SongActionsPresentation\.Sheet\)""").containsMatchIn(main), "the song sheet dims the page with 40 %")
         val fork = SourceContract.read("FORK.md")
-        assertTrue(fork.lines().any { it.startsWith("| `app/src/main/java/com/music/bitchord/MainActivity.kt`") && "SurfaceSheetSwitch" in it && "cosmoSheetScrim()" in it && "(P4-19)" in it }, "a FORK row for the three hosts")
+        assertTrue(fork.lines().any { it.startsWith("| `app/src/main/java/com/cosmotune/music/MainActivity.kt`") && "SurfaceSheetSwitch" in it && "cosmoSheetScrim()" in it && "(P4-19)" in it }, "a FORK row for the three hosts")
     }
 
     @Test fun theSheetHeaderShowsTheExplicitMarkAgain() {
@@ -137,10 +137,10 @@ class VisualPolishContractTest {
         assertTrue("if (explicit) ExplicitMark(Color(palette.textPrimary))" in header, "the mark in front of the title, in its ink")
         val mark = SourceContract.code(SourceContract.read("$ui/sheets/CosmoSheetHeader.kt"))
         assertTrue("MARK_BORDER_ALPHA = 0.72f" in mark && "RoundedCornerShape(2.dp)" in mark && "text = \"E\"" in mark, "the catalogue's outlined E, as ExplicitSongTitle draws it")
-        val songSheet = SourceContract.read("app/src/main/java/com/music/bitchord/ui/components/SongActionsSheet.kt")
+        val songSheet = SourceContract.read("app/src/main/java/com/cosmotune/music/ui/components/SongActionsSheet.kt")
         val delegate = SourceContract.firstStatement(SourceContract.functionBody(songSheet, "SheetTrackHeader"))
         assertTrue(delegate.endsWith("explicit = song.isExplicit == true)"), "the song sheet's delegate passes it: $delegate")
-        assertTrue(SourceContract.read("FORK.md").lines().any { it.startsWith("| `app/src/main/java/com/music/bitchord/ui/components/SongActionsSheet.kt`") && "explicit = song.isExplicit == true" in it }, "with its FORK row")
+        assertTrue(SourceContract.read("FORK.md").lines().any { it.startsWith("| `app/src/main/java/com/cosmotune/music/ui/components/SongActionsSheet.kt`") && "explicit = song.isExplicit == true" in it }, "with its FORK row")
     }
 
     @Test fun everyRowOfTheForkTableHasFourColumns() {
@@ -204,7 +204,7 @@ class VisualPolishContractTest {
 
     @Test fun everySkeletonOfTheNewLookDrawsTheCoversSkeletonColours() {
         // the shared skeletons: every block is a ShimmerBox, which hands over to CosmoShimmer (skelBase, skelShine) as its first statement
-        val skeletons = SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/Skeletons.kt")
+        val skeletons = SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/Skeletons.kt")
         val shimmer = SourceContract.functionBody(skeletons, "ShimmerBox")
         assertTrue(
             SourceContract.firstStatement(shimmer).startsWith("if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoShimmer("),

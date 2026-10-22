@@ -1,9 +1,9 @@
 package com.cosmotune.ui
 
 import com.cosmotune.lyrics.LyricActivity
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.lyrics.LyricWord
-import com.music.bitchord.ui.player.activeLyricRows
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricWord
+import com.cosmotune.music.ui.player.activeLyricRows
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -65,13 +65,13 @@ import com.cosmotune.ui.components.cosmoFocusRing
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.desktop.DesktopPlatform
-import com.music.bitchord.desktop.DesktopPlaylist
-import com.music.bitchord.desktop.DesktopStrings
-import com.music.bitchord.desktop.DesktopTitleBarDragArea
-import com.music.bitchord.desktop.DesktopTitleBarSetting
-import com.music.bitchord.desktop.DesktopWindowButtons
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.desktop.DesktopPlatform
+import com.cosmotune.music.desktop.DesktopPlaylist
+import com.cosmotune.music.desktop.DesktopStrings
+import com.cosmotune.music.desktop.DesktopTitleBarDragArea
+import com.cosmotune.music.desktop.DesktopTitleBarSetting
+import com.cosmotune.music.desktop.DesktopWindowButtons
 import kotlinx.coroutines.yield
 
 /**

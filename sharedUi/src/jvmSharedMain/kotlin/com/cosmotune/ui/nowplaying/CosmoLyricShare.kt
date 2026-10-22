@@ -20,18 +20,18 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.components.CosmoButton
 import com.cosmotune.ui.components.CosmoButtonKind
 import com.cosmotune.ui.components.CosmoButtonSize
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cancel
-import com.music.bitchord.sharedui.resources.share
-import com.music.bitchord.ui.haptics.Haptics
-import com.music.bitchord.ui.player.LyricsPicker
-import com.music.bitchord.ui.player.LyricsShareRequest
-import com.music.bitchord.ui.player.PlayerBackHandler
-import com.music.bitchord.ui.player.PlayerPlatform
-import com.music.bitchord.ui.player.lyricsShareAvailable
-import com.music.bitchord.ui.player.rememberLyricsPicker
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cancel
+import com.cosmotune.music.sharedui.resources.share
+import com.cosmotune.music.ui.haptics.Haptics
+import com.cosmotune.music.ui.player.LyricsPicker
+import com.cosmotune.music.ui.player.LyricsShareRequest
+import com.cosmotune.music.ui.player.PlayerBackHandler
+import com.cosmotune.music.ui.player.PlayerPlatform
+import com.cosmotune.music.ui.player.lyricsShareAvailable
+import com.cosmotune.music.ui.player.rememberLyricsPicker
 import dev.chrisbanes.haze.HazeState
 import org.jetbrains.compose.resources.stringResource
 
@@ -39,7 +39,7 @@ import org.jetbrains.compose.resources.stringResource
  * Lyric card sharing in the new Now Playing (the old view's feature, carried over): long-press a line to start choosing lines, tap to add or drop one, then
  * Share turns the chosen lines into a card. The choice, its budget (one card holds about five short lines), the order of the
  * lines on the card and the marks for lines that were skipped are the old panel's own `rememberLyricsPicker`, reused as it is;
- * the card itself is drawn by the platform ([com.music.bitchord.ui.player.PlayerHost.LyricsShareSheet], the phone's) and
+ * the card itself is drawn by the platform ([com.cosmotune.music.ui.player.PlayerHost.LyricsShareSheet], the phone's) and
  * is not in the new look.
  */
 

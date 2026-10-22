@@ -12,8 +12,8 @@ import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.ui.player.InlineQueue
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.ui.player.InlineQueue
 
 /** How much of the palette's scrim fills the queue's card: the same in both themes (the panels that were kept draw white, D8). */
 internal const val QUEUE_SCRIM_ALPHA = 0.9f

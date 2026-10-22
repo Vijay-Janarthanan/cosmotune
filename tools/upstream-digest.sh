@@ -161,7 +161,9 @@ commits 20 "$range" -- sharedUi app/src/main/java/com/music/bitchord/ui
 
 section "Upstream files in our ledger that changed (merge by hand)"
 # --no-renames: a file that upstream moved shows up under its old name too, which is the name in the ledger.
-changed="$(git diff --name-only --no-renames "$range")"
+# Upstream keeps its files in its own package folder; ours are in com/cosmotune/music since the rename (FORK.md),
+# which is the path the ledger names, so upstream's paths are read as ours before they are matched.
+changed="$(git diff --name-only --no-renames "$range" | sed 's#/com/music/bitchord/#/com/cosmotune/music/#')"
 found=0
 while IFS=$'\t' read -r entry re; do
   [ -n "$entry" ] || continue

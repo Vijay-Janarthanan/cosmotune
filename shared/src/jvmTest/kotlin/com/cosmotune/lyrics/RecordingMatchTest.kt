@@ -1,8 +1,8 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.BiniLyrics
-import com.music.bitchord.data.lyrics.LrcLib
-import com.music.bitchord.data.lyrics.LrcRed
+import com.cosmotune.music.data.lyrics.BiniLyrics
+import com.cosmotune.music.data.lyrics.LrcLib
+import com.cosmotune.music.data.lyrics.LrcRed
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.*

@@ -22,11 +22,11 @@ import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.video.ui.CosmoVideoApp
 import com.cosmotune.video.ui.PendingVideo
 import com.cosmotune.video.ui.VideoHostLinks
-import com.music.bitchord.playback.LinkRequest
-import com.music.bitchord.playback.MusicLink
+import com.cosmotune.music.playback.LinkRequest
+import com.cosmotune.music.playback.MusicLink
 
 /**
- * The phone's root while Video mode exists (hook table row 6): `MainActivity` draws Music's root, `BitChordApp`, inside [music], and
+ * The phone's root while Video mode exists (hook table row 6): `MainActivity` draws Music's root, `CosmotuneApp`, inside [music], and
  * this host draws it, or Video's screen ([CosmoVideoApp]) in its place, by the stored mode ([com.cosmotune.settings.CosmoLookSettings.mode]).
  *
  * Video is drawn only when the new look is on (there is a shell), the stored mode is Video and Video is available

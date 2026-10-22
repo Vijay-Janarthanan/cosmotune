@@ -65,7 +65,7 @@ private object DesktopVideoProcess {
     // One slot per line, a blank line between slots: the wiring task replaces its lines, the Shorts task only its own.
     private fun build(): VideoGraph {
         val files = FileLibraryFiles(videoLibraryDir(LibraryPlatform.Desktop))
-        val agent = WebServicesHttp.userAgent(System.getProperty("bitchord.version") ?: FALLBACK_VERSION)
+        val agent = WebServicesHttp.userAgent(System.getProperty("cosmotune.version") ?: FALLBACK_VERSION)
 
         val source = NewPipeVideoSource(clock)
 

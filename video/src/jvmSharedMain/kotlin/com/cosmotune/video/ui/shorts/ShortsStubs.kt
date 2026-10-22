@@ -47,7 +47,7 @@ import com.cosmotune.video.ui.blocks.VideoActionsSheet
 import com.cosmotune.video.ui.blocks.VideoSheetContext
 import com.cosmotune.video.ui.blocks.uniqueKeys
 import com.cosmotune.video.ui.shell.VideoNavigator
-import com.music.bitchord.ui.components.LocalShelfRowChrome
+import com.cosmotune.music.ui.components.LocalShelfRowChrome
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 

@@ -34,14 +34,14 @@ import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.ui.components.LocalShelfRowChrome
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.ui.components.contextClick
-import com.music.bitchord.ui.components.longPressMenuClickable
-import com.music.bitchord.ui.screens.localizeCardSubtitle
-import com.music.bitchord.ui.screens.localizeShelfSubtitle
-import com.music.bitchord.ui.screens.localizeShelfTitle
+import com.cosmotune.music.ui.components.LocalShelfRowChrome
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.ui.components.contextClick
+import com.cosmotune.music.ui.components.longPressMenuClickable
+import com.cosmotune.music.ui.screens.localizeCardSubtitle
+import com.cosmotune.music.ui.screens.localizeShelfSubtitle
+import com.cosmotune.music.ui.screens.localizeShelfTitle
 
 /*
  * Cards and shelves (`screens-v2.css` `.shelf2`, `.rail2`, `.lead2`, `.small2`, `.chart2`): a square cover, or a circle for an

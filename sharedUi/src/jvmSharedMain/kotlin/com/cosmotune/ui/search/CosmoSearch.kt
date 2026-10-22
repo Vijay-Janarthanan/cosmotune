@@ -71,25 +71,25 @@ import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.data.model.BrowseItem
-import com.music.bitchord.data.model.EntityType
-import com.music.bitchord.data.model.SearchFilter
-import com.music.bitchord.data.model.SearchHistoryEntity
-import com.music.bitchord.data.model.SearchResult
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.data.model.isSameTrackAs
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.clear
-import com.music.bitchord.sharedui.resources.cosmo_search_top_hits
-import com.music.bitchord.sharedui.resources.cosmo_search_use
-import com.music.bitchord.sharedui.resources.recent_search_remove
-import com.music.bitchord.sharedui.resources.recent_searches
-import com.music.bitchord.sharedui.resources.search_empty
-import com.music.bitchord.sharedui.resources.search_hint
-import com.music.bitchord.sharedui.resources.search_library_hint
-import com.music.bitchord.ui.components.MessageState
-import com.music.bitchord.ui.components.songListSkeleton
+import com.cosmotune.music.data.model.BrowseItem
+import com.cosmotune.music.data.model.EntityType
+import com.cosmotune.music.data.model.SearchFilter
+import com.cosmotune.music.data.model.SearchHistoryEntity
+import com.cosmotune.music.data.model.SearchResult
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.clear
+import com.cosmotune.music.sharedui.resources.cosmo_search_top_hits
+import com.cosmotune.music.sharedui.resources.cosmo_search_use
+import com.cosmotune.music.sharedui.resources.recent_search_remove
+import com.cosmotune.music.sharedui.resources.recent_searches
+import com.cosmotune.music.sharedui.resources.search_empty
+import com.cosmotune.music.sharedui.resources.search_hint
+import com.cosmotune.music.sharedui.resources.search_library_hint
+import com.cosmotune.music.ui.components.MessageState
+import com.cosmotune.music.ui.components.songListSkeleton
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -147,7 +147,7 @@ fun CosmoSearch(
     val keyboardController = LocalSoftwareKeyboardController.current
     val reduced = LocalReducedMotion.current
 
-    // The three effects and the two flags that follow are the old screen's (`com.music.bitchord.ui.screens.SearchScreen`), copied
+    // The three effects and the two flags that follow are the old screen's (`com.cosmotune.music.ui.screens.SearchScreen`), copied
     // as they are: what they do is the page's behaviour, and the new look only changes how it is drawn.
     // Tapping the search tab from the nav bar sets focusRequested;
     // respond by focusing the field and opening the keyboard.

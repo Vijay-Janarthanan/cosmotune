@@ -83,14 +83,14 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.playback.PlaybackPosition
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.now_playing
-import com.music.bitchord.sharedui.resources.widget_next
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
-import com.music.bitchord.ui.player.PlayerPlatform
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.playback.PlaybackPosition
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.now_playing
+import com.cosmotune.music.sharedui.resources.widget_next
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.player.PlayerPlatform
 import dev.chrisbanes.haze.HazeState
 import org.jetbrains.compose.resources.stringResource
 

@@ -1,7 +1,7 @@
 package com.cosmotune.video.host
 
 import com.cosmotune.video.ui.PendingVideo
-import com.music.bitchord.playback.LinkRequest
+import com.cosmotune.music.playback.LinkRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

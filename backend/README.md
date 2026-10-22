@@ -1,4 +1,4 @@
-# BitChord — Listen Together
+# Cosmotune — Listen Together
 
 The party server behind **Listen together**: create a six-character code, share
 it, and up to five signed-in devices listen to the same thing at the same time.
@@ -267,6 +267,11 @@ Caddy in front for HTTPS and WebSockets. Files are in `deploy/`.
 
 Check it with `curl https://<domain>/healthz`. Logs are in
 `journalctl -u bitchord-jam` and `journalctl -u caddy`.
+
+The names `bitchord-jam` (the service and `/opt/bitchord-jam`), the `bitchord` system user, `/etc/bitchord-domain`,
+`/usr/local/sbin/bitchord-deploy` and the Render service `bitchord-listen-together` are the names of deployed
+services, kept as they are: renaming one needs a new deployment (stop and disable the old unit, deploy under the new
+name, and point the app's server address at the new host).
 
 ## Deploying to Render
 

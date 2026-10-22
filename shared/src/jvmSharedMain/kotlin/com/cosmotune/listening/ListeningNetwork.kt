@@ -1,12 +1,12 @@
 package com.cosmotune.listening
 
-import com.music.bitchord.data.Http
-import com.music.bitchord.data.YtMusicRepository
-import com.music.bitchord.data.innertube.StreamResolver
-import com.music.bitchord.data.model.BrowseType
-import com.music.bitchord.data.model.SearchFilter
-import com.music.bitchord.data.model.SearchResult
-import com.music.bitchord.data.model.Song
+import com.cosmotune.music.data.Http
+import com.cosmotune.music.data.YtMusicRepository
+import com.cosmotune.music.data.innertube.StreamResolver
+import com.cosmotune.music.data.model.BrowseType
+import com.cosmotune.music.data.model.SearchFilter
+import com.cosmotune.music.data.model.SearchResult
+import com.cosmotune.music.data.model.Song
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

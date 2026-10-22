@@ -3,8 +3,8 @@ package com.cosmotune.ui.chrome
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.ui.components.FrostedTopBar
-import com.music.bitchord.ui.components.topBarHeight
+import com.cosmotune.music.ui.components.FrostedTopBar
+import com.cosmotune.music.ui.components.topBarHeight
 import dev.chrisbanes.haze.HazeState
 
 /**

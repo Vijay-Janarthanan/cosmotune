@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.music.bitchord.ui.theme.ArtworkPalette
+import com.cosmotune.music.ui.theme.ArtworkPalette
 
 /** The rule between two groups of rows (`.menu3 hr`): the ink at 10 %. */
 internal const val SHEET_DIVIDER_ALPHA = 0.10f

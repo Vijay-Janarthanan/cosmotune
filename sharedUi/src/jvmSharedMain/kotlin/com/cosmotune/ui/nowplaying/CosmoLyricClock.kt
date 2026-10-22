@@ -8,9 +8,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshots.Snapshot
-import com.music.bitchord.ui.player.LyricClock
-import com.music.bitchord.ui.player.LyricPlayhead
-import com.music.bitchord.ui.rememberIsForeground
+import com.cosmotune.music.ui.player.LyricClock
+import com.cosmotune.music.ui.player.LyricPlayhead
+import com.cosmotune.music.ui.rememberIsForeground
 import kotlin.math.abs
 
 /**

@@ -90,7 +90,7 @@ import com.cosmotune.video.ui.comments.CommentsPanel
 import com.cosmotune.video.ui.player.errorMessage
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.VideoBackHandler
-import com.music.bitchord.ui.components.FLOATING_BAR_MAX_WIDTH
+import com.cosmotune.music.ui.components.FLOATING_BAR_MAX_WIDTH
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged

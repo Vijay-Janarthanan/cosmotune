@@ -13,7 +13,7 @@ import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.components.cosmoGlass
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.desktop.LocalDesktopHaze
+import com.cosmotune.music.desktop.LocalDesktopHaze
 
 /**
  * The card of the side panel (`.d2-panel`, `V3.deskPanel`): the lyrics or the queue stand in a glass card beside the page

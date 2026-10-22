@@ -1,9 +1,10 @@
 [Unit]
-Description=BitChord Listen Together server
+Description=Cosmotune Listen Together server
 After=network-online.target
 Wants=network-online.target
 
 [Service]
+# deployed service name: renaming needs a new deployment
 User=bitchord
 ExecStart=/opt/bitchord-jam/server
 Restart=always

@@ -17,11 +17,11 @@ import com.cosmotune.design.Bento
 import com.cosmotune.design.HomePlan
 import com.cosmotune.ui.blocks.CosmoMixTile
 import com.cosmotune.ui.blocks.isSong
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.ui.screens.localizeShelfSubtitle
-import com.music.bitchord.ui.screens.localizeShelfTitle
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.ui.screens.localizeShelfSubtitle
+import com.cosmotune.music.ui.screens.localizeShelfTitle
 
 /*
  * The bento at the top of Home (`screens-v2.css` `.bento2`, `screens-v3.css` `.dh-bento`): the hero, and the mixes beside or under it.

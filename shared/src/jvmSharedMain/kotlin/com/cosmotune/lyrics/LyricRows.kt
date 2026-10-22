@@ -1,7 +1,7 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.lyrics.isGeniusSectionHeader
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.isGeniusSectionHeader
 
 /**
  * What a touch on a line of lyrics does, as plain decisions (the old panel's row, `PlayerLyrics.kt`): a tap seeks to the line,

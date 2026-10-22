@@ -62,10 +62,10 @@ import com.cosmotune.video.resources.video_play
 import com.cosmotune.video.resources.video_retry
 import com.cosmotune.video.ui.blocks.ThumbnailFrame
 import com.cosmotune.video.ui.blocks.rememberMetaStyle
-import com.music.bitchord.sharedui.resources.cancel
+import com.cosmotune.music.sharedui.resources.cancel
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import com.music.bitchord.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
 
 /**
  * A download's sheet (spec 5.10), opened from its row's more button, a hold or a right click, or a tap on a download under way: a

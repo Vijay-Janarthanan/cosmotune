@@ -10,14 +10,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import com.cosmotune.ui.blocks.CosmoPageHeader
-import com.music.bitchord.data.model.MoodGenre
-import com.music.bitchord.data.model.MoodGenreSection
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.search
-import com.music.bitchord.sharedui.resources.search_empty
-import com.music.bitchord.ui.components.MessageState
-import com.music.bitchord.ui.components.PullToRefresh
+import com.cosmotune.music.data.model.MoodGenre
+import com.cosmotune.music.data.model.MoodGenreSection
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.search
+import com.cosmotune.music.sharedui.resources.search_empty
+import com.cosmotune.music.ui.components.MessageState
+import com.cosmotune.music.ui.components.PullToRefresh
 import org.jetbrains.compose.resources.stringResource
 
 /**

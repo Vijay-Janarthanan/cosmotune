@@ -54,17 +54,17 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test -Pbitchord.version=${{ steps.version.outputs.value }}
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Build deb, rpm and the app image
         run: |
           ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:createDistributable \
-            -Pbitchord.version=${{ steps.version.outputs.value }}
+            -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: The analyser and models are in the jar
         run: |
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/lib/app/desktopApp*.jar)
-          jar tf "$jar" | grep -q 'native/libbitchord_analysis.so'
+          jar tf "$jar" | grep -q 'native/libcosmotune_analysis.so'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
 
       - name: Build the AppImage
@@ -128,20 +128,20 @@ jobs:
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
 
       - name: Tests
-        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test "-Pbitchord.version=${{ steps.version.outputs.value }}"
+        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test "-Pcosmotune.version=${{ steps.version.outputs.value }}"
 
       - name: Build msi, exe and the app image
         run: |
-          .\gradlew.bat :desktopApp:packageMsi :desktopApp:packageExe :desktopApp:createDistributable "-Pbitchord.version=${{ steps.version.outputs.value }}"
+          .\gradlew.bat :desktopApp:packageMsi :desktopApp:packageExe :desktopApp:createDistributable "-Pcosmotune.version=${{ steps.version.outputs.value }}"
 
       - name: The analyser and models are in the jar
         shell: bash
         run: |
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/app/desktopApp*.jar)
-          jar tf "$jar" | grep -q 'native/bitchord_analysis.dll'
+          jar tf "$jar" | grep -q 'native/cosmotune_analysis.dll'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
           # WinRT, so only MSVC can build it and only this job ever does.
-          jar tf "$jar" | grep -q 'native/bitchord_smtc.dll'
+          jar tf "$jar" | grep -q 'native/cosmotune_smtc.dll'
 
       - name: Collect
         shell: pwsh
@@ -196,12 +196,12 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test -Pbitchord.version=${{ steps.version.outputs.value }}
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Build DMG, PKG and the app bundle
         run: |
           ./gradlew :desktopApp:packageDmg :desktopApp:packagePkg :desktopApp:createDistributable \
-            -Pbitchord.version=${{ steps.version.outputs.value }}
+            -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: The analyser and models are in the jar
         run: |

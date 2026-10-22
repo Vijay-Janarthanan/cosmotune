@@ -51,10 +51,10 @@ import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.drawEllipseGlow
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.ui.components.contextClick
-import com.music.bitchord.ui.components.longPressMenuClickable
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.components.contextClick
+import com.cosmotune.music.ui.components.longPressMenuClickable
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 import com.cosmotune.ui.components.CosmoIcons
 
 /*

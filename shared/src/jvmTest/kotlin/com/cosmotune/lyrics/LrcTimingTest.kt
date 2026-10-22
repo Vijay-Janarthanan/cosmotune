@@ -1,10 +1,10 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.EnhancedLrc
-import com.music.bitchord.data.lyrics.LrcLib
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.lyrics.LyricWord
-import com.music.bitchord.data.lyrics.LyricSyllable
+import com.cosmotune.music.data.lyrics.EnhancedLrc
+import com.cosmotune.music.data.lyrics.LrcLib
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricWord
+import com.cosmotune.music.data.lyrics.LyricSyllable
 import kotlin.test.*
 
 class LrcTimingTest {

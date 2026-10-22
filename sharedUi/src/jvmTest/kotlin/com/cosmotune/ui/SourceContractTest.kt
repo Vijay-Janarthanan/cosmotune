@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 /** The helper of the contract tests, checked on the real Now Playing switch and on small samples of what it has to read. */
 class SourceContractTest {
 
-    private val oldScreenPath = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/NowPlayingScreen.kt"
+    private val oldScreenPath = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/player/NowPlayingScreen.kt"
     private val switchPath = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/nowplaying/NowPlayingSwitch.kt"
 
     // ---- on the real switch ---------------------------------------------------------------------------------------------

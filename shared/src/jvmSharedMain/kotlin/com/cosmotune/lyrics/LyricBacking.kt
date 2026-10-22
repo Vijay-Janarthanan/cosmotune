@@ -1,7 +1,7 @@
 package com.cosmotune.lyrics
 
 import com.cosmotune.design.LyricsMetrics
-import com.music.bitchord.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricLine
 
 /**
  * The second voice under a line, an echo or an answer ([LyricLine.background]): when it is on show, and what it reads as. The old

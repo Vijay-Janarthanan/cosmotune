@@ -1,7 +1,7 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.lyrics.LyricWord
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricWord
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

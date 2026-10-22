@@ -22,7 +22,7 @@ import com.cosmotune.design.TileDepth
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.music.bitchord.data.model.artworkAt
+import com.cosmotune.music.data.model.artworkAt
 
 /**
  * A cover: the picture at [url] (null shows the placeholder), [size] square, clipped by superellipse corners of [radius],

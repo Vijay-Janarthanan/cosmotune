@@ -26,8 +26,8 @@ import com.cosmotune.design.ControlMorph
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 
 /**
  * PLAIN has no fill at rest (a transport button); TONAL rests on a soft `surfaceVariant` gradient; GLASS is the floating

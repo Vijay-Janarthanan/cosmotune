@@ -36,7 +36,7 @@ import com.cosmotune.lyrics.LyricBacking
 import com.cosmotune.lyrics.SubReveal
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.CosmoRadii
-import com.music.bitchord.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricLine
 import kotlin.math.roundToInt
 
 /*

@@ -38,8 +38,8 @@ import com.cosmotune.ui.components.tileEdge
 import com.cosmotune.ui.components.tileLiftOf
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 
 /*
  * Moods (`components-v3bc.css` `.mood2`, `screens-v2.css` `.mtile`): the chips of the Home page and the tiles of the Search page.

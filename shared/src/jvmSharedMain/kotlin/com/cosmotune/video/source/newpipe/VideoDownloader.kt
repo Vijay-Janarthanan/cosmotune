@@ -1,6 +1,6 @@
 package com.cosmotune.video.source.newpipe
 
-import com.music.bitchord.data.TrackLog
+import com.cosmotune.music.data.TrackLog
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody

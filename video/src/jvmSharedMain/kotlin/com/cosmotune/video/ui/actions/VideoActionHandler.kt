@@ -38,7 +38,7 @@ import com.cosmotune.video.ui.downloads.DownloadToast
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.VideoNavigator
 import com.cosmotune.video.ui.shorts.openShort
-import com.music.bitchord.ui.components.FLOATING_BAR_MAX_WIDTH
+import com.cosmotune.music.ui.components.FLOATING_BAR_MAX_WIDTH
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 

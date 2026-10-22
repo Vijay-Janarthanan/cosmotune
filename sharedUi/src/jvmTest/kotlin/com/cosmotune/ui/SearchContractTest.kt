@@ -3,11 +3,11 @@ package com.cosmotune.ui
 import com.cosmotune.ui.search.SearchSectionKind
 import com.cosmotune.ui.search.moodGridRows
 import com.cosmotune.ui.search.searchSections
-import com.music.bitchord.data.model.BrowseItem
-import com.music.bitchord.data.model.BrowseType
-import com.music.bitchord.data.model.SearchFilter
-import com.music.bitchord.data.model.SearchResult
-import com.music.bitchord.data.model.Song
+import com.cosmotune.music.data.model.BrowseItem
+import com.cosmotune.music.data.model.BrowseType
+import com.cosmotune.music.data.model.SearchFilter
+import com.cosmotune.music.data.model.SearchResult
+import com.cosmotune.music.data.model.Song
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -21,11 +21,11 @@ import kotlin.test.assertTrue
 class SearchContractTest {
     private val dir = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/search"
     private fun search(name: String): String = SourceContract.read("$dir/$name.kt")
-    private val old = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/screens"
+    private val old = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/screens"
     private val oldSearch get() = SourceContract.read("$old/SearchScreen.kt")
     private val oldExplore get() = SourceContract.read("$old/ExploreScreen.kt")
-    private val mainActivity = "app/src/main/java/com/music/bitchord/MainActivity.kt"
-    private val desktopApp = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+    private val mainActivity = "app/src/main/java/com/cosmotune/music/MainActivity.kt"
+    private val desktopApp = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
 
     private fun params(src: String, name: String) = SourceContract.parameters(src, name)
     private fun names(src: String, name: String) = SourceContract.names(params(src, name))
@@ -146,7 +146,7 @@ class SearchContractTest {
             assertTrue(line in oldCode, "the old screen has: $line")
             assertTrue(line in new, "CosmoSearch has, as the old screen: $line")
         }
-        assertTrue("com.music.bitchord.ui.screens.SearchScreen" in search("CosmoSearch"), "a comment names the source of the copy")
+        assertTrue("com.cosmotune.music.ui.screens.SearchScreen" in search("CosmoSearch"), "a comment names the source of the copy")
     }
 
     @Test fun theFilterChipsAreTheOldFiltersAndComeUnderTheOldConditions() {

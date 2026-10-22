@@ -7,13 +7,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import com.cosmotune.ui.browse.CosmoBrowse
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.data.model.BrowseItem
-import com.music.bitchord.data.model.SearchFilter
-import com.music.bitchord.data.model.SearchHistoryEntity
-import com.music.bitchord.data.model.SearchResult
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.UiState
-import com.music.bitchord.ui.screens.SearchScreen
+import com.cosmotune.music.data.model.BrowseItem
+import com.cosmotune.music.data.model.SearchFilter
+import com.cosmotune.music.data.model.SearchHistoryEntity
+import com.cosmotune.music.data.model.SearchResult
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.ui.screens.SearchScreen
 
 /**
  * The one entry point of Search: the new page (Search with Explore's moods and genres inside it) while the new look is on (the

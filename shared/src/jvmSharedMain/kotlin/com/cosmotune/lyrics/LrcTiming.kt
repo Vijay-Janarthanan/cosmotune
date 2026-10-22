@@ -1,6 +1,6 @@
 package com.cosmotune.lyrics
 
-import com.music.bitchord.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricLine
 
 /** LRC's positive offset advances lyrics; it is subtracted from every timestamp. */
 internal fun lrcOffsetMs(document: String): Long = OFFSET.findAll(document)

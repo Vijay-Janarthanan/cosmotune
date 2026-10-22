@@ -12,13 +12,13 @@
     <string name="d_autoplay_wont_suggest_a_song_already_played_or_suggested">AutoPlay won’t suggest a song already played or suggested this session</string>
     <string name="d_available_offline">Available offline</string>
     <string name="d_back_to_explore">Back to Explore</string>
-    <string name="d_bitchord_is_free_software_and_so_is_everything_it_is_bui">Cosmotune is free software, and so is everything it is built on.</string>
-    <string name="d_bitchord_youtube_music_session">Cosmotune — YouTube Music session</string>
+    <string name="d_cosmotune_is_free_software_and_so_is_everything_it_is_bui">Cosmotune is free software, and so is everything it is built on.</string>
+    <string name="d_cosmotune_youtube_music_session">Cosmotune — YouTube Music session</string>
     <string name="d_blur_unfocused_lyrics">Blur unfocused lyrics</string>
     <string name="d_choose_something_to_play">Choose something to play</string>
     <string name="d_close_player">Close player</string>
     <string name="d_close_up_next">Close Up Next</string>
-    <string name="d_closing_the_window_leaves_bitchord_in_the_tray_instead_o">Closing the window leaves Cosmotune in the tray instead of quitting</string>
+    <string name="d_closing_the_window_leaves_cosmotune_in_the_tray_instead_o">Closing the window leaves Cosmotune in the tray instead of quitting</string>
     <string name="d_continue_playing">Continue Playing</string>
     <string name="d_custom_module">Custom module</string>
     <string name="d_discord_rich_presence_last_fm_and_listenbrainz">Last.fm and ListenBrainz</string>
@@ -53,7 +53,7 @@
     <string name="d_paste_the_cookie_header_for_music_youtube_com">Paste the Cookie header for music.youtube.com.</string>
     <string name="d_playback_speed">Playback speed</string>
     <string name="d_playlists_on_this_computer">Playlists on this computer</string>
-    <string name="d_quit_bitchord">Quit Cosmotune</string>
+    <string name="d_quit_cosmotune">Quit Cosmotune</string>
     <string name="d_recently_played_on_this_computer">Recently played on this computer</string>
     <string name="d_recents">Recents</string>
     <string name="d_remove_from_playlist">Remove from playlist</string>
@@ -62,7 +62,7 @@
     <string name="d_scroll_right">Scroll right</string>
     <string name="d_search_your_music">Search your music</string>
     <string name="d_shorten_long_gaps_rather_than_playing_them_out">Shorten long gaps rather than playing them out</string>
-    <string name="d_show_bitchord_in_the_system_tray_with_playback_controls">Show Cosmotune in the system tray, with playback controls</string>
+    <string name="d_show_cosmotune_in_the_system_tray_with_playback_controls">Show Cosmotune in the system tray, with playback controls</string>
     <string name="d_show_motion_artwork_when_it_is_available">Show motion artwork when it is available</string>
     <string name="d_sign_in_to_last_fm">Sign in to Last.fm</string>
     <string name="d_song">SONG</string>

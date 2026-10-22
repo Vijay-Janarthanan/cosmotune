@@ -40,8 +40,8 @@ import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalReducedMotion
-import com.music.bitchord.sharedui.resources.Res
-import com.music.bitchord.sharedui.resources.cosmo_seek_bar
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.cosmo_seek_bar
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.PI
 import kotlin.math.roundToInt

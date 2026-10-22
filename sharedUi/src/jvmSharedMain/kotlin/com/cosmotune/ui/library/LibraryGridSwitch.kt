@@ -5,9 +5,9 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.ui.screens.LibraryGridPage
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.ui.screens.LibraryGridPage
 
 /**
  * The one entry point of a Library shelf's "Show all" grid: the new grid while the new look is on, the old page while it is off.

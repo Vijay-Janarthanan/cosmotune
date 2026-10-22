@@ -1,9 +1,9 @@
 package com.cosmotune.design
 
-import com.music.bitchord.data.YtMusicRepository
-import com.music.bitchord.data.model.HomeShelf
-import com.music.bitchord.data.model.ShelfItem
-import com.music.bitchord.data.settings.LibrarySort
+import com.cosmotune.music.data.YtMusicRepository
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.settings.LibrarySort
 
 /** The four segments of the new Library page, in the order of the control (`V2.library`, `.seg2`). */
 enum class LibrarySegment { PLAYLISTS, ALBUMS, ARTISTS, DOWNLOADED }

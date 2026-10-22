@@ -14,8 +14,8 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import com.cosmotune.design.SliderMetrics
-import com.music.bitchord.ui.haptics.Haptic
-import com.music.bitchord.ui.haptics.rememberHaptics
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.music.ui.haptics.rememberHaptics
 
 /**
  * Touch and mouse for a horizontal bar that means a fraction from 0 to 1 (the wavy scrubber, the thick slider): a tap jumps,

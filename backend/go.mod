@@ -1,4 +1,4 @@
-module github.com/KabirSinghBhatia/BitChord/backend
+module github.com/Vijay-Janarthanan/cosmotune/backend
 
 go 1.27.0
 

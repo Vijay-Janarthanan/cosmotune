@@ -52,7 +52,7 @@ class NowPlayingContractTest {
         return parts.map { it.replace(Regex("\\s+"), " ").trim() }.filter { it.isNotEmpty() }
     }
 
-    private val oldScreen get() = parameters(read("sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/NowPlayingScreen.kt"), "NowPlayingScreen")
+    private val oldScreen get() = parameters(read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/player/NowPlayingScreen.kt"), "NowPlayingScreen")
 
     // ---- the seam -------------------------------------------------------------------------------------------------------
 
@@ -82,7 +82,7 @@ class NowPlayingContractTest {
     }
 
     @Test fun bothRootsCallTheSwitchAndNotTheOldScreen() {
-        for (path in listOf("app/src/main/java/com/music/bitchord/MainActivity.kt", "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt")) {
+        for (path in listOf("app/src/main/java/com/cosmotune/music/MainActivity.kt", "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt")) {
             val src = code(read(path))
             assertTrue(src.contains("import com.cosmotune.ui.nowplaying.NowPlayingSwitch"), "$path imports the switch")
             assertEquals(1, Regex("""\bNowPlayingSwitch\(""").findAll(src).count(), "$path calls it once")

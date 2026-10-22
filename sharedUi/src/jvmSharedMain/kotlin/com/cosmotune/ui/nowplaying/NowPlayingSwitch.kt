@@ -4,13 +4,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.lyrics.LyricsSource
-import com.music.bitchord.data.model.LikeStatus
-import com.music.bitchord.data.model.Song
-import com.music.bitchord.playback.PlaybackPosition
-import com.music.bitchord.ui.LyricsProviderState
-import com.music.bitchord.ui.player.NowPlayingScreen
+import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.music.data.lyrics.LyricsSource
+import com.cosmotune.music.data.model.LikeStatus
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.playback.PlaybackPosition
+import com.cosmotune.music.ui.LyricsProviderState
+import com.cosmotune.music.ui.player.NowPlayingScreen
 
 /**
  * The one entry point of Now Playing: the new screen while the new look is on (the shell exists), the old one while it is off.

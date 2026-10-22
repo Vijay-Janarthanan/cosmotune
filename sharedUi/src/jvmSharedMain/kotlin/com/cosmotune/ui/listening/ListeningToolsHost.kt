@@ -5,7 +5,7 @@ import com.cosmotune.listening.ListeningLibrary
 import com.cosmotune.listening.ListeningNetwork
 import com.cosmotune.listening.ListeningPreferences
 import com.cosmotune.listening.ListeningSession
-import com.music.bitchord.data.model.Song
+import com.cosmotune.music.data.model.Song
 import java.io.File
 
 enum class ReplayWindow { MONTH, YEAR }

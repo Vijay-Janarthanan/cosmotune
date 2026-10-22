@@ -15,7 +15,7 @@ import com.cosmotune.ui.blocks.CosmoSectionHeader
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.model.VideoItem
-import com.music.bitchord.ui.components.LocalShelfRowChrome
+import com.cosmotune.music.ui.components.LocalShelfRowChrome
 
 /**
  * A shelf of [VideoShelfCard]s (spec 5.0, 5.2): 22 dp of room above, the heading ([CosmoSectionHeader], [title]), and a row of

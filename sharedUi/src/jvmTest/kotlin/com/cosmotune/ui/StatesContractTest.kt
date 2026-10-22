@@ -14,9 +14,9 @@ import kotlin.test.assertTrue
  */
 class StatesContractTest {
     private val statesDir = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/states/"
-    private val skeletonsPath = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/Skeletons.kt"
-    private val commonPath = "sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/Common.kt"
-    private val desktopPath = "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopApp.kt"
+    private val skeletonsPath = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/Skeletons.kt"
+    private val commonPath = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/Common.kt"
+    private val desktopPath = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
 
     private val shimmerSrc = SourceContract.read(statesDir + "CosmoShimmer.kt")
     private val emptySrc = SourceContract.read(statesDir + "CosmoEmptyState.kt")

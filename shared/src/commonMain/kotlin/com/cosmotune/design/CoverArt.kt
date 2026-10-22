@@ -1,9 +1,9 @@
 package com.cosmotune.design
 
-import com.music.bitchord.data.model.CARD_ART_PX
-import com.music.bitchord.data.model.HEADER_ART_PX
-import com.music.bitchord.data.model.PLAYER_ART_PX
-import com.music.bitchord.data.model.ROW_ART_PX
+import com.cosmotune.music.data.model.CARD_ART_PX
+import com.cosmotune.music.data.model.HEADER_ART_PX
+import com.cosmotune.music.data.model.PLAYER_ART_PX
+import com.cosmotune.music.data.model.ROW_ART_PX
 import kotlin.math.ceil
 
 /**
