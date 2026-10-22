@@ -96,6 +96,7 @@ object MpvNatives {
         val dir = directory(cacheRoot, runtimeVersion(listing, platform))
         extract(dir, names)
         val library = bind(dir, names, libmpv)
+        useCNumericLocale()
         val major = library.mpv_client_api_version().toLong() ushr 16
         if (major != 2L) return fail("libmpv client API $major is not 2")
         return library
@@ -149,6 +150,37 @@ object MpvNatives {
             }
         }
     }
+
+    /** The C library, for the number locale. */
+    internal interface CLibrary : Library {
+        fun setlocale(category: Int, locale: String?): String?
+    }
+
+    private val libc: CLibrary? by lazy {
+        try { Native.load("c", CLibrary::class.java) } catch (e: Throwable) { null }
+    }
+
+    /** `LC_NUMERIC`: 4 on macOS, 1 with glibc. */
+    private fun numericCategory(): Int = if (System.getProperty("os.name").contains("mac", ignoreCase = true)) 4 else 1
+
+    private fun isWindows(): Boolean = System.getProperty("os.name").contains("win", ignoreCase = true)
+
+    /**
+     * libmpv refuses to create a player (`mpv_create` returns null and it logs "Non-C locale detected") unless the process's number
+     * format is the plain C one. The JVM or the toolkit (AppKit, GTK) sets it from the user's language, so it is put back to C
+     * before a handle is made, every time (a toolkit may change it again). Windows' libmpv does not check it.
+     */
+    fun useCNumericLocale() {
+        if (isWindows()) return
+        try {
+            libc?.setlocale(numericCategory(), "C")
+        } catch (e: Throwable) {
+            System.err.println("Cosmotune: could not set the C number locale for libmpv: ${e.message}")
+        }
+    }
+
+    /** The process's current number locale, or null where it cannot be read (Windows, no libc). */
+    internal fun numericLocale(): String? = if (isWindows()) null else try { libc?.setlocale(numericCategory(), null) } catch (e: Throwable) { null }
 
     private fun fail(reason: String): MpvLibrary? {
         System.err.println("Cosmotune: video playback is not available on this computer: $reason")
