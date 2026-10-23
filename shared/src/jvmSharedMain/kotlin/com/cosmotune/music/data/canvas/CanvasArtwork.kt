@@ -44,6 +44,8 @@ data class CanvasArtwork(
     val headers: Map<String, String> = emptyMap(),
     /** The music video's YouTube id, when OpenCanvas found one (Video mode's "Watch the music video"). */
     val videoId: String? = null,
+    /** Optional precomputed framing, evaluated at the video's presentation timestamp. */
+    val trajectory: com.opencanvas.core.models.CropTrajectory? = null,
 ) {
     /**
      * Whether this clip really belongs to the track we asked about.

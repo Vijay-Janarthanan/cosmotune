@@ -75,7 +75,11 @@
     <td>
       <h3>The music video, behind the song</h3>
       <p>With <a href="https://github.com/Vijay-Janarthanan/OpenCanvas">OpenCanvas</a>, Cosmotune finds the song's music video and
-      lines it up with the song, so the picture follows the music. You choose the video quality, or switch the video off. Over a
+      lines it up with the song, so the picture follows the music. The current source adds film/album-aware discovery and publisher
+      checks to reject matching fan dances, plus local face/person framing that follows actors and keeps groups in view.
+      These changes are newer than the 1.0.1 installers; physical Android framing validation is pending.
+      <a href="https://vijay-janarthanan.github.io/OpenCanvas/#smart-framing">Try the framing-policy comparison</a>.
+      You choose the video quality, or switch the video off. Over a
       video the controls fold down into a slim bar and the picture has the screen; a tap or a drag up brings them back. On Android
       the video is not looked up on mobile data unless you allow it. "Watch the music video" opens the video itself in Video mode.</p>
     </td>
@@ -298,6 +302,8 @@ Settings > Appearance > "Play animated cover over cellular", which is off by def
 Settings > Appearance > "Dynamic YouTube Canvas (OpenCanvas)", which appears only while "Animated cover art" (Android)
 or "Animated canvas" (desktop) is on. Even with the video switched off, the app makes three small requests to YouTube
 each time it starts (two to open the connection and one for an anonymous visitor id), also on mobile data.
+The current source also analyses decoded video frames locally with YuNet and YOLOX-Nano for actor framing;
+these frames are not uploaded. Its cache stores framing coordinates, not captured images.
 
 **Video mode** looks videos up on YouTube with no account and no cookies: search, video pages, comments, channel and
 RSS feeds, thumbnails and the video files. When it is on, SponsorBlock gets the first four characters of a hash of each

@@ -198,6 +198,7 @@ object CanvasRepository {
             trackVideoId = song.videoId,
             resolutionLabel = AppSettings.openCanvasResolution.value,
             durationSec = song.durationMillis() / 1_000L,
+            album = song.albumName,
         )
     }
 

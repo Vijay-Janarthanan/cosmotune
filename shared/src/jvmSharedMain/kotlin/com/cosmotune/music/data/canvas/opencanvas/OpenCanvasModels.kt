@@ -40,6 +40,7 @@ data class CropKeyframe(
     val cx: Float,
     val cy: Float = 0.5f,
     val isSceneCut: Boolean = false,
+    val fitFullFrame: Boolean = false,
 )
 
 /**
@@ -50,6 +51,16 @@ data class CropTrajectory(
     val videoId: String,
     val keyframes: List<CropKeyframe> = emptyList(),
 ) {
+    /** Both axes and full-frame fallback, evaluated in video time. */
+    fun frameAt(timestampSec: Double): CropKeyframe {
+        if (keyframes.isEmpty()) return CropKeyframe(timestampSec, .5f, fitFullFrame = true)
+        val previous = keyframes.lastOrNull { it.t <= timestampSec } ?: keyframes.first()
+        val next = keyframes.firstOrNull { it.t > timestampSec } ?: previous
+        if (next.isSceneCut || next.fitFullFrame != previous.fitFullFrame || next.t <= previous.t) return previous
+        val progress = ((timestampSec - previous.t) / (next.t - previous.t)).toFloat().coerceIn(0f, 1f)
+        return previous.copy(t = timestampSec, cx = previous.cx + (next.cx - previous.cx) * progress,
+            cy = previous.cy + (next.cy - previous.cy) * progress)
+    }
     /**
      * Resolves the normalized horizontal focal center [0.0f, 1.0f] at any given timestamp.
      * Snaps instantly at scene cut boundaries without whip-panning;
@@ -169,6 +180,7 @@ data class OpenCanvasTrack(
     val syncSegments: List<SyncSegment> = emptyList(),
     val syncStage: SyncStage = SyncStage.NONE,
     val videoHeaders: Map<String, String> = emptyMap(),
+    val sourceAspectRatio: Float = 16f / 9f,
 ) {
     /**
      * The song-to-video map for `CanvasSyncPolicy`: the measured [syncSegments], or - when only one

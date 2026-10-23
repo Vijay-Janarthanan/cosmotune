@@ -23,6 +23,11 @@ OpenCanvas's own repository, so that changes can be merged, which is why they ca
 and the files in `licenses/` stand in for one. Apache-licensed code may be combined into a GPLv3 work, and the combined work,
 Cosmotune, is distributed under the GPLv3.
 
+OpenCanvas subject framing also includes the YuNet model from OpenCV Zoo (MIT) and YOLOX-Nano from
+Megvii-BaseDetection/YOLOX (Apache-2.0). Their upstream licence texts are retained in
+`licenses/OpenCanvas-YuNet-LICENSE.txt` and `licenses/OpenCanvas-YOLOX-LICENSE.txt`, with exact model
+sources and SHA-256 values in `shared/src/jvmSharedMain/resources/models/PROVENANCE.md`.
+
 ## Material Color Utilities
 
 Cosmotune picks the main colour of a cover with MaterialKolor's Kotlin port of Google's Material Color Utilities

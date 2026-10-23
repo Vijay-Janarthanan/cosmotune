@@ -67,6 +67,7 @@ data class DesktopCanvasArtwork(
     val headers: Map<String, String> = emptyMap(),
     /** The music video's YouTube id, when OpenCanvas found one (Video mode's "Watch the music video"). */
     val videoId: String? = null,
+    val trajectory: com.opencanvas.core.models.CropTrajectory? = null,
 ) {
     /**
      * Whether this clip really belongs to the track we asked about.

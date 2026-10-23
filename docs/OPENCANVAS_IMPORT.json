@@ -1,0 +1,250 @@
+{
+  "repository": "https://github.com/Vijay-Janarthanan/OpenCanvas",
+  "revision": "9bcb678c4a4d0724c95eaf572124ae4cd3747514",
+  "omittedLegacyHelpers": [
+    "OnnxSubjectTracker.kt",
+    "SmartStreamReframer.kt"
+  ],
+  "files": [
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/cdn/CommunityCdnClient.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CommunityCdnClient.kt",
+      "normalizeLf": true,
+      "sha256": "8e4f38316b21cfa91ddb085469beb4d5bb3bb8890859393b5b3ba50e2637abd6"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/filter/CropKinematics.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CropKinematics.kt",
+      "normalizeLf": true,
+      "sha256": "7d93fcb21b45ecbfc865cb5035bab5ee91fe9c7669bd7a02e5bf39bd41a19984"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/filter/OneEuroFilter.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/OneEuroFilter.kt",
+      "normalizeLf": true,
+      "sha256": "e2b9e19e6b681ee7c845721c4df7e4120a57e3c1385ebfe8ca6c66b55072eb13"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/filter/SceneCutDetector.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SceneCutDetector.kt",
+      "normalizeLf": true,
+      "sha256": "eb3fb5f378cca86e8c513dfd326d977f3cd35c761c4068b1a717650f18efd743"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/filter/SubjectCamera.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SubjectCamera.kt",
+      "normalizeLf": true,
+      "sha256": "1e2a90db2d0c28f1e0fa66233fdd67218800b7fbf279e63c91cd8607fd0cccf6"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/filter/VideoViewport.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoViewport.kt",
+      "normalizeLf": true,
+      "sha256": "4769e03352ee746e8e041133d80d2bf2ca730fd7290323d136c1d6e10fb64ea0"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/heatmap/HeatmapParser.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/HeatmapParser.kt",
+      "normalizeLf": true,
+      "sha256": "68855ec1f41f1078d51e56bedf8e68a9b63d53b17bd2894f71c54aee802ce76a"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/matcher/VideoMatcher.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
+      "normalizeLf": true,
+      "sha256": "0193d6a27455e17c29abf4a71f839d36fce14fedd0ee48132c97e4e66a3417c0"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/OpenCanvasModels.kt",
+      "normalizeLf": true,
+      "sha256": "5e400d17e7966be35140b2225c202dcfb7becd4bb9380f56d4b20e78ef9a95ad"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/sync/CanvasSyncPolicy.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSyncPolicy.kt",
+      "normalizeLf": true,
+      "sha256": "3ad63831652fd53ee4e6afa03b846c72fef6822d7cd1d345394802ec2c7d501f"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/sync/Fft.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/Fft.kt",
+      "normalizeLf": true,
+      "sha256": "7bdc8bdb654d2625006559d089f958e87fc2e15ea22450034a0fef232ecc9c45"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/sync/FrameEnvelope.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/FrameEnvelope.kt",
+      "normalizeLf": true,
+      "sha256": "aeb7a016f1d8985eeaf16c5d582497e932a5f26b09ac162b66be7106121e25ea"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/sync/Mp4FrameSizes.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/Mp4FrameSizes.kt",
+      "normalizeLf": true,
+      "sha256": "72a8762132c87b5bba3214f4f83411a70a3a9cd6df0abc5ab4949f2a0ac94364"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/sync/SyncAligner.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SyncAligner.kt",
+      "normalizeLf": true,
+      "sha256": "84beb71d17ac034f380c903b50e839118a62ddd14cabd36e0e29e0eb2dafe99b"
+    },
+    {
+      "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/sync/SyncMap.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SyncMap.kt",
+      "normalizeLf": true,
+      "sha256": "88fa0fe7c1ca4b93c204517c642288614ce706796ccd38aced9ea5170221926b"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/CanvasSession.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSession.kt",
+      "normalizeLf": true,
+      "sha256": "5250ea8f6c857cf5bf30868de35c58a2bcb3d1ea4cb1d54de8ab6964d78e2784"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/OpenCanvas.kt",
+      "normalizeLf": true,
+      "sha256": "fd111ae840c54c5b7019b287eb68dd0a099ae0c1acd71bf882a927701faa5fe0"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvasConfig.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/OpenCanvasConfig.kt",
+      "normalizeLf": true,
+      "sha256": "f9b8eeeab33edabfcf92945bc700a43ce3c290018d17639a9d80e51e8ae8305e"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/SongAudio.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SongAudio.kt",
+      "normalizeLf": true,
+      "sha256": "50e743fca3eaf95411b1acbfd770ef672020334742a6aaf9957c4afbc4724bfd"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/onnx/SubjectDetector.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SubjectDetector.kt",
+      "normalizeLf": true,
+      "sha256": "d4aa44afa1ef36f10ea37866768114cc7224a8051e070a579cd53bd5310d589d"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/reframer/FrameReframingWorker.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/FrameReframingWorker.kt",
+      "normalizeLf": true,
+      "sha256": "6269b334fe61b1859877964f767004361a397b82d9214c34f2b5557a17d795c4"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/reframer/SmartFrameReframer.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SmartFrameReframer.kt",
+      "normalizeLf": true,
+      "sha256": "7e78c8863b7799763858469b70a8dc4205125ebaed1d329017cc0e514b534ead"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/AudioFetcher.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/AudioFetcher.kt",
+      "normalizeLf": true,
+      "sha256": "124e760bc9db3c8485fbb5155acac5957dbdad80334128e155ca89166ee62b3b"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/CommunityMaps.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CommunityMaps.kt",
+      "normalizeLf": true,
+      "sha256": "25ce3379d6445fc36841c8c315ea0ba35c67379636b1f5dc1d4d183ab25891c5"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/HttpAwait.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/HttpAwait.kt",
+      "normalizeLf": true,
+      "sha256": "7617a313714842cee7ef198e0a07ac0f8310a0ab54b453262a7b6a7c8aedd7a5"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/InnerTubeBackend.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/InnerTubeBackend.kt",
+      "normalizeLf": true,
+      "sha256": "2d9c3cd461c4ca00927216a9f68b6874fc78b8a0e1e6115593f4c943ba615d58"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
+      "normalizeLf": true,
+      "sha256": "c75fca024c03aebed9f701356f0818691a882d8fa78649e49f07551e8d4367fa"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/ProgressiveRangeSource.kt",
+      "normalizeLf": true,
+      "sha256": "27359877dd51399f2cc2626ffc52480f50e21e38165bd497aa7c1cdee9d6a19f"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/Retry.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/Retry.kt",
+      "normalizeLf": true,
+      "sha256": "427440f1233dcf64aea891c13d4b7f9086bbcd148d6b2794c9bd2f925734437a"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/StreamBackend.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/StreamBackend.kt",
+      "normalizeLf": true,
+      "sha256": "79b009adaad7fd216aba65e022c562e4eebdeab8e78f926b55bf56256d6e07f2"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/SyncStore.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SyncStore.kt",
+      "normalizeLf": true,
+      "sha256": "229224474897c2be982cdcb47c19b8815f8683c13a9143802a7e33753a4a4d2a"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/YouTubeStreamResolver.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/YouTubeStreamResolver.kt",
+      "normalizeLf": true,
+      "sha256": "a367ab5ec09063ae9a67bf87b6f5a274f8565ad56035875722aef5c463ad9534"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/sync/SyncMeasurer.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SyncMeasurer.kt",
+      "normalizeLf": true,
+      "sha256": "92a97588a1ee9d977eafddfb7ab64a4d346199bcf7f66ca18a0dbd80187257ef"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/resources/models/PROVENANCE.md",
+      "target": "shared/src/jvmSharedMain/resources/models/PROVENANCE.md",
+      "normalizeLf": true,
+      "sha256": "16367d1419d1a323da8e5b68559853303b460a3c68d83ee40877a51d437b860c"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/resources/models/YOLOX-LICENSE",
+      "target": "licenses/OpenCanvas-YOLOX-LICENSE.txt",
+      "normalizeLf": true,
+      "sha256": "0ec3668d3274bcf29e8a29e9576d5a2cd96fc78d3c5bec4387355a796e5d9088"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/resources/models/YOLOX-LICENSE",
+      "target": "shared/src/jvmSharedMain/resources/models/YOLOX-LICENSE",
+      "normalizeLf": true,
+      "sha256": "0ec3668d3274bcf29e8a29e9576d5a2cd96fc78d3c5bec4387355a796e5d9088"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/resources/models/YuNet-LICENSE",
+      "target": "licenses/OpenCanvas-YuNet-LICENSE.txt",
+      "normalizeLf": true,
+      "sha256": "c83b8120c50ccbd4c4f96edf53141bdd566ebb8f8e9227e415326aa1b1aba958"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/resources/models/YuNet-LICENSE",
+      "target": "shared/src/jvmSharedMain/resources/models/YuNet-LICENSE",
+      "normalizeLf": true,
+      "sha256": "c83b8120c50ccbd4c4f96edf53141bdd566ebb8f8e9227e415326aa1b1aba958"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/resources/models/yolox-nano.onnx",
+      "target": "shared/src/jvmSharedMain/resources/models/yolox-nano.onnx",
+      "normalizeLf": false,
+      "sha256": "c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/resources/models/yunet.onnx",
+      "target": "shared/src/jvmSharedMain/resources/models/yunet.onnx",
+      "normalizeLf": false,
+      "sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
+    }
+  ]
+}

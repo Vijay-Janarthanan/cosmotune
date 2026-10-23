@@ -59,6 +59,7 @@ object OpenCanvasProvider {
         trackVideoId: String?,
         resolutionLabel: String = "480p",
         durationSec: Long = 0L,
+        album: String? = null,
     ) {
         if (trackVideoId.isNullOrBlank()) return
         if (!configured) configure(null)
@@ -69,6 +70,7 @@ object OpenCanvasProvider {
             mode = OpenCanvasMode.FULL_SYNCED_VIDEO,
             resolution = OpenCanvasResolution.fromLabel(resolutionLabel),
             trackVideoId = trackVideoId,
+            album = album,
         )
     }
 
@@ -99,6 +101,7 @@ object OpenCanvasProvider {
             mode = OpenCanvasMode.FULL_SYNCED_VIDEO,
             resolution = resolution,
             trackVideoId = trackVideoId,
+            album = album,
         ).resolvedCanvas(LOOKUP_TIMEOUT_MS) ?: return@withContext null
 
         if (track.syncStage != SyncStage.MEASURED) return@withContext null
@@ -114,6 +117,7 @@ object OpenCanvasProvider {
             videoDurationMs = track.videoDurationMs,
             headers = track.videoHeaders,
             videoId = track.videoId,
+            trajectory = track.trajectory,
         )
     }
 }

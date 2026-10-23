@@ -41,10 +41,13 @@ upstream name comes back anywhere outside its short allowlist.
 
 ## The OpenCanvas engine
 
-- The 28 files under `shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/` are copied from the
+- The 33 files under `shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/` are copied from the
   OpenCanvas repository (https://github.com/Vijay-Janarthanan/OpenCanvas) and must stay byte-identical to it, which is why
   they have no licence header. Change them there and copy them over; when its licence text or notice changes, refresh
-  `licenses/` too.
+  `licenses/` too. `docs/OPENCANVAS_IMPORT.json` pins the upstream commit and file checksums; run
+  `python tools/verify-opencanvas-import.py` to detect drift (Git text newline conversion is normalized).
+
+OpenCanvas owns discovery, publisher evidence and camera decisions. Hosts pass film/album metadata and feed uncropped decoded samples to `OpenCanvas.observeFrames`, using video presentation timestamps. Android reads the complete texture with its display transform temporarily cleared and immediately restored; desktop submits its reusable BGRA buffer. The worker copies bounded samples, handles inference/caching on a background dispatcher and exposes framing state. Both renderers use the engine's `videoViewport` geometry and close workers on disposal/layout changes. Keep full-frame fit until a confident result exists. Model resources and licences travel with the imported revision. AGP requires the explicit Android Java-resource directory in `shared/build.gradle.kts`; `python tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/dev/debug` checks the assembled APKs, and all Android CI/release workflows run it. Physical Android texture/readback and battery validation requires an attached device; unit tests cannot establish GPU readback behavior.
 
 ## The cover palette
 

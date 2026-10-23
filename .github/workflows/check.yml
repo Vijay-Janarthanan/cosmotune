@@ -174,6 +174,9 @@ jobs:
       - name: Build the dev APK
         run: ./gradlew assembleDevDebug
 
+      - name: Verify OpenCanvas import and packaged models
+        run: python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/dev/debug
+
       - name: Upload the dev APK
         uses: actions/upload-artifact@v4
         with:

@@ -265,6 +265,9 @@ jobs:
       - name: Build the signed APKs
         run: ./gradlew assembleProdRelease
 
+      - name: Verify OpenCanvas import and packaged models
+        run: python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/prod/release
+
       - name: Name and collect
         run: |
           v="${{ inputs.version }}"

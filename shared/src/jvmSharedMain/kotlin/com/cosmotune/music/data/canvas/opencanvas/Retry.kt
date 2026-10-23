@@ -2,6 +2,8 @@ package com.opencanvas.core.stream
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import java.io.IOException
 
@@ -21,6 +23,9 @@ internal suspend fun <T> withRetry(timeoutsMs: List<Long> = listOf(2_500L, 8_000
         try {
             return withTimeout(timeoutMs + 1_000L) { block(timeoutMs) }
         } catch (hung: TimeoutCancellationException) {
+            // Only retry this attempt's timeout. A song skip or an outer search deadline owns
+            // the parent job and must not start another network request after cancellation.
+            currentCoroutineContext().ensureActive()
             last = hung
         } catch (failure: IOException) {
             last = failure

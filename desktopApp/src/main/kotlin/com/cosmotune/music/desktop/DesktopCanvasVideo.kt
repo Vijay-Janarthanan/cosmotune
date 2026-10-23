@@ -12,6 +12,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -53,6 +57,25 @@ import kotlin.math.roundToInt
 @Composable
 internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     val canvas = spec.canvas
+    val automaticFraming = canvas.videoId != null && spec.sync != null
+    var viewport by remember { mutableStateOf(IntSize.Zero) }
+    var sourceAspect by remember(canvas) { mutableFloatStateOf(0f) }
+    var frameTime by remember(canvas) { mutableStateOf(0.0) }
+    var analysis by remember(canvas) { mutableStateOf<com.opencanvas.core.reframer.FrameReframingWorker?>(null) }
+    LaunchedEffect(canvas.videoId, sourceAspect, viewport) {
+        if (!automaticFraming || sourceAspect <= 0 || viewport.width <= 0 || viewport.height <= 0) return@LaunchedEffect
+        delay(160) // Coalesce animated layout changes before creating detector sessions.
+        val worker = com.opencanvas.core.OpenCanvas.observeFrames(this, canvas.videoId!!, sourceAspect,
+            viewport.width.toFloat() / viewport.height)
+        analysis = worker
+        try { kotlinx.coroutines.awaitCancellation() } finally { analysis = null; worker.close() }
+    }
+    val liveFrame = analysis?.framing?.collectAsState()?.value ?: com.opencanvas.core.filter.FramingDecision()
+    val recorded = canvas.trajectory?.frameAt(frameTime)
+    val framing = if (!automaticFraming) com.opencanvas.core.filter.FramingDecision(fitFullFrame = false)
+        else recorded?.let { com.opencanvas.core.filter.FramingDecision(it.cx, it.cy, it.fitFullFrame, it.isSceneCut) } ?: liveFrame
+    val focalX by animateFloatAsState(framing.cx, tween(if (framing.sceneCut) 0 else 180), label = "canvasSubjectX")
+    val focalY by animateFloatAsState(framing.cy, tween(if (framing.sceneCut) 0 else 180), label = "canvasSubjectY")
     var frame by remember(canvas) { mutableStateOf<ImageBitmap?>(null) }
     val rendered = frame != null
     val running by rememberUpdatedState(spec.isPlaying && !spec.pausedForTransition)
@@ -82,6 +105,7 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                 return@LaunchedEffect
             }
             reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
+            sourceAspect = decoder.width.toFloat() / decoder.height.coerceAtLeast(1)
             var shown = 0
             try {
                 val pixels = ByteArray(decoder.width * decoder.height * 4)
@@ -133,9 +157,12 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                 return@LaunchedEffect
             }
             reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
+            sourceAspect = decoder.width.toFloat() / decoder.height.coerceAtLeast(1)
             val pixels = ByteArray(decoder.width * decoder.height * 4)
             val info = ImageInfo.makeN32(decoder.width, decoder.height, ColorAlphaType.OPAQUE)
             fun present() {
+                frameTime = decoder.lastPtsMs / 1000.0
+                analysis?.submitBgra(pixels, decoder.width, decoder.height, frameTime)
                 // Handed to Skia rather than copied, so the next frame cannot be decoded into it.
                 frame = Image.makeRaster(info, pixels.copyOf(), decoder.width * 4).toComposeImageBitmap()
             }
@@ -240,30 +267,22 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     val bottomFade = spec.bottomFade
     val bottomFadeEndPx = spec.bottomFadeEndPx
     Canvas(
-        modifier = modifier.graphicsLayer {
+        modifier = modifier.onSizeChanged { viewport = it }.clipToBounds().graphicsLayer {
             this.alpha = alpha * presentationAlpha()
             // Offscreen so the bottom dissolve masks the clip, not what is behind it.
             if (bottomFade > 0.001f) compositingStrategy = CompositingStrategy.Offscreen
         },
     ) {
         val image = frame ?: return@Canvas
-        val clipAspect = image.width.toFloat() / image.height
-        val viewAspect = size.width / size.height
-        val fit = spec.contentMode == CanvasContentMode.FIT_PORTRAIT && clipAspect < 1f
-        val (drawWidth, drawHeight) = when {
-            fit && clipAspect > viewAspect -> size.width to size.width / clipAspect
-            fit -> size.height * clipAspect to size.height
-            clipAspect > viewAspect -> size.height * clipAspect to size.height
-            else -> size.width to size.width / clipAspect
-        }
-        val left = (size.width - drawWidth) / 2f
-        val top = if (fit && spec.alignPortraitTop) 0f else (size.height - drawHeight) / 2f
+        val placement = com.opencanvas.core.filter.videoViewport(image.width.toFloat(), image.height.toFloat(),
+            size.width, size.height, framing.copy(cx = focalX, cy = focalY),
+            spec.contentMode == CanvasContentMode.FIT_PORTRAIT, spec.alignPortraitTop)
         drawImage(
             image = image,
             srcOffset = IntOffset.Zero,
             srcSize = IntSize(image.width, image.height),
-            dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
-            dstSize = IntSize(drawWidth.roundToInt(), drawHeight.roundToInt()),
+            dstOffset = IntOffset(placement.left.roundToInt(), placement.top.roundToInt()),
+            dstSize = IntSize(placement.width.roundToInt(), placement.height.roundToInt()),
         )
         if (bottomFade > 0.001f) {
             val endY = bottomFadeEndPx?.coerceIn(0f, size.height) ?: size.height
@@ -293,6 +312,8 @@ internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(
     syncMap = syncMap,
     videoDurationMs = videoDurationMs,
     videoId = videoId,
+    headers = headers,
+    trajectory = trajectory,
 )
 
 /** A frame this much ahead of the song waits for it; this much behind is dropped. */

@@ -20,6 +20,7 @@ import android.widget.FrameLayout
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -187,6 +188,17 @@ internal fun AndroidCanvasArtworkPlayer(
     var clipAspect by remember(canvas) { mutableFloatStateOf(0f) }
     var bounds by remember { mutableStateOf(IntSize.Zero) }
     var textureView by remember(canvas) { mutableStateOf<TextureView?>(null) }
+    val automaticFraming = canvas.videoId != null && sync != null
+    var observedVideoTime by remember(canvas) { mutableStateOf(0.0) }
+    var analysis by remember(canvas) { mutableStateOf<com.opencanvas.core.reframer.FrameReframingWorker?>(null) }
+    val liveFraming = analysis?.framing?.collectAsState()?.value ?: com.opencanvas.core.filter.FramingDecision()
+    val recordedFraming = canvas.trajectory?.frameAt(observedVideoTime)
+    val decision = if (!automaticFraming) com.opencanvas.core.filter.FramingDecision(fitFullFrame = false)
+        else recordedFraming?.let { com.opencanvas.core.filter.FramingDecision(it.cx, it.cy, it.fitFullFrame, it.isSceneCut) } ?: liveFraming
+    val focalX by animateFloatAsState(decision.cx, tween(if (decision.sceneCut) 0 else 180), label = "canvasSubjectX")
+    val focalY by animateFloatAsState(decision.cy, tween(if (decision.sceneCut) 0 else 180), label = "canvasSubjectY")
+    val drawingFrame = decision.copy(cx = focalX, cy = focalY)
+    val currentFraming by rememberUpdatedState(drawingFrame)
     // Frames are counted rather than flagged, because [rendered] cannot answer
     // the question the repaint below has to ask: "did a frame land on *this*
     // surface", not "has one ever landed".
@@ -232,7 +244,10 @@ internal fun AndroidCanvasArtworkPlayer(
             }
     }
 
+    val videoPts = remember(player) { java.util.concurrent.atomic.AtomicLong(-1) }
     DisposableEffect(player) {
+        val metadata = androidx.media3.exoplayer.video.VideoFrameMetadataListener { timeUs, _, _, _ -> videoPts.set(timeUs) }
+        player.setVideoFrameMetadataListener(metadata)
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 val width = videoSize.width * videoSize.pixelWidthHeightRatio
@@ -242,7 +257,7 @@ internal fun AndroidCanvasArtworkPlayer(
                 if (aspect != clipAspect) rendered = false
                 clipAspect = aspect
                 reportAspect(aspect)
-                textureView?.applyContentTransform(clipAspect, currentContentMode, currentAlignPortraitTop)
+                textureView?.applyContentTransform(clipAspect, currentContentMode, currentAlignPortraitTop, currentFraming)
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -259,6 +274,7 @@ internal fun AndroidCanvasArtworkPlayer(
         }
         player.addListener(listener)
         onDispose {
+            player.clearVideoFrameMetadataListener(metadata)
             player.removeListener(listener)
             player.release()
         }
@@ -296,6 +312,31 @@ internal fun AndroidCanvasArtworkPlayer(
     // regardless of playback state, so coming back from background always has
     // a surface ready and `onRenderedFirstFrame()` fires naturally.
     val foreground = rememberIsForeground()
+    val trackingVisible by rememberUpdatedState(foreground && !pausedForTransition && !syncHidden)
+    LaunchedEffect(canvas.videoId, clipAspect, bounds) {
+        if (!automaticFraming || clipAspect <= 0 || bounds.width <= 0 || bounds.height <= 0) return@LaunchedEffect
+        delay(160)
+        val worker = com.opencanvas.core.OpenCanvas.observeFrames(this, canvas.videoId!!, clipAspect,
+            bounds.width.toFloat() / bounds.height)
+        analysis = worker
+        try { kotlinx.coroutines.awaitCancellation() } finally { analysis = null; worker.close() }
+    }
+    LaunchedEffect(analysis, textureView) {
+        val worker = analysis ?: return@LaunchedEffect
+        var captured = -1L
+        while (isActive) {
+            val pts = videoPts.get()
+            if (trackingVisible && rendered && pts >= 0 && pts != captured) {
+                val image = textureView?.uncroppedFrame(clipAspect)
+                if (image != null) {
+                    captured = pts
+                    observedVideoTime = pts / 1_000_000.0
+                    worker.submitArgb(image.first, image.second.width, image.second.height, pts / 1_000_000.0)
+                }
+            }
+            delay(250)
+        }
+    }
     // A looping clip runs whenever the app is on screen; a video that follows the song also stops
     // with it.
     val songPlaying = sync == null || isPlaying
@@ -520,6 +561,7 @@ internal fun AndroidCanvasArtworkPlayer(
                         if (!rendered) {
                             val transformed = textureView?.applyContentTransform(
                                 clipAspect, currentContentMode, currentAlignPortraitTop,
+                                currentFraming,
                             ) == true
                             val portrait = currentContentMode == CanvasContentMode.FIT_PORTRAIT &&
                                 clipAspect > 0f && clipAspect < 1f
@@ -567,8 +609,9 @@ internal fun AndroidCanvasArtworkPlayer(
             // closing into the mini player, and each pass built a fresh matrix,
             // gradient and three RenderEffects for a picture that hadn't
             // moved — and re-setting the effect makes the node rebuild it.
-            if (applied.transformDiffers(clipAspect, contentMode, alignPortraitTop, view.width, view.height)) {
-                view.applyContentTransform(clipAspect, contentMode, alignPortraitTop)
+            if (applied.transformDiffers(clipAspect, contentMode, alignPortraitTop, view.width, view.height) || applied.framing != drawingFrame) {
+                view.applyContentTransform(clipAspect, contentMode, alignPortraitTop, drawingFrame)
+                applied.framing = drawingFrame
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (applied.fadeDiffers(bottomFade, bounds, bottomFadeEndPx)) {
@@ -652,28 +695,18 @@ private fun TextureView.applyContentTransform(
     clipAspect: Float,
     contentMode: CanvasContentMode,
     alignPortraitTop: Boolean,
+    framing: com.opencanvas.core.filter.FramingDecision = com.opencanvas.core.filter.FramingDecision(fitFullFrame = false),
 ): Boolean {
     val bounds = IntSize(width, height)
     if (bounds.width <= 0 || bounds.height <= 0 || !clipAspect.isFinite() || clipAspect <= 0f) {
         setTransform(Matrix())
         return false
     }
-    val viewAspect = bounds.width.toFloat() / bounds.height
-    val pivotX = bounds.width / 2f
-    val pivotY = if (alignPortraitTop && contentMode == CanvasContentMode.FIT_PORTRAIT && clipAspect < 1f) {
-        0f
-    } else bounds.height / 2f
+    val placement = com.opencanvas.core.filter.videoViewport(clipAspect, 1f, width.toFloat(), height.toFloat(),
+        framing, contentMode == CanvasContentMode.FIT_PORTRAIT, alignPortraitTop)
     val matrix = Matrix().apply {
-        val fit = contentMode == CanvasContentMode.FIT_PORTRAIT && clipAspect < 1f
-        if (fit && clipAspect > viewAspect) {
-            setScale(1f, viewAspect / clipAspect, pivotX, pivotY)
-        } else if (fit) {
-            setScale(clipAspect / viewAspect, 1f, pivotX, pivotY)
-        } else if (clipAspect > viewAspect) {
-            setScale(clipAspect / viewAspect, 1f, pivotX, pivotY)
-        } else {
-            setScale(1f, viewAspect / clipAspect, pivotX, pivotY)
-        }
+        setScale(placement.width / width, placement.height / height)
+        postTranslate(placement.left, placement.top)
     }
     setTransform(matrix)
     return true
@@ -738,7 +771,27 @@ private fun TextureView.setBottomFade(fraction: Float, bounds: IntSize, endPx: F
  * What the update block last applied to the clip's view, so it re-applies a
  * transform or a fade only when one of its inputs has actually changed.
  */
+/** Read the whole source, including actors outside the current crop. Restore before the next UI draw. */
+private fun TextureView.uncroppedFrame(aspect: Float): Pair<IntArray, IntSize>? {
+    if (!isAvailable || aspect <= 0 || width <= 0 || height <= 0) return null
+    val sampleWidth = if (aspect >= 1) 640 else (640 * aspect).roundToInt().coerceAtLeast(1)
+    val sampleHeight = if (aspect >= 1) (640 / aspect).roundToInt().coerceAtLeast(1) else 640
+    val transform = getTransform(Matrix())
+    return try {
+        setTransform(Matrix())
+        getBitmap(sampleWidth, sampleHeight)?.let { bitmap ->
+            try {
+                val pixels = IntArray(bitmap.width * bitmap.height)
+                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                pixels to IntSize(bitmap.width, bitmap.height)
+            } finally { bitmap.recycle() }
+        }
+    } catch (_: RuntimeException) { null }
+    finally { setTransform(transform) }
+}
+
 private class AppliedLook {
+    var framing: com.opencanvas.core.filter.FramingDecision? = null
     private var aspect = Float.NaN
     private var mode: CanvasContentMode? = null
     private var alignTop = false

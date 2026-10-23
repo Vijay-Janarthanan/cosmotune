@@ -50,9 +50,10 @@ internal class CanvasRequest(
     val resolution: OpenCanvasResolution,
     val song: SongAudio?,
     val videoId: String?,
+    val album: String? = null,
 ) {
     /** Requests with the same key share one session (and so one measurement). */
-    val key: String = "$artist|$title|$mode|${resolution.label}".lowercase() + "|" + (song?.cacheId ?: "") + "|" + (videoId ?: "")
+    val key: String = "$artist|$title|$mode|${resolution.label}|${album.orEmpty()}".lowercase() + "|" + (song?.cacheId ?: "") + "|" + (videoId ?: "")
 }
 
 /** The long-lived parts a session works with, built from an [OpenCanvasConfig]. */
@@ -195,12 +196,14 @@ internal class CanvasSession(
 
     private suspend fun runSynced(song: SongAudio) = coroutineScope {
         val id = song.cacheId
-        var chosenVideoId = request.videoId ?: env.store.videoFor(id)
+        var chosenVideoId = request.videoId ?: env.store.verifiedVideoFor(id)
         var known: SyncOffset? = chosenVideoId?.let { env.store[id, it] }
         val started = System.currentTimeMillis()
 
         // Everything that does not depend on the answer to another stage starts now.
-        val community = if (known == null && song is SongAudio.YouTube) env.community?.let { async { it.fetch(id) } } else null
+        // A published timing map establishes sync, not publisher identity. Automatic discovery
+        // must use the current verified selection policy, including after upgrading old caches.
+        val community = if (known == null && song is SongAudio.YouTube && request.videoId != null) env.community?.let { async { it.fetch(id) } } else null
         val search = if (chosenVideoId == null) async { candidates() } else null
         val songSource = if (known == null) async { songSource(song) } else null
 
@@ -261,7 +264,8 @@ internal class CanvasSession(
             return@coroutineScope
         }
         val (candidate, result) = winner
-        env.store.put(id, candidate.videoId, SyncOffset(result.offsetMs, result.confidence, result.segments, result.coverage))
+        env.store.put(id, candidate.videoId, SyncOffset(result.offsetMs, result.confidence, result.segments, result.coverage),
+            verifiedSelection = request.videoId == null)
         sync = SyncView(SyncStage.MEASURED, result.offsetMs, result.confidence, result.segments)
         log("map of ${result.segments.size} segment(s) for ${candidate.videoId} in ${System.currentTimeMillis() - started} ms (confidence ${"%.2f".format(result.confidence)})")
         if (candidate.videoId != videoId) {
@@ -342,7 +346,7 @@ internal class CanvasSession(
 
     private fun candidate(videoId: String) = VideoCandidate(videoId, request.title, "", 0L, true)
 
-    private suspend fun candidates(): List<VideoCandidate> = env.search.find(request.title, request.artist, request.durationSec)
+    private suspend fun candidates(): List<VideoCandidate> = env.search.find(request.title, request.artist, request.durationSec, album = request.album)
 
     /** Makes [candidate] the video this session is about; its stream arrives through [resolveVideo]. */
     @Synchronized
@@ -409,6 +413,7 @@ internal class CanvasSession(
                 syncSegments = sync.segments,
                 syncStage = sync.stage,
                 videoHeaders = current.headers,
+                sourceAspectRatio = if (current.height > 0 && current.width > 0) current.width.toFloat() / current.height else 16f / 9f,
             ),
             done = false,
         )

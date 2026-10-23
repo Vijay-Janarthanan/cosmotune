@@ -12,9 +12,23 @@ data class VideoCandidate(
     val channelTitle: String,
     val durationSec: Long,
     val isOfficialMusicVideo: Boolean = false,
+    val isVerifiedChannel: Boolean = false,
 )
 
 object VideoMatcher {
+
+    /** Audio correlation also matches fan dances; independent publisher evidence is required. */
+    fun hasPublisherEvidence(candidate: VideoCandidate, title: String, artist: String, album: String? = null): Boolean {
+        if (!candidate.isOfficialMusicVideo && !candidate.isVerifiedChannel) return false
+        val name = compact(candidate.title)
+        val titleMatches = compact(title).let { it.length >= 3 && name.contains(it) }
+        val filmMatches = album?.let(::compact)?.let { it.length >= 3 && name.contains(it) } == true
+        val artistMatches = creditedArtists(artist).any { it.length >= 3 && compact(candidate.channelTitle).contains(it) }
+        val channel = compact(candidate.channelTitle)
+        if (!candidate.isOfficialMusicVideo && !artistMatches && listOf("dance", "fitness", "choreo", "reaction").any { channel.contains(it) }) return false
+        val publisherRole = listOf("music", "records", "labels", "films", "movies", "vevo", "entertainment").any { channel.contains(it) }
+        return (titleMatches || filmMatches) && (candidate.isOfficialMusicVideo || artistMatches || filmMatches || publisherRole || saysVideo(candidate.title))
+    }
 
     /** A video shorter than this is a clip, never the whole song. */
     private const val MIN_SONG_VIDEO_SEC = 90L
@@ -78,7 +92,8 @@ object VideoMatcher {
 
         // 3. Positive title cues
         if (POSITIVE_KEYWORDS.any { titleNorm.contains(it) }) score += 70
-        if (titleNorm.contains(trackTitleNorm)) score += 30
+        if (compact(candidate.title).contains(compact(expectedTitle)) || expectedTitle.lowercase().split(Regex("\\s+"))
+                .filter { it.length >= 3 }.takeIf { it.size >= 2 }?.all { compact(candidate.title).contains(compact(it)) } == true) score += 30
 
         // 4. Negative title penalties (not for a word the song's own title or artist contains)
         for (neg in NEGATIVE_KEYWORDS) {
@@ -132,8 +147,10 @@ object VideoMatcher {
         expectedArtist: String,
         expectedDurationSec: Long = 0L,
         limit: Int = 3,
+        album: String? = null,
     ): List<VideoCandidate> = candidates
-        .map { it to scoreCandidate(it, expectedTitle, expectedArtist, expectedDurationSec) }
+        .map { it to (scoreCandidate(it, expectedTitle, expectedArtist, expectedDurationSec) +
+            if (!album.isNullOrBlank() && compact(it.title).contains(compact(album))) 80 else 0) }
         .filter { it.second > 0 }
         .sortedByDescending { it.second }
         .take(limit)

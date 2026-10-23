@@ -12,6 +12,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Finds the music video of a song by searching YouTube, with no API key and no server.
@@ -23,8 +24,35 @@ import java.nio.charset.StandardCharsets
 internal class MusicVideoSearch(private val http: OkHttpClient) {
 
     /** The most likely music videos for the song, best first (at most [limit]); empty when the search fails. */
-    suspend fun find(title: String, artist: String, durationSec: Long = 0L, limit: Int = 6): List<VideoCandidate> {
-        val query = URLEncoder.encode("$artist $title official music video", StandardCharsets.UTF_8.name())
+    suspend fun find(title: String, artist: String, durationSec: Long = 0L, limit: Int = 6, album: String? = null): List<VideoCandidate> = run {
+        val words = title.trim().split(Regex("\\s+"))
+        val queries = listOfNotNull(album?.trim()?.takeIf { it.isNotEmpty() }?.let { "$title $it video song" },
+            album?.takeIf { it.isNotBlank() && words.size == 2 }?.let { "\"${words.reversed().joinToString(" ")}\" $it" },
+            "$artist $title official music video",
+            "\"$title\" $artist official video").distinct()
+        val results = ArrayList<VideoCandidate>()
+        val titleWords = words.map { word -> word.lowercase().filter { it.isLetterOrDigit() } }.filter { it.length >= 3 }
+        for (query in queries) {
+            val batch = withTimeoutOrNull(8_000) { search(query) }.orEmpty()
+            results += batch
+            val ranked = VideoMatcher.rank(results.distinctBy { it.videoId }
+                .filter { VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
+            // Do not wait for speculative fallbacks when a publisher's matching song was found.
+            // An album-only hit is insufficient: another track from the same film must not stop search.
+            if (ranked.any { candidate ->
+                    val name = candidate.title.lowercase().filter { it.isLetterOrDigit() }
+                    val titleMatches = name.contains(title.lowercase().filter { it.isLetterOrDigit() }) ||
+                        (titleWords.size >= 2 && titleWords.all { name.contains(it) })
+                    titleMatches && (VideoMatcher.saysVideo(candidate.title) ||
+                        Regex("(?i)(\\b[248]k\\b|\\bmv\\b|\\bm/v\\b)").containsMatchIn(candidate.title))
+                }) return@run ranked
+        }
+        VideoMatcher.rank(results.distinctBy { it.videoId }
+            .filter { VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
+    }
+
+    private suspend fun search(queryText: String): List<VideoCandidate> {
+        val query = URLEncoder.encode(queryText, StandardCharsets.UTF_8.name())
         val request = Request.Builder()
             .url("https://www.youtube.com/results?search_query=$query")
             .header("User-Agent", USER_AGENT)
@@ -38,7 +66,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
                     ?: throw java.io.IOException("no results")
             }
         } ?: return emptyList()
-        return VideoMatcher.rank(results, title, artist, durationSec, limit)
+        return results
     }
 
     internal companion object {
@@ -77,12 +105,17 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
             val verifiedArtist = (renderer["ownerBadges"] as? JsonArray).orEmpty().any {
                 text((it as? JsonObject)?.path("metadataBadgeRenderer", "style"))?.contains("VERIFIED_ARTIST") == true
             }
+            val verified = (renderer["ownerBadges"] as? JsonArray).orEmpty().any {
+                text((it as? JsonObject)?.path("metadataBadgeRenderer", "style")) in
+                    setOf("BADGE_STYLE_TYPE_VERIFIED", "BADGE_STYLE_TYPE_VERIFIED_ARTIST")
+            }
             return VideoCandidate(
                 videoId = videoId,
                 title = runs((renderer["title"] as? JsonObject)?.get("runs")),
                 channelTitle = runs((renderer["ownerText"] as? JsonObject)?.get("runs")),
                 durationSec = text(renderer.path("lengthText", "simpleText"))?.let(::parseClock) ?: 0L,
                 isOfficialMusicVideo = verifiedArtist,
+                isVerifiedChannel = verified,
             )
         }
 

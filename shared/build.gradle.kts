@@ -76,6 +76,8 @@ kotlin {
 }
 
 android {
+    // AGP does not inherit resources from the custom intermediate Kotlin source set.
+    sourceSets.getByName("main").resources.srcDir("src/jvmSharedMain/resources")
     namespace = "com.cosmotune.music.shared"
     compileSdk = 36
 }

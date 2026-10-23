@@ -33,6 +33,14 @@ object OpenCanvas {
     const val VERSION = "1.0.0"
     const val AUTHOR = "Vijay"
 
+    /** Supply uncropped pixels and actual video presentation time on one background worker. */
+    fun createReframer(videoId: String, sourceAspect: Float, targetAspect: Float): com.opencanvas.core.reframer.SmartFrameReframer =
+        com.opencanvas.core.reframer.SmartFrameReframer(sourceAspect = sourceAspect, targetAspect = targetAspect,
+            videoId = videoId, cacheDirectory = env().config.cacheDirectory)
+
+    fun observeFrames(scope: CoroutineScope, videoId: String, sourceAspect: Float, targetAspect: Float): com.opencanvas.core.reframer.FrameReframingWorker =
+        com.opencanvas.core.reframer.FrameReframingWorker(scope, { createReframer(videoId, sourceAspect, targetAspect) }, env().config.log)
+
     private const val MAX_SESSIONS = 64
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -86,8 +94,9 @@ object OpenCanvas {
         trackVideoId: String? = null,
         songAudio: SongAudio? = null,
         videoId: String? = null,
+        album: String? = null,
     ): Flow<OpenCanvasTrack> = flow {
-        val session = session(request(title, artist, durationSec, mode, resolution, trackVideoId, songAudio, videoId))
+        val session = session(request(title, artist, durationSec, mode, resolution, trackVideoId, songAudio, videoId, album))
         session.attach()
         try {
             session.updates().collect { emit(it) }
@@ -112,8 +121,9 @@ object OpenCanvas {
         trackVideoId: String? = null,
         songAudio: SongAudio? = null,
         videoId: String? = null,
+        album: String? = null,
     ) {
-        session(request(title, artist, durationSec, mode, resolution, trackVideoId, songAudio, videoId)).warm()
+        session(request(title, artist, durationSec, mode, resolution, trackVideoId, songAudio, videoId, album)).warm()
     }
 
     private fun request(
@@ -125,9 +135,10 @@ object OpenCanvas {
         trackVideoId: String?,
         songAudio: SongAudio?,
         videoId: String?,
+        album: String?,
     ): CanvasRequest {
         val song = songAudio ?: trackVideoId?.trim()?.takeIf { it.isNotEmpty() }?.let { SongAudio.YouTube(it) }
-        return CanvasRequest(title, artist, durationSec, mode, resolution, song, videoId?.trim()?.takeIf { it.isNotEmpty() })
+        return CanvasRequest(title, artist, durationSec, mode, resolution, song, videoId?.trim()?.takeIf { it.isNotEmpty() }, album?.trim()?.takeIf { it.isNotEmpty() })
     }
 
     /**
@@ -147,9 +158,10 @@ object OpenCanvas {
         trackVideoId: String? = null,
         songAudio: SongAudio? = null,
         videoId: String? = null,
+        album: String? = null,
     ): OpenCanvasTrack? {
         var latest: OpenCanvasTrack? = null
-        resolveFlow(title, artist, durationSec, mode, resolution, trackVideoId, songAudio, videoId)
+        resolveFlow(title, artist, durationSec, mode, resolution, trackVideoId, songAudio, videoId, album)
             .takeWhile { track ->
                 latest = track
                 track.syncStage == SyncStage.PENDING

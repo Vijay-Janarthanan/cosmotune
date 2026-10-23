@@ -608,6 +608,7 @@ internal object DesktopOpenCanvasProvider {
             videoDurationMs = clip.videoDurationMs,
             headers = clip.headers,
             videoId = clip.videoId,
+            trajectory = clip.trajectory,
         )
     }
 }
