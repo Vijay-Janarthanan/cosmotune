@@ -1,6 +1,12 @@
 # Working on the code
 
+## Desktop Compose dependencies
+
+The JVM target of `sharedUi` must compile against the same Material API that `desktopApp` ships. Both use the Compose plugin's `compose.material3` dependency. Its Android/common anchor stays separate; do not upgrade Android merely to fix a desktop linkage error. `uiTests` explicitly uses the desktop Material runtime too: `IconTooltipInteractionTest` composes the real icon button and opens its deferred tooltip body. With shared UI compiled against Material 1.7.3 but desktop running 1.9.0, it reproduces the `PlainTooltip` `NoSuchMethodError` from the app. Preserve this runtime parity when updating Compose/Haze.
+
 ## Listening tools
+
+Desktop startup first acquires `DesktopSingleInstance`: a per-user OS file lock in the state directory, with a token-authenticated IPv4 loopback activation socket. Subsequent launches restore the first window and exit before creating playback engines or tray icons. Keep the endpoint separate from the locked file because Windows rejects reads of locked regions. Never delete the lock file while processes may have it open; stale metadata is harmless after a crash because the OS releases ownership. This applies to Windows, Linux and macOS. AWT tray removal must finish before `exitProcess`; the Quit action explicitly stops it.
 
 `com.cosmotune.listening` in `shared` owns versioned saved sessions, smart rules, followed artists/inbox, setup choices and the last diagnostic report. `com.cosmotune.ui.listening` in `sharedUi` owns their adaptive interface. `PhoneListeningTools` and `DesktopListeningTools` supply real platform playback, playlist stores, file choosers and settings. Player layouts are unchanged.
 

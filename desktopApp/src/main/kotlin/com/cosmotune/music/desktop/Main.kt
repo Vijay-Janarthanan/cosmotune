@@ -28,6 +28,19 @@ import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 
 fun main() {
+    val instance = com.cosmotune.desktop.DesktopSingleInstance.acquire(
+        onActivate = DesktopWindowVisibility::show,
+    ) ?: return
+    val shutdown = Thread({ instance.close() }, "cosmotune-instance-cleanup")
+    Runtime.getRuntime().addShutdownHook(shutdown)
+    try {
+        instance.use { runDesktop() }
+    } finally {
+        runCatching { Runtime.getRuntime().removeShutdownHook(shutdown) }
+    }
+}
+
+private fun runDesktop() {
     com.cosmotune.desktop.TorConnection.install()
     // Before any WebView exists, so the sign-in window can start over with an empty jar.
     DesktopWebCookies.install()

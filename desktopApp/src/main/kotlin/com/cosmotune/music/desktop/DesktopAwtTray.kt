@@ -3,6 +3,8 @@ package com.cosmotune.music.desktop
 import java.awt.EventQueue
 import java.awt.SystemTray
 import java.awt.TrayIcon
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import javax.imageio.ImageIO
@@ -39,6 +41,11 @@ internal object DesktopAwtTray {
                     // Windows opens the menu on right-click itself; the left click is the shortcut
                     // back to the window, which is what every media player there does.
                     addActionListener { EventQueue.invokeLater(onActivate) }
+                    addMouseListener(object : MouseAdapter() {
+                        override fun mouseClicked(event: MouseEvent) {
+                            if (event.button == MouseEvent.BUTTON1 && event.clickCount == 1) onActivate()
+                        }
+                    })
                 }
                 runCatching { tray.add(created) }
                     .onSuccess { icon = created }
@@ -48,13 +55,14 @@ internal object DesktopAwtTray {
     }
 
     fun stop() {
-        EventQueue.invokeLater {
+        val remove = Runnable {
             synchronized(lock) {
-                val current = icon ?: return@invokeLater
-                runCatching { SystemTray.getSystemTray().remove(current) }
+                icon?.let { current -> runCatching { SystemTray.getSystemTray().remove(current) } }
                 icon = null
             }
         }
+        // Quit calls exitProcess immediately afterwards; queued removal never gets to run.
+        if (EventQueue.isDispatchThread()) remove.run() else EventQueue.invokeAndWait(remove)
     }
 
     /**

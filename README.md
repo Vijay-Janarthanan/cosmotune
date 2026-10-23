@@ -131,7 +131,7 @@ Android and desktop are supported today. An iOS app is not available yet.
 
 ## Download
 
-Version 1.0.0. The links below always fetch the newest release.
+Version 1.0.1. The links below always fetch the newest release.
 [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 ### Android

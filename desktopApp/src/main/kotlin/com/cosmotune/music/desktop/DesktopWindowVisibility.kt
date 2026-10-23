@@ -23,10 +23,12 @@ internal object DesktopWindowVisibility {
 
     private var windowRef: WeakReference<Window>? = null
     private var isListenerInstalled = false
+    private var activationPending = false // Accessed only on AWT's event thread.
 
     /** Attaches the active Compose window so show() can bring it to the foreground. */
     fun attachWindow(window: Window) {
         windowRef = WeakReference(window)
+        if (activationPending) show()
     }
 
     /**
@@ -59,6 +61,7 @@ internal object DesktopWindowVisibility {
         _visible.value = true
         EventQueue.invokeLater {
             val win = windowRef?.get()
+            activationPending = win == null
             if (win != null) {
                 if (win is Frame && (win.extendedState and Frame.ICONIFIED) != 0) {
                     win.extendedState = win.extendedState and Frame.ICONIFIED.inv()

@@ -87,6 +87,10 @@ kotlin {
         // against 0.9 NoSuchMethodError'd the desktop's 0.15 at draw time.
         jvmMain.dependencies {
             api("org.jetbrains.compose.ui:ui-desktop:$CMP_DESKTOP")
+            // Desktop's Material version comes from the same Compose plugin accessor. The
+            // Android/common 1.7.3 anchor has an incompatible PlainTooltip JVM signature;
+            // compiling against it and shipping desktop's 1.9.0 crashes on hover/press.
+            api(compose.material3)
         }
         jvmTest.dependencies {
             implementation(kotlin("test"))
