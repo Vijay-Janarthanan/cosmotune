@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val appVersion: String = providers.gradleProperty("cosmotune.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.0.1"
+    ?: "1.0.2"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -28,9 +28,9 @@ val hostArch = System.getProperty("os.arch").lowercase()
 val isArm64 = hostArch == "aarch64" || hostArch == "arm64"
 
 // Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
-// intentionally displayed without a patch number (1.7 rather than 1.7.0).
+// displayed independently of the numeric installer build counter.
 // The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
-val desktopVersionCode = 3
+val desktopVersionCode = 4
 val nativePackageVersion = appVersion.substringBefore('-').split('.').take(2).joinToString(".") + ".$desktopVersionCode"
 
 // FFmpeg decodes audio; see DesktopAudioDecoder.

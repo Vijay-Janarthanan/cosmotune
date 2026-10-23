@@ -1,6 +1,6 @@
 # OpenCanvas discovery and framing implementation
 
-Implemented upstream first in [OpenCanvas revision 9bcb678c4a4d0724c95eaf572124ae4cd3747514](https://github.com/Vijay-Janarthanan/OpenCanvas/commit/9bcb678c4a4d0724c95eaf572124ae4cd3747514), then imported into Cosmotune. These features are newer than the published Cosmotune 1.0.1 installers. The player layout is unchanged.
+Implemented upstream first in [OpenCanvas revision 9bcb678c4a4d0724c95eaf572124ae4cd3747514](https://github.com/Vijay-Janarthanan/OpenCanvas/commit/9bcb678c4a4d0724c95eaf572124ae4cd3747514), then imported into Cosmotune. Included in the Cosmotune 1.0.2 release. The player layout is unchanged.
 
 ## Reported songs
 

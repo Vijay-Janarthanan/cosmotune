@@ -75,9 +75,9 @@
     <td>
       <h3>The music video, behind the song</h3>
       <p>With <a href="https://github.com/Vijay-Janarthanan/OpenCanvas">OpenCanvas</a>, Cosmotune finds the song's music video and
-      lines it up with the song, so the picture follows the music. The current source adds film/album-aware discovery and publisher
+      lines it up with the song, so the picture follows the music. Version 1.0.2 adds film/album-aware discovery and publisher
       checks to reject matching fan dances, plus local face/person framing that follows actors and keeps groups in view.
-      These changes are newer than the 1.0.1 installers; physical Android framing validation is pending.
+      Physical Android framing validation is pending.
       <a href="https://vijay-janarthanan.github.io/OpenCanvas/#smart-framing">Try the framing-policy comparison</a>.
       You choose the video quality, or switch the video off. Over a
       video the controls fold down into a slim bar and the picture has the screen; a tap or a drag up brings them back. On Android
@@ -135,7 +135,7 @@ Android and desktop are supported today. An iOS app is not available yet.
 
 ## Download
 
-Version 1.0.1. The links below always fetch the newest release.
+Version 1.0.2. The links below always fetch the newest release.
 [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 ### Android
