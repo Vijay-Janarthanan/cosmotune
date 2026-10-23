@@ -40,8 +40,10 @@ namespace {
 JavaVM* g_vm = nullptr;
 std::thread g_thread;
 std::atomic<bool> g_running{false};
-std::atomic<DWORD> g_thread_id{0};
-HWND g_window = nullptr;
+std::atomic<bool> g_finished{false};
+std::atomic<bool> g_stop_requested{false};
+std::mutex g_lifecycle_mutex;
+std::atomic<HWND> g_window{nullptr};
 SystemMediaTransportControls g_controls{nullptr};
 std::mutex g_mutex;
 
@@ -131,7 +133,8 @@ void apply(const Update& update) {
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     if (message == WM_COSMOTUNE_UPDATE) {
         auto* update = reinterpret_cast<Update*>(lparam);
-        apply(*update);
+        // A disconnected shell must not throw through a Windows callback.
+        try { apply(*update); } catch (...) {}
         delete update;
         return 0;
     }
@@ -142,75 +145,75 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     return DefWindowProcW(window, message, wparam, lparam);
 }
 
-void pump() {
-    init_apartment(apartment_type::single_threaded);
-    g_thread_id = GetCurrentThreadId();
-
-    WNDCLASSEXW description{};
-    description.cbSize = sizeof(description);
-    description.lpfnWndProc = WindowProc;
-    description.hInstance = GetModuleHandleW(nullptr);
-    description.lpszClassName = L"CosmotuneSmtcWindow";
-    RegisterClassExW(&description);
-
-    // Never shown. SMTC only needs a handle to hang itself off, and a visible
-    // window here would be a second Cosmotune in the taskbar.
-    g_window = CreateWindowExW(
-        0, L"CosmotuneSmtcWindow", L"Cosmotune", WS_OVERLAPPED,
-        0, 0, 0, 0, nullptr, nullptr, description.hInstance, nullptr);
-    if (g_window == nullptr) {
-        g_running = false;
-        return;
-    }
-
+void pump() noexcept {
+    bool apartment = false;
     try {
-        auto interop = get_activation_factory<SystemMediaTransportControls, ISystemMediaTransportControlsInterop>();
-        check_hresult(interop->GetForWindow(
-            g_window, guid_of<SystemMediaTransportControls>(), put_abi(g_controls)));
-    } catch (...) {
-        g_running = false;
-        DestroyWindow(g_window);
-        g_window = nullptr;
-        return;
-    }
+        init_apartment(apartment_type::single_threaded);
+        apartment = true;
 
-    g_controls.IsEnabled(true);
-    g_controls.IsPlayEnabled(true);
-    g_controls.IsPauseEnabled(true);
-    g_controls.IsNextEnabled(true);
-    g_controls.IsPreviousEnabled(true);
-    g_controls.IsStopEnabled(true);
-    g_controls.ButtonPressed([](auto&&, const SystemMediaTransportControlsButtonPressedEventArgs& args) {
-        switch (args.Button()) {
-            case SystemMediaTransportControlsButton::Play: notify(BUTTON_PLAY); break;
-            case SystemMediaTransportControlsButton::Pause: notify(BUTTON_PAUSE); break;
-            case SystemMediaTransportControlsButton::Next: notify(BUTTON_NEXT); break;
-            case SystemMediaTransportControlsButton::Previous: notify(BUTTON_PREVIOUS); break;
-            case SystemMediaTransportControlsButton::Stop: notify(BUTTON_STOP); break;
-            default: break;
+        WNDCLASSEXW description{};
+        description.cbSize = sizeof(description);
+        description.lpfnWndProc = WindowProc;
+        description.hInstance = GetModuleHandleW(nullptr);
+        description.lpszClassName = L"CosmotuneSmtcWindow";
+        RegisterClassExW(&description);
+
+        // A background/service session may have no usable shell media controls.
+        g_window = CreateWindowExW(
+            0, L"CosmotuneSmtcWindow", L"Cosmotune", WS_OVERLAPPED,
+            0, 0, 0, 0, nullptr, nullptr, description.hInstance, nullptr);
+        if (g_window != nullptr && !g_stop_requested) {
+            auto interop = get_activation_factory<SystemMediaTransportControls, ISystemMediaTransportControlsInterop>();
+            check_hresult(interop->GetForWindow(
+                g_window, guid_of<SystemMediaTransportControls>(), put_abi(g_controls)));
+            g_controls.IsEnabled(true);
+            g_controls.IsPlayEnabled(true);
+            g_controls.IsPauseEnabled(true);
+            g_controls.IsNextEnabled(true);
+            g_controls.IsPreviousEnabled(true);
+            g_controls.IsStopEnabled(true);
+            g_controls.ButtonPressed([](auto&&, const SystemMediaTransportControlsButtonPressedEventArgs& args) {
+                switch (args.Button()) {
+                    case SystemMediaTransportControlsButton::Play: notify(BUTTON_PLAY); break;
+                    case SystemMediaTransportControlsButton::Pause: notify(BUTTON_PAUSE); break;
+                    case SystemMediaTransportControlsButton::Next: notify(BUTTON_NEXT); break;
+                    case SystemMediaTransportControlsButton::Previous: notify(BUTTON_PREVIOUS); break;
+                    case SystemMediaTransportControlsButton::Stop: notify(BUTTON_STOP); break;
+                    default: break;
+                }
+            });
+            if (!g_stop_requested) {
+                g_running = true;
+                g_finished = true;
+                MSG message{};
+                while (GetMessageW(&message, nullptr, 0, 0) > 0) {
+                    TranslateMessage(&message);
+                    DispatchMessageW(&message);
+                }
+            }
         }
-    });
-
-    g_running = true;
-
-    MSG message{};
-    while (GetMessageW(&message, nullptr, 0, 0) > 0) {
-        TranslateMessage(&message);
-        DispatchMessageW(&message);
+    } catch (...) {
+        // Includes apartment creation and all WinRT setup, not just GetForWindow.
     }
-
+    g_running = false;
     {
         std::lock_guard<std::mutex> guard(g_mutex);
         if (g_controls != nullptr) {
-            g_controls.IsEnabled(false);
+            try { g_controls.IsEnabled(false); } catch (...) {}
             g_controls = nullptr;
         }
     }
-    if (g_window != nullptr) {
-        DestroyWindow(g_window);
-        g_window = nullptr;
+    const HWND window = g_window.exchange(nullptr);
+    if (window != nullptr) {
+        // Discard updates posted just before shutdown without leaking their payloads.
+        MSG message{};
+        while (PeekMessageW(&message, window, WM_COSMOTUNE_UPDATE, WM_COSMOTUNE_UPDATE, PM_REMOVE)) {
+            delete reinterpret_cast<Update*>(message.lParam);
+        }
+        DestroyWindow(window);
     }
-    g_running = false;
+    if (apartment) uninit_apartment();
+    g_finished = true;
 }
 
 }  // namespace
@@ -224,16 +227,13 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
 
 JNIEXPORT jboolean JNICALL
 Java_com_cosmotune_music_desktop_DesktopWindowsMedia_nativeStart(JNIEnv*, jobject) {
+    std::lock_guard<std::mutex> guard(g_lifecycle_mutex);
     if (g_thread.joinable()) return g_running ? JNI_TRUE : JNI_FALSE;
-    g_thread = std::thread(pump);
-    // The controls exist or they do not within a moment; a caller that had to
-    // poll would be the only one who cared.
-    for (int i = 0; i < 200 && !g_running && g_thread_id == 0; ++i) {
-        Sleep(5);
-    }
-    for (int i = 0; i < 100 && !g_running; ++i) {
-        Sleep(5);
-    }
+    g_running = false;
+    g_finished = false;
+    g_stop_requested = false;
+    try { g_thread = std::thread(pump); } catch (...) { return JNI_FALSE; }
+    for (int i = 0; i < 400 && !g_finished; ++i) Sleep(5);
     return g_running ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -241,7 +241,7 @@ JNIEXPORT void JNICALL
 Java_com_cosmotune_music_desktop_DesktopWindowsMedia_nativeUpdate(
     JNIEnv* env, jobject, jstring title, jstring artist, jstring album, jstring art,
     jboolean playing, jlong position_ms, jlong duration_ms) {
-    if (!g_running) return;
+    if (!g_running || g_stop_requested) return;
     auto* update = new Update{
         widen(env, title), widen(env, artist), widen(env, album), widen(env, art),
         playing == JNI_TRUE, position_ms, duration_ms,
@@ -253,7 +253,10 @@ Java_com_cosmotune_music_desktop_DesktopWindowsMedia_nativeUpdate(
 
 JNIEXPORT void JNICALL
 Java_com_cosmotune_music_desktop_DesktopWindowsMedia_nativeStop(JNIEnv*, jobject) {
-    if (g_window != nullptr) PostMessageW(g_window, WM_COSMOTUNE_QUIT, 0, 0);
+    std::lock_guard<std::mutex> guard(g_lifecycle_mutex);
+    g_stop_requested = true;
+    const HWND window = g_window.load();
+    if (window != nullptr) PostMessageW(window, WM_COSMOTUNE_QUIT, 0, 0);
     if (g_thread.joinable()) g_thread.join();
 }
 

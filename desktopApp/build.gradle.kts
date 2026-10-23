@@ -202,6 +202,8 @@ dependencies {
 
 tasks.withType<Test> {
     systemProperty("java.awt.headless", "true")
+    // Native aborts bypass JUnit's failure report; retain the last executing test in CI logs.
+    testLogging.events("started", "failed")
 }
 
 kotlin {

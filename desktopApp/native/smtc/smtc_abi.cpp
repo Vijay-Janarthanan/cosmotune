@@ -40,7 +40,9 @@ JavaVM* g_vm = nullptr;
 std::thread g_thread;
 std::atomic<bool> g_running{false};
 std::atomic<bool> g_finished{false};
-HWND g_window = nullptr;
+std::atomic<bool> g_stop_requested{false};
+std::mutex g_lifecycle_mutex;
+std::atomic<HWND> g_window{nullptr};
 ISystemMediaTransportControls* g_controls = nullptr;
 EventRegistrationToken g_button_token{};
 std::mutex g_mutex;
@@ -297,7 +299,7 @@ void pump() {
         0, L"CosmotuneSmtcWindow", L"Cosmotune", WS_OVERLAPPED,
         0, 0, 0, 0, nullptr, nullptr, description.hInstance, nullptr);
 
-    if (g_window != nullptr && create_controls()) {
+    if (SUCCEEDED(apartment) && g_window != nullptr && !g_stop_requested && create_controls() && !g_stop_requested) {
         g_running = true;
         g_finished = true;
         MSG message{};
@@ -336,9 +338,12 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
 
 JNIEXPORT jboolean JNICALL
 Java_com_cosmotune_music_desktop_DesktopWindowsMedia_nativeStart(JNIEnv*, jobject) {
+    std::lock_guard<std::mutex> guard(g_lifecycle_mutex);
     if (g_thread.joinable()) return g_running ? JNI_TRUE : JNI_FALSE;
+    g_running = false;
     g_finished = false;
-    g_thread = std::thread(pump);
+    g_stop_requested = false;
+    try { g_thread = std::thread(pump); } catch (...) { return JNI_FALSE; }
     for (int i = 0; i < 400 && !g_finished; ++i) {
         Sleep(5);
     }
@@ -349,7 +354,7 @@ JNIEXPORT void JNICALL
 Java_com_cosmotune_music_desktop_DesktopWindowsMedia_nativeUpdate(
     JNIEnv* env, jobject, jstring title, jstring artist, jstring album, jstring art,
     jboolean playing, jlong position_ms, jlong duration_ms) {
-    if (!g_running) return;
+    if (!g_running || g_stop_requested) return;
     auto* update = new Update{
         widen(env, title), widen(env, artist), widen(env, album), widen(env, art),
         playing == JNI_TRUE, position_ms, duration_ms,
@@ -361,7 +366,10 @@ Java_com_cosmotune_music_desktop_DesktopWindowsMedia_nativeUpdate(
 
 JNIEXPORT void JNICALL
 Java_com_cosmotune_music_desktop_DesktopWindowsMedia_nativeStop(JNIEnv*, jobject) {
-    if (g_window != nullptr) PostMessageW(g_window, WM_COSMOTUNE_QUIT, 0, 0);
+    std::lock_guard<std::mutex> guard(g_lifecycle_mutex);
+    g_stop_requested = true;
+    const HWND window = g_window.load();
+    if (window != nullptr) PostMessageW(window, WM_COSMOTUNE_QUIT, 0, 0);
     if (g_thread.joinable()) g_thread.join();
 }
 

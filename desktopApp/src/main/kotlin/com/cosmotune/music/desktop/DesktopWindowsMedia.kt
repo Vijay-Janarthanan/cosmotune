@@ -1,6 +1,7 @@
 package com.cosmotune.music.desktop
 
 import java.util.concurrent.atomic.AtomicBoolean
+import com.cosmotune.desktop.acquireNativeMediaControls
 
 /**
  * Windows' System Media Transport Controls — the volume flyout's media card,
@@ -45,7 +46,11 @@ internal object DesktopWindowsMedia {
         // decided in one place and can be checked without Windows.
         this.controller = controller
         if (!available || !started.compareAndSet(false, true)) return
-        if (!nativeStart()) {
+        val created = runCatching {
+            acquireNativeMediaControls(start = { nativeStart() }, stop = { nativeStop() })
+        }.onFailure { DesktopTrackLog.log("Windows media controls unavailable: ${it.javaClass.simpleName}") }
+            .getOrDefault(false)
+        if (!created) {
             started.set(false)
             DesktopTrackLog.log("Windows media controls could not be created")
             return
@@ -59,8 +64,8 @@ internal object DesktopWindowsMedia {
     }
 
     fun stop() {
-        if (!started.compareAndSet(true, false)) return
         controller = null
+        if (!started.compareAndSet(true, false)) return
         runCatching { nativeStop() }
     }
 

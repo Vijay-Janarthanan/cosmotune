@@ -143,6 +143,15 @@ jobs:
           # WinRT, so only MSVC can build it and only this job ever does.
           jar tf "$jar" | grep -q 'native/cosmotune_smtc.dll'
 
+      - name: Upload Windows test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-test-reports
+          path: |
+            desktopApp/build/test-results/test/*.xml
+            desktopApp/build/reports/tests/
+
       - name: Collect
         shell: pwsh
         run: |
