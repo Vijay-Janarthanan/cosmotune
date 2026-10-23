@@ -6,6 +6,8 @@ Intel Mac uses ONNX Runtime 1.23.2, the last Maven version with macOS x86_64 nat
 
 The shared asset is used by Android and all desktop packages. `DesktopTargetRuntimeTest` loads it through each platform's filtered runtime and executes deterministic input through both beat and downbeat output heads. The release requires this test to pass on Windows, Linux, Intel Mac and Apple Silicon Mac.
 
+Android checks extracted models against the bundled bytes once per analyser instance and replaces stale weights through a temporary file. It previously kept any nonempty extracted model indefinitely, even after an app update. Regression tests cover same-sized replacements, retaining identical models and interrupted copies preserving the previous file.
+
 For a seeded 256-frame spectrogram, the original and converted models produced bit-identical beat/downbeat outputs on Runtime 1.29.0. The converted model also produced bit-identical outputs on Runtime 1.23.2. The strengthened Windows JVM native test passed as well. These comparisons validate the representation change; they do not measure beat-tracking accuracy on music.
 
 Kernel reference: [ONNX Runtime 1.23.2 ConvInteger CPU implementation](https://github.com/microsoft/onnxruntime/blob/v1.23.2/onnxruntime/core/providers/cpu/quantization/conv_integer.cc).
