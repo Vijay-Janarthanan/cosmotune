@@ -216,6 +216,15 @@ jobs:
           ./gradlew :desktopApp:packageDmg :desktopApp:packagePkg :desktopApp:createDistributable \
             -Pcosmotune.version=${{ steps.version.outputs.value }}
 
+      - name: Upload macOS test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-release-test-reports
+          path: |
+            desktopApp/build/test-results/test/*.xml
+            desktopApp/build/reports/tests/
+
       - name: The analyser and models are in the jar
         run: |
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune.app/Contents/app/desktopApp*.jar)

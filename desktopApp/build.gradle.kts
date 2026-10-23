@@ -262,6 +262,7 @@ tasks.withType<Test> {
     systemProperty("java.awt.headless", "true")
     // Native aborts bypass JUnit's failure report; retain the last executing test in CI logs.
     testLogging.events("started", "failed")
+    testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
 }
 
 kotlin {
