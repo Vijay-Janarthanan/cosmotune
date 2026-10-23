@@ -110,7 +110,7 @@ data class DesktopStreamFormat(
     val isHiRes: Boolean
         get() = isLossless && ((bitDepth ?: 0) > 16 || (sampleRateHz ?: 0) > 48_000)
 
-    /** Lossy, but the top of what lossy gets — a 320kbps AAC rather than YouTube's 160kbps Opus. */
+    /** A high-bitrate lossy label, not a perceptual ranking against another codec or master. */
     val isHiQuality: Boolean
         get() = !isLossless && (kbps ?: 0) >= HI_QUALITY_KBPS
 

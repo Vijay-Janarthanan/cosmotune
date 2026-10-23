@@ -417,9 +417,10 @@ internal object DesktopSourceRegistry {
 
     /** Whether a copy found after the fact is worth interrupting playback for. */
     internal fun worthSwapping(candidate: DesktopStreamFormat, playing: DesktopStreamFormat?): Boolean {
+        if (playing?.isDolbyAtmos == true && !candidate.isDolbyAtmos) return false
         if (candidate.isLossless) return true
-        val gain = (candidate.kbps ?: return false) - (playing?.kbps ?: return false)
-        return gain >= UPGRADE_MIN_GAIN_KBPS
+        if (playing?.isLossless == true) return false
+        return com.cosmotune.audio.LossyUpgradePolicy.worthReplacing(candidate.codec, candidate.kbps, playing?.codec, playing?.kbps, UPGRADE_MIN_GAIN_KBPS)
     }
 
     /**

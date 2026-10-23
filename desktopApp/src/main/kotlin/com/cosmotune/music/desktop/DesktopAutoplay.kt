@@ -68,7 +68,7 @@ internal object DesktopAutoplay {
             DesktopTrackLog.log("autoplay: no YouTube match to seed a station on for '${seedSong.title}'")
             return Result.success(emptyList())
         }
-        val related = DesktopSearchClient.radio(seed).getOrElse { return Result.failure(it) }
+        val related = DesktopSearchClient.radio(seed, seedSong).getOrElse { return Result.failure(it) }
         DesktopTrackLog.log("autoplay: station for '${seedSong.title}' offered ${related.size} tracks")
         val extra = QueueBuilder.extend(existing, related, limit)
         if (extra.isEmpty()) return Result.success(emptyList())

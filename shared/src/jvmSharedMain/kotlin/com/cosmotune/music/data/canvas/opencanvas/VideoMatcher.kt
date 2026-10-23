@@ -17,6 +17,13 @@ data class VideoCandidate(
 
 object VideoMatcher {
 
+    /** A different verified artist is not evidence for the requested singer. */
+    fun isCreditedArtistChannel(candidate: VideoCandidate, artist: String): Boolean {
+        val channel = compact(candidate.channelTitle)
+        return creditedArtists(artist).any { it.isNotEmpty() &&
+            (channel == it || channel == it + "vevo" || channel == it + "official") }
+    }
+
     /** Audio correlation also matches fan dances; independent publisher evidence is required. */
     fun hasPublisherEvidence(candidate: VideoCandidate, title: String, artist: String, album: String? = null): Boolean {
         if (!candidate.isOfficialMusicVideo && !candidate.isVerifiedChannel) return false

@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/Vijay-Janarthanan/OpenCanvas",
-  "revision": "9bcb678c4a4d0724c95eaf572124ae4cd3747514",
+  "revision": "b2255f4b6da996a3cf6649ec99e36e65c4d44273",
   "omittedLegacyHelpers": [
     "OnnxSubjectTracker.kt",
     "SmartStreamReframer.kt"
@@ -52,7 +52,7 @@
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/matcher/VideoMatcher.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
-      "sha256": "0193d6a27455e17c29abf4a71f839d36fce14fedd0ee48132c97e4e66a3417c0"
+      "sha256": "d26d65e3148d5f898e44c1b77adea2b6d12519c6d42330d4b1bd2c1eb89a5b33"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
@@ -166,7 +166,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
       "normalizeLf": true,
-      "sha256": "c75fca024c03aebed9f701356f0818691a882d8fa78649e49f07551e8d4367fa"
+      "sha256": "7e43345ac5667bd10680e1c77efa9de36674e0c167e37297fb0292e9c3ca8f74"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
@@ -246,5 +246,6 @@
       "normalizeLf": false,
       "sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
     }
-  ]
+  ],
+  "revisionStatus": "published on OpenCanvas main"
 }

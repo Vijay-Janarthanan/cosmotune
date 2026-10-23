@@ -1486,7 +1486,6 @@ fun SettingsScreen(
                 withLink(LinkAnnotation.Url(com.cosmotune.CosmoConfig.SITE_URL, linkStyles)) {
                     append("Website")
                 }
-                append("\nBased on BitChord by kushagrasinghx")
             },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

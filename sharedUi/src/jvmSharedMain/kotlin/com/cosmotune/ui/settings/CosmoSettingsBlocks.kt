@@ -595,6 +595,7 @@ fun CosmoSliderRow(
                 .semantics(mergeDescendants = true) { stateDescription = value },
         ) {
             CosmoSlider(
+                compact = true,
                 value = SliderSteps.fractionOf(sliderValue, valueRange),
                 onValueChange = { fraction ->
                     val stop = SliderSteps.snap(fraction, valueRange, steps)

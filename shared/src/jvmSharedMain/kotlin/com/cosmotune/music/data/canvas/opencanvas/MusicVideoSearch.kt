@@ -26,10 +26,17 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
     /** The most likely music videos for the song, best first (at most [limit]); empty when the search fails. */
     suspend fun find(title: String, artist: String, durationSec: Long = 0L, limit: Int = 6, album: String? = null): List<VideoCandidate> = run {
         val words = title.trim().split(Regex("\\s+"))
+        val titleKey = title.lowercase().filter { it.isLetterOrDigit() }
+        val albumKey = album.orEmpty().lowercase().filter { it.isLetterOrDigit() }
+        // A title track shares its name with every result from the same film.
+        // Without useful album context, another verified artist's same-title
+        // video must not suppress the title-only publisher fallback.
+        val ambiguousContext = albumKey.isEmpty() || albumKey == titleKey
         val queries = listOfNotNull(album?.trim()?.takeIf { it.isNotEmpty() }?.let { "$title $it video song" },
             album?.takeIf { it.isNotBlank() && words.size == 2 }?.let { "\"${words.reversed().joinToString(" ")}\" $it" },
             "$artist $title official music video",
-            "\"$title\" $artist official video").distinct()
+            "\"$title\" $artist official video",
+            if (ambiguousContext) "\"$title\" video song" else null).distinct()
         val results = ArrayList<VideoCandidate>()
         val titleWords = words.map { word -> word.lowercase().filter { it.isLetterOrDigit() } }.filter { it.length >= 3 }
         for (query in queries) {
@@ -43,7 +50,8 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
                     val name = candidate.title.lowercase().filter { it.isLetterOrDigit() }
                     val titleMatches = name.contains(title.lowercase().filter { it.isLetterOrDigit() }) ||
                         (titleWords.size >= 2 && titleWords.all { name.contains(it) })
-                    titleMatches && (VideoMatcher.saysVideo(candidate.title) ||
+                    val contextMatches = !ambiguousContext || VideoMatcher.isCreditedArtistChannel(candidate, artist)
+                    titleMatches && contextMatches && (VideoMatcher.saysVideo(candidate.title) ||
                         Regex("(?i)(\\b[248]k\\b|\\bmv\\b|\\bm/v\\b)").containsMatchIn(candidate.title))
                 }) return@run ranked
         }

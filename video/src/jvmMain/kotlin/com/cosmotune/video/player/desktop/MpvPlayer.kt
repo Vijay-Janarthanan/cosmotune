@@ -509,7 +509,9 @@ internal class MpvPlayer(
          * on-screen text, no key bindings). Live streams add [LIVE_LAVF_OPTIONS] per load; the variant of FFmpeg's reconnect
          * for streamed input is never set (it breaks live HLS, spec 2.4).
          */
-        val DEFAULT_OPTIONS: Map<String, String> = buildMap {
+        val DEFAULT_OPTIONS: Map<String, String> = defaultOptions(System.getProperty("os.name"))
+
+        internal fun defaultOptions(osName: String): Map<String, String> = buildMap {
             put("vo", "libmpv")
             put("hwdec", "auto-copy")
             put("ytdl", "no")
@@ -519,7 +521,10 @@ internal class MpvPlayer(
             put("demuxer-readahead-secs", "30")
             put("sub-visibility", "no")
             put("audio-pitch-correction", "yes")
-            if (System.getProperty("os.name").contains("mac", ignoreCase = true)) put("ao", "avfoundation")
+            // AVFoundation is optional in runtime builds and can fail independently of video.
+            // Prefer CoreAudio for ordinary playback; the trailing comma retains mpv's fallback
+            // drivers if that output cannot open. Other platforms keep their native auto probing.
+            if (osName.contains("mac", ignoreCase = true)) put("ao", "coreaudio,")
             put("idle", "yes")
             put("load-scripts", "no")
             put("osd-level", "0")

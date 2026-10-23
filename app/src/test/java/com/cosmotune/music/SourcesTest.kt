@@ -887,9 +887,10 @@ class SourcesTest {
      * question being asked was "is this lossless".
      */
     @Test
-    fun `swaps to a lossy stream that is clearly better than what is playing`() {
+    fun `different lossy codec bitrates do not justify replacing the playing stream`() {
         val youtube = StreamFormat(codec = "opus", kbps = 160)
-        assertTrue(SourceResolver.worthSwapping(StreamFormat(codec = "aac", kbps = 320), youtube))
+        assertFalse(SourceResolver.worthSwapping(StreamFormat(codec = "aac", kbps = 320), youtube))
+        assertTrue(SourceResolver.worthSwapping(StreamFormat(codec = "aac", kbps = 320), StreamFormat(codec = "aac", kbps = 128)))
     }
 
     /** A margin too narrow to hear does not earn a break in the audio. */
@@ -1333,7 +1334,7 @@ class SourcesTest {
      */
     @Test
     fun `keeps waiting when the quick answer is refused`() = runBlocking {
-        val playing = StreamFormat(codec = "opus", kbps = 141)
+        val playing = StreamFormat(codec = "aac", kbps = 141)
         val quickRefused = FakeSource("Ricky's Addon", answerAfterMs = 5, format = StreamFormat("mp3", kbps = 128))
         val slowTaken = FakeSource("JioSaavn", answerAfterMs = 200, format = StreamFormat("mp4", kbps = 320))
         val (source, _) = SourceResolver.bestAcross(

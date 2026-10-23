@@ -648,12 +648,9 @@ object SourceResolver {
      *
      * Lossless always is: it is what was asked for, and the whole point.
      *
-     * A lossy candidate has to clear [UPGRADE_MIN_GAIN_KBPS] over what is
-     * already playing, which is deliberately a wide gap rather than a strict
-     * improvement. Bitrate compares poorly across codecs — Opus at 160kbps
-     * and AAC at 256kbps are much the same thing to listen to — so a margin
-     * narrow enough to be codec-sensitive would be a margin that buys a seam
-     * in the audio for nothing. 160 to 320 clears it; 128 to 192 does not.
+     * Lossy bitrate comparisons require the same codec and at least
+     * [UPGRADE_MIN_GAIN_KBPS] of headroom. A larger number across different
+     * codecs does not establish better sound or an identical master.
      */
     internal fun worthSwapping(candidate: StreamFormat, playing: StreamFormat?): Boolean {
         // Never away from an immersive mix. A FLAC is a better *copy* and a
@@ -664,8 +661,8 @@ object SourceResolver {
         // that arrives from a pass started before the Atmos stream landed.
         if (playing?.isDolbyAtmos == true && !candidate.isDolbyAtmos) return false
         if (candidate.isLossless == true || candidate.isDolbyAtmos) return true
-        val gain = (candidate.kbps ?: return false) - (playing?.kbps ?: return false)
-        return gain >= UPGRADE_MIN_GAIN_KBPS
+        if (playing?.isLossless == true) return false
+        return com.cosmotune.audio.LossyUpgradePolicy.worthReplacing(candidate.codec, candidate.kbps, playing?.codec, playing?.kbps, UPGRADE_MIN_GAIN_KBPS)
     }
 
     /**

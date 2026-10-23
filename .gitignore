@@ -27,6 +27,8 @@ captures/
 *.hprof
 
 # Log/OS files
+__pycache__/
+*.pyc
 *.log
 .DS_Store
 Thumbs.db

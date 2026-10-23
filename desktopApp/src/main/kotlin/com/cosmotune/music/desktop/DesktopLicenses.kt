@@ -18,6 +18,12 @@ internal object DesktopLicenses {
 
     val groups: List<DesktopLicenseGroup> = listOf(
         DesktopLicenseGroup(
+            "Recommendation data",
+            listOf(
+                DesktopLicense("Local recommendation model", "CC0, CC BY 4.0 and Apache-2.0 source data; see attribution", "https://github.com/Vijay-Janarthanan/cosmotune/blob/main/shared/src/jvmSharedMain/resources/recommendations/ATTRIBUTION.md", "ListenBrainz/MusicBrainz, Music4All-Onion, Yambda, FMA, Discogs, Wikidata and Open Opus. The model's full attribution and provenance accompany its resources."),
+            ),
+        ),
+        DesktopLicenseGroup(
             "This application",
             listOf(
                 DesktopLicense(

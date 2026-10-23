@@ -80,7 +80,7 @@ object DesktopSearchClient {
 
     suspend fun history(): Result<List<Song>> = YtMusicRepository.history()
 
-    suspend fun radio(videoId: String): Result<List<Song>> = YtMusicRepository.radio(videoId)
+    suspend fun radio(videoId: String, seedSong: Song? = null): Result<List<Song>> = YtMusicRepository.radio(videoId, seedSong)
 
     suspend fun trackLinks(videoId: String): Result<Song> = YtMusicRepository.trackLinks(videoId)
 

@@ -5751,6 +5751,7 @@ private enum class DesktopSettingsSection {
  * so they are where they were when back returns from one of the pages it opens.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun DesktopSettingsScreen(
     query: String,
     onQueryChange: (String) -> Unit,
@@ -6274,7 +6275,7 @@ private fun DesktopSettingsScreen(
                             DesktopAppearanceSettings::setOpenCanvasEnabled,
                         )
                         if (openCanvasEnabled) {
-                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
                                 Text("OpenCanvas Playback", fontWeight = FontWeight.Medium)
                                 Text(
                                     "Synced to the song: the video starts at the song's position, jumps when you seek or skip, " +
@@ -6285,13 +6286,13 @@ private fun DesktopSettingsScreen(
                             }
 
                             val openCanvasResolution by DesktopAppearanceSettings.openCanvasResolution.collectAsState()
-                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
                                 Text("OpenCanvas Stream Resolution", fontWeight = FontWeight.Medium)
                                 val resDescription = when (openCanvasResolution) {
-                                    "360p" -> "360p (Fastest, zero lag on slow connections)"
-                                    "480p" -> "480p (Balanced, mobile standard)"
-                                    "720p" -> "720p HD (Crisp, ideal for desktop displays)"
-                                    "1080p" -> "1080p Full HD (Maximum visual fidelity)"
+                                    "360p" -> "360p · Uses less data"
+                                    "480p" -> "480p · Standard definition"
+                                    "720p" -> "720p · High definition"
+                                    "1080p" -> "1080p · Full HD"
                                     else -> openCanvasResolution
                                 }
                                 Text(
@@ -6300,10 +6301,13 @@ private fun DesktopSettingsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                                 Spacer(Modifier.height(8.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     listOf("360p", "480p", "720p", "1080p").forEach { res ->
                                         FilterChip(
-                                            colors = desktopChipColors(),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            ),
                                             selected = openCanvasResolution.equals(res, ignoreCase = true),
                                             onClick = { DesktopAppearanceSettings.setOpenCanvasResolution(res) },
                                             label = { Text(res) },
@@ -6576,7 +6580,6 @@ private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
             withLink(LinkAnnotation.Clickable("licenses", linkStyles) { onLicenses() }) {
                 append("Licenses")
             }
-            append("\nBased on BitChord by kushagrasinghx")
         },
         style = MaterialTheme.typography.labelSmall,
         color = DesktopSecondary,
@@ -7846,9 +7849,9 @@ internal fun DesktopBareSlider(
     onValueChangeFinished: (() -> Unit)? = null,
 ) {
     val colors = SliderDefaults.colors(
-        thumbColor = Color.White,
-        activeTrackColor = Color.White,
-        inactiveTrackColor = Color.White.copy(alpha = 0.24f),
+        thumbColor = MaterialTheme.colorScheme.primary,
+        activeTrackColor = MaterialTheme.colorScheme.primary,
+        inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f),
     )
     Slider(
         value = value,
@@ -7857,15 +7860,19 @@ internal fun DesktopBareSlider(
         valueRange = valueRange,
         steps = steps,
         colors = colors,
+        thumb = {
+            Box(Modifier.size(16.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+        },
         track = { state ->
             SliderDefaults.Track(
                 sliderState = state,
+                modifier = Modifier.height(4.dp),
                 colors = colors,
                 drawStopIndicator = null,
                 drawTick = { _, _ -> },
             )
         },
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth().heightIn(min = 48.dp),
     )
 }
 

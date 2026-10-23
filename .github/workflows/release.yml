@@ -66,6 +66,8 @@ jobs:
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/lib/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'native/libcosmotune_analysis.so'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
+          modeljar=$(ls "$(dirname "$jar")"/shared-jvm*.jar)
+          python3 tools/verify-recommendations.py --archive "$modeljar"
 
       - name: Build the AppImage
         run: |
@@ -140,6 +142,8 @@ jobs:
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'native/cosmotune_analysis.dll'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
+          modeljar=$(ls "$(dirname "$jar")"/shared-jvm*.jar)
+          python tools/verify-recommendations.py --archive "$modeljar"
           # WinRT, so only MSVC can build it and only this job ever does.
           jar tf "$jar" | grep -q 'native/cosmotune_smtc.dll'
 
@@ -216,6 +220,8 @@ jobs:
         run: |
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune.app/Contents/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'models/.*\.onnx'
+          modeljar=$(ls "$(dirname "$jar")"/shared-jvm*.jar)
+          python3 tools/verify-recommendations.py --archive "$modeljar"
 
       - name: The app starts
         continue-on-error: true
@@ -275,7 +281,9 @@ jobs:
         run: ./gradlew assembleProdRelease
 
       - name: Verify OpenCanvas import and packaged models
-        run: python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/prod/release
+        run: |
+          python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/prod/release
+          python3 tools/verify-recommendations.py --apk-dir app/build/outputs/apk/prod/release
 
       - name: Name and collect
         run: |

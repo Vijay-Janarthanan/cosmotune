@@ -80,7 +80,17 @@ class DesktopEngineStructureTest {
         assertEquals("no", o["sub-visibility"], "our chrome draws the subtitles")
         assertEquals("yes", o["audio-pitch-correction"])
         val mac = System.getProperty("os.name").contains("mac", ignoreCase = true)
-        assertEquals(if (mac) "avfoundation" else null, o["ao"])
+        assertEquals(if (mac) "coreaudio," else null, o["ao"])
+    }
+
+    @Test
+    fun audioOutputSelectionKeepsNativeFallbackOnEveryDesktopPlatform() {
+        for (os in listOf("Mac OS X", "macOS")) {
+            assertEquals("coreaudio,", MpvPlayer.defaultOptions(os)["ao"], "CoreAudio first, then other compiled drivers")
+        }
+        for (os in listOf("Windows 11", "Linux")) {
+            assertNull(MpvPlayer.defaultOptions(os)["ao"], "$os probes its available native outputs")
+        }
     }
 
     @Test

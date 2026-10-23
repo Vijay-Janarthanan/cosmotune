@@ -69,6 +69,10 @@
       source has the timing, and they can be translated or romanised. The queue can be reordered and saved as a named session to
       open again later. Replay shows your listening by month and year and can turn it into a playlist.</p>
       <p>Cosmotune also plays the music files on your device and keeps downloaded songs for listening offline.</p>
+      <p>Version 1.0.3 adds a <a href="docs/LOCAL_RECOMMENDATIONS.md">3.19 MB local recommendation model</a> for AutoPlay and radio,
+      trained with ListenBrainz, Music4All-Onion, Yambda and music metadata/acoustic context. It ranks on the device and keeps live
+      provider radio/search for current songs. Raw listening histories and the full training catalogue are not bundled.
+      <a href="docs/PACKAGE_SIZE.md">Desktop packages also drop foreign-platform ONNX and SQLite binaries</a>.</p>
     </td>
   </tr>
   <tr>
@@ -135,7 +139,7 @@ Android and desktop are supported today. An iOS app is not available yet.
 
 ## Download
 
-Version 1.0.2. The links below always fetch the newest release.
+Version 1.0.3. The links below always fetch the newest release.
 [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 ### Android

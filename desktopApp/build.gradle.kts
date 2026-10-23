@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val appVersion: String = providers.gradleProperty("cosmotune.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.0.2"
+    ?: "1.0.3"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -30,7 +30,7 @@ val isArm64 = hostArch == "aarch64" || hostArch == "arm64"
 // Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
 // displayed independently of the numeric installer build counter.
 // The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
-val desktopVersionCode = 4
+val desktopVersionCode = 5
 val nativePackageVersion = appVersion.substringBefore('-').split('.').take(2).joinToString(".") + ".$desktopVersionCode"
 
 // FFmpeg decodes audio; see DesktopAudioDecoder.
@@ -41,6 +41,19 @@ val nativeClassifier = when (targetOs) {
     "linux" -> "linux-x86_64"
     "macos" -> if (isArm64) "macosx-arm64" else "macosx-x86_64"
     else -> error("Cosmotune desktop supports Linux, Windows, and macOS only")
+}
+
+val onnxRuntimeVersion = providers.gradleProperty("cosmotune.onnxruntime").orNull
+    ?: if (targetOs == "macos" && !isArm64) "1.23.2" else "1.29.0"
+val onnxNativePlatform = when (targetOs) {
+    "windows" -> "win-x64"
+    "linux" -> "linux-x64"
+    else -> if (isArm64) "osx-aarch64" else "osx-x64"
+}
+val sqliteNativePlatforms = when (targetOs) {
+    "windows" -> setOf("Windows/x86_64")
+    "linux" -> setOf("Linux/x86_64", "Linux-Musl/x86_64")
+    else -> setOf(if (isArm64) "Mac/aarch64" else "Mac/x86_64")
 }
 
 val torPlatform = when (targetOs) {
@@ -112,6 +125,53 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// These upstream jars contain natives for many operating systems. Keep their
+// Java APIs, metadata and licences, and only the libraries this package can load.
+val onnxRuntimeRaw by configurations.creating { isTransitive = false }
+val sqliteRuntimeRaw by configurations.creating { isTransitive = false }
+dependencies {
+    onnxRuntimeRaw("com.microsoft.onnxruntime:onnxruntime:$onnxRuntimeVersion")
+    sqliteRuntimeRaw("org.xerial:sqlite-jdbc:3.47.1.0")
+}
+val targetOnnxRuntime by tasks.registering(Jar::class) {
+    archiveFileName.set("onnxruntime-$onnxRuntimeVersion-$onnxNativePlatform.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("target-runtime"))
+    from(provider { zipTree(onnxRuntimeRaw.singleFile) })
+    exclude { element ->
+        val path = element.path
+        (path.startsWith("ai/onnxruntime/native/") && !path.startsWith("ai/onnxruntime/native/$onnxNativePlatform/")) ||
+            path.contains(".dSYM/") || path.endsWith(".pdb") ||
+            Regex("META-INF/[^/]+\\.(SF|RSA|DSA)").matches(path)
+    }
+    doLast {
+        ZipFile(archiveFile.get().asFile).use { zip ->
+            check(zip.entries().asSequence().any { it.name.startsWith("ai/onnxruntime/native/$onnxNativePlatform/") && !it.isDirectory }) {
+                "ONNX runtime has no natives for $onnxNativePlatform"
+            }
+        }
+    }
+}
+val targetSqliteRuntime by tasks.registering(Jar::class) {
+    archiveFileName.set("sqlite-jdbc-3.47.1.0-$nativeClassifier.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("target-runtime"))
+    from(provider { zipTree(sqliteRuntimeRaw.singleFile) })
+    exclude { element ->
+        val path = element.path
+        (path.startsWith("org/sqlite/native/") && sqliteNativePlatforms.none { path.startsWith("org/sqlite/native/$it/") }) ||
+            Regex("META-INF/[^/]+\\.(SF|RSA|DSA)").matches(path)
+    }
+    doLast {
+        ZipFile(archiveFile.get().asFile).use { zip ->
+            check(zip.entries().asSequence().any { it.name.startsWith("org/sqlite/native/") && !it.isDirectory }) { "SQLite target natives missing" }
+        }
+    }
+}
+// :video also declares SQLite. Its compile dependency stays intact; the desktop
+// runtime uses the platform-specific copy below, including in native smoke tests.
+listOf("runtimeClasspath", "testRuntimeClasspath").forEach { name ->
+    configurations.named(name) { exclude(group = "org.xerial", module = "sqlite-jdbc") }
+}
+
 dependencies {
     // Already on the classpath through the NewPipe extractor.
     implementation("org.jsoup:jsoup:1.22.2")
@@ -137,9 +197,7 @@ dependencies {
     // Automix runs the same two models the Android build does. ONNX Runtime stopped shipping macOS
     // x86_64 natives in 1.24, so an Intel Mac build stays on 1.23.2, the last release that has them.
     // -Pcosmotune.onnxruntime=<version> overrides the choice (to try a version on any machine).
-    val onnxRuntimeVersion = providers.gradleProperty("cosmotune.onnxruntime").orNull
-        ?: if (targetOs == "macos" && !isArm64) "1.23.2" else "1.29.0"
-    implementation("com.microsoft.onnxruntime:onnxruntime:$onnxRuntimeVersion")
+    implementation(files(targetOnnxRuntime.flatMap { it.archiveFile }))
 
     // Decoding, resampling and demuxing for the audio engine.
     implementation("org.bytedeco:javacpp:$javacppVersion")
@@ -180,7 +238,7 @@ dependencies {
 
     // Browsers keep their cookies in SQLite, and importing a session from one is how this app signs
     // in — see DesktopBrowserCookies.
-    implementation("org.xerial:sqlite-jdbc:3.47.1.0")
+    implementation(files(targetSqliteRuntime.flatMap { it.archiveFile }))
     // Chromium protects its Windows master key with DPAPI. JNA's platform helpers let the app
     // unwrap that key in the same Windows user session without invoking a shell or exposing it.
     implementation("net.java.dev.jna:jna-platform:5.19.1")

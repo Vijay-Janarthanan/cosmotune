@@ -551,8 +551,23 @@ object YtMusicRepository {
      * What YouTube Music would play on after [videoId]. Feeds AutoPlay; the
      * seed track itself comes back first, so callers filter what they have.
      */
-    suspend fun radio(videoId: String): Result<List<Song>> = call("radio:$videoId") {
-        InnertubeParser.parseWatchQueue(Innertube.next(videoId))
+    suspend fun radio(videoId: String, seedSong: Song? = null): Result<List<Song>> {
+        val remote = call("radio:$videoId") { InnertubeParser.parseWatchQueue(Innertube.next(videoId)) }
+        val seed = seedSong ?: remote.getOrNull()?.firstOrNull { it.videoId == videoId } ?: return remote
+        return try {
+            val songs = com.cosmotune.music.data.recommendations.LocalRecommendations.enhance(seed, remote.getOrDefault(emptyList())) { query ->
+                search(query, SearchFilter.SONGS).getOrDefault(emptyList()).mapNotNull {
+                    when (it) {
+                        is SearchResult.Track -> it.song
+                        is SearchResult.TopTrack -> it.song
+                        else -> null
+                    }
+                }
+            }
+            if (songs.isEmpty()) remote else Result.success(songs)
+        } catch (cancel: kotlinx.coroutines.CancellationException) {
+            throw cancel
+        } catch (_: Exception) { remote }
     }
 
     /**

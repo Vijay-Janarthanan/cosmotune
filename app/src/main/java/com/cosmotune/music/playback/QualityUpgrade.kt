@@ -27,9 +27,9 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * So: play whatever can be had now, then look again with no time limit, and
  * swap only if the answer is genuinely the same recording *and* genuinely
- * better than what is playing — which is usually the lossless copy that was
- * asked for, but is also a 320kbps module stream against YouTube's 160kbps
- * Opus. See [SourceResolver.worthSwapping] for where that line is drawn.
+ * better than what is playing. Lossy mid-song changes require comparable
+ * codecs; bitrate alone cannot establish improvement across different codecs
+ * or masters. See [SourceResolver.worthSwapping] for the current policy.
  * The swap is not free — ExoPlayer cannot change sources
  * gaplessly mid-track, so there is a short break in the audio — which is why
  * every guard here errs towards not doing it. A missed upgrade is a quieter
