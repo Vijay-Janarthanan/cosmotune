@@ -1,4 +1,4 @@
-# Package size audit — 1.0.3 preparation
+# Package size audit — 1.0.3
 
 Published 1.0.2 downloads measured from GitHub release metadata:
 
@@ -30,9 +30,34 @@ Measured Windows jars:
 | ONNX Runtime | 51.88 MiB | 5.85 MiB |
 | SQLite JDBC | 13.60 MiB | 0.76 MiB |
 
-This removes about **58.9 MiB** from the Windows dependency payload before installer compression. Actual final installer savings depend on its compression and will be measured from the release assets. The same filtering applies to Linux and both Mac architectures, with their own native folder checks. Tests initialise ONNX with the bundled beat model and execute SQLite SQL against the filtered jars.
+This removes about **58.9 MiB** from the Windows dependency payload before installer compression. Final download measurements are below. The same filtering applies to Linux and both Mac architectures, with their own native folder checks. Tests initialise ONNX with the bundled beat model, run both prediction heads and execute SQLite SQL against the filtered jars.
 
 The new recommendation ranker is **3.19 MB compressed / 4.18 MB mapped**, uses no additional inference runtime, and has a hard 5 MB limit.
+
+## Published download measurements
+
+Measured from [1.0.3 release metadata](https://github.com/Vijay-Janarthanan/cosmotune/releases/tag/v1.0.3), compared with 1.0.2. Values use MiB (1,048,576 bytes), rounded to one decimal. Changes are calculated from unrounded byte counts.
+
+| Package | 1.0.2 | 1.0.3 | Change |
+| --- | ---: | ---: | ---: |
+| Android ARM64 | 62.2 | 65.2 | +3.0 |
+| Android ARMv7 | 53.6 | 56.7 | +3.0 |
+| Android x86-64 | 68.1 | 71.2 | +3.0 |
+| Android universal | 155.3 | 158.3 | +3.0 |
+| Windows setup | 359.6 | 304.1 | −55.5 |
+| Windows MSI | 359.0 | 303.4 | −55.5 |
+| Windows portable | 356.2 | 300.7 | −55.5 |
+| Linux deb | 349.9 | 299.6 | −50.2 |
+| Linux AppImage | 379.5 | 329.1 | −50.4 |
+| Linux rpm | 385.6 | 335.3 | −50.3 |
+| macOS ARM64 DMG | 366.1 | 315.3 | −50.9 |
+| macOS ARM64 PKG | 358.6 | 307.9 | −50.7 |
+| macOS ARM64 ZIP | 358.8 | 308.1 | −50.7 |
+| macOS Intel DMG | 396.4 | 324.4 | −72.0 |
+| macOS Intel PKG | 388.1 | 316.8 | −71.4 |
+| macOS Intel ZIP | 388.1 | 316.7 | −71.4 |
+
+Android grows by about 3 MiB for the bundled recommendation model. Desktop downloads shrink by about 50–72 MiB while including that model. All 32 release assets were verified uploaded; each stable alias matches its versioned file's size and GitHub SHA-256 digest. [All platform builds and checks passed](https://github.com/Vijay-Janarthanan/cosmotune/actions/runs/39966017660), including both macOS startup checks. Physical audio-device listening checks remain separate from build and decoding validation.
 
 ## Further opportunities
 
