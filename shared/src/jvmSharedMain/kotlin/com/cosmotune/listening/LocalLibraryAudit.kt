@@ -248,3 +248,70 @@ fun applySessionFileRepairs(state: ListeningState, repairs: List<SessionFileRepa
         session.copy(tracks = session.tracks.mapIndexed { index, track -> replacements[index]?.after ?: track })
     })
 }
+
+/** Keeping one byte-identical copy: saved references move to it; the other copies may then be trashed by the host. */
+data class DuplicateMergePreview(val keep: LibraryAuditEntry, val remove: List<LibraryAuditEntry>, val repairs: List<SessionFileRepair>)
+
+/**
+ * Only groups whose bytes were verified identical can be merged; similar metadata is never merged.
+ * Each saved entry keeps its own recording ID, queue entry and history; only its local location changes.
+ */
+fun previewDuplicateMerge(state: ListeningState, report: LibraryAuditReport, group: LibraryDuplicateGroup, keepIndex: Int): DuplicateMergePreview {
+    require(group.kind == LibraryDuplicateKind.IDENTICAL_BYTES) { "Only copies with identical bytes can be merged." }
+    require(keepIndex in group.indices) { "Choose a copy from this group." }
+    val keep = report.entries[keepIndex]
+    val remove = group.indices.filter { it != keepIndex }.map { report.entries[it] }
+    require(keep.sha256 != null && remove.all { it.sha256 == keep.sha256 && it.identity != keep.identity }) { "Compare the file bytes again before merging." }
+    val removed = remove.flatMap { listOfNotNull(it.identity, it.song.localPath, it.song.localUri) }.toSet()
+    val repairs = state.sessions.flatMap { session -> session.tracks.mapIndexedNotNull { index, track ->
+        if (track.path !in removed && track.uri !in removed) return@mapIndexedNotNull null
+        SessionFileRepair(session.id, index, track, track.copy(path = keep.song.localPath, uri = keep.song.localUri))
+    } }
+    return DuplicateMergePreview(keep, remove, repairs)
+}
+
+/**
+ * Moved-file reconciliation. A saved location that is now missing is matched to a readable file
+ * whose earlier analysis fingerprint (exact byte size, decoded length and integrated loudness)
+ * agrees, and only when exactly one file does. Needs an analysis made before the move.
+ */
+fun previewMovedFileRepairs(
+    state: ListeningState,
+    analysis: Map<String, com.cosmotune.audio.LibraryAudioAnalysis>,
+    available: (ListeningTrack) -> Boolean,
+): List<SessionFileRepair> {
+    fun same(a: com.cosmotune.audio.LibraryAudioAnalysis, b: com.cosmotune.audio.LibraryAudioAnalysis) =
+        a.bytes != null && a.bytes == b.bytes && kotlin.math.abs(a.durationSeconds - b.durationSeconds) < 0.05 &&
+            a.integratedLufs != null && b.integratedLufs != null && kotlin.math.abs(a.integratedLufs - b.integratedLufs) < 0.05
+    val present = analysis.values.filter { candidate -> available(ListeningTrack(id = candidate.id, title = "", artist = "", path = candidate.location.takeIf { File(it).isAbsolute }, uri = candidate.location.takeUnless { File(it).isAbsolute })) }
+    return state.sessions.flatMap { session -> session.tracks.mapIndexedNotNull { index, track ->
+        val old = (track.path ?: track.uri)?.let(analysis::get) ?: return@mapIndexedNotNull null
+        if (available(track)) return@mapIndexedNotNull null
+        val match = present.filter { it.location != old.location && same(it, old) }.singleOrNull() ?: return@mapIndexedNotNull null
+        val absolute = File(match.location).isAbsolute
+        SessionFileRepair(session.id, index, track, track.copy(path = if (absolute) match.location else null, uri = if (absolute) null else match.location))
+    } }
+}
+
+/**
+ * Lossless upgrade preview. A saved entry whose analysed local file decodes lossy is pointed at a
+ * readable copy of the same recording ID whose analysis decodes lossless without a lossy-looking
+ * spectrum. Only saved references change (atomically, through [applySessionFileRepairs]); audio
+ * files are never overwritten or deleted by an upgrade.
+ */
+fun previewLosslessUpgrades(
+    state: ListeningState,
+    analysis: Map<String, com.cosmotune.audio.LibraryAudioAnalysis>,
+    available: (ListeningTrack) -> Boolean,
+): List<SessionFileRepair> {
+    val better = analysis.values.filter { it.lossless && !it.possibleLossySource }.groupBy { it.id }
+    return state.sessions.flatMap { session -> session.tracks.mapIndexedNotNull { index, track ->
+        val current = (track.path ?: track.uri)?.let(analysis::get)?.takeIf { !it.lossless } ?: return@mapIndexedNotNull null
+        val candidate = better[track.id].orEmpty().filter { it.location != current.location }
+            .map { it to track.copy(path = it.location.takeIf { l -> File(l).isAbsolute }, uri = it.location.takeUnless { l -> File(l).isAbsolute }) }
+            .filter { available(it.second) }
+            .maxByOrNull { (a, _) -> a.sampleRate.toLong() * (a.bitsPerSample ?: 16) }
+            ?: return@mapIndexedNotNull null
+        SessionFileRepair(session.id, index, track, candidate.second.copy(format = candidate.first.codec, quality = candidate.first.codec?.uppercase()))
+    } }
+}

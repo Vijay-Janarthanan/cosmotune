@@ -43,7 +43,12 @@ fun PhoneListeningTools(
         pending?.complete(result.data?.data.takeIf { result.resultCode == Activity.RESULT_OK })
         pending = null
     }
-    DisposableEffect(Unit) { onDispose { pending?.cancel() } }
+    var trashPending by remember { mutableStateOf<CompletableDeferred<Boolean>?>(null) }
+    val trashConsent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        trashPending?.complete(result.resultCode == Activity.RESULT_OK)
+        trashPending = null
+    }
+    DisposableEffect(Unit) { onDispose { pending?.cancel(); trashPending?.cancel() } }
     val downloaded by Downloads.saved.collectAsState()
     val deviceSongs by produceState<List<Song>>(emptyList(), open, downloaded) {
         if (open) value = withContext(Dispatchers.IO) {
@@ -147,6 +152,19 @@ fun PhoneListeningTools(
             }
         },
         libraryAccess = remember(context) { PhoneLibraryAccess(context) },
+        pcmDecoder = remember(context) { PhonePcmDecoder(context) },
+        onLocalFileChanged = { path -> android.media.MediaScannerConnection.scanFile(context, arrayOf(path), null, null) },
+        // Shared-storage media go to the system trash after the platform's own consent dialog; app downloads are managed in Downloads.
+        trashFiles = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) { songs ->
+            val uris = songs.mapNotNull { song -> song.localUri?.let(Uri::parse)?.takeIf { it.scheme == "content" && it.authority == android.provider.MediaStore.AUTHORITY } }
+            if (uris.isEmpty()) 0 else {
+                check(trashPending == null) { "Finish the open confirmation first." }
+                val answer = CompletableDeferred<Boolean>().also { trashPending = it }
+                val request = android.provider.MediaStore.createTrashRequest(context.contentResolver, uris, true)
+                trashConsent.launch(androidx.activity.result.IntentSenderRequest.Builder(request.intentSender).build())
+                if (answer.await()) uris.size else 0
+            }
+        } else null,
         sourceSummary = "Checks use your enabled sources and current streaming quality.",
         languageChoices = listOf("" to context.getString(com.cosmotune.music.R.string.system)) +
             com.cosmotune.music.ui.components.SUPPORTED_LANGUAGES.map { it.tag to context.getString(it.nameRes) },

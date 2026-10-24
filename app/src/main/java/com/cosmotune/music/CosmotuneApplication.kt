@@ -51,6 +51,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         // underneath — settings, the Canvas decoder, outputs, the party.
         AndroidStreamHooks.installEarly()
         PlayerPlatform.install(AndroidPlayerHost(this))
+        // Measured local loudness from Listening tools; loaded off the main thread.
+        com.cosmotune.audio.LibraryLoudness.attach(com.cosmotune.audio.LibraryAnalysisStore.beside(java.io.File(filesDir, "cosmotune-listening.json")))
         com.cosmotune.ui.pages.ArtistVisualSettings.install(AppSettings.signatureApiEnabled, AppSettings.signatureApiUrl)
         com.cosmotune.music.ui.AppUi.install(com.cosmotune.music.ui.AndroidAppUiHost)
         // The shared data layer (lyrics, the YouTube Music client) logs to

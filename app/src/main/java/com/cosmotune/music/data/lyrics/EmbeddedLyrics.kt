@@ -81,6 +81,8 @@ object EmbeddedLyrics {
     private fun read(context: Context, uri: Uri): String? =
         sidecar(uri.path.takeIf { uri.scheme == "file" })
             ?: open(context, uri)?.use { fromBytes(it.readAtMost(MAX_TAG_BYTES)) }
+            // A same-name .lrc beside a readable local file; shared-storage media usually cannot see it.
+            ?: uri.path?.takeIf { uri.scheme == "file" }?.let { LrcSidecar.read(File(it)) }
 
     /**
      * The `lyrics.lrc` written next to the offline package playlist at [path].

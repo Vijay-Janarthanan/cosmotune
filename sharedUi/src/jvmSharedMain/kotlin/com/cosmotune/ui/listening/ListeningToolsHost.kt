@@ -39,6 +39,20 @@ data class ListeningToolsHost(
     val existingUser: Boolean = false,
     val libraryAccess: com.cosmotune.listening.LocalLibraryAccess = com.cosmotune.listening.FileLibraryAccess,
     val remote: ListeningRemoteHost? = null,
+    /** Platform decoder for loudness/quality analysis; WAV is always available. */
+    val pcmDecoder: com.cosmotune.audio.LocalPcmDecoder = com.cosmotune.audio.WavPcmDecoder,
+    val analysisFile: File = com.cosmotune.audio.LibraryAnalysisStore.beside(file),
+    /** Moves local copies to the platform trash and returns how many moved; null where the host cannot. */
+    val trashFiles: (suspend (List<Song>) -> Int)? = null,
+    /** Called after Cosmotune rewrote a local file's tags, so the platform library can rescan it. */
+    val onLocalFileChanged: (String) -> Unit = {},
+    /** Release lookup for followed artists; shared YouTube Music catalogue by default. */
+    val releases: suspend (com.cosmotune.listening.WatchedArtist) -> List<com.cosmotune.listening.ReleaseNotice> = com.cosmotune.listening.ListeningNetwork::releases,
+    /** Reads a linked playlist's current source rows; only `youtube` is linked from this workspace today. */
+    val fetchPlaylist: suspend (String, String) -> com.cosmotune.listening.RemotePlaylist = { source, id ->
+        require(source == "youtube") { "This playlist source is not available." }
+        fetchYouTubePlaylist(id)
+    },
 )
 
 /** Android provider grants cannot be used by a desktop receiving its backup. */

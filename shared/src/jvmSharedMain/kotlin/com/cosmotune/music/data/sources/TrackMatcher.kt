@@ -669,8 +669,13 @@ object TrackMatcher {
         .filter { it.isNotEmpty() }
         .toSet()
 
-    private val atomicArtistNames by lazy {
-        com.cosmotune.music.data.model.ArtistIdentity.protectedNames.flatMap { artistNames(it) }.toSet()
+    @Volatile private var atomicCache: Pair<List<String>, Set<List<String>>>? = null
+    /** Built-in and listener-added one-artist names; rebuilt only when the listener's list changes. */
+    private val atomicArtistNames: Set<List<String>> get() {
+        val users = com.cosmotune.music.data.model.ArtistIdentity.userExceptions
+        atomicCache?.takeIf { it.first === users }?.let { return it.second }
+        return (com.cosmotune.music.data.model.ArtistIdentity.protectedNames + users).flatMap { artistNames(it) }.toSet()
+            .also { atomicCache = users to it }
     }
     private fun sameArtist(a: List<String>, b: List<String>) =
         if (a in atomicArtistNames || b in atomicArtistNames) a == b else runOf(a, b) || runOf(b, a)

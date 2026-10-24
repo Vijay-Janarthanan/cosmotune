@@ -227,7 +227,7 @@ object LocalMediaRepository {
             MediaStore.Audio.Media.DATE_ADDED,
             MediaStore.Audio.Media.DATE_MODIFIED,
             MediaStore.Audio.Media.TRACK,
-        )
+        ) + (if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) arrayOf(MediaStore.Audio.Media.ALBUM_ARTIST) else emptyArray())
 
         val filterNonMusic = AppSettings.filterNonMusicAudio.value
         val selection = if (filterNonMusic) {
@@ -279,6 +279,7 @@ object LocalMediaRepository {
                 val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
                 val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
                 val trackCol = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK)
+                val albumArtistCol = cursor.getColumnIndex("album_artist")
 
                 val albumArtBaseUri = Uri.parse("content://media/external/audio/albumart")
 
@@ -299,7 +300,10 @@ object LocalMediaRepository {
                     val title = rawTitle.cleanTag()?.removeAudioExtension()
                         ?: displayName.substringBeforeLast('.').takeIf { it.isNotBlank() }
                         ?: "Track $id"
-                    val artist = rawArtist.takeUnless { it.isNullOrBlank() || it == "<unknown>" } ?: "Unknown Artist"
+                    // Missing artist tags fall back to the album artist, "Artist - Title" names, then Artist/Album folders.
+                    val artist = com.cosmotune.music.data.model.ArtistIdentity.localArtist(rawArtist,
+                        if (albumArtistCol >= 0) cursor.getString(albumArtistCol) else null, displayName,
+                        path?.let { java.io.File(it).parentFile?.path?.split('/')?.filter(String::isNotBlank) }.orEmpty()) ?: "Unknown Artist"
                     val albumName = rawAlbum.takeUnless { it.isNullOrBlank() || it == "<unknown>" }
                     val artworkUrl = if (albumId > 0) ContentUris.withAppendedId(albumArtBaseUri, albumId).toString() else null
                     val durationText = durationMs.takeIf { it > 0 }?.let(::formatDuration)

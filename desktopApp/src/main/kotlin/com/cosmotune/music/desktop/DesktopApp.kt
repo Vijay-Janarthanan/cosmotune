@@ -6149,7 +6149,7 @@ private fun DesktopSettingsScreen(
                     }
                     SettingsToggle(
                         DesktopStrings["loudness_normalization", "Loudness normalization"],
-                        "Balances YouTube tracks using their loudness metadata. Sources without metadata keep their original level.",
+                        "Balances YouTube tracks using their loudness metadata and local files measured in Listening tools → Library review. Other sources keep their original level.",
                         loudnessNormalization,
                         onLoudnessNormalizationChange,
                     )
