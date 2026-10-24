@@ -3123,7 +3123,25 @@ fun CosmotuneDesktopApp() {
         override fun playback(): com.cosmotune.remote.RemotePlayback {
             val current = playbackEngine.state.value
             return com.cosmotune.remote.RemotePlayback(current.song?.title ?: "Nothing playing", current.song?.artist.orEmpty(),
-                current.isPlaying, current.positionMs, current.durationMs.takeIf { it > 0 }, current.volume)
+                current.isPlaying, current.positionMs, current.durationMs.takeIf { it > 0 }, current.volume,
+                shuffle = shuffle,
+                repeat = when (repeatMode) {
+                    DesktopRepeatMode.OFF -> com.cosmotune.remote.RemoteRepeat.OFF
+                    DesktopRepeatMode.ALL -> com.cosmotune.remote.RemoteRepeat.ALL
+                    DesktopRepeatMode.ONE -> com.cosmotune.remote.RemoteRepeat.ONE
+                },
+                liked = current.song?.let { it.videoId in likedIds })
+        }
+
+        override suspend fun queue(): com.cosmotune.remote.RemoteQueue = withContext(Dispatchers.Main) {
+            val songs = liveQueue.songs
+            val at = liveQueue.index
+            if (at !in songs.indices) return@withContext com.cosmotune.remote.RemoteQueue()
+            // One played row for context, the playing one, and what follows.
+            val rows = ((at - 1).coerceAtLeast(0)..(at + 50).coerceAtMost(songs.lastIndex)).map { i ->
+                com.cosmotune.remote.RemoteQueueItem(i, songs[i].title, songs[i].artist)
+            }
+            com.cosmotune.remote.RemoteQueue(at, rows)
         }
 
         private fun candidates(): Sequence<Song> = sequence {
@@ -3141,7 +3159,9 @@ fun CosmotuneDesktopApp() {
 
         override suspend fun command(command: com.cosmotune.remote.RemoteCommand) = withContext(Dispatchers.Main) {
             if (command.action in setOf(com.cosmotune.remote.RemoteAction.NEXT, com.cosmotune.remote.RemoteAction.PREVIOUS,
-                    com.cosmotune.remote.RemoteAction.SEEK, com.cosmotune.remote.RemoteAction.PLAY_TRACK)) {
+                    com.cosmotune.remote.RemoteAction.SEEK, com.cosmotune.remote.RemoteAction.PLAY_TRACK,
+                    com.cosmotune.remote.RemoteAction.SHUFFLE, com.cosmotune.remote.RemoteAction.REPEAT,
+                    com.cosmotune.remote.RemoteAction.PLAY_QUEUE_INDEX)) {
                 check(!DesktopListenTogether.state.value.controlsLocked) { "Listen Together controls are locked" }
             }
             when (command.action) {
@@ -3160,6 +3180,22 @@ fun CosmotuneDesktopApp() {
                     val song = checkNotNull(candidates().firstOrNull { it.videoId == command.trackId }) { "This library entry is no longer available" }
                     playSongs(listOf(song))
                 }
+                com.cosmotune.remote.RemoteAction.SHUFFLE -> setShuffle(!shuffle)
+                // The player's own order: off, all, one.
+                com.cosmotune.remote.RemoteAction.REPEAT -> {
+                    repeatMode = when (repeatMode) {
+                        DesktopRepeatMode.OFF -> DesktopRepeatMode.ALL
+                        DesktopRepeatMode.ALL -> DesktopRepeatMode.ONE
+                        DesktopRepeatMode.ONE -> DesktopRepeatMode.OFF
+                    }
+                    persistence.saveString("repeat_mode", repeatMode.name)
+                }
+                com.cosmotune.remote.RemoteAction.LIKE -> toggleLike(checkNotNull(playbackEngine.state.value.song) { "Nothing is playing" })
+                com.cosmotune.remote.RemoteAction.PLAY_QUEUE_INDEX -> {
+                    val index = checkNotNull(command.index)
+                    check(index in liveQueue.songs.indices) { "That queue entry has gone" }
+                    playQueueIndex(index)
+                }
             }
         }
     })
@@ -3168,6 +3204,7 @@ fun CosmotuneDesktopApp() {
             override fun playback() = remoteDelegate.value.playback()
             override suspend fun command(command: com.cosmotune.remote.RemoteCommand) = remoteDelegate.value.command(command)
             override suspend fun search(query: String) = remoteDelegate.value.search(query)
+            override suspend fun queue() = remoteDelegate.value.queue()
         })
     }
     DisposableEffect(phoneRemote) { onDispose { phoneRemote.close() } }
