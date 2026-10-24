@@ -260,6 +260,9 @@ private const val DRIFT_RADIANS = (PI * 0.45f).toFloat()
  * purple. So the whole swatch list is read instead, and any shortfall is
  * derived from the art's own colours rather than borrowed.
  */
+/** The same cover-derived colours for the lightweight Wear OS state payload. */
+fun artworkMeshColors(bitmap: ImageBitmap): List<Color> = paletteOf(bitmap)
+
 private fun paletteOf(bitmap: ImageBitmap): List<Color> {
     fun swatchesOf(clearFilters: Boolean): List<Color> =
         paletteSwatches(bitmap, 24, clearFilters)

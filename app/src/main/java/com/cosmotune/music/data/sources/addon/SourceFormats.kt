@@ -1,5 +1,7 @@
 package com.cosmotune.music.data.sources.addon
 
+import com.cosmotune.music.data.sources.readAddonJsonBody
+
 import com.cosmotune.music.data.Http
 import com.cosmotune.music.data.TrackLog
 import kotlinx.coroutines.Dispatchers
@@ -217,7 +219,7 @@ object SourceFormats {
                 if (response.code >= 500) throw AddonUnavailable("HTTP ${response.code}")
                 throw AddonException("HTTP ${response.code}")
             }
-            response.body?.string()?.takeIf { it.isNotBlank() }
+            response.body?.readAddonJsonBody()?.takeIf { it.isNotBlank() }
                 ?: throw AddonException("Empty response")
         }
     }.onFailure {

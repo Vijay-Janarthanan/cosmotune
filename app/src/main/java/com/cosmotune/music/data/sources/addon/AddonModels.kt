@@ -47,10 +47,9 @@ data class AddonManifest(
     /**
      * The settings schema the addon declares, when it declares one.
      *
-     * Read for its *defaults*, not to build a UI. The protocol has the host
+     * Used for the source settings form and request defaults. The protocol has the host
      * render a form for these and send whatever the user picked back as query
-     * parameters on every request; Cosmotune has no such form, so it sends the
-     * declared defaults instead. That is explicitly enough — the spec says an
+     * parameters on every request; Cosmotune sends the chosen values, falling back to declared defaults. That is explicitly enough — the spec says an
      * addon "that never reads a setting still behaves correctly", and the
      * default is what the reference host sends until a user changes something.
      * What it buys is the addon that gates its lossless tier behind a
@@ -98,18 +97,14 @@ data class AddonManifest(
     val displayName: String get() = name.ifBlank { id }
 }
 
-/**
- * One declared setting, reduced to the two things this app does with it.
- *
- * [default] is what gets sent, and [options] is what a `quality` request is
- * matched against — see [AddonClient.settingsFor]. The rest of the schema is a
- * form description: a type, a label, a help line, bounds. The reference host
- * renders a form from those; this app does not, and carrying fields nothing
- * reads would make the class look like it presents a UI it has no part in.
- */
+/** Declared form fields and defaults; chosen primitive values travel as source query parameters. */
 @Serializable
 data class AddonSetting(
     @SerialName("key") val key: String = "",
+    @SerialName("label") val label: String = "",
+    @SerialName("type") val type: String = "string",
+    @SerialName("description") val description: String = "",
+    @SerialName("secret") val secret: Boolean = false,
     @SerialName("default") val default: JsonElement? = null,
     @SerialName("options") val options: List<AddonSettingOption> = emptyList(),
 ) {
@@ -120,10 +115,19 @@ data class AddonSetting(
 /** One choice in a select. Only the value travels; the label is the host's to draw. */
 @Serializable
 data class AddonSettingOption(
+    @SerialName("label") val label: String = "",
     @SerialName("value") val value: JsonElement? = null,
 ) {
     val stringValue: String? get() = value?.asQueryValue()
 }
+
+fun AddonSetting.forEditor() = com.cosmotune.providers.ProviderSetting(
+    key = key, label = label, type = type, default = default ?: JsonNull, description = description, secret = secret,
+    options = options.map { option -> kotlinx.serialization.json.JsonObject(buildMap {
+        put("value", option.value ?: JsonNull)
+        if (option.label.isNotBlank()) put("label", JsonPrimitive(option.label))
+    }) },
+)
 
 // ── Search ───────────────────────────────────────────────────────────────
 
@@ -197,7 +201,13 @@ data class AddonTrack(
         get() = atmos == true || ATMOS_HINT.containsMatchIn(
             "$audioQuality ${audioMode.orEmpty()} ${audioModes.joinToString(" ")} $format",
         )
+
+    /** Whether the row names the hi-res tier — Tidal's `HI_RES_LOSSLESS`, `hires-96`, `24-bit`. */
+    val isHiRes: Boolean get() = HI_RES_HINT.containsMatchIn("$audioQuality $format")
 }
+
+/** How a row spells the hi-res lossless tier in its quality label. */
+private val HI_RES_HINT = Regex("""hi[-_ ]?res|24[-_ ]?bit""", RegexOption.IGNORE_CASE)
 
 /**
  * The spellings an addon uses for an immersive mix, in any free-text field.

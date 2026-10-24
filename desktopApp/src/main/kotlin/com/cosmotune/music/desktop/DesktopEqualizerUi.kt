@@ -271,6 +271,7 @@ private fun TonePad(x: Int, y: Int, onChange: (Int, Int) -> Unit) {
     // scope then. Read through these and a second drag starts from where the puck actually is.
     val latestX by rememberUpdatedState(x)
     val latestY by rememberUpdatedState(y)
+    val currentOnChange by rememberUpdatedState(onChange)
 
     // Spring, not tween: the puck has to keep up with a fast drag and still settle rather than
     // arrive and stop dead.
@@ -301,7 +302,7 @@ private fun TonePad(x: Int, y: Int, onChange: (Int, Int) -> Unit) {
                         if (newX != lastX || newY != lastY) {
                             lastX = newX
                             lastY = newY
-                            onChange(newX, newY)
+                            currentOnChange(newX, newY)
                         }
                     }
                     report(down.position)
@@ -441,6 +442,8 @@ private fun BandSliders(bands: List<Float>, modifier: Modifier = Modifier, onCha
 private fun BandFader(value: Float, onChange: (Float) -> Unit) {
     val range = EqLayout.MANUAL_RANGE_DB
     val latest by rememberUpdatedState(value)
+    // The caller's lambda closes over the whole band list; a stale one writes the other bands back.
+    val currentOnChange by rememberUpdatedState(onChange)
 
     Canvas(
         Modifier
@@ -458,7 +461,7 @@ private fun BandFader(value: Float, onChange: (Float) -> Unit) {
                         val snapped = snapGain((1f - fraction * 2f) * range, range)
                         if (abs(snapped - last) > 0.001f) {
                             last = snapped
-                            onChange(snapped)
+                            currentOnChange(snapped)
                         }
                     }
                     report(down.position)
@@ -556,6 +559,7 @@ private fun PresetList(selected: EqualizerPreset, modifier: Modifier = Modifier)
 @Composable
 private fun BalanceControl(balance: Float, onChange: (Float) -> Unit) {
     val latest by rememberUpdatedState(balance)
+    val currentOnChange by rememberUpdatedState(onChange)
     Column(Modifier.padding(horizontal = panelInset(22.dp))) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(DesktopStrings["equalizer_balance_left", "L"], style = MaterialTheme.typography.bodyMedium, color = Color.White)
@@ -585,7 +589,7 @@ private fun BalanceControl(balance: Float, onChange: (Float) -> Unit) {
                             val snapped = if (abs(raw) < BALANCE_DETENT) 0f else raw
                             if (abs(snapped - last) > 0.004f) {
                                 last = snapped
-                                onChange(snapped)
+                                currentOnChange(snapped)
                             }
                         }
                         report(down.position)

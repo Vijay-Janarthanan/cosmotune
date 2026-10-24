@@ -1,0 +1,328 @@
+{
+  "revision": "edc1e6f36febf71a118e649411d2fc21b70ead45",
+  "licence": "GPLv3; see root LICENSE and NOTICE.md",
+  "files": [
+    {
+      "sourceSha256": "a353f560712ea3df83f78acfde03217b2fffe2004c33975e72b04083422401f3",
+      "target": "tv/src/dev/AndroidManifest.xml",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0001"
+    },
+    {
+      "sourceSha256": "9e81c14f6f2f76200d64057cdea5e3917c3fd7e611ecbd49978e54855ed08cab",
+      "target": "tv/src/main/AndroidManifest.xml",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0002"
+    },
+    {
+      "sourceSha256": "cd36e48db6a68868861746dc4923cfaa39225b03a2fcddf240ca1c4069814c3a",
+      "target": "tv/src/main/java/com/cosmotune/music/data/settings/TvPinThrottle.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0003"
+    },
+    {
+      "sourceSha256": "c0fd229cce32bea6cdc1ef311566fad10278a3ea5b65fb9bc4728772f4654e53",
+      "target": "tv/src/main/java/com/cosmotune/music/data/settings/TvSettings.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0004"
+    },
+    {
+      "sourceSha256": "1f07330ff275e708c0786883aa79cec3842ec3f8dae4fac2c8237e72fabbc7d0",
+      "target": "tv/src/main/java/com/cosmotune/music/data/TvStartup.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0005"
+    },
+    {
+      "sourceSha256": "10a28be743997ca2fb376b7bcaf58df0c853499a1b92bc16a4d893a4dade2db5",
+      "target": "tv/src/main/java/com/cosmotune/music/data/TvUsbMusic.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0006"
+    },
+    {
+      "sourceSha256": "057e45086066b4eb3c13f06ef03967b67895cc721a597e141ed68f27bb77f621",
+      "target": "tv/src/main/java/com/cosmotune/music/TvActivity.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0007"
+    },
+    {
+      "sourceSha256": "c3e48f40a6a4583122cc08852b3fd6938ae16c2de7198cb3c037cf245a440bc0",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/audio/TvSpatialAudioEngine.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0008"
+    },
+    {
+      "sourceSha256": "6d7fc7a98ba2d99895059cb86d0b16e33b1fcdd1bb6bc9cd310930fad47f63a1",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/auth/QrCodeGenerator.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0009"
+    },
+    {
+      "sourceSha256": "6a3372ca1b6a90fce79d55f59b6d6b3e838106976b2beb68bddaa4633225894e",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/auth/TvQrCodeView.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0010"
+    },
+    {
+      "sourceSha256": "f721f1b1813914b15279f229174d2b3901de5815eb617899a97be2a830e6feb1",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/components/TvComponents.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0011"
+    },
+    {
+      "sourceSha256": "6cf49f1834052f1ee90e2acf7f6b2b9046447118fa44fc47c0a6d1dcc412dc3f",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/components/TvKit.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0012"
+    },
+    {
+      "sourceSha256": "505639c732d4ef2419582b8bf109df1f39fdeaf741c3cc8fbeb3bafaca1ae49d",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/components/TvMiniEqualizer.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0013"
+    },
+    {
+      "sourceSha256": "a91cf1241f17b3df364b0741a17918fdb8cca8eb78227396cbb5512d249cf764",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/DeviceType.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0014"
+    },
+    {
+      "sourceSha256": "00dc5132fd5dee89d6355eec6f79620397fdd4355039125b90e4abc56551ac37",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/dialogs/TvDialogs.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0015"
+    },
+    {
+      "sourceSha256": "c0197662fbb97b69cd504b15a96952497242a1dfa17f77858f39718324d1dbf3",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/dialogs/TvEqualizerDialog.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0016"
+    },
+    {
+      "sourceSha256": "59bda6874396ef3079972422b96c3e024be7f930a78ab73d87b7e7337b5e1f73",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/dialogs/TvSongActionsDialog.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0017"
+    },
+    {
+      "sourceSha256": "e5fc47a01fb97e638cf52f5269fd9df2915bbfcef710f85454fec0152ade72e9",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/dialogs/TvUpdateDialog.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0018"
+    },
+    {
+      "sourceSha256": "50470c425a8cae9506c8b5d12e85097759a5c03fdbf5860496d7d92d48ed4693",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/display/TvDisplayCapabilitiesReader.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0019"
+    },
+    {
+      "sourceSha256": "77bc4cca3327cf18686a6c04fe1a23048af29b818fb90e2a448e0ecedfa29f12",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/display/TvDisplayModels.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0020"
+    },
+    {
+      "sourceSha256": "b11ed9d11032a249d332bd7c8cfe070ad7105cf2de63e6cd4b924ab26ffcff0d",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/display/TvRefreshRateController.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0021"
+    },
+    {
+      "sourceSha256": "7fc96df3e899ff59ae8b5545ace094e9d10bb0c54bfc3161b7acb0cc6a2c81c8",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/onboarding/TvSetupScreen.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0022"
+    },
+    {
+      "sourceSha256": "d7c0e83f06e28ad7e62d3185e4d6c27cf9814df1b7e4aaadb3f8032e00578e64",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/personalization/PersonalizationModels.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0023"
+    },
+    {
+      "sourceSha256": "2ebe5283b3f01d1d17b8f4642a48526c76c45e31a6cc266c84775a56828e22e2",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/player/TvNowPlayingParts.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0024"
+    },
+    {
+      "sourceSha256": "d469a2f1a8f268ce2fce46ce9599c5c0f9b52dded7fefceb7ea25ad84e10e0f9",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/player/TvNowPlayingScreen.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0025"
+    },
+    {
+      "sourceSha256": "f609c7a2e4005ad0541c49163c47db124554fc028df79898da2fd45f1137941d",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/screens/TvArtistPage.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0026"
+    },
+    {
+      "sourceSha256": "380099ea77d300f29d254e1c3f975b62ff7a2fe72097102c29acf71c93121259",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/screens/TvDetailParts.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0027"
+    },
+    {
+      "sourceSha256": "a43fe0053e1fdac004e539b6e0918406812399f4539d8a2180a9fabc6aa58644",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/screens/TvDetailScreen.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0028"
+    },
+    {
+      "sourceSha256": "ad3415a608892a29e39f3ead389f444288db3d427461797b7ca9476e1840da9e",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/screens/TvExploreScreen.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0029"
+    },
+    {
+      "sourceSha256": "b9d2db387f18f5c6580f6a32d7590d260a461cb86b330997c18076d9b4815e56",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/screens/TvHomeScreen.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0030"
+    },
+    {
+      "sourceSha256": "20dea029b47b1e13b0240046e0066c19a628867074ed57eaf39378b50e4ae4ec",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/screens/TvLibraryScreen.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0031"
+    },
+    {
+      "sourceSha256": "b1df7ce2109ac442c2582337030aa7a79187e122f071125a1a05556aeca087dd",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/screens/TvSearchScreen.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0032"
+    },
+    {
+      "sourceSha256": "5e35b0c34f789ab2630f980dabde06a31244d41be389eba2ddaae1a2293eb50c",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/screens/TvSettingsScreen.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0033"
+    },
+    {
+      "sourceSha256": "545e90ede2e3aeaf08113ff95f138bf88886722c1b0b1164584a1674ddf687ed",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/theme/TvMotion.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0034"
+    },
+    {
+      "sourceSha256": "8a9e02d6340a7194cac10f04b911b409cb2824ebbeb1b58e64fff63d7f94782b",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/theme/TvTheme.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0035"
+    },
+    {
+      "sourceSha256": "d9102f227ab2db28690bf24303babfc8fe85bd8835231ac49af2831713713cea",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/tv/TvApp.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0036"
+    },
+    {
+      "sourceSha256": "8be816150933bc45270e30c89b0ba24f558342cabc86ae7ae9e6300279c0c5e4",
+      "target": "tv/src/main/java/com/cosmotune/music/ui/TvSignIn.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0037"
+    },
+    {
+      "sourceSha256": "ec5d7e829284947d96f98960562f928b54d485aea9089088648675e375a605b9",
+      "target": "tv/src/main/java/com/cosmotune/music/wear/WatchInstaller.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0038"
+    },
+    {
+      "sourceSha256": "9265ec19d683bd78910c781843980926a6c093546ab275bc9d5f657c4479aae6",
+      "target": "tv/src/main/java/com/cosmotune/music/wear/WearBridge.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0039"
+    },
+    {
+      "sourceSha256": "2897966cefae15bb547640d57e1451fe437bd5d154d0a9ca19245065c748a66e",
+      "target": "tv/src/main/res/drawable/ic_lyrics_bubble.xml",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0040"
+    },
+    {
+      "sourceSha256": "1a90feb2f460b024192b479d98dfebc94c78c179e71909910a0c979ad8fa1405",
+      "target": "tv/src/main/res/values/tv_themes.xml",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0041"
+    },
+    {
+      "sourceSha256": "b7e268a3b1424601e12ef3568b2f74293e4a9eea4d05bbf075ed4a5918ce134c",
+      "target": "tv/src/test/java/com/cosmotune/music/data/settings/TvPinThrottleTest.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0042"
+    },
+    {
+      "sourceSha256": "264a22afa8ced344a9390ee87e29576d4cb85373050197a406639a6fa9d65c48",
+      "target": "tv/src/test/java/com/cosmotune/music/data/settings/TvSettingsPinTest.kt",
+      "adaptations": "Package/product rename, Cosmotune graph/fonts, native TV sign-in; remove legacy cookie server",
+      "sourceRecord": "TV-0043"
+    }
+  ],
+  "excluded": [
+    {
+      "sha256": "048e67549408dc890052abd081340b5907c7e389e4cc3f96ef2c5c2a0e6556bd",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-001"
+    },
+    {
+      "sha256": "f303e21216d31d87a9b370ef1624fbacc4d666a2577dc3409f7ee09e7ec7b543",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-002"
+    },
+    {
+      "sha256": "d350d795b8a2c0488a8505e9e9d1cb76d8da6438307aa846159849cf63a4ed33",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-003"
+    },
+    {
+      "sha256": "828cd8ed60c6bc5d35e137b4c00578ec278718e1549c1fedbdb770e1188f10e2",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-004"
+    },
+    {
+      "sha256": "828cd8ed60c6bc5d35e137b4c00578ec278718e1549c1fedbdb770e1188f10e2",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-005"
+    },
+    {
+      "sha256": "828cd8ed60c6bc5d35e137b4c00578ec278718e1549c1fedbdb770e1188f10e2",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-006"
+    },
+    {
+      "sha256": "828cd8ed60c6bc5d35e137b4c00578ec278718e1549c1fedbdb770e1188f10e2",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-007"
+    },
+    {
+      "sha256": "baf49bbad31bba9afb9f18b2feff9871aa248548bf3e15b58ececde099fb1dfa",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-008"
+    },
+    {
+      "sha256": "0cdf0063c8c613033b911b0eb7162aa0a3931b4129ba193163e71dc7d8e16e4b",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-009"
+    },
+    {
+      "sha256": "974ee8402aed7391f8ed35155db12950697bcbbe3ad01abfb81718b65cb1960d",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-010"
+    },
+    {
+      "sha256": "ebc7a7be9f69479f02875af1fe79a2b93cc868b83be4f6369ecceb45fabe5ee6",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-011"
+    },
+    {
+      "sha256": "2a7216d047fd2991aa8a2fcbc002e0782a903d68de3cc248092ffa88aa941b4f",
+      "reason": "Own build/docs/paired remote/brand banner; use existing fonts or system families",
+      "sourceRecord": "TV-X-012"
+    }
+  ],
+  "sourceLedger": "FORK.md#companion-source-records (repository/archive root)",
+  "authorshipNotice": "NOTICE.md (repository/archive root)"
+}

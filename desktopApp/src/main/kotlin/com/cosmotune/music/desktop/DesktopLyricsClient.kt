@@ -69,11 +69,18 @@ object DesktopLyricsClient {
     /**
      * The track's lyrics from the configured providers — or, with [only], from that one provider,
      * which is how the player's provider picker asks for a specific source's answer.
+     *
+     * [onSourceStarted] and [onSourceResult] report each provider's race as it runs, so the song
+     * menu's provider drawer can show what each one turned up rather than only the winner. They
+     * fire off the IO dispatcher and only for a lookup that actually reaches the network — a cache
+     * hit or a local file's embedded words return at once and report nothing.
      */
     suspend fun lookup(
         song: Song,
         durationMs: Long = song.durationMillis(),
         only: String? = null,
+        onSourceStarted: ((LyricsSource) -> Unit)? = null,
+        onSourceResult: ((LyricsSource, Boolean) -> Unit)? = null,
     ): Result<DesktopLyrics> {
         val persistence = DesktopPersistence()
         // Off in Settings means no lookup at all rather than a lookup nobody sees.

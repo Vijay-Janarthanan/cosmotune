@@ -1,13 +1,12 @@
 package com.cosmotune.music.desktop
 
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
+import com.cosmotune.music.data.downloads.OfflineDashManifest
+import com.cosmotune.music.data.downloads.OfflineHlsManifest
+import com.cosmotune.music.data.downloads.ManifestDownloadTransport
+import okhttp3.OkHttpClient
 import java.io.File
 import java.io.OutputStream
-import java.net.URI
 import java.util.Locale
-import kotlin.math.ceil
-import kotlin.math.max
 
 /**
  * A download whose URL is an HLS or DASH manifest, saved as one ordinary audio file.
@@ -25,6 +24,10 @@ import kotlin.math.max
  *    dropped and one `sidx` for the whole file added, so other players can seek it too.
  */
 internal object DesktopManifestDownload {
+    internal const val MAX_SEGMENTS = ManifestDownloadTransport.MAX_SEGMENTS
+    internal const val MAX_MANIFEST_BYTES = ManifestDownloadTransport.MAX_MANIFEST_BYTES
+    internal const val MAX_SEGMENT_BYTES = ManifestDownloadTransport.MAX_SEGMENT_BYTES
+    internal const val MAX_DOWNLOAD_BYTES = ManifestDownloadTransport.MAX_DOWNLOAD_BYTES
 
     /** Whether [stream] points at an index of the audio rather than the audio. */
     fun isManifest(stream: DesktopStream): Boolean = transportOf(stream) != null
@@ -45,56 +48,56 @@ internal object DesktopManifestDownload {
         sink: OutputStream,
         tempDir: File,
         userAgent: String,
+        client: OkHttpClient = DesktopDownloadHttp.client,
         onProgress: (done: Long, total: Long) -> Unit,
-    ) {
-        fun fetch(target: String): ByteArray =
-            DesktopDownloadHttp.client.newCall(DesktopDownloadHttp.request(target, userAgent, stream.headers))
-                .execute()
-                .use { response ->
-                    check(response.isSuccessful) { "Segment failed (HTTP ${response.code})" }
-                    response.body.bytes()
-                }
-
-        val base = URI(stream.url)
-        val index = String(fetch(stream.url), Charsets.UTF_8)
+    ) = ManifestDownloadTransport.run(stream.url, stream.headers, userAgent, client) { transfer ->
+        val index = transfer.read(stream.url, MAX_MANIFEST_BYTES).toString(Charsets.UTF_8)
         val (initRef, mediaRefs) = if (transportOf(stream) == DesktopAddonStream.DASH) {
             parseDash(index).let { it.initialization to it.media }
-        } else {
-            hlsSegments(index)
-        }
-        fun resolve(ref: String) = base.resolve(ref).toString()
+        } else hlsSegments(index)
+        val init = transfer.read(transfer.resolve(initRef), 8 * 1024 * 1024)
         val total = mediaRefs.size + 1L
-
-        val init = fetch(resolve(initRef))
         onProgress(1, total)
-        val scope = currentCoroutineContext()
-        // Lazy, so a hi-res track is never more than one segment in memory.
         val media = mediaRefs.asSequence().mapIndexed { i, ref ->
-            scope.ensureActive()
-            fetch(resolve(ref)).also { onProgress(i + 2L, total) }
+            transfer.read(transfer.resolve(ref), MAX_SEGMENT_BYTES).also { onProgress(i + 2L, total) }
         }
-        assemble(tempDir, extension, init, media, sink)
+        assemble(tempDir, extension, init, media, sink, transfer.checkCancelled)
         sink.flush()
     }
 
     /** Everything after the fetching: [init] and [media] in, one [extension] file out. */
-    internal fun assemble(tempDir: File, extension: String, init: ByteArray, media: Sequence<ByteArray>, sink: OutputStream) {
+    internal fun assemble(tempDir: File, extension: String, init: ByteArray, media: Sequence<ByteArray>, sink: OutputStream, checkCancelled: () -> Unit = {}) {
+        require(init.size <= 8 * 1024 * 1024)
+        var bytes = init.size.toLong()
+        var count = 0
+        fun validateBoxes(value: ByteArray) {
+            val boxes = Mp4.boxes(value)
+            require(boxes.isNotEmpty() && boxes.last().end == value.size) { "Incomplete MP4 fragment" }
+        }
+        validateBoxes(init)
+        val bounded = media.map { segment ->
+            checkCancelled()
+            require(++count <= MAX_SEGMENTS && segment.size <= MAX_SEGMENT_BYTES)
+            bytes += segment.size; require(bytes <= MAX_DOWNLOAD_BYTES)
+            validateBoxes(segment)
+            segment
+        }
         when (extension) {
-            "flac" -> writeFlac(tempDir, init, media, sink)
+            "flac" -> writeFlac(tempDir, init, bounded, sink, checkCancelled)
             else -> {
                 // Joined in a temporary file first, because the whole-file index goes in front.
                 val joined = File.createTempFile("manifest-", ".m4a", tempDir)
                 try {
                     joined.outputStream().buffered().use { out ->
                         out.write(init)
-                        media.forEach { segment ->
+                        bounded.forEach { segment ->
+                            checkCancelled()
                             Mp4.boxes(segment).filter { it.type != "styp" && it.type != "sidx" }.forEach {
                                 out.write(segment, it.offset, it.size)
                             }
                         }
                     }
-                    val bytes = joined.readBytes()
-                    sink.write(Mp4.withSidx(bytes))
+                    DesktopFragmentIndex.copyIndexed(joined, init, sink, checkCancelled)
                 } finally {
                     joined.delete()
                 }
@@ -111,92 +114,17 @@ internal object DesktopManifestDownload {
      * rendition — lossless if there is one, else the highest bandwidth. Tidal lists HE-AAC first
      * and FLAC last, so "the first template in the file" is the 97 kbps one.
      */
-    internal fun parseDash(manifest: String): Plan {
-        if (Regex("<ContentProtection", RegexOption.IGNORE_CASE).containsMatchIn(manifest)) {
-            error("Encrypted DASH cannot be saved")
-        }
-        if (Regex("<Period[\\s>]").findAll(manifest).count() > 1) error("Multi-period DASH cannot be saved")
-        val scope = bestRendition(manifest)?.takeIf { Regex("<SegmentTemplate", RegexOption.IGNORE_CASE).containsMatchIn(it) }
-            ?: manifest
-        val template = Regex("<SegmentTemplate([^>]*)>", RegexOption.IGNORE_CASE).find(scope)?.groupValues?.get(1)
-            ?: error("DASH manifest has no segment template")
-        fun attr(name: String) =
-            Regex("""\b$name\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE).find(template)?.groupValues?.get(1)
-
-        val initialization = attr("initialization")?.let(::unescape) ?: error("DASH manifest has no initialization segment")
-        val mediaTemplate = attr("media")?.let(::unescape) ?: error("DASH manifest has no media template")
-        if (!mediaTemplate.contains("\$Number\$")) error("Unsupported DASH media template")
-        val timescale = attr("timescale")?.toDoubleOrNull()?.takeIf { it > 0 } ?: 1.0
-        val startNumber = attr("startNumber")?.toIntOrNull() ?: 1
-
-        var count = 0
-        Regex("<SegmentTimeline>(.*?)</SegmentTimeline>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-            .find(scope)?.groupValues?.get(1)
-            ?.let { timeline ->
-                Regex("<S\\b([^>]*)/?>", RegexOption.IGNORE_CASE).findAll(timeline).forEach { entry ->
-                    val body = entry.groupValues[1]
-                    if (Regex("""\bd\s*=\s*"\d+"""").containsMatchIn(body)) {
-                        // `r` is how many times the entry *repeats*: r="56" is 57 segments.
-                        count += (Regex("""\br\s*=\s*"(\d+)"""").find(body)?.groupValues?.get(1)?.toIntOrNull() ?: 0) + 1
-                    }
-                }
-            }
-        if (count == 0) {
-            val d = attr("duration")?.toLongOrNull()?.takeIf { it > 0 }
-                ?: error("DASH manifest has neither a timeline nor a segment duration")
-            val total = Regex("""mediaPresentationDuration\s*=\s*"([^"]*)"""").find(manifest)
-                ?.groupValues?.get(1)?.let(::isoSeconds)
-                ?: error("DASH manifest states no duration")
-            count = max(1, ceil(total / (d / timescale)).toInt())
-        }
-        return Plan(initialization, (0 until count).map { mediaTemplate.replace("\$Number\$", (startNumber + it).toString()) })
-    }
-
-    /** The body of the rendition to keep, or null when the manifest lists none. */
-    private fun bestRendition(manifest: String): String? = Regex(
-        """<Representation\b([^>]*?)(?:/>|>(.*?)</Representation>)""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
-    ).findAll(manifest).maxWithOrNull(
-        compareBy(
-            { match ->
-                val codecs = Regex("""\bcodecs\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE)
-                    .find(match.groupValues[1])?.groupValues?.get(1).orEmpty().lowercase(Locale.ROOT)
-                codecs.startsWith("flac") || codecs.startsWith("alac")
-            },
-            { match ->
-                Regex("""\bbandwidth\s*=\s*"(\d+)"""", RegexOption.IGNORE_CASE)
-                    .find(match.groupValues[1])?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-            },
-        ),
-    )?.groupValues?.get(2)
-
-    private fun unescape(value: String) = value
-        .replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
-
-    /** `PT3M50.461S` → `230.461`. */
-    private fun isoSeconds(value: String): Double? {
-        val match = Regex("""PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?""").find(value) ?: return null
-        val (h, m, s) = match.destructured
-        return ((h.toDoubleOrNull() ?: 0.0) * 3600 + (m.toDoubleOrNull() ?: 0.0) * 60 + (s.toDoubleOrNull() ?: 0.0))
-            .takeIf { it > 0 }
-    }
+    internal fun parseDash(manifest: String): Plan = OfflineDashManifest.parse(manifest).let { Plan(it.initialization, it.media) }
 
     // ── HLS ──────────────────────────────────────────────────────────────
 
-    internal fun hlsSegments(playlist: String): Pair<String, List<String>> {
-        if (!playlist.startsWith("#EXTM3U")) error("Invalid HLS playlist")
-        if (playlist.contains("#EXT-X-KEY:") && !playlist.contains("METHOD=NONE")) error("Encrypted HLS cannot be saved")
-        val init = Regex("""#EXT-X-MAP:.*URI="([^"]+)"""").find(playlist)?.groupValues?.get(1)
-            ?: error("HLS playlist has no initialisation segment")
-        val media = playlist.lineSequence().map(String::trim).filter { it.isNotEmpty() && !it.startsWith('#') }.toList()
-        if (media.isEmpty()) error("HLS playlist has no fragments")
-        return init to media
-    }
+    internal fun hlsSegments(playlist: String): Pair<String, List<String>> =
+        OfflineHlsManifest.parse(playlist, requireInitialization = true).let { requireNotNull(it.initialization) to it.media }
 
     // ── FLAC ─────────────────────────────────────────────────────────────
 
     /** FLAC-in-MP4 to native FLAC; frames go to a temporary file until STREAMINFO's total is known. */
-    private fun writeFlac(tempDir: File, init: ByteArray, media: Sequence<ByteArray>, sink: OutputStream) {
+    private fun writeFlac(tempDir: File, init: ByteArray, media: Sequence<ByteArray>, sink: OutputStream, checkCancelled: () -> Unit) {
         val track = Mp4.track(init) ?: error("Not an MP4 initialisation segment")
         val stsd = Mp4.find(init, "moov", "trak", "mdia", "minf", "stbl", "stsd") ?: error("No sample description")
         val entry = Mp4.boxes(init, stsd.content + 8, stsd.end).firstOrNull()
@@ -211,6 +139,7 @@ internal object DesktopManifestDownload {
             var ticks = 0L
             frames.outputStream().buffered().use { out ->
                 media.forEach { segment ->
+                    checkCancelled()
                     Mp4.boxes(segment).filter { it.type == "moof" }.forEach { moof ->
                         val samples = Mp4.samples(segment, moof, track) ?: error("Unreadable FLAC fragment")
                         samples.forEach {
@@ -235,7 +164,10 @@ internal object DesktopManifestDownload {
                 sink.write(byteArrayOf((last or type).toByte(), (body.size shr 16).toByte(), (body.size shr 8).toByte(), body.size.toByte()))
                 sink.write(body)
             }
-            frames.inputStream().use { it.copyTo(sink) }
+            frames.inputStream().use { input ->
+                val buffer = ByteArray(32 * 1024)
+                while (true) { checkCancelled(); val count = input.read(buffer); if (count < 0) break; sink.write(buffer, 0, count) }
+            }
         } finally {
             frames.delete()
         }
@@ -336,6 +268,7 @@ internal object DesktopManifestDownload {
                 for (trun in parts.filter { it.type == "trun" }) {
                     val f = flags(bytes, trun)
                     val count = u32(bytes, trun.content + 4).toInt()
+                    require(count in 0..2_000_000) { "Too many MP4 samples" }
                     var q = trun.content + 8
                     if (f and 0x1 != 0) {
                         cursor = moof.offset + u32(bytes, q).toInt()

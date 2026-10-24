@@ -34,7 +34,7 @@ import java.time.format.DateTimeFormatter
 
 enum class ListeningTab(val label: String) {
     SESSIONS("Sessions"), SMART("Smart playlists"), REPLAY("Replay playlists"),
-    RELEASES("New releases"), CONNECTION("Connection"), SETUP("Getting started"), BACKUP("Backup & transfer")
+    RELEASES("New releases"), CONNECTION("Connection"), SETUP("Getting started"), BACKUP("Backup & transfer"), LIBRARY("Library review"), REMOTE("Phone remote")
 }
 
 /** A single adaptive workspace. All buttons perform host operations; data is shared across platforms. */
@@ -82,7 +82,7 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
                     }
                     Text("Keep the queue. Find your next favourite.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ListeningTab.entries.forEach { destination ->
+                        ListeningTab.entries.filter { it != ListeningTab.REMOTE || host.remote != null }.forEach { destination ->
                             FilterChip(selected = tab == destination, onClick = { tab = destination; notice = null },
                                 label = { Text(destination.label) }, modifier = Modifier.testTag("listening:tab:${destination.name}"))
                         }
@@ -115,6 +115,9 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
                             },
                             onImport = { close(); latestHost.importMusic() })
                         ListeningTab.BACKUP -> BackupPage(host, store, busy, run)
+                        ListeningTab.LIBRARY -> LibraryReviewPage(state, host, store, busy, run)
+                        ListeningTab.REMOTE -> host.remote?.let { PhoneRemotePage(it, busy, run) }
+                            ?: Text("Remote controls are unavailable in this window.")
                     }
                 }
             }
@@ -375,6 +378,17 @@ private fun ColumnScope.BackupPage(host: ListeningToolsHost, store: ListeningSto
                 "Backup merged. Existing local entries were kept. Missing local files are skipped when you open a session."
             } })
             Text("Imports add missing entries by identity; importing the same file again does not duplicate them. Local edits take precedence. Use your platform’s existing library import for music playlists and media.", style = MaterialTheme.typography.bodySmall)
+            Heading("Local playlists", "Export local audio files as a UTF-8 M3U8 playlist. File order and repeated tracks are preserved. Online-only songs, missing files and device-only content links are skipped; no stream addresses or account credentials are exported.")
+            ToolButton("Export local queue to M3U8", enabled = !busy, tag = "listening:m3u8:queue", onClick = { run {
+                val songs = host.queue().songs
+                val export = withContext(Dispatchers.IO) { exportLocalM3u8("Queue", songs, localLibrary = host.library.songs) }
+                if (host.exportFile("cosmotune-queue.m3u8", export.text)) "Playlist saved: ${export.included} local tracks, ${export.skipped} skipped" else null
+            } })
+            ToolButton("Export local library to M3U8", enabled = !busy, tag = "listening:m3u8:library", onClick = { run {
+                val export = withContext(Dispatchers.IO) { exportLocalM3u8("Library", host.library.songs) }
+                if (host.exportFile("cosmotune-library.m3u8", export.text)) "Playlist saved: ${export.included} local tracks, ${export.skipped} skipped" else null
+            } })
+            Text("The playlist refers to the current file locations. Copy the music and adjust paths when moving it to another device. Keep a listening backup for source metadata and sessions.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

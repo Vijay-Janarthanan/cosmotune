@@ -279,4 +279,10 @@
     <string name="cosmo_np_controls_expand">Expand controls</string>
     <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
     <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
+    <string name="artist_signatures">Chữ ký nghệ sĩ</string>
+    <string name="artist_signatures_subtitle">Hiển thị chữ ký tay khi Apple Music không có logo tiêu đề</string>
+    <string name="artist_signatures_url">URL API chữ ký</string>
+    <string name="signed_by">Được ký bởi %1$s</string>
+    <string name="cosmo_mode_manga">Truyện tranh</string>
+    <string name="cosmo_mode_manga_summary">Truyện tranh, nguồn truyện và tiến độ đọc của bạn</string>
 </resources>

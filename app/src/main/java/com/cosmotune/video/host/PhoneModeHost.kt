@@ -66,7 +66,12 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     val links = remember(shell, asked) { shell?.let { phoneModeLinks(it.settings, asked) } }
     CompositionLocalProvider(LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) }) {
         // The same call tree whether the new look is on or off: the look switch must not rebuild Music's root (part one, D2).
-        if (videoShell == null) holder.SaveableStateProvider("music") { music() }
+        if (shell != null && mode == AppMode.MANGA) holder.SaveableStateProvider("manga") {
+            val request = MusicLink.pending.collectAsStateWithLifecycle()
+            LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
+            com.cosmotune.manga.ui.MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) })
+        }
+        else if (videoShell == null) holder.SaveableStateProvider("music") { music() }
         else holder.SaveableStateProvider("video") { PhoneVideo(videoShell, windowWidth, windowHeight, asked) }
     }
 }

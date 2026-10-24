@@ -42,6 +42,11 @@ object LikeState {
     }
 
     fun clear() {
-        _overrides.value = emptyMap()
+        // Account switches clear account ratings; device-local source ratings belong to the device.
+        _overrides.value = _overrides.value.filterKeys { com.cosmotune.music.data.sources.SourceTrackKeys.parse(it) != null }
+    }
+
+    fun replaceSourceRatings(ratings: Map<String, LikeStatus>) {
+        _overrides.value = _overrides.value.filterKeys { com.cosmotune.music.data.sources.SourceTrackKeys.parse(it) == null } + ratings
     }
 }

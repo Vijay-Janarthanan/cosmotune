@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -737,6 +738,8 @@ fun NowPlayingScreen(
     windowHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
+    val hideStatusBar by PlayerSettings.hideStatusBar.collectAsStateWithLifecycle()
+    com.cosmotune.music.ui.theme.HideStatusBar(hideStatusBar)
     val density = LocalDensity.current
     val haptics = rememberHaptics()
 
@@ -2320,7 +2323,7 @@ fun NowPlayingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .windowInsetsPadding(com.cosmotune.music.ui.theme.stableStatusBarInsets())
                 .navigationBarsPadding()
                 // Observe unclaimed taps across the whole Canvas. Buttons and
                 // the compact metadata row consume their own taps first; empty
@@ -3283,7 +3286,7 @@ fun NowPlayingScreen(
                     // there's no account to record it against — and neither
                     // does a local file or a finished download, which carries
                     // no YouTube identity to rate.
-                    if (signedIn && song.localUri == null) {
+                    if (signedIn && song.localUri == null || com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)) {
                         val liked = likeStatus == LikeStatus.LIKE
                         CircleGlyph(
                             icon = if (liked) CosmotuneIcons.HeartFilled else CosmotuneIcons.Heart,

@@ -1130,4 +1130,81 @@
     <string name="canvas_paused_on_mobile_data">Video is paused on mobile data</string>
     <string name="canvas_allow_on_mobile_data">Allow</string>
     <string name="canvas_allow_on_mobile_data_description">Allow video on mobile data</string>
+
+    <string name="search_source_addons">Addons</string>
+    <string name="search_addons_none">No addons are enabled. Add one in Settings → Sources.</string>
+    <string name="spotify_use_spdc_token">Use sp_dc token</string>
+    <string name="app_icon">App icon</string>
+    <string name="app_icon_default">Default</string>
+    <string name="app_icon_liquid_glass" translatable="false">Liquid Glass</string>
+    <string name="app_icon_liquid_glass_dark" translatable="false">Liquid Glass Dark</string>
+    <string name="app_icon_liquid_glass_clear" translatable="false">Liquid Glass Clear</string>
+    <string name="app_icon_liquid_glass_clear_dark" translatable="false">Liquid Glass Clear Dark</string>
+    <string name="app_icon_samsung_glass" translatable="false">Samsung Glass</string>
+    <string name="app_icon_samsung_glass_dark" translatable="false">Samsung Glass Dark</string>
+    <string name="app_icon_samsung_glass_clear" translatable="false">Samsung Glass Clear</string>
+    <string name="app_icon_samsung_glass_clear_dark" translatable="false">Samsung Glass Clear Dark</string>
+    <string name="app_icon_pixel_glass" translatable="false">Pixel Glass</string>
+    <string name="app_icon_pixel_glass_dark" translatable="false">Pixel Glass Dark</string>
+    <string name="app_icon_pixel_glass_clear" translatable="false">Pixel Glass Clear</string>
+    <string name="app_icon_pixel_glass_clear_dark" translatable="false">Pixel Glass Clear Dark</string>
+    <string name="artist_signatures">Artist signatures</string>
+    <string name="artist_signatures_subtitle">Shows a handwritten signature when Apple Music has no title logo</string>
+    <string name="artist_signatures_url">Signature API URL</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Not configured — tap to set the API URL</string>
+    <string name="artist_signatures_test_failed">Could not reach the API at that URL</string>
+    <string name="hide_status_bar_in_player">Hide status bar in player</string>
+    <string name="hide_status_bar_in_player_subtitle">Hides the clock, battery and notification icons while the main player is open</string>
+    <string name="show_queue_history">Show queue history</string>
+    <string name="show_queue_history_subtitle">Show up to 25 previously played songs above Now playing in the queue</string>
+    <string name="not_enough_this_week">Play a few more songs this week to unlock your Replay.</string>
+    <string name="replay_artist_start_week">This week, </string>
+    <string name="replay_songs_end_week"> filled your week.</string>
+    <string name="replay_summary_end_week">week</string>
+    <string name="replay_this_week">This week</string>
+    <string name="onboarding_title">Millions of songs, stream on Cosmotune</string>
+    <string name="onboarding_name_prompt">What should we call you?</string>
+    <string name="onboarding_name_hint">Your name</string>
+    <string name="onboarding_name_footer">Friends see this when you Listen Together. You can change it later in Settings.</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_connect_title">Connect your YouTube account</string>
+    <string name="onboarding_connect_body">Bring your library, playlists and mixes with you, and start a Listen Together party with friends.</string>
+    <string name="onboarding_sign_in_google">Sign in with Google</string>
+    <string name="onboarding_skip_sign_in">Skip sign in</string>
+    <string name="onboarding_back">Back</string>
+    <string name="wear_os_section">Cosmotune for Wear OS</string>
+    <string name="wear_os_page_title">Wear OS</string>
+    <string name="wear_os_your_watches">Your watches</string>
+    <string name="wear_os_value_none">No watch</string>
+    <string name="wear_os_value_not_installed">Not installed</string>
+    <string name="wear_os_value_up_to_date">Up to date</string>
+    <string name="wear_os_looking">Looking for watches…</string>
+    <string name="wear_os_no_watch">No watch connected</string>
+    <string name="wear_os_no_watch_subtitle">Pair a Wear OS watch with this phone in its companion app first.</string>
+    <string name="wear_os_checking">Checking…</string>
+    <string name="wear_os_not_installed">Cosmotune isn’t on this watch</string>
+    <string name="wear_os_up_to_date">Up to date · %1$s</string>
+    <string name="wear_os_update_available">Update available</string>
+    <string name="wear_os_unknown">Installed · couldn’t check the version</string>
+    <string name="wear_os_sending">Sending to your watch…</string>
+    <string name="wear_os_sent">Sent — finish on your watch if it asks</string>
+    <string name="wear_os_send_failed">Couldn’t send the update (%1$s)</string>
+    <string name="wear_os_install">Install</string>
+    <string name="wear_os_update">Update</string>
+    <string name="wear_os_install_title">Install on your watch</string>
+    <string name="wear_os_step_wifi">Connect your watch to the same Wi-Fi as this phone.</string>
+    <string name="wear_os_step_developer">Turn on Developer options on the watch. Galaxy Watch: Settings → About watch → Software information → tap Software version five times. Pixel Watch: Settings → System → About → tap Build number seven times.</string>
+    <string name="wear_os_step_debugging">In Developer options, turn on ADB debugging and Wireless debugging.</string>
+    <string name="wear_os_step_pair">Tap Pair new device, then enter the six-digit code the watch shows.</string>
+    <string name="wear_os_searching">Looking for your watch on Wi-Fi…</string>
+    <string name="wear_os_found">Found your watch</string>
+    <string name="wear_os_pairing">Pairing…</string>
+    <string name="wear_os_installing">Installing Cosmotune on your watch…</string>
+    <string name="wear_os_installed">Installed. You can turn Wireless debugging off again.</string>
+    <string name="wear_os_failed">That didn’t work (%1$s). Check the code and try again.</string>
+    <string name="wear_os_unsupported">Installing on a watch needs Android 11 or later on this phone.</string>
+    <string name="wear_os_code_hint">Pairing code</string>
+    <string name="wear_os_done">Done</string>
+    <string name="signed_by">Signed by %1$s</string>
 </resources>

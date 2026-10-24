@@ -116,6 +116,7 @@ fun LibraryScreen(
     deviceItems: List<ShelfItem>,
     /** The big "Library" heading; the desktop's pages carry none. */
     showTitle: Boolean = true,
+    sourceShelves: List<HomeShelf> = com.cosmotune.ui.library.rememberSourceLibraryShelves(),
 ) {
     val pinnedPlaylists by AppUi.host.pinnedPlaylists.collectAsStateWithLifecycle()
     val onDevice = stringResource(Res.string.on_device)
@@ -153,6 +154,12 @@ fun LibraryScreen(
                         onItemLongPress = onShelfItemLongPress,
                         onShowAll = { onShowAll(onDeviceShelf) },
                     )
+                }
+            }
+            sourceShelves.forEach { shelf ->
+                item(key = "source:${shelf.title}") {
+                    LibraryGridShelf(shelf, onItemClick = onShelfItemClick, onItemLongPress = onShelfItemLongPress,
+                        onShowAll = { onShowAll(shelf) })
                 }
             }
             if (!signedIn) {

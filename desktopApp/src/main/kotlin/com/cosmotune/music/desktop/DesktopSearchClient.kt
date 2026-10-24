@@ -14,6 +14,7 @@ import com.cosmotune.music.data.model.PlaylistPrivacy
 import com.cosmotune.music.data.model.SearchFilter
 import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.SubscriptionState
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -54,8 +55,22 @@ object DesktopSearchClient {
         YtMusicRepository.moodGenreArtwork(browseId, params)
 
     /** An album, playlist or artist song list, in the shape the desktop's collection page draws. */
-    suspend fun browse(browseId: String, fallback: BrowseItem? = null): Result<DesktopCollection> =
-        YtMusicRepository.browseSongs(browseId).map { page ->
+    suspend fun browse(browseId: String, fallback: BrowseItem? = null): Result<DesktopCollection> {
+        if (browseId == com.cosmotune.providers.SourceLibraryStore.LIKED_BROWSE_ID) {
+            val songs = com.cosmotune.providers.ProviderHub.state.value.library?.state?.value?.liked.orEmpty()
+            return Result.success(DesktopCollection(browseId, "Liked source songs", "Saved in Cosmotune",
+                songs.firstOrNull()?.thumbnailUrl, BrowseType.PLAYLIST, songs))
+        }
+        com.cosmotune.providers.ProviderBrowseKey.parse(browseId)?.let { key ->
+            return try {
+                val page = DesktopSourceCatalogue.load(key)
+                Result.success(DesktopCollection(browseId, page.collection.title, page.collection.subtitle + if (page.fromCache) " · Saved copy" else "",
+                    page.collection.artwork?.takeIf(com.cosmotune.providers.CatalogueArtwork::handles),
+                    browseTypeOf(browseId), page.songs))
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { Result.failure(IllegalStateException("This source could not load the page. Check its connection and settings.")) }
+        }
+        return YtMusicRepository.browseSongs(browseId).map { page ->
             val header = page.header
             DesktopCollection(
                 browseId = browseId,
@@ -70,6 +85,8 @@ object DesktopSearchClient {
                 owned = page.owned,
             )
         }
+
+    }
 
     /** The rows after a collection's first page, and the token after those. */
     suspend fun moreCollectionSongs(
@@ -97,9 +114,19 @@ object DesktopSearchClient {
         }
     }
 
-    suspend fun rate(videoId: String, status: LikeStatus): Result<Unit> = YtMusicRepository.rate(videoId, status)
+    suspend fun rate(videoId: String, status: LikeStatus): Result<Unit> =
+        if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(videoId)) runCatching { com.cosmotune.providers.ProviderHub.rate(videoId, status) }
+        else YtMusicRepository.rate(videoId, status)
 
-    suspend fun artistPage(browseId: String): Result<ArtistPage> = YtMusicRepository.artistPage(browseId)
+    suspend fun artistPage(browseId: String): Result<ArtistPage> {
+        com.cosmotune.providers.ProviderBrowseKey.parse(browseId)?.let { key ->
+            return try { Result.success(DesktopSourceCatalogue.load(key).artistPage().copy(subscription = SubscriptionState(browseId,
+                com.cosmotune.providers.ProviderHub.state.value.library?.state?.value?.followed?.any { it.id == browseId } == true))) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { Result.failure(IllegalStateException("This source could not load the artist. Check its connection and settings.")) }
+        }
+        return YtMusicRepository.artistPage(browseId)
+    }
 
     suspend fun setSubscribed(channelId: String, subscribed: Boolean): Result<Unit> =
         YtMusicRepository.setSubscribed(channelId, subscribed)
@@ -120,6 +147,18 @@ object DesktopSearchClient {
 
     suspend fun removeFromPlaylist(playlistId: String, entries: List<Pair<String, String>>): Result<Unit> =
         YtMusicRepository.removeFromPlaylist(playlistId, entries)
+
+    /**
+     * Every entry of a playlist, in order — the whole list a reorder has to name, not the page of it
+     * that happens to be on screen. Fails rather than returning a partial list, since moving rows
+     * against an incomplete one would push entries it never saw.
+     */
+    suspend fun playlistEntries(browseId: String): Result<List<Song>> =
+        YtMusicRepository.playlistEntries(browseId)
+
+    /** Rearranges a playlist from [current] to [target], both lists of its entries' set-video-ids. */
+    suspend fun reorderPlaylist(playlistId: String, current: List<String>, target: List<String>): Result<Unit> =
+        YtMusicRepository.reorderPlaylist(playlistId, current, target)
 
     suspend fun searchTypeahead(input: String): Result<List<SearchResult>> =
         YtMusicRepository.searchTypeahead(input).map { it.rows }
@@ -179,6 +218,12 @@ data class DesktopCollection(
 }
 
 internal fun browseTypeOf(browseId: String): BrowseType = when {
+    browseId == com.cosmotune.providers.SourceLibraryStore.LIKED_BROWSE_ID -> BrowseType.PLAYLIST
+    com.cosmotune.providers.ProviderBrowseKey.parse(browseId) != null -> when (com.cosmotune.providers.ProviderBrowseKey.parse(browseId)?.kind) {
+        "artist" -> BrowseType.ARTIST
+        "album" -> BrowseType.ALBUM
+        else -> BrowseType.PLAYLIST
+    }
     browseId.startsWith("MPREb_") || browseId.startsWith("OLAK5uy_") -> BrowseType.ALBUM
     browseId.startsWith("VL") -> BrowseType.PLAYLIST
     browseId.startsWith("UC") -> BrowseType.ARTIST

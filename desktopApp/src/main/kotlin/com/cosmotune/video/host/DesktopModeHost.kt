@@ -34,6 +34,7 @@ object DesktopModeHost {
     /** True while Video is the mode that is drawn. Written by [desktopVideoShown] from a side effect; read by the key handler. */
     @Volatile
     var active: Boolean = false
+    @Volatile var mangaActive: Boolean = false
 
     /**
      * A video waiting to be opened, set by the host when Music asks for one ("Watch the music video", Y-26). It is snapshot state, so a
@@ -60,6 +61,22 @@ fun desktopVideoShown(): Boolean {
     if (shell != null && !AppModes.available(mode)) LaunchedEffect(mode) { shell.settings.setMode(AppMode.MUSIC) }
     SideEffect { DesktopModeHost.active = shown }
     return shown
+}
+
+/** Manga leaves the music service running but owns page navigation and keyboard input. */
+@Composable
+fun desktopMangaShown(): Boolean {
+    val shell = LocalCosmoShell.current
+    val mode = shell?.settings?.mode?.collectAsState()?.value ?: AppMode.MUSIC
+    val shown = shell != null && mode == AppMode.MANGA && AppModes.available(AppMode.MANGA)
+    SideEffect { DesktopModeHost.mangaActive = shown }
+    return shown
+}
+
+@Composable
+fun DesktopMangaPage(contentPadding: PaddingValues) {
+    val shell = LocalCosmoShell.current ?: return
+    com.cosmotune.manga.ui.MangaApp(contentPadding, onMusic = { shell.settings.setMode(AppMode.MUSIC) })
 }
 
 /**

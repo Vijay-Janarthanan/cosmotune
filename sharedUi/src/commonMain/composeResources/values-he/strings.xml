@@ -281,4 +281,10 @@
     <string name="cosmo_np_controls_expand">Expand controls</string>
     <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
     <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
+    <string name="artist_signatures">חתימות של אמנים</string>
+    <string name="artist_signatures_subtitle">מציג חתימה בכתב יד כאשר ל-Apple Music אין לוגו כותרת</string>
+    <string name="artist_signatures_url">כתובת API של חתימות</string>
+    <string name="signed_by">נחתם על ידי %1$s</string>
+    <string name="cosmo_mode_manga">מנגה</string>
+    <string name="cosmo_mode_manga_summary">הקומיקס, המקורות והתקדמות הקריאה שלך</string>
 </resources>

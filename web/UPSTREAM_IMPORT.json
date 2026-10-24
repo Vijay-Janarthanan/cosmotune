@@ -1,0 +1,1210 @@
+{
+  "revision": "edc1e6f36febf71a118e649411d2fc21b70ead45",
+  "licence": "GPLv3; see root LICENSE and NOTICE.md",
+  "files": [
+    {
+      "sourceSha256": "99f3d77fdc1bedd2176ed36c55824044c713426dd1ad9d3d1a7d9496b0779e93",
+      "target": "web/.gitignore",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0001"
+    },
+    {
+      "sourceSha256": "00ba42889cdcef4155966c4b288dee83dab30ad4d88c11243d0500798d3492e6",
+      "target": "web/app/.env.example",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0002"
+    },
+    {
+      "sourceSha256": "cb4f0ebe52bcbca4af6c02942548df52044ccf3742ece8e10549acbeaa5fd4cb",
+      "target": "web/app/index.html",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0003"
+    },
+    {
+      "sourceSha256": "3f370978323e880e551c686d2686b5878232afaac46d7e86f61be6074f762892",
+      "target": "web/app/package.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0004"
+    },
+    {
+      "sourceSha256": "7d0560c2060cec0fb47a9edbb0569aecc7b60422bee366ee34e3d5505fa2b77f",
+      "target": "web/app/public/favicon.svg",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0005"
+    },
+    {
+      "sourceSha256": "59651794d6600459394282268986bcb4d68f7efc7d3c115bcbad1e533a3cf0e0",
+      "target": "web/app/src/assets/logo-mark.svg",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0006"
+    },
+    {
+      "sourceSha256": "24770b0a4b795b4d186fa505fd2d2dbfe448f58d5f4e2ce3d8f8b8f48551b13f",
+      "target": "web/app/src/components/icons/LogoMark.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0007"
+    },
+    {
+      "sourceSha256": "e0ff8e4a2f6b91c40a8fe2f1d5f9a211ea2546b5db6d5f12bd026dd184eb78ba",
+      "target": "web/app/src/components/icons/NavIcons.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0008"
+    },
+    {
+      "sourceSha256": "d2561288a9f1718dca7f2d503f7f11595b1258c10a4540fe0eb3da66ce43dfaf",
+      "target": "web/app/src/components/icons/Transport.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0009"
+    },
+    {
+      "sourceSha256": "e09228c05d92713752bfdd66a19ef6cb68780905e369072deb10456731edb177",
+      "target": "web/app/src/components/Menu.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0010"
+    },
+    {
+      "sourceSha256": "a2d2e2dd90aa93f4a0d6f50d018d95807f56fc76df57a7900a48495335ae4efd",
+      "target": "web/app/src/components/music/Artwork.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0011"
+    },
+    {
+      "sourceSha256": "c3e982b40099e281f5c25f1b801571658020da51366cbc878326016f24f74a23",
+      "target": "web/app/src/components/music/CategoryTiles.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0012"
+    },
+    {
+      "sourceSha256": "351cbc9565d5ce0c32bb3d630f7b0a3e6256348616b42155959fb39b71ac6a02",
+      "target": "web/app/src/components/music/DetailHeader.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0013"
+    },
+    {
+      "sourceSha256": "b962e6def50192e1c3db2ae574f72fe17b6a482d338dcdc77fa481e09875b597",
+      "target": "web/app/src/components/music/ExplicitBadge.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0014"
+    },
+    {
+      "sourceSha256": "f370ae55317772484654ccca5a18033aecafae8f7d61ec46c9f916eba8e5ee41",
+      "target": "web/app/src/components/music/FavoriteButton.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0015"
+    },
+    {
+      "sourceSha256": "1d08077aceb56174ac212acd7b9478b6ba0adc115056089c934394e2344b1427",
+      "target": "web/app/src/components/music/links.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0016"
+    },
+    {
+      "sourceSha256": "b4d6a1c992c96d73d114bc35f20401db25b307f55fd16ad3810aa35d758bcfa7",
+      "target": "web/app/src/components/music/Lockups.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0017"
+    },
+    {
+      "sourceSha256": "1b5021a4259099ce8ebe54c0db00dddd583b068881d9e666085654265b3a039d",
+      "target": "web/app/src/components/music/MotionArtwork.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0018"
+    },
+    {
+      "sourceSha256": "11d70fa4946e4b3c9c1d44aaa1127bcb5df3eee0984e831d03d8b7811239c1c3",
+      "target": "web/app/src/components/music/play.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0019"
+    },
+    {
+      "sourceSha256": "95d3ad1547b6b7cba817162a5a12212483bb87de4a8b40e0b15002b2941c9fa2",
+      "target": "web/app/src/components/music/SearchField.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0020"
+    },
+    {
+      "sourceSha256": "c3e18f6ff9877a4ee246c8f20d7b5c0ddbc88efa68467f901c971d143165df94",
+      "target": "web/app/src/components/music/ShelfView.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0021"
+    },
+    {
+      "sourceSha256": "45fb781d14252b7330536a9f6d496030147421a256f5cf709bf0a678e001dd41",
+      "target": "web/app/src/components/music/States.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0022"
+    },
+    {
+      "sourceSha256": "bb172d334183510012c3d415f01461b639c575e8ac53b31651ee4e7bb7c433e3",
+      "target": "web/app/src/components/music/TrackList.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0023"
+    },
+    {
+      "sourceSha256": "c1e4649d418168b38dba7d09224c2d7e758a5e4e208151de3b9605aca713ffb7",
+      "target": "web/app/src/components/music/TrackMenu.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0024"
+    },
+    {
+      "sourceSha256": "6b7de103fbaf63927d0d3c51d42eddcdfb302ec11d53f36af895a024c28d64c4",
+      "target": "web/app/src/components/music/VideoSurface.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0025"
+    },
+    {
+      "sourceSha256": "2bd1952d957061600fa3e936bb1d65213fc1d1ca13354e4c31b213634c007961",
+      "target": "web/app/src/components/PageHeader.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0026"
+    },
+    {
+      "sourceSha256": "3ba402487d9b704080df95cceb6a8d164b7600e4a25d6d092b77a9993cd90377",
+      "target": "web/app/src/components/PrefetchLink.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0027"
+    },
+    {
+      "sourceSha256": "48faf27c365fed04fc84e4fc6f678891f9a4ce7b3417b52f512ae84d30aa1f25",
+      "target": "web/app/src/components/shelf.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0028"
+    },
+    {
+      "sourceSha256": "d29f61a38d36fef44679df354d85500e640dc57d7a8c93dab80a71ca9e94f387",
+      "target": "web/app/src/components/Skeleton.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0029"
+    },
+    {
+      "sourceSha256": "fbb23412927f87ef29aba679453d604c20192583f19b8baf548f3d7ef8b89e72",
+      "target": "web/app/src/config.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0030"
+    },
+    {
+      "sourceSha256": "0b40b91a74b1e59e0435c7c7a8a8a3e342a2cc45d4c3cfb3f58b2f66c6b3e284",
+      "target": "web/app/src/data/apple/artistArt.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0031"
+    },
+    {
+      "sourceSha256": "ae5e165218dbb9f289a92fecd40c2bc2661f0ba7a17467469377d48d3b98c1f4",
+      "target": "web/app/src/data/apple/artistPage.test.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0032"
+    },
+    {
+      "sourceSha256": "2c97e3bbaf60c6d6fc8c88aeafb3719976f96ccfe50607ab09b362dad481361a",
+      "target": "web/app/src/data/apple/artistPage.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0033"
+    },
+    {
+      "sourceSha256": "9821c1cd65003364f19346e5a6a5447002be38ff367619d29afce47656ebd2d1",
+      "target": "web/app/src/data/apple/motion.test.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0034"
+    },
+    {
+      "sourceSha256": "11f1f0ea12ed2dbe389d79ede5e0a02f0147fa382daa6f592c30c5ddce09bc79",
+      "target": "web/app/src/data/apple/motion.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0035"
+    },
+    {
+      "sourceSha256": "fbfe364fbcb4f0e7688b97cdc21db7c9ab4db93f19715d87d76a2dbc24e936e6",
+      "target": "web/app/src/data/apple/motionArt.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0036"
+    },
+    {
+      "sourceSha256": "63f5ce8c8b9081728db3012e290c48d506e568a15da4941f56d5eb239bcf26db",
+      "target": "web/app/src/data/apple/webToken.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0037"
+    },
+    {
+      "sourceSha256": "4ec64cee3937c1cb1b5c72f40ab89a9284fc3168520aebabf4c93e4233421d2f",
+      "target": "web/app/src/data/match/trackMatcher.test.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0038"
+    },
+    {
+      "sourceSha256": "f928d43977a3f3e4c066e5cc1fd2ffb97502bf8ad1429ac183956099315208b2",
+      "target": "web/app/src/data/match/trackMatcher.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0039"
+    },
+    {
+      "sourceSha256": "9b0b0d3e117f7355b8ff42e46edb883d2899a0ca370bfe386b708f9b51ff0b68",
+      "target": "web/app/src/data/music/api.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0040"
+    },
+    {
+      "sourceSha256": "a556ee19fcc7b2bf3e3e3597537e822d7350255667df12adcfc85bf411cad06e",
+      "target": "web/app/src/data/music/library.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0041"
+    },
+    {
+      "sourceSha256": "e2dcf82e665387cb9b4585fd211fbebfacef7826a6fc3da0d7486baffacb3306",
+      "target": "web/app/src/data/music/mappers.test.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0042"
+    },
+    {
+      "sourceSha256": "8eb143adf0c6a75d242c67584ada95b2962988d2daa0a3f1aa4661b315f39815",
+      "target": "web/app/src/data/music/mappers.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0043"
+    },
+    {
+      "sourceSha256": "2b2b3ec246fedaefd4a79a5faf8b4db6e65482aa0b448a2e20da1175ab04d1b3",
+      "target": "web/app/src/data/music/queries.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0044"
+    },
+    {
+      "sourceSha256": "d54d566693ea6c69915d5f3da3a78b5328c1ff6ef8f8eb18be1bf7eadd9af657",
+      "target": "web/app/src/data/music/types.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0045"
+    },
+    {
+      "sourceSha256": "1b866e25c78a64b6b75cc832f77c171af4e1cbb5f45b93716837447d5528eee3",
+      "target": "web/app/src/data/spotify/api.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0046"
+    },
+    {
+      "sourceSha256": "67788f2d7ada6f80ab91eea8cc28205e8722441797151937aade099d514d979d",
+      "target": "web/app/src/data/spotify/canvas.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0047"
+    },
+    {
+      "sourceSha256": "002b7f88cfba8f8dae5786205b86d67dae03fadacdd5ed4ef02b343b7db2e230",
+      "target": "web/app/src/data/spotify/queries.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0048"
+    },
+    {
+      "sourceSha256": "dd198638889a40029e7c8b4816335436b98573417f5a54bb21e1fc60120cf113",
+      "target": "web/app/src/extension/bridge.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0049"
+    },
+    {
+      "sourceSha256": "b40cd635c51a06849d85add8d0ec41ef8e4ce1a4e1bafc8e937fc3d3f991f56f",
+      "target": "web/app/src/extension/useDiscord.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0050"
+    },
+    {
+      "sourceSha256": "b900377acac0f22d1f6cfeb9a4713569bde792fd0749c9bfee2cc06fb4196ea4",
+      "target": "web/app/src/extension/useExtension.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0051"
+    },
+    {
+      "sourceSha256": "0e4b70e6ca588d99af32d94ccd9346572dd677880e1b2b121b93fb260194d247",
+      "target": "web/app/src/extension/useExtensionUpdate.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0052"
+    },
+    {
+      "sourceSha256": "6dd9f89c45aad306430ba1d116c4c6e467d0895a44b8cabe7f65435980a64885",
+      "target": "web/app/src/extension/useHostAccess.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0053"
+    },
+    {
+      "sourceSha256": "53ba181cb428f1ec436a2e263a3bccb311b5c0821c631932294dd1c1120eb7c3",
+      "target": "web/app/src/extension/useSpotifyAuth.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0054"
+    },
+    {
+      "sourceSha256": "316dff29ce65dcb8e89a11baf47d35e828f21a2ac9a539322b763811d767955b",
+      "target": "web/app/src/extension/useYtAuth.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0055"
+    },
+    {
+      "sourceSha256": "910a0ad9bb1206c01a48534ecb7759b0a1148aedb6d558d53fcaab69139fc8f6",
+      "target": "web/app/src/lib/artistCredits.test.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0056"
+    },
+    {
+      "sourceSha256": "42c52319ed62791125694927689a0b802da82608ccae2c35564fd4283fb743d0",
+      "target": "web/app/src/lib/artistCredits.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0057"
+    },
+    {
+      "sourceSha256": "e5dbde64a1048194c60e429d8d1771da12647ef5f9b9b6f428037641360b0c62",
+      "target": "web/app/src/lib/artwork.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0058"
+    },
+    {
+      "sourceSha256": "2b1f1740de16f2a858643213e95660efbc6162ced38866e8094125136aa00883",
+      "target": "web/app/src/lib/artworkColor.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0059"
+    },
+    {
+      "sourceSha256": "e3d54bf60735136719383e183337a7ddb7edb0acc9fc38f6c552606065317b79",
+      "target": "web/app/src/lib/meshPalette.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0060"
+    },
+    {
+      "sourceSha256": "ffc546658cf8f7e9307d45bfd30675bf759bf6a6d56f085458761cc45537e74a",
+      "target": "web/app/src/lib/platform.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0061"
+    },
+    {
+      "sourceSha256": "9c6d52bd5eceaf9751549aca061b3fd11eed1308d35d03d1fbe4f670d61fc716",
+      "target": "web/app/src/lib/queryClient.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0062"
+    },
+    {
+      "sourceSha256": "89664cb81a3fb84921a2434b84057b66fa89feeb9b9233905a284c0634d517be",
+      "target": "web/app/src/lib/usePageTint.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0063"
+    },
+    {
+      "sourceSha256": "d10ffee1cc5da8a11733f37f13fd638f276c7b9d0c61cc0182d573d1dbecbcf9",
+      "target": "web/app/src/lyrics/clock.test.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0064"
+    },
+    {
+      "sourceSha256": "a2c7447a9ff254cf3ecab57f8ee3b74c325bc98e7da99d2ae16e331574e44c6d",
+      "target": "web/app/src/lyrics/clock.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0065"
+    },
+    {
+      "sourceSha256": "9e824fe8527fb85bd4724c9776aea132db840201d457fe6dd6bae2a2256c6df2",
+      "target": "web/app/src/lyrics/http.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0066"
+    },
+    {
+      "sourceSha256": "5eda422496f1a0ae25395cbaab833e096bbc41d949f53f42cd1cc488be47949f",
+      "target": "web/app/src/lyrics/model.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0067"
+    },
+    {
+      "sourceSha256": "e9b337efbfff1ddcc312f90c2024eaf47455f2d562b7de280c18c2230190298c",
+      "target": "web/app/src/lyrics/parse.test.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0068"
+    },
+    {
+      "sourceSha256": "b679bf290e5a31095570b3cdbe3c1af01c6d0f20c2afada9c7d1c5b24aa982b5",
+      "target": "web/app/src/lyrics/parse.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0069"
+    },
+    {
+      "sourceSha256": "83ec7689257ce233bb1613008c89b998c1e8b70491939b745c2419cd2fc8a970",
+      "target": "web/app/src/lyrics/providers.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0070"
+    },
+    {
+      "sourceSha256": "0cdfcdcb8df6af83650697b99599dc61244197ff95f249dabbce62353699c8f1",
+      "target": "web/app/src/lyrics/repository.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0071"
+    },
+    {
+      "sourceSha256": "1b2e71c30a79b76b77f03e946291e2cd486a9978962ce69ed841c8d7a74d785e",
+      "target": "web/app/src/lyrics/settings.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0072"
+    },
+    {
+      "sourceSha256": "9f0ea99b1adfdb36a2a5e31fa4d1e2be78907093be65cf8332ed591ce2e5787a",
+      "target": "web/app/src/lyrics/sources.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0073"
+    },
+    {
+      "sourceSha256": "08a62c6de44170ce175f0054ba9f8fb3d721ed22b594bee7943e05552bebe71f",
+      "target": "web/app/src/lyrics/ttml.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0074"
+    },
+    {
+      "sourceSha256": "7e6d8351cea7c7852e6b42ddadc8207e59a42cae111f7e3168d70d9bff31f466",
+      "target": "web/app/src/lyrics/useLyrics.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0075"
+    },
+    {
+      "sourceSha256": "6697c8f1fff23334258f86efcb5984268e1bebde0b82049cc13ddc691579fee3",
+      "target": "web/app/src/main.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0076"
+    },
+    {
+      "sourceSha256": "b85ea169471550c3fb365a08c7e15135ad5c9a903a281fa1f085eeb00d786062",
+      "target": "web/app/src/pageRegistry.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0077"
+    },
+    {
+      "sourceSha256": "ea4bfd8813a0e03c549ef8c9e3a169a445c348a39101106770d771356fb7b7ba",
+      "target": "web/app/src/pages/AlbumPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0078"
+    },
+    {
+      "sourceSha256": "fd58dc78ca963b6b9daa0f63b5085f095d41307a045f1de22f72398d03eb8d33",
+      "target": "web/app/src/pages/ArtistPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0079"
+    },
+    {
+      "sourceSha256": "7996aab32046cc3a7163c463ea4dc7e62b186f9f2c5c29fcee661bb26cfd7435",
+      "target": "web/app/src/pages/BrowsePage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0080"
+    },
+    {
+      "sourceSha256": "0f6c9af14f609588e886d85eaab019c305e6b488d34b663207f116a5b8825612",
+      "target": "web/app/src/pages/DebugPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0081"
+    },
+    {
+      "sourceSha256": "4368851e2ff07c37461fa8f7913d207f2d984251f2b0bba73e4cfc36619bce8d",
+      "target": "web/app/src/pages/DiscordSettingsPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0082"
+    },
+    {
+      "sourceSha256": "855ea326c24e26794b6f77fb7824943500675db94fe28c4f0797a082f2e6182f",
+      "target": "web/app/src/pages/ExtensionPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0083"
+    },
+    {
+      "sourceSha256": "5de070679055f419865d65fe15eb7a7877604432f85ab68308cf0af10eac4f88",
+      "target": "web/app/src/pages/HomePage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0084"
+    },
+    {
+      "sourceSha256": "cd970852725b90fe855418c5d56a88f572098dc493944e8d367df60f71896bfe",
+      "target": "web/app/src/pages/IntegrationSettings.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0085"
+    },
+    {
+      "sourceSha256": "900a0911bd8d50da8d279671a6dfad8f367caa645c06e52ddcb78bb902a5d427",
+      "target": "web/app/src/pages/LibraryPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0086"
+    },
+    {
+      "sourceSha256": "89389affa524b297895ea79d5597b2b821fcf42ced7b4c7aaf08612cb0630641",
+      "target": "web/app/src/pages/ListenTogetherPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0087"
+    },
+    {
+      "sourceSha256": "9d8d9c670c12578969e1d2be149bbc0f490bd974f358ce9b6a9392b85fd3fa11",
+      "target": "web/app/src/pages/NewPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0088"
+    },
+    {
+      "sourceSha256": "e90d5dea44ad19a3a3e9943727df56105b28d7709de14d6cd9688fff0253cef0",
+      "target": "web/app/src/pages/NotFoundPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0089"
+    },
+    {
+      "sourceSha256": "049238f222fd921c08bcadbc5cda4e25b06e4480d26aef22f65c35a79e10685d",
+      "target": "web/app/src/pages/pageStyles.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0090"
+    },
+    {
+      "sourceSha256": "939027287feb0d8617170473282f40acd8b1cbb0c573f0fa9f8b2810e4004736",
+      "target": "web/app/src/pages/PlaylistPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0091"
+    },
+    {
+      "sourceSha256": "93680cf9bf9745e13e04e083cc27b0907c526d8227965207f397e32805bea554",
+      "target": "web/app/src/pages/SearchPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0092"
+    },
+    {
+      "sourceSha256": "25a5526f1937363c657f4a63b137b17617a5fe858401b2a01b9af278c877f746",
+      "target": "web/app/src/pages/SettingsPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0093"
+    },
+    {
+      "sourceSha256": "49f72d86cb2a73617dbce44af972cd4d4432709d667a06ba8977d85baa6379d4",
+      "target": "web/app/src/pages/settingsStyles.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0094"
+    },
+    {
+      "sourceSha256": "dd205f1fadce6bf75ba4dd1f79f4454446f8bae46424d3896d991ef07c6a5533",
+      "target": "web/app/src/pages/SpotifyPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0095"
+    },
+    {
+      "sourceSha256": "f3009203719285dd885f7adfb702fefae98d1a61db2103e2b91c9cf7ba668489",
+      "target": "web/app/src/pages/SpotifyPlaylistPage.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0096"
+    },
+    {
+      "sourceSha256": "1473e165f7264fb7390b70464d1e02c18ba631d6de739435394816017f97cd40",
+      "target": "web/app/src/party/clock.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0097"
+    },
+    {
+      "sourceSha256": "f4ecc6b5b5e3f0490934f4ffadf80789c2b3bdb703c3204035452068491738f9",
+      "target": "web/app/src/party/invite.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0098"
+    },
+    {
+      "sourceSha256": "8065a2b9977100a64e6d6882e4892614110cfd0db90d9578001e6a456e7b0e98",
+      "target": "web/app/src/party/listenTogether.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0099"
+    },
+    {
+      "sourceSha256": "e58ed023e566af227373ab7e733f871ef905602abc37beb17c617f76e6798f57",
+      "target": "web/app/src/party/models.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0100"
+    },
+    {
+      "sourceSha256": "5cb1e30fd6b2bb41aea3d9284472d582a4ca6ade2f9d3023084d6b7f4bff24d8",
+      "target": "web/app/src/party/party.test.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0101"
+    },
+    {
+      "sourceSha256": "c6cf4bb9da2ad8b3f54e3af4ea137dd60100294c5583404d06b781a0fae20570",
+      "target": "web/app/src/party/partySync.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0102"
+    },
+    {
+      "sourceSha256": "11af921d5f5c17a297e1910f36c8b79c7fbced91fae6029e004c2a3f75702b60",
+      "target": "web/app/src/party/queueReading.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0103"
+    },
+    {
+      "sourceSha256": "b71c18e742a35d2247336f49561a513de0352e8b5a92439e25777adf5dd72607",
+      "target": "web/app/src/party/useParty.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0104"
+    },
+    {
+      "sourceSha256": "f8d4481fce55553a4e228ae81d97009bdad1e2a46f62d1c646974fa2081a0786",
+      "target": "web/app/src/playback/discordPresence.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0105"
+    },
+    {
+      "sourceSha256": "3f6b2528d68c8e3abcc4fa127752475fb17c4f46e17ac4b43b2158e4dadf56d5",
+      "target": "web/app/src/playback/historyReporting.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0106"
+    },
+    {
+      "sourceSha256": "bcce48bc38628ab9bd1ba1f9a71a02918752a9d6049910ca350d66b822be70d9",
+      "target": "web/app/src/playback/queue/builder.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0107"
+    },
+    {
+      "sourceSha256": "16366cc6735a62c23ce150a34ab0aa2b3d5ee1d2b2050ccf64bb00caf12c050c",
+      "target": "web/app/src/playback/queue/queue.test.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0108"
+    },
+    {
+      "sourceSha256": "2912bbbca5c7655cc66b6e5ccf043bf4b52583f0a107f4ef2e1196237c85a095",
+      "target": "web/app/src/playback/queue/timeline.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0109"
+    },
+    {
+      "sourceSha256": "d35689c3ea9bd0a24ba24b427236743b236552260d93fe6d0ada8c011b793aa0",
+      "target": "web/app/src/playback/trackLog.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0110"
+    },
+    {
+      "sourceSha256": "7fcbad0e4774b1a4431049256eb1d8374c7c2f6e82949da1b099c659ef0909ef",
+      "target": "web/app/src/playback/youtube/botguard.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0111"
+    },
+    {
+      "sourceSha256": "9034bd95278675277f6c2db810f032300c99148d26334a36fce1f5a89a59ac74",
+      "target": "web/app/src/playback/youtube/engine.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0112"
+    },
+    {
+      "sourceSha256": "2bf23352878fd1a5d37b207b2f05d3a0c5dd0beecb84dbd042cfb46455e2862d",
+      "target": "web/app/src/playback/youtube/innertube.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0113"
+    },
+    {
+      "sourceSha256": "7a8b7152919e46d4034eb385e2f3ce9fe44d158baf1dc82b2008fd6e1d273bb0",
+      "target": "web/app/src/playback/youtube/resolver.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0114"
+    },
+    {
+      "sourceSha256": "db76ed606849debea6deeb2b4e16736ff5d969b25d29e5309575b4dc2cc9d1bd",
+      "target": "web/app/src/playback/youtube/shakaHelpers.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0115"
+    },
+    {
+      "sourceSha256": "43a1ad6cf1904ae2ba276b3863aa5d4f10df9b76868b12cc9aacfe009f5cc856",
+      "target": "web/app/src/playback/youtube/ShakaPlayerAdapter.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0116"
+    },
+    {
+      "sourceSha256": "7c26aa928b861a75ee931380f2b9b0db996df7639169eb56bdb8a9904663ab33",
+      "target": "web/app/src/playback/youtube/videoDeck.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0117"
+    },
+    {
+      "sourceSha256": "51bcd71b13a59c1ec4b8d25fe1463929e4be61ff02744d253f96e846646edeba",
+      "target": "web/app/src/routes.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0118"
+    },
+    {
+      "sourceSha256": "7e73239f8afe1c6cad9f8973cb7fb31fc63fd9bfffe96965b8fff2cfc3c042d4",
+      "target": "web/app/src/shell/AccountButton.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0119"
+    },
+    {
+      "sourceSha256": "55722e049d64bb4689de75808d71ac6abdcaca1e05e5d0cab6a0b6df80e18074",
+      "target": "web/app/src/shell/AppShell.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0120"
+    },
+    {
+      "sourceSha256": "bd42fe6fdf5bf0c5ceefb238dd0e2db77e5ab5f528f8ebc43e553039ce247173",
+      "target": "web/app/src/shell/Banner.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0121"
+    },
+    {
+      "sourceSha256": "3cab6aaa6b5dfa86190d28eece4dcf55092aea21a34184047a8a9fa4342d431e",
+      "target": "web/app/src/shell/FullScreenPlayer.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0122"
+    },
+    {
+      "sourceSha256": "0fca7ca1a3d7da8d1cef5ccb89a24488ee64f5ac6342ef793bae88d4e6c813df",
+      "target": "web/app/src/shell/Lcd.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0123"
+    },
+    {
+      "sourceSha256": "d11f2b53a56e39e9300b2f818eeb5cda47cfe8e72c4e0798f992c06b9931af3d",
+      "target": "web/app/src/shell/LyricsPanel.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0124"
+    },
+    {
+      "sourceSha256": "e639514f548cdaf30ecc73474b2d0a6bf34b6c3b8718589947425cbfb1fd8582",
+      "target": "web/app/src/shell/LyricsSettings.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0125"
+    },
+    {
+      "sourceSha256": "08def234e3d1db11a6ae7cb972ae2ace9106cbe8036eac5a954808b972c8e972",
+      "target": "web/app/src/shell/MeshBackdrop.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0126"
+    },
+    {
+      "sourceSha256": "598e61cace4d4084ccdb05de44acf130b0f7d02c3afa357841c2dc946736e7a4",
+      "target": "web/app/src/shell/MobileTopBar.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0127"
+    },
+    {
+      "sourceSha256": "f58e98e52a65d9814d464fe2c9ac6ebe230e95f48db09a9fed18d57dbfea9aba",
+      "target": "web/app/src/shell/nowPlayingLinks.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0128"
+    },
+    {
+      "sourceSha256": "36240378b6e5c3868d6c45633186e3bfab9c9e5bde14751562ac4884dd3e3f38",
+      "target": "web/app/src/shell/PlayerBar.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0129"
+    },
+    {
+      "sourceSha256": "9e5082f8dce4899c5d0ae93d81ff54053a27b1aa1524e4dcdaf401e680d75ba9",
+      "target": "web/app/src/shell/Sidebar.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0130"
+    },
+    {
+      "sourceSha256": "0f56a4ed39db530618aba4ee571de31612f0595ee718c06c92d5e5cf6b70727c",
+      "target": "web/app/src/shell/SidePanel.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0131"
+    },
+    {
+      "sourceSha256": "723c624ac114208e6628ca31d80a456ef9a05e3f8ac6cf4ba46265094256ccc7",
+      "target": "web/app/src/shell/UpNext.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0132"
+    },
+    {
+      "sourceSha256": "99e0851ada07c333bf6d5ba6ad928f2e4590f5116a4d13da803d4d475e024482",
+      "target": "web/app/src/shell/useKeyboardShortcuts.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0133"
+    },
+    {
+      "sourceSha256": "d2ba0fe4462f19ac4bc4e2cd951898880865f6385b5bb6ffc22fbf73f6f381aa",
+      "target": "web/app/src/shell/useScrubber.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0134"
+    },
+    {
+      "sourceSha256": "45cf3edf63f05208010c04802ea7ca05b50959a5f4f8f6608c62161d3c6e8a8d",
+      "target": "web/app/src/skeletons/DetailSkeleton.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0135"
+    },
+    {
+      "sourceSha256": "9224a23e8ab232e7b62c400251e1db5395210aa95bd4eb10744b7f62e8874016",
+      "target": "web/app/src/skeletons/PageSkeletons.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0136"
+    },
+    {
+      "sourceSha256": "f4b4444ae486ddc4b80b7f3b7683f79fd956fd9bed4407d207b174731b58d357",
+      "target": "web/app/src/skeletons/ShelfSkeleton.tsx",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0137"
+    },
+    {
+      "sourceSha256": "de213667ef832c343cabb68a9637cc7ae3ba9816759e7a45fecd91d4ba1a034e",
+      "target": "web/app/src/state/player.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0138"
+    },
+    {
+      "sourceSha256": "c3ee2920b0cf62dd308a7edc4afe97aa9d07d4fcec7a4de9e3813c05321de0f0",
+      "target": "web/app/src/state/ui.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0139"
+    },
+    {
+      "sourceSha256": "213fb1b18e2380379ecbf64150f77f82d42d810235d1246f6c5e7eee084111f8",
+      "target": "web/app/src/state/video.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0140"
+    },
+    {
+      "sourceSha256": "d9b92fb180ec635632bca2013c3066663eb5b95bfe8db495068548c327705e1f",
+      "target": "web/app/src/styles/global.css",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0141"
+    },
+    {
+      "sourceSha256": "604923989ad00ead4bac022f97001ef2b4a28cc3c212e1167c166d09457dc0b3",
+      "target": "web/app/src/styles/tokens.css",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0142"
+    },
+    {
+      "sourceSha256": "a59c854497a3192e1a4766472b282c8a249876e838163a9a94b317d3d6501aaa",
+      "target": "web/app/src/vite-env.d.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0143"
+    },
+    {
+      "sourceSha256": "e4be087f21c2ffa3049168092bf76699e9b41fec837c97d89231a64ea127c81d",
+      "target": "web/app/tsconfig.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0144"
+    },
+    {
+      "sourceSha256": "c636b42a133fa769a68d4d2abc4b6b8b31fcb9a7f41a033a4c7ea7afe4352886",
+      "target": "web/app/tsconfig.node.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0145"
+    },
+    {
+      "sourceSha256": "e7f87376c341187dab50a7994cc1d7f3372ac1fe48ecd29fd712e0edbe169e89",
+      "target": "web/app/vite.config.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0146"
+    },
+    {
+      "sourceSha256": "fc948e8bec8c407880f0b02be8f68d4a064208cfbb3271a89da68094af827de3",
+      "target": "web/extension/entrypoints/background.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0147"
+    },
+    {
+      "sourceSha256": "50330e62c6107feb57675d2ac0c3a6dce25998c13a547f58391b83e20c58f564",
+      "target": "web/extension/entrypoints/discord/index.html",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0148"
+    },
+    {
+      "sourceSha256": "257bdd0b69f1f0d3fcd3df3b00b8f65c29f54d03d87c1f973ac2583b2a0388cb",
+      "target": "web/extension/entrypoints/discord/main.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0149"
+    },
+    {
+      "sourceSha256": "f0cb3c51454f02537855bc3d90c16a47e85f326259efdca267252ee1a4b1bfe0",
+      "target": "web/extension/entrypoints/grant/index.html",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0150"
+    },
+    {
+      "sourceSha256": "00df5df76992f6696a20df54512db517e11759da89a091c338b33ab42b24b19a",
+      "target": "web/extension/entrypoints/grant/main.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0151"
+    },
+    {
+      "sourceSha256": "e02f0531e3faefa436709137696b5c36de2dbef12a8132df76b446b3edc98daf",
+      "target": "web/extension/entrypoints/grant/style.css",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0152"
+    },
+    {
+      "sourceSha256": "d6a8ecbc0dfdd531b3d14e86689e7de1f63b7f6c4aaf0917930ef16ba1a001ee",
+      "target": "web/extension/entrypoints/popup/index.html",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0153"
+    },
+    {
+      "sourceSha256": "3110625df5491133ba5bbc51a40a8cccf0c1c6d90137d046bc189d7a9b3097e4",
+      "target": "web/extension/entrypoints/popup/main.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0154"
+    },
+    {
+      "sourceSha256": "fb99bfaa83387a1470d06fd4e5bb4a5f1f2c9960f5e54ca1bda95c251c680767",
+      "target": "web/extension/entrypoints/popup/style.css",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0155"
+    },
+    {
+      "sourceSha256": "0fd27b99921c73ced267c5de699a868074cb2517b0b89ba16cc7a799af73a6e5",
+      "target": "web/extension/entrypoints/relay.content.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0156"
+    },
+    {
+      "sourceSha256": "23e1a6e5183f216ec764c619bfd7fcc78c42229b9da2eedcc8aa1f3e08ed5b88",
+      "target": "web/extension/lib/discord.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0157"
+    },
+    {
+      "sourceSha256": "c69bbb1a38bc6124a709ca2f6ac605ba2dd6d820eeb886171270a4f3f1efdd62",
+      "target": "web/extension/lib/lyricHosts.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0158"
+    },
+    {
+      "sourceSha256": "4834c1708d9f5f1d8a6ef8acffbc0f303f579a6a6c134edec8fc2a0135dc7059",
+      "target": "web/extension/lib/lyricsFetch.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0159"
+    },
+    {
+      "sourceSha256": "c1185586801b2de3c372a55958288e0f4bd1a9cec09db603cf1b0bec82bca522",
+      "target": "web/extension/lib/rules.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0160"
+    },
+    {
+      "sourceSha256": "fc4f734685071f05ca495999b7eb22839a17d8734f4dce95bc1c8163f42af0cf",
+      "target": "web/extension/lib/spotify.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0161"
+    },
+    {
+      "sourceSha256": "d28bd3990c22747abe215dc8a4dc3e85c2bf1e18ed9f1fa66c6fb43e0ee53a67",
+      "target": "web/extension/lib/ytAuth.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0162"
+    },
+    {
+      "sourceSha256": "e8b0b2c2eef7e93774e1bb4b20a050b250a051a7936ffe1fcde69f1b7c94dd2f",
+      "target": "web/extension/lib/ytFetch.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0163"
+    },
+    {
+      "sourceSha256": "8f26d1b374e20132584d76c95eebd5e71a266b4145d236d790cb84fc6d56c953",
+      "target": "web/extension/package.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0164"
+    },
+    {
+      "sourceSha256": "f9a265d35ce629f57b27b356ee7c04e39dfedfac8d7d5f432dfd19a9aa0b8250",
+      "target": "web/extension/scripts/gen-dev-key.mjs",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0165"
+    },
+    {
+      "sourceSha256": "9fca64ff59fe4f051a88e6183822690d99500cc6e6551412846b403495111502",
+      "target": "web/extension/scripts/gen-icons.mjs",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0166"
+    },
+    {
+      "sourceSha256": "65419f4af213cc14bafbf38913077fd642010f35a1e3e9d64ea5bf8d50a57994",
+      "target": "web/extension/scripts/publish-to-site.mjs",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0167"
+    },
+    {
+      "sourceSha256": "705d34a9dcaccba3840ecaf404b2a963758c2bfa0c979f838411a5aaa3a34a9e",
+      "target": "web/extension/site.config.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0168"
+    },
+    {
+      "sourceSha256": "e213f1b63692a22071ab4c87d14d9ceb4e63aef114516e3d1cc1aab45dae26e0",
+      "target": "web/extension/tsconfig.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0169"
+    },
+    {
+      "sourceSha256": "0cb7a5e1796299f3966d96f5995546f3f226758c81587bfdbcaa6cfb259c68b2",
+      "target": "web/extension/tsconfig.node.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0170"
+    },
+    {
+      "sourceSha256": "bc13b54dbc3e91816f8cf83f89feb8ad9e6599caf3a9ce6d4687d68284a17042",
+      "target": "web/extension/wxt.config.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0171"
+    },
+    {
+      "sourceSha256": "cb637590858c7c3edf8fad61792c4d974d711a1a53add0be9389294e82551299",
+      "target": "web/fixtures/innertube/browse-album.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0172"
+    },
+    {
+      "sourceSha256": "837783829a92fdcbd5e6b677e74b1d5c1c396767fa116a3b5ebb2848b7b65b5f",
+      "target": "web/fixtures/innertube/browse-artist.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0173"
+    },
+    {
+      "sourceSha256": "2e1051a979887eb11102ccc85e5cd2a04ca726f57a730cfd4212444fe61a67b3",
+      "target": "web/fixtures/innertube/browse-explore.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0174"
+    },
+    {
+      "sourceSha256": "9b5cfc4848b0f5d19c7d4b69aca55406bac6c74b9470fd1269b14a914508cc25",
+      "target": "web/fixtures/innertube/browse-home.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0175"
+    },
+    {
+      "sourceSha256": "cf3e5ee79fd34171143a907d017d8710b9a5ae2db2616d40de1995d28d3d1dbd",
+      "target": "web/fixtures/innertube/browse-moods-and-genres.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0176"
+    },
+    {
+      "sourceSha256": "79c4c4f35efc29449530a2a1230095e8d779cd1ccd499806808539aabaa34646",
+      "target": "web/fixtures/innertube/browse-new-releases.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0177"
+    },
+    {
+      "sourceSha256": "7a2982b9d9974cf0c6bfbcd21ea549c8466912a02abc9f7e2f568f609d2b6cd9",
+      "target": "web/fixtures/innertube/browse-playlist.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0178"
+    },
+    {
+      "sourceSha256": "a011bcdb38405534ef430064d8026a6ef221ab79aa7c5c97faeaf8643207018a",
+      "target": "web/fixtures/innertube/next-radio.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0179"
+    },
+    {
+      "sourceSha256": "b52e96bf0a640c3338fdc673a5f4929559abc07a9d069351dc9c4699740bb423",
+      "target": "web/fixtures/innertube/player-web-remix-no-potoken.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0180"
+    },
+    {
+      "sourceSha256": "bf2ad96cfab992a85d04e57fcfe6a14d13dd1ed62b02e555c4c82b9e4c101acd",
+      "target": "web/fixtures/innertube/search-albums.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0181"
+    },
+    {
+      "sourceSha256": "870407a9a4fd255fbc5b632fae276e02c11737f8056f84ce3b7ec3100168ffe6",
+      "target": "web/fixtures/innertube/search-all.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0182"
+    },
+    {
+      "sourceSha256": "ca2cf0532f6efb1a1d9d4cb168d183c1b70eea315131c0f757cbffbb63798d91",
+      "target": "web/fixtures/innertube/search-songs.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0183"
+    },
+    {
+      "sourceSha256": "2eaed8e93b1759298ecab8659b0a97231adbc7406cdacea9ca32d0192c993b82",
+      "target": "web/fixtures/innertube/search-suggestions.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0184"
+    },
+    {
+      "sourceSha256": "00e13d0d51085be4105cab535b9937286e0147a2fe6756df61922f61f2373118",
+      "target": "web/package.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0185"
+    },
+    {
+      "sourceSha256": "91cca33cefa219f75a2bf6fb7ef1b7d520b6795944345ff0636beb9cf6ef4fc2",
+      "target": "web/pnpm-workspace.yaml",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0186"
+    },
+    {
+      "sourceSha256": "1fbfc6d32cf068aa61d81eed98077d9bf8a21ee1b270fdde916a5d6c09841c2d",
+      "target": "web/shared/package.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0187"
+    },
+    {
+      "sourceSha256": "b82133fabfb04a6f77d564b6a3d287f23a68d539f090142df157ffc99593e9f1",
+      "target": "web/shared/src/bridge/client.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0188"
+    },
+    {
+      "sourceSha256": "0ac8d001d728bff44037279ef1921c745c6516edc3ad8f2ff2645a5979246254",
+      "target": "web/shared/src/bridge/index.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0189"
+    },
+    {
+      "sourceSha256": "29ebb5b946a83a57380a0b59c3c2dbe55625ff159982f9d4d2ee61fe7fe320bc",
+      "target": "web/shared/src/bridge/protocol.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0190"
+    },
+    {
+      "sourceSha256": "48f5fe6a8cc674d7c96fb0d1aa5a20bece32b298f08c34397b86a4e5bccbabcb",
+      "target": "web/shared/src/index.ts",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0191"
+    },
+    {
+      "sourceSha256": "c750ae548f3ec5834d2c33c0975d2346dbd324f985047d2a7abf50655c85396f",
+      "target": "web/shared/tsconfig.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0192"
+    },
+    {
+      "sourceSha256": "63f31f9604788eb562eb11172f4d6785cd901e51108eb28a3e608e5470b1ce38",
+      "target": "web/tsconfig.base.json",
+      "adaptations": "Cosmotune names/origins/assets; system fonts; Discord disabled; no default hosted party service",
+      "sourceRecord": "WEB-0193"
+    }
+  ],
+  "excludedOrReplaced": [
+    "app/src/assets/fonts/sf-pro-display-bold.woff2",
+    "app/src/assets/fonts/sf-pro-display-regular.woff2",
+    "docs/apple-music-dom.md",
+    "docs/kira-notes.md",
+    "docs/lyrics.md",
+    "docs/queue-and-player.md",
+    "docs/spotify-and-discord.md",
+    "docs/youtube-playback.md",
+    "docs/youtube-signin.md",
+    "extension/dev-key/extension-id.txt",
+    "extension/dev-key/public-key.txt",
+    "extension/public/icon/128.png",
+    "extension/public/icon/16.png",
+    "extension/public/icon/32.png",
+    "extension/public/icon/48.png",
+    "extension/public/icon/96.png",
+    "fixtures/index.json",
+    "fixtures/lyrics/betterlyrics-portato.json",
+    "fixtures/lyrics/betterlyrics.json",
+    "fixtures/lyrics/binilyrics.json",
+    "fixtures/lyrics/genius-search.json",
+    "fixtures/lyrics/google-translate.json",
+    "fixtures/lyrics/kugou-download.json",
+    "fixtures/lyrics/kugou-lyric-search.json",
+    "fixtures/lyrics/kugou-song-search.json",
+    "fixtures/lyrics/lrc-red-document.ttml",
+    "fixtures/lyrics/lrc-red-search.json",
+    "fixtures/lyrics/lrclib-get.json",
+    "fixtures/lyrics/lrclib-search.json",
+    "fixtures/lyrics/lyricsplus-lyricsplus.prjktla.my.id.json",
+    "fixtures/lyrics/paxsenix-apple.json",
+    "fixtures/lyrics/simpmusic.json",
+    "fixtures/lyrics/unison.json",
+    "fixtures/lyrics/youtube-music-lyrics-tab.json",
+    "fixtures/README.md",
+    "fixtures/spotify/canvas-anonymous.json",
+    "fixtures/spotify/fetch-playlist.json",
+    "fixtures/spotify/search-tracks.json",
+    "fixtures/spotify/web-player.json",
+    "pnpm-lock.yaml",
+    "README.md",
+    "scripts/capture-fixtures.mjs"
+  ],
+  "sourceLedger": "FORK.md#companion-source-records (repository/archive root)",
+  "authorshipNotice": "NOTICE.md (repository/archive root)"
+}

@@ -77,9 +77,12 @@ interface DownloadPlatform {
 
 /** [DownloadsFile.Io] on a real folder: a write is flushed to the device; the rename is atomic where the file system allows. */
 class FileDownloadsIo(private val dir: File) : DownloadsFile.Io {
-    override fun read(name: String): String? = File(dir, name).takeIf { it.isFile }?.readText()
+    private val lock = locks.computeIfAbsent(dir.canonicalPath) { Any() }
+    override fun read(name: String): String? = synchronized(lock) {
+        File(dir, name).takeIf { it.isFile }?.readText(Charsets.UTF_8)
+    }
 
-    override fun write(name: String, text: String) {
+    override fun write(name: String, text: String) = synchronized(lock) {
         dir.mkdirs()
         FileOutputStream(File(dir, name)).use { out ->
             out.write(text.toByteArray(Charsets.UTF_8))
@@ -87,7 +90,7 @@ class FileDownloadsIo(private val dir: File) : DownloadsFile.Io {
         }
     }
 
-    override fun rename(from: String, to: String) {
+    override fun rename(from: String, to: String) = synchronized(lock) {
         val source = File(dir, from).toPath()
         val target = File(dir, to).toPath()
         try {
@@ -95,7 +98,9 @@ class FileDownloadsIo(private val dir: File) : DownloadsFile.Io {
         } catch (_: AtomicMoveNotSupportedException) {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING)
         }
+        Unit
     }
+    private companion object { val locks = java.util.concurrent.ConcurrentHashMap<String, Any>() }
 }
 
 /**

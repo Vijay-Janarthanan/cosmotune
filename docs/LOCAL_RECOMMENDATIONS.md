@@ -32,3 +32,7 @@ python tools/verify-recommendations.py
 The full trainer writes to the ignored training workspace, never directly to app assets. An interrupted run against the **same frozen data and parameters** can resume with `--reuse-trained-graphs`; do not use that option after changing inputs. Distillation alone writes the tiny app assets, with a hard 5,000,000-byte limit on both compressed and mapped data.
 
 No recurring update job is configured. Model updates currently ship with app releases. Scheduling and independent monthly pack downloads are future work.
+
+## 1.0.4 work in progress
+
+The radio path now encodes a batch's seed once while preserving identical similarity scores. Android emulator discovery plus 50-song ranking measured 11.12 ms median / 15.83 ms p95, including an untrained [65,568-byte local preference learner](LOCAL_PREFERENCE_LEARNING.md). Base and personal model files total 4,242,007 bytes. Physical-phone timing and end-to-end relevance remain unverified; these changes have not been published yet.

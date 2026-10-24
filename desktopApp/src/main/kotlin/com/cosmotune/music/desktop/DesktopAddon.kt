@@ -3,12 +3,16 @@ package com.cosmotune.music.desktop
 import com.cosmotune.music.data.model.SearchFilter
 import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.sources.MAX_ADDON_JSON_BYTES
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.utils.io.readAvailable
 import io.ktor.http.URLBuilder
 import io.ktor.http.Url
 import io.ktor.http.appendPathSegments
@@ -28,6 +32,37 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.io.ByteArrayOutputStream
+
+private data class AddonJsonResponse(val code: Int, val text: String?, val retryAfter: String?)
+
+/** Stream metadata within a byte budget instead of letting Ktor buffer an arbitrary response first. */
+private suspend fun getAddonJson(http: HttpClient, url: String, userAgent: String): AddonJsonResponse =
+    http.prepareGet(url) {
+        header("Accept", "application/json")
+        header("User-Agent", userAgent)
+    }.execute { response ->
+        val code = response.status.value
+        var text: String? = null
+        if (code in 200..299) {
+            if ((response.headers["Content-Length"]?.toLongOrNull() ?: -1L) > MAX_ADDON_JSON_BYTES) {
+                throw DesktopAddonException("Addon response exceeds 2 MB")
+            }
+            val channel = response.bodyAsChannel()
+            val output = ByteArrayOutputStream()
+            val chunk = ByteArray(8192)
+            while (true) {
+                val remaining = MAX_ADDON_JSON_BYTES - output.size()
+                val read = channel.readAvailable(chunk, 0, minOf(chunk.size.toLong(), remaining + 1).toInt())
+                if (read < 0) break
+                if (read == 0) continue
+                if (read > remaining) throw DesktopAddonException("Addon response exceeds 2 MB")
+                output.write(chunk, 0, read)
+            }
+            text = output.toString(Charsets.UTF_8.name()).removePrefix("\uFEFF")
+        }
+        AddonJsonResponse(code, text, response.headers["Retry-After"])
+    }
 
 // ── Protocol models ────────────────────────────────────────────────────── The addon protocol is
 // three GET endpoints returning JSON.
@@ -39,7 +74,7 @@ internal data class DesktopAddonManifest(
     @SerialName("version") val version: String = "",
     @SerialName("resources") val resources: List<String> = emptyList(),
     /**
-     * The settings schema the addon declares, read for its *defaults* rather than to build a form.
+     * Declared form schema; chosen values override defaults before the connection quality policy.
      */
     @SerialName("settings") val settings: List<DesktopAddonSetting> = emptyList(),
     /**
@@ -62,6 +97,10 @@ internal data class DesktopAddonManifest(
 @Serializable
 internal data class DesktopAddonSetting(
     @SerialName("key") val key: String = "",
+    @SerialName("label") val label: String = "",
+    @SerialName("type") val type: String = "string",
+    @SerialName("description") val description: String = "",
+    @SerialName("secret") val secret: Boolean = false,
     @SerialName("default") val default: JsonElement? = null,
     @SerialName("options") val options: List<DesktopAddonSettingOption> = emptyList(),
 ) {
@@ -70,10 +109,19 @@ internal data class DesktopAddonSetting(
 
 @Serializable
 internal data class DesktopAddonSettingOption(
+    @SerialName("label") val label: String = "",
     @SerialName("value") val value: JsonElement? = null,
 ) {
     val stringValue: String? get() = value?.asQueryValue()
 }
+
+internal fun DesktopAddonSetting.forEditor() = com.cosmotune.providers.ProviderSetting(
+    key = key, label = label, type = type, default = default ?: JsonNull, description = description, secret = secret,
+    options = options.map { option -> JsonObject(buildMap {
+        put("value", option.value ?: JsonNull)
+        if (option.label.isNotBlank()) put("label", JsonPrimitive(option.label))
+    }) },
+)
 
 @Serializable
 internal data class DesktopAddonSearchResponse(
@@ -108,7 +156,13 @@ internal data class DesktopAddonTrack(
         get() = atmos == true || ATMOS_HINT.containsMatchIn(
             "$audioQuality ${audioMode.orEmpty()} ${audioModes.joinToString(" ")} $format",
         )
+
+    /** Whether the row names the hi-res tier — Tidal's `HI_RES_LOSSLESS`, `hires-96`, `24-bit`. */
+    val isHiRes: Boolean get() = HI_RES_HINT.containsMatchIn("$audioQuality $format")
 }
+
+/** How a row spells the hi-res lossless tier in its quality label. */
+private val HI_RES_HINT = Regex("""hi[-_ ]?res|24[-_ ]?bit""", RegexOption.IGNORE_CASE)
 
 @Serializable
 internal data class DesktopAddonStream(
@@ -252,7 +306,7 @@ internal class DesktopAddonUnavailable(message: String) : DesktopAddonException(
 // ── Client ───────────────────────────────────────────────────────────────
 
 /** One addon server, and every question this app knows how to ask it. */
-internal class DesktopAddonClient(rawBaseUrl: String) {
+internal class DesktopAddonClient(rawBaseUrl: String, val userSettings: Map<String, String> = emptyMap()) {
 
     /** Where this addon lives, with `/manifest.json` and trailing slashes off. */
     val baseUrl: String = normalizeBase(rawBaseUrl)
@@ -261,6 +315,7 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
     private val manifests = DesktopSharedCalls<DesktopAddonManifest>(MANIFEST_TTL_MS, calls)
     private val searches = DesktopSharedCalls<DesktopAddonSearchResponse>(SEARCH_TTL_MS, calls)
     private val streams = DesktopSharedCalls<DesktopAddonStream>(STREAM_TTL_MS, calls)
+    private val catalogues = DesktopSharedCalls<JsonObject>(SEARCH_TTL_MS, calls)
 
     /** When this addon may be spoken to again after it said it was being asked too often. */
     @Volatile
@@ -302,11 +357,32 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
     }
 
     /** A playable URL for one of this addon's own track ids. */
-    suspend fun stream(trackId: String, tier: String): Result<DesktopAddonStream> {
-        val params = settingsFor(tier)
+    /** [stereoOnly] withholds the `?atmos=` hint; see [DesktopAddonSource.stream]. */
+    suspend fun stream(trackId: String, tier: String, stereoOnly: Boolean = false): Result<DesktopAddonStream> {
+        val params = settingsFor(tier, stereoOnly)
         return streams.get(keyOf(trackId, params.toString())) {
             fetch<DesktopAddonStream>(endpoint(listOf("stream", trackId), params))
         }
+    }
+
+    suspend fun searchCatalogue(query: String, tier: String = TIER_LOSSLESS, force: Boolean = false): Result<JsonObject> {
+        if (query.isBlank()) return Result.success(JsonObject(emptyMap()))
+        if (force) catalogues.clearCompleted()
+        val params = settingsFor(tier) + ("q" to query.trim().take(500))
+        return catalogues.get(keyOf("search", params.toString())) { fetch<JsonObject>(endpoint(listOf("search"), params)) }
+    }
+
+    /** Optional declared catalogue resources, cached independently of expiring stream URLs. */
+    suspend fun album(id: String, tier: String = TIER_LOSSLESS, force: Boolean = false): Result<JsonObject> = catalogue("album", id, tier, force)
+    suspend fun artist(id: String, tier: String = TIER_LOSSLESS, force: Boolean = false): Result<JsonObject> = catalogue("artist", id, tier, force)
+
+    private suspend fun catalogue(resource: String, id: String, tier: String, force: Boolean): Result<JsonObject> {
+        if (id.isBlank() || id.length > 8_192) return Result.failure(DesktopAddonException("Invalid catalogue identity"))
+        val descriptor = manifest().getOrElse { return Result.failure(it) }
+        if (!descriptor.declares(resource)) return Result.failure(DesktopAddonException("This source does not offer $resource pages"))
+        if (force) catalogues.clearCompleted()
+        val params = settingsFor(tier)
+        return catalogues.get(keyOf(resource, id, params.toString())) { fetch<JsonObject>(endpoint(listOf(resource, id), params)) }
     }
 
     /** Everything held about this addon, dropped — reached when it is edited or removed. */
@@ -314,6 +390,7 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
         manifests.clear()
         searches.clear()
         streams.clear()
+        catalogues.clear()
         quietUntilMs = 0L
     }
 
@@ -321,15 +398,16 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
     fun clearCompletedTrackCalls() {
         searches.clearCompleted()
         streams.clearCompleted()
+        catalogues.clearCompleted()
     }
 
     /** The query parameters that travel with every request. */
-    private suspend fun settingsFor(tier: String): Map<String, String> {
+    private suspend fun settingsFor(tier: String, stereoOnly: Boolean = false): Map<String, String> {
         val declared = manifest().getOrNull()?.settings.orEmpty()
         val params = LinkedHashMap<String, String>()
         declared.forEach { setting ->
             val key = setting.key.takeIf { it.isNotBlank() } ?: return@forEach
-            setting.defaultValue?.let { params[key] = it }
+            (userSettings[key] ?: setting.defaultValue)?.let { params[key] = it }
         }
         if (tier.isNotBlank()) {
             val options = declared.firstOrNull { it.key == QUALITY_KEY }
@@ -339,6 +417,20 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
         }
         // `auto` asks for Atmos when available and stereo otherwise. A declared addon default is
         // authoritative, exactly as on Android, so this never overwrites one.
+        // A stereo row picked by hand is asked for as stereo: no hint, and a declared `atmos`
+        // setting pinned to its "off" value — `auto` there swaps in the row's Atmos sibling.
+        if (stereoOnly) {
+            val atmosSetting = declared.firstOrNull { it.key == ATMOS_KEY }
+            if (atmosSetting == null) {
+                params.remove(ATMOS_KEY)
+            } else {
+                params[ATMOS_KEY] = atmosSetting.options
+                    .mapNotNull { it.stringValue }
+                    .firstOrNull { ATMOS_OFF.matches(it) }
+                    ?: ATMOS_NEVER
+            }
+            return params
+        }
         val atmosWanted = DesktopCodecs.supportsDolbyAtmos && DesktopAddonSettings.dolbyAtmosEnabled
         if (atmosWanted) params.putIfAbsent(ATMOS_KEY, ATMOS_AUTO)
         return params
@@ -364,7 +456,7 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
             throw DesktopAddonException("That is not a usable address")
         }
         return URLBuilder(parsed).apply {
-            appendPathSegments(segments)
+            appendPathSegments(segments, encodeSlash = true)
             params.forEach { (key, value) -> parameters.append(key, value) }
         }.buildString()
     }
@@ -378,19 +470,16 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
         while (true) {
             (quietUntilMs - System.currentTimeMillis()).takeIf { it > 0 }?.let { delay(it) }
 
-            val response = http.get(url) {
-                header("Accept", "application/json")
-                header("User-Agent", USER_AGENT)
-            }
-            val code = response.status.value
+            val response = getAddonJson(http, url, USER_AGENT)
+            val code = response.code
             val wait = when {
-                code in 200..299 -> return@withContext response.bodyAsText().takeIf { it.isNotBlank() }
+                code in 200..299 -> return@withContext response.text?.takeIf { it.isNotBlank() }
                     ?: throw DesktopAddonException("Empty response")
                 code == 404 -> throw DesktopAddonNotFound()
                 code >= 500 -> throw DesktopAddonUnavailable("HTTP $code")
                 code != 429 -> throw DesktopAddonException("HTTP $code")
                 attempt >= MAX_RETRIES -> throw DesktopAddonUnavailable("This addon is rate limiting Cosmotune")
-                else -> retryAfterMs(response.headers["Retry-After"], attempt)
+                else -> retryAfterMs(response.retryAfter, attempt)
             }
             quietUntilMs = System.currentTimeMillis() + wait
             attempt++
@@ -428,6 +517,8 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
         private const val QUALITY_KEY = "quality"
         private const val ATMOS_KEY = "atmos"
         private const val ATMOS_AUTO = "auto"
+        private const val ATMOS_NEVER = "0"
+        private val ATMOS_OFF = Regex("0|false|off|no|none|never|stereo", RegexOption.IGNORE_CASE)
         private const val MANIFEST_SUFFIX = "/manifest.json"
         private const val MAX_RETRIES = 2
         private const val BACKOFF_BASE_MS = 500L
@@ -506,9 +597,9 @@ internal object DesktopAddonSource {
     private fun client(config: DesktopSourceConfig): DesktopAddonClient {
         val base = DesktopAddonClient.normalizeBase(config.baseUrl)
         val existing = clients[config.id]
-        if (existing != null && existing.baseUrl == base) return existing
+        if (existing != null && existing.baseUrl == base && existing.userSettings == config.userSettings) return existing
         existing?.clear()
-        return DesktopAddonClient(config.baseUrl).also { clients[config.id] = it }
+        return DesktopAddonClient(config.baseUrl, config.userSettings).also { clients[config.id] = it }
     }
 
     /** Drops everything held for a source that was edited or removed. */
@@ -574,6 +665,31 @@ internal object DesktopAddonSource {
     suspend fun manifestName(config: DesktopSourceConfig): String? =
         client(config).manifest().getOrNull()?.displayName?.takeIf { it.isNotBlank() }
 
+    suspend fun catalogue(config: DesktopSourceConfig, resource: String, identity: String, force: Boolean = false): JsonObject {
+        check(config.enabled) { "Enable this source first" }
+        val source = client(config)
+        return when (resource) {
+            "manifest" -> Json.encodeToJsonElement(DesktopAddonManifest.serializer(), source.manifest().getOrThrow()) as JsonObject
+            "search" -> source.searchCatalogue(identity, force = force).getOrThrow()
+            "album" -> source.album(identity, force = force).getOrThrow()
+            "artist" -> source.artist(identity, force = force).getOrThrow()
+            else -> error("Unsupported catalogue resource")
+        }
+    }
+
+    private val catalogueJson = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+    fun catalogueSong(config: DesktopSourceConfig, track: com.cosmotune.providers.ProviderTrack): Song {
+        require(track.namespace == "addon" && track.provider == config.id)
+        val checked = com.cosmotune.providers.ProviderHub.artwork?.decorate("addon:${config.id}", track) ?: track
+        val declared = runCatching { catalogueJson.decodeFromJsonElement(DesktopAddonTrack.serializer(), track.raw) }.getOrNull()
+            ?: return com.cosmotune.providers.ProviderHub.remember(checked.song(config.id))
+        remember(config.id, declared)
+        return checked.song(config.id).copy(
+            sourceQuality = if (declared.isDolbyAtmos) DesktopModuleSource.DOLBY else DesktopModuleSource.qualityTier("${declared.audioQuality} ${declared.format}"),
+            sourceHiRes = !declared.isDolbyAtmos && declared.isHiRes,
+        ).also { com.cosmotune.providers.ProviderHub.remember(it) }
+    }
+
     suspend fun search(
         config: DesktopSourceConfig,
         query: String,
@@ -604,6 +720,7 @@ internal object DesktopAddonSource {
                         } else {
                             DesktopModuleSource.qualityTier("${track.audioQuality} ${track.format}")
                         },
+                        sourceHiRes = !track.isDolbyAtmos && track.isHiRes,
                     ),
                 )
             }
@@ -625,16 +742,23 @@ internal object DesktopAddonSource {
         return emptyList()
     }
 
+    /**
+     * @param picked [song] is the queue's own row from this addon — chosen from the Addons search —
+     *   not a match found for another track. A stereo row is then asked for as stereo, with no
+     *   `?atmos=auto` to turn it into its Atmos sibling. Matches and upgrades leave it false.
+     */
     suspend fun stream(
         config: DesktopSourceConfig,
         song: Song,
         quality: String?,
+        picked: Boolean = false,
     ): Result<DesktopStream?> = runCatching {
         val reference = parseTrack(song.videoId)
             ?: return@runCatching null
         refreshPolicy(config)
         val tier = tierFor(quality)
-        val outcome = client(config).stream(reference.trackId, tier)
+        val stereoOnly = picked && song.sourceQuality != null && song.sourceQuality != DesktopModuleSource.DOLBY
+        val outcome = client(config).stream(reference.trackId, tier, stereoOnly)
         val answer = outcome.getOrNull()
         if (answer == null) {
             // A 404 is the addon saying it does not hold this one, which is a miss, not a fault.
@@ -874,13 +998,10 @@ internal object DesktopSourceFormats {
     )
 
     private suspend fun fetch(url: String): Result<String> = runCatching {
-        val response = http.get(url) {
-            header("Accept", "application/json")
-            header("User-Agent", DesktopAddonClient.USER_AGENT)
-        }
-        val code = response.status.value
+        val response = getAddonJson(http, url, DesktopAddonClient.USER_AGENT)
+        val code = response.code
         when {
-            code in 200..299 -> response.bodyAsText().takeIf { it.isNotBlank() }
+            code in 200..299 -> response.text?.takeIf { it.isNotBlank() }
                 ?: throw DesktopAddonException("Empty response")
             code == 404 -> throw DesktopAddonNotFound()
             code >= 500 -> throw DesktopAddonUnavailable("HTTP $code")

@@ -77,6 +77,8 @@ import com.cosmotune.music.data.sources.SourceConfig
 import com.cosmotune.music.data.sources.SourceHealth
 import com.cosmotune.music.data.sources.SourceKind
 import com.cosmotune.music.data.sources.SourceRegistry
+import com.cosmotune.music.data.sources.addon.AddonClient
+import com.cosmotune.music.data.sources.addon.forEditor
 import com.cosmotune.music.ui.components.AddonEditorAlert
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.Dispatchers
@@ -90,10 +92,9 @@ import kotlin.math.roundToInt
  * The order is fixed rather than something to argue with: the addons a user
  * added are tried first, because they are the sources chosen on purpose, and
  * YouTube Music is tried last, since it needs no setup and has the full
- * catalogue behind it. Nothing on this screen downloads code, and nothing on
- * it can teach the app a new way to behave after it has shipped — an addon
- * answers questions with JSON, and this app is the only thing here running
- * anything.
+ * catalogue behind it. JSON add-ons and explicitly trusted provider packages
+ * have separate management flows; importing a package requires reviewing its
+ * identity and requested access before its code can run.
  */
 @Composable
 fun SourcesScreen(
@@ -120,6 +121,7 @@ fun SourcesScreen(
     onEditSmb: () -> Unit,
     /** Opens the full-window warning before JioSaavn is opted into. */
     onConfirmJioSaavn: () -> Unit,
+    onPlayProviderSongs: (List<com.cosmotune.music.data.model.Song>, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -201,6 +203,8 @@ fun SourcesScreen(
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
         )
 
+        com.cosmotune.ui.providers.ProviderPackagesEntry(onPlay = onPlayProviderSongs)
+
         SettingsGroup(
             header = stringResource(R.string.sources_order_header),
             footer = buildString {
@@ -262,6 +266,22 @@ fun SourcesScreen(
                             })
                         },
                         handle = handle,
+                        settings = if (config.kind == SourceKind.ADDON) ({ key(config.id, config.baseUrl) {
+                        com.cosmotune.ui.providers.HttpAddonSettingsEntry(config.displayName, config.userSettings,
+                            enabled = !config.awaitsLosslessOutput,
+                            load = {
+                                val client = AddonClient(config.baseUrl, config.userSettings)
+                                try { client.manifest().getOrThrow().settings.map { it.forEditor() } } finally { client.clear() }
+                            }, onSave = { selected ->
+                                SourceRegistry.config(config.id)?.takeIf { it.baseUrl == config.baseUrl }?.let { current ->
+                                    SourceRegistry.update(current.copy(userSettings = selected))
+                                }
+                            }, launcher = { open, enabled ->
+                                androidx.compose.material3.IconButton(onClick = open, enabled = enabled) {
+                                    Icon(Icons.Rounded.Tune, contentDescription = "Source settings", modifier = Modifier.size(20.dp))
+                                }
+                            })
+                        } }) else null,
                     )
                 }
 
@@ -293,6 +313,22 @@ fun SourcesScreen(
             AddSourceRow(
                 onClick = { onEditSource(SourceConfig(kind = SourceKind.ADDON)) },
             )
+        }
+
+        val httpCatalogues = configs.filter { it.kind == SourceKind.ADDON }
+        if (httpCatalogues.isNotEmpty()) SettingsGroup(header = "Source catalogues") {
+            httpCatalogues.forEach { config -> key(config.id, config.baseUrl) {
+                com.cosmotune.ui.providers.HttpAddonCatalogueEntry(
+                    identity = config.id, title = config.displayName,
+                    enabled = config.enabled && !config.awaitsLosslessOutput, revision = config.hashCode().toString(),
+                    load = { resource, identity, force ->
+                        val source = SourceRegistry.instance(config.id) as? AddonSource ?: error("Source is unavailable")
+                        source.catalogue(resource, identity, force)
+                    }, song = { track ->
+                        (SourceRegistry.instance(config.id) as? AddonSource)?.catalogueSong(track) ?: track.song(config.id)
+                    }, onPlay = onPlayProviderSongs,
+                )
+            } }
         }
 
         // A personal library rather than a catalogue in the order above: it
@@ -764,6 +800,7 @@ private fun SourceRow(
      * rank is fixed by its kind.
      */
     handle: (@Composable () -> Unit)? = null,
+    settings: (@Composable () -> Unit)? = null,
 ) {
     // Dimmed for the same reason an off source is: it is not in the walk. The
     // switch stays where the user left it, so the row reads "on, but not
@@ -851,6 +888,7 @@ private fun SourceRow(
             )
         }
         Spacer(Modifier.width(8.dp))
+        settings?.invoke()
         if (onToggle == null) {
             Text(
                 text = stringResource(R.string.always_on),

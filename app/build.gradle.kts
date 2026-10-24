@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.security.MessageDigest
 import java.io.FileInputStream
 
 plugins {
@@ -67,7 +68,7 @@ val listenTogetherServer: String = (
  * comes. Blanking this line is the one step that turns a beta into a release,
  * so it is the one place to get right.
  */
-val betaSuffix = ""
+val betaSuffix = rootProject.extra["cosmotuneBetaSuffix"] as String
 
 android {
     namespace = "com.cosmotune.music"
@@ -80,8 +81,8 @@ android {
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.0.3"
+        versionCode = rootProject.extra["cosmotuneVersionCode"] as Int
+        versionName = rootProject.extra["cosmotuneVersionName"] as String
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -102,6 +103,10 @@ android {
             include("armeabi-v7a", "arm64-v8a", "x86_64")
             isUniversalApk = true
         }
+    }
+
+    sourceSets {
+        getByName("main") { java.srcDir("../wearos/protocol") }
     }
 
     externalNativeBuild {
@@ -202,7 +207,11 @@ android {
         disable += "ExtraTranslation"
     }
     packaging {
+        // The shipped native engines support ARMv7, ARM64 and x86_64. A dependency's
+        // extra x86 decoder alone must not make the universal APK look runnable on 32-bit x86.
+        jniLibs.excludes += "**/x86/**"
         resources {
+            pickFirsts += setOf("META-INF/LICENSE.md", "META-INF/LICENSE.txt", "META-INF/NOTICE.md")
             // SMBJ's BouncyCastle and jspecify both ship this descriptor.
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
@@ -268,6 +277,7 @@ dependencies {
     implementation(project(":shared"))
     implementation(project(":sharedUi"))
     implementation(project(":video"))
+    implementation(project(":manga")) { exclude(group = "org.json", module = "json") }
 
     // ---- Compose (Material 3) ----
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
@@ -403,6 +413,11 @@ dependencies {
     // ours are `cosmotune://` addresses that only the service's resolver can
     // turn into a real stream — see [com.cosmotune.music.playback.cast.CastPlayback].
     implementation("com.google.android.gms:play-services-cast-framework:22.2.0")
+    implementation("com.google.android.gms:play-services-wearable:20.0.1")
+    implementation("androidx.wear:wear-remote-interactions:1.1.0")
+    implementation("com.github.MuntashirAkon:libadb-android:3.1.1") { exclude(group = "org.bouncycastle") }
+    implementation("org.conscrypt:conscrypt-android:2.5.3")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
     implementation("androidx.mediarouter:mediarouter:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
@@ -449,3 +464,46 @@ val verifyDevInstall = tasks.register("verifyDevInstall") {
     }
 }
 tasks.matching { it.name == "installDevDebug" }.configureEach { finalizedBy(verifyDevInstall) }
+
+abstract class BundleWearApk : DefaultTask() {
+    @get:InputFiles
+    abstract val apks: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun bundle() {
+        val out = outputDir.get().asFile.resolve("wear")
+        out.mkdirs()
+        val apk = apks.asFileTree.matching { include("*.apk") }.files.singleOrNull()
+            ?: throw GradleException("Expected exactly one watch APK in ${apks.files}")
+        val target = out.resolve("CosmotuneWear.apk")
+        apk.copyTo(target, overwrite = true)
+        val digest = MessageDigest.getInstance("SHA-256")
+        target.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        out.resolve("CosmotuneWear.sha256").writeText(digest.digest().joinToString("") { "%02x".format(it) })
+    }
+}
+
+if (providers.gradleProperty("cosmotune.bundleWear").orNull != "false" && findProject(":wearos") != null) {
+    androidComponents.onVariants { variant ->
+        val flavor = variant.productFlavors.firstOrNull { it.first == "env" }?.second ?: return@onVariants
+        val type = variant.buildType ?: return@onVariants
+        // The benchmark build has no watch counterpart.
+        if (type != "debug" && type != "release") return@onVariants
+        val cap = variant.name.replaceFirstChar { it.uppercase() }
+        val bundle = tasks.register<BundleWearApk>("bundleWearApk$cap") {
+            dependsOn(":wearos:assemble$cap")
+            apks.from(rootProject.layout.projectDirectory.dir("wearos/build/outputs/apk/$flavor/$type"))
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(bundle, BundleWearApk::outputDir)
+    }
+}

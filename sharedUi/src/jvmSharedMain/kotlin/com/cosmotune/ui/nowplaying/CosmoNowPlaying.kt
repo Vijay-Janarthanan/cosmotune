@@ -148,6 +148,8 @@ fun CosmoNowPlaying(
     windowHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
+    val hideStatusBar by PlayerSettings.hideStatusBar.collectAsStateWithLifecycle()
+    com.cosmotune.music.ui.theme.HideStatusBar(hideStatusBar)
     val shell = LocalCosmoShell.current
     val reduced = LocalReducedMotion.current
     val layout = NowPlayingLayout.choose(windowWidth.value, windowHeight.value)
@@ -440,7 +442,7 @@ private fun PortraitPanels(
  */
 @Composable
 private fun PanelArea(stackHeightPx: State<Int>, content: @Composable () -> Unit) {
-    val statusBars = WindowInsets.statusBars
+    val statusBars = com.cosmotune.music.ui.theme.stableStatusBarInsets()
     Layout(content = content, modifier = Modifier.fillMaxSize()) { measurables, constraints ->
         val top = (statusBars.getTop(this) + TOP_BAR_BELOW_STATUS_DP.dp.roundToPx()).coerceAtMost(constraints.maxHeight)
         val bottom = (constraints.maxHeight - stackHeightPx.value).coerceIn(top, constraints.maxHeight)

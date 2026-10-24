@@ -279,4 +279,10 @@
     <string name="cosmo_np_controls_expand">Expand controls</string>
     <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
     <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
+    <string name="artist_signatures">ลายเซ็นศิลปิน</string>
+    <string name="artist_signatures_subtitle">แสดงลายเซ็นลายมือเมื่อ Apple Music ไม่มีโลโก้ชื่อเรื่อง</string>
+    <string name="artist_signatures_url">URL API ลายเซ็น</string>
+    <string name="signed_by">ลงนามโดย %1$s</string>
+    <string name="cosmo_mode_manga">มังงะ</string>
+    <string name="cosmo_mode_manga_summary">การ์ตูน แหล่งที่มา และความคืบหน้าในการอ่านของคุณ</string>
 </resources>

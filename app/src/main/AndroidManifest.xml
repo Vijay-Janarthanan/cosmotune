@@ -52,6 +52,7 @@
         android:allowBackup="true"
         android:appCategory="audio"
         android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -209,6 +210,14 @@
                     android:pathPattern="/invite/......" />
             </intent-filter>
 
+            <!-- Only callbacks owned by this application may enter provider sign-in. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${applicationId}" android:host="provider-auth" />
+                <data android:scheme="cosmotune" android:host="provider-auth" />
+            </intent-filter>
             <!-- Custom scheme for Listen Together invites on custom server deployments. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -240,6 +249,26 @@
                 <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="androidx.media3.session.MediaSessionService" />
                 <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".wear.WearCommandService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/cosmotune/command"
+                    android:scheme="wear" />
+            </intent-filter>
+            <!-- The watch's player reading a track through the phone. -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/cosmotune/stream"
+                    android:scheme="wear" />
             </intent-filter>
         </service>
 

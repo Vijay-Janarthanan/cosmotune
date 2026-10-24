@@ -9,6 +9,9 @@
    because they hold the same credentials in cleartext.
 -->
 <full-backup-content>
+    <!-- Device keys, packages and offline media use explicit portable export instead. -->
+    <exclude domain="file" path="providers/" />
+    <exclude domain="file" path="manga/" />
     <exclude domain="sharedpref" path="cosmotune_auth.xml" />
     <exclude domain="sharedpref" path="cosmotune_auth_plain.xml" />
     <exclude domain="sharedpref" path="cosmotune_sources.xml" />

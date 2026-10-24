@@ -30,11 +30,13 @@ class TinyRecommendationModelTest {
         assertTrue(picks.size <= 24)
         assertTrue(picks.none { it.title == seed.title && it.artist == seed.artist })
         val candidates = (0 until 50).map { seed.copy(videoId = "candidate-$it", title = "Candidate $it") }
-        repeat(30) { model.recommend(seed); candidates.forEach { model.score(seed, it) } }
+        assertEquals(candidates.map { model.score(seed, it) }, model.scoreAll(seed, candidates).toList())
+        assertTrue(model.scoreAll(seed, emptyList()).isEmpty())
+        repeat(30) { model.recommend(seed); model.scoreAll(seed, candidates) }
         val samples = (0 until 100).map {
             val start = System.nanoTime()
             model.recommend(seed)
-            candidates.forEach { model.score(seed, it) }
+            model.scoreAll(seed, candidates)
             (System.nanoTime() - start) / 1_000_000.0
         }.sorted()
         println("Tiny recommendation model: ${file.length()} bytes mapped; local discovery + ${candidates.size} scores median=${samples[50]} ms, p95=${samples[95]} ms")

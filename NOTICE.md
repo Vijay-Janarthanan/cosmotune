@@ -12,6 +12,13 @@ Cosmotune is not affiliated with, endorsed by, or connected to BitChord, YouTube
 Third-party components keep their own licences. The desktop app's licence screen lists them, and for code that is part
 of this tree the licence text is in the `licenses/` folder or next to the code.
 
+The Android TV and browser companion ports include code from the same GPLv3 upstream at
+https://github.com/kushagrasinghx/BitChord/tree/edc1e6f36febf71a118e649411d2fc21b70ead45.
+Original source hashes, file links and adaptations are recorded in `tv/UPSTREAM_IMPORT.json` and
+`web/UPSTREAM_IMPORT.json`. The browser helper has a separate Cosmotune identity; the original extra fonts,
+icons and development extension key were not imported. Browser release archives include their installed
+third-party package notices and licence texts; `tools/package-web.py` produces them with the packages.
+
 ## OpenCanvas
 
 Cosmotune includes the OpenCanvas engine by Vijay Janarthanan (https://github.com/Vijay-Janarthanan/OpenCanvas),
@@ -93,6 +100,28 @@ One optional test, `ThirdPartyFixturesTest`, also reads the files that NewPipe a
 (GPL-3.0, by the NewPipe team and its contributors); those files are not part of this repository. A copy placed in
 `shared/src/jvmTest/resources/video/importers/` stays under GPL-3.0, with its authors' notices, as Cosmotune is.
 
+## Manga source parsers
+
+Manga mode uses the GPL-3.0 Kotatsu parser fork at
+https://github.com/Kotatsu-Redo/kotatsu-parsers-redo/tree/dc223c3d8098415b29cf1acfedc401a88d01c9fe,
+published as `com.github.clquwu:kotatsu-parsers-redo:dc223c3d80`. Copyright belongs to its upstream
+authors and contributors. The parser architecture was reviewed through the GPL-3.0 Tsuki project at
+https://github.com/TsukiAndroid/Tsuki/tree/89b8d9cf6bb53303f340505f46c2ad2c1c8ac5b7.
+Cosmotune's shared adapter, stores and reader are implemented in this repository's `manga/` module.
+The Android source API also incorporates Mihon source-api at revision
+`d001e6f210e6a077a30dd9a1392573a3225bba2f`, under Apache-2.0. Its original
+licence is preserved in `manga/third-party/LICENSE.mihon`; source hashes and changes are recorded
+in `MIHON_SOURCE_API.json`. Tsuki-derived compatibility files retain their GPL-3.0 provenance.
+Source websites and their comics retain their own rights and availability; no comics are bundled.
+
+## Provider package compatibility
+
+The provider runtime adapts the guest-only compatibility factory from Lokal at revision
+`3199796ef90743a5abbac6ffc96495beec855a4e`, copyright (c) 2026 sipbuu, under MIT.
+The licence and original source hash are preserved in `providers/third-party/`.
+Cosmotune implements its own Kotlin host and platform script-engine bindings. Provider packages
+remain separate software with their own licences, authentication and availability requirements.
+
 ## Optional Tor client
 
 Desktop builds include the Tor Expert Bundle 15.0.25 from https://dist.torproject.org/torbrowser/15.0.25/.
@@ -101,3 +130,9 @@ Tor is distributed under its upstream BSD-style licence. The complete bundle's c
 `tor-bundle/docs/` resources and copied alongside the client when enabled. Upstream source and
 licence information: https://gitlab.torproject.org/tpo/core/tor and the bundle's `docs/tor.txt`.
 Cosmotune is not affiliated with or endorsed by the Tor Project.
+
+Android extension networking also uses the Apache-2.0 OkHttp Brotli/Zstandard modules at 5.3.2,
+Google's MIT-licensed Java Brotli decoder, and Apache-2.0 Square zstd-kmp 0.4.0 (with its Zstandard native decoder).
+Their upstream projects are https://github.com/square/okhttp, https://github.com/google/brotli,
+https://github.com/square/zstd-kmp and https://github.com/facebook/zstd.
+The Zstandard source provides the BSD-3-Clause licence option. No external manga extension APK is redistributed.

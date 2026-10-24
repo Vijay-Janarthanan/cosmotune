@@ -1,0 +1,167 @@
+package com.cosmotune.manga.data
+
+import java.io.File
+import java.security.MessageDigest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.OkHttpClient
+import okhttp3.Request
+
+class MangaRepository(val store: MangaStore, private val platformSource: ((MangaSourceConfig, ParserContext) -> MangaSource)? = null) {
+    val context = ParserContext(store.root, store.protection) { store.state.value.sources }
+    private val sources = LinkedHashMap<String, Pair<MangaSourceConfig, MangaSource>>()
+    private val transfers = Mutex()
+    // Guarded by transfers, including the instant a fetched file becomes visible to cache eviction.
+    private val inFlightPins = HashMap<String, MutableSet<String>>()
+    private val pageCache = File(store.root, "cache/network").apply { mkdirs() }
+    private val changes = MutableStateFlow(0L)
+    val sourceChanges = changes.asStateFlow()
+
+    @Synchronized fun invalidateSource(id: String) { sources.remove(id); changes.value++ }
+
+    @Synchronized fun source(id: String): MangaSource {
+        val config = store.state.value.sources.find { it.id == id && it.enabled } ?: error("Enable this source in Manga sources")
+        sources[id]?.takeIf { it.first == config }?.let { return it.second }
+        val source = sourceApi { when (config.kind) {
+            "kotatsu" -> KotatsuSource(config, context)
+            "komga" -> KomgaSource(config, context.httpClient)
+            "template" -> TemplateMangaSource(config, context.httpClient)
+            "mihon" -> platformSource?.invoke(config, context) ?: error("APK extension sources require the Android app")
+            else -> error("Unknown manga source type: ${config.kind}")
+        } }
+        sources[id] = config to source
+        while (sources.size > 8) sources.remove(sources.keys.first())
+        return source
+    }
+
+    suspend fun chapters(book: MangaBook): MangaBook = withContext(Dispatchers.IO) {
+        val detail = sourceApi { if (book.sourceId == "local") book else source(book.sourceId).details(book) }
+        if (store.state.value.books.any { it.id == book.id }) store.save(detail)
+        detail
+    }
+
+    suspend fun pages(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
+        store.state.value.downloads[chapter.id]?.takeIf { pages -> pages.isNotEmpty() && pages.all { it.localFile?.let(::File)?.isFile == true } }
+            ?.let { return@withContext it }
+        sourceApi { if (chapter.sourceId == "local") store.archives.chapterPages(chapter) else source(chapter.sourceId).pages(chapter) }
+    }
+
+    suspend fun browse(sourceId: String, query: String, offset: Int): MangaBrowsePage = withContext(Dispatchers.IO) {
+        sourceApi { source(sourceId).browse(query, offset) }
+    }
+
+    suspend fun pageFile(page: MangaPage, sourceId: String): File = pageFile(page, sourceId, null)
+
+    private suspend fun pageFile(page: MangaPage, sourceId: String, pinChapter: String?): File {
+        page.localFile?.let { path ->
+            val file = File(path).canonicalFile
+            require(file.parentFile == pageCache.canonicalFile && file.isFile) { "Downloaded page is missing" }
+            file.setLastModified(System.currentTimeMillis())
+            return file
+        }
+        if (page.archiveFile != null) return transfers.withLock { withContext(Dispatchers.IO) {
+            val file = store.archives.pageFile(page)
+            trimCache(0, setOf(file.path))
+            file
+        } }
+        return transfers.withLock { withContext(Dispatchers.IO) {
+            val url = page.url ?: error("Page address is missing")
+            val hash = MessageDigest.getInstance("SHA-256").digest((sourceId + "\n" + page.id).toByteArray())
+                .joinToString("") { "%02x".format(it) }
+            val output = File(pageCache, "$hash.image")
+            if (output.isFile && output.length() > 0) {
+                output.setLastModified(System.currentTimeMillis())
+                pinChapter?.let { inFlightPins.getValue(it).add(output.path) }
+                return@withContext output
+            }
+            val adapter = source(sourceId)
+            val sourceRequest = (if (adapter is MangaImageTransport) adapter.imageRequest(page) else {
+                require(page.requestMethod == "GET") { "Reload this chapter to refresh its image request" }
+                Request.Builder().url(url).apply { page.headers.forEach { (key, value) -> header(key, value) } }.build()
+            })
+            val request = sourceRequest.newBuilder().apply {
+                if (sourceRequest.header("User-Agent") == null) header("User-Agent", ParserContext.USER_AGENT)
+            }.header("Accept", "image/*").build()
+            val client = when (adapter) {
+                is KotatsuSource -> context.httpClient.newBuilder().addInterceptor(adapter.parser).build()
+                is MangaImageTransport -> adapter.imageClient.newBuilder().addInterceptor(MangaResponseLimit()).build()
+                else -> context.httpClient.newBuilder().followRedirects(false).followSslRedirects(false).build()
+            }
+            val temporary = File.createTempFile("download-", ".part", pageCache)
+            try {
+                MangaImageFetch.fetch(client, request, temporary)
+                trimCache(temporary.length(), setOf(output.path))
+                MangaArchive.move(temporary, output)
+                pinChapter?.let { inFlightPins.getValue(it).add(output.path) }
+                output
+            } finally { temporary.delete() }
+        } }
+    }
+
+    /** Files already fetched have stable names, so retrying a cancelled download resumes without refetching them. */
+    suspend fun download(chapter: MangaChapter, onProgress: (Int, Int) -> Unit) {
+        require(chapter.sourceId != "local") { "Imported comics are already available offline" }
+        val pages = pages(chapter)
+        require(pages.isNotEmpty()) { "This chapter contains no pages" }
+        val downloaded = ArrayList<MangaPage>()
+        transfers.withLock {
+            require(chapter.id !in inFlightPins) { "This chapter is already downloading" }
+            inFlightPins[chapter.id] = HashSet()
+        }
+        try {
+            pages.forEachIndexed { index, page ->
+                val file = pageFile(page, chapter.sourceId, chapter.id)
+                downloaded += page.copy(localFile = file.path, headers = emptyMap(), url = null, requestMethod = "GET")
+                onProgress(index + 1, pages.size)
+            }
+            store.update { it.copy(downloads = it.downloads - "pending:${chapter.id}" + (chapter.id to downloaded.toList())) }
+        } finally {
+            withContext(NonCancellable) { transfers.withLock { inFlightPins.remove(chapter.id) } }
+        }
+    }
+
+    suspend fun removeDownload(chapterId: String) {
+        store.update { it.copy(downloads = it.downloads - chapterId) }
+        transfers.withLock { withContext(Dispatchers.IO) { trimCache(0, emptySet()) } }
+    }
+
+    suspend fun removeBook(bookId: String) {
+        val old = store.state.value.books.find { it.id == bookId } ?: return
+        store.remove(bookId)
+        withContext(Dispatchers.IO) {
+            val owned = File(store.root, "books").canonicalFile
+            val retained = store.state.value.books.flatMap { it.chapters }.mapNotNull { it.archiveFile }.toSet()
+            old.chapters.mapNotNull { it.archiveFile }.distinct().filter { it !in retained }.forEach { path ->
+                val file = File(path).canonicalFile
+                if (file.parentFile == owned && file.name.matches(Regex("[0-9a-f]{64}\\.cbz"))) file.delete()
+            }
+        }
+    }
+
+    suspend fun clearCache() = transfers.withLock { withContext(Dispatchers.IO) {
+        val protected = store.state.value.downloads.values.flatten().mapNotNull { it.localFile }.toSet() + inFlightPins.values.flatten()
+        pageCache.listFiles().orEmpty().filter { it.isFile && it.path !in protected }.forEach { it.delete() }
+        val archivePages = File(store.root, "cache/pages")
+        archivePages.listFiles().orEmpty().filter { it.isFile }.forEach { it.delete() }
+    } }
+
+    private fun trimCache(incoming: Long, keep: Set<String>) {
+        val protected = store.state.value.downloads.values.flatten().mapNotNull { it.localFile }.toSet() + keep + inFlightPins.values.flatten()
+        val files = listOf(pageCache, File(store.root, "cache/pages")).flatMap { it.listFiles().orEmpty().toList() }
+            .filter { it.isFile && it.extension != "part" }.sortedBy { it.lastModified() }
+        var used = files.sumOf { it.length() }
+        val limit = store.state.value.cacheLimitBytes.coerceIn(64L * 1024 * 1024, 4L * 1024 * 1024 * 1024)
+        for (file in files) {
+            if (used + incoming <= limit) return
+            if (file.path !in protected) { val length = file.length(); if (file.delete()) used -= length }
+        }
+        require(used + incoming <= limit) { "Manga storage limit reached. Remove a downloaded chapter or increase the limit." }
+    }
+}

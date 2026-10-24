@@ -1,6 +1,10 @@
 package com.cosmotune.music.desktop
 
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.ArtistRef
+import com.cosmotune.listening.ListeningArtist
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.LocalDate
@@ -156,13 +160,14 @@ object DesktopListeningStats {
             totalMs = entries.sumOf(DesktopReplayEntry::listenedMs),
             totalPlays = entries.sumOf(DesktopReplayEntry::plays),
             songs = entries.sortedByDescending(DesktopReplayEntry::listenedMs),
-            artists = rank(entries) { it.song.artist.ifBlank { "Unknown Artist" } },
-            albums = rank(entries) { it.song.albumName?.takeIf(String::isNotBlank) ?: "Unknown Album" },
+            artists = rank(entries, { leadArtist(it.song) }, { it.artists.firstOrNull()?.browseId ?: it.artistId }),
+            albums = rank(entries, { it.song.albumName?.takeIf(String::isNotBlank) ?: "Unknown Album" }, { it.albumId }),
             hourOfDay = hours.toList(),
             busiestDay = busiest?.key,
             busiestDayMs = busiest?.value ?: 0L,
             distinctSongs = entries.size,
-            distinctArtists = entries.map { it.song.artist.ifBlank { "Unknown Artist" } }.distinct().size,
+            distinctArtists = entries.map { entry -> entry.song.artists.firstOrNull()?.browseId ?: entry.song.artistId
+                ?: leadArtist(entry.song).lowercase(Locale.ROOT) }.distinct().size,
             distinctAlbums = entries.mapNotNull { it.song.albumName?.takeIf(String::isNotBlank) }.distinct().size,
             since = buckets.map(Bucket::month).filter { it != LEGACY_MONTH }.minOrNull(),
         )
@@ -170,21 +175,24 @@ object DesktopListeningStats {
 
     /** The credit as the lead artist, not the whole billing — a guest verse is not a chart entry. */
     internal fun primaryArtist(credit: String): String =
-        credit.split(",", "&", " feat.", " ft.", " x ", " × ")
-            .firstOrNull()?.trim()?.takeIf(String::isNotBlank) ?: credit.trim()
+        com.cosmotune.music.data.model.ArtistIdentity.primaryName(credit) ?: credit.trim()
+
+    private fun leadArtist(song: Song): String =
+        com.cosmotune.music.data.model.ArtistIdentity.primaryName(song.artist, song.artists) ?: "Unknown Artist"
 
     private fun rank(
         entries: List<DesktopReplayEntry>,
         by: (DesktopReplayEntry) -> String,
+        identity: (Song) -> String?,
     ): List<DesktopRankedEntry> = entries
-        .groupBy(by)
-        .map { (name, plays) ->
+        .groupBy { identity(it.song)?.let { id -> "id:$id" } ?: "name:${by(it).lowercase(Locale.ROOT)}" }
+        .map { (_, plays) ->
             val lead = plays.maxByOrNull(DesktopReplayEntry::listenedMs)?.song
             DesktopRankedEntry(
-                title = name,
+                title = by(plays.maxByOrNull(DesktopReplayEntry::listenedMs)!!),
                 subtitle = null,
                 artworkUrl = lead?.thumbnailUrl,
-                browseId = null,
+                browseId = lead?.let(identity),
                 ms = plays.sumOf(DesktopReplayEntry::listenedMs),
                 plays = plays.sumOf(DesktopReplayEntry::plays),
             )
@@ -204,6 +212,8 @@ object DesktopListeningStats {
         thumbnailUrl = current.thumbnailUrl ?: old.thumbnailUrl,
         albumId = current.albumId ?: old.albumId,
         albumName = current.albumName ?: old.albumName,
+        artistId = current.artistId ?: old.artistId,
+        artists = current.artists.ifEmpty { old.artists },
     ) ?: current
 
     // ── Storage ──────────────────────────────────────────────────────────
@@ -275,6 +285,10 @@ object DesktopListeningStats {
                         albumName = fields.getOrElse(6) { "" }.ifBlank { null },
                         albumId = fields.getOrElse(7) { "" }.ifBlank { null },
                         durationText = fields.getOrElse(8) { "" }.ifBlank { null },
+                        artistId = fields.getOrNull(11)?.ifBlank { null },
+                        artists = fields.getOrNull(12)?.let { encoded -> runCatching {
+                            Json.decodeFromString<List<ListeningArtist>>(encoded).map { ArtistRef(it.name, it.id) }
+                        }.getOrNull() }.orEmpty(),
                     ),
                     listenedMs = fields.getOrElse(9) { "" }.toLongOrNull()?.coerceAtLeast(0L) ?: 0L,
                     plays = fields.getOrElse(10) { "" }.toIntOrNull()?.coerceAtLeast(0) ?: 0,
@@ -303,6 +317,8 @@ object DesktopListeningStats {
         entry.song.durationText.orEmpty(),
         entry.listenedMs.toString(),
         entry.plays.toString(),
+        entry.song.artistId.orEmpty(),
+        Json.encodeToString(entry.song.artists.map { ListeningArtist(it.name, it.browseId) }),
     ).joinToString("|", transform = ::encodeField)
 
     private fun encodeHour(month: String, hour: Int, ms: Long) =

@@ -155,7 +155,15 @@ class DesktopPersistence {
                 DesktopPreferenceChunks.remove(preferences, KEY_MODULE_INDEX_URL)
             }
         }
+        publishArtworkSources(normalized)
         return normalized
+    }
+
+    private fun publishArtworkSources(configs: List<DesktopSourceConfig>) {
+        val addons = configs.filter { it.kind == DesktopSourceKind.ADDON }
+        com.cosmotune.providers.ProviderHub.setHttpArtworkSources(addons.mapNotNull { config ->
+            com.cosmotune.providers.ArtworkAccess.httpSource(config.baseUrl, config.enabled)?.let { config.id to it }
+        }.toMap()) { id -> addons.find { it.id == id }?.let { it.enabled } == true }
     }
 
     internal fun saveSourceConfigs(configs: List<DesktopSourceConfig>) {
@@ -179,6 +187,7 @@ class DesktopPersistence {
         } else {
             DesktopPreferenceChunks.write(preferences, KEY_SOURCE_CONFIGS, raw)
         }
+        publishArtworkSources(normalized)
     }
 
     /** The stream ceiling in force. */

@@ -1,5 +1,7 @@
 package com.cosmotune.music.data.sources.addon
 
+import com.cosmotune.music.data.sources.readAddonJsonBody
+
 import com.cosmotune.music.data.Http
 import com.cosmotune.music.data.TrackLog
 import com.cosmotune.music.data.settings.AppSettings
@@ -12,6 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -33,7 +36,7 @@ import java.util.concurrent.TimeUnit
  * request abandoned after it has already reached somebody's server is work
  * their server did for nobody.
  */
-class AddonClient(rawBaseUrl: String) {
+class AddonClient(rawBaseUrl: String, val userSettings: Map<String, String> = emptyMap()) {
 
     /** Where this addon lives, with `/manifest.json` and trailing slashes off. */
     val baseUrl: String = normalizeBase(rawBaseUrl)
@@ -50,6 +53,7 @@ class AddonClient(rawBaseUrl: String) {
     private val manifests = SharedCalls<AddonManifest>(MANIFEST_TTL_MS, calls, ::logReuse)
     private val searches = SharedCalls<AddonSearchResponse>(SEARCH_TTL_MS, calls, ::logReuse)
     private val streams = SharedCalls<AddonStream>(STREAM_TTL_MS, calls, ::logReuse)
+    private val catalogues = SharedCalls<JsonObject>(SEARCH_TTL_MS, calls, ::logReuse)
 
     private fun logReuse(line: String) = TrackLog.d(TAG, line)
 
@@ -155,15 +159,41 @@ class AddonClient(rawBaseUrl: String) {
      * the string: an addon's ids are whatever its backend uses, and one holding
      * a `/` or a `?` would otherwise rewrite the request into a different
      * endpoint entirely.
+     *
+     * [stereoOnly] withholds the `?atmos=` hint — see [settingsFor]. It is for
+     * a stereo row the listener picked by hand from the Addons search: there
+     * `auto` is not an offer but an override, and the addon answers with the
+     * Atmos sibling of the very row that was chosen over it.
      */
-    suspend fun stream(trackId: String, tier: String): Result<AddonStream> {
-        val params = settingsFor(tier)
+    suspend fun stream(trackId: String, tier: String, stereoOnly: Boolean = false): Result<AddonStream> {
+        val params = settingsFor(tier, stereoOnly)
         return streams.get(
             key = keyOf(trackId, params.toString()),
             describe = { "▶ addon stream(${redact(baseUrl)}) id=$trackId tier=$tier" },
         ) {
             fetch<AddonStream>(endpoint(listOf("stream", trackId), params))
         }
+    }
+
+
+    suspend fun searchCatalogue(query: String, tier: String = TIER_LOSSLESS, force: Boolean = false): Result<JsonObject> {
+        if (query.isBlank()) return Result.success(JsonObject(emptyMap()))
+        if (force) catalogues.clearCompleted()
+        val params = settingsFor(tier) + ("q" to query.trim().take(500))
+        return catalogues.get(key = keyOf("search", params.toString()), describe = { "addon catalogue search(${redact(baseUrl)})" }) { fetch<JsonObject>(endpoint(listOf("search"), params)) }
+    }
+
+    /** Optional declared catalogue resources, cached independently of expiring stream URLs. */
+    suspend fun album(id: String, tier: String = TIER_LOSSLESS, force: Boolean = false): Result<JsonObject> = catalogue("album", id, tier, force)
+    suspend fun artist(id: String, tier: String = TIER_LOSSLESS, force: Boolean = false): Result<JsonObject> = catalogue("artist", id, tier, force)
+
+    private suspend fun catalogue(resource: String, id: String, tier: String, force: Boolean): Result<JsonObject> {
+        if (id.isBlank() || id.length > 8_192) return Result.failure(AddonException("Invalid catalogue identity"))
+        val descriptor = manifest().getOrElse { return Result.failure(it) }
+        if (!descriptor.declares(resource)) return Result.failure(AddonException("This source does not offer $resource pages"))
+        if (force) catalogues.clearCompleted()
+        val params = settingsFor(tier)
+        return catalogues.get(key = keyOf(resource, id, params.toString()), describe = { "addon $resource(${redact(baseUrl)})" }) { fetch<JsonObject>(endpoint(listOf(resource, id), params)) }
     }
 
     // ── Settings passthrough ──────────────────────────────────────────────
@@ -196,12 +226,12 @@ class AddonClient(rawBaseUrl: String) {
      * Last comes `atmos`, which is the one parameter here that is not about
      * quality. See [atmosHint].
      */
-    private suspend fun settingsFor(tier: String): Map<String, String> {
+    private suspend fun settingsFor(tier: String, stereoOnly: Boolean = false): Map<String, String> {
         val declared = manifest().getOrNull()?.settings.orEmpty()
         val params = LinkedHashMap<String, String>()
         declared.forEach { setting ->
             val key = setting.key.takeIf { it.isNotBlank() } ?: return@forEach
-            setting.defaultValue?.let { params[key] = it }
+            (userSettings[key] ?: setting.defaultValue)?.let { params[key] = it }
         }
         if (tier.isNotBlank()) {
             val options = declared.firstOrNull { it.key == QUALITY_KEY }
@@ -209,7 +239,22 @@ class AddonClient(rawBaseUrl: String) {
                 .mapNotNull { it.stringValue }
             params[QUALITY_KEY] = matchTier(tier, options) ?: tier
         }
-        atmosHint()?.let { params.putIfAbsent(ATMOS_KEY, it) }
+        if (stereoOnly) {
+            // Asked for the stereo mix by name, so nothing that lets the addon
+            // swap in an immersive one: no hint, and a declared `atmos`
+            // setting pinned to its "off" value rather than its default.
+            val atmosSetting = declared.firstOrNull { it.key == ATMOS_KEY }
+            if (atmosSetting == null) {
+                params.remove(ATMOS_KEY)
+            } else {
+                params[ATMOS_KEY] = atmosSetting.options
+                    .mapNotNull { it.stringValue }
+                    .firstOrNull { ATMOS_OFF.matches(it) }
+                    ?: ATMOS_NEVER
+            }
+        } else {
+            atmosHint()?.let { params.putIfAbsent(ATMOS_KEY, it) }
+        }
         return params
     }
 
@@ -290,7 +335,7 @@ class AddonClient(rawBaseUrl: String) {
                 // A miss is not worth a line. Everything else is: this is the
                 // only place that knows why an addon didn't answer.
                 if (failure !is AddonNotFound) {
-                    TrackLog.w(TAG, "  ✗ addon call failed ${redact(url)}: ${failure.message}")
+                    TrackLog.w(TAG, "  ✗ addon call failed ${redact(url)}: ${failure.javaClass.simpleName}")
                 }
             }
 
@@ -322,7 +367,7 @@ class AddonClient(rawBaseUrl: String) {
             val wait = client.newCall(request).execute().use { response ->
                 when {
                     response.isSuccessful ->
-                        return@withContext response.body?.string()?.takeIf { it.isNotBlank() }
+                        return@withContext response.body?.readAddonJsonBody()?.takeIf { it.isNotBlank() }
                             ?: throw AddonException("Empty response")
                     response.code == 404 -> throw AddonNotFound()
                     // A 5xx is a server having a bad minute and will be tried
@@ -365,6 +410,7 @@ class AddonClient(rawBaseUrl: String) {
         manifests.clear()
         searches.clear()
         streams.clear()
+        catalogues.clear()
         quietUntilMs = 0L
     }
 
@@ -380,6 +426,7 @@ class AddonClient(rawBaseUrl: String) {
     fun clearCompletedTrackCalls() {
         searches.clearCompleted()
         streams.clearCompleted()
+        catalogues.clearCompleted()
     }
 
     /** Parts joined length-prefixed, so no byte a part may contain can act as a delimiter. */
@@ -395,9 +442,11 @@ class AddonClient(rawBaseUrl: String) {
 
         private const val QUALITY_KEY = "quality"
 
-        /** The spec's immersive-audio hint, and the only value Cosmotune ever sends for it. */
+        /** The spec's immersive-audio hint: `auto` normally, an "off" only for a stereo row picked by hand. */
         private const val ATMOS_KEY = "atmos"
         private const val ATMOS_AUTO = "auto"
+        private const val ATMOS_NEVER = "0"
+        private val ATMOS_OFF = Regex("0|false|off|no|none|never|stereo", RegexOption.IGNORE_CASE)
 
         private val LOSSLESS_WORDS = listOf("lossless", "flac", "hifi", "hi-res", "hires", "max", "best")
         private val HIGH_WORDS = listOf("high", "320", "normal", "standard")

@@ -55,6 +55,10 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.CosmoLoadingBlob
 import com.cosmotune.ui.components.PlayMorphButton
 import com.cosmotune.ui.theme.CosmoType
+import com.cosmotune.ui.pages.ArtistVisuals
+import com.cosmotune.ui.pages.rememberArtistVisuals
+import com.cosmotune.ui.pages.ArtistMotionArtwork
+import com.cosmotune.ui.pages.ArtistSignatureMark
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.music.data.model.ArtistPage
@@ -180,6 +184,7 @@ private fun ArtistContent(
     onPlayPause: (() -> Unit)?,
 ) {
     val name = artist.name?.takeIf(String::isNotBlank) ?: fallbackName
+    val visuals = rememberArtistVisuals(name)
     val top = remember(artist.songs) { artist.songs.take(POPULAR_QUEUE) }
     val blurb = artist.description?.takeIf(String::isNotBlank)
     val listeners = listOfNotNull(artist.monthlyListenerCount, artist.subscriberCountText)
@@ -187,7 +192,7 @@ private fun ArtistContent(
         .joinToString(" · ")
         .takeIf(String::isNotBlank)
     LazyColumn(contentPadding = PaddingValues(bottom = 32.dp + bottomInset)) {
-        item(key = "artist-banner") { ArtistBanner(artist.thumbnailUrl, name, listeners) }
+        item(key = "artist-banner") { ArtistBanner(artist.thumbnailUrl, name, listeners, visuals) }
         item(key = "artist-actions") {
             ArtistActions(
                 top = top,
@@ -241,6 +246,11 @@ private fun ArtistContent(
                 MessageState(message = stringResource(SharedRes.string.cosmo_state_empty))
             }
         }
+        if (visuals.signature != null) {
+            item(key = "artist-signature") {
+                ArtistSignatureMark(visuals.signature, name, Modifier.padding(COLUMNS_PADDING))
+            }
+        }
     }
 }
 
@@ -254,7 +264,7 @@ private fun ArtistContent(
  * is the ground itself, wherever the banner is.
  */
 @Composable
-private fun ArtistBanner(url: String?, name: String, listeners: String?) {
+private fun ArtistBanner(url: String?, name: String, listeners: String?, visuals: ArtistVisuals) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
     val type = LocalCosmoType.current
@@ -268,11 +278,7 @@ private fun ArtistBanner(url: String?, name: String, listeners: String?) {
                     drawRect(BANNER_FADE_MASK, blendMode = BlendMode.DstIn)
                 },
         ) {
-            if (url != null) {
-                DesktopArtwork(url, Modifier.fillMaxSize(), px = HEADER_ART_PX)
-            } else {
-                Box(Modifier.fillMaxSize().drawBehind { drawRect(colors.live(CoverField.SURFACE_VARIANT)) })
-            }
+            ArtistMotionArtwork(visuals.art, url, Modifier.fillMaxSize())
         }
         BannerWords(name, listeners, Modifier.align(Alignment.BottomStart), palette.textPrimary, type)
     }

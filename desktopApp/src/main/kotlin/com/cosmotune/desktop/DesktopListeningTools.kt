@@ -20,6 +20,7 @@ fun DesktopListeningTools(
     restore: suspend (ListeningSession) -> Unit, play: suspend (List<Song>) -> Unit,
     openRelease: (String, String) -> Unit, findMusic: () -> Unit, importMusic: () -> Unit,
     applySetup: (ListeningPreferences, Boolean) -> Unit, sourceSummary: String,
+    remote: ListeningRemoteHost,
 ) {
     val base = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
         ?: "${System.getProperty("user.home")}/.local/share"
@@ -33,7 +34,9 @@ fun DesktopListeningTools(
         findMusic = findMusic, importMusic = importMusic, applySetup = applySetup,
         exportFile = { name, text ->
             val target = chooseCosmotuneFile(name, saving = true)
-            if (target == null) false else withContext(Dispatchers.IO) { target.writeText(text, Charsets.UTF_8); true }
+            if (target == null) false else withContext(Dispatchers.IO) {
+                writeTextExportFile(target, text, name.substringAfterLast('.').lowercase(java.util.Locale.ROOT)); true
+            }
         },
         importFile = {
             chooseCosmotuneFile("", saving = false)?.let { file -> withContext(Dispatchers.IO) {
@@ -47,7 +50,7 @@ fun DesktopListeningTools(
                 ListeningNetwork.readMedia(stream.url, stream.headers)
             }
         } },
-        sourceSummary = sourceSummary, existingUser = library.songs.isNotEmpty(),
+        sourceSummary = sourceSummary, existingUser = library.songs.isNotEmpty(), remote = remote,
         languageChoices = DesktopStrings.available.map { it.tag to it.label },
     ), onDismiss)
 }

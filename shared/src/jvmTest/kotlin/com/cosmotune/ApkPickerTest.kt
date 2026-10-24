@@ -13,6 +13,25 @@ import kotlin.test.assertNull
  */
 class ApkPickerTest {
 
+    @Test fun phoneAndTvUpdatesStayInTheirOwnPackageFamily() {
+        val tvArm = "CosmotuneTV-1.0.4-android-arm64-v8a.apk" to "https://example.test/tv-arm"
+        val tvUniversal = "CosmotuneTV-1.0.4-android-universal.apk" to "https://example.test/tv-all"
+        val mixed = listOf(tvArm, tvUniversal, "CosmotuneWear-1.0.4.apk" to "https://example.test/watch") + release
+        assertEquals(arm64.second, ApkPicker.choose(mixed, listOf("arm64-v8a")))
+        assertEquals(tvArm.second, ApkPicker.choose(mixed, listOf("arm64-v8a"), ApkPicker.Target.TV))
+        assertEquals(tvUniversal.second, ApkPicker.choose(mixed, listOf("unknown"), ApkPicker.Target.TV))
+        assertNull(ApkPicker.choose(listOf(tvArm, tvUniversal), listOf("arm64-v8a")))
+        assertNull(ApkPicker.choose(release, listOf("arm64-v8a"), ApkPicker.Target.TV))
+    }
+
+    @Test fun tvNeverFallsBackToAnIncompatibleSplitAndLegacyTvAbiNamesAreRecognized() {
+        val arm = "Cosmotune-1.0.4-android-tv-arm64-v8a.apk" to "https://example.test/tv-arm"
+        val x86 = "Cosmotune-1.0.4-tv-x86_64.apk" to "https://example.test/tv-x86"
+        assertEquals(x86.second, ApkPicker.choose(listOf(arm, x86), listOf("x86_64"), ApkPicker.Target.TV))
+        assertNull(ApkPicker.choose(listOf(arm), listOf("x86_64"), ApkPicker.Target.TV))
+        assertNull(ApkPicker.choose(listOf(arm), emptyList(), ApkPicker.Target.TV))
+    }
+
     private val prefix = "Cosmotune-1.0.0-alpha1"
 
     private val arm64 = "$prefix-android-arm64-v8a.apk" to "https://example.test/arm64"
@@ -214,6 +233,16 @@ class ApkPickerTest {
                 listOf("arm64-v8a"),
             ),
         )
+    }
+
+    @Test
+    fun companionApksAreNeverChosenEvenThroughLegacyFallback() {
+        val wear = "CosmotuneWear-1.0.4.apk" to "https://example.test/watch"
+        val tv = "Cosmotune-1.0.4-android-tv-universal.apk" to "https://example.test/tv"
+        val plain = "app-release.apk" to "https://example.test/phone"
+        assertEquals(null, ApkPicker.choose(listOf(wear, tv), listOf("arm64-v8a")))
+        assertEquals(plain.second, ApkPicker.choose(listOf(wear, tv, plain), emptyList()))
+        assertEquals(arm64.second, ApkPicker.choose(listOf(wear, tv, arm64), listOf("arm64-v8a")))
     }
 
     private fun <T> permutations(items: List<T>): List<List<T>> {

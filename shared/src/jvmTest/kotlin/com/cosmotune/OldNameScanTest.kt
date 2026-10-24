@@ -28,6 +28,7 @@ class OldNameScanTest {
         Allowed("UPSTREAM.md", null, "names the upstream project and the last commit taken from it"),
         Allowed("NOTICE.md", null, "the notice that credits the upstream project and its authors"),
         Allowed("FORK.md", null, "the ledger of upstream files; it names the old names to explain the rename"),
+        Allowed("FEATURE_TRACKER.md", null, "feature provenance and the explicit upstream integration status"),
         Allowed("docs/BASELINE.md", null, "facts about upstream's unchanged code, recorded before the fork changed it"),
         Allowed("tools/upstream-digest.sh", null, "reads the upstream repository by name"),
         Allowed("licenses/", null, "licence texts as their authors wrote them"),

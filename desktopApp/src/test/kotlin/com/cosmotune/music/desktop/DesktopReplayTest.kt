@@ -10,6 +10,19 @@ import kotlin.test.assertTrue
 /** Replay: what a period covers, what the charts say, and what the cards are dealt from. */
 class DesktopReplayTest {
 
+    @Test fun `structured credits and punctuation names determine actual artist charts`() {
+        val solo = Song("solo", "One", "Tyler, the Creator", null, artistId = "tyler")
+        val collaboration = solo.copy(videoId = "collaboration", artist = "Tyler, the Creator & Guest",
+            artists = listOf(com.cosmotune.music.data.model.ArtistRef("Tyler, the Creator", "tyler"), com.cosmotune.music.data.model.ArtistRef("Guest", "guest")))
+        val summary = DesktopListeningStats.summarise(listOf(bucket("2026-09", Triple(solo, 1_000L, 1), Triple(collaboration, 2_000L, 1))),
+            DesktopReplayPeriod.ALL_TIME, today)
+        assertEquals(1, summary.distinctArtists)
+        assertEquals("Tyler, the Creator", summary.artists.single().title)
+        assertEquals("tyler", summary.artists.single().browseId)
+        assertEquals(3_000L, summary.artists.single().ms)
+        assertEquals(collaboration.artists, DesktopListeningStats.mergeSong(solo, collaboration).artists)
+    }
+
     private fun song(id: String, title: String, artist: String, album: String? = null) =
         Song(videoId = id, title = title, artist = artist, thumbnailUrl = "", albumName = album)
 

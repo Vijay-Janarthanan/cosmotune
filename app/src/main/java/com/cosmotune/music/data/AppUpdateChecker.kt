@@ -114,7 +114,8 @@ object AppUpdateChecker {
                 if (name != null && url != null) name to url else null
             }
             .orEmpty()
-        com.cosmotune.ApkPicker.choose(apks, Build.SUPPORTED_ABIS.toList())
+        com.cosmotune.ApkPicker.choose(apks, Build.SUPPORTED_ABIS.toList(),
+            target = if (BuildConfig.APPLICATION_ID.startsWith("com.cosmotune.tv")) com.cosmotune.ApkPicker.Target.TV else com.cosmotune.ApkPicker.Target.PHONE)
     }.getOrNull()
 
     /**

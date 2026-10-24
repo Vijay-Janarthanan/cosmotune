@@ -105,6 +105,8 @@ internal data class DesktopSourceConfig(
     val enabled: Boolean = true,
     /** The addon manifest's `allowDownloads`, as last read. */
     val allowDownloads: Boolean = true,
+    /** User-selected manifest settings; stored with the source credentials. */
+    val userSettings: Map<String, String> = emptyMap(),
 ) {
     val displayName: String
         get() = label.ifBlank {

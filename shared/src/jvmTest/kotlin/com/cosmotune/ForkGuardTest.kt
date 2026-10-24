@@ -120,7 +120,7 @@ class ForkGuardTest {
     )
 
     /** Files that may name BitChord's servers: the credit and the ledger explain the fork. */
-    private val mayNameUpstream = setOf("README.md", "NOTICE.md", "FORK.md", "UPSTREAM.md", "LICENSE")
+    private val mayNameUpstream = setOf("README.md", "NOTICE.md", "FORK.md", "UPSTREAM.md", "FEATURE_TRACKER.md", "LICENSE")
 
     /**
      * Upstream's two server deployment scripts, kept exactly as they were. Phase 9 (our own server) rewrites
@@ -139,6 +139,7 @@ class ForkGuardTest {
             "raw.githubusercontent.com/kushagrasinghx",
             "github.com/kushagrasinghx/BitChord", // the plain repository address: only the credit files may link it
             "1411019391843172514", // BitChord's Discord application id
+            "1543679166967193620", // the newer upstream Discord application is not this fork's either
             "discord.gg/pDdKfrdHY6", // BitChord's Discord server
         )
         val offenders = files(

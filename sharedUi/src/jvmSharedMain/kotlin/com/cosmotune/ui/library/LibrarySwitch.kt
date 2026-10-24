@@ -44,6 +44,7 @@ fun LibrarySwitch(
     links: List<LibraryLink>,
     deviceItems: List<ShelfItem>,
     showTitle: Boolean = true,
+    sourceShelves: List<HomeShelf> = com.cosmotune.ui.library.rememberSourceLibraryShelves(),
 ) {
     if (LocalCosmoShell.current != null) {
         CosmoLibrary(
@@ -51,7 +52,7 @@ fun LibrarySwitch(
             onShelfItemLongPress = onShelfItemLongPress, onNewPlaylist = onNewPlaylist,
             onImportSpotifyPlaylist = onImportSpotifyPlaylist, onShowAll = onShowAll, replay = replay, onSignIn = onSignIn,
             onRetry = onRetry, refreshing = refreshing, onRefresh = onRefresh, pullState = pullState, modifier = modifier,
-            contentPadding = contentPadding, links = links, deviceItems = deviceItems, showTitle = showTitle,
+            contentPadding = contentPadding, links = links, deviceItems = deviceItems, showTitle = showTitle, sourceShelves = sourceShelves,
         )
     } else {
         LibraryScreen(
@@ -59,7 +60,7 @@ fun LibrarySwitch(
             onShelfItemLongPress = onShelfItemLongPress, onNewPlaylist = onNewPlaylist,
             onImportSpotifyPlaylist = onImportSpotifyPlaylist, onShowAll = onShowAll, replay = replay, onSignIn = onSignIn,
             onRetry = onRetry, refreshing = refreshing, onRefresh = onRefresh, pullState = pullState, modifier = modifier,
-            contentPadding = contentPadding, links = links, deviceItems = deviceItems, showTitle = showTitle,
+            contentPadding = contentPadding, links = links, deviceItems = deviceItems, showTitle = showTitle, sourceShelves = sourceShelves,
         )
     }
 }

@@ -45,7 +45,7 @@ class ModeHooksContractTest {
     @Test fun desktopAppHoldsTheTwoLinesOfTheHookTableAtTheirPlaces() {
         val text = read(desktopApp)
         val page = "if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)"
-        val keys = "if (com.cosmotune.video.host.DesktopModeHost.active) return@onPreviewKeyEvent false"
+        val keys = "if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive)) return@onPreviewKeyEvent false"
         val lines = text.lines().map { it.trim() }
         assertEquals(1, lines.count { it == page }, "Video's page stands in place of Music's")
         assertEquals(1, lines.count { it == keys }, "the music shortcuts stand aside")
@@ -53,7 +53,8 @@ class ModeHooksContractTest {
         assertEquals("modifier = Modifier.onPreviewKeyEvent { event ->", lines[lines.indexOf(keys) - 1], "the first line inside the key handler")
         // Y-26 adds two provider lines of its own (the plan's hook table, row 10): they are the only other mentions allowed.
         val later = listOf(
-            "val videoModeShown = com.cosmotune.video.host.desktopVideoShown()",
+            "val videoModeShown = com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown()",
+            "if (com.cosmotune.video.host.desktopMangaShown()) return@DesktopFrame com.cosmotune.video.host.DesktopMangaPage(contentPadding)",
             "com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },",
             "com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),",
         )
@@ -174,18 +175,18 @@ class ModeHooksContractTest {
     @Test fun theMusicPlayerBarAndSidePanelStandAsideWhileTheModeIsVideo() {
         val chrome = read(desktopDir + "CosmoDesktopChrome.kt")
         assertEquals(
-            "if (com.cosmotune.video.host.desktopVideoShown()) return",
+            "if (com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown()) return",
             VideoSourceContract.firstStatement(VideoSourceContract.functionBody(chrome, "CosmoDesktopPlayerBarHost")),
         )
         val panel = read(desktopDir + "CosmoDesktopSidePanel.kt")
         assertEquals(
-            "if (!open || com.cosmotune.video.host.desktopVideoShown()) return",
+            "if (!open || com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown()) return",
             VideoSourceContract.firstStatement(VideoSourceContract.functionBody(panel, "CosmoDesktopSidePanel")),
         )
         val card = VideoSourceContract.functionBody(panel, "cosmoDesktopSidePanelCard").replace(Regex("\\s+"), " ")
         assertTrue("if (LocalCosmoShell.current == null) return Modifier" in card, "with the look off the modifier is still the identity")
         assertTrue(
-            "if (com.cosmotune.video.host.desktopVideoShown()) return Modifier.layout {" in card && "layout(placeable.width, placeable.height) {}" in card,
+            "if (com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown()) return Modifier.layout {" in card && "layout(placeable.width, placeable.height) {}" in card,
             "measured, not placed",
         )
         assertTrue(card.indexOf("desktopVideoShown()") > card.indexOf("LocalCosmoShell.current == null"), "the look-off answer comes first")

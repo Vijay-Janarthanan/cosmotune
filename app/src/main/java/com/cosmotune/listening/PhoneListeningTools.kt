@@ -97,7 +97,7 @@ fun PhoneListeningTools(
             val answer = CompletableDeferred<Uri?>().also { pending = it }
             picker.launch(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
-                type = if (name.endsWith(".txt")) "text/plain" else "application/json"
+                type = when { name.endsWith(".m3u8", true) -> "application/vnd.apple.mpegurl"; name.endsWith(".txt") -> "text/plain"; else -> "application/json" }
                 putExtra(Intent.EXTRA_TITLE, name)
             })
             val uri = answer.await()
@@ -140,12 +140,13 @@ fun PhoneListeningTools(
         } },
         available = { track ->
             when {
-                track.path?.let { File(it).isFile } == true -> true
+                track.path?.let { File(it).let { file -> file.isFile && file.canRead() } } == true -> true
                 track.uri != null -> runCatching { context.contentResolver.openAssetFileDescriptor(Uri.parse(track.uri), "r")?.use { true } ?: false }.getOrDefault(false)
                 track.path != null -> false
                 else -> true
             }
         },
+        libraryAccess = remember(context) { PhoneLibraryAccess(context) },
         sourceSummary = "Checks use your enabled sources and current streaming quality.",
         languageChoices = listOf("" to context.getString(com.cosmotune.music.R.string.system)) +
             com.cosmotune.music.ui.components.SUPPORTED_LANGUAGES.map { it.tag to context.getString(it.nameRes) },

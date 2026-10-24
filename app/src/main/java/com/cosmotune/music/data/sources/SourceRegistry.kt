@@ -44,6 +44,8 @@ data class SourceConfig(
      * [checkValidLossless] for why that matters.
      */
     val allowDownloads: Boolean = true,
+    /** User-selected manifest settings; stored with the source credentials. */
+    val userSettings: Map<String, String> = emptyMap(),
     /**
      * The addon's `checkValidLossless`, as its manifest last said. Has to be
      * stored: the promise is that a gated addon is not contacted at all while
@@ -337,6 +339,9 @@ object SourceRegistry {
 
     private fun publish(next: List<SourceConfig>, persist: Boolean = true) {
         configs.value = next
+        com.cosmotune.providers.ProviderHub.setHttpArtworkSources(next.filter { it.kind == SourceKind.ADDON }.mapNotNull { config ->
+            com.cosmotune.providers.ArtworkAccess.httpSource(config.baseUrl, config.enabled)?.let { config.id to it }
+        }.toMap()) { id -> configs.value.find { it.id == id }?.let { it.enabled && !it.awaitsLosslessOutput } == true }
         // Rebuilt against the previous map so that an untouched source keeps
         // the instance it already had, rather than being replaced by an
         // identical-but-cold one every time an unrelated row is toggled.

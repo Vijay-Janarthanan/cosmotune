@@ -69,6 +69,64 @@ class AddonSourceTest {
 
     // ── URL handling ──────────────────────────────────────────────────────
 
+    @Test fun savedManifestSettingsReachRequestsWithoutOverridingTheRequestedQuality() = runBlocking<Unit> {
+        routes["/manifest.json"] = MockResponse().setBody("""{"id":"configured","resources":["search","stream"],"settings":[{"key":"language","label":"Language","default":"english"},{"key":"token","type":"password","secret":true},{"key":"quality","default":"lossless"}]}""")
+        routes["/search"] = MockResponse().setBody("""{"tracks":[]}""")
+        val client = AddonClient(server.url("/").toString(), mapOf("language" to "tamil", "token" to "fixture-secret", "quality" to "lossless", "undeclared" to "ignored"))
+        try {
+            assertTrue(client.search("A recording", "high").isSuccess)
+            val request = synchronized(seen) { seen.last() }.requestUrl!!
+            assertEquals("tamil", request.queryParameter("language"))
+            assertEquals("fixture-secret", request.queryParameter("token"))
+            assertEquals("high", request.queryParameter("quality"))
+            assertNull(request.queryParameter("undeclared"))
+            assertEquals("A recording", request.queryParameter("q"))
+        } finally { client.clear() }
+    }
+
+    @Test fun optionalCataloguePagesKeepSettingsEncodedIdsAndExplicitRefresh() = runBlocking<Unit> {
+        routes["/manifest.json"] = MockResponse().setBody("""{"id":"fixture","resources":["search","album"],"settings":[{"key":"language","default":"english"}]}""")
+        routes["/album/catalogue%2Fone"] = MockResponse().setBody("""{"id":"catalogue/one","title":"An album","tracks":[]}""")
+        val client = AddonClient(server.url("/").toString(), mapOf("language" to "tamil"))
+        try {
+            assertTrue(client.album("catalogue/one").isSuccess)
+            assertTrue(client.album("catalogue/one").isSuccess)
+            assertEquals(1, synchronized(seen) { seen.count { it.requestUrl?.encodedPath?.startsWith("/album/") == true } })
+            assertTrue(client.album("catalogue/one", force = true).isSuccess)
+            assertEquals(2, synchronized(seen) { seen.count { it.requestUrl?.encodedPath?.startsWith("/album/") == true } })
+            val last = synchronized(seen) { seen.last() }.requestUrl!!
+            assertEquals("tamil", last.queryParameter("language"))
+            val requestsBefore = synchronized(seen) { seen.size }
+            assertTrue(client.artist("unadvertised").isFailure)
+            assertEquals(requestsBefore, synchronized(seen) { seen.size })
+        } finally { client.clear() }
+    }
+
+    @Test fun catalogueRecordingsKeepSourceOwnershipAndDisabledSourcesAreNotContacted() = runBlocking<Unit> {
+        routes["/manifest.json"] = MockResponse().setBody("""{"id":"fixture","resources":["search","album","stream"]}""")
+        routes["/album/one"] = MockResponse().setBody("""{"id":"one","title":"An album","tracks":[{"id":"recording","title":"A song","artist":"Singer","format":"flac","duration":180}]}""")
+        val config = SourceConfig(id = "http-fixture", kind = SourceKind.ADDON, label = "Fixture", baseUrl = server.url("/").toString())
+        val source = AddonSource(config)
+        try {
+            val raw = source.catalogue("album", "one")
+            val page = com.cosmotune.providers.ProviderCatalogue.collection(config.id, "album", raw, "one", "addon")!!
+            val song = source.catalogueSong(page.tracks.single())
+            assertEquals("src:http-fixture::recording", song.videoId)
+            assertEquals("An album", song.albumName)
+            val key = com.cosmotune.providers.ProviderBrowseKey.parse(song.albumId!!)!!
+            assertEquals("addon", key.namespace)
+            assertEquals(com.cosmotune.music.data.model.BrowseType.ALBUM, com.cosmotune.music.ui.MainViewModel.browseTypeOf(key.encode()))
+            val before = synchronized(seen) { seen.size }
+            val disabled = AddonSource(config.copy(enabled = false))
+            try {
+                var rejected = false
+                try { disabled.catalogue("album", "one") } catch (_: IllegalStateException) { rejected = true }
+                assertTrue(rejected)
+                assertEquals(before, synchronized(seen) { seen.size })
+            } finally { disabled.release() }
+        } finally { source.release() }
+    }
+
     /**
      * Both forms of the address people actually paste have to land on the same
      * base, because both are offered to them: an addon's page prints its root
@@ -572,6 +630,85 @@ class AddonSourceTest {
         )
 
         assertEquals("LOW", AddonSource(config()).search("s", limit = 5)[0].sourceQuality)
+    }
+
+    /**
+     * Hi-res is one tier with 16-bit lossless for ranking, but the Addons
+     * search badge tells them apart, so the row has to keep the difference.
+     */
+    @Test
+    fun `a hi-res row stays lossless but is flagged hi-res for its badge`() = runBlocking {
+        route("/manifest.json", manifest())
+        route(
+            "/search",
+            json(
+                """{"tracks":[
+                  {"id":"t1","title":"S","artist":"A","duration":247,"audioQuality":"HI_RES_LOSSLESS","format":"dash"},
+                  {"id":"t2","title":"S","artist":"A","duration":247,"audioQuality":"LOSSLESS","format":"flac"},
+                  {"id":"t3","title":"S","artist":"A","duration":247,"audioQuality":"HI_RES_LOSSLESS","audioModes":["DOLBY_ATMOS"]}
+                ]}""",
+            ),
+        )
+
+        val songs = AddonSource(config()).search("s", limit = 5)
+
+        assertEquals("LOSSLESS", songs[0].sourceQuality)
+        assertTrue(songs[0].sourceHiRes)
+        assertEquals("LOSSLESS", songs[1].sourceQuality)
+        assertFalse(songs[1].sourceHiRes)
+        // An immersive row is badged Dolby Atmos, never also Hi-Res.
+        assertEquals("DOLBY", songs[2].sourceQuality)
+        assertFalse(songs[2].sourceHiRes)
+    }
+
+    /**
+     * The stereo row picked from the Addons search, on an addon that answers
+     * `?atmos=auto` with the immersive mix: asked the ordinary way, the
+     * Lossless row tapped played as Dolby Atmos. Asked as a picked stereo row,
+     * no hint goes out and the FLAC comes back.
+     */
+    @Test
+    fun `a picked stereo row is asked for without the atmos hint and plays stereo`() = runBlocking {
+        server.dispatcher = atmosDispatcher("https://cdn.example.com/dash/tidal-atmos")
+        route("/manifest.json", manifest())
+
+        val picked = AddonSource(config()).stream("t1", StreamRequest.Lossless, stereoOnly = true)!!
+
+        assertNull(requestFor("/stream/t1").queryParameter("atmos"))
+        assertFalse(picked.format.isDolbyAtmos)
+        assertEquals("flac", picked.format.codec)
+    }
+
+    /** The ordinary path — matching, upgrades — still offers the addon Atmos. */
+    @Test
+    fun `an unpicked stream still carries the atmos hint`() = runBlocking {
+        server.dispatcher = atmosDispatcher("https://cdn.example.com/dash/tidal-atmos")
+        route("/manifest.json", manifest())
+
+        val stream = AddonSource(config()).stream("t1", StreamRequest.Lossless)!!
+
+        assertEquals("auto", requestFor("/stream/t1").queryParameter("atmos"))
+        assertTrue(stream.format.isDolbyAtmos)
+    }
+
+    /** A declared `atmos` setting is turned to its own "off" for a picked stereo row. */
+    @Test
+    fun `a picked stereo row sends the declared atmos setting's off value`() = runBlocking {
+        route(
+            "/manifest.json",
+            json(
+                """
+                {"id":"a","name":"A","resources":["search","stream","settings"],
+                 "settings":[{"key":"atmos","type":"select","default":"auto",
+                              "options":[{"value":"only"},{"value":"auto"},{"value":"off"}]}]}
+                """.trimIndent(),
+            ),
+        )
+        route("/stream/t1", json("""{"url":"https://cdn/a.flac","codec":"flac"}"""))
+
+        AddonSource(config()).stream("t1", StreamRequest.Lossless, stereoOnly = true)
+
+        assertEquals("off", requestFor("/stream/t1").queryParameter("atmos"))
     }
 
     /**

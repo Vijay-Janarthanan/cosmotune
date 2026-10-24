@@ -153,6 +153,15 @@ private fun MoodGenreCard(
     item: MoodGenre,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+) = MoodGenreSleeve(item = item, onClick = onClick, modifier = modifier)
+
+/** Shared sleeve drawing; TV supplies its own focus/click treatment and title scale. */
+@Composable
+fun MoodGenreSleeve(
+    item: MoodGenre,
+    modifier: Modifier = Modifier,
+    titleStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleMedium,
+    onClick: (() -> Unit)? = null,
 ) {
     val tone = remember(item.stripeColor, item.title) { moodTone(item) }
     Box(
@@ -160,7 +169,7 @@ private fun MoodGenreCard(
             .aspectRatio(MOOD_CARD_ASPECT)
             .clip(MOOD_CARD_SHAPE)
             .background(tone.stripe)
-            .clickable(onClick = onClick),
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         Box(
             Modifier
@@ -188,7 +197,7 @@ private fun MoodGenreCard(
         )
         Text(
             text = item.title,
-            style = MaterialTheme.typography.titleMedium.copy(
+            style = titleStyle.copy(
                 shadow = Shadow(Color.Black.copy(alpha = .35f), offset = Offset(0f, 1f), blurRadius = 6f),
             ),
             fontWeight = FontWeight.Bold,
@@ -255,7 +264,7 @@ private val MOOD_SPACING = 12.dp
 private val MOOD_CARD_SHAPE = RoundedCornerShape(18.dp)
 
 /** Width over height; a two-column phone row lands at about 100dp tall. */
-private const val MOOD_CARD_ASPECT = 1.72f
+const val MOOD_CARD_ASPECT = 1.72f
 
 /** How much of the card the solid stripe covers before the artwork starts. */
 private const val MOOD_STRIPE_FRACTION = .28f

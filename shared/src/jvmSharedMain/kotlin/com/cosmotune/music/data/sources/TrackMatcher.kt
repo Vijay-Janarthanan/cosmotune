@@ -106,7 +106,7 @@ object TrackMatcher {
 
     /** The first credited artist — who a catalogue is most likely to file the track under. */
     internal fun primaryArtist(artist: String): String =
-        normalize(artist).split(ARTIST_SEPARATORS).firstOrNull()?.trim().orEmpty()
+        normalize(com.cosmotune.music.data.model.ArtistIdentity.primaryName(artist).orEmpty())
 
     /** Whether both credits name at least one of the same artists. */
     fun sharesArtist(wanted: String, got: String): Boolean {
@@ -660,17 +660,20 @@ object TrackMatcher {
      * "Atif Aslam, Tulsi Kumar". Single letters go — an initialled
      * "A. R. Rahman" and a plain "AR Rahman" are the same person.
      */
-    internal fun artistNames(value: String): Set<List<String>> = normalize(value)
-        .split(ARTIST_SEPARATORS)
+    internal fun artistNames(value: String): Set<List<String>> = com.cosmotune.music.data.model.ArtistIdentity.names(value)
         .map { name ->
-            name.split(WORD_SPLIT)
+            normalize(name).split(WORD_SPLIT)
                 .map { it.replace(NON_ALNUM, "") }
                 .filter { it.length > 1 }
         }
         .filter { it.isNotEmpty() }
         .toSet()
 
-    private fun sameArtist(a: List<String>, b: List<String>) = runOf(a, b) || runOf(b, a)
+    private val atomicArtistNames by lazy {
+        com.cosmotune.music.data.model.ArtistIdentity.protectedNames.flatMap { artistNames(it) }.toSet()
+    }
+    private fun sameArtist(a: List<String>, b: List<String>) =
+        if (a in atomicArtistNames || b in atomicArtistNames) a == b else runOf(a, b) || runOf(b, a)
 
     /** Whether [outer] contains [inner] as a run of whole words. */
     private fun runOf(outer: List<String>, inner: List<String>): Boolean {

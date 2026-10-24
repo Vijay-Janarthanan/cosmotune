@@ -277,6 +277,18 @@ No. Video mode reads YouTube's public pages without an account, which YouTube's 
 
 </details>
 
+## Feature development
+
+[Feature tracker](FEATURE_TRACKER.md) records features from BitChord, Mornye, Lokal and Tsuki alongside Cosmotune's own work, with implementation, verification and release status kept separate.
+
+The 1.0.4 work adds artist motion headers, optional artist signatures, a compact audio-format readout, queue fixes and a Wear OS companion. The watch can control the phone or act as its audio output; installation uses the matching companion APK bundled with the phone. See [Wear OS setup and limitations](wearos/README.md). These changes are still being validated before publication.
+
+The same 1.0.4 scope includes [Mornye providers and local learning](docs/MORNYE_REVIEW.md), [Lokal providers and library features](docs/LOKAL_REVIEW.md), and [Manga mode](docs/MANGA_PLAN.md). Manga now has a local reader, shared source adapter, global enabled-source search, custom HTML templates, progress/downloads, optional Komga flow and Android extension/store integration in development. One publisher-verified real Android extension passed catalogue/chapter/page/image checks; the detailed plan distinguishes that from broader compatibility. Manga and the broader provider runtime are not yet published; the tracker records their remaining checks.
+
+Development also includes [local library review and M3U8 export](docs/LOCAL_LIBRARY_TOOLS.md), byte-verified duplicate groups and previewed saved-session file repairs, plus a [paired desktop/TV phone remote](docs/LAN_REMOTE.md) with QR setup, playback/seek/volume and scoped music search. A signed minified Android checkpoint passed real Music/Manga/Video mode switching and a public Manga Plus chapter with restored progress. The separate [TV app](tv/README.md) has signed packages and a D-pad setup/Home/settings walkthrough; remote/effect follow-up checks are in progress. The [browser player and helper extensions](web/README.md) build separately, with parser/player/bridge tests and package licence checks. No browser site is deployed automatically. These are implementation checkpoints for the coordinated 1.0.4 update, not a published release.
+
+[Provider packages](docs/PROVIDER_PACKAGES.md) now have shared repository/import management, reviewed installation, settings, search, catalogue/home browsing and direct audio streaming in development. A live public JioSaavn source passed metadata and AAC decoding checks. Checked source covers and provider-fed Home sections now use the native loaders and queues. [Local source libraries](docs/SOURCE_LIBRARY.md) add source ratings, saved collections and follows without a YouTube account. Provider-owned PKCE sign-in, protected cookies and bounded cipher helpers now have fixture coverage. Segmented audio downloads share bounded/cancellable transport on phone and desktop. The runtime's remaining signed-session, automatic callback, transform and output-device work is documented; importing a package alone does not establish full compatibility. [Local preference learning](docs/LOCAL_PREFERENCE_LEARNING.md) adds 65,568 bytes of private state while keeping the base model and personal files below 5 MB.
+
 ## Feedback and contributing
 
 Found a layout or playback problem? [Open an issue](https://github.com/Vijay-Janarthanan/cosmotune/issues)

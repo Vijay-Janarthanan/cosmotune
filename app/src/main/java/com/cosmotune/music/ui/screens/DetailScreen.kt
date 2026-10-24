@@ -303,6 +303,7 @@ fun DetailScreen(
         rawSongs.withIndex().associate { (i, s) -> s.videoId to i + 1 }
     }
     val isArtist = page.type == BrowseType.ARTIST
+    val visuals = if (isArtist) com.cosmotune.ui.pages.rememberArtistVisuals(page.title) else null
     // Whether the top release card's album is already saved isn't on the shelf
     // item; it is read off the album once, as soon as the card is known.
     val topReleaseId = if (isArtist) page.sections.topRelease()?.browseId else null
@@ -707,6 +708,11 @@ fun DetailScreen(
                 }
             }
             if (isArtist) aboutItem()
+            if (visuals?.signature != null) item(key = "artist-signature") {
+                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                    com.cosmotune.ui.pages.ArtistSignatureMark(visuals.signature, page.title)
+                }
+            }
         }
 
     }

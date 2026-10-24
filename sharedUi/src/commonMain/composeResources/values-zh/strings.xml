@@ -279,4 +279,13 @@
     <string name="cosmo_np_controls_expand">Expand controls</string>
     <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
     <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
+    <string name="artist_signatures">艺术家签名</string>
+    <string name="artist_signatures_subtitle">显示已配置来源提供的艺术家手写签名</string>
+    <string name="artist_signatures_url">签名 API 地址</string>
+    <string name="signed_by">%1$s 的签名</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">尚未配置，点按设置 API 地址</string>
+    <string name="artist_signatures_test_failed">无法连接到该地址的 API</string>
+    <string name="cosmo_mode_manga">漫画</string>
+    <string name="cosmo_mode_manga_summary">你的漫画、来源和阅读进度</string>
 </resources>

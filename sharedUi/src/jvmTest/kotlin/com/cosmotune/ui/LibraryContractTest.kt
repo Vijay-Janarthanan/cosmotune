@@ -28,7 +28,7 @@ class LibraryContractTest {
 
     @Test fun libraryScreenAndItsReplacementsTakeTheSameList() {
         val old = params(SourceContract.read(oldLibrary), "LibraryScreen")
-        assertEquals(19, old.size, "the old screen's list was read (${old.size})")
+        assertEquals(20, old.size, "the old screen's list was read (${old.size})")
         assertEquals(old, params(lib("LibrarySwitch"), "LibrarySwitch"))
         assertEquals(old, params(lib("CosmoLibrary"), "CosmoLibrary"))
     }
@@ -126,7 +126,7 @@ class LibraryContractTest {
 
     // ---- the rules ----------------------------------------------------------------------------------------------------
 
-    private val pages = listOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "LibrarySwitch", "LibraryGridSwitch")
+    private val pages = listOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves")
 
     /** The text before the `{` of every block that encloses [index], innermost first. */
     private fun enclosingHeads(code: String, index: Int): List<String> {
@@ -271,6 +271,6 @@ class LibraryContractTest {
             }
         }
         val files = File(SourceContract.root, library).listFiles { f -> f.extension == "kt" }.orEmpty().map { it.nameWithoutExtension }.toSet()
-        assertEquals(setOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "LibrarySwitch", "LibraryGridSwitch"), files, "the files of the library package")
+        assertEquals(setOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves"), files, "the files of the library package")
     }
 }

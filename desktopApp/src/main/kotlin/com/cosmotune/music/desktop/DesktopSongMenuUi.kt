@@ -245,7 +245,7 @@ internal fun DesktopSongMenu(
             DesktopMenuDivider()
         }
 
-        if (signedIn && !isOffline) {
+        if (signedIn && !isOffline || com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)) {
             DesktopMenuRow(
                 icon = if (liked) CosmotuneIcons.HeartFilled else CosmotuneIcons.Heart,
                 label = if (liked) "Remove from liked" else "Like",
@@ -259,7 +259,7 @@ internal fun DesktopSongMenu(
                 onClick = onToggleDislike,
             )
         }
-        if (!isOffline) {
+        if (!isOffline && !com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)) {
             DesktopMenuRow(Icons.AutoMirrored.Rounded.PlaylistAdd, DesktopStrings["add_to_playlist", "Add to playlist"], onClick = onAddToPlaylist)
         }
         if (signedIn || !isOffline) DesktopMenuDivider()

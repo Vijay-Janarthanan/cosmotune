@@ -71,7 +71,7 @@ fun DetailSwitch(
         if (page.type == BrowseType.ARTIST) {
             CosmoArtistPage(
                 page = rememberArtistPage(page),
-                heroUrl = rememberAppleHero(page),
+                heroUrl = null,
                 currentSong = currentSong,
                 isPlaying = isPlaying,
                 listState = listState,

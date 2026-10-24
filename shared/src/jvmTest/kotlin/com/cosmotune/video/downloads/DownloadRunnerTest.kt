@@ -216,7 +216,8 @@ class DownloadRunnerTest {
 
         // the working files are gone and the list is kept
         assertTrue(File(dir, "cache").listFiles().orEmpty().isEmpty(), "${File(dir, "cache").list()?.toList()}")
-        eventually("downloads.json holds the finished entry") { File(dir, "state/downloads.json").let { it.isFile && "\"done\"" in it.readText() } }
+        val stored = FileDownloadsIo(File(dir, "state"))
+        eventually("downloads.json holds the finished entry") { stored.read(DownloadsFile.NAME)?.contains("\"done\"") == true }
         assertEquals(movie.length() to 21_000_000_000L, runner.storage())
     }
 

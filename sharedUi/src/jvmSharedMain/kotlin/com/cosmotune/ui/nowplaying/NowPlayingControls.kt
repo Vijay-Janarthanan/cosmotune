@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -122,7 +123,7 @@ internal fun NowPlayingTopBar(
     modifier: Modifier = Modifier,
 ) {
     val dismiss = LocalCosmoPlayerDismiss.current
-    Column(modifier.fillMaxWidth().statusBarsPadding().padding(top = 4.dp)) {
+    Column(modifier.fillMaxWidth().windowInsetsPadding(com.cosmotune.music.ui.theme.stableStatusBarInsets()).padding(top = 4.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -261,6 +262,7 @@ internal fun NowPlayingStack(
                     Column(Modifier.align(Alignment.CenterStart)) {
                         NowPlayingTitle(song.title, arrival, lyricsOpen = false, landscape = true)
                         ArtistRow(song, coverUrl, hasVideo, reveal, onChipPlaced, liked, onToggleLike, onOpenMenu, onOpenArtist, verticalPadding = 2.dp)
+                        AudioFormatLine()
                     }
                 }
             }
@@ -268,6 +270,7 @@ internal fun NowPlayingStack(
             Column(Modifier.foldedBy(fold)) {
                 NowPlayingTitle(song.title, arrival, lyricsOpen = lyricsOpen, landscape = false)
                 ArtistRow(song, coverUrl, hasVideo, reveal, onChipPlaced, liked, onToggleLike, onOpenMenu, onOpenArtist)
+                AudioFormatLine()
             }
         }
         if (!folded) {

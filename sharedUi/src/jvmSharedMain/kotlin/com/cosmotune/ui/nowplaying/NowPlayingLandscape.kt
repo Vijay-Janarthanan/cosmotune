@@ -98,7 +98,7 @@ internal fun NowPlayingLandscapeMedia(
     modifier: Modifier = Modifier,
 ) {
     val shape = remember { SuperellipseShape(LandscapeMetrics.MEDIA_RADIUS_DP.dp) }
-    BoxWithConstraints(modifier.fillMaxSize().statusBarsPadding().padding(LandscapeMetrics.MEDIA_PADDING_DP.dp)) {
+    BoxWithConstraints(modifier.fillMaxSize().windowInsetsPadding(com.cosmotune.music.ui.theme.stableStatusBarInsets()).padding(LandscapeMetrics.MEDIA_PADDING_DP.dp)) {
         val side = LandscapeMetrics.coverSideDp(maxWidth.value, maxHeight.value).dp
         Box(
             Modifier

@@ -12,6 +12,8 @@ package com.cosmotune
  */
 object ApkPicker {
 
+    enum class Target { PHONE, TV }
+
     private const val UNIVERSAL = "universal"
 
     /**
@@ -34,17 +36,26 @@ object ApkPicker {
      * `-android-` (the app name, the version) is ignored. If two assets carry the same ABI, the one listed
      * first is taken.
      */
-    fun choose(candidates: List<Pair<String, String>>, supportedAbis: List<String>): String? {
+    fun choose(candidates: List<Pair<String, String>>, supportedAbis: List<String>, target: Target = Target.PHONE): String? {
+        // Companion/TV APKs can share a release, but must never be offered as a phone update,
+        // including when a release has no phone asset and legacy fallback would otherwise run.
+        val selected = candidates.filter { (name, _) ->
+            val watch = name.startsWith("CosmotuneWear", ignoreCase = true) || name.contains("-wearos-", ignoreCase = true)
+            val tv = name.startsWith("CosmotuneTV-", ignoreCase = true) || name.contains("-android-tv-", ignoreCase = true) || name.contains("-tv-", ignoreCase = true)
+            !watch && if (target == Target.TV) tv else !tv
+        }
         for (abi in supportedAbis) {
             if (abi.isBlank()) continue
-            forAbi(candidates, abi)?.let { return it }
+            forAbi(selected, abi, target)?.let { return it }
         }
-        forAbi(candidates, UNIVERSAL)?.let { return it }
-        return candidates.firstOrNull()?.second
+        forAbi(selected, UNIVERSAL, target)?.let { return it }
+        // TV is a new separate install: an unknown CPU must not inherit a phone
+        // package or an arbitrarily chosen incompatible split.
+        return if (target == Target.PHONE) selected.firstOrNull()?.second else null
     }
 
-    private fun forAbi(candidates: List<Pair<String, String>>, abi: String): String? {
-        val tail = "-android-$abi.apk"
-        return candidates.firstOrNull { (name, _) -> name.endsWith(tail, ignoreCase = true) }?.second
+    private fun forAbi(candidates: List<Pair<String, String>>, abi: String, target: Target): String? {
+        val tails = if (target == Target.TV) listOf("-android-$abi.apk", "-android-tv-$abi.apk", "-tv-$abi.apk") else listOf("-android-$abi.apk")
+        return candidates.firstOrNull { (name, _) -> tails.any { name.endsWith(it, ignoreCase = true) } }?.second
     }
 }

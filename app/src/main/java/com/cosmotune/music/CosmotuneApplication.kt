@@ -51,6 +51,7 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         // underneath — settings, the Canvas decoder, outputs, the party.
         AndroidStreamHooks.installEarly()
         PlayerPlatform.install(AndroidPlayerHost(this))
+        com.cosmotune.ui.pages.ArtistVisualSettings.install(AppSettings.signatureApiEnabled, AppSettings.signatureApiUrl)
         com.cosmotune.music.ui.AppUi.install(com.cosmotune.music.ui.AndroidAppUiHost)
         // The shared data layer (lyrics, the YouTube Music client) logs to
         // logcat on debug builds only, as the app's own DebugLog always has.
@@ -73,7 +74,10 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         Innertube.appLanguage = { AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag() }
         migrateScriptOnlyAppLocale()
         LyricsTranslation.cacheDir = cacheDir
-        com.cosmotune.music.data.recommendations.LocalRecommendations.configure(java.io.File(cacheDir, "recommendations"))
+        com.cosmotune.music.data.recommendations.LocalRecommendations.configure(
+            java.io.File(cacheDir, "recommendations"), java.io.File(filesDir, "recommendations"))
+        com.cosmotune.providers.ProviderAuthCallbackBridge.configure(this)
+        com.cosmotune.providers.ProviderHub.configure(java.io.File(filesDir, "providers"), cache = java.io.File(cacheDir, "provider-artwork"))
         // PlaybackService shares this process, so seeding the cookie here means
         // stream resolution is authenticated from the first play onwards.
         authStore = AuthStore(this)
@@ -129,6 +133,9 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         ListenTogether.init(this)
         SearchHistory.init(this)
         LastPlayed.init(this)
+        // Both queue stores are used by PlaybackService, including an empty
+        // service being stopped when the listener switches to Video or Manga.
+        com.cosmotune.music.playback.BoundedContextPersistence.init(this)
         com.cosmotune.music.playback.PartyPersonalQueueStash.init(this)
         // Which tracks the listener has reverted to YouTube's own upload. Read
         // by [Song.toMediaItem], so it has to be open before the restart
@@ -186,6 +193,7 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
             // Coil's own transport never sees Http.client's interceptor, so
             // the header is attached per request instead. See WebDavCoilAuth.
             .components {
+                add(coil3.svg.SvgDecoder.Factory()); add(com.cosmotune.ui.providers.CatalogueArtworkFetcher.Factory())
                 add(WebDavCoilAuth())
                 // Covers filed on the SMB share; anything else falls
                 // through to Coil's own fetchers. See SmbCoverFetcher.

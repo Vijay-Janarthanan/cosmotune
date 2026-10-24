@@ -609,10 +609,17 @@ object Innertube {
         put("params", Base64.getEncoder().encodeToString(bytes))
     }
 
-    suspend fun search(query: String, params: String? = null): JsonObject =
-        postMusic("search") {
-            put("query", query)
-            params?.let { put("params", it) }
+    suspend fun search(query: String, params: String? = null, anonymous: Boolean = true): JsonObject =
+        if (anonymous) {
+            postMusicAnonymous("search") {
+                put("query", query)
+                params?.let { put("params", it) }
+            }
+        } else {
+            postMusic("search") {
+                put("query", query)
+                params?.let { put("params", it) }
+            }
         }
 
     /** The next page of a filtered search result. */

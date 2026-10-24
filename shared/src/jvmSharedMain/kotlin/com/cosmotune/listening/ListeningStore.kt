@@ -31,6 +31,7 @@ data class ListeningTrack(
     val artists: List<ListeningArtist> = emptyList(), val entryId: String? = null,
     val sourceTitle: String? = null, val sourceType: String? = null, val sourceId: String? = null,
     val radio: String? = null, val setVideoId: String? = null,
+    val hiRes: Boolean = false,
 ) {
     fun song(): Song = Song(
         videoId = id, title = title, artist = artist, thumbnailUrl = artwork, durationText = duration,
@@ -38,7 +39,7 @@ data class ListeningTrack(
         isVideo = video, isVideoOrigin = videoOrigin,
         queueTier = QueueTier.entries.firstOrNull { it.name == tier } ?: QueueTier.CONTEXT,
         localDateAddedSeconds = added, sourceQuality = quality,
-        isExplicit = explicit, downloadFormat = format, localDateModifiedSeconds = modified,
+        isExplicit = explicit, downloadFormat = format, localDateModifiedSeconds = modified, sourceHiRes = hiRes,
         artists = artists.map { ArtistRef(it.name, it.id) }, queueEntryId = entryId,
         playbackSource = sourceTitle, playbackSourceType = PlaybackSourceType.entries.firstOrNull { it.name == sourceType },
         playbackSourceId = sourceId, radioName = radio, setVideoId = setVideoId,
@@ -51,7 +52,7 @@ data class ListeningTrack(
             song.isVideo, song.isVideoOrigin, song.queueTier.name, song.localDateAddedSeconds, song.sourceQuality,
             song.isExplicit, song.downloadFormat, song.localDateModifiedSeconds,
             song.artists.map { ListeningArtist(it.name, it.browseId) }, song.queueEntryId,
-            song.playbackSource, song.playbackSourceType?.name, song.playbackSourceId, song.radioName, song.setVideoId,
+            song.playbackSource, song.playbackSourceType?.name, song.playbackSourceId, song.radioName, song.setVideoId, song.sourceHiRes,
         )
     }
 }
@@ -131,7 +132,8 @@ data class ListeningState(
 /** Identical file format on Android, Windows, Linux and macOS. Never stores account secrets. */
 class ListeningStore(private val file: File) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-    private val mutable = MutableStateFlow(read())
+    private val fileLock = locks[(file.canonicalPath.let { if (File.separatorChar == '\\') it.lowercase(java.util.Locale.ROOT) else it }.hashCode() and Int.MAX_VALUE) % locks.size]
+    private val mutable = MutableStateFlow(synchronized(fileLock) { read() })
     val state = mutable.asStateFlow()
 
     private fun read(): ListeningState {
@@ -142,18 +144,26 @@ class ListeningStore(private val file: File) {
 
     @Synchronized
     fun update(change: (ListeningState) -> ListeningState) {
-        val next = validate(change(mutable.value))
+        synchronized(fileLock) {
+        // Another window may have saved since this instance was opened.
+        // Repairs must compare their preview against the actual durable state.
+        val next = validate(change(read()))
         val raw = json.encodeToString(next)
         require(raw.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "Listening data is full. Remove an older saved session." }
         file.parentFile?.mkdirs()
-        val temp = File(file.parentFile, "${file.name}.tmp")
-        java.io.FileOutputStream(temp).use { out -> out.write(raw.toByteArray(Charsets.UTF_8)); out.fd.sync() }
+        val temp = Files.createTempFile(file.absoluteFile.parentFile.toPath(), ".cosmotune-listening-", ".tmp")
         try {
-            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
-            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            java.io.FileOutputStream(temp.toFile()).use { out -> out.write(raw.toByteArray(Charsets.UTF_8)); out.fd.sync() }
+            try {
+                Files.move(temp, file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                Files.move(temp, file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        } finally {
+            Files.deleteIfExists(temp)
         }
         mutable.value = next
+        }
     }
 
     fun saveSession(name: String, songs: List<Song>, index: Int, positionMs: Long, repeat: Int, shuffle: Boolean) {
@@ -187,7 +197,11 @@ class ListeningStore(private val file: File) {
             inbox = (fresh + s.inbox).distinctBy { it.artistId to it.id }.take(500))
     }
 
-    fun export(): String = json.encodeToString(mutable.value)
+    fun export(): String = synchronized(fileLock) {
+        val latest = read()
+        mutable.value = latest
+        json.encodeToString(latest)
+    }
 
     /** Additive, ID-based import: repeat imports are idempotent and existing local edits win. */
     fun import(raw: String) {
@@ -223,6 +237,7 @@ class ListeningStore(private val file: File) {
     }
 
     companion object {
+        private val locks = Array(64) { Any() }
         const val MAX_TRACKS = 5000
         private const val MAX_BYTES = 16 * 1024 * 1024
         fun cleanName(name: String): String = name.trim().also { require(it.isNotBlank() && it.length <= 80) { "Use a name between 1 and 80 characters." } }

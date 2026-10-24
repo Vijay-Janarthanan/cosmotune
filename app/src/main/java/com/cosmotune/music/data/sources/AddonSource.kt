@@ -38,7 +38,31 @@ class AddonSource(
     override val kind: SourceKind get() = config.kind
     override val displayName: String get() = config.displayName
 
-    private val client = AddonClient(config.baseUrl)
+    private val client = AddonClient(config.baseUrl, config.userSettings)
+    private val catalogueJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+
+    suspend fun catalogue(resource: String, identity: String, force: Boolean = false): kotlinx.serialization.json.JsonObject {
+        check(live.enabled && admitted("a catalogue page")) { "Enable this source and connect its required output first" }
+        return when (resource) {
+            "manifest" -> catalogueJson.encodeToJsonElement(AddonManifest.serializer(), client.manifest().getOrThrow()) as kotlinx.serialization.json.JsonObject
+            "search" -> client.searchCatalogue(identity, force = force).getOrThrow()
+            "album" -> client.album(identity, force = force).getOrThrow()
+            "artist" -> client.artist(identity, force = force).getOrThrow()
+            else -> error("Unsupported catalogue resource")
+        }
+    }
+
+    fun catalogueSong(track: com.cosmotune.providers.ProviderTrack): Song {
+        require(track.namespace == "addon" && track.provider == config.id)
+        val checked = com.cosmotune.providers.ProviderHub.artwork?.decorate("addon:${config.id}", track) ?: track
+        val declared = runCatching { catalogueJson.decodeFromJsonElement(AddonTrack.serializer(), track.raw) }.getOrNull()
+            ?: return com.cosmotune.providers.ProviderHub.remember(checked.song(config.id))
+        rows[declared.id] = declared
+        return checked.song(config.id).copy(
+            sourceQuality = if (declared.isDolbyAtmos) ModuleSource.DOLBY else ModuleSource.qualityTier("${declared.audioQuality} ${declared.format}"),
+            sourceHiRes = !declared.isDolbyAtmos && declared.isHiRes,
+        ).also { com.cosmotune.providers.ProviderHub.remember(it) }
+    }
 
     /**
      * Rows this addon has recently handed over, by their own track id.
@@ -193,7 +217,7 @@ class AddonSource(
             if (!admitted("a search")) return@withContext emptyList()
             val tier = request?.tier ?: AddonClient.TIER_LOSSLESS
             val tracks = client.search(query, tier).getOrElse { failure ->
-                TrackLog.w(TAG, "${config.displayName}: search failed — ${failure.message}")
+                TrackLog.w(TAG, "${config.displayName}: search failed — ${failure.javaClass.simpleName}")
                 return@withContext emptyList()
             }
             tracks.asSequence()
@@ -221,6 +245,7 @@ class AddonSource(
                         } else {
                             ModuleSource.qualityTier("${track.audioQuality} ${track.format}")
                         },
+                        sourceHiRes = !track.isDolbyAtmos && track.isHiRes,
                     )
                 }
                 .toList()
@@ -229,10 +254,22 @@ class AddonSource(
     // ── Stream ────────────────────────────────────────────────────────────
 
     override suspend fun stream(trackId: String, request: StreamRequest): SourceStream? =
+        stream(trackId, request, stereoOnly = false)
+
+    /**
+     * As [stream], for a row the listener picked from the Addons search.
+     *
+     * [stereoOnly] is that row being the stereo mix, and it withholds the
+     * `?atmos=auto` every other request carries — see [AddonClient.stream].
+     * Only the pinned play of a row asks for this; matching a YouTube track
+     * to an addon and the upgrade passes still welcome whichever mix the
+     * addon thinks best.
+     */
+    suspend fun stream(trackId: String, request: StreamRequest, stereoOnly: Boolean): SourceStream? =
         withContext(Dispatchers.IO) {
             if (!admitted("a stream")) return@withContext null
             val tier = request.tier
-            val result = client.stream(trackId, tier)
+            val result = client.stream(trackId, tier, stereoOnly)
             val answer = result.getOrNull()
 
             if (answer == null) {
@@ -242,7 +279,7 @@ class AddonSource(
                 // search row had, else null so [SourceResolver] moves on.
                 val failure = result.exceptionOrNull()
                 if (failure !is AddonNotFound) {
-                    TrackLog.w(TAG, "${config.displayName}: stream failed for $trackId — ${failure?.message}")
+                    TrackLog.w(TAG, "${config.displayName}: stream failed for $trackId — ${failure?.javaClass?.simpleName}")
                 }
                 return@withContext fromRow(trackId, tier)
             }
@@ -261,7 +298,15 @@ class AddonSource(
                 return@withContext fromRow(trackId, tier)
             }
 
-            openable(url, answer, trackId, tier)
+            openable(url, answer, trackId, tier).also { stream ->
+                if (stereoOnly && stream?.format?.isDolbyAtmos == true) {
+                    TrackLog.w(
+                        TAG,
+                        "${config.displayName}: asked for the stereo mix of $trackId with no Atmos hint " +
+                            "and was sent Atmos anyway",
+                    )
+                }
+            }
         }
 
     /**

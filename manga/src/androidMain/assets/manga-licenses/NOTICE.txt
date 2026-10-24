@@ -1,0 +1,10 @@
+Android Manga compression dependencies
+
+OkHttp Brotli and Zstandard 5.3.2: Square; Apache-2.0.
+Square zstd-kmp 0.4.0: Square; Apache-2.0.
+Java Brotli decoder 0.1.2: the Brotli Authors; MIT.
+Zstandard native decoder: Meta Platforms, Inc. and affiliates; BSD-3-Clause option.
+
+The corresponding licence texts are included in this directory.
+Projects: github.com/square/okhttp, github.com/square/zstd-kmp,
+github.com/google/brotli, github.com/facebook/zstd.

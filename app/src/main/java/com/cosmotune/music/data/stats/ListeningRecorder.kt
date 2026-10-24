@@ -58,6 +58,7 @@ object ListeningRecorder {
      */
     @Synchronized
     fun onSample(song: Song, durationMs: Long) {
+        com.cosmotune.music.data.recommendations.LocalPreferenceLearning.onSample(song, durationMs)
         val now = System.currentTimeMillis()
         if (song.videoId != currentId) {
             // A new track anchors the clock and contributes nothing yet — see
@@ -99,6 +100,7 @@ object ListeningRecorder {
      */
     @Synchronized
     fun onStopped() {
+        com.cosmotune.music.data.recommendations.LocalPreferenceLearning.onPaused()
         currentId = null
         playedThisTrack = 0L
         playCounted = false

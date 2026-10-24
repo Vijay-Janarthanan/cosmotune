@@ -204,6 +204,7 @@ private fun ArtistList(
     val artistPlaying = ArtistPlay.showsPause(songs, currentSong, isPlaying)
     val description = page.description?.takeIf { it.isNotBlank() }
     val hasStats = page.subscriberCountText != null || page.monthlyListenerCount != null
+    val visuals = rememberArtistVisuals(page.title)
 
     // The banner runs up under the bar, so only the foot of the caller's padding is the list's.
     LazyColumn(
@@ -216,6 +217,7 @@ private fun ArtistList(
                 name = page.title,
                 imageUrl = heroUrl ?: page.thumbnailUrl.artworkAt(HEADER_ART_PX),
                 line = page.monthlyListenerCount ?: page.subscriberCountText,
+                visuals = visuals,
             )
         }
 
@@ -312,6 +314,11 @@ private fun ArtistList(
                 )
             }
         }
+        if (visuals.signature != null) {
+            item(key = "artist-signature") {
+                ArtistSignatureMark(visuals.signature, page.title, Modifier.padding(20.dp))
+            }
+        }
     }
 }
 
@@ -321,7 +328,7 @@ private fun ArtistList(
  * melts into the page.
  */
 @Composable
-private fun ArtistBanner(name: String, imageUrl: String?, line: String?) {
+private fun ArtistBanner(name: String, imageUrl: String?, line: String?, visuals: ArtistVisuals) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
     val type = LocalCosmoType.current
@@ -331,12 +338,7 @@ private fun ArtistBanner(name: String, imageUrl: String?, line: String?) {
             .height(PageMetrics.BANNER_DP.dp)
             .drawBehind { drawRect(colors.live(CoverField.SURFACE_VARIANT)) },
     ) {
-        AsyncImage(
-            model = imageUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize(),
-        )
+        ArtistMotionArtwork(visuals.art, imageUrl, Modifier.matchParentSize())
         Box(Modifier.matchParentSize().drawBehind { drawRect(bannerScrim(colors)) })
         Column(
             Modifier

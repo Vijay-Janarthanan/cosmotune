@@ -42,6 +42,8 @@ internal object DesktopSourceRegistry {
         val config: DesktopSourceConfig
         val descriptor: DesktopSourceDescriptor
         suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?>
+        /** [resolve] for a row this source owns, played as itself rather than as a match. */
+        suspend fun resolveOwned(song: Song, quality: String?): Result<DesktopStream?> = resolve(song, quality)
         /** Every copy this source holds of [song], most confident first. */
         suspend fun matches(song: Song): List<Song> = emptyList()
 
@@ -60,6 +62,9 @@ internal object DesktopSourceRegistry {
 
         override suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?> =
             DesktopAddonSource.stream(config, song, quality)
+
+        override suspend fun resolveOwned(song: Song, quality: String?): Result<DesktopStream?> =
+            DesktopAddonSource.stream(config, song, quality, picked = true)
 
         override suspend fun matches(song: Song): List<Song> = DesktopAddonSource.matches(config, song)
     }
@@ -125,8 +130,13 @@ internal object DesktopSourceRegistry {
      * YouTube Music match for an addon, module or JioSaavn row. Android's
      * `TrackAnalyzer.analysisUriFor` does the same.
      */
-    suspend fun youTubeIdentity(song: Song): Song? =
-        if (hasYouTubeOriginal(song)) song else youTubeMatches(song).firstOrNull()
+    suspend fun youTubeIdentity(song: Song): Song? = when {
+        hasYouTubeOriginal(song) -> song
+        // A row picked from the Addons search is that addon's or nothing — no YouTube search and
+        // Opus fetch behind it just to measure it. Left unmeasured, as in a party.
+        DesktopAddonSource.parseTrack(song.videoId) != null -> null
+        else -> youTubeMatches(song).firstOrNull()
+    }
 
     /**
      * Whether resolving [song] could ask an addon for it — an addon's own row, or a YouTube row
@@ -202,6 +212,16 @@ internal object DesktopSourceRegistry {
         /** A download: addons that said `allowDownloads: 0` are left out, see [adapters]. */
         forDownload: Boolean = false,
     ): Result<DesktopStream> = runCatching {
+        val providerTrack = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.takeIf { it.first.startsWith("sflx-") }
+        if (providerTrack != null) {
+            check(excludedSourceId != providerTrack.first) { "The selected provider already failed for this recording" }
+            val manager = requireNotNull(com.cosmotune.providers.ProviderHub.state.value.manager) { "Provider storage is unavailable" }
+            val policy = providerRequest(quality, forDownload)
+            val stream = manager.stream(providerTrack.first.removePrefix("sflx-"), providerTrack.second,
+                maxKbps = policy.first, lossless = policy.second, forDownload = forDownload)
+            return@runCatching DesktopStream(stream.url, DesktopStreamFormat(codec = stream.codec, kbps = stream.kbps),
+                sourceId = providerTrack.first, durationSec = stream.durationMs?.div(1000)?.toInt())
+        }
         val available = playbackAdapters(quality, forDownload)
         val moduleReference = DesktopModuleSource.parseTrack(song.videoId)
         val addonReference = DesktopAddonSource.parseTrack(song.videoId)
@@ -228,7 +248,7 @@ internal object DesktopSourceRegistry {
                     ", asking at the ${(quality ?: DesktopPersistence().audioQuality().name).lowercase()} rung",
             )
             if (owned.config.id != excludedSourceId) {
-                owned.resolve(song, quality).getOrNull()
+                owned.resolveOwned(song, quality).getOrNull()
                     ?.takeIf { playableHere(owned, it) }
                     ?.let {
                         DesktopTrackLog.log(
@@ -241,7 +261,11 @@ internal object DesktopSourceRegistry {
             }
             // Android walks on to other active sources when the pinned source cannot produce a
             // stream.
-            for (fallback in available.filter { it !== owned && it.config.id != excludedSourceId }) {
+            // Never YouTube under an addon's own row: its Opus is not the copy that was picked.
+            for (fallback in available.filter {
+                it !== owned && it.config.id != excludedSourceId &&
+                    !(addonReference != null && it.config.kind == DesktopSourceKind.YOUTUBE)
+            }) {
                 val matched = fallback.match(song) ?: continue
                 fallback.resolve(matched, quality).getOrNull()
                     ?.takeIf { playableHere(fallback, it) }
@@ -297,7 +321,7 @@ internal object DesktopSourceRegistry {
         excludedSourceId: String? = null,
     ): Result<DesktopLiveResolution> = runCatching {
         val available = playbackAdapters(quality)
-        val owned = available.any { it.owns(song) } ||
+        val owned = song.videoId.startsWith("src:sflx-") || available.any { it.owns(song) } ||
             DesktopModuleSource.parseTrack(song.videoId) != null ||
             song.videoId.startsWith("jiosaavn:")
         if (owned) {
@@ -538,11 +562,23 @@ internal object DesktopSourceRegistry {
         DesktopAddonSource.parseTrack(song.videoId) == null &&
             DesktopModuleSource.parseTrack(song.videoId) == null &&
             !song.videoId.startsWith("jiosaavn:") &&
+            !song.videoId.startsWith("file:") && !song.videoId.startsWith("content:") && !song.videoId.startsWith("local:") &&
             song.videoId.isNotBlank()
 
     /** The configured source a stream came from, for a log line. */
     internal fun sourceNameFor(stream: DesktopStream): String =
-        configs().firstOrNull { it.id == stream.sourceId }?.displayName ?: "a configured source"
+        configs().firstOrNull { it.id == stream.sourceId }?.displayName
+            ?: com.cosmotune.providers.ProviderHub.sourceName(stream.sourceId) ?: "a configured source"
+
+    internal fun providerRequest(quality: String?, forDownload: Boolean): Pair<Int?, Boolean> {
+        if (forDownload) return when ((quality ?: DesktopPersistence().string("download_quality", "LOSSLESS")).uppercase()) {
+            "STANDARD" -> 128 to false
+            "HIGH" -> null to false
+            else -> null to true
+        }
+        val policy = ceiling(quality)
+        return policy.maxKbps.takeIf { it != Int.MAX_VALUE } to (policy == DesktopAudioQuality.LOSSLESS)
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

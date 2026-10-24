@@ -11,10 +11,10 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Set up JDK 17
+    - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
-        java-version: '17'
+        java-version: '21'
         distribution: 'temurin'
         cache: gradle
 
@@ -35,13 +35,30 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build Signed Prod Release APK
-      run: ./gradlew assembleProdRelease
+      run: ./gradlew --max-workers=1 :app:assembleProdRelease :wearos:assembleProdRelease :tv:testProdDebugUnitTest :tv:assembleProdRelease
 
     - name: Verify OpenCanvas import and packaged models
-      run: python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/prod/release
+      run: |
+        python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/prod/release
+        python3 tools/verify-recommendations.py --apk-dir app/build/outputs/apk/prod/release
+        python3 tools/verify-wear-packaging.py --apk-dir app/build/outputs/apk/prod/release --wear-apk wearos/build/outputs/apk/prod/release/CosmotuneWear-prod-release.apk
+        python3 tools/verify-opencanvas-import.py --apk-dir tv/build/outputs/apk/prod/release
+        python3 tools/verify-recommendations.py --apk-dir tv/build/outputs/apk/prod/release
+        python3 tools/verify-tv-packaging.py --apk-dir tv/build/outputs/apk/prod/release --phone-apk app/build/outputs/apk/prod/release/app-prod-arm64-v8a-release.apk
+        python3 tools/verify-companion-imports.py
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: cosmotune-prod-release-signed
         path: app/build/outputs/apk/prod/release/*.apk
+    - name: Upload Wear OS APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: cosmotune-wear-prod-release-signed
+        path: wearos/build/outputs/apk/prod/release/*.apk
+    - name: Upload TV APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: cosmotune-tv-prod-release-signed
+        path: tv/build/outputs/apk/prod/release/*.apk

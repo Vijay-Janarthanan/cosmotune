@@ -30,19 +30,22 @@ object LocalRecommendations {
     }
 
     /** Call once at app startup. Loading and decompression happen on the first radio request's IO dispatcher. */
-    fun configure(cacheDirectory: File) {
+    fun configure(cacheDirectory: File, preferenceDirectory: File = File(cacheDirectory, "preferences")) {
         directory = cacheDirectory
+        LocalPreferenceLearning.configure(preferenceDirectory)
         prefetchScope.launch { load() }
     }
 
     suspend fun enhance(seed: Song, remote: List<Song>, search: suspend (String) -> List<Song>): List<Song> = withContext(Dispatchers.IO) {
         val graph = load() ?: return@withContext remote
         val candidates = graph.recommend(seed)
+        val scores = graph.scoreAll(seed, remote)
+        val preferences = LocalPreferenceLearning.adjustments(seed, remote)
         val ordered = remote.mapIndexed { index, song ->
             // Quantised hash embeddings can collide. Weak similarities abstain
             // rather than overturning the provider's order for unfamiliar songs.
-            val local = ((graph.score(seed, song) - .65f) / .35f).coerceIn(0f, 1f)
-            song to (.5f / (index + 1) + .5f * local)
+            val local = ((scores[index] - .65f) / .35f).coerceIn(0f, 1f)
+            song to (.5f / (index + 1) + .5f * local + preferences[index])
         }.sortedByDescending { it.second }.map { it.first }
         val additions = ArrayList<Song>(3)
         for (candidate in candidates.take(3)) {

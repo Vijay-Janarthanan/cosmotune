@@ -580,6 +580,7 @@ fun CosmotuneDesktopApp() {
     var pageMenu by remember { mutableStateOf<(Song) -> Unit>({}) }
     val homeSeenTitles = remember { HashSet<String>() }
     var homeGeneration by remember { mutableStateOf(0) }
+    var providerHomeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var homeIdentity by remember { mutableStateOf<String?>(null) }
     var exploreState by remember { mutableStateOf<UiState<List<MoodGenreSection>>>(UiState.Loading) }
     var selectedMoodGenre by remember { mutableStateOf<MoodGenre?>(null) }
@@ -981,6 +982,23 @@ fun CosmotuneDesktopApp() {
 
     /** Applies a rating locally and carries it to the account. */
     fun rate(song: Song, status: LikeStatus) {
+        if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)) {
+            val previousLiked = song.videoId in likedIds
+            val previousDisliked = song.videoId in dislikedIds
+            likedIds = if (status == LikeStatus.LIKE) likedIds + song.videoId else likedIds - song.videoId
+            dislikedIds = if (status == LikeStatus.DISLIKE) dislikedIds + song.videoId else dislikedIds - song.videoId
+            com.cosmotune.providers.ProviderHub.remember(song)
+            scope.launch {
+                try { com.cosmotune.providers.ProviderHub.rate(song.videoId, status) }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) {
+                    likedIds = if (previousLiked) likedIds + song.videoId else likedIds - song.videoId
+                    dislikedIds = if (previousDisliked) dislikedIds + song.videoId else dislikedIds - song.videoId
+                    DesktopPlayerHost.showMessage("The source rating could not be saved. Check storage and reopen this song.")
+                }
+            }
+            return
+        }
         likedIds = if (status == LikeStatus.LIKE) likedIds + song.videoId else likedIds - song.videoId
         dislikedIds = if (status == LikeStatus.DISLIKE) {
             dislikedIds + song.videoId
@@ -1153,6 +1171,10 @@ fun CosmotuneDesktopApp() {
 
     /** Copies the track's YouTube Music link. */
     fun shareSong(song: Song) {
+        if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId) || song.localUri != null || song.localPath != null) {
+            DesktopExternalLinks.copy("${song.title} — ${song.artist}\nShared from Cosmotune")
+            return
+        }
         DesktopExternalLinks.copy("https://music.youtube.com/watch?v=${song.videoId}")
         DesktopTrackLog.log("copied a link to '${song.title}'")
     }
@@ -1164,6 +1186,10 @@ fun CosmotuneDesktopApp() {
      */
     fun shareCollection(collection: DesktopCollection) {
         val id = collection.browseId
+        if (com.cosmotune.providers.ProviderBrowseKey.parse(id) != null || id.startsWith("local:")) {
+            DesktopExternalLinks.copy("${collection.title}\n${collection.subtitle}\n${collection.songs.size} songs · Shared from Cosmotune")
+            return
+        }
         val url = when (collection.type) {
             BrowseType.PLAYLIST -> "https://music.youtube.com/playlist?list=${id.removePrefix("VL")}"
             BrowseType.ALBUM -> "https://music.youtube.com/browse/$id"
@@ -1366,7 +1392,7 @@ fun CosmotuneDesktopApp() {
         }
     }
 
-    fun playNext() {
+    fun advanceQueue() {
         if (DesktopListenTogether.state.value.controlsLocked) return
         when {
             liveQueue.hasNext -> {
@@ -1382,6 +1408,14 @@ fun CosmotuneDesktopApp() {
         }
     }
 
+    fun playNext() {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        if (liveQueue.hasNext || repeatMode == DesktopRepeatMode.ALL || autoplay) {
+            playbackEngine.state.value.song?.videoId?.let(com.cosmotune.music.data.recommendations.LocalPreferenceLearning::onSkipped)
+        }
+        advanceQueue()
+    }
+
     fun playPrevious() {
         if (DesktopListenTogether.state.value.controlsLocked) return
         val positionMs = playbackEngine.state.value.positionMs
@@ -1395,6 +1429,7 @@ fun CosmotuneDesktopApp() {
 
         // Within 10 seconds, Previous goes to the previous song in queue.
         if (!liveQueue.hasPrevious) return
+        playbackEngine.state.value.song?.videoId?.let(com.cosmotune.music.data.recommendations.LocalPreferenceLearning::onSkipped)
         liveQueue = liveQueue.previous()
         playCurrent()
     }
@@ -1563,7 +1598,7 @@ fun CosmotuneDesktopApp() {
                         song?.let { startSong(it, true) }
                     }
                 } else {
-                    playNext()
+                    advanceQueue()
                 }
             },
             onCrossfaded = { song ->
@@ -1929,6 +1964,7 @@ fun CosmotuneDesktopApp() {
         // Only while the player is up, so playing from the mini player costs
         // nothing, and only when something is actually missing.
         if (!overlays.nowPlaying) return@LaunchedEffect
+        if (!DesktopMusicSources.hasYouTubeOriginal(current)) return@LaunchedEffect
         if (current.artistId != null && current.albumId != null) return@LaunchedEffect
         trackLinks = DesktopSearchClient.trackLinks(current.videoId).getOrNull()
     }
@@ -1977,6 +2013,18 @@ fun CosmotuneDesktopApp() {
             }
             previousPosition = position
         }
+    }
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying) {
+        val learning = com.cosmotune.music.data.recommendations.LocalPreferenceLearning
+        try {
+            while (currentCoroutineContext().isActive) {
+                val snapshot = playbackEngine.state.value
+                val song = snapshot.song ?: break
+                if (!snapshot.isPlaying || song.videoId != playback.song?.videoId) break
+                learning.onSample(song, snapshot.durationMs)
+                delay(1_000)
+            }
+        } finally { learning.onPaused() }
     }
     LaunchedEffect(statsRevision) {
         replaySummary = withContext(Dispatchers.IO) { DesktopListeningStats.summary(replayPeriod) }
@@ -2061,6 +2109,21 @@ fun CosmotuneDesktopApp() {
 
     fun toggleSubscription(subscription: SubscriptionState) {
         val target = openedArtist ?: return
+        val sourceKey = com.cosmotune.providers.ProviderBrowseKey.parse(target.browseId)
+        if (sourceKey != null) {
+            scope.launch {
+                try {
+                    val library = requireNotNull(com.cosmotune.providers.ProviderHub.state.value.library)
+                    val page = DesktopSourceCatalogue.load(sourceKey)
+                    library.follow(page, !subscription.subscribed)
+                    val state = artistState as? UiState.Success
+                    if (openedArtist?.browseId == target.browseId && state != null) artistState = UiState.Success(
+                        state.data.copy(subscription = subscription.copy(subscribed = !subscription.subscribed)))
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { DesktopPlayerHost.showMessage("The source follow could not be saved. Check connection and storage.") }
+            }
+            return
+        }
         val next = !subscription.subscribed
         // Painted before the network answers and put back if it refuses.
         artistState = (artistState as? UiState.Success)?.let { current ->
@@ -2374,6 +2437,14 @@ fun CosmotuneDesktopApp() {
         if (added.isNotEmpty()) homeState = UiState.Success(existing + added)
     }
 
+    fun publishProviderHomeShelves(shelves: List<HomeShelf>) {
+        val owners = shelves.mapNotNull { it.sourceId }.toSet()
+        val existing = (homeState as? UiState.Success)?.data.orEmpty()
+        existing.filter { it.sourceId in owners }.forEach { homeSeenTitles.remove(it.title.lowercase()) }
+        homeState = UiState.Success(existing.filterNot { it.sourceId in owners })
+        publishHomeShelves(shelves)
+    }
+
     /**
      * The phone's Home: the core feed, the account's own Recently Played at its head, and the
      * supplementary browse feeds, all asked for at once and laid down as each lands. Signed out
@@ -2392,6 +2463,12 @@ fun CosmotuneDesktopApp() {
         homeSeenTitles.clear()
         homeLoadingMore = false
         homeRecentsLoading = signedIn
+        providerHomeJob?.cancel()
+        providerHomeJob = scope.launch {
+            com.cosmotune.providers.ProviderHome.load(java.util.Locale.getDefault().country.ifBlank { "IN" }, DesktopStrings.resolvedTag()) { shelves ->
+                if (generation == homeGeneration) publishProviderHomeShelves(shelves)
+            }
+        }
         scope.launch {
             launch {
                 DesktopSearchClient.home().fold(
@@ -2525,6 +2602,28 @@ fun CosmotuneDesktopApp() {
             persistence.saveDownloads(onDisk)
         }
         loadHome()
+    }
+
+    val providerHubState by com.cosmotune.providers.ProviderHub.state.collectAsState()
+    LaunchedEffect(providerHubState.library) {
+        providerHubState.library?.state?.collect { local ->
+            if (openedCollection?.browseId == com.cosmotune.providers.SourceLibraryStore.LIKED_BROWSE_ID) {
+                openedCollection = openedCollection?.copy(songs = local.liked)
+            }
+            val sourceArtist = openedArtist?.browseId?.takeIf { com.cosmotune.providers.ProviderBrowseKey.parse(it) != null }
+            if (sourceArtist != null) {
+                val current = artistState as? UiState.Success
+                if (current != null) artistState = UiState.Success(current.data.copy(subscription =
+                    SubscriptionState(sourceArtist, local.followed.any { it.id == sourceArtist })))
+            }
+            likedIds = likedIds.filterNot(com.cosmotune.providers.SourceLibraryStore::ownsTrack).toSet() + local.liked.map { it.videoId }
+            dislikedIds = dislikedIds.filterNot(com.cosmotune.providers.SourceLibraryStore::ownsTrack).toSet() + local.ratings.filterValues { it.status == "DISLIKE" }.keys
+        }
+    }
+    val emptyProviderState = remember { kotlinx.coroutines.flow.MutableStateFlow(com.cosmotune.providers.ProviderState()) }
+    val providerState by (providerHubState.manager?.store?.state ?: emptyProviderState).collectAsState()
+    LaunchedEffect(providerHubState.manager, providerState.installed, providerState.settings) {
+        if (homeIdentity != null && !providerHubState.loading) loadHome()
     }
 
     // The feed is the account's: signing in, out or across to another channel is a different Home,
@@ -3008,6 +3107,59 @@ fun CosmotuneDesktopApp() {
         partySyncHolder[0]?.onLocalIntent()
     }
 
+    val remoteDelegate = rememberUpdatedState(object : com.cosmotune.remote.LanRemoteHost {
+        override fun playback(): com.cosmotune.remote.RemotePlayback {
+            val current = playbackEngine.state.value
+            return com.cosmotune.remote.RemotePlayback(current.song?.title ?: "Nothing playing", current.song?.artist.orEmpty(),
+                current.isPlaying, current.positionMs, current.durationMs.takeIf { it > 0 }, current.volume)
+        }
+
+        private fun candidates(): Sequence<Song> = sequence {
+            yieldAll(downloads); yieldAll(localSongs)
+            val page = (libraryState as? UiState.Success)?.data
+            yieldAll(page?.likedSongs.orEmpty()); yieldAll(page?.librarySongs.orEmpty())
+            playlists.forEach { yieldAll(it.songs) }
+            yieldAll(history); yieldAll(liveQueue.songs)
+        }.take(50_000).distinctBy { it.videoId }
+
+        override suspend fun search(query: String): List<com.cosmotune.remote.RemoteTrack> = withContext(Dispatchers.Main) {
+            candidates().filter { query.isBlank() || it.title.contains(query, true) || it.artist.contains(query, true) }
+                .take(50).map { com.cosmotune.remote.RemoteTrack(it.videoId, it.title, it.artist) }.toList()
+        }
+
+        override suspend fun command(command: com.cosmotune.remote.RemoteCommand) = withContext(Dispatchers.Main) {
+            if (command.action in setOf(com.cosmotune.remote.RemoteAction.NEXT, com.cosmotune.remote.RemoteAction.PREVIOUS,
+                    com.cosmotune.remote.RemoteAction.SEEK, com.cosmotune.remote.RemoteAction.PLAY_TRACK)) {
+                check(!DesktopListenTogether.state.value.controlsLocked) { "Listen Together controls are locked" }
+            }
+            when (command.action) {
+                com.cosmotune.remote.RemoteAction.PLAY -> { check(playbackEngine.state.value.song != null); playFromUser() }
+                com.cosmotune.remote.RemoteAction.PAUSE -> pauseFromUser()
+                com.cosmotune.remote.RemoteAction.TOGGLE -> { check(playbackEngine.state.value.song != null); togglePlayPauseFromUser() }
+                com.cosmotune.remote.RemoteAction.NEXT -> playNext()
+                com.cosmotune.remote.RemoteAction.PREVIOUS -> playPrevious()
+                com.cosmotune.remote.RemoteAction.SEEK -> seekPlayer(checkNotNull(command.positionMs))
+                com.cosmotune.remote.RemoteAction.VOLUME -> {
+                    volume = checkNotNull(command.volume)
+                    persistence.saveString("volume", volume.toString())
+                }
+                com.cosmotune.remote.RemoteAction.PLAY_TRACK -> {
+                    check(!DesktopListenTogether.state.value.inParty) { "Leave Listen Together before replacing the queue" }
+                    val song = checkNotNull(candidates().firstOrNull { it.videoId == command.trackId }) { "This library entry is no longer available" }
+                    playSongs(listOf(song))
+                }
+            }
+        }
+    })
+    val phoneRemote = remember(playbackEngine) {
+        com.cosmotune.remote.LanRemoteController(object : com.cosmotune.remote.LanRemoteHost {
+            override fun playback() = remoteDelegate.value.playback()
+            override suspend fun command(command: com.cosmotune.remote.RemoteCommand) = remoteDelegate.value.command(command)
+            override suspend fun search(query: String) = remoteDelegate.value.search(query)
+        })
+    }
+    DisposableEffect(phoneRemote) { onDispose { phoneRemote.close() } }
+
     com.cosmotune.ui.theme.CosmoLookTheme(
         dark = true,
         legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) },
@@ -3034,6 +3186,7 @@ fun CosmotuneDesktopApp() {
             com.cosmotune.desktop.DesktopListeningTools(
                 open = listeningToolsOpen,
                 onDismiss = { listeningToolsOpen = false },
+                remote = com.cosmotune.ui.listening.ListeningRemoteHost(phoneRemote) { link -> DesktopQrCode(link, size = 208.dp) },
                 library = com.cosmotune.listening.ListeningLibrary(
                     songs = downloads + localSongs + listeningLibraryPage?.likedSongs.orEmpty() + listeningLibraryPage?.librarySongs.orEmpty() + playlists.flatMap { it.songs } + history + liveQueue.songs,
                     likedIds = likedIds,
@@ -3094,7 +3247,7 @@ fun CosmotuneDesktopApp() {
                     )
                 },
                 modifier = Modifier.onPreviewKeyEvent { event ->
-                    if (com.cosmotune.video.host.DesktopModeHost.active) return@onPreviewKeyEvent false
+                    if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive)) return@onPreviewKeyEvent false
                     if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
                     when {
                         event.key == Key.MediaPlayPause -> {
@@ -3362,7 +3515,7 @@ fun CosmotuneDesktopApp() {
                             )
                         }
                     }
-                    val videoModeShown = com.cosmotune.video.host.desktopVideoShown()
+                    val videoModeShown = com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown()
                     LaunchedEffect(videoModeShown) {
                         if (videoModeShown) {
                             DesktopWindowMode.exit()
@@ -3707,6 +3860,7 @@ fun CosmotuneDesktopApp() {
                 },
             ) { contentPadding ->
                 if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)
+                if (com.cosmotune.video.host.desktopMangaShown()) return@DesktopFrame com.cosmotune.video.host.DesktopMangaPage(contentPadding)
                 // Desktop pages start at the same top edge as Library. Only preserve space for the
                 // floating player/navigation bar at the bottom in compact windows.
                 val sharedPagePadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
@@ -3763,6 +3917,7 @@ fun CosmotuneDesktopApp() {
                             ) {
                             when (overlays.settingsPage!!) {
                                 DesktopSettingsPage.MAIN -> DesktopSettingsScreen(
+                                    onPlayProviderSongs = { songs, index -> playSongs(songs, index, DesktopQueueSource("Provider", PlaybackSourceType.BROWSE)) },
                                     query = settingsQuery,
                                     onQueryChange = { settingsQuery = it },
                                     listState = settingsListState,
@@ -5224,6 +5379,7 @@ private fun DesktopArtistPage(
             is UiState.Success -> {
                 val artist = state.data
                 val name = artist.name?.takeIf(String::isNotBlank) ?: fallbackName
+                val visuals = com.cosmotune.ui.pages.rememberArtistVisuals(name)
                 val palette = rememberDesktopArtworkPalette(artist.thumbnailUrl)
                 // Android caps the top-songs block and pages it sideways so the release shelves are
                 // not buried under a hundred rows.
@@ -5234,7 +5390,7 @@ private fun DesktopArtistPage(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         item(key = "artist-header") {
-                            DesktopArtistBanner(artist.thumbnailUrl, name, palette)
+                            DesktopArtistBanner(artist.thumbnailUrl, name, palette, visuals.art)
                         }
                         if (artist.subscriberCountText != null || artist.monthlyListenerCount != null) {
                             item(key = "artist-stats") {
@@ -5332,6 +5488,11 @@ private fun DesktopArtistPage(
                                 }
                             }
                         }
+                        if (visuals.signature != null) item(key = "artist-signature") {
+                            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                com.cosmotune.ui.pages.ArtistSignatureMark(visuals.signature, name)
+                            }
+                        }
                         if (top.isEmpty() && artist.sections.isEmpty()) {
                             item {
                                 DesktopEmptyPage(
@@ -5350,9 +5511,9 @@ private fun DesktopArtistPage(
 
 /** The photograph, and the name across the foot of it. */
 @Composable
-private fun DesktopArtistBanner(url: String?, name: String, palette: DesktopArtworkPalette) {
+private fun DesktopArtistBanner(url: String?, name: String, palette: DesktopArtworkPalette, art: com.cosmotune.music.data.canvas.AppleArtistArt?) {
     Box(Modifier.fillMaxWidth().height(ARTIST_BANNER_HEIGHT)) {
-        DesktopArtwork(url, Modifier.matchParentSize(), px = HEADER_ART_PX)
+        com.cosmotune.ui.pages.ArtistMotionArtwork(art, url, Modifier.matchParentSize())
         // Two washes rather than one.
         Box(
             Modifier.matchParentSize().background(
@@ -5753,6 +5914,7 @@ private enum class DesktopSettingsSection {
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
 private fun DesktopSettingsScreen(
+    onPlayProviderSongs: (List<Song>, Int) -> Unit,
     query: String,
     onQueryChange: (String) -> Unit,
     listState: LazyListState,
@@ -5879,6 +6041,7 @@ private fun DesktopSettingsScreen(
             DesktopSettingsSection.entries.forEach { section ->
             if (section == DesktopSettingsSection.PLAYBACK) item {
                     SettingsGroup(DesktopStrings["playback", "Playback"]) {
+                    if (settingsRowVisible("Learn from my listening")) com.cosmotune.ui.listening.RecommendationLearningSettings()
                     if (!automix) {
                         if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
                         Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 10.dp)) {
@@ -6327,6 +6490,14 @@ private fun DesktopSettingsScreen(
                             onClick = onOpenSpotifyCanvasSetup,
                         )
                     }
+                    DesktopArtistSignatureSettings()
+                    val queueHistory by DesktopPlayerSettings.showQueueHistory.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["show_queue_history", "Show queue history"],
+                        DesktopStrings["show_queue_history_subtitle", "Show up to 25 previously played songs above Now playing in the queue"],
+                        queueHistory,
+                        { DesktopPlayerSettings.setShowQueueHistory(it) },
+                    )
 
                 }
             }
@@ -6456,6 +6627,7 @@ private fun DesktopSettingsScreen(
                 }
             }
             if (section == DesktopSettingsSection.SOURCES) item {
+                com.cosmotune.ui.providers.ProviderPackagesEntry(onPlay = onPlayProviderSongs)
                 SettingsGroup(DesktopStrings["sources_order_header", "Sources · tried in this order"]) {
                     val sourcesHeading = DesktopStrings["sources_order_header", "Sources · tried in this order"]
                     val userAddedIds = sourceConfigs.inSourceOrder()
@@ -6485,6 +6657,19 @@ private fun DesktopSettingsScreen(
                                 { onMoveSource(config, 1) }
                             } else null,
                         )
+                        if (config.kind == DesktopSourceKind.ADDON) androidx.compose.runtime.key(config.id, config.baseUrl) {
+                            com.cosmotune.ui.providers.HttpAddonSettingsEntry(config.displayName, config.userSettings,
+                                load = {
+                                    val client = DesktopAddonClient(config.baseUrl, config.userSettings)
+                                    try { client.manifest().getOrThrow().settings.map { it.forEditor() } } finally { client.clear() }
+                                }, onSave = { selected -> onSaveSource(config.copy(userSettings = selected)) })
+                            com.cosmotune.ui.providers.HttpAddonCatalogueEntry(
+                                identity = config.id, title = config.displayName, enabled = config.enabled,
+                                revision = config.hashCode().toString(),
+                                load = { resource, identity, force -> DesktopAddonSource.catalogue(config, resource, identity, force) },
+                                song = { track -> DesktopAddonSource.catalogueSong(config, track) }, onPlay = onPlayProviderSongs,
+                            )
+                        }
                     }
                     // One entry point, and it creates an addon.
                     SettingsRow(
@@ -6999,6 +7184,7 @@ private fun DesktopCollectionPage(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            DesktopSourceLibraryButton(collection)
                             DesktopCircleButton(CosmotuneIcons.Shuffle, DesktopStrings["shuffle", "Shuffle"], onClick = { onShuffle(songs) })
                             DesktopPlayPill(
                                 label = DesktopStrings["play", "Play"],
@@ -7806,7 +7992,7 @@ private fun settingsRowVisible(title: String, subtitle: String = ""): Boolean {
 
 /** A settings row that opens something rather than toggling it. */
 @Composable
-private fun SettingsNavigationRow(title: String, subtitle: String, onClick: () -> Unit) {
+internal fun SettingsNavigationRow(title: String, subtitle: String, onClick: () -> Unit) {
     if (!settingsRowVisible(title, subtitle)) return
     if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(title = title, subtitle = subtitle, onClick = onClick)
     Row(
@@ -7877,7 +8063,7 @@ internal fun DesktopBareSlider(
 }
 
 @Composable
-private fun SettingsToggle(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+internal fun SettingsToggle(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     if (!settingsRowVisible(title, subtitle)) return
     if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(title = title, subtitle = subtitle, onClick = { onCheckedChange(!checked) }, trailing = { com.cosmotune.ui.components.CosmoSwitch(checked = checked, onCheckedChange = onCheckedChange) })
     Row(
@@ -7951,6 +8137,7 @@ private fun SearchResult.key(): String = when (this) {
 }
 
 private fun ShelfItem.toSong(): Song {
+    song?.let { return it }
     val parts = subtitle.split(" • ", " · ", " | ").filter(String::isNotBlank)
     // Android's InnertubeParser uses the first non-type/non-tally segment.
     val artist = parts.firstOrNull {

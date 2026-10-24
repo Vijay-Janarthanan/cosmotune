@@ -280,4 +280,10 @@
     <string name="cosmo_np_controls_expand">Expand controls</string>
     <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
     <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
+    <string name="artist_signatures">Sanatçı imzaları</string>
+    <string name="artist_signatures_subtitle">Apple Music\'te başlık logosu yokken el yazısı imza gösterir</string>
+    <string name="artist_signatures_url">İmza API URL\'si</string>
+    <string name="signed_by">%1$s tarafından imzalandı</string>
+    <string name="cosmo_mode_manga">Manga</string>
+    <string name="cosmo_mode_manga_summary">Çizgi romanlarınız, kaynaklarınız ve okuma ilerlemeniz</string>
 </resources>

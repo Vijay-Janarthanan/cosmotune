@@ -280,4 +280,10 @@
     <string name="cosmo_np_controls_expand">Expand controls</string>
     <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
     <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
+    <string name="artist_signatures">Signatures d\'artistes</string>
+    <string name="artist_signatures_subtitle">Affiche une signature manuscrite quand Apple Music n\'a pas de logo de titre</string>
+    <string name="artist_signatures_url">URL de l\'API de signatures</string>
+    <string name="signed_by">Signé par %1$s</string>
+    <string name="cosmo_mode_manga">Manga</string>
+    <string name="cosmo_mode_manga_summary">Vos mangas, sources et progression de lecture</string>
 </resources>

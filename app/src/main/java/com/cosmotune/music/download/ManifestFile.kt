@@ -1,15 +1,11 @@
 package com.cosmotune.music.download
 
-import com.cosmotune.music.data.Http
+import com.cosmotune.music.data.downloads.ManifestDownloadTransport
+import com.cosmotune.music.data.downloads.OfflineHlsManifest
 import com.cosmotune.music.download.Mp4Boxes.boxes
 import com.cosmotune.music.download.Mp4Boxes.child
 import com.cosmotune.music.download.Mp4Boxes.find
 import com.cosmotune.music.download.Mp4Boxes.readU32
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.Request
 import java.io.File
 import java.io.OutputStream
 
@@ -55,47 +51,44 @@ internal object ManifestFile {
         extension: String,
         sink: OutputStream,
         onProgress: (Long, Long) -> Unit,
-    ): Unit = withContext(Dispatchers.IO) {
-        fun fetch(target: String): ByteArray {
-            val request = Request.Builder().url(target).apply {
-                headers.forEach { (name, value) -> header(name, value) }
-            }.build()
-            return Http.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) error("Segment failed (HTTP ${response.code})")
-                response.body?.bytes() ?: error("Empty segment")
-            }
-        }
-
-        val base = url.toHttpUrlOrNull() ?: error("Invalid manifest URL")
-        val index = String(fetch(url), Charsets.UTF_8)
+    ): Unit = ManifestDownloadTransport.run(url, headers) { transfer ->
+        val index = transfer.read(url, ManifestDownloadTransport.MAX_MANIFEST_BYTES).toString(Charsets.UTF_8)
         val (initRef, mediaRefs) = if (dash) {
             OfflineDash.parse(index).let { it.initialization to it.media }
-        } else {
-            hlsSegments(index)
-        }
-        fun resolve(ref: String) = base.resolve(ref)?.toString() ?: error("Invalid segment URL")
+        } else hlsSegments(index)
         val total = mediaRefs.size + 1L
-
-        val init = fetch(resolve(initRef))
+        val init = transfer.read(transfer.resolve(initRef), 8 * 1024 * 1024)
         onProgress(1, total)
-        // Lazy, so a hi-res track is never more than one segment in memory.
-        val scope = coroutineContext
         val media = mediaRefs.asSequence().mapIndexed { i, ref ->
-            scope.ensureActive()
-            fetch(resolve(ref)).also { onProgress(i + 2L, total) }
+            transfer.read(transfer.resolve(ref), ManifestDownloadTransport.MAX_SEGMENT_BYTES).also { onProgress(i + 2L, total) }
         }
-
-        assemble(cacheDir, extension, init, media, sink)
+        assemble(cacheDir, extension, init, media, sink, transfer.checkCancelled)
         sink.flush()
     }
 
     /** Everything after the fetching: [init] and [media] in, one [extension] file out. */
-    internal fun assemble(cacheDir: File, extension: String, init: ByteArray, media: Sequence<ByteArray>, sink: OutputStream) {
+    internal fun assemble(cacheDir: File, extension: String, init: ByteArray, media: Sequence<ByteArray>, sink: OutputStream, checkCancelled: () -> Unit = {}) {
+        require(init.size <= 8 * 1024 * 1024)
+        var received = init.size.toLong()
+        var count = 0
+        fun validateBoxes(value: ByteArray) {
+            val parsed = boxes(value)
+            require(parsed.isNotEmpty() && parsed.last().end == value.size) { "Incomplete MP4 fragment" }
+        }
+        validateBoxes(init)
+        val bounded = media.map { segment ->
+            checkCancelled()
+            require(++count <= ManifestDownloadTransport.MAX_SEGMENTS && segment.size <= ManifestDownloadTransport.MAX_SEGMENT_BYTES)
+            received += segment.size; require(received <= ManifestDownloadTransport.MAX_DOWNLOAD_BYTES)
+            validateBoxes(segment)
+            segment
+        }
         when (extension) {
-            "flac" -> writeFlac(cacheDir, init, media, sink)
+            "flac" -> writeFlac(cacheDir, init, bounded, sink, checkCancelled)
             "m4a" -> {
                 sink.write(init)
-                media.forEach { segment ->
+                bounded.forEach { segment ->
+                    checkCancelled()
                     boxes(segment).filter { it.type != "styp" && it.type != "sidx" }.forEach {
                         sink.write(segment, it.offset, it.size)
                     }
@@ -106,19 +99,8 @@ internal object ManifestFile {
     }
 
     /** The init segment and media segments of an HLS media playlist, refusing what [OfflineHls] refuses. */
-    internal fun hlsSegments(playlist: String): Pair<String, List<String>> {
-        if (!playlist.startsWith("#EXTM3U")) error("Invalid HLS playlist")
-        if (playlist.contains("#EXT-X-KEY:") && !playlist.contains("METHOD=NONE")) {
-            error("Encrypted HLS cannot be saved")
-        }
-        val init = Regex("""#EXT-X-MAP:.*URI="([^"]+)"""").find(playlist)?.groupValues?.get(1)
-            ?: error("HLS playlist has no initialisation segment")
-        val media = playlist.lineSequence().map(String::trim)
-            .filter { it.isNotEmpty() && !it.startsWith('#') }
-            .toList()
-        if (media.isEmpty()) error("HLS playlist has no fragments")
-        return init to media
-    }
+    internal fun hlsSegments(playlist: String): Pair<String, List<String>> =
+        OfflineHlsManifest.parse(playlist, requireInitialization = true).let { requireNotNull(it.initialization) to it.media }
 
     /**
      * FLAC-in-MP4 to native FLAC. The frames go to a temporary file first
@@ -126,7 +108,7 @@ internal object ManifestFile {
      * only known once the last fragment is in — and a hi-res track is too
      * large to hold in memory while waiting for it.
      */
-    private fun writeFlac(cacheDir: File, init: ByteArray, media: Sequence<ByteArray>, sink: OutputStream) {
+    private fun writeFlac(cacheDir: File, init: ByteArray, media: Sequence<ByteArray>, sink: OutputStream, checkCancelled: () -> Unit) {
         val trak = find(init, "moov", "trak") ?: error("Not an MP4 initialisation segment")
         val trackId = readU32(init, (child(init, trak, "tkhd") ?: error("No track header")).let {
             it.content + if (init[it.content].toInt() == 1) 20 else 12
@@ -150,6 +132,7 @@ internal object ManifestFile {
             var ticks = 0L
             frames.outputStream().buffered().use { out ->
                 media.forEach { segment ->
+                    checkCancelled()
                     boxes(segment).filter { it.type == "moof" }.forEach { moof ->
                         val samples = Mp4Boxes.samples(segment, moof, trackId, trexDuration, trexSize)
                             ?: error("Unreadable FLAC fragment")
@@ -175,7 +158,10 @@ internal object ManifestFile {
                 sink.write(byteArrayOf((last or type).toByte(), (body.size shr 16).toByte(), (body.size shr 8).toByte(), body.size.toByte()))
                 sink.write(body)
             }
-            frames.inputStream().use { it.copyTo(sink) }
+            frames.inputStream().use { input ->
+                val buffer = ByteArray(32 * 1024)
+                while (true) { checkCancelled(); val count = input.read(buffer); if (count < 0) break; sink.write(buffer, 0, count) }
+            }
         } finally {
             frames.delete()
         }

@@ -182,7 +182,14 @@ internal suspend fun <T> Call.await(block: (Response) -> T): T {
     val call = this
     try {
         return coroutineScope {
-            val result = async(Dispatchers.IO) { call.execute().use(block) }
+            val result = async(Dispatchers.IO) {
+                call.execute().use { response ->
+                    // The response may arrive before the cancellation handler gets CPU time.
+                    // A paused transfer must not append that late response to its partial file.
+                    currentCoroutineContext().ensureActive()
+                    block(response)
+                }
+            }
             try {
                 result.await()
             } catch (e: CancellationException) {

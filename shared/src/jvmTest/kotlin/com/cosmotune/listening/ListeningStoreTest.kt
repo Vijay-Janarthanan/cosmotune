@@ -6,6 +6,20 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class ListeningStoreTest {
+    @Test fun independentWindowsKeepEachOthersUpdatesAndFailedWritesPreserveTheSnapshot() {
+        val file = Files.createTempDirectory("cosmotune-listening-windows-").resolve("listening.json").toFile()
+        val first = ListeningStore(file)
+        val second = ListeningStore(file)
+        first.saveSession("First window", listOf(song("one")), 0, 0, 0, false)
+        second.saveSession("Second window", listOf(song("two")), 0, 0, 0, false)
+        assertEquals(setOf("First window", "Second window"), ListeningStore(file).state.value.sessions.map { it.name }.toSet())
+        assertEquals(second.export(), first.export())
+        val before = file.readBytes()
+        assertFailsWith<IllegalStateException> { first.update { error("Interrupted edit") } }
+        assertContentEquals(before, file.readBytes())
+        assertTrue(file.parentFile.listFiles().orEmpty().none { it.name.endsWith(".tmp") })
+    }
+
     private fun song(id: String, title: String = id) = Song(id, title, "Artist", null)
     private fun store() = ListeningStore(Files.createTempDirectory("cosmotune-listening-test-").resolve("listening.json").toFile())
 

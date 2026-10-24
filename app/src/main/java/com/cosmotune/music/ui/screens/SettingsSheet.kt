@@ -181,6 +181,8 @@ fun SettingsScreen(
     onAppLanguage: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
+    onArtistSignatureApi: () -> Unit = {},
+    onWearOs: () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -204,6 +206,8 @@ fun SettingsScreen(
     val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
+    val signatureEnabled by AppSettings.signatureApiEnabled.collectAsStateWithLifecycle()
+    val signatureUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
     val openCanvasEnabled by AppSettings.openCanvasEnabled.collectAsStateWithLifecycle()
     val openCanvasResolution by AppSettings.openCanvasResolution.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
@@ -230,6 +234,8 @@ fun SettingsScreen(
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
     val hideSongStatus by AppSettings.hideSongStatus.collectAsStateWithLifecycle()
+    val queueHistory by AppSettings.showQueueHistory.collectAsStateWithLifecycle()
+    val hideStatusBar by AppSettings.hideStatusBarInPlayer.collectAsStateWithLifecycle()
     val swipeToPlayNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
     val dontRepeatSuggestions by AppSettings.dontRepeatSuggestions.collectAsStateWithLifecycle()
     val preferMusicOnly by AppSettings.preferMusicOnly.collectAsStateWithLifecycle()
@@ -597,6 +603,9 @@ fun SettingsScreen(
                 )
             }
             val loudnessTitle = stringResource(R.string.loudness_normalization)
+            row("Learn from my listening", "recommendations", "learning", "personalization") {
+                com.cosmotune.ui.listening.RecommendationLearningSettings()
+            }
             row(loudnessTitle, "loudness", "volume", "normalize", "replaygain", "lufs") {
                 SettingsRow(
                     icon = Icons.Rounded.VolumeUp,
@@ -893,6 +902,23 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setAnimatedCanvas(!animatedCanvas) },
+                )
+            }
+            row(stringResource(R.string.artist_signatures), "artist", "signature") {
+                SettingsRow(
+                    icon = Icons.Rounded.Animation,
+                    title = stringResource(R.string.artist_signatures),
+                    subtitle = stringResource(R.string.artist_signatures_subtitle),
+                    trailing = { Switch(checked = signatureEnabled, onCheckedChange = AppSettings::setSignatureApiEnabled) },
+                    onClick = { AppSettings.setSignatureApiEnabled(!signatureEnabled) },
+                )
+            }
+            row(stringResource(R.string.artist_signatures_url), "artist", "signature", "url") {
+                SettingsRow(
+                    icon = Icons.Rounded.Animation,
+                    title = stringResource(R.string.artist_signatures_url),
+                    subtitle = if (signatureUrl.isBlank()) stringResource(R.string.artist_signatures_unconfigured) else stringResource(R.string.connected),
+                    onClick = onArtistSignatureApi,
                 )
             }
             // Reads as part of the Animated cover art option above it, not
@@ -1383,6 +1409,29 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setHideVolumeBar(!hideVolumeBar) },
+                )
+            }
+            row(stringResource(R.string.wear_os_section), "watch", "wear os", "galaxy watch", "pixel watch", "install") {
+                WearOsSettingsRow(onClick = onWearOs)
+            }
+            val queueHistoryTitle = stringResource(R.string.show_queue_history)
+            row(queueHistoryTitle, "queue", "history", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.History,
+                    title = queueHistoryTitle,
+                    subtitle = stringResource(R.string.show_queue_history_subtitle),
+                    trailing = { Switch(checked = queueHistory, onCheckedChange = AppSettings::setShowQueueHistory) },
+                    onClick = { AppSettings.setShowQueueHistory(!queueHistory) },
+                )
+            }
+            val hideStatusBarTitle = stringResource(R.string.hide_status_bar_in_player)
+            row(hideStatusBarTitle, "status bar", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.Fullscreen,
+                    title = hideStatusBarTitle,
+                    subtitle = stringResource(R.string.hide_status_bar_in_player_subtitle),
+                    trailing = { Switch(checked = hideStatusBar, onCheckedChange = AppSettings::setHideStatusBarInPlayer) },
+                    onClick = { AppSettings.setHideStatusBarInPlayer(!hideStatusBar) },
                 )
             }
             val hideSongStatusTitle = stringResource(R.string.hide_song_status)

@@ -279,4 +279,10 @@
     <string name="cosmo_np_controls_expand">Expand controls</string>
     <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
     <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
+    <string name="artist_signatures">アーティストの署名</string>
+    <string name="artist_signatures_subtitle">Apple Musicにタイトルロゴがない場合に手書きの署名を表示します</string>
+    <string name="artist_signatures_url">署名APIのURL</string>
+    <string name="signed_by">%1$s のサイン</string>
+    <string name="cosmo_mode_manga">マンガ</string>
+    <string name="cosmo_mode_manga_summary">作品、配信元、読書の進み具合</string>
 </resources>

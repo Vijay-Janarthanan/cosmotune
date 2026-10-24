@@ -10,7 +10,6 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
 
 /** Downloads resolved audio into the user's own Cosmotune folder. */
 object DesktopDownloadManager {
@@ -27,6 +26,8 @@ object DesktopDownloadManager {
         return try {
             require(song.localPath == null) { "This track is already local" }
             val stream = DesktopMusicSources.resolve(song, quality, forDownload = true).getOrThrow()
+            com.cosmotune.music.data.sources.ProviderDownloadTransfers.transfer(
+                stream.sourceId ?: URI.create(stream.url).host.orEmpty().ifBlank { "catalogue" }) {
             val directory = Path.of(System.getProperty("user.home"), "Music", com.cosmotune.CosmoConfig.APP_NAME)
             Files.createDirectories(directory)
             val safeName = buildString {
@@ -38,10 +39,12 @@ object DesktopDownloadManager {
             // KB of XML as `.flac`. Its segments are fMP4, so it can only become FLAC or M4A.
             val manifest = DesktopManifestDownload.isManifest(stream)
             val extension = stream.format.fileExtension().let { if (manifest && it != "flac") "m4a" else it }
-            val target = directory.resolve("$safeName.$extension")
-            val temporary = directory.resolve(".$safeName.$extension.part")
+            // Distinct recordings and requested renditions must not reuse a title-only filename.
+            val rendition = downloadIdentity(song.videoId, stream.sourceId, quality, extension)
+            val target = directory.resolve("$safeName [$rendition].$extension")
+            val temporary = directory.resolve(".$safeName [$rendition].$extension.part")
             if (Files.isRegularFile(target) && Files.size(target) > 0L) {
-                return Result.success(song.copy(localUri = target.toUri().toString(), localPath = target.toString()))
+                return@transfer Result.success(song.copy(localUri = target.toUri().toString(), localPath = target.toString()))
             }
 
             if (manifest) {
@@ -58,56 +61,12 @@ object DesktopDownloadManager {
                 }
                 check(Files.size(temporary) > 0L) { "Download failed: nothing was sent" }
                 Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING)
-                return Result.success(song.copy(localUri = target.toUri().toString(), localPath = target.toString()))
+                return@transfer Result.success(song.copy(localUri = target.toUri().toString(), localPath = target.toString()))
             }
 
-            val existing = if (Files.isRegularFile(temporary)) Files.size(temporary) else 0L
-            val request = DesktopDownloadHttp.request(
-                stream.url,
-                DOWNLOAD_USER_AGENT,
-                stream.headers,
-                rangeFrom = existing.takeIf { it > 0L },
-            )
-            DesktopDownloadHttp.client.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "Download failed (HTTP ${response.code})" }
-                val body = response.body
-                val append = existing > 0L && response.code == HTTP_PARTIAL
-                val offset = if (append) existing else 0L
-                val total = response.header("Content-Range")
-                    ?.substringAfterLast('/')
-                    ?.toLongOrNull()
-                    ?.takeIf { it > 0L }
-                    ?: body.contentLength().takeIf { it > 0L }?.let { it + offset }
-                if (!append && existing > 0L) Files.deleteIfExists(temporary)
-                Files.newOutputStream(
-                    temporary,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.WRITE,
-                    if (append) StandardOpenOption.APPEND else StandardOpenOption.TRUNCATE_EXISTING,
-                ).use { output ->
-                    body.byteStream().use { input ->
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        var downloaded = offset
-                        onProgress(downloaded, total)
-                        while (true) {
-                            currentCoroutineContext().ensureActive()
-                            val read = input.read(buffer)
-                            if (read < 0) break
-                            if (read == 0) continue
-                            output.write(buffer, 0, read)
-                            downloaded += read
-                            onProgress(downloaded, total)
-                        }
-                    }
-                }
-            }
-            check(Files.size(temporary) > 0L) { "Download failed: nothing was sent" }
-            runCatching {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-            }.getOrElse {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING)
-            }
+            DesktopAudioFileTransfer.save(stream.url, stream.headers, target.toFile(), DOWNLOAD_USER_AGENT, progress = onProgress)
             Result.success(song.copy(localUri = target.toUri().toString(), localPath = target.toString()))
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
@@ -171,7 +130,9 @@ object DesktopDownloadManager {
         }
     }
 
-    private const val HTTP_PARTIAL = 206
+    internal fun downloadIdentity(id: String, source: String?, quality: String, extension: String): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest("$id|${source.orEmpty()}|$quality|$extension".toByteArray(Charsets.UTF_8))
+            .take(6).joinToString("") { "%02x".format(it) }
     private const val DOWNLOAD_USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"

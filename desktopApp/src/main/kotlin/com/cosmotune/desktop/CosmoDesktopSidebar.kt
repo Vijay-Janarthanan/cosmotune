@@ -126,6 +126,19 @@ internal fun CosmoDesktopSidebar(
     onSearchFocused: () -> Unit,
 ) {
     if (com.cosmotune.video.host.desktopVideoShown()) return VideoSidebar(focusSearch = focusSearch, onSearchFocused = onSearchFocused)
+    if (com.cosmotune.video.host.desktopMangaShown()) {
+        val shell = com.cosmotune.ui.theme.LocalCosmoShell.current
+        Column(Modifier.width(ShellMetrics.DESKTOP_SIDEBAR_DP.dp).fillMaxHeight()) {
+            val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
+            if (DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled) SidebarCaption()
+            Column(Modifier.padding(20.dp)) {
+                androidx.compose.material3.Text("Manga", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
+                androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC) }) { androidx.compose.material3.Text("Music") }
+                androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.VIDEO) }) { androidx.compose.material3.Text("Video") }
+            }
+        }
+        return
+    }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(focusSearch) { if (focusSearch) { runCatching { focusRequester.requestFocus() }; onSearchFocused() } }
     val windowInfo = LocalWindowInfo.current

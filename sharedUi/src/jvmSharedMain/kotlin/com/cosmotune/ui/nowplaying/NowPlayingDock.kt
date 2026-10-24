@@ -144,6 +144,7 @@ internal fun NowPlayingDock(
             Column(Modifier.weight(1f)) {
                 Text(song.title, style = titleStyle, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(song.artist, style = artistStyle, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                AudioFormatLine()
             }
             Spacer(Modifier.width(4.dp))
             CosmoIconButton(

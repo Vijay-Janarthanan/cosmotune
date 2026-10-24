@@ -1272,4 +1272,14 @@
     <string name="canvas_paused_on_mobile_data">Video is paused on mobile data</string>
     <string name="canvas_allow_on_mobile_data">Allow</string>
     <string name="canvas_allow_on_mobile_data_description">Allow video on mobile data</string>
+
+    <string name="hide_status_bar_in_player">在播放器中隱藏狀態列</string>
+    <string name="hide_status_bar_in_player_subtitle">主播放器開啟時隱藏時鐘、電量和通知圖示</string>
+    <string name="artist_signatures">藝人簽名</string>
+    <string name="artist_signatures_subtitle">顯示已設定來源提供的藝人手寫簽名</string>
+    <string name="artist_signatures_url">簽名 API 網址</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">尚未設定，點選以設定 API 網址</string>
+    <string name="artist_signatures_test_failed">無法連線到該網址的 API</string>
+    <string name="signed_by">%1$s 的簽名</string>
 </resources>

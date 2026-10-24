@@ -341,10 +341,12 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         // Before the composition, so a cold launch from a widget's artwork has
         // the request already standing by the time CosmotuneApp first reads it.
-        PlayerDeepLink.consume(intent)
-        JamInviteLink.consume(intent)
-        // Likewise for a link tapped or shared from another app — see [MusicLink].
-        MusicLink.consume(intent)
+        if (!com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent)) {
+            PlayerDeepLink.consume(intent)
+            JamInviteLink.consume(intent)
+            // Likewise for a link tapped or shared from another app â€” see [MusicLink].
+            MusicLink.consume(intent)
+        }
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
@@ -362,7 +364,7 @@ class MainActivity : AppCompatActivity() {
             }
             com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { CosmotuneTheme(darkTheme = darkTheme, content = it) }) {
                 // The glass surfaces sample this layer, and a layer records only
-                // what is drawn into it — which, for Cosmotune, is a page that
+                // what is drawn into it â€” which, for Cosmotune, is a page that
                 // paints no background of its own. Everywhere a page is not
                 // showing artwork the recording is transparent, so the glass had
                 // nothing to blur there and you saw straight through it to the
@@ -392,7 +394,7 @@ class MainActivity : AppCompatActivity() {
                 // two on the strength of this number and sizes both halves from
                 // it, so a stale one is a player pane sized for a window that no
                 // longer exists and a page squeezed to a sliver to pay for it.
-                // A measured constraint cannot be stale — it is the very width
+                // A measured constraint cannot be stale â€” it is the very width
                 // the split is about to be laid out in.
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     com.cosmotune.video.host.PhoneModeHost(windowWidth = maxWidth, windowHeight = maxHeight) {
@@ -431,7 +433,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * The other half of the relay. This activity is `singleTask`, so once it is
-     * running a second tap on the widget does not rebuild anything — it arrives
+     * running a second tap on the widget does not rebuild anything â€” it arrives
      * here, and [onCreate] never runs again.
      */
     override fun onNewIntent(intent: Intent) {
@@ -439,6 +441,7 @@ class MainActivity : AppCompatActivity() {
         // Replaces what getIntent() returns, so the extra this consumes is the
         // one that just arrived and not the one the task was started with.
         setIntent(intent)
+        if (com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent)) return
         PlayerDeepLink.consume(intent)
         JamInviteLink.consume(intent)
         MusicLink.consume(intent)
@@ -449,11 +452,11 @@ class MainActivity : AppCompatActivity() {
 @Composable
 private fun CosmotuneApp(
     darkTheme: Boolean,
-    /** The width of the window this is laid out in — see the call site. */
+    /** The width of the window this is laid out in â€” see the call site. */
     windowWidth: Dp,
     /**
      * The window's height, measured the same way and for the same reason as
-     * [windowWidth] — and needed alongside it for exactly one thing: telling
+     * [windowWidth] â€” and needed alongside it for exactly one thing: telling
      * a portrait window apart from a landscape one. Width alone can't; a
      * big tablet's portrait width comfortably clears a phone's landscape
      * width, so the two-column player (see [landscapePlayerAvailable])
@@ -470,7 +473,7 @@ private fun CosmotuneApp(
     // Recording the backdrop layer costs a draw pass, so it only runs when a
     // liquid-glass surface (the nav bar or artwork-page back button) can sample it.
     val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported()
-    // "Reduce dynamic blur" keeps the glass bar's *shape* — the folding
+    // "Reduce dynamic blur" keeps the glass bar's *shape* â€” the folding
     // now-playing-and-tabs component is a layout, not an effect, and dropping
     // back to the two stacked bars would be answering a question about material
     // with a different screen. What it drops is the sampling: the surfaces fill
@@ -485,17 +488,17 @@ private fun CosmotuneApp(
     val selectedTabState = rememberSaveable { mutableIntStateOf(0) }
     /**
      * Whether the player's sheet is up. The player is always a full-screen
-     * take-over raised over the page, on every window size — the library
+     * take-over raised over the page, on every window size â€” the library
      * stays full-screen behind a mini player rather than losing a lane to a
      * permanent pane.
      */
     var showNowPlaying by remember { mutableStateOf(false) }
     // Where the two ends of opening and closing the player meet: the mini
     // player's cover reports itself here, the sheet its offset, and the player
-    // flies its artwork between them — see [PlayerDock].
+    // flies its artwork between them â€” see [PlayerDock].
     val playerDock = remember { PlayerDock() }
     // Who moves the player sheet when the app does rather than M3: a tap's
-    // open, the pull up from the mini player, and every close — see
+    // open, the pull up from the mini player, and every close â€” see
     // [PlayerSheetMotion].
     val playerSheetScope = rememberCoroutineScope()
     val playerSheetMotion = remember {
@@ -517,13 +520,13 @@ private fun CosmotuneApp(
     playerSheetMotion.flingVelocity = with(LocalDensity.current) { PLAYER_PULL_FLING_VELOCITY.toPx() }
     // How the app takes the player down, whatever for: a back press, or a page
     // opened from inside it. Set straight to false, the sheet left in one frame
-    // on its window's own exit animation — the old fast drop, with a copy of the
+    // on its window's own exit animation â€” the old fast drop, with a copy of the
     // artwork slipping down out of the mini player's cover after it.
     val dismissPlayer: () -> Unit = {
         if (reducePlayerMotion || cosmoShell != null) showNowPlaying = false else playerSheetMotion.close()
     }
     // The far end of the relay from a widget's artwork. Cleared here rather than
-    // where it was set, so the request is spent by being served — see
+    // where it was set, so the request is spent by being served â€” see
     // [PlayerDeepLink.handled]. The sheet itself is gated on there being a track,
     // so on a cold launch this simply arms it and it opens as the controller
     // connects.
@@ -535,13 +538,13 @@ private fun CosmotuneApp(
         }
     }
     /**
-     * What the in-app browser is open for, or null while it is closed —
+     * What the in-app browser is open for, or null while it is closed â€”
      * signing in, or picking a channel in YouTube Music's own Accounts list.
      */
     var webSession by remember { mutableStateOf<WebSessionMode?>(null) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     // Replay: the page, the stories over it, and the share sheet over those.
-    // Three states rather than one enum because they stack — the stories are
+    // Three states rather than one enum because they stack â€” the stories are
     // opened from the page and the share sheet from either, and closing one
     // has to reveal what it was opened from.
     var showReplay by rememberSaveable { mutableStateOf(false) }
@@ -561,6 +564,8 @@ private fun CosmotuneApp(
     var showListenTogether by rememberSaveable { mutableStateOf(false) }
     var showEqualizer by rememberSaveable { mutableStateOf(false) }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
+    var showSignatureApi by remember { mutableStateOf(false) }
+    var showWearOs by remember { mutableStateOf(false) }
 
     // Hosted here rather than inside SourcesScreen so its frosted card has
     // something to blur: that screen is drawn inside the `hazeSource` subtree,
@@ -571,7 +576,7 @@ private fun CosmotuneApp(
     var confirmJioSaavn by remember { mutableStateOf(false) }
     var editingPartyServer by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
-    // A Library shelf's "Show all" — the shelf it was opened from, so its own
+    // A Library shelf's "Show all" â€” the shelf it was opened from, so its own
     // cards can be laid out again as a full-screen grid. See [LibraryGridPage].
     var libraryShowAll by remember { mutableStateOf<HomeShelf?>(null) }
     var detailActiveShelf by remember { mutableStateOf<HomeShelf?>(null) }
@@ -606,8 +611,8 @@ private fun CosmotuneApp(
     /**
      * Whether the track menu that is up was opened from the player.
      *
-     * Its copy of the menu carries rows nothing else offers — a sleep timer,
-     * the track log, share — and until now "opened from the player" and "the
+     * Its copy of the menu carries rows nothing else offers â€” a sleep timer,
+     * the track log, share â€” and until now "opened from the player" and "the
      * player is on screen" were the same sentence, because the player was a
      * sheet and nothing else could be up behind it. On a tablet the player is
      * never *the* thing on screen: it is always beside whatever is, so the
@@ -617,22 +622,22 @@ private fun CosmotuneApp(
     /**
      * The row or card that was held to open the track menu, or null when it
      * was opened any other way. Non-null lifts that item into
-     * [HeldContextMenu]; null keeps the bottom sheet — which is what the ⋮ on
+     * [HeldContextMenu]; null keeps the bottom sheet â€” which is what the â‹® on
      * the very same row still opens.
      */
     var songMenuOrigin by remember { mutableStateOf<HeldItem?>(null) }
-    /** Holding a row anywhere but the player — the menu without the player's rows. */
+    /** Holding a row anywhere but the player â€” the menu without the player's rows. */
     val openSongMenu: (Song) -> Unit = { song ->
         menuFromPlayer = false
         songMenuOrigin = LongPressOrigin.consume()
         songActions = song
     }
     // Whether the player's album/artist lookup (below, for the current track)
-    // is still in flight — read by the long-press sheet so it can show a
+    // is still in flight â€” read by the long-press sheet so it can show a
     // loading row instead of the two just being absent while it waits.
     var linksLoading by remember { mutableStateOf(false) }
     // Which track the playlist picker is adding, or null when it's closed.
-    // Separate from [songActions] so the menu can close behind it — the picker
+    // Separate from [songActions] so the menu can close behind it â€” the picker
     // is the next step, not a second sheet stacked on the first.
     var playlistTarget by remember { mutableStateOf<Song?>(null) }
     // The picker opened from the Library tab, where there is no track and
@@ -640,17 +645,17 @@ private fun CosmotuneApp(
     var creatingPlaylist by remember { mutableStateOf(false) }
     var showSpotifyImportDialog by remember { mutableStateOf(false) }
     // Which album or playlist the collection menu is open on, or null when it
-    // is shut. One slot for every surface that can open it — the shelves on
+    // is shut. One slot for every surface that can open it â€” the shelves on
     // three tabs, the search rows, the artist page's carousels, the release
-    // page's own overflow — because only one of them can be held at a time.
+    // page's own overflow â€” because only one of them can be held at a time.
     var browseActions by remember { mutableStateOf<BrowseTarget?>(null) }
-    /** The card held to open [browseActions] — see [songMenuOrigin]. */
+    /** The card held to open [browseActions] â€” see [songMenuOrigin]. */
     var browseMenuOrigin by remember { mutableStateOf<HeldItem?>(null) }
     /** Rename asked for from the popup, which hands it on to the sheet's form. */
     var browseRenameInSheet by remember { mutableStateOf(false) }
     /** The playlist being rearranged, or null when the reorder sheet is shut. */
     var reorderTarget by remember { mutableStateOf<UserPlaylist?>(null) }
-    /** Its entries as YouTube has them now — fetched fresh when the sheet opens. */
+    /** Its entries as YouTube has them now â€” fetched fresh when the sheet opens. */
     var reorderEntries by remember { mutableStateOf<UiState<List<Song>>>(UiState.Loading) }
     var reorderSaving by remember { mutableStateOf(false) }
     /** Holding an album or playlist: the popup when it was a hold, else the sheet. */
@@ -662,7 +667,7 @@ private fun CosmotuneApp(
     val autoplay by AppSettings.autoplay.collectAsStateWithLifecycle()
     val partyState by ListenTogether.state.collectAsStateWithLifecycle()
     // The same answer the playback service acts on, rather than a second one
-    // derived here — see [autoplayEnabledFor]. Drawing the local preference in
+    // derived here â€” see [autoplayEnabledFor]. Drawing the local preference in
     // a party made the toggle lie in both directions: a listener whose own
     // switch was on sat under "AutoPlay on" in a party that had it off, got no
     // suggestions, and pressing the button appeared to do nothing, because it
@@ -693,14 +698,14 @@ private fun CosmotuneApp(
     // The top bar's icon is the quiet, always-there nudge; this is the
     // once-per-launch popup version of the same news. `updateDialogShown`
     // rides out configuration changes on rememberSaveable so a rotation
-    // doesn't bring it back — only a fresh launch does.
+    // doesn't bring it back â€” only a fresh launch does.
     var updateDialogShown by rememberSaveable { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     val updateAvailable by viewModel.updateAvailable.collectAsStateWithLifecycle()
 
     /**
      * The single gate both surfaces read, so the icon can't announce the update
-     * a beat before the popup does — they're one piece of news, and staggering
+     * a beat before the popup does â€” they're one piece of news, and staggering
      * them made the top bar look like it had caught something the app hadn't.
      */
     val updateNotice = updateAvailable
@@ -794,7 +799,7 @@ private fun CosmotuneApp(
     // takes. Hence the folder question rather than the prefix.
     val isLocalDetail = detail?.browseId.isDeviceFolder()
     // Not keyed on the browse id and not remembered here: each page's choice
-    // lives in AppSettings keyed by that page — Spotify-style, one playlist's
+    // lives in AppSettings keyed by that page â€” Spotify-style, one playlist's
     // order never imposes itself on another, and every page keeps its own
     // across visits.
     val detailSongSorts by AppSettings.detailSongSorts.collectAsStateWithLifecycle()
@@ -808,7 +813,7 @@ private fun CosmotuneApp(
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val playlistsLoading by viewModel.playlistsLoading.collectAsStateWithLifecycle()
 
-    // Settings has no tab of its own — it sits on top of whatever tab was
+    // Settings has no tab of its own â€” it sits on top of whatever tab was
     // selected. A pushed album/artist page (from the player, search, etc.)
     // should surface above it rather than being hidden behind it.
     LaunchedEffect(detail) { if (detail != null) showSettings = false }
@@ -822,7 +827,7 @@ private fun CosmotuneApp(
 
     // The Downloads page is a snapshot of the folder, taken when it was opened.
     // Saving a track or deleting one while it is on screen changes what belongs
-    // on it — and now that the page groups by artist and album, a stale list is
+    // on it â€” and now that the page groups by artist and album, a stale list is
     // stale counts and a missing row in three places rather than one. So it is
     // taken again whenever the record of what's on disk changes.
     val savedDownloads by Downloads.saved.collectAsStateWithLifecycle()
@@ -831,7 +836,7 @@ private fun CosmotuneApp(
     val webdavUrl by AppSettings.webdavUrl.collectAsStateWithLifecycle()
     val smbHost by AppSettings.smbHost.collectAsStateWithLifecycle()
     val librarySort by AppSettings.librarySort.collectAsStateWithLifecycle()
-    // The releases those files were asked for as — read here rather than in the
+    // The releases those files were asked for as â€” read here rather than in the
     // page so the Downloads folder recomposes when one is added, the same way it
     // does when a file is.
     val savedCollections by Downloads.collections.collectAsStateWithLifecycle()
@@ -855,7 +860,7 @@ private fun CosmotuneApp(
         )
     }
     // What a browse id is recorded under in Downloads.collections, when it names
-    // a release downloaded whole — see BrowseTarget.downloadId. A downloaded
+    // a release downloaded whole â€” see BrowseTarget.downloadId. A downloaded
     // playlist's own page and its card both carry the id under the
     // `local:playlist:` prefix; a release still reachable by its real id (an
     // album's own page, a search hit) is looked up directly under that instead.
@@ -866,7 +871,7 @@ private fun CosmotuneApp(
         val openPage = detail ?: return@LaunchedEffect
         val open = openPage.browseId
         // A downloaded playlist's page is a snapshot of the same folder and goes
-        // stale for the same reasons — and it is the one page a delete can empty
+        // stale for the same reasons â€” and it is the one page a delete can empty
         // out entirely, which is worth saying rather than leaving rows behind
         // that play nothing.
         if (openPage.songs !is UiState.Loading &&
@@ -895,7 +900,7 @@ private fun CosmotuneApp(
     val player = rememberPlayerState(controller)
     cosmoShell?.FollowCover(player.song, player.queue.getOrNull(player.queueIndex + 1))
     // A resume in a party is performed on the instant the server schedules, not
-    // when it was pressed, and nothing about the player moves in between — so
+    // when it was pressed, and nothing about the player moves in between â€” so
     // the transport spends that round trip drawn as though the tap never landed.
     // Folded into the buffering flag every play button already answers to, since
     // to a listener the two are the same fact: it is coming, wait.
@@ -918,7 +923,7 @@ private fun CosmotuneApp(
     }
     // Why a control did nothing, on the same strip above the mini player that
     // already answers "added to queue". Reached from every surface that had a
-    // control taken away — see [ListenTogether.State.controlsLocked].
+    // control taken away â€” see [ListenTogether.State.controlsLocked].
     val hostOnlyMessage = stringResource(R.string.listen_together_host_only_notice)
     val showHostOnlyNotice: () -> Unit = { showQueueNotice(hostOnlyMessage) }
 
@@ -928,8 +933,8 @@ private fun CosmotuneApp(
      * Every way the app starts or reorders playback funnels through one of the
      * lambdas below, and each asks this first. Checked here rather than left to
      * the player: the service refuses these actions anyway, but by then the tap
-     * has already been half-applied — a queue swapped with nothing to play it,
-     * or a resume of whatever the party was on — which is what a listener saw
+     * has already been half-applied â€” a queue swapped with nothing to play it,
+     * or a resume of whatever the party was on â€” which is what a listener saw
      * as the music flickering on and off.
      */
     val refusedByHost: () -> Boolean = {
@@ -941,7 +946,7 @@ private fun CosmotuneApp(
     /**
      * The one play/pause every surface presses.
      *
-     * In a locked party this still works — it stops and starts *this* device
+     * In a locked party this still works â€” it stops and starts *this* device
      * without touching the party, which is the whole of what a listener is
      * left with. The exception is a party that is itself paused: there is
      * nothing to join and nothing to hold out of, so the tap says why instead
@@ -993,7 +998,7 @@ private fun CosmotuneApp(
                 it.artist,
                 // The player's own length, and the catalogue's where it has
                 // none yet. Paused, ExoPlayer never finishes preparing the
-                // track it was skipped to, so it reports no duration at all —
+                // track it was skipped to, so it reports no duration at all â€”
                 // and a lookup that waits for one waits for ever, which left
                 // the lyrics of a paused track loading until it was played.
                 player.durationMs.takeIf { ms -> ms > 0L } ?: it.durationMillis(),
@@ -1052,8 +1057,8 @@ private fun CosmotuneApp(
         }
     }
 
-    // A pushed album/artist/playlist page has a large header of its own — the
-    // sleeve, or an artist's photo running edge to edge — which owns the title
+    // A pushed album/artist/playlist page has a large header of its own â€” the
+    // sleeve, or an artist's photo running edge to edge â€” which owns the title
     // until it is scrolled away, exactly as a tab's big heading does. The state
     // is hoisted because the bar lives beside that page rather than inside it,
     // and is rebuilt per page: pushing a second one must not inherit the
@@ -1094,8 +1099,8 @@ private fun CosmotuneApp(
     // Held, not rebuilt. `listOf` hands back a new instance on every pass, and a
     // List is not a type the compiler can call stable, so under strong skipping
     // the bar this is handed to compares it by identity, never matches, and so
-    // can never skip. This composable re-runs on every frame of a scroll — it
-    // reads [scrolled] — which made the whole floating bar, both of its states
+    // can never skip. This composable re-runs on every frame of a scroll â€” it
+    // reads [scrolled] â€” which made the whole floating bar, both of its states
     // and every glass surface on them recompose once per frame for the length of
     // a fold. Keyed on the labels so a locale change still rebuilds it.
     val homeLabel = stringResource(R.string.home)
@@ -1201,7 +1206,7 @@ private fun CosmotuneApp(
             // Let go of the bar *before* the command goes out: the service
             // raises it again the moment its own job starts, and releasing
             // first is what makes the handover correct whichever way that
-            // command dispatches — inline or on the next turn of the loop.
+            // command dispatches â€” inline or on the next turn of the loop.
             // The same line in the finally is the catch-all for every path
             // that never got this far, where nothing else would release it.
             if (holdUntilAligned) AppSettings.versionAlignmentInProgress.value = false
@@ -1228,7 +1233,7 @@ private fun CosmotuneApp(
         switchingAudioVersion = true
         // Mirrors the music-only path: the bar lights up for the resolve and
         // the service keeps it lit through the measure-and-cut, and the row
-        // stays on the audio version until that swap actually commits — see
+        // stays on the audio version until that swap actually commits â€” see
         // [alignmentPending] at the toggle.
         val holdUntilAligned = AppSettings.smartVersionAlignment.value
         if (holdUntilAligned) AppSettings.versionAlignmentInProgress.value = true
@@ -1369,7 +1374,7 @@ private fun CosmotuneApp(
     // Check if alternate (video vs audio) version exists in background.
     // Skipped entirely in a Listen Together party: the track playing there is
     // shared by everyone in it, and a per-listener version switch would put
-    // each member on their own cut of what is supposed to be one song — see
+    // each member on their own cut of what is supposed to be one song â€” see
     // [ListenTogether] and the matching guard server-side in
     // [PlaybackService.smoothSwapCurrentTrackVersion].
     LaunchedEffect(player.song?.videoId, convertedAudioId, convertedVideoId, partyState.inParty) {
@@ -1402,7 +1407,7 @@ private fun CosmotuneApp(
     }
 
     /**
-     * A song picked on its own — off a home card or a search hit — starts a
+     * A song picked on its own â€” off a home card or a search hit â€” starts a
      * station rather than queueing the list it was shown in. Searching
      * "Perfect" and tapping the top hit otherwise queues twenty covers and
      * remixes of the same song. Album, artist and playlist pages keep [play],
@@ -1497,7 +1502,7 @@ private fun CosmotuneApp(
                     activeRadioSeed = null
                     activeController.playSongs(listOf(seed) + related, 0)
                 }
-                // Make this station — never the queue from before it — what a
+                // Make this station â€” never the queue from before it â€” what a
                 // fresh process restores, even if it is killed immediately.
                 activeController.commitRadioQueue()
                 Toast.makeText(
@@ -1575,7 +1580,7 @@ private fun CosmotuneApp(
     }
 
     /**
-     * Opens an artist or release page given its browse id — or, failing that,
+     * Opens an artist or release page given its browse id â€” or, failing that,
      * its name.
      *
      * Replay's charts are the reason this exists. An artist there is counted by
@@ -1583,7 +1588,7 @@ private fun CosmotuneApp(
      * rides along only when the row that queued the track happened to have one,
      * which for a home-feed card or an AutoPlay suggestion it does not. So half
      * the rows on a chart would have nothing to open, and a row that does
-     * nothing when tapped is worse than a row that isn't tappable — it reads as
+     * nothing when tapped is worse than a row that isn't tappable â€” it reads as
      * the app having failed rather than as the app not offering.
      *
      * Searching for the name is what the user would do next anyway, and it is
@@ -1638,13 +1643,13 @@ private fun CosmotuneApp(
      * A whole album, playlist or library list onto the queue in one go.
      *
      * [next] picks which of the two positions the single-track menu already
-     * offers it lands in — straight after the current track, or behind
+     * offers it lands in â€” straight after the current track, or behind
      * everything else the user queued but still ahead of AutoPlay (see
      * [addToQueue]). The list keeps its own running order either way: this
      * *adds* a release, it doesn't start one, so [QueueShuffle] has no say here.
      *
-     * There is usually nothing on screen to show for it — the queue panel is
-     * shut, the current track carries on — so the count is said out loud, the
+     * There is usually nothing on screen to show for it â€” the queue panel is
+     * shut, the current track carries on â€” so the count is said out loud, the
      * same way a batch download is.
      */
     val queueSongs: (List<Song>, Boolean) -> Unit = { songs, next ->
@@ -1654,7 +1659,7 @@ private fun CosmotuneApp(
                 val c = controller
                 if (c == null || c.mediaItemCount == 0) {
                     // Nothing to queue behind. "Add to queue" on a silent
-                    // player can only mean start here — and adding without
+                    // player can only mean start here â€” and adding without
                     // preparing would leave the list sitting in a player that
                     // never gets round to it.
                     play(songs, 0)
@@ -1707,7 +1712,7 @@ private fun CosmotuneApp(
 
     /**
      * A YouTube Music link tapped elsewhere on the device, a link shared into
-     * Cosmotune, or "play something" said to the assistant — see [MusicLink].
+     * Cosmotune, or "play something" said to the assistant â€” see [MusicLink].
      *
      * Keyed on the controller as well as the request, because a link is as
      * often as not what cold-starts the app: the session it has to play into is
@@ -1717,7 +1722,7 @@ private fun CosmotuneApp(
     val linkRequest by MusicLink.pending.collectAsStateWithLifecycle()
     LaunchedEffect(linkRequest, controller) {
         val request = linkRequest ?: return@LaunchedEffect
-        // Nothing here can be served without somewhere to play it — even the
+        // Nothing here can be served without somewhere to play it â€” even the
         // branches that only push a page are a beat away from a tap on one of
         // its rows, and half-serving a request would spend it.
         val session = controller ?: return@LaunchedEffect
@@ -1742,7 +1747,7 @@ private fun CosmotuneApp(
             }
             is LinkRequest.Page -> {
                 dismissPlayer()
-                // Titled by the page itself once it lands — a link carries a
+                // Titled by the page itself once it lands â€” a link carries a
                 // browse id and nothing else. See MainViewModel.openDetail.
                 viewModel.openDetail(request.browseId, title = "")
             }
@@ -1756,7 +1761,7 @@ private fun CosmotuneApp(
                     playRadio(top, QueueSource(searchLabel, PlaybackSourceType.SEARCH))
                 } else {
                     // Either the link was a search to look at, or "play X"
-                    // found nothing to start — and the results are a better
+                    // found nothing to start â€” and the results are a better
                     // answer to a spoken request than silence is.
                     dismissPlayer()
                     selectedTab = TAB_SEARCH
@@ -1778,7 +1783,7 @@ private fun CosmotuneApp(
      *
      * Artists are left out. An artist page is a selection of their work rather
      * than a running order, and "add Radiohead to the queue" has no answer that
-     * isn't a guess — so holding an artist card does nothing, as it did before.
+     * isn't a guess â€” so holding an artist card does nothing, as it did before.
      */
     val onBrowseLongPress: (ShelfItem) -> Unit = { item ->
         val id = item.browseId
@@ -1800,12 +1805,12 @@ private fun CosmotuneApp(
     /**
      * The track a song card stands for, or null if the card is a collection.
      *
-     * The card's own subtitle is billed as "Song • Chelsea Wolfe"; only the
+     * The card's own subtitle is billed as "Song â€¢ Chelsea Wolfe"; only the
      * credit belongs in the field the player, mini player and everything
      * downstream read.
      */
     val shelfSong: (ShelfItem) -> Song? = { item ->
-        item.videoId?.let { videoId ->
+        item.song ?: item.videoId?.let { videoId ->
             Song(
                 videoId = videoId,
                 title = item.title,
@@ -1816,7 +1821,7 @@ private fun CosmotuneApp(
     }
 
     /**
-     * Holding a card on a feed whose shelves mix tracks with collections —
+     * Holding a card on a feed whose shelves mix tracks with collections â€”
      * Quick picks and Recently played are songs, Listen again is either.
      *
      * [onBrowseLongPress] alone answered only half of them: a track card
@@ -1833,13 +1838,13 @@ private fun CosmotuneApp(
     /**
      * Hands [action] the target's whole track list.
      *
-     * A card has no tracks behind it — its page was never opened — so the
+     * A card has no tracks behind it â€” its page was never opened â€” so the
      * listing is fetched first, all of it, and the menu that asked has already
      * closed by the time it lands. A release page's overflow passes the rows it
      * is already showing and this is immediate.
      *
      * Album rows arrive with no album name of their own, the same way they do on
-     * the page (see `withAlbum` below), so the title is stamped on here too —
+     * the page (see `withAlbum` below), so the title is stamped on here too â€”
      * otherwise a track queued from an album card reaches the player and the
      * download folder with nothing to file it under.
      */
@@ -1953,7 +1958,7 @@ private fun CosmotuneApp(
             // opened from the Library tab stacks over that, so back from the
             // release lands on the grid rather than skipping past it. Every
             // place that reads `libraryShowAll` alongside `detail` favours
-            // `detail` while both are set — see the AnimatedContent below.
+            // `detail` while both are set â€” see the AnimatedContent below.
             viewModel.openDetail(
                 browseId = id,
                 title = item.title,
@@ -1963,13 +1968,13 @@ private fun CosmotuneApp(
         }
     }
     // Takes a list so a single tap on an album/playlist header can queue the
-    // whole thing — the permission dance only needs to happen once for the
+    // whole thing â€” the permission dance only needs to happen once for the
     // batch, not once per track.
     //
     // [from] is what the list *is*, when it is a release rather than a
     // selection: an album or a playlist. It is recorded whole, so the Downloads
     // page can offer the thing that was tapped back rather than the forty rows
-    // it decomposed into — see [Downloads.rememberCollection]. Null for a single
+    // it decomposed into â€” see [Downloads.rememberCollection]. Null for a single
     // track, which is not a release however many of them are asked for one at a
     // time.
     val startDownload: (List<Song>, DownloadTarget?) -> Unit = { requested, from ->
@@ -1980,15 +1985,15 @@ private fun CosmotuneApp(
         // The release's cover is stamped onto any row that hasn't got one, as a
         // last check before the tap becomes a file.
         //
-        // An album page bills its artwork once, in the header — its track rows
+        // An album page bills its artwork once, in the header â€” its track rows
         // carry no thumbnail at all, see [InnertubeParser.parseResponsiveListItem]
-        // — and a row that reaches [MediaTagger.artworkFor] with a null url is a
+        // â€” and a row that reaches [MediaTagger.artworkFor] with a null url is a
         // track saved with no cover in the file and none in [SavedSongMetadata]
         // either, so nothing downstream can draw one afterwards.
         // `MainViewModel.withArtwork` normally fills those in as a page loads and
         // covers the usual route here; this is the backstop for a list that
         // reached this function some other way, and it is worth having precisely
-        // because the failure is silent and permanent — the file is written
+        // because the failure is silent and permanent â€” the file is written
         // without a cover, and re-downloading adopts the untagged copy rather
         // than replacing it.
         val songs = requested
@@ -2001,7 +2006,7 @@ private fun CosmotuneApp(
                     song
                 }
             }
-        // Asked here as well as inside [Downloads.enqueue] — not instead of it.
+        // Asked here as well as inside [Downloads.enqueue] â€” not instead of it.
         // Enqueue is the invariant and has to refuse whoever calls it, including
         // the storage-permission continuation below, which resumes long enough
         // after this check for the connection to have changed under it. This is
@@ -2056,7 +2061,7 @@ private fun CosmotuneApp(
         }
         when {
             // The row's own icon reports a queued download, so a single tap
-            // normally needs no toast — but a refused one leaves the row exactly
+            // normally needs no toast â€” but a refused one leaves the row exactly
             // as it was, and a button that visibly does nothing is worse than a
             // long message. So this one is said whatever the count.
             blocked -> Toast.makeText(
@@ -2082,11 +2087,11 @@ private fun CosmotuneApp(
      * One track on its own, which is never a release.
      *
      * A track reached through AutoPlay or a radio queue often has no duration
-     * string at all — YouTube's watch-queue rows don't always send
-     * `lengthText` — while the player itself knows exactly how long the same
+     * string at all â€” YouTube's watch-queue rows don't always send
+     * `lengthText` â€” while the player itself knows exactly how long the same
      * track runs once it has loaded. Backfilled from there when it's the song
      * on screen, so downloading it isn't handed a duration of zero and
-     * silently skipped for lyrics — see [LyricsTag.forTrack].
+     * silently skipped for lyrics â€” see [LyricsTag.forTrack].
      */
     val downloadSong: (Song) -> Unit = { song ->
         val withDuration = if (song.durationMillis() <= 0L &&
@@ -2131,7 +2136,7 @@ private fun CosmotuneApp(
     )
 
     // One set of numbers for the cards, the page, the stories and the shared
-    // picture, so they cannot disagree. Read while any of them is on screen —
+    // picture, so they cannot disagree. Read while any of them is on screen â€”
     // which includes the Library tab, since the cards live at the top of it.
     // See [rememberReplayState].
     val replayOpen = showReplay || replayStory != null || showReplayShare ||
@@ -2144,7 +2149,7 @@ private fun CosmotuneApp(
     // ---- The track in the player ----
     // Whatever started this track knew its title and its artwork, but rarely
     // which album or artist page it belongs to. Fill that in while the player
-    // is actually up — when the sheet is raised, so playing an album from the
+    // is actually up â€” when the sheet is raised, so playing an album from the
     // mini player still costs nothing.
     val playerShowing = showNowPlaying
     var links by remember { mutableStateOf<Song?>(null) }
@@ -2248,7 +2253,7 @@ private fun CosmotuneApp(
                     // is a fraction of the duration and cannot overrun,
                     // but a tapped lyric line seeks to a timestamp from
                     // whichever transcription matched on title, artist
-                    // and duration — and a match against a slightly
+                    // and duration â€” and a match against a slightly
                     // longer master puts every line late, so a tap near
                     // the end asks for a position past the end of this
                     // stream. Media3 answers that by clamping to the
@@ -2274,7 +2279,7 @@ private fun CosmotuneApp(
             autoplayEnabled = autoplayEnabled,
             signedIn = signedIn,
             likeStatus = likeStatuses[song.videoId] ?: LikeStatus.INDIFFERENT,
-            onToggleLike = { viewModel.toggleLike(song.videoId) },
+            onToggleLike = { com.cosmotune.providers.ProviderHub.remember(song); viewModel.toggleLike(song.videoId) },
             // The service owns both the queue and the Shuffle state. Keeping
             // the toggle on that side prevents the UI from changing the icon
             // before its asynchronous reorder command has actually landed.
@@ -2290,7 +2295,7 @@ private fun CosmotuneApp(
                     AppSettings.setRepeatMode(next)
                     // Nothing else to do here: PlaybackService watches the
                     // repeat mode itself and takes AutoPlay's tracks out of
-                    // the queue for the duration of repeat-all — and, unlike
+                    // the queue for the duration of repeat-all â€” and, unlike
                     // this screen, is still around to put them back when the
                     // loop ends.
                     it.repeatMode = next
@@ -2309,7 +2314,7 @@ private fun CosmotuneApp(
             onRemoveFromQueue = { controller?.removeMediaItem(it) },
             onMoveInQueue = { from, to -> controller?.moveMediaItem(from, to) },
             onQueueDragActiveChange = { active -> controller?.setQueueDragActive(active) },
-            // The enriched copy, not player.song — otherwise the menu
+            // The enriched copy, not player.song â€” otherwise the menu
             // hides the album and artist rows even once their browse
             // ids have been resolved.
             onOpenMenu = {
@@ -2525,7 +2530,7 @@ private fun CosmotuneApp(
             if (settingsSubScreen == "equalizer") settingsSubScreen = null
         }
         // One back step out of Settings, or out of any tab but Home, lands on
-        // Home rather than exiting — only Home itself hands back to the system,
+        // Home rather than exiting â€” only Home itself hands back to the system,
         // which is what actually closes/minimizes the app.
         BackHandler(enabled = showSettings && !showSpotify && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay) {
             showSettings = false
@@ -2555,8 +2560,8 @@ private fun CosmotuneApp(
         BackHandler(enabled = detailActiveShelf != null) { detailActiveShelf = null }
 
         // On a tablet the page and the player stand side by side rather than
-        // one over the other: everything a phone stacks in a single column —
-        // the feed, the frosted bars, the tab row — becomes the left half of
+        // one over the other: everything a phone stacks in a single column â€”
+        // the feed, the frosted bars, the tab row â€” becomes the left half of
         // a row, and the player is the right. Off a tablet the row has the
         // one child it always had and changes nothing.
         Row(Modifier.fillMaxSize()) {
@@ -2568,8 +2573,8 @@ private fun CosmotuneApp(
                         showHistory -> "history"
                         // `&& detail == null`: a card opened from the grid
                         // stacks a detail page over it exactly as one opened
-                        // from the Library tab does — see
-                        // [onLibraryItemClick] — so with both set this must
+                        // from the Library tab does â€” see
+                        // [onLibraryItemClick] â€” so with both set this must
                         // give way to the `detail != null` branch below it
                         // rather than keep showing the grid underneath.
                         libraryShowAll != null && detail == null -> "library_show_all"
@@ -2592,8 +2597,8 @@ private fun CosmotuneApp(
                     },
                     // Tabs swap outright; everything else crossfades.
                     //
-                    // A tab is not a place you travel to — the bar is the whole
-                    // navigation and it carries its own movement — so a fade
+                    // A tab is not a place you travel to â€” the bar is the whole
+                    // navigation and it carries its own movement â€” so a fade
                     // between two of them only ever reads as a stutter. And it
                     // cannot read as anything else: neither page paints a
                     // background, so a crossfade dissolves both through to the
@@ -2604,7 +2609,7 @@ private fun CosmotuneApp(
                     // "Show all" swapping with the Library tab underneath it is
                     // the same case as a tab swap, not a pushed page: it's still
                     // that tab, just laid out as a grid instead of a row, sharing
-                    // its background rather than painting its own — so this one
+                    // its background rather than painting its own â€” so this one
                     // pair gets the tab's no-fade swap too, in both directions, or
                     // the dip through a dim frame shows up on every hold of a
                     // card there. A card opened *from* the grid is a real page
@@ -2650,7 +2655,7 @@ private fun CosmotuneApp(
                     // produced it. The two are the same thing only for the page
                     // being entered: the one on its way out is still composed,
                     // and asking it what is selected *now* has it redraw itself
-                    // as its own replacement — which then fades out from under
+                    // as its own replacement â€” which then fades out from under
                     // the identical copy fading in behind it.
                     val live = detailStack.lastOrNull()?.takeIf {
                         it.browseId == key && key != "settings" && key != "account_scrobbling" &&
@@ -2692,7 +2697,7 @@ private fun CosmotuneApp(
                                 gridState = libraryShowAllGridState,
                                 onItemClick = onLibraryItemClick,
                                 onItemLongPress = onBrowseLongPress,
-                                // Only the Playlists shelf can grow one — see
+                                // Only the Playlists shelf can grow one â€” see
                                 // [PlaylistShelf].
                                 onNewPlaylist = if (shelf.title == YtMusicRepository.PLAYLISTS_SHELF) {
                                     { creatingPlaylist = true }
@@ -2710,7 +2715,7 @@ private fun CosmotuneApp(
                             onOpenStory = { replayStory = it },
                             // A track tapped on a chart is one the user already
                             // knows they like, so it starts a station off itself
-                            // rather than queueing the chart it was on — the
+                            // rather than queueing the chart it was on â€” the
                             // same reading [playRadio] makes of a search hit.
                             onPlaySong = { song ->
                                 playRadio(song, QueueSource(replayLabel, PlaybackSourceType.REPLAY))
@@ -2776,6 +2781,7 @@ private fun CosmotuneApp(
                         )
                     } else if (key == "sources") {
                         SourcesScreen(
+                                onPlayProviderSongs = { songs, index -> playFrom(songs, index, QueueSource("Provider", PlaybackSourceType.BROWSE)) },
                             contentPadding = listPadding,
                             onEditSource = { editingSource = it },
                             onEditWebDav = { showWebDavEditor = true },
@@ -2835,11 +2841,13 @@ private fun CosmotuneApp(
                                 showListenTogether = true
                             },
                             onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
+                            onArtistSignatureApi = { showSignatureApi = true },
+                            onWearOs = { showWearOs = true },
                             onAppLanguage = { showAppLanguage = true },
                             contentPadding = listPadding,
                         )
                     } else if (page != null && page.browseId.isDeviceFolder()) {
-                        // Local Music and Downloads — both the tabbed Songs / Artists /
+                        // Local Music and Downloads â€” both the tabbed Songs / Artists /
                         // Albums view. Two folders of tracks already on the device, so
                         // there is nothing to tell them apart on screen beyond what is
                         // in them and what to say when that is nothing.
@@ -2901,10 +2909,10 @@ private fun CosmotuneApp(
                             emptyMessage = (localState as? com.cosmotune.music.data.model.UiState.Error)
                                 ?.message,
                             // An album or artist here is a grouping of rows rather than
-                            // a page, so the menu is handed the rows themselves — there
+                            // a page, so the menu is handed the rows themselves â€” there
                             // is no id anything could be fetched with.
                             onCollectionLongPress = { label, grouped ->
-                                // An artist grouping is never one of these — only a
+                                // An artist grouping is never one of these â€” only a
                                 // release downloaded whole has a record to match,
                                 // which is exactly the distinction `asked` draws in
                                 // `albumEntries`.
@@ -2927,8 +2935,8 @@ private fun CosmotuneApp(
                             contentPadding = listPadding,
                         )
                     } else if (page != null) {
-                        // An album page's rows carry no album name of their own — the
-                        // release is billed once, in the header the rows hang under — so
+                        // An album page's rows carry no album name of their own â€” the
+                        // release is billed once, in the header the rows hang under â€” so
                         // the page title is stamped on as they leave for the download
                         // queue or the track menu. Without it every track saved from an
                         // album arrives in the Downloads folder with nothing to group it
@@ -2958,7 +2966,7 @@ private fun CosmotuneApp(
                             onSongSwipe = onSongSwipe,
                             onShuffle = { songs ->
                                 // Shuffle goes on first so the queue is built shuffled
-                                // as it is set — the random pick here only decides
+                                // as it is set â€” the random pick here only decides
                                 // which track leads it.
                                 QueueShuffle.enableForNextQueue()
                                 playFrom(
@@ -2983,7 +2991,7 @@ private fun CosmotuneApp(
                             // Play, Shuffle and Open are the buttons beside the one that
                             // opened it rather than rows on it. Download is the other
                             // way round: the header no longer carries it, so the sheet
-                            // is where a whole release is asked for — and the tracks
+                            // is where a whole release is asked for â€” and the tracks
                             // arrive stamped with the album they came off, which is what
                             // the download record groups them under.
                             onMore = { songs ->
@@ -3003,9 +3011,9 @@ private fun CosmotuneApp(
                             },
                             onAddSuggested = { song -> viewModel.addSuggestedSong(page.browseId, song) },
                             // Saving is an account action, so it isn't offered to a
-                            // guest at all — same as the like and add-to-playlist rows
+                            // guest at all â€” same as the like and add-to-playlist rows
                             // in the track menu.
-                            onToggleLibrary = if (signedIn) {
+                            onToggleLibrary = if (signedIn || com.cosmotune.providers.ProviderBrowseKey.parse(page.browseId) != null) {
                                 { viewModel.toggleLibrary(page.browseId) }
                             } else {
                                 null
@@ -3013,14 +3021,14 @@ private fun CosmotuneApp(
                             // Same rule for the artist page's subscribe circle:
                             // a channel subscription is the account's, so a
                             // guest is never shown the button.
-                            onToggleSubscription = if (signedIn) {
+                            onToggleSubscription = if (signedIn || com.cosmotune.providers.ProviderBrowseKey.parse(page.browseId) != null) {
                                 { viewModel.toggleSubscription(page.browseId) }
                             } else {
                                 null
                             },
                             releaseLibrary = releaseLibrary,
                             onLoadReleaseLibrary = viewModel::loadReleaseLibrary,
-                            onToggleReleaseLibrary = if (signedIn) {
+                            onToggleReleaseLibrary = if (signedIn || com.cosmotune.providers.ProviderBrowseKey.parse(page.browseId) != null) {
                                 viewModel::toggleReleaseLibrary
                             } else {
                                 null
@@ -3125,7 +3133,7 @@ private fun CosmotuneApp(
                             focusRequested = searchFocusRequested,
                             onFocusHandled = { searchFocusRequested = false },
                             // Search hits are alternatives to each other, not a running
-                            // order — play the one tapped and build a station from it.
+                            // order â€” play the one tapped and build a station from it.
                             onSongClick = { songs, index ->
                                 songs.getOrNull(index)?.let { song ->
                                     viewModel.recordEntity(SearchHistoryEntity(
@@ -3202,12 +3210,12 @@ private fun CosmotuneApp(
                             suggestions = searchSuggestions,
                             typeaheadResults = viewModel.typeaheadResults.collectAsStateWithLifecycle().value,
                             onSubmit = viewModel::submitSearch,
-                            // Suggestions land in search history via searchFor → recordSearch.
+                            // Suggestions land in search history via searchFor â†’ recordSearch.
                             // History items (onHistoryClick) navigate/play without re-logging.
                             onSuggestionClick = viewModel::searchFor,
                             onHistoryClick = { entity ->
                                 // Tap a history entity: navigate to it or play it directly.
-                                // Do NOT recordEntity here — tapping an existing history item
+                                // Do NOT recordEntity here â€” tapping an existing history item
                                 // must not update its timestamp and push it to the top.
                                 when (entity.entityType) {
                                     EntityType.TRACK -> {
@@ -3273,7 +3281,7 @@ private fun CosmotuneApp(
                             state = libraryState,
                             listState = libraryListState,
                             onShelfItemClick = onLibraryItemClick,
-                            // Every shelf here has a menu behind it now — the account's
+                            // Every shelf here has a menu behind it now â€” the account's
                             // own playlists get rename and delete on top of what a saved
                             // album or a Liked Music card gets. Holding an artist still
                             // does nothing; see [onBrowseLongPress].
@@ -3309,14 +3317,14 @@ private fun CosmotuneApp(
                 // When a sub-screen is opened from Settings, AnimatedContent keeps
                 // "settings" as target so SettingsSheet stays mounted with its scroll.
                 // Each overlay is wrapped in an opaque Surface so it fully obscures
-                // the preserved SettingsSheet beneath — without it, both screens bleed
+                // the preserved SettingsSheet beneath â€” without it, both screens bleed
                 // through each other and text becomes unreadable.
                 //
                 // Composed ahead of the top bar, inside the page's own Box: out at
                 // the root they were drawn over the bar and swallowed its taps, so
                 // these pages had no status-bar scrim, title or back button, and
                 // Discord (pushed over Account) was covered by the page it opened
-                // from — hence skipped while it is up.
+                // from â€” hence skipped while it is up.
                 when (settingsSubScreen.takeUnless { showDiscord || showSpotify }) {
                     "account_scrobbling" -> {
                         Surface(
@@ -3351,6 +3359,7 @@ private fun CosmotuneApp(
                             color = MaterialTheme.colorScheme.background,
                         ) {
                             SourcesScreen(
+                                onPlayProviderSongs = { songs, index -> playFrom(songs, index, QueueSource("Provider", PlaybackSourceType.BROWSE)) },
                                 contentPadding = listPadding,
                                 onEditSource = { editingSource = it },
                                 onEditWebDav = { showWebDavEditor = true },
@@ -3443,7 +3452,7 @@ private fun CosmotuneApp(
                 }
                 // This is the bottom floor itself turned upside down, not a
                 // separately maintained approximation. Both edges therefore
-                // share the same curve, height and page-aware colour — including
+                // share the same curve, height and page-aware colour â€” including
                 // the white theme background in light mode.
                 // On an artist page the photograph and logo run up under the status
                 // bar, and a fade across them would only muddy them. It comes in as
@@ -3491,13 +3500,13 @@ private fun CosmotuneApp(
                         }
                     },
                     // Every page, in either material, uses separated floating
-                    // circles over the shared gradient — no full-width pane.
+                    // circles over the shared gradient â€” no full-width pane.
                     transparentBackdrop = true,
                     artworkPageChrome = true,
                     backButtonHazeState = hazeState,
                     trailingTitle = if (detail != null && detailActiveShelf != null) detail.title else null,
-                    // Search has no large in-list header to hand the title back to —
-                    // the field takes that space — so its bar title is always up.
+                    // Search has no large in-list header to hand the title back to â€”
+                    // the field takes that space â€” so its bar title is always up.
                     scrolled = when {
                         showSettings || showAccountScrobbling || showSources || showListenTogether ||
                             showEqualizer ||
@@ -3626,7 +3635,7 @@ private fun CosmotuneApp(
                             }
                         }
                         // Only worth surfacing where there's room for it and it won't
-                        // be mistaken for a per-page action — Home, at rest.
+                        // be mistaken for a per-page action â€” Home, at rest.
                         if (!showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer &&
                             detail == null && selectedTab == TAB_HOME
                         ) {
@@ -3666,7 +3675,7 @@ private fun CosmotuneApp(
                                 }
                             }
                             // Left of the account photo, and only on a Library
-                            // "Show all" grid — the same control the Downloads
+                            // "Show all" grid â€” the same control the Downloads
                             // folder offers (see `LocalSearchField`), adapted to
                             // the one thing a playlist or album card carries: a
                             // title.
@@ -3699,14 +3708,14 @@ private fun CosmotuneApp(
                                 }
                             }
                             // Left of the account photo, and only on an album or
-                            // playlist page — an artist page has no single track
+                            // playlist page â€” an artist page has no single track
                             // list to reorder, and the device folders already
                             // carry this same control themselves (see
                             // `LocalSearchField`).
                             if (detail != null && !isLocalDetail && detail.type != BrowseType.ARTIST) {
                                 // The menu itself is [FrostedSortMenu], composed
                                 // with the app's other frosted overlays further
-                                // down — in the main hierarchy, where the haze
+                                // down â€” in the main hierarchy, where the haze
                                 // can see the content it blurs.
                                 IconButton(onClick = { songSortMenuOpen = true }) {
                                     Icon(
@@ -3717,7 +3726,7 @@ private fun CosmotuneApp(
                                 }
                             }
                             // Left of the account photo, on an artist page: iOS's
-                            // share glyph, sending the artist's channel link — the
+                            // share glyph, sending the artist's channel link â€” the
                             // one YouTube Music itself shares for an artist.
                             if (detail != null && !isLocalDetail && detail.type == BrowseType.ARTIST &&
                                 detailActiveShelf == null && detail.browseId.startsWith("UC")
@@ -3742,7 +3751,7 @@ private fun CosmotuneApp(
                                 }
                             }
                             // Left of the account photo, and only there while
-                            // there is a batch to report on — see
+                            // there is a batch to report on â€” see
                             // [TopBarDownloadButton], which decides that for
                             // itself rather than being told.
                             TopBarDownloadButton(onClick = { showDownloadManager = true })
@@ -3842,7 +3851,7 @@ private fun CosmotuneApp(
                 )
 
                 // Whichever bar is drawing reports its height here, for the
-                // guard to read at layout — never in composition, see the guard.
+                // guard to read at layout â€” never in composition, see the guard.
                 val floatingBarsHeight = remember { mutableIntStateOf(0) }
                 FloatingBarsTapGuard(
                     barsHeight = { floatingBarsHeight.intValue },
@@ -3928,7 +3937,7 @@ private fun CosmotuneApp(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         // Capped and centred rather than run to the page's edges
-                        // — see [FLOATING_BAR_MAX_WIDTH]. It sits on the Column
+                        // â€” see [FLOATING_BAR_MAX_WIDTH]. It sits on the Column
                         // rather than on each bar so the two are held to the same
                         // width and keep the shared left and right edge they have
                         // on a phone. Before fillMaxWidth, so the fill has
@@ -3984,7 +3993,7 @@ private fun CosmotuneApp(
         // ---- Now Playing ----
         if (playerRaised && cosmoShell == null) {
             // What rememberModalBottomSheetState builds, but able to start open,
-            // and with every hide routed through [playerSheetMotion] — a drag
+            // and with every hide routed through [playerSheetMotion] â€” a drag
             // released low, a back press, a tap on the scrim. Refused here and
             // carried out there, on a curve slow enough to watch the artwork
             // fly home on, rather than on the sheet's own.
@@ -4029,18 +4038,18 @@ private fun CosmotuneApp(
                 sheetState = nowPlayingSheetState,
                 // None of M3's: it follows the sheet's own animation, which is
                 // no longer what moves the player. The player draws its own,
-                // off where the player actually is — see the content below.
+                // off where the player actually is â€” see the content below.
                 scrimColor = if (reducePlayerMotion) BottomSheetDefaults.ScrimColor else Color.Transparent,
                 // The player fills the screen and paints its own background to
                 // the very top, so the sheet's default 28.dp top corners would
                 // only cut two notches out of the artwork behind the status bar.
-                // Square, and not clipped along its top — see [PlayerSheetShape].
+                // Square, and not clipped along its top â€” see [PlayerSheetShape].
                 shape = PlayerSheetShape,
                 containerColor = Color.Transparent,
                 dragHandle = null,
                 contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
                 // M3 caps a bottom sheet at [BottomSheetDefaults.SheetMaxWidth]
-                // (640.dp) and centres it once the window is wider than that —
+                // (640.dp) and centres it once the window is wider than that â€”
                 // built for a sheet that's meant to look like a sheet next to
                 // visible content either side. This one is the whole player;
                 // capped at 640dp on a tablet it renders as a narrow card with
@@ -4048,7 +4057,7 @@ private fun CosmotuneApp(
                 // sides. Unspecified opts out of the cap entirely, so the
                 // sheet always spans the full window this app draws it for.
                 sheetMaxWidth = Dp.Unspecified,
-                // Back is the app's to carry out, like every other close — see
+                // Back is the app's to carry out, like every other close â€” see
                 // the handler below. Left to M3, a back press is the one close
                 // that never asks `confirmValueChange`: the sheet hides itself
                 // straight away on its own curve, then the window leaves on its
@@ -4056,8 +4065,8 @@ private fun CosmotuneApp(
                 properties = ModalBottomSheetProperties(shouldDismissOnBackPress = reducePlayerMotion),
             ) {
                 // With M3's own back off, the dialog's dispatcher ends here.
-                // Composed ahead of the player, so the player's own handlers —
-                // the lyrics and the queue putting themselves away first — are
+                // Composed ahead of the player, so the player's own handlers â€”
+                // the lyrics and the queue putting themselves away first â€” are
                 // newer and are asked before this one.
                 BackHandler(enabled = !reducePlayerMotion) { playerSheetMotion.close() }
                 // Keeps a sheet still "settling" after a lyrics or queue
@@ -4070,7 +4079,7 @@ private fun CosmotuneApp(
                 }
                 Box(
                     Modifier
-                        // Where the app is holding the player, if it is — see
+                        // Where the app is holding the player, if it is â€” see
                         // [PlayerSheetMotion.contentOffsetPx]. Placement only.
                         .offset { IntOffset(0, playerSheetMotion.contentOffsetPx()) }
                         // The dim behind the player, from the window's top to
@@ -4133,7 +4142,7 @@ private fun CosmotuneApp(
                     onDismissRequest = { showReplayShare = false },
                     // Straight to full height. The sheet is a picture and two
                     // buttons, and half-open it showed the picture with both
-                    // buttons below the fold — a sheet whose only two controls
+                    // buttons below the fold â€” a sheet whose only two controls
                     // need a drag to reach.
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                     containerColor = MaterialTheme.colorScheme.background,
@@ -4151,18 +4160,21 @@ private fun CosmotuneApp(
 
         // ---- Album / playlist detail ----
         // ---- Long-press track actions ----
-        // One body for both presentations of the track menu: the sheet the ⋮
+        // One body for both presentations of the track menu: the sheet the â‹®
         // and the player open, and the popup a held row lifts into. Every
         // callback below is the same in either; only the frame differs.
         val songMenuBody: @Composable (Song, SongActionsPresentation) -> Unit = { song, presentation ->
-            // Set by whoever opened it — see [menuFromPlayer]. It cannot be
+            // Set by whoever opened it â€” see [menuFromPlayer]. It cannot be
             // read off the player's own visibility any more, because on a
             // tablet the player is visible whatever the menu was opened from.
             val fromPlayer = menuFromPlayer
             val share: () -> Unit = {
                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${song.videoId}")
+                    val shared = if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId) || song.localUri != null || song.localPath != null)
+                        "${song.title} — ${song.artist}\nShared from Cosmotune"
+                    else "https://music.youtube.com/watch?v=${song.videoId}"
+                    putExtra(Intent.EXTRA_TEXT, shared)
                 }
                 context.startActivity(Intent.createChooser(sendIntent, song.title))
                 songActions = null
@@ -4170,7 +4182,7 @@ private fun CosmotuneApp(
             // Navigating has to take the player down with the sheet, or the
             // page it opens lands behind a still-covering player.
             // The track's cover stands in for an album's, but never for an
-            // artist's picture — that page loads its own.
+            // artist's picture â€” that page loads its own.
             val openPage: (String, String, String, BrowseType) -> Unit = { id, title, sub, type ->
                 songActions = null
                 dismissPlayer()
@@ -4179,7 +4191,7 @@ private fun CosmotuneApp(
             }
             // Video vs audio, moved here from the player's own controls: it is
             // the same kind of choice as Revert to original / Upgrade
-            // quality just above it — which recording is playing — so it now
+            // quality just above it â€” which recording is playing â€” so it now
             // sits in the same list rather than as a control of its own.
             //
             // Mirrors what the pill used to compute, keyed to this sheet's
@@ -4275,8 +4287,11 @@ private fun CosmotuneApp(
             }
             // The library toggle needs tokens only YouTube can mint, and the
             // rating it comes back with is more authoritative than anything
-            // the library feed knew — so the menu asks as it opens.
-            LaunchedEffect(song.videoId) { viewModel.loadSongMenu(song.videoId) }
+            // the library feed knew â€” so the menu asks as it opens.
+            LaunchedEffect(song.videoId) {
+                com.cosmotune.providers.ProviderHub.remember(song)
+                viewModel.loadSongMenu(song.videoId)
+            }
             // "Remove from this playlist" is only a sentence on a playlist
             // page the account can actually edit, and only for a row that
             // carries the per-entry id a removal is expressed in.
@@ -4295,7 +4310,7 @@ private fun CosmotuneApp(
                 // answer to "did that work?".
                 onDownload = { downloadSong(song) },
                 // The other direction: a device file going up to the
-                // server. Closed first, unlike a download — progress and
+                // server. Closed first, unlike a download â€” progress and
                 // the summary notice live outside the sheet.
                 onUploadToWebDav =
                     if (com.cosmotune.music.data.webdav.WebDavConfig.isConfigured(webdavUrl) &&
@@ -4347,7 +4362,7 @@ private fun CosmotuneApp(
                     openPage(id, song.artist, context.getString(R.string.artist), BrowseType.ARTIST)
                 },
                 // Only the player's copy of a track is ever missing these
-                // and backfilling — a row opened from a list already has
+                // and backfilling â€” a row opened from a list already has
                 // whatever ids it's ever going to have.
                 resolvingLinks = fromPlayer && linksLoading,
                 showSleepTimer = fromPlayer,
@@ -4385,7 +4400,7 @@ private fun CosmotuneApp(
                 // this will ever offer it a better copy again. Also shown
                 // for a track whose upgrade failed and was reverted, which
                 // is likewise sitting on YouTube's own stream with nothing
-                // due to look at it again — [QualityUpgrade.refuseUpgrades]
+                // due to look at it again â€” [QualityUpgrade.refuseUpgrades]
                 // takes a broken track off the automatic path for the rest
                 // of the session, and `askByHand` is what clears that.
                 onUpgradeQuality = if (fromPlayer &&
@@ -4394,7 +4409,7 @@ private fun CosmotuneApp(
                             playingYouTubesOwn(song.videoId, controller)
                         ) &&
                     // A track playing off a file the listener saved is not
-                    // playing a stream anything could upgrade — the pin on
+                    // playing a stream anything could upgrade â€” the pin on
                     // it is only waiting for the day it is streamed again.
                     song.localUri == null &&
                     controller?.currentMediaItem?.mediaId == song.videoId
@@ -4410,7 +4425,7 @@ private fun CosmotuneApp(
                 onToggleAudioVersion = onToggleVersion,
                 isAudioVersion = menuIsAudioVersion,
                 // Hidden outright when there's no real YouTube id behind
-                // this row to build a link from — SongActionsSheet already
+                // this row to build a link from â€” SongActionsSheet already
                 // drops it for a local file via `isOffline`, this catches
                 // the rest.
                 onShare = share.takeIf { song.videoId.isNotBlank() },
@@ -4452,7 +4467,7 @@ private fun CosmotuneApp(
             ModalBottomSheet(
                 onDismissRequest = { songActions = null },
                 // The sheet paints itself in the track's own colours, corners
-                // and drag handle included — see SongActionsSheet.
+                // and drag handle included â€” see SongActionsSheet.
                 containerColor = Color.Transparent,
                 dragHandle = null,
                 scrimColor = com.cosmotune.ui.sheets.cosmoSheetScrim(),
@@ -4461,7 +4476,7 @@ private fun CosmotuneApp(
             }
         }
         // Drawn over everything, tab bar and mini player included, and kept
-        // composed through its own exit — so it is not gated on songActions.
+        // composed through its own exit â€” so it is not gated on songActions.
         HeldContextMenu(
             item = songActions,
             held = songMenuOrigin,
@@ -4478,7 +4493,7 @@ private fun CosmotuneApp(
             songMenuBody(song, SongActionsPresentation.Menu)
         }
         // A closed menu forgets where it was held, so whatever opens it next
-        // — the ⋮, the player — starts from the sheet.
+        // â€” the â‹®, the player â€” starts from the sheet.
         LaunchedEffect(songActions == null) {
             if (songActions == null) songMenuOrigin = null
         }
@@ -4582,8 +4597,8 @@ private fun CosmotuneApp(
         // ---- Album / playlist actions ----
         // Opened by holding a card on any tab, or from the release page's own
         // overflow. What a track's long-press menu is to one song, this is to
-        // the whole release — the queue rows above all.
-        // One body for the sheet and the popup alike — see songMenuBody.
+        // the whole release â€” the queue rows above all.
+        // One body for the sheet and the popup alike â€” see songMenuBody.
         val browseMenuBody: @Composable (BrowseTarget, SongActionsPresentation) -> Unit = { target, presentation ->
             // Every row here closes the menu first: the tracks may still have to
             // be fetched, and leaving the sheet up over a request nothing on it
@@ -4599,7 +4614,7 @@ private fun CosmotuneApp(
             //
             // Only the playlist's own page states it (see
             // InnertubeParser.parsePlaylistOwned), so a card has to send for the
-            // answer and the sheet is already up by the time it lands — hence
+            // answer and the sheet is already up by the time it lands â€” hence
             // read as state rather than settled once when the target was built.
             // Rename and Delete are absent until the answer says they apply, so
             // the sheet's worst moment is a beat without them on the user's own
@@ -4653,7 +4668,7 @@ private fun CosmotuneApp(
                         }
                     },
                 // The one place a whole release is asked for, from a card and
-                // from the release's own page alike — its header spends that
+                // from the release's own page alike â€” its header spends that
                 // spot on the search now. Nothing on this device needs
                 // fetching to be on it, so a local page is the exception.
                 // What the target carries that the tracks don't is the
@@ -4676,7 +4691,7 @@ private fun CosmotuneApp(
                     )
                 }.takeIf { remote },
                 // The same link a share off YouTube Music's own overflow
-                // gives — built from the browse id rather than fetched,
+                // gives â€” built from the browse id rather than fetched,
                 // since nothing about it depends on the tracks or the
                 // account. Left off an artist card (Share there is a
                 // channel link, not a release, and nobody asked for it)
@@ -4924,7 +4939,7 @@ private fun CosmotuneApp(
                     notes = update.notes,
                     hazeState = hazeState,
                     // A download in progress keeps running behind the closed
-                    // sheet — only the sheet itself goes away. The top bar's
+                    // sheet â€” only the sheet itself goes away. The top bar's
                     // update icon reopens it onto whatever state it reached.
                     onDismiss = { showUpdateDialog = false },
                     onDownload = {
@@ -5180,7 +5195,7 @@ private fun CosmotuneApp(
         }
 
         // A clash mid-upload, answered here so the scrim covers the tab bar
-        // and mini player like every other alert. Backing out is a skip —
+        // and mini player like every other alert. Backing out is a skip â€”
         // leaving the batch suspended on a dismissed dialog would hang the
         // upload with no way to reach the question again.
         val uploadConflict by com.cosmotune.music.data.webdav.WebDavUploads.conflict.collectAsStateWithLifecycle()
@@ -5245,6 +5260,13 @@ private fun CosmotuneApp(
             SpotifyCanvasAuthScreen(
                 onNavigateUp = { showSpotifyCanvasAuth = false }
             )
+        }
+        if (showSignatureApi) {
+            BackHandler { showSignatureApi = false }
+            com.cosmotune.music.ui.screens.SignatureApiEditor(hazeState, onDismiss = { showSignatureApi = false })
+        }
+        if (showWearOs) {
+            com.cosmotune.music.ui.screens.WearOsSettingsDialog(onDismiss = { showWearOs = false })
         }
 
         discordDialog?.let { which ->
@@ -5312,7 +5334,7 @@ private fun LibrarySort.localizedLabel(): String = when (this) {
  * The track-list sort menu, styled after the account switcher: a full-screen
  * scrim to catch the dismissal tap, and the options on a frosted panel that
  * blurs the page behind it. Composed here in the main hierarchy rather than
- * as a popup window — which is exactly what lets the haze see the content it
+ * as a popup window â€” which is exactly what lets the haze see the content it
  * is blurring.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
@@ -5355,7 +5377,7 @@ private fun FrostedSortMenu(
         ) {
             Column(Modifier.padding(vertical = 8.dp)) {
                 // Date added is one row, Spotify-style: the arrow on it shows
-                // the direction — up for newest first, down for oldest — and
+                // the direction â€” up for newest first, down for oldest â€” and
                 // tapping flips it, the rotation animating the flip. Up is
                 // also where a fresh activation lands, newest first being the
                 // point of the feature.
@@ -5428,7 +5450,7 @@ private fun SongSort.localizedLabel(): String = when (this) {
 }
 
 /**
- * Whether this page id is one of the two device folders — `local:downloads` and
+ * Whether this page id is one of the two device folders â€” `local:downloads` and
  * `local:all`, the tabbed Songs / Artists / Albums view.
  *
  * Asked rather than `startsWith("local:")` because that prefix now covers two
@@ -5441,7 +5463,7 @@ private fun String?.isDeviceFolder(): Boolean =
 
 /**
  * Whether [videoId] is the track playing, and is known to be playing YouTube's
- * own copy — which decides whether the player menu leads with "Revert to
+ * own copy â€” which decides whether the player menu leads with "Revert to
  * original" or with "Upgrade quality".
  *
  * See [QualityUpgrade.isKnownToBePlayingYouTubesOwn] for why "known" is doing
@@ -5468,7 +5490,7 @@ private fun formatDurationText(ms: Long): String {
  * How far short of the end a seek is allowed to land.
  *
  * Seeking to the final millisecond is indistinguishable from the track running
- * out, so it starts the next song — which is not what anyone dragging to the end
+ * out, so it starts the next song â€” which is not what anyone dragging to the end
  * of the bar, or tapping the last line of a lyric, is asking for. A second back
  * from the end plays the outro instead.
  */
@@ -5486,7 +5508,7 @@ private val DETAIL_TITLE_DROP = 320.dp
 
 /**
  * How fast, a second, a mini-player pull has to be moving when the finger
- * lifts to decide open or closed on its own, wherever it got to — see
+ * lifts to decide open or closed on its own, wherever it got to â€” see
  * [MiniPlayerPull]. A flick is a whole gesture; only a slow pull is judged by
  * the distance it covered.
  */
@@ -5500,7 +5522,7 @@ private const val PLAYER_SCRIM_ALPHA = 0.32f
  * whole sheet's height above the sheet's top edge.
  *
  * The sheet's Surface clips its content to this shape, and on the way down to
- * the mini player the artwork travels ahead of the sheet carrying it — up
+ * the mini player the artwork travels ahead of the sheet carrying it â€” up
  * above the sheet's top edge, where a plain rectangle cut it off mid-air,
  * leaving only its lower part to arrive in the bar. Nothing else is drawn
  * outside the sheet (its background is transparent and it casts no shadow),

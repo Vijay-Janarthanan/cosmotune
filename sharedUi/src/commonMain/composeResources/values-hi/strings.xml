@@ -280,4 +280,10 @@
     <string name="cosmo_np_controls_expand">Expand controls</string>
     <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
     <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
+    <string name="artist_signatures">कलाकारों के हस्ताक्षर</string>
+    <string name="artist_signatures_subtitle">Apple Music में शीर्षक लोगो न होने पर हस्तलिखित हस्ताक्षर दिखाता है</string>
+    <string name="artist_signatures_url">हस्ताक्षर API URL</string>
+    <string name="signed_by">%1$s द्वारा हस्ताक्षरित</string>
+    <string name="cosmo_mode_manga">मंगा</string>
+    <string name="cosmo_mode_manga_summary">आपकी कॉमिक्स, स्रोत और पढ़ने की प्रगति</string>
 </resources>

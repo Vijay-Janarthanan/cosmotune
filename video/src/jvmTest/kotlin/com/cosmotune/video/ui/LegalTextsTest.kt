@@ -247,7 +247,7 @@ class LegalTextsTest {
         "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt" to
             "if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)",
         "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt" to
-            "if (com.cosmotune.video.host.DesktopModeHost.active) return@onPreviewKeyEvent false",
+            "if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive)) return@onPreviewKeyEvent false",
     )
 
     @Test fun theHookTableQuotesEveryHookAsTheSourceHasItToday() {

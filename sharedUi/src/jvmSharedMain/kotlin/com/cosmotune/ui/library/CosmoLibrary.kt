@@ -143,6 +143,7 @@ fun CosmoLibrary(
     deviceItems: List<ShelfItem>,
     /** The big "Library" heading; the desktop's pages carry none. */
     showTitle: Boolean = true,
+    sourceShelves: List<HomeShelf> = com.cosmotune.ui.library.rememberSourceLibraryShelves(),
 ) {
     val pinned by AppUi.host.pinnedPlaylists.collectAsStateWithLifecycle()
     var segmentIndex by rememberSaveable { mutableStateOf(0) }
@@ -171,6 +172,17 @@ fun CosmoLibrary(
                         modifier = Modifier.padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, top = 16.dp),
                         fill = !wide,
                     )
+                }
+                val sourceKind = when (segment) {
+                    LibrarySegment.PLAYLISTS -> "playlists"
+                    LibrarySegment.ALBUMS -> "albums"
+                    LibrarySegment.ARTISTS -> "artists"
+                    LibrarySegment.DOWNLOADED -> null
+                }
+                sourceShelves.filter { it.sourceId == "source-library:$sourceKind" }.forEach { shelf ->
+                    item(key = "source-header:${shelf.title}") { CosmoOverline(shelf.title) }
+                    if (sourceKind == "artists") artistsSegment(shelf, onShelfItemClick)
+                    else cardRows("source:${shelf.title}", shelf.items, columns, cardWidth, onShelfItemClick, onShelfItemLongPress)
                 }
                 when (segment) {
                     LibrarySegment.DOWNLOADED -> downloadedSegment(links, deviceItems, columns, cardWidth, onShelfItemClick, onShelfItemLongPress)

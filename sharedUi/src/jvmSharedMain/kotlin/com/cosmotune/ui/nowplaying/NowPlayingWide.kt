@@ -176,6 +176,7 @@ internal fun NowPlayingWideHeader(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.clip(RoundedCornerShape(CosmoRadii.xs)).clickable(role = Role.Button, onClick = onOpenOrigin),
             )
+            AudioFormatLine()
         }
         CosmoSegmented(listOf(stringResource(Res.string.open_lyrics), stringResource(Res.string.queue)), if (queueSelected) 1 else 0, onSelectTab)
         if (onWatchMusicVideo != null) {

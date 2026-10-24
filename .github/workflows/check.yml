@@ -30,7 +30,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
         run: ./gradlew :desktopApp:createDistributable
@@ -77,7 +77,7 @@ jobs:
         run: cmake --version
 
       - name: Tests
-        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue
+        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
         run: .\gradlew.bat :desktopApp:createDistributable
@@ -125,7 +125,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
         run: ./gradlew :desktopApp:createDistributable
@@ -153,10 +153,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - uses: gradle/actions/setup-gradle@v4
@@ -169,13 +169,15 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew testDevDebugUnitTest
+        run: ./gradlew --max-workers=1 :app:testDevDebugUnitTest :tv:testDevDebugUnitTest
 
       - name: Build the dev APK
-        run: ./gradlew assembleDevDebug
+        run: ./gradlew --max-workers=1 :app:assembleDevDebug :tv:assembleDevDebug
 
       - name: Verify OpenCanvas import and packaged models
-        run: python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/dev/debug
+        run: |
+          python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/dev/debug
+          python3 tools/verify-opencanvas-import.py --apk-dir tv/build/outputs/apk/dev/debug
 
       - name: Upload the dev APK
         uses: actions/upload-artifact@v4
@@ -183,12 +185,43 @@ jobs:
           name: cosmotune-dev-debug
           path: app/build/outputs/apk/dev/debug/*.apk
 
+      - name: Upload the TV dev APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotune-tv-dev-debug
+          path: tv/build/outputs/apk/dev/debug/*.apk
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: android-test-reports
-          path: app/build/reports/tests/
+          path: |
+            app/build/reports/tests/
+            tv/build/reports/tests/
+
+  web:
+    name: Browser · player and helpers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web typecheck
+      - run: pnpm --dir web test
+      - run: pnpm --dir web build:site
+      - run: python3 tools/package-web.py --version 1.0.4 --output build/web-check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cosmotune-web-check
+          path: build/web-check/*
 
   backend:
     name: Backend · Go

@@ -28,26 +28,38 @@ class ListeningToolsInteractionTest {
     private val song = Song("test-track", "Evening light", "The Coast", null)
     private var restored: ListeningSession? = null
     private var playlist: Pair<String, List<Song>>? = null
+    private var exported: Pair<String, String>? = null
 
-    private fun show(width: Dp = 960.dp, fontScale: Float = 1f) {
+    private fun show(width: Dp = 960.dp, fontScale: Float = 1f, tracks: List<Song> = listOf(song), libraryTracks: List<Song> = tracks) {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
             MaterialTheme {
                 ListeningTools(true, ListeningToolsHost(
                     file = file,
-                    library = ListeningLibrary(listOf(song), likedIds = setOf(song.videoId)),
-                    queue = { ListeningQueue(listOf(song), 0, 56000, 2, true) },
+                    library = ListeningLibrary(libraryTracks, likedIds = setOf(song.videoId)),
+                    queue = { ListeningQueue(tracks, 0, 56000, 2, true) },
                     replay = { ReplayTracks("Replay · October 2026", listOf(song)) },
                     createPlaylist = { title, songs -> playlist = title to songs },
                     restore = { restored = it }, play = {}, openRelease = { _, _ -> },
                     findMusic = {}, importMusic = {}, applySetup = { _, _ -> },
-                    exportFile = { _, _ -> true }, importFile = { null }, existingUser = true,
+                    exportFile = { name, text -> exported = name to text; true }, importFile = { null }, existingUser = true,
                     connectionCheck = { ListeningDiagnostics(0, listOf(DiagnosticCheck("Music catalogue", true, "Search request succeeded"), DiagnosticCheck("Media stream", false, "Request timed out"))) },
                 ), {}, maxWidth = width)
             }
             }
         }
         compose.waitUntil(10000) { compose.onAllNodesWithTag("listening:session:name").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test fun localQueueExportHandsTheRealPlaylistToThePlatformFileChooser() {
+        val audio = File(file.parentFile, "local song.mp3").apply { writeBytes(byteArrayOf(1)) }
+        show(tracks = listOf(song, song.copy(videoId = "online-only")), libraryTracks = listOf(song.copy(localPath = audio.path)))
+        compose.onNodeWithTag("listening:tab:BACKUP").performScrollTo().performClick()
+        compose.onNodeWithTag("listening:m3u8:queue").performScrollTo().performClick()
+        compose.waitUntil(10_000) { exported != null }
+        assertEquals("cosmotune-queue.m3u8", exported?.first)
+        assertEquals(1, exported?.second?.lines()?.count { it.startsWith("#EXTINF:") })
+        compose.onNodeWithText("Playlist saved: 1 local tracks, 1 skipped").assertExists()
     }
 
     @Test fun sessionCanBeSavedAndRestoredWithExactTransportState() {
@@ -105,6 +117,36 @@ class ListeningToolsInteractionTest {
         compose.waitUntil(10000) { file.exists() }
         compose.onNodeWithText("Open session").performScrollTo().assertIsDisplayed()
         screenshot("sessions-narrow-large-text")
+    }
+
+    @Test fun libraryReviewScansActualFilesExportsAndAppliesOnlyPreviewedSessionLocations() {
+        val directory = file.parentFile
+        val local = File(directory, "original.flac").apply { writeBytes("fLaC".toByteArray() + ByteArray(128)) }
+        val copy = File(directory, "copy.flac").apply { writeBytes(local.readBytes()) }
+        val missing = File(directory, "old-location.flac")
+        val recording = song.copy(videoId = "source:recording", localPath = local.path)
+        val saved = ListeningTrack.of(recording).copy(path = missing.path, entryId = "keep-entry")
+        ListeningStore(file).update { it.copy(sessions = listOf(ListeningSession(id = "saved", name = "Keep", tracks = listOf(saved), index = 0, positionMs = 1234))) }
+        show(libraryTracks = listOf(recording, recording.copy(videoId = "source:copy", localPath = copy.path)))
+        compose.onNodeWithTag("listening:tab:LIBRARY").performScrollTo().performClick()
+        compose.onNodeWithTag("listening:audit:verify").performClick()
+        compose.onNodeWithTag("listening:audit:scan").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithTag("listening:audit:export").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("listening:audit:export").performScrollTo().performClick()
+        compose.waitUntil(10000) { exported != null }
+        assertEquals("cosmotune-library-review.json", exported!!.first)
+        kotlin.test.assertTrue(exported!!.second.contains("IDENTICAL_BYTES"))
+        kotlin.test.assertTrue(exported!!.second.contains("MISSING"))
+        compose.onNodeWithTag("listening:audit:list").performScrollToNode(hasTestTag("listening:audit:repair-preview"))
+        compose.onNodeWithTag("listening:audit:repair-preview").performClick()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("Review 1 location changes below").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("listening:audit:list").performScrollToNode(hasTestTag("listening:audit:repair-apply"))
+        compose.onNodeWithTag("listening:audit:repair-apply").performClick()
+        compose.waitUntil(10000) { ListeningStore(file).state.value.sessions.single().tracks.single().path == local.path }
+        val repaired = ListeningStore(file).state.value.sessions.single()
+        assertEquals(1234L, repaired.positionMs)
+        assertEquals("keep-entry", repaired.tracks.single().entryId)
+        screenshot("library-review")
     }
 
     private fun screenshot(name: String) {

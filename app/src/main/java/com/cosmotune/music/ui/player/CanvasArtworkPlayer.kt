@@ -240,6 +240,7 @@ internal fun AndroidCanvasArtworkPlayer(
                 repeatMode = Player.REPEAT_MODE_ONE
                 trackSelectionParameters = trackSelectionParameters.buildUpon()
                     .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                    .apply { CanvasPlaybackLimits.maxFrameRate?.let(::setMaxVideoFrameRate) }
                     .build()
             }
     }
@@ -624,6 +625,11 @@ internal fun AndroidCanvasArtworkPlayer(
         },
         modifier = modifier.onSizeChanged { bounds = it },
     )
+}
+
+/** Prefer lower-frame-rate canvas renditions on TV; phone playback leaves this unset. */
+object CanvasPlaybackLimits {
+    @Volatile var maxFrameRate: Int? = null
 }
 
 /**

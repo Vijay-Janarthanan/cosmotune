@@ -24,6 +24,12 @@ internal class TinyRecommendationModel private constructor(private val data: Byt
 
     fun score(seed: Song, candidate: Song): Float = dot(encode(seed), encode(candidate)).coerceIn(0f, 1f)
 
+    /** A radio batch shares one seed; do its hashing and normalization only once. */
+    fun scoreAll(seed: Song, candidates: List<Song>): FloatArray {
+        val vector = encode(seed)
+        return FloatArray(candidates.size) { dot(vector, encode(candidates[it])).coerceIn(0f, 1f) }
+    }
+
     fun recommend(seed: Song, limit: Int = 24): List<RecommendationModel.Candidate> {
         if (seed.title.isBlank() || seed.artist.isBlank()) return emptyList()
         val vector = encode(seed)

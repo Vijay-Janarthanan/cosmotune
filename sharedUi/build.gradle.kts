@@ -61,6 +61,7 @@ kotlin {
         // rather than in commonMain.
         val jvmSharedMain by creating {
             dependsOn(commonMain.get())
+            dependencies { api(project(":providers")); api(project(":remote")) }
         }
         androidMain.get().dependsOn(jvmSharedMain)
         jvmMain.get().dependsOn(jvmSharedMain)
@@ -76,6 +77,7 @@ kotlin {
             api("org.jetbrains.compose.components:components-resources:$cmp")
             api("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
             api("io.coil-kt.coil3:coil-compose:3.0.4")
+            api("io.coil-kt.coil3:coil-svg:3.0.4")
             api("dev.chrisbanes.haze:haze:1.3.1")
             api("dev.chrisbanes.haze:haze-materials:1.3.1")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
@@ -86,6 +88,7 @@ kotlin {
         // Matrix33 changed shape between skiko 0.9 and 0.15, and bytecode built
         // against 0.9 NoSuchMethodError'd the desktop's 0.15 at draw time.
         jvmMain.dependencies {
+            implementation("org.json:json:20240303")
             api("org.jetbrains.compose.ui:ui-desktop:$CMP_DESKTOP")
             // Desktop's Material version comes from the same Compose plugin accessor. The
             // Android/common 1.7.3 anchor has an incompatible PlainTooltip JVM signature;

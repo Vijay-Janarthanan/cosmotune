@@ -2,34 +2,21 @@
 buildscript {
     repositories {
         google()
+        // Some compatible R8 builds are published only in the project's official CI archive.
+        maven("https://storage.googleapis.com/r8-releases/raw") {
+            content { includeModule("com.android.tools", "r8") }
+        }
     }
     dependencies {
         /*
-         * Overrides the D8/R8 that AGP 8.10.1 bundles (8.10.9). Gradle's conflict
-         * resolution picks the higher version, so this is the whole mechanism.
-         *
-         * 8.10.x miscompiles `NowPlayingScreen`, which is large enough — 36
-         * parameters, ~5,500 dex instructions, registers past v287 — to hit a
-         * register-allocation bug in debug-mode dexing. Resolving phis at one of
-         * the join points emits `const/16 v29, #int 48` over the register already
-         * holding the `MeshPalette` from `rememberArtworkColors`, and the
-         * `MeshGradientBackground` call downstream then reads it back as a
-         * reference:
-         *
-         *   [0x116d] copy-reference v16<-v29 type=PositiveByteConstant
-         *
-         * ART's verifier rejects the whole class for that, so the dev build died
-         * with a VerifyError the moment the player composed. The JVM bytecode
-         * kotlinc produces is valid — the fault is entirely in the dex lowering,
-         * and it is fixed as of 8.11.32. 8.13.x is the newest 8.x line, and also
-         * the first to read Kotlin 2.3 @Metadata: 8.10.9 caps out at 2.2.0 and
-         * warns "malformed kotlin.Metadata" on every class this project compiles.
-         *
-         * Only debug dexing is affected — release-mode allocation keeps the
-         * palette in place, which is why prod builds were fine and only dev
-         * crashed. Removable once AGP itself bundles something past 8.11.32.
+         * Override AGP 8.10.1's D8/R8. At least 8.11.32 is needed for the
+         * NowPlayingScreen debug register-allocation/ART VerifyError fix.
+         * The Android compression dependency also brings Kotlin 2.4 metadata;
+         * Android's compatibility table requires R8 9.1.29 or later for it.
+         * Keep this pin until AGP itself bundles a compatible compiler.
+         * https://developer.android.com/build/kotlin-support
          */
-        classpath("com.android.tools:r8:8.13.23")
+        classpath("com.android.tools:r8:9.1.29")
     }
 }
 plugins {
@@ -42,3 +29,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.3.20" apply false
     id("org.jetbrains.compose") version "1.10.3" apply false
 }
+
+// Phone and Wear OS releases must have matching identity, version and signing keys.
+extra["cosmotuneVersionCode"] = 8
+extra["cosmotuneVersionName"] = providers.gradleProperty("cosmotune.version").getOrElse("1.0.4")
+extra["cosmotuneBetaSuffix"] = ""

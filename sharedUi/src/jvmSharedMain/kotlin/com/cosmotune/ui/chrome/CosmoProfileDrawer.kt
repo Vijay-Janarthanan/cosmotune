@@ -123,6 +123,8 @@ import com.cosmotune.music.sharedui.resources.cosmo_mode_library_later_text
 import com.cosmotune.music.sharedui.resources.cosmo_mode_library_later_title
 import com.cosmotune.music.sharedui.resources.cosmo_mode_library_summary
 import com.cosmotune.music.sharedui.resources.cosmo_mode_music
+import com.cosmotune.music.sharedui.resources.cosmo_mode_manga
+import com.cosmotune.music.sharedui.resources.cosmo_mode_manga_summary
 import com.cosmotune.music.sharedui.resources.cosmo_mode_music_summary
 import com.cosmotune.music.sharedui.resources.cosmo_mode_video
 import com.cosmotune.music.sharedui.resources.cosmo_mode_video_later_text
@@ -445,9 +447,9 @@ private fun ModeSwitch(onChosen: () -> Unit, onLater: (AppMode) -> Unit) {
             val available = AppModes.available(mode)
             if (!available) continue
             ModeRow(
-                icon = when (mode) { AppMode.MUSIC -> CosmoIcons.Waveform; AppMode.VIDEO -> CosmoIcons.Video; AppMode.LIBRARY -> CosmoIcons.Library },
-                title = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music; AppMode.VIDEO -> Res.string.cosmo_mode_video; AppMode.LIBRARY -> Res.string.library }),
-                summary = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music_summary; AppMode.VIDEO -> Res.string.cosmo_mode_video_summary; AppMode.LIBRARY -> Res.string.cosmo_mode_library_summary }),
+                icon = when (mode) { AppMode.MUSIC -> CosmoIcons.Waveform; AppMode.VIDEO -> CosmoIcons.Video; AppMode.MANGA, AppMode.LIBRARY -> CosmoIcons.Library },
+                title = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music; AppMode.VIDEO -> Res.string.cosmo_mode_video; AppMode.MANGA -> Res.string.cosmo_mode_manga; AppMode.LIBRARY -> Res.string.library }),
+                summary = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music_summary; AppMode.VIDEO -> Res.string.cosmo_mode_video_summary; AppMode.MANGA -> Res.string.cosmo_mode_manga_summary; AppMode.LIBRARY -> Res.string.cosmo_mode_library_summary }),
                 // A mode that does not work never becomes the selected one.
                 selected = available && mode == current,
                 later = !available,

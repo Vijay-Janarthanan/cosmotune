@@ -112,7 +112,7 @@ internal fun CosmoDesktopTopBar(
  */
 @Composable
 internal fun CosmoDesktopPlayerBarHost(panelOpen: Boolean, content: @Composable (Modifier) -> Unit) {
-    if (com.cosmotune.video.host.desktopVideoShown()) return
+    if (com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown()) return
     val reduced = LocalReducedMotion.current
     val end by animateDpAsState(
         if (panelOpen) (ShellMetrics.DESKTOP_SIDE_PANEL_DP + SIDE_MARGIN).dp else SIDE_MARGIN.dp,

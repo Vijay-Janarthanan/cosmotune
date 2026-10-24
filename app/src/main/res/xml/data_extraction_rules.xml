@@ -5,6 +5,9 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
+        <!-- Device-key stores cannot be opened after an OS restore; offline media is excluded too. -->
+        <exclude domain="file" path="providers/" />
+        <exclude domain="file" path="manga/" />
         <exclude domain="sharedpref" path="cosmotune_auth.xml" />
         <exclude domain="sharedpref" path="cosmotune_auth_plain.xml" />
         <exclude domain="sharedpref" path="cosmotune_sources.xml" />
@@ -16,6 +19,9 @@
         <exclude domain="sharedpref" path="bitchord_sources_plain.xml" />
     </cloud-backup>
     <device-transfer>
+        <!-- Device-key stores cannot be opened after an OS restore; offline media is excluded too. -->
+        <exclude domain="file" path="providers/" />
+        <exclude domain="file" path="manga/" />
         <exclude domain="sharedpref" path="cosmotune_auth.xml" />
         <exclude domain="sharedpref" path="cosmotune_auth_plain.xml" />
         <exclude domain="sharedpref" path="cosmotune_sources.xml" />

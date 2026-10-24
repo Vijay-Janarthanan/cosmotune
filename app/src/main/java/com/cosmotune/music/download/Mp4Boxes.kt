@@ -90,6 +90,7 @@ internal object Mp4Boxes {
             for (trun in parts.filter { it.type == "trun" }) {
                 val f = flags(bytes, trun)
                 val count = readU32(bytes, trun.content + 4).toInt()
+                require(count in 0..2_000_000) { "Too many MP4 samples" }
                 var q = trun.content + 8
                 if (f and 0x1 != 0) {
                     cursor = moof.offset + readU32(bytes, q).toInt()

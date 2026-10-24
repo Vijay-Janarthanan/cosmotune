@@ -36,8 +36,8 @@ class SmbCoverFetcher private constructor(private val url: String) : Fetcher {
         )
     }
 
-    class Factory : Fetcher.Factory<String> {
-        override fun create(data: String, options: Options, imageLoader: ImageLoader): Fetcher? =
-            if (SmbConfig.isSmbUrl(data)) SmbCoverFetcher(data) else null
+    class Factory : Fetcher.Factory<coil3.Uri> {
+        override fun create(data: coil3.Uri, options: Options, imageLoader: ImageLoader): Fetcher? =
+            data.toString().let { if (SmbConfig.isSmbUrl(it)) SmbCoverFetcher(it) else null }
     }
 }

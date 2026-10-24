@@ -7,10 +7,14 @@ import com.cosmotune.listening.ListeningPreferences
 import com.cosmotune.listening.ListeningSession
 import com.cosmotune.music.data.model.Song
 import java.io.File
+import androidx.compose.runtime.Composable
+import com.cosmotune.remote.LanRemoteController
 
 enum class ReplayWindow { MONTH, YEAR }
 data class ReplayTracks(val title: String, val songs: List<Song>)
 data class ListeningQueue(val songs: List<Song>, val index: Int, val positionMs: Long, val repeat: Int, val shuffle: Boolean)
+
+data class ListeningRemoteHost(val controller: LanRemoteController, val qrCode: @Composable (String) -> Unit)
 
 /** Platform operations; UI and persistence rules are shared across every supported target. */
 data class ListeningToolsHost(
@@ -33,10 +37,12 @@ data class ListeningToolsHost(
     val languageChoices: List<Pair<String, String>> = listOf("" to "System", "en" to "English", "hi" to "हिन्दी"),
     val sourceSummary: String = "",
     val existingUser: Boolean = false,
+    val libraryAccess: com.cosmotune.listening.LocalLibraryAccess = com.cosmotune.listening.FileLibraryAccess,
+    val remote: ListeningRemoteHost? = null,
 )
 
 /** Android provider grants cannot be used by a desktop receiving its backup. */
 internal fun desktopTrackAvailable(track: com.cosmotune.listening.ListeningTrack): Boolean =
-    if (track.path?.let { File(it).isFile } == true) true
-    else if (track.uri != null) runCatching { File(java.net.URI(track.uri)).isFile }.getOrDefault(false)
+    if (track.path?.let { File(it).let { file -> file.isFile && file.canRead() } } == true) true
+    else if (track.uri != null) runCatching { File(java.net.URI(track.uri)).let { it.isFile && it.canRead() } }.getOrDefault(false)
     else track.path == null

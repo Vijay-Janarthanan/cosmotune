@@ -42,6 +42,10 @@ fun main() {
 
 private fun runDesktop() {
     com.cosmotune.desktop.TorConnection.install()
+    coil3.SingletonImageLoader.setSafe { context ->
+        coil3.ImageLoader.Builder(context).components { add(coil3.svg.SvgDecoder.Factory()); add(com.cosmotune.ui.providers.CatalogueArtworkFetcher.Factory()) }.build()
+    }
+    com.cosmotune.ui.pages.ArtistVisualSettings.install(DesktopSignatureSettings.enabled, DesktopSignatureSettings.url)
     // Before any WebView exists, so the sign-in window can start over with an empty jar.
     DesktopWebCookies.install()
     DesktopWindowVisibility.install()
@@ -54,7 +58,10 @@ private fun runDesktop() {
         DesktopTrackLog.log("$tag/$level: $message" + (error?.let { " (${it.message})" } ?: ""))
     }
     LyricsTranslation.cacheDir = DesktopMediaCache.directory.toFile()
-    com.cosmotune.music.data.recommendations.LocalRecommendations.configure(DesktopMediaCache.directory.resolve("recommendations").toFile())
+    com.cosmotune.music.data.recommendations.LocalRecommendations.configure(
+        DesktopMediaCache.directory.resolve("recommendations").toFile(), desktopRecommendationData())
+    DesktopDownloadQueue.restore(java.io.File(desktopRecommendationData().parentFile, "downloads/queue.json"))
+    com.cosmotune.providers.ProviderHub.configure(java.io.File(desktopRecommendationData().parentFile, "providers"), cache = DesktopMediaCache.directory.resolve("provider-artwork").toFile())
     // The Spotify library both apps share, on the tokens the web player mints in JavaFX.
     SpotifyLibrary.auth = SpotifyLibrary.Auth {
         DesktopSpotifyToken.accessToken()?.let { SpotifyLibrary.Tokens(it, DesktopSpotifyToken.clientToken()) }
@@ -82,6 +89,16 @@ private fun runDesktop() {
     // The public "apps open right now" count; see Presence.
     DesktopPresence.install()
     desktopMain()
+}
+
+private fun desktopRecommendationData(): java.io.File {
+    val home = System.getProperty("user.home")
+    val os = System.getProperty("os.name").lowercase(java.util.Locale.ROOT)
+    return when {
+        "win" in os -> java.io.File(System.getenv("APPDATA") ?: home, "Cosmotune/recommendations")
+        "mac" in os -> java.io.File(home, "Library/Application Support/Cosmotune/recommendations")
+        else -> java.io.File(System.getenv("XDG_DATA_HOME") ?: "$home/.local/share", "cosmotune/recommendations")
+    }
 }
 
 private fun desktopMain() = application {

@@ -34,7 +34,7 @@ import com.cosmotune.music.desktop.LocalDesktopHaze
 @Composable
 internal fun cosmoDesktopSidePanelCard(): Modifier {
     if (LocalCosmoShell.current == null) return Modifier
-    if (com.cosmotune.video.host.desktopVideoShown()) return Modifier.layout { measurable, constraints ->
+    if (com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown()) return Modifier.layout { measurable, constraints ->
         val placeable = measurable.measure(constraints)
         layout(placeable.width, placeable.height) {}
     }
@@ -50,7 +50,7 @@ internal fun cosmoDesktopSidePanelCard(): Modifier {
  */
 @Composable
 internal fun CosmoDesktopSidePanel(open: Boolean, content: @Composable () -> Unit) {
-    if (!open || com.cosmotune.video.host.desktopVideoShown()) return
+    if (!open || com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown()) return
     Box(Modifier.fillMaxSize().then(cosmoDesktopSidePanelCard())) { content() }
 }
 

@@ -54,7 +54,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue -Pcosmotune.version=${{ steps.version.outputs.value }}
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Build deb, rpm and the app image
         run: |
@@ -130,7 +130,7 @@ jobs:
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
 
       - name: Tests
-        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue "-Pcosmotune.version=${{ steps.version.outputs.value }}"
+        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue "-Pcosmotune.version=${{ steps.version.outputs.value }}"
 
       - name: Build msi, exe and the app image
         run: |
@@ -209,7 +209,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :desktopApp:test :uiTests:test --continue -Pcosmotune.version=${{ steps.version.outputs.value }}
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue -Pcosmotune.version=${{ steps.version.outputs.value }}
 
       - name: Build DMG, PKG and the app bundle
         run: |
@@ -287,12 +287,17 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Build the signed APKs
-        run: ./gradlew assembleProdRelease
+        run: ./gradlew --max-workers=1 :app:assembleProdRelease :wearos:assembleProdRelease :tv:testProdDebugUnitTest :tv:assembleProdRelease
 
       - name: Verify OpenCanvas import and packaged models
         run: |
           python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/prod/release
           python3 tools/verify-recommendations.py --apk-dir app/build/outputs/apk/prod/release
+          python3 tools/verify-wear-packaging.py --apk-dir app/build/outputs/apk/prod/release --wear-apk wearos/build/outputs/apk/prod/release/CosmotuneWear-prod-release.apk
+          python3 tools/verify-opencanvas-import.py --apk-dir tv/build/outputs/apk/prod/release
+          python3 tools/verify-recommendations.py --apk-dir tv/build/outputs/apk/prod/release
+          python3 tools/verify-tv-packaging.py --apk-dir tv/build/outputs/apk/prod/release --phone-apk app/build/outputs/apk/prod/release/app-prod-arm64-v8a-release.apk
+          python3 tools/verify-companion-imports.py
 
       - name: Name and collect
         run: |
@@ -303,6 +308,13 @@ jobs:
             abi=$(basename "$f" | sed -E 's/app-prod-(.*)-release\.apk/\1/; s/app-prod-release\.apk/universal/')
             cp "$f" "dist/Cosmotune-$v-android-$abi.apk"
           done
+          cp wearos/build/outputs/apk/prod/release/CosmotuneWear-prod-release.apk "dist/CosmotuneWear-$v.apk"
+          cp "dist/CosmotuneWear-$v.apk" dist/CosmotuneWear.apk
+          for f in tv/build/outputs/apk/prod/release/*.apk; do
+            abi=$(basename "$f" | sed -E 's/tv-prod-(.*)-release\.apk/\1/; s/tv-prod-release\.apk/universal/')
+            cp "$f" "dist/CosmotuneTV-$v-android-$abi.apk"
+            cp "$f" "dist/CosmotuneTV-android-$abi.apk"
+          done
           ls -lh dist
 
       - uses: actions/upload-artifact@v4
@@ -310,9 +322,39 @@ jobs:
           name: android-artifacts
           path: dist/*
 
+  web:
+    name: Browser · player and helpers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web typecheck
+      - run: pnpm --dir web test
+      - run: pnpm --dir web build:site
+        env:
+          COSMOTUNE_SITE_ORIGINS: ${{ vars.COSMOTUNE_SITE_ORIGINS }}
+          VITE_LISTEN_TOGETHER_SERVER: ${{ vars.LISTEN_TOGETHER_SERVER }}
+      - name: Verify and collect browser packages
+        run: |
+          v="${{ inputs.version }}"
+          [ -n "$v" ] || v="${GITHUB_REF_NAME#v}"
+          python3 tools/package-web.py --version "$v" --output dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-artifacts
+          path: dist/*
+
   release:
     name: Publish
-    needs: [linux, windows, macos, android]
+    needs: [linux, windows, macos, android, web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

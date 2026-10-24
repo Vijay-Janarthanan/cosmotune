@@ -2,6 +2,8 @@ package com.cosmotune.music.desktop
 
 import com.cosmotune.music.data.model.Song
 import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlinx.coroutines.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -16,11 +18,86 @@ import kotlin.test.assertTrue
  */
 class DesktopDownloadQueueTest {
 
+    private var original: (suspend (Song, String, (Long, Long?) -> Unit) -> Result<Song>)? = null
+    @BeforeTest fun useIsolatedTransfers() = runBlocking {
+        DesktopDownloadQueue.cancelAll()
+        withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
+        original = DesktopDownloadQueue.transfer
+        DesktopDownloadQueue.transfer = { _, _, _ -> awaitCancellation() }
+    }
+
     private fun song(id: String) = Song(videoId = id, title = "Track $id", artist = "Artist", thumbnailUrl = "")
 
     @AfterTest
     fun tearDown() {
         DesktopDownloadQueue.cancelAll()
+        runBlocking { withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() } }
+        original?.let { DesktopDownloadQueue.transfer = it }
+    }
+
+    @Test fun `cancelling a running job leaves other providers able to finish`() = runBlocking {
+        val started = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        DesktopDownloadQueue.transfer = { song, _, _ ->
+            started += song.videoId
+            if (song.videoId.endsWith("hold")) awaitCancellation()
+            delay(30)
+            Result.success(song)
+        }
+        val held = song("src:first::hold")
+        val other = song("src:second::finish")
+        DesktopDownloadQueue.enqueue(held)
+        withTimeout(5_000) { while (held.videoId !in started) delay(10) }
+        DesktopDownloadQueue.cancel(held.videoId)
+        DesktopDownloadQueue.enqueue(other)
+        withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
+        assertTrue(other.videoId in started)
+        assertTrue(DesktopDownloadQueue.active.value.isEmpty())
+    }
+
+    @Test fun `a queued third job cannot occupy the slots of another provider`() = runBlocking {
+        val release = CompletableDeferred<Unit>()
+        val started = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        DesktopDownloadQueue.transfer = { song, _, _ ->
+            started += song.videoId
+            if (song.videoId.startsWith("src:first::")) release.await()
+            Result.success(song)
+        }
+        listOf("src:first::one", "src:first::two", "src:first::three", "src:other::one").forEach {
+            DesktopDownloadQueue.enqueue(song(it))
+        }
+        withTimeout(5_000) { while ("src:other::one" !in started || started.count { it.startsWith("src:first::") } < 2) delay(10) }
+        assertEquals(2, started.count { it.startsWith("src:first::") })
+        release.complete(Unit)
+        withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
+        assertTrue("src:first::three" in started)
+    }
+
+    @Test fun `late progress from a cancelled attempt cannot overwrite its retry`() = runBlocking {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val secondStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var oldProgress: ((Long, Long?) -> Unit)? = null
+        DesktopDownloadQueue.transfer = { song, _, progress ->
+            if (calls.incrementAndGet() == 1) {
+                oldProgress = progress
+                awaitCancellation()
+            } else {
+                secondStarted.complete(Unit)
+                release.await()
+                Result.success(song)
+            }
+        }
+        val item = song("src:first::retry")
+        DesktopDownloadQueue.enqueue(item)
+        withTimeout(5_000) { while (oldProgress == null) delay(10) }
+        DesktopDownloadQueue.cancel(item.videoId)
+        DesktopDownloadQueue.enqueue(item)
+        withTimeout(5_000) { secondStarted.await() }
+        requireNotNull(oldProgress)(100, 100)
+        assertEquals(0f, (DesktopDownloadQueue.active.value.getValue(item.videoId).state as DesktopDownloadState.Running).fraction)
+        release.complete(Unit)
+        withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
+        assertTrue(DesktopDownloadQueue.active.value.isEmpty())
     }
 
     @Test

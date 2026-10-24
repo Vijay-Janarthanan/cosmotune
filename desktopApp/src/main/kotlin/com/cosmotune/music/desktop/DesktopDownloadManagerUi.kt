@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
     val active by DesktopDownloadQueue.active.collectAsState()
+    val storageError by DesktopDownloadQueue.storageError.collectAsState()
     val items = remember(active) { active.values.sortedBy(DesktopDownloadItem::sequence) }
     val failed = items.count { it.state is DesktopDownloadState.Failed }
     val busy = items.any { it.state !is DesktopDownloadState.Failed }
@@ -72,6 +73,7 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
             }
         }
 
+        storageError?.let { Text(it, color = DesktopAccent, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
         if (items.isEmpty()) {
             Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
                 Text(DesktopStrings["nothing_downloading", "Nothing downloading."], color = DesktopSecondary)

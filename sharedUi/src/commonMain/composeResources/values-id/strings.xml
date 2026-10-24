@@ -279,4 +279,10 @@
     <string name="cosmo_np_controls_expand">Expand controls</string>
     <string name="cosmo_np_controls_minimized_state">Controls minimized</string>
     <string name="cosmo_np_controls_expanded_state">Controls expanded</string>
+    <string name="artist_signatures">Tanda tangan artis</string>
+    <string name="artist_signatures_subtitle">Menampilkan tanda tangan tulisan tangan saat Apple Music tidak memiliki logo judul</string>
+    <string name="artist_signatures_url">URL API tanda tangan</string>
+    <string name="signed_by">Ditandatangani oleh %1$s</string>
+    <string name="cosmo_mode_manga">Manga</string>
+    <string name="cosmo_mode_manga_summary">Komik, sumber, dan progres membaca Anda</string>
 </resources>

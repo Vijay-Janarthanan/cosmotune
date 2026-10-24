@@ -338,6 +338,7 @@ private fun CollectionHero(
                 onShare = onShare,
                 onRename = onRename,
                 onDelete = onDelete,
+                sourceLibrary = { com.cosmotune.music.desktop.DesktopSourceLibraryButton(collection) },
             )
         }
     }
@@ -354,6 +355,7 @@ private fun HeroActions(
     onShare: (() -> Unit)?,
     onRename: (() -> Unit)?,
     onDelete: (() -> Unit)?,
+    sourceLibrary: @Composable () -> Unit = {},
 ) {
     var moreOpen by remember { mutableStateOf(false) }
     Row(
@@ -380,6 +382,7 @@ private fun HeroActions(
             onClick = onToggleSearching,
             style = CosmoIconButtonStyle.TONAL,
         )
+        sourceLibrary()
         Box {
             CosmoIconButton(
                 icon = CosmoIcons.More,

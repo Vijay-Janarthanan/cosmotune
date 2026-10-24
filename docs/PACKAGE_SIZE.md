@@ -67,3 +67,11 @@ Android grows by about 3 MiB for the bundled recommendation model. Desktop downl
 - GraalJS and JavaFX WebKit add substantial desktop weight, but currently serve different source-module/token flows. Replacing either requires functional migration and tests.
 
 Installer formats (.exe/.msi/.zip, .dmg/.pkg/.zip, .deb/.rpm/.AppImage) are alternatives. Users download one appropriate format; the release page offering several does not mean each installation contains all formats. Local old installers can be removed after their release availability is verified.
+
+## 1.0.4 Manga/provider packaging checkpoint
+
+This is a development checkpoint, before the final feature inventory and later M3U8 work. With compatible R8 metadata handling and unsupported 32-bit x86 phone libraries removed, APK sizes are ARM64 78,547,071 bytes, ARMv7 68,568,201, x86_64 85,234,486 and universal 145,906,186. The universal APK is 38,683,128 bytes smaller than the immediately preceding 184,589,314-byte checkpoint; the three supported phone ABIs remain complete. The independent watch APK still supports its own ABIs and is 4,486,712 bytes.
+
+The recommendation model is unchanged at 3,186,092 packed bytes / 4,176,439 mapped bytes; adding the 65,568-byte private learner totals 4,242,007 bytes. Android's new Brotli/Zstandard APIs serve extension HTTP compatibility, separately from the recommendation model. Per-ABI Zstandard native files are about 0.57–0.86 MB uncompressed, and notices add 13,271 bytes before compression. Source APKs, comics and raw training data are not bundled. Final package measurements must be refreshed after all tracker features and release checks are complete.
+
+The later library/persistence checkpoint (before remote integration) assembled and passed package/certificate/model/companion/notices checks at ARM64 78,563,455 bytes, ARMv7 68,584,585, x86_64 85,250,870 and universal 145,922,570. All four grew by 16,384 bytes against the preceding checkpoint; model and watch bytes are unchanged. The x86_64 minified app also passed a real emulator source/reader/mode-switch walkthrough. These remain development artifacts pending the entire tracker and final release gates.

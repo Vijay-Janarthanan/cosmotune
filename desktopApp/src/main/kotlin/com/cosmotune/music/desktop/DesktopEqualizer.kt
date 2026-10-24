@@ -3,6 +3,7 @@ package com.cosmotune.music.desktop
 import com.cosmotune.music.playback.EqCurve
 import com.cosmotune.music.playback.EqLayout
 import com.cosmotune.music.playback.FilterKind
+import com.cosmotune.music.playback.PeakLimiter
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.exp
@@ -27,6 +28,10 @@ import kotlin.math.tan
  * Every number here is a target. Dragging the tone puck re-aims them continuously, and stepping
  * coefficients per block is zipper noise, so gains, Qs, the make-up attenuation and the balance all
  * chase their targets across [GLIDE_FRAMES]-frame sub-blocks.
+ *
+ * The make-up only takes back half of a boost ([EqCurve.preampDb]), so the odd peak lands past
+ * full scale. Android catches those at the end of its DSP chain; nothing after this on the desktop
+ * would, so the [PeakLimiter] runs here, on the way out of every block this has shaped.
  */
 internal class DesktopEqualizer {
 
@@ -63,6 +68,8 @@ internal class DesktopEqualizer {
     /** Output trim per channel: make-up attenuation, and balance where stereo. */
     private var channelGain = FloatArray(0)
 
+    private val limiter = PeakLimiter()
+
     /**
      * Aims the equaliser. Called from whoever owns the settings, never from the audio thread.
      *
@@ -81,6 +88,7 @@ internal class DesktopEqualizer {
         state = FloatArray(this.channels * EqLayout.SLOTS * 2)
         channelGain = FloatArray(this.channels) { 1f }
         running.fill(false)
+        limiter.configure(sampleRate)
         snapToTarget()
     }
 
@@ -88,6 +96,7 @@ internal class DesktopEqualizer {
     fun reset() {
         state.fill(0f)
         running.fill(false)
+        limiter.reset()
         snapToTarget()
     }
 
@@ -97,7 +106,12 @@ internal class DesktopEqualizer {
         val tuning = target
         // Flat *and* settled there: an equaliser that has just been switched off is still gliding
         // down, and cutting that glide short is the click it exists to avoid.
-        if (isFlat(tuning) && isSettled(tuning)) return
+        if (isFlat(tuning) && isSettled(tuning)) {
+            // Dropped rather than released: once the curve is flat there is nothing of ours left
+            // to catch, and holding on would keep altering every sample the source sends past it.
+            limiter.reset()
+            return
+        }
 
         var index = 0
         while (index < count) {
@@ -110,14 +124,22 @@ internal class DesktopEqualizer {
             var at = index
             val end = index + block_
             while (at < end) {
+                val frameStart = at
+                var peak = 0f
                 for (channel in 0 until channels) {
                     if (at >= end) break
                     var sample = block[at]
                     for (slot in 0 until active) {
                         sample = section(activeSlots[slot], channel, sample)
                     }
-                    block[at] = sample * channelGain[channel]
+                    sample *= channelGain[channel]
+                    block[at] = sample
+                    if (abs(sample) > peak) peak = abs(sample)
                     at++
+                }
+                val gain = limiter.gainFor(peak)
+                if (gain < 1f) {
+                    for (i in frameStart until at) block[i] *= gain
                 }
             }
             flushDenormals(active)

@@ -195,7 +195,14 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val canvasOverCellular = MutableStateFlow(true)
     override val fullBleedArtwork = MutableStateFlow(false)
     override val hideSongStatus = MutableStateFlow(false)
+    override val showQueueHistory = MutableStateFlow(persistence.boolean("show_queue_history", false))
+    fun setShowQueueHistory(value: Boolean) {
+        showQueueHistory.value = value
+        persistence.saveBoolean("show_queue_history", value)
+    }
     override val hideVolumeBar = MutableStateFlow(false)
+    // A desktop window has no status bar to hide.
+    override val hideStatusBar = MutableStateFlow(false)
     override val lastPlayerScreen = MutableStateFlow(
         runCatching { LastPlayerScreen.valueOf(persistence.string(KEY_LAST_SCREEN, "MAIN")) }
             .getOrDefault(LastPlayerScreen.MAIN),
