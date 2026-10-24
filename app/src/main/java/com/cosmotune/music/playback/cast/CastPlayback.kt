@@ -584,17 +584,6 @@ class CastPlayback(
             MediaStatus.REPEAT_MODE_REPEAT_OFF
         }
 
-    /**
-     * Not named `await`: [PendingResult] has a blocking member of that name,
-     * and a member always beats an extension — so the blocking one ran, on the
-     * main thread, and threw.
-     */
-    private suspend fun <R : Result> PendingResult<R>.awaitResult(): R =
-        suspendCancellableCoroutine { continuation ->
-            setResultCallback { continuation.resume(it) }
-            continuation.invokeOnCancellation { cancel() }
-        }
-
     companion object {
         private const val TAG = "CosmotuneCast"
         private const val KEY_MEDIA_ID = "mediaId"
@@ -625,3 +614,18 @@ class CastPlayback(
         }
     }
 }
+
+/**
+ * Suspends until the Cast framework answers [this] request.
+ *
+ * Not named `await`: [PendingResult] has a blocking member of that name, and a
+ * member always beats an extension, so a suspending `await()` extension was
+ * never called; the blocking member ran on the main thread and threw, which
+ * was upstream's Chromecast crash on connecting (fixed in 8636423e). Internal
+ * so CastAwaitResultTest can hold it to that.
+ */
+internal suspend fun <R : Result> PendingResult<R>.awaitResult(): R =
+    suspendCancellableCoroutine { continuation ->
+        setResultCallback { continuation.resume(it) }
+        continuation.invokeOnCancellation { cancel() }
+    }
