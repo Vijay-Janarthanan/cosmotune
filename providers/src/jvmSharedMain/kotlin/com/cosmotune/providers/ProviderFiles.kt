@@ -127,6 +127,7 @@ internal class ProviderFiles(directory: File, private val network: ProviderNetwo
         val parent = requireNotNull(file.parentFile)
         check(parent.isDirectory || parent.mkdirs()); parent.ownerOnly(); path(file.absolutePath)
     }
+    internal fun remainingBytes(): Long = remaining()
     private fun remaining(): Long {
         var bytes = 0L
         var count = 0
