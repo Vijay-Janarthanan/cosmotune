@@ -65,3 +65,7 @@ change on), from the same flavor and signed with the same key.
 Debug builds are shrunk and non-debuggable, because an un-R8'd, debuggable
 Compose app is noticeably slower on a watch CPU. To get a debugger back, pass
 `-Pcosmotune.wearDebuggable=true`.
+
+## Tests
+
+The rules both ends apply (command paths and arguments, the repeat cycle, the Up Next window, speaker volume specs, tracks-ahead reconciliation and the stream request/reply framing) are in `protocol/.../WearWire.kt`, which the phone, TV and watch all compile. `:app` tests them (`WearWireTest`), the phone's stream server over a pipe against the watch's own framing (`WatchStreamServerTest`), the bundled APK hash checks and the watch's version answer (`WatchApkFileTest`) and the Cast/watch speaker seam (`SpeakersTest`). `:wearos:testDevDebugUnitTest` covers the crown/bezel steps, hold-to-seek bounds, the always-on burn-in orbit (`WatchControlsTest`) and the progress ring's playhead (`NowPlayingProgressTest`). Anything that needs the Wearable Data Layer, a real crown or bezel, the always-on display or watch audio is a check on a paired watch.
