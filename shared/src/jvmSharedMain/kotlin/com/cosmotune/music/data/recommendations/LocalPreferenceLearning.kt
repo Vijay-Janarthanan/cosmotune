@@ -55,11 +55,11 @@ object LocalPreferenceLearning {
     fun onPaused() = playback.pause()
     fun onSkipped(videoId: String) = playback.skipped(videoId)
 
-    internal fun adjustments(previous: Song?, songs: List<Song>): FloatArray {
+    internal fun adjustments(previous: Song?, songs: List<Song>, work: RankingWork? = null): FloatArray {
         val current = model ?: return FloatArray(songs.size)
         val day = LocalDate.now().toEpochDay()
         val hour = LocalTime.now().hour
-        return FloatArray(songs.size) { current.adjustment(previous, songs[it], hour, day) }
+        return FloatArray(songs.size) { current.adjustment(previous, songs[it], hour, day, work) }
     }
 
     fun setEnabled(enabled: Boolean) { scope.launch {

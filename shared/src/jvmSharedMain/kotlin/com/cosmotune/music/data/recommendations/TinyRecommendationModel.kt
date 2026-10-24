@@ -25,20 +25,23 @@ internal class TinyRecommendationModel private constructor(private val data: Byt
     fun score(seed: Song, candidate: Song): Float = dot(encode(seed), encode(candidate)).coerceIn(0f, 1f)
 
     /** A radio batch shares one seed; do its hashing and normalization only once. */
-    fun scoreAll(seed: Song, candidates: List<Song>): FloatArray {
-        val vector = encode(seed)
-        return FloatArray(candidates.size) { dot(vector, encode(candidates[it])).coerceIn(0f, 1f) }
+    fun scoreAll(seed: Song, candidates: List<Song>, work: RankingWork? = null): FloatArray {
+        val vector = encode(seed, work)
+        work?.let { it.multiplyAdds += candidates.size.toLong() * dimensions }
+        return FloatArray(candidates.size) { dot(vector, encode(candidates[it], work)).coerceIn(0f, 1f) }
     }
 
-    fun recommend(seed: Song, limit: Int = 24): List<RecommendationModel.Candidate> {
+    fun recommend(seed: Song, limit: Int = 24, work: RankingWork? = null): List<RecommendationModel.Candidate> {
         if (seed.title.isBlank() || seed.artist.isBlank()) return emptyList()
-        val vector = encode(seed)
+        val vector = encode(seed, work)
+        work?.let { it.embeddingRowsScanned += itemCount; it.multiplyAdds += itemCount.toLong() * dimensions }
         val scored = ArrayList<Pair<Int, Float>>(itemCount)
         for (i in 0 until itemCount) {
             var score = 0f
             for (d in 0 until dimensions) score += vector[d] * data.get(vectorsAt + i * dimensions + d) / 127f
             if (score >= .65f) scored += i to score
         }
+        work?.let { it.sortedCandidates += scored.size }
         val artists = HashMap<String, Int>()
         val seen = HashSet<String>()
         return scored.sortedWith(compareByDescending<Pair<Int, Float>> { it.second }.thenBy { it.first }).mapNotNull { (i, score) ->
@@ -54,7 +57,9 @@ internal class TinyRecommendationModel private constructor(private val data: Byt
         }.take(limit.coerceIn(0, 64))
     }
 
-    private fun encode(song: Song): FloatArray {
+    private fun encode(song: Song, work: RankingWork? = null): FloatArray {
+        // Three bucket digests, then three weighted reads, a square and a division per dimension.
+        work?.let { it.sha256Digests += 3; it.multiplyAdds += 5L * dimensions }
         val artist = primary(song.artist)
         val titleAt = 40 + bucket(identity(song.artist, song.title), titleBuckets) * dimensions
         val artistAt = artistsAt + bucket(artist, artistBuckets) * dimensions

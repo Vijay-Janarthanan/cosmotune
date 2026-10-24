@@ -64,4 +64,16 @@ class ProviderHomeTest {
             assertEquals(listOf("sflx-enabled"), shown)
         }
     }
+
+    @Test fun aRefreshReplacesOnlyTheSameProvidersShelves() {
+        fun shelf(title: String, source: String?) = com.cosmotune.music.data.model.HomeShelf(title, emptyList(), sourceId = source)
+        val core = shelf("Quick picks", null)
+        val oldA = shelf("A · Trending", "sflx-a")
+        val other = shelf("B · New", "sflx-b")
+        val (kept, removed) = ProviderHome.replacing(listOf(core, oldA, other), listOf(shelf("A · Trending now", "sflx-a")))
+        assertEquals(listOf(core, other), kept)
+        assertEquals(listOf(oldA), removed)
+        // Shelves from nobody change nothing.
+        assertEquals(listOf(core, oldA, other) to emptyList(), ProviderHome.replacing(listOf(core, oldA, other), emptyList()))
+    }
 }
