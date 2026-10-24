@@ -30,7 +30,7 @@ val isArm64 = hostArch == "aarch64" || hostArch == "arm64"
 // Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
 // displayed independently of the numeric installer build counter.
 // The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
-val desktopVersionCode = 6
+val desktopVersionCode = 7
 val nativePackageVersion = appVersion.substringBefore('-').split('.').take(2).joinToString(".") + ".$desktopVersionCode"
 
 // FFmpeg decodes audio; see DesktopAudioDecoder.

@@ -28,4 +28,14 @@ class ReleaseVersionTest {
         assertTrue(ReleaseVersion.isNewer("1.0.1-beta1", "1.0.0"))
         assertFalse(ReleaseVersion.isNewer("1.0", "1.0.0"))
     }
+
+    @Test
+    fun release104IsOfferedOverEveryEarlierBuild() {
+        for (older in listOf("1.0.3", "1.0.3-beta1", "1.0.4-beta1", "1.0.4-beta2", "1.0.4-alpha1", "1.0.2", "1.0.0")) {
+            assertTrue(ReleaseVersion.isNewer("1.0.4", older), "1.0.4 over $older")
+        }
+        assertFalse(ReleaseVersion.isNewer("1.0.4", "1.0.4"))
+        assertFalse(ReleaseVersion.isNewer("1.0.3", "1.0.4"))
+        assertFalse(ReleaseVersion.isNewer("1.0.4-beta3", "1.0.4"))
+    }
 }

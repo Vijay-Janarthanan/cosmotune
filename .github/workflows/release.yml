@@ -144,8 +144,11 @@ jobs:
           jar tf "$jar" | grep -q 'models/.*\.onnx'
           modeljar=$(ls "$(dirname "$jar")"/shared-jvm*.jar)
           python tools/verify-recommendations.py --archive "$modeljar"
-          # WinRT, so only MSVC can build it and only this job ever does.
+          # Windows media controls (WinRT) and the window/WASAPI bridge. The Gradle build configures
+          # MinGW g++ and Ninja on Windows, so these come from smtc_abi.cpp and window_jni.cpp; a
+          # missing compiler or header skips them quietly, which these two lines turn into a failure.
           jar tf "$jar" | grep -q 'native/cosmotune_smtc.dll'
+          jar tf "$jar" | grep -q 'native/cosmotune_window.dll'
 
       - name: Upload Windows test diagnostics
         if: failure()
@@ -272,6 +275,21 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: The signing secrets are set
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # Without them the job would write an empty keystore and fail later inside R8 packaging with
+          # a keystore error; the phone and watch must be signed with the same release key.
+          missing=""
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then echo "::error::Release signing secrets are not set:$missing"; exit 1; fi
+
       - name: Keystore and local.properties
         run: |
           echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
@@ -347,6 +365,10 @@ jobs:
           v="${{ inputs.version }}"
           [ -n "$v" ] || v="${GITHUB_REF_NAME#v}"
           python3 tools/package-web.py --version "$v" --output dist
+          # File names that stay the same from one version to the next, as the watch and TV packages have.
+          cp "dist/Cosmotune-$v-web.zip" dist/Cosmotune-web.zip
+          cp "dist/Cosmotune-$v-helper-chrome.zip" dist/Cosmotune-helper-chrome.zip
+          cp "dist/Cosmotune-$v-helper-firefox.zip" dist/Cosmotune-helper-firefox.zip
       - uses: actions/upload-artifact@v4
         with:
           name: web-artifacts

@@ -32,6 +32,11 @@ jobs:
       - name: Tests
         run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
 
+      - name: Tracker evidence names tests that exist
+        run: |
+          python3 tools/test_check_tracker_evidence.py
+          python3 tools/check-tracker-evidence.py
+
       - name: Build the distributable
         run: ./gradlew :desktopApp:createDistributable
 
@@ -88,8 +93,10 @@ jobs:
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/app/desktopApp*.jar)
           jar tf "$jar" | grep -q 'native/cosmotune_analysis.dll'
           jar tf "$jar" | grep -q 'models/.*\.onnx'
-          # WinRT, so only MSVC can build it and only this job ever does.
+          # Windows media controls (WinRT) and the window/WASAPI bridge, built from smtc_abi.cpp and
+          # window_jni.cpp by MinGW g++ and Ninja; a missing tool or header would skip them quietly.
           jar tf "$jar" | grep -q 'native/cosmotune_smtc.dll'
+          jar tf "$jar" | grep -q 'native/cosmotune_window.dll'
 
       - name: Upload test reports
         if: failure()
@@ -169,7 +176,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew --max-workers=1 :app:testDevDebugUnitTest :tv:testDevDebugUnitTest
+        run: ./gradlew --max-workers=1 :app:testDevDebugUnitTest :tv:testDevDebugUnitTest :wearos:testDevDebugUnitTest
 
       - name: Build the dev APK
         run: ./gradlew --max-workers=1 :app:assembleDevDebug :tv:assembleDevDebug
@@ -199,6 +206,7 @@ jobs:
           path: |
             app/build/reports/tests/
             tv/build/reports/tests/
+            wearos/build/reports/tests/
 
   web:
     name: Browser · player and helpers
