@@ -1287,4 +1287,5 @@
     <string name="replay_songs_end_week"> 填滿了你的這一週。</string>
     <string name="replay_summary_end_week">週</string>
     <string name="replay_this_week">本週</string>
+    <string name="spotify_use_spdc_token">使用 sp_dc 權杖</string>
 </resources>

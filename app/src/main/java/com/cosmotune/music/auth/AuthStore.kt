@@ -122,6 +122,17 @@ class AuthStore(context: Context) {
         set(value) = prefs.edit().putString(KEY_SMB_PASSWORD, value).apply()
 
     /**
+     * A credential the settings hold (the Spotify `sp_dc` cookie, the Last.fm
+     * session and keys, the ListenBrainz token, the PaxSenix key), under its
+     * settings key. Encrypted like every other credential here and left out of
+     * device backups; they used to sit in the plain settings, which Android
+     * backs up, and are moved out of them on start (see `AppSettings.init`).
+     */
+    fun secret(key: String): String? = prefs.getString(SECRET_PREFIX + key, null)
+
+    fun setSecret(key: String, value: String?) = prefs.edit().putString(SECRET_PREFIX + key, value).apply()
+
+    /**
      * The channel the listener chose to act as, if they chose one.
      *
      * Stored beside the cookie rather than in the plain settings because it is
@@ -230,5 +241,6 @@ class AuthStore(context: Context) {
         private const val KEY_DISCORD_TOKEN = "discord_token"
         private const val KEY_WEBDAV_PASSWORD = "webdav_password"
         private const val KEY_SMB_PASSWORD = "smb_password"
+        private const val SECRET_PREFIX = "settings_secret_"
     }
 }
