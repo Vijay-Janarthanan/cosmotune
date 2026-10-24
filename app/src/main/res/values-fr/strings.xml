@@ -871,6 +871,8 @@
     <string name="playlist_action">Playlist</string>
 
     <string name="prefer_usb_dac">Préférer le DAC USB</string>
+    <string name="bit_perfect_usb">Sortie USB bit-perfect</string>
+    <string name="bit_perfect_usb_subtitle">Android 14 ou version ultérieure avec un DAC USB. Tant qu’il occupe le DAC, les autres sons et le volume peuvent se comporter différemment sur cet appareil.</string>
     <string name="loudness_normalization">Normalisation du volume</string>
     <string name="loudness_normalization_subtitle">Ramène chaque titre à la même intensité sonore</string>
     <string name="loudness_off_on_speaker">Desactiver sur le haut-parleur du telephone</string>

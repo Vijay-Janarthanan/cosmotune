@@ -875,6 +875,8 @@
     <string name="playlist_action">פלייליסט</string>
 
     <string name="prefer_usb_dac">העדף USB DAC</string>
+    <string name="bit_perfect_usb">פלט USB מדויק לביט</string>
+    <string name="bit_perfect_usb_subtitle">Android 14 ומעלה עם DAC בחיבור USB. כל עוד ה-DAC תפוס, צלילים אחרים ועוצמת הקול עשויים להתנהג אחרת במכשיר הזה.</string>
     <string name="loudness_normalization">נרמול עוצמה</string>
     <string name="loudness_normalization_subtitle">מביא כל רצועה לאותה עוצמה נשמעת</string>
     <string name="loudness_off_on_speaker">השבתה ברמקול הטלפון</string>

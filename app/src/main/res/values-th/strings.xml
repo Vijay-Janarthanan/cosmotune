@@ -1071,6 +1071,8 @@
 
 
     <string name="prefer_usb_dac">Prefer USB DAC</string>
+    <string name="bit_perfect_usb">เอาต์พุต USB แบบบิตเพอร์เฟกต์</string>
+    <string name="bit_perfect_usb_subtitle">ต้องใช้ Android 14 ขึ้นไปและ USB DAC ระหว่างที่ใช้งาน DAC อยู่ เสียงอื่นและระดับเสียงบนอุปกรณ์นั้นอาจทำงานต่างออกไป</string>
     <string name="loudness_normalization">ปรับระดับความดังให้เท่ากัน</string>
     <string name="loudness_normalization_subtitle">ปรับทุกแทร็กให้ดังเท่ากัน</string>
     <string name="loudness_off_on_speaker">ปิดบนลำโพงโทรศัพท์</string>

@@ -849,6 +849,8 @@
     <string name="playlist_action">Playlist</string>
 
     <string name="prefer_usb_dac">Pilih DAC USB</string>
+    <string name="bit_perfect_usb">Output USB bit-perfect</string>
+    <string name="bit_perfect_usb_subtitle">Android 14 atau yang lebih baru dengan DAC USB. Selama DAC dipakai, suara lain dan volume di perangkat itu bisa berperilaku berbeda.</string>
     <string name="loudness_normalization">Normalisasi kenyaringan</string>
     <string name="loudness_normalization_subtitle">Menyamakan kenyaringan setiap lagu</string>
     <string name="loudness_off_on_speaker">Nonaktifkan di speaker ponsel</string>

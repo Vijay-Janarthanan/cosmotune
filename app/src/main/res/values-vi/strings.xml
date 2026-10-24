@@ -702,6 +702,8 @@
     <string name="export_compatible_downloads">Xuất bản tải xuống tương thích</string>
     <string name="output_precision">Độ chính xác đầu ra</string>
     <string name="prefer_usb_dac">Ưu tiên DAC USB</string>
+    <string name="bit_perfect_usb">Đầu ra USB bit-perfect</string>
+    <string name="bit_perfect_usb_subtitle">Cần Android 14 trở lên và DAC USB. Trong khi giữ DAC, các âm thanh khác và âm lượng trên thiết bị đó có thể hoạt động khác đi.</string>
     <string name="loudness_normalization">Chuẩn hóa âm lượng</string>
     <string name="loudness_normalization_subtitle">Cân bằng âm lượng giữa các bài hát</string>
     <string name="loudness_off_on_speaker">Tắt trên loa điện thoại</string>

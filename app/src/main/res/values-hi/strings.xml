@@ -870,6 +870,8 @@
     <string name="playlist_action">प्लेलिस्ट</string>
 
     <string name="prefer_usb_dac">USB DAC को प्राथमिकता दें</string>
+    <string name="bit_perfect_usb">बिट-परफ़ेक्ट USB आउटपुट</string>
+    <string name="bit_perfect_usb_subtitle">Android 14 या उसके बाद का वर्शन और USB DAC ज़रूरी है। जब तक DAC इसके पास है, उस डिवाइस पर दूसरी आवाज़ें और वॉल्यूम अलग तरह से काम कर सकते हैं।</string>
     <string name="loudness_normalization">लाउडनेस नॉर्मलाइज़ेशन</string>
     <string name="loudness_normalization_subtitle">हर ट्रैक को एक जैसी लाउडनेस पर लाता है</string>
     <string name="loudness_off_on_speaker">फ़ोन स्पीकर पर बंद करें</string>
