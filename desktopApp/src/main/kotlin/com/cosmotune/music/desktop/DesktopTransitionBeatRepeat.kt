@@ -53,8 +53,10 @@ internal class DesktopTransitionBeatRepeat(private val sampleRate: Int, channels
         }
         val out = ring[readCursor]
         readCursor = (readCursor + 1) % sliceSamples
-        sinceLatch++
+        // Counted before the step, so each pass decays as a whole: counting after it turned the last sample of every
+        // pass down a pass early, a one-sample step at each loop point.
         val loops = sinceLatch / sliceSamples
+        sinceLatch++
         val decay = if (loops <= 0) 1f else DECAY.pow(loops.toDouble()).toFloat()
         return out * decay * wet + sample * dry
     }

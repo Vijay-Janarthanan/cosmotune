@@ -387,9 +387,14 @@ fun DetailScreen(
         canvas = CanvasRepository.canvasForAlbum(page.title, credit) ?: canvas
     }
     // An artist's clip comes with the same Apple lookup as its photograph.
+    // It is muted and decorative, so it follows the same reduced-motion and mobile-data rules as the new artist pages.
     val artistVideo = appleArt?.videoUrl
-    LaunchedEffect(artistVideo, canvasEnabled) {
-        if (isArtist) canvas = artistVideo?.takeIf { canvasEnabled }?.let { CanvasArtwork(url = it) }
+    val reducedMotion = com.cosmotune.ui.theme.LocalReducedMotion.current
+    val metered by AppSettings.meteredConnection.collectAsStateWithLifecycle()
+    val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
+    val artistMotion = com.cosmotune.ui.pages.artistMotionPlays(canvasEnabled, reducedMotion, metered, canvasOverCellular)
+    LaunchedEffect(artistVideo, artistMotion) {
+        if (isArtist) canvas = artistVideo?.takeIf { artistMotion }?.let { CanvasArtwork(url = it) }
     }
 
     // Opening the search carries the page up to it, so the field lands just

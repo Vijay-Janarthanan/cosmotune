@@ -117,6 +117,26 @@ object ArtistSignatureRepository {
         }.getOrDefault(false)
     }
 
+    /** What a settings editor may do with an address the listener typed, decided the same way on every platform. */
+    sealed interface SaveCheck {
+        /** Blank: forget the provider. Nothing is requested. */
+        data object Remove : SaveCheck
+        /** Not an http(s) base without credentials, query or fragment. Nothing is requested. */
+        data object Invalid : SaveCheck
+        /** Well formed, but `GET /v1/health` did not answer 2xx. */
+        data object Unreachable : SaveCheck
+        /** Healthy: store [baseUrl] (already normalized) and turn the provider on. */
+        data class Ready(val baseUrl: String) : SaveCheck
+    }
+
+    /** Validates [draft] and, only when it is well formed, asks its health endpoint. Never throws. */
+    suspend fun checkForSave(draft: String): SaveCheck {
+        val base = normalizeBaseUrl(draft)
+        if (base.isEmpty()) return SaveCheck.Remove
+        if (!isValidBaseUrl(base)) return SaveCheck.Invalid
+        return if (checkHealth(base)) SaveCheck.Ready(base) else SaveCheck.Unreachable
+    }
+
     private fun cacheKey(artistName: String, baseUrl: String): String? {
         val name = artistName.normalized()
         if (name.isEmpty()) return null

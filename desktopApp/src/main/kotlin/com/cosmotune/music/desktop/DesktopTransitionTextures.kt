@@ -94,8 +94,10 @@ internal class DesktopTransitionPhaser(private val sampleRate: Int, channels: In
         val y = -clamped * sample + xMem[ch] + clamped * yMem[ch]
         xMem[ch] = sample
         yMem[ch] = y.toFloat()
-        phase += 2.0 * PI * LFO_HZ / sampleRate
-        if (phase > 2.0 * PI) phase -= 2.0 * PI
+        if (ch == channelCount - 1) {
+            phase += 2.0 * PI * LFO_HZ / sampleRate
+            if (phase > 2.0 * PI) phase -= 2.0 * PI
+        }
         // Dry-minus-all-pass is the swept comb; scaled down so it sits under the outgoing as a send.
         return ((sample - y) * 0.5 * WET).toFloat()
     }
@@ -129,12 +131,12 @@ internal class DesktopTransitionVibrato(private val sampleRate: Int, channels: I
         ring[cursor] = sample
         val wobble = sin(phase + ch * (PI / 2.0))
         val seconds = BASE_SECONDS + wobble * DEPTH_SECONDS
-        val delaySamples = (seconds * sampleRate * channelCount).toInt()
-            .coerceIn(channelCount, ring.size - channelCount)
-        val read = Math.floorMod(cursor - delaySamples, ring.size)
+        val read = Math.floorMod(cursor - delayFrames(seconds, sampleRate, ring.size / channelCount) * channelCount, ring.size)
         cursor = (cursor + 1) % ring.size
-        phase += 2.0 * PI * LFO_HZ / sampleRate
-        if (phase > 2.0 * PI) phase -= 2.0 * PI
+        if (ch == channelCount - 1) {
+            phase += 2.0 * PI * LFO_HZ / sampleRate
+            if (phase > 2.0 * PI) phase -= 2.0 * PI
+        }
         return ring[read] * WET
     }
 
@@ -167,14 +169,14 @@ internal class DesktopTransitionStereo(private val sampleRate: Int, channels: In
     override fun process(channel: Int, sample: Float): Float {
         val ch = ((channel % channelCount) + channelCount) % channelCount
         ring[cursor] = sample
-        val delaySamples = (HAAS_SECONDS * sampleRate * channelCount).toInt()
-            .coerceIn(channelCount, ring.size - channelCount)
-        val read = Math.floorMod(cursor - delaySamples, ring.size)
+        val read = Math.floorMod(cursor - delayFrames(HAAS_SECONDS, sampleRate, ring.size / channelCount) * channelCount, ring.size)
         val haas = ring[read]
         cursor = (cursor + 1) % ring.size
         val swing = sin(pan)
-        pan += 2.0 * PI * PAN_HZ / sampleRate
-        if (pan > 2.0 * PI) pan -= 2.0 * PI
+        if (ch == channelCount - 1) {
+            pan += 2.0 * PI * PAN_HZ / sampleRate
+            if (pan > 2.0 * PI) pan -= 2.0 * PI
+        }
         // Right channel gets the delayed, opposite-swung copy so the pair separates and moves.
         val offset = if (ch % 2 == 0) -swing else swing
         return ((sample * 0.35f + haas * 0.35f) * (1f + 0.5f * abs(offset).toFloat())).toFloat() * WET
