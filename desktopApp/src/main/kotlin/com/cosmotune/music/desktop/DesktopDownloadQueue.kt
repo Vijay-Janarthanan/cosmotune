@@ -110,13 +110,16 @@ object DesktopDownloadQueue {
      * A second tap on a track already queued or running is a no-op rather than a second transfer:
      * the row it would produce is the same row.
      */
-    fun enqueue(song: Song) {
+    fun enqueue(song: Song) { enqueue(song, null) }
+
+    /** [quality] overrides the saved/default rung (the library's "Get lossless copies"); true when queued. */
+    fun enqueue(song: Song, quality: String?): Boolean {
         synchronized(lock) {
         val id = song.videoId
-        if (id.isBlank()) return
+        if (id.isBlank()) return false
         val item = synchronized(lock) {
-            if (id in pending || id in running) return
-            val quality = journal?.entries?.value?.find { it.track.id == id }?.quality
+            if (id in pending || id in running) return false
+            val quality = quality ?: journal?.entries?.value?.find { it.track.id == id }?.quality
                 ?: defaultQuality()
             DesktopDownloadItem(song, DesktopDownloadState.Queued, sequence.incrementAndGet(), quality)
                 .also { pending[id] = it }
@@ -125,9 +128,10 @@ object DesktopDownloadQueue {
         try { journal?.enqueue(song, item.sequence, item.quality) }
         catch (_: Exception) {
             synchronized(lock) { pending.remove(id) }
-            failed(id, item, IllegalStateException("The saved download queue is full.")); return
+            failed(id, item, IllegalStateException("The saved download queue is full.")); return false
         }
         ensureWorkers()
+        return true
         }
     }
 

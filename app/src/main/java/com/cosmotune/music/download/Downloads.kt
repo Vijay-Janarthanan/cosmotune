@@ -235,7 +235,7 @@ object Downloads {
      *   one of many. Carried no further than [DownloadSession], which is the
      *   only thing that has to say *why* forty tracks are in the queue.
      */
-    fun enqueue(context: Context, song: Song, from: String? = null) {
+    fun enqueue(context: Context, song: Song, from: String? = null, quality: DownloadQuality? = null) {
         val id = song.videoId
         if (id.isBlank()) return
         if (!AppSettings.downloadsAllowedNow) {
@@ -254,7 +254,7 @@ object Downloads {
             if (id in pending || id in running) return
             val savedQuality = journal?.entries?.value?.find { it.track.id == id }?.quality
                 ?.let { runCatching { DownloadQuality.valueOf(it) }.getOrNull() }
-            Work(song, sequence.incrementAndGet(), savedQuality ?: AppSettings.downloadQuality.value).also {
+            Work(song, sequence.incrementAndGet(), quality ?: savedQuality ?: AppSettings.downloadQuality.value).also {
                 pending[id] = it; sequences[id] = it.sequence
             }
         }
@@ -1103,6 +1103,9 @@ object Downloads {
                         progress(id, expectedSequence, fraction)
                     }
                 }
+                // MN-03: label the file from its bytes before tagging. A lossless claim over
+                // lossy bytes names the codec that arrived; a web page instead of audio aborts.
+                val format = com.cosmotune.audio.verifiedDownloadLabel(route.downloadFormat, deliveredAudio(context, destination.tagUri))
                 val words = lyrics?.await()
                 val cover = artwork?.await()
                 // Publish only after metadata is part of the file. This keeps
@@ -1111,7 +1114,7 @@ object Downloads {
                 val artworkUri = MediaTagger.persistArtwork(context, track.thumbnailUrl, cover)
                 val savedUri = destination.commit()
                 pending = null
-                remember(song, track, savedUri, route.downloadFormat, artworkUri)
+                remember(song, track, savedUri, format, artworkUri)
                 complete(id, expectedSequence)
                 Log.d(TAG, "saved $name")
             }
@@ -1481,6 +1484,16 @@ internal fun resolvedDownloadDates(
 }
 
 /** Premium source labels used in Cosmotune's Downloads list. */
+/** What the first bytes of a written download prove (MN-03); a `file://` part is read whole for a trailing MP4 movie box. */
+private fun deliveredAudio(context: Context, uri: Uri): com.cosmotune.audio.DeliveredAudio? = runCatching {
+    if (uri.scheme == "file") uri.path?.let { com.cosmotune.audio.DeliveredAudio.inspect(File(it)) }
+    else context.contentResolver.openInputStream(uri)?.use { input ->
+        val buffer = ByteArray(com.cosmotune.audio.DeliveredAudio.PROBE_BYTES); var count = 0
+        while (count < buffer.size) { val read = input.read(buffer, count, buffer.size - count); if (read < 0) break; count += read }
+        com.cosmotune.audio.DeliveredAudio.inspect(buffer.copyOf(count))
+    }
+}.getOrNull()
+
 private fun StreamFormat.downloadBadge(): String? = when {
     isDolbyAtmos -> "DOLBY"
     codec.equals("flac", ignoreCase = true) || codec.equals("x-flac", ignoreCase = true) -> "FLAC"

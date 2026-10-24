@@ -43,8 +43,10 @@ object DesktopDownloadManager {
             val rendition = downloadIdentity(song.videoId, stream.sourceId, quality, extension)
             val target = directory.resolve("$safeName [$rendition].$extension")
             val temporary = directory.resolve(".$safeName [$rendition].$extension.part")
+            val claimedLossless = quality.equals("LOSSLESS", ignoreCase = true) && stream.format.isLossless
             if (Files.isRegularFile(target) && Files.size(target) > 0L) {
-                return@transfer Result.success(song.copy(localUri = target.toUri().toString(), localPath = target.toString()))
+                // A file saved before this check is labelled from its bytes but never deleted here.
+                return@transfer Result.success(verified(song, target.toFile(), claimedLossless, deleteIfNotAudio = false))
             }
 
             if (manifest) {
@@ -61,11 +63,11 @@ object DesktopDownloadManager {
                 }
                 check(Files.size(temporary) > 0L) { "Download failed: nothing was sent" }
                 Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING)
-                return@transfer Result.success(song.copy(localUri = target.toUri().toString(), localPath = target.toString()))
+                return@transfer Result.success(verified(song, target.toFile(), claimedLossless))
             }
 
             DesktopAudioFileTransfer.save(stream.url, stream.headers, target.toFile(), DOWNLOAD_USER_AGENT, progress = onProgress)
-            Result.success(song.copy(localUri = target.toUri().toString(), localPath = target.toString()))
+            Result.success(verified(song, target.toFile(), claimedLossless))
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -74,6 +76,30 @@ object DesktopDownloadManager {
         } finally {
             if (job != null) activeJobs.remove(song.videoId, job)
         }
+    }
+
+    /**
+     * MN-03: the saved song carries what its bytes prove, not what the source claimed. A lossless
+     * claim over AAC/MP3 bytes loses its lossless badge and names the codec that arrived; a web page
+     * or JSON error saved in place of audio is removed and the download fails.
+     */
+    internal fun verified(song: Song, file: java.io.File, claimedLossless: Boolean, deleteIfNotAudio: Boolean = true): Song {
+        val delivered = com.cosmotune.audio.DeliveredAudio.inspect(file)
+        val honest = com.cosmotune.audio.honestQuality(claimedLossless, delivered)
+        if (honest.evidence == com.cosmotune.audio.QualityEvidence.NOT_AUDIO) {
+            if (deleteIfNotAudio) file.delete()
+            error("The source sent a web page instead of audio")
+        }
+        if (honest.evidence == com.cosmotune.audio.QualityEvidence.LOSSY_DESPITE_CLAIM) {
+            DesktopTrackLog.log("download of '${song.title}' was offered as lossless but is ${delivered?.codec}")
+        }
+        val keptClaim = song.sourceQuality?.takeUnless { it.uppercase() in com.cosmotune.audio.LOSSLESS_LABELS }
+        return song.copy(
+            localUri = file.toPath().toUri().toString(), localPath = file.toString(),
+            downloadFormat = com.cosmotune.audio.verifiedDownloadLabel(song.downloadFormat, delivered, claimedLossless),
+            sourceQuality = honest.sourceQuality ?: keptClaim,
+            sourceHiRes = honest.hiRes,
+        )
     }
 
     fun cancel(videoId: String) {

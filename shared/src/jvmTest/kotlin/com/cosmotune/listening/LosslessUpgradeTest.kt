@@ -31,4 +31,27 @@ class LosslessUpgradeTest {
         hires.delete()
         assertEquals(listOf(flac.path), previewLosslessUpgrades(state, analysis, available).map { it.after.path })
     }
+
+    @Test fun onlyMeasuredLossyCatalogueEntriesWithoutAVerifiedCopyAreRequestedFromSources() {
+        val mp3 = temporary.newFile("a.mp3"); val other = temporary.newFile("b.m4a"); val device = temporary.newFile("c.mp3")
+        val done = temporary.newFile("d.mp3"); val doneFlac = temporary.newFile("d.flac"); val fake = temporary.newFile("e.mp3"); val fakeFlac = temporary.newFile("e.flac")
+        val analysis = listOf(
+            LibraryAudioAnalysis("src:addon::a", mp3.path, codec = "mp3", sampleRate = 44_100),
+            LibraryAudioAnalysis("yt-b", other.path, codec = "aac", sampleRate = 44_100),
+            LibraryAudioAnalysis("local:c", device.path, codec = "mp3", sampleRate = 44_100),
+            LibraryAudioAnalysis("yt-d", done.path, codec = "mp3", sampleRate = 44_100),
+            LibraryAudioAnalysis("yt-d", doneFlac.path, codec = "flac", sampleRate = 44_100, bitsPerSample = 16, cutoffHz = 22_000),
+            LibraryAudioAnalysis("yt-e", fake.path, codec = "mp3", sampleRate = 44_100),
+            // A "FLAC" copy with a lossy spectrum does not count as verified, so the lossless copy is still wanted.
+            LibraryAudioAnalysis("yt-e", fakeFlac.path, codec = "flac", sampleRate = 44_100, bitsPerSample = 16, cutoffHz = 16_000),
+        ).associateBy { it.location }
+        val tracks = listOf(
+            ListeningTrack("src:addon::a", "A", "Artist", path = mp3.path), ListeningTrack("yt-b", "B", "Artist", path = other.path),
+            ListeningTrack("local:c", "C", "Artist", path = device.path), ListeningTrack("yt-d", "D", "Artist", path = done.path),
+            ListeningTrack("yt-e", "E", "Artist", path = fake.path), ListeningTrack("yt-f", "F", "Artist", path = "/not/analysed.mp3"),
+            ListeningTrack("src:addon::a", "A again", "Artist", path = mp3.path),
+        )
+        val state = ListeningState(sessions = listOf(ListeningSession(id = "s", name = "S", tracks = tracks, index = 0, positionMs = 0)))
+        assertEquals(listOf("src:addon::a", "yt-b", "yt-e"), losslessCopyRequests(state, analysis).map { it.id })
+    }
 }

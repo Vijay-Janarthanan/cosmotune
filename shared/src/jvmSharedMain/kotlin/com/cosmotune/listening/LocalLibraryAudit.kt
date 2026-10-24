@@ -299,6 +299,21 @@ fun previewMovedFileRepairs(
  * spectrum. Only saved references change (atomically, through [applySessionFileRepairs]); audio
  * files are never overwritten or deleted by an upgrade.
  */
+/**
+ * LK-08 provider-based replacement, first half: saved entries whose measured file is lossy and that
+ * have no analysed lossless copy of the same recording yet, and whose recording a source can be asked
+ * for (catalogue or source-qualified IDs, never a device-only file). The host queues these as LOSSLESS
+ * downloads; each download is labelled from its own bytes (MN-03), and only a copy that the analysis
+ * then measures as lossless, without a lossy-source spectrum, is offered by [previewLosslessUpgrades].
+ */
+fun losslessCopyRequests(state: ListeningState, analysis: Map<String, com.cosmotune.audio.LibraryAudioAnalysis>): List<ListeningTrack> {
+    val verified = analysis.values.filter { it.lossless && !it.possibleLossySource }.map { it.id }.toSet()
+    return state.sessions.asSequence().flatMap { it.tracks.asSequence() }
+        .filter { track -> (track.path ?: track.uri)?.let(analysis::get)?.let { !it.lossless && it.id == track.id } == true }
+        .filter { it.id !in verified && it.id.isNotBlank() && listOf("file:", "content:", "local:").none(it.id::startsWith) }
+        .distinctBy { it.id }.take(500).toList()
+}
+
 fun previewLosslessUpgrades(
     state: ListeningState,
     analysis: Map<String, com.cosmotune.audio.LibraryAudioAnalysis>,

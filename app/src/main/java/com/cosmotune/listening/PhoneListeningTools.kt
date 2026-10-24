@@ -88,6 +88,11 @@ fun PhoneListeningTools(
             checkNotNull(controller) { "The player is starting. Try again in a moment." }.playSongs(songs, 0)
         },
         openRelease = openRelease, findMusic = findMusic, importMusic = importMusic,
+        requestLosslessCopies = { songs ->
+            check(AppSettings.downloadsAllowedNow) { "Downloads are limited to Wi-Fi right now." }
+            songs.forEach { Downloads.enqueue(context, it, from = "Lossless copies", quality = com.cosmotune.music.data.settings.DownloadQuality.LOSSLESS) }
+            songs.size
+        },
         applySetup = { preferences, lowData ->
             if (lowData) {
                 AppSettings.setAudioQualityWifi(AudioQuality.LOW)
