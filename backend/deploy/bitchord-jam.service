@@ -20,6 +20,9 @@ Environment=JAM_MAX_UPCOMING_QUEUE=25
 Environment=JAM_MAX_PARTIES=200
 Environment=JAM_CREATE_RATE_PER_MINUTE=2
 Environment=JAM_CONNECTION_IDLE_MS=900000
+# Browser origins the web player runs on (no wildcards; see config.IsAllowedOrigin). Cosmotune has no public site
+# yet, so only the local development server; add the deployed site's origin here when there is one.
+Environment=JAM_ALLOWED_ORIGINS=http://localhost:5173
 
 NoNewPrivileges=true
 ProtectSystem=strict
