@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -118,6 +119,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cosmotune.music.auth.DiscordLoginScreen
+import com.cosmotune.music.auth.SpotifyLoginScreen
 import com.cosmotune.music.auth.WebSessionMode
 import com.cosmotune.music.auth.YtMusicLoginScreen
 import com.cosmotune.music.data.AppUpdateChecker
@@ -564,6 +566,7 @@ private fun CosmotuneApp(
     var showListenTogether by rememberSaveable { mutableStateOf(false) }
     var showEqualizer by rememberSaveable { mutableStateOf(false) }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
+    var showSpotifyLogin by remember { mutableStateOf(false) }
     var showSignatureApi by remember { mutableStateOf(false) }
     var showWearOs by remember { mutableStateOf(false) }
 
@@ -2324,6 +2327,10 @@ private fun CosmotuneApp(
             },
             onOpenAlbum = { id ->
                 dismissPlayer()
+                // The page opens over whatever was under the player; Replay or a
+                // settings page left open there would cover it.
+                showReplay = false
+                settingsSubScreen = null
                 viewModel.openDetail(
                     id,
                     song.albumName ?: song.title,
@@ -2343,6 +2350,8 @@ private fun CosmotuneApp(
             // picture, and the page fills its own in once loaded.
             onOpenArtist = { id, name ->
                 dismissPlayer()
+                showReplay = false
+                settingsSubScreen = null
                 if (id != null) {
                     viewModel.openDetail(
                         id,
@@ -2747,6 +2756,8 @@ private fun CosmotuneApp(
                                     type = BrowseType.PLAYLIST,
                                 )
                             },
+                            onOpenLogin = { showSpotifyLogin = true },
+                            onOpenTokenSetup = { showSpotifyCanvasAuth = true },
                             contentPadding = listPadding,
                         )
                     } else if (key == "discord") {
@@ -5249,6 +5260,44 @@ private fun CosmotuneApp(
                         onTokenCaptured = { token ->
                             AppSettings.setDiscordToken(token)
                             showDiscordLogin = false
+                        },
+                    )
+                }
+            }
+        }
+
+        // ---- Spotify sign-in (full screen WebView) ----
+        // Out here with Discord's rather than on the Spotify page itself: see
+        // SpotifyLoginScreen for what the blurred content tree does to a WebView.
+        if (showSpotifyLogin) {
+            BackHandler { showSpotifyLogin = false }
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { showSpotifyLogin = false }) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                contentDescription = stringResource(R.string.close),
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.spotify_sign_in),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                    SpotifyLoginScreen(
+                        modifier = Modifier.navigationBarsPadding(),
+                        onConnected = { token ->
+                            AppSettings.setSpotifySpdcToken(token)
+                            showSpotifyLogin = false
                         },
                     )
                 }

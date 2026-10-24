@@ -1,5 +1,6 @@
 package com.cosmotune.music.ui.screens
 
+import com.cosmotune.music.auth.clearSpotifyWebSession
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.HorizontalDivider
 import com.cosmotune.music.sharedui.resources.Res

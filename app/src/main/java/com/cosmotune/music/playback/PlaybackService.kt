@@ -1870,8 +1870,11 @@ class PlaybackService : MediaLibraryService() {
      * against, and a local file or a download has no YouTube identity to rate.
      */
     private fun canLike(item: MediaItem?): Boolean =
-        item != null && (com.cosmotune.providers.SourceLibraryStore.ownsTrack(item.mediaId) ||
-            SignedIn.state(this).value && item.toSong().localUri == null)
+        item != null && com.cosmotune.music.widget.LikeOffer.offered(
+            ownedBySource = com.cosmotune.providers.SourceLibraryStore.ownsTrack(item.mediaId),
+            signedIn = SignedIn.state(this).value,
+            localFile = item.toSong().localUri != null,
+        )
 
     /** Favorite and Shuffle: the only actions shown on the phone notification. */
     private fun notificationButtons(): List<CommandButton> {

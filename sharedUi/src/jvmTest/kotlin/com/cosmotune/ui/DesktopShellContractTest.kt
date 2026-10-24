@@ -293,7 +293,9 @@ class DesktopShellContractTest {
         val callAt = text.indexOf("if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopTopBar(")
         assertTrue(callAt >= 0)
         val call = squash(balanced(text, text.indexOf('(', callAt + "if (cosmoShell != null) com.cosmotune.desktop".length)))
-        assertTrue("accountName = activeAccount?.name," in call, call)
+        // The selected YouTube profile's name and picture, then the login's (upstream #614; DesktopAccountDisplayTest).
+        assertTrue("accountName = activeAccount.shownName(activeProfileId)," in call, call)
+        assertTrue("activeAccount.shownAvatar(activeProfileId)," in call, call)
         assertTrue("entries = listOf(" in call, call)
         assertEquals(6, Regex("""com\.cosmotune\.ui\.chrome\.CosmoDrawerEntry\(""").findAll(call).count(), "six entries")
         val parts = call.substringAfter("entries = listOf(").split("com.cosmotune.ui.chrome.CosmoDrawerEntry(").drop(1)

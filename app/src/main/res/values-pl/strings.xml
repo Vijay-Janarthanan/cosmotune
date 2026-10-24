@@ -423,7 +423,7 @@
     <string name="upgrade_length_slack_footer">Większa tolerancja akceptuje więcej dopasowań ze źródeł; mniejsza jest bardziej rygorystyczna. Domyślnie 3 sekundy.</string>
     <string name="seconds_short">%1$d s</string>
     <string name="spdc_token">Token sp_dc</string>
-    <string name="spotify_canvas_setup">Konfiguracja Spotify Canvas</string>
+    <string name="spotify_canvas_setup">Skonfiguruj Spotify</string>
     <string name="spotify_canvas_setup_description">Aby korzystać ze Spotify Canvas, podaj plik cookie sp_dc ze Spotify.</string>
     <string name="spotify_canvas_setup_steps">1. Zaloguj się na open.spotify.com w przeglądarce.
 2. Otwórz Narzędzia deweloperskie &gt; Application &gt; Cookies.
