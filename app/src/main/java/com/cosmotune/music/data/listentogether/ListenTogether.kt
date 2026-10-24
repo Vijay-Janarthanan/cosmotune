@@ -451,7 +451,8 @@ object ListenTogether {
 
     private var isScreenActive: Boolean = false
     private var healthMonitorJob: Job? = null
-    private var lastHealthProbeMs = 0L
+    // Null until the first probe: right after boot the monotonic clock is small, and a 0 here debounced that probe.
+    private var lastHealthProbeMs: Long? = null
     private val resolutionMutex = Mutex()
     private var activeResolutionJob: Job? = null
     private var resolutionGeneration = 0L
@@ -482,12 +483,7 @@ object ListenTogether {
         connectionLive: Boolean,
         inParty: Boolean,
         metered: Boolean?,
-    ): Boolean {
-        if (!screenActive) return true
-        if (connectionLive) return true
-        if (!inParty && metered == true) return true
-        return false
-    }
+    ): Boolean = IdleHealthPolicy.shouldSkipIdleProbe(screenActive, connectionLive, inParty, metered)
 
     private fun startHealthMonitor() {
         healthMonitorJob?.cancel()
@@ -584,7 +580,7 @@ object ListenTogether {
 
     fun refreshServerHealth(showChecking: Boolean = false) {
         val now = clock.nowMs()
-        if (!showChecking && now - lastHealthProbeMs < HEALTH_MIN_GAP_MS) return
+        if (IdleHealthPolicy.debounced(now, lastHealthProbeMs, force = showChecking)) return
         lastHealthProbeMs = now
         scope.launch {
             val (job, _) = resolutionMutex.withLock {
@@ -1713,11 +1709,8 @@ object ListenTogether {
 
     private const val PING_INTERVAL_MS = 15_000L
     // Polled only while the Listen Together screen is open and no party socket is
-    // live (see shouldSkipIdleProbe), so 10s costs nothing when nobody is looking.
-    private const val HEALTH_POLL_INTERVAL_MS = 10_000L
-    // Debounces rapid screen toggles and network-callback bursts. Must stay at or
-    // below the poll interval, or the debounce silently stretches the poll.
-    private const val HEALTH_MIN_GAP_MS = 5_000L
+    // live (see IdleHealthPolicy, shared with the desktop), so 10s costs nothing when nobody is looking.
+    private const val HEALTH_POLL_INTERVAL_MS = IdleHealthPolicy.POLL_INTERVAL_MS
     private const val REPORT_INTERVAL_MS = 10_000L
     private const val HEALTH_TIMEOUT_MS = 45_000L
 }

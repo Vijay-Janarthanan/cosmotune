@@ -306,7 +306,12 @@ internal class DesktopAddonUnavailable(message: String) : DesktopAddonException(
 // ── Client ───────────────────────────────────────────────────────────────
 
 /** One addon server, and every question this app knows how to ask it. */
-internal class DesktopAddonClient(rawBaseUrl: String, val userSettings: Map<String, String> = emptyMap()) {
+internal class DesktopAddonClient(
+    rawBaseUrl: String,
+    val userSettings: Map<String, String> = emptyMap(),
+    /** Whether this computer can decode Atmos and the listener wants it; a test passes its own answer. */
+    private val atmosWanted: () -> Boolean = { DesktopCodecs.supportsDolbyAtmos && DesktopAddonSettings.dolbyAtmosEnabled },
+) {
 
     /** Where this addon lives, with `/manifest.json` and trailing slashes off. */
     val baseUrl: String = normalizeBase(rawBaseUrl)
@@ -431,8 +436,7 @@ internal class DesktopAddonClient(rawBaseUrl: String, val userSettings: Map<Stri
             }
             return params
         }
-        val atmosWanted = DesktopCodecs.supportsDolbyAtmos && DesktopAddonSettings.dolbyAtmosEnabled
-        if (atmosWanted) params.putIfAbsent(ATMOS_KEY, ATMOS_AUTO)
+        if (atmosWanted()) params.putIfAbsent(ATMOS_KEY, ATMOS_AUTO)
         return params
     }
 
