@@ -29,14 +29,16 @@ internal class DesktopTransitionFlanger(private val sampleRate: Int, channels: I
         val ch = cursor % channelCount
         val sweep = 0.5 * (1.0 + sin(phase + ch * (PI / 2.0)))
         val seconds = MIN_DELAY_SECONDS + sweep * (MAX_DELAY_SECONDS - MIN_DELAY_SECONDS)
-        val delaySamples = (seconds * sampleRate * channelCount).toInt()
-            .coerceIn(channelCount, ring.size - channelCount)
-        val read = Math.floorMod(cursor - delaySamples, ring.size)
+        // Whole frames back, so the delayed sample is this channel's own and never its neighbour's.
+        val read = Math.floorMod(cursor - delayFrames(seconds, sampleRate, ring.size / channelCount) * channelCount, ring.size)
         val delayed = ring[read]
         ring[cursor] = sample + delayed * FEEDBACK
         cursor = (cursor + 1) % ring.size
-        phase += 2.0 * PI * LFO_HZ / sampleRate
-        if (phase > 2.0 * PI) phase -= 2.0 * PI
+        // The oscillator moves once per frame, not once per interleaved sample, so it sweeps at LFO_HZ.
+        if (ch == channelCount - 1) {
+            phase += 2.0 * PI * LFO_HZ / sampleRate
+            if (phase > 2.0 * PI) phase -= 2.0 * PI
+        }
         return delayed * WET
     }
 
@@ -48,3 +50,7 @@ internal class DesktopTransitionFlanger(private val sampleRate: Int, channels: I
         private const val WET = 0.7f
     }
 }
+
+/** A delay of [seconds] in whole frames, kept inside a ring of [frames] frames. */
+internal fun delayFrames(seconds: Double, sampleRate: Int, frames: Int): Int =
+    (seconds * sampleRate).toInt().coerceIn(1, (frames - 1).coerceAtLeast(1))
