@@ -3323,9 +3323,9 @@ fun CosmotuneDesktopApp() {
                         compact,
                         navHistory.isNotEmpty(),
                         ::goBack,
-                        activeAccount?.avatar ?: activeAccount?.profiles?.firstOrNull()?.avatar,
+                        activeAccount.shownAvatar(activeProfileId),
                         { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
-                        accountName = activeAccount?.name,
+                        accountName = activeAccount.shownName(activeProfileId),
                         // The profile drawer's entries. Settings and Replay stand in place of the page, so they leave each other first.
                         entries = listOf(
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Library, "Your listening", onClick = { listeningToolsOpen = true }),
@@ -3369,8 +3369,7 @@ fun CosmotuneDesktopApp() {
                         onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
                         onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
                         sidePanel = overlays.sidePanel,
-                        accountAvatar = activeAccount?.avatar
-                            ?: activeAccount?.profiles?.firstOrNull()?.avatar,
+                        accountAvatar = activeAccount.shownAvatar(activeProfileId),
                         onOpenAccounts = { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
                         canGoBack = navHistory.isNotEmpty(),
                         onBack = ::goBack,
@@ -3571,7 +3570,7 @@ fun CosmotuneDesktopApp() {
                             shuffleEnabled = shuffle,
                             autoplayEnabled = DesktopAutoplay.enabled(partyState, autoplay),
                             signedIn = youtubeSignedIn,
-                            accountName = activeAccount?.name?.takeIf(String::isNotBlank),
+                            accountName = activeAccount.shownName(activeProfileId),
                             likeStatus = when (current.videoId) {
                                 in likedIds -> LikeStatus.LIKE
                                 in dislikedIds -> LikeStatus.DISLIKE

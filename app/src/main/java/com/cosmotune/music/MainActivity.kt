@@ -2327,6 +2327,10 @@ private fun CosmotuneApp(
             },
             onOpenAlbum = { id ->
                 dismissPlayer()
+                // The page opens over whatever was under the player; Replay or a
+                // settings page left open there would cover it.
+                showReplay = false
+                settingsSubScreen = null
                 viewModel.openDetail(
                     id,
                     song.albumName ?: song.title,
@@ -2346,6 +2350,8 @@ private fun CosmotuneApp(
             // picture, and the page fills its own in once loaded.
             onOpenArtist = { id, name ->
                 dismissPlayer()
+                showReplay = false
+                settingsSubScreen = null
                 if (id != null) {
                     viewModel.openDetail(
                         id,
