@@ -220,6 +220,8 @@ private fun desktopMain() = application {
             CosmotuneDesktopApp()
         }
     }
+    // The compact always-on-top mini player, beside the main window.
+    DesktopMiniPlayerWindow()
 }
 
 private const val MIN_WINDOW_WIDTH_DP = 900.0

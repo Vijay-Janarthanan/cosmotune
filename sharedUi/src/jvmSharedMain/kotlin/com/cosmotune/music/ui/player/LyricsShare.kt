@@ -73,7 +73,13 @@ data class LyricsShareRequest(
     /** Resolved sleeve — remote URL or local file, whatever the player found. */
     val artworkUrl: String?,
     val lines: List<LyricsShareLine>,
-)
+    /** The whole song's lyrics, for "Save as .lrc"; empty when there is nothing to keep. */
+    val lrcLines: List<com.cosmotune.music.data.lyrics.LyricLine> = emptyList(),
+) {
+    /** The song's lyrics as an `.lrc` file, or null when none are loaded. */
+    val lrcText: String? get() = runCatching { com.cosmotune.music.data.lyrics.LrcExport.render(song, lrcLines) }.getOrNull()
+    val lrcFileName: String get() = com.cosmotune.music.data.lyrics.LrcExport.fileName(song)
+}
 
 /**
  * How much text one card is allowed to hold: the picked words, in characters.
@@ -264,7 +270,7 @@ internal fun rememberLyricsPicker(
         // An empty pick draws nothing worth sending, so it is simply left alone
         // rather than putting an empty card on screen to be dismissed.
         if (picked.isNotEmpty()) {
-            onCard(LyricsShareRequest(song = song, artworkUrl = artworkUrl, lines = picked))
+            onCard(LyricsShareRequest(song = song, artworkUrl = artworkUrl, lines = picked, lrcLines = source))
         }
         cancel()
     }

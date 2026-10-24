@@ -91,7 +91,7 @@ internal fun ColumnScope.LibraryReviewPage(
             }
             notice?.let { Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             Text("Measure loudness and audio quality", style = MaterialTheme.typography.titleMedium)
-            Text("Decodes each local file once to measure EBU R128 loudness, ReplayGain, peak level, the decoded format and where high frequencies stop. Unchanged files are not decoded again. Playback uses the measurement when loudness normalization is on; files are never modified.")
+            Text("Decodes each local file once to measure EBU R128 loudness, ReplayGain track and album gain, peak level, the decoded format and where high frequencies stop. Unchanged files are not decoded again. Playback uses the measurement when loudness normalization is on; files are never modified.")
             ToolButton("Analyse local audio", enabled = !working, tag = "listening:analysis:run", onClick = {
                 task = scope.launch {
                     analysisSummary = null; analysisProgress = null
@@ -197,7 +197,8 @@ internal fun ColumnScope.LibraryReviewPage(
                     measured(entry)?.let { Text(it.describe(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("listening:analysis:entry")) }
                     entry.identity?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     if (entry.state == LibraryFileState.READABLE && entry.song.localPath?.let { java.io.File(it).isAbsolute } == true &&
-                        (entry.format == "FLAC" || entry.format?.startsWith("ID3") == true || entry.song.localPath!!.endsWith(".mp3", true))) {
+                        (entry.format == "FLAC" || entry.format?.startsWith("ID3") == true || entry.format == "OPUS" || entry.format == "OGG" ||
+                            entry.format?.startsWith("MP4") == true || entry.song.localPath!!.endsWith(".mp3", true))) {
                         TextButton(enabled = !working, modifier = Modifier.testTag("listening:tags:edit"), onClick = { editing = if (editing == entry) null else entry }) { Text("Edit tags") }
                     }
                     if (editing == entry) TagEditor(entry, working, run) { path -> latestHost.onLocalFileChanged(path); editing = null }
@@ -284,6 +285,7 @@ internal enum class QualityFilter(val label: String) {
 internal fun LibraryAudioAnalysis.describe(): String = listOfNotNull(
     integratedLufs?.let { "%.1f LUFS".format(java.util.Locale.ROOT, it) } ?: "Too quiet to measure loudness",
     replayGainDb?.let { "ReplayGain %+.1f dB".format(java.util.Locale.ROOT, it) },
+    albumGainDb?.let { "album %+.1f dB".format(java.util.Locale.ROOT, it) },
     if (samplePeak > 0) "peak %.1f dBFS".format(java.util.Locale.ROOT, 20 * kotlin.math.log10(samplePeak)) else null,
     listOfNotNull(codec, if (sampleRate > 0) "%.1f kHz".format(java.util.Locale.ROOT, sampleRate / 1000.0) else null,
         bitsPerSample?.let { "$it-bit" }, bitrate?.let { "${it / 1000} kbps" }).joinToString(" ").ifBlank { null },

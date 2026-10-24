@@ -43,6 +43,7 @@ class DesktopSourceParityTest {
             listOf(
                 DesktopSourceKind.ADDON,
                 DesktopSourceKind.CUSTOM_MODULE,
+                DesktopSourceKind.SUBSONIC,
                 DesktopSourceKind.MODULE,
                 DesktopSourceKind.JIOSAAVN,
                 DesktopSourceKind.YOUTUBE,
@@ -51,7 +52,7 @@ class DesktopSourceParityTest {
         )
         // The walk is ranked rather than declared.
         assertEquals(
-            listOf(0, 0, 1, 2, 3),
+            listOf(0, 0, 0, 1, 2, 3),
             DesktopSourceKind.entries.map { it.rank },
         )
     }

@@ -34,6 +34,16 @@ internal enum class DesktopSourceKind(
         rank = 0,
     ),
 
+    /** The listener's own Subsonic or OpenSubsonic server; credentials live in [DesktopSourceConfig.userSettings]. */
+    SUBSONIC(
+        label = "Subsonic server",
+        detail = "Your own Subsonic or OpenSubsonic server (Navidrome, Gonic, Airsonic). Your files, lossless included.",
+        labels = listOf("Your library", "FLAC", "Lossless"),
+        needsServer = true,
+        supportsLossless = true,
+        rank = 0,
+    ),
+
     /** A module index seeded from a build-time URL. */
     MODULE(
         label = DesktopStrings["d_module_source", "Module source"],
@@ -117,11 +127,15 @@ internal data class DesktopSourceConfig(
         }
 
     val isComplete: Boolean
-        get() = !kind.needsServer || baseUrl.isNotBlank()
+        get() = if (kind == DesktopSourceKind.SUBSONIC) {
+            com.cosmotune.providers.SubsonicCatalogue.isComplete(baseUrl, userSettings)
+        } else {
+            !kind.needsServer || baseUrl.isNotBlank()
+        }
 
     /** Whether this entry exists because the user added it, and so can be removed. */
     val isUserAdded: Boolean
-        get() = kind == DesktopSourceKind.ADDON || kind == DesktopSourceKind.CUSTOM_MODULE
+        get() = kind == DesktopSourceKind.ADDON || kind == DesktopSourceKind.CUSTOM_MODULE || kind == DesktopSourceKind.SUBSONIC
 }
 
 /**

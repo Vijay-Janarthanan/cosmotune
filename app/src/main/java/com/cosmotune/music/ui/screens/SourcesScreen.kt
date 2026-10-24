@@ -77,6 +77,7 @@ import com.cosmotune.music.data.sources.SourceConfig
 import com.cosmotune.music.data.sources.SourceHealth
 import com.cosmotune.music.data.sources.SourceKind
 import com.cosmotune.music.data.sources.SourceRegistry
+import com.cosmotune.music.data.sources.SubsonicSource
 import com.cosmotune.music.data.sources.addon.AddonClient
 import com.cosmotune.music.data.sources.addon.forEditor
 import com.cosmotune.music.ui.components.AddonEditorAlert
@@ -140,6 +141,8 @@ fun SourcesScreen(
 
     /** Last known reachability per source, filled in as the probes come back. */
     val health = remember { mutableStateMapOf<String, SourceHealth>() }
+    /** The Subsonic server being added or edited; its editor is a plain dialog window, like the addon settings one. */
+    var subsonicEditing by remember { mutableStateOf<SourceConfig?>(null) }
     val losslessOutput by LosslessOutput.state.collectAsStateWithLifecycle()
 
     // Every source that has a server to reach is probed, so an addon gets a
@@ -251,7 +254,11 @@ fun SourcesScreen(
                         // Anything the user configured is theirs to edit or
                         // delete. JioSaavn and YouTube have no address to
                         // change, so a tap on them would open an empty editor.
-                        onClick = if (config.kind.needsServer) ({ onEditSource(config) }) else null,
+                        onClick = when {
+                            config.kind == SourceKind.SUBSONIC -> ({ subsonicEditing = config })
+                            config.kind.needsServer -> ({ onEditSource(config) })
+                            else -> null
+                        },
                         // YouTube gets no switch at all — see
                         // [SourceRegistry.setEnabled] for why one would be a lie.
                         onToggle = if (config.kind == SourceKind.YOUTUBE) {
@@ -312,6 +319,43 @@ fun SourcesScreen(
             RowDivider()
             AddSourceRow(
                 onClick = { onEditSource(SourceConfig(kind = SourceKind.ADDON)) },
+            )
+            RowDivider()
+            AddSourceRow(
+                onClick = { subsonicEditing = SourceConfig(kind = SourceKind.SUBSONIC) },
+                title = "Add a Subsonic server",
+                detail = "Navidrome, Gonic, Airsonic or any OpenSubsonic server with your own files",
+            )
+        }
+
+        val subsonicServers = configs.filter { it.kind == SourceKind.SUBSONIC && it.isComplete }
+        if (subsonicServers.isNotEmpty()) SettingsGroup(header = "Your Subsonic servers") {
+            subsonicServers.forEach { config -> key(config.id, config.baseUrl, config.userSettings) {
+                com.cosmotune.ui.providers.HttpAddonCatalogueEntry(
+                    identity = config.id, title = config.displayName, enabled = config.enabled,
+                    revision = config.hashCode().toString(),
+                    load = { resource, identity, _ ->
+                        val source = SourceRegistry.instance(config.id) as? SubsonicSource ?: error("Source is unavailable")
+                        withContext(Dispatchers.IO) { source.catalogueResponse(resource, identity) }
+                    }, song = { track ->
+                        (SourceRegistry.instance(config.id) as? SubsonicSource)?.catalogue?.song(track) ?: track.song(config.id)
+                    }, onPlay = onPlayProviderSongs,
+                )
+            } }
+        }
+
+        subsonicEditing?.let { editing ->
+            val isNew = SourceRegistry.config(editing.id) == null
+            com.cosmotune.ui.providers.SubsonicServerDialog(
+                isNew = isNew, label = editing.label, address = editing.baseUrl, settings = editing.userSettings,
+                http = com.cosmotune.music.data.Http.client,
+                onSave = { edit ->
+                    val saved = editing.copy(label = edit.label, baseUrl = edit.address, userSettings = edit.settings)
+                    if (isNew) SourceRegistry.add(saved) else SourceRegistry.update(saved)
+                    subsonicEditing = null
+                },
+                onRemove = if (isNew) null else ({ SourceRegistry.remove(editing.id); subsonicEditing = null }),
+                onDismiss = { subsonicEditing = null },
             )
         }
 
@@ -665,7 +709,11 @@ private const val SWAP_THRESHOLD = 0.6f
  * put another one in here".
  */
 @Composable
-private fun AddSourceRow(onClick: () -> Unit) {
+private fun AddSourceRow(
+    onClick: () -> Unit,
+    title: String = stringResource(R.string.add_addon),
+    detail: String = stringResource(R.string.add_addon_detail),
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -686,12 +734,12 @@ private fun AddSourceRow(onClick: () -> Unit) {
         Spacer(Modifier.width(ICON_GAP))
         Column(Modifier.weight(1f)) {
             Text(
-                text = stringResource(R.string.add_addon),
+                text = title,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
             Text(
-                text = stringResource(R.string.add_addon_detail),
+                text = detail,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -828,6 +876,7 @@ private fun SourceRow(
                 SourceKind.ADDON -> Icons.Rounded.Extension
                 SourceKind.CUSTOM_MODULE -> Icons.Rounded.Extension
                 SourceKind.MODULE -> Icons.Rounded.Extension
+                SourceKind.SUBSONIC -> Icons.Rounded.Storage
                 SourceKind.JIOSAAVN -> Icons.Rounded.GraphicEq // or some other icon
                 SourceKind.YOUTUBE -> Icons.Rounded.PlayCircle
             },

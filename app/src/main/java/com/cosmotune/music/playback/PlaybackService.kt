@@ -132,6 +132,7 @@ import com.cosmotune.music.data.model.isUnresolvedSpotify
 import com.cosmotune.music.data.scrobbling.LastFM
 import com.cosmotune.music.data.scrobbling.ListenBrainzManager
 import com.cosmotune.music.data.scrobbling.ScrobbleManager
+import com.cosmotune.music.data.scrobbling.primaryArtist
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.data.settings.EqualizerMode
 import com.cosmotune.music.data.settings.OutputPcmMode
@@ -6846,7 +6847,7 @@ class PlaybackService : MediaLibraryService() {
                     secret = snapshot.secret,
                     sessionKey = snapshot.sessionKey,
                 )
-                val manager = scrobbleManager ?: ScrobbleManager(scope, com.cosmotune.listening.ScrobbleQueue(java.io.File(filesDir, "cosmotune-scrobble-queue.json"))).also {
+                val manager = scrobbleManager ?: ScrobbleManager(scope, scrobbleQueue).also {
                     scrobbleManager = it
                 }
                 manager.minSongDuration = snapshot.minDuration
@@ -6856,6 +6857,9 @@ class PlaybackService : MediaLibraryService() {
                 manager.usePrimaryArtistOnly = snapshot.primaryArtistOnly
                 // Listens kept while offline go out once a session is configured again.
                 manager.flushPending()
+                AppSettings.listenBrainzToken.value.takeIf { it.isNotBlank() && AppSettings.listenBrainzEnabled.value }?.let { token ->
+                    scope.launch { listenBrainz.flush(scrobbleQueue, token) }
+                }
 
                 player?.let { exoPlayer ->
                     if (exoPlayer.isPlaying) {
@@ -7094,11 +7098,18 @@ class PlaybackService : MediaLibraryService() {
         val lbEnabled = AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
         val lbToken = AppSettings.listenBrainzToken.value
         if (!lbEnabled || lbToken.isBlank()) return
-        val endMs = System.currentTimeMillis()
-        scope.launch {
-            ListenBrainzManager.submitFinished(lbToken, song, startMs, endMs, durationMs, AppSettings.listenBrainzPrimaryArtistOnly.value)
-        }
+        val artist = if (AppSettings.listenBrainzPrimaryArtistOnly.value) song.artist.primaryArtist() else song.artist
+        if (artist.isBlank() || song.title.isBlank()) return
+        // Earlier listens kept while offline go first; this one waits in the queue if it cannot be sent now.
+        val listenedAt = (startMs / 1000L).takeIf { it >= 1_033_430_400L } ?: (System.currentTimeMillis() / 1000L)
+        val listen = com.cosmotune.listening.PendingScrobble(com.cosmotune.listening.ListenBrainzSubmitter.SERVICE, artist, song.title,
+            listenedAt, song.albumName, durationMs?.takeIf { it > 0 }?.div(1000)?.toInt())
+        scope.launch { listenBrainz.submitWithQueue(scrobbleQueue, lbToken, listen) }
     }
+
+    /** Listens kept while offline, shared by Last.fm and ListenBrainz; metadata only, never a token. */
+    private val scrobbleQueue by lazy { com.cosmotune.listening.ScrobbleQueue(java.io.File(filesDir, "cosmotune-scrobble-queue.json")) }
+    private val listenBrainz by lazy { com.cosmotune.listening.ListenBrainzSubmitter(com.cosmotune.music.data.Http.client) }
 
     /** Sends a ListenBrainz "now playing" update for the current track. */
     private fun submitListenBrainzPlayingNow(song: Song, positionMs: Long, durationMs: Long?) {

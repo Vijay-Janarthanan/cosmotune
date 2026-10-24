@@ -14,10 +14,15 @@ internal object DesktopSourceCatalogue {
             val page = requireNotNull(manager) { "Provider storage is unavailable" }.catalogue(key)
             return SourceCataloguePage(page, page.tracks.map { ProviderHub.remember(it.song()) })
         }
-        val config = requireNotNull(DesktopPersistence().sourceConfigs().find { it.id == key.provider && it.kind == DesktopSourceKind.ADDON }) {
+        val config = requireNotNull(DesktopSourceRegistry.configSource().find {
+            it.id == key.provider && (it.kind == DesktopSourceKind.ADDON || it.kind == DesktopSourceKind.SUBSONIC)
+        }) {
             "This source is no longer configured"
         }
         check(config.enabled) { "Enable this source first" }
+        if (config.kind == DesktopSourceKind.SUBSONIC) {
+            return requireNotNull(DesktopSourceRegistry.subsonic(config)) { "Add the user name and password or API key" }.page(key)
+        }
         val response = DesktopAddonSource.catalogue(config, key.kind, key.id)
         val raw = response[key.kind] as? JsonObject ?: response
         val parsed = requireNotNull(ProviderCatalogue.collection(key.provider, key.kind, raw, key.id, "addon")) { "Incomplete source catalogue page" }

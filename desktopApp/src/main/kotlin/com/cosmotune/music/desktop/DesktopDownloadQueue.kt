@@ -163,6 +163,25 @@ object DesktopDownloadQueue {
         }
     }
 
+    /**
+     * Downloads whose saved file is gone and could not be found again: shown as failed with Retry,
+     * kept in the journal across restarts, and never fetched until the listener asks.
+     */
+    fun offerMissing(songs: List<Song>) {
+        songs.forEach { song ->
+            val id = song.videoId
+            val item = synchronized(lock) {
+                if (id.isBlank() || id in pending || id in running || id in _active.value) return@forEach
+                DesktopDownloadItem(song, DesktopDownloadState.Failed(MISSING_FILE), sequence.incrementAndGet(),
+                    DesktopPersistence().string("download_quality", "LOSSLESS"))
+            }
+            _active.update { it + (id to item) }
+            runCatching { journal?.enqueue(song, item.sequence, item.quality); journal?.phase(id, item.sequence, com.cosmotune.music.data.downloads.MusicDownloadPhase.FAILED, MISSING_FILE) }
+        }
+    }
+
+    const val MISSING_FILE = "The saved file is missing. Retry to download it again."
+
     /** Puts a failed track back at the end of the queue. */
     fun retry(videoId: String) {
         val song = _active.value[videoId]?.song ?: return

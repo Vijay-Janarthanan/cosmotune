@@ -147,6 +147,35 @@ internal fun AndroidLyricsShareSheet(
                 },
             )
 
+            // The whole song's lyrics as a standard .lrc file, saved where the listener picks.
+            val lrc = remember(request) { request.lrcText }
+            var lrcSaved by remember(request) { mutableStateOf(false) }
+            val lrcTarget = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream"),
+            ) { uri ->
+                if (uri != null && lrc != null) scope.launch {
+                    lrcSaved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching {
+                            context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(lrc.toByteArray(Charsets.UTF_8)) }
+                        }.isSuccess
+                    }
+                    if (!lrcSaved) com.cosmotune.music.ui.player.PlayerPlatform.host.showMessage("The lyrics could not be saved")
+                }
+            }
+            if (lrc != null) ShareAction(
+                label = "Save as .lrc",
+                icon = Icons.Rounded.Download,
+                accent = false,
+                enabled = true,
+                modifier = Modifier.fillMaxWidth(),
+                saved = lrcSaved,
+                savedLabel = stringResource(R.string.saved_bang),
+                onClick = {
+                    haptics.play(Haptic.Tap)
+                    lrcTarget.launch(request.lrcFileName)
+                },
+            )
+
             if (failed) {
                 Text(
                     text = stringResource(R.string.couldnt_draw_picture),

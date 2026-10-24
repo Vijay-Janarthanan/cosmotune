@@ -72,7 +72,10 @@ data class SourceConfig(
 
     /** Whether this has enough filled in to be worth contacting at all. */
     val isComplete: Boolean
-        get() = !kind.needsServer || baseUrl.isNotBlank()
+        get() = when {
+            kind == SourceKind.SUBSONIC -> com.cosmotune.providers.SubsonicCatalogue.isComplete(baseUrl, userSettings)
+            else -> !kind.needsServer || baseUrl.isNotBlank()
+        }
 }
 
 /**
@@ -285,8 +288,11 @@ object SourceRegistry {
      * Normalising here rather than in the editor keeps it true for every caller
      * and not just the one with a text field.
      */
-    private fun SourceConfig.tidied(): SourceConfig =
-        if (kind == SourceKind.ADDON) copy(baseUrl = AddonClient.normalizeBase(baseUrl)) else this
+    private fun SourceConfig.tidied(): SourceConfig = when (kind) {
+        SourceKind.ADDON -> copy(baseUrl = AddonClient.normalizeBase(baseUrl))
+        SourceKind.SUBSONIC -> copy(baseUrl = com.cosmotune.music.data.subsonic.SubsonicClient.normalize(baseUrl)?.toString()?.removeSuffix("/") ?: baseUrl.trim())
+        else -> this
+    }
 
     fun remove(configId: String) {
         val target = config(configId) ?: return
@@ -463,6 +469,7 @@ object SourceRegistry {
         SourceKind.MODULE -> ModuleSource(config)
         SourceKind.JIOSAAVN -> JioSaavnSource(config)
         SourceKind.YOUTUBE -> YouTubeSource(config)
+        SourceKind.SUBSONIC -> SubsonicSource(config)
     }
 
     /**

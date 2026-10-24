@@ -133,7 +133,7 @@ class ScrobbleManager(
 
     /** Retries listens saved while offline; called on start and after each successful scrobble. */
     fun flushPending() {
-        scope.launch { queue?.flush(submit = ::submitQueued) }
+        scope.launch { queue?.flush(service = "lastfm", submit = ::submitQueued) }
     }
 
     private suspend fun submitQueued(item: com.cosmotune.listening.PendingScrobble): com.cosmotune.listening.ScrobbleOutcome {

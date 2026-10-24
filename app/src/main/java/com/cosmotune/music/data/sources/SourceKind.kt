@@ -101,6 +101,22 @@ enum class SourceKind(
     ),
 
     /**
+     * The listener's own Subsonic or OpenSubsonic server (Navidrome, Gonic,
+     * Airsonic and others): their files, searched, browsed and streamed as
+     * stored. Credentials live in [SourceConfig.userSettings], which is kept in
+     * encrypted preferences with the rest of the source list.
+     */
+    SUBSONIC(
+        label = "Subsonic server",
+        detail = "Your own Subsonic or OpenSubsonic server (Navidrome, Gonic, Airsonic). " +
+            "Your files are streamed as stored, lossless included.",
+        labels = listOf("Your library", "FLAC", "Lossless"),
+        needsServer = true,
+        canServeLossless = true,
+        rank = 0,
+    ),
+
+    /**
      * A URL to a compatible module-index JSON.
      *
      * The index lists JS plugin descriptors; each plugin ships a JS file

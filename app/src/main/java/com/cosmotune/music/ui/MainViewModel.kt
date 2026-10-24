@@ -2115,7 +2115,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         SearchHistory.recordAddonQuery(q)
         addonSearchJob?.cancel()
         _searchScrollReset.value += 1
-        val addons = SourceRegistry.active().filterIsInstance<AddonSource>()
+        // The listener's own Subsonic servers answer here too.
+        val addons = SourceRegistry.active().filter { it is AddonSource || it is com.cosmotune.music.data.sources.SubsonicSource }
         val providerManager = com.cosmotune.providers.ProviderHub.state.value.manager
         val providerNames = providerManager?.store?.state?.value?.installed.orEmpty()
             .filter { it.enabled && "metadata_provider" in it.manifest.type }.map { it.manifest.name }

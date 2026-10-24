@@ -195,4 +195,31 @@ class LibraryAudioAnalysisTest {
         }
         assertEquals(setOf("l"), store.read().values.map { it.id }.toSet())
     }
+
+    @Test fun albumGainPoolsTheAlbumsTracksAndLeavesOtherAlbumsAlone() = runBlocking<Unit> {
+        val rate = 44_100
+        // Two tracks of one album, 8 s at -23 LUFS and 8 s at -13 LUFS; a third on another album.
+        val quiet = temporary.newFile("a1.wav").also { wav(it, rate, 2, tone(rate, 2, 8.0 to dbfs(-23.0))) }
+        val loud = temporary.newFile("a2.wav").also { wav(it, rate, 2, tone(rate, 2, 8.0 to dbfs(-13.0))) }
+        val other = temporary.newFile("b1.wav").also { wav(it, rate, 2, tone(rate, 2, 8.0 to dbfs(-30.0))) }
+        val single = temporary.newFile("c1.wav").also { wav(it, rate, 2, tone(rate, 2, 8.0 to dbfs(-20.0))) }
+        val store = LibraryAnalysisStore(File(temporary.root, "albums.json"))
+        val songs = listOf(
+            Song("a1", "Quiet", "Band", null, albumName = "Same Album", localPath = quiet.path),
+            Song("a2", "Loud", "band", null, albumName = "same album", localPath = loud.path),
+            Song("b1", "Alone", "Band", null, albumName = "Another", localPath = other.path),
+            Song("c1", "No album", "Band", null, localPath = single.path),
+        )
+        val entries = analyseLocalLibrary(songs, FileLibraryAccess, WavPcmDecoder, store).entries.associateBy { it.id }
+        // Energy mean of -23 and -13 LUFS over equal durations is about -15.6 LUFS: album gain about -2.4 dB.
+        val expected = -18.0 - 10 * kotlin.math.log10((10.0.pow(-2.3) + 10.0.pow(-1.3)) / 2)
+        assertEquals(expected, entries.getValue("a1").albumGainDb!!, 0.2)
+        assertEquals(entries.getValue("a1").albumGainDb, entries.getValue("a2").albumGainDb)
+        assertEquals(entries.getValue("a2").samplePeak, entries.getValue("a1").albumPeak!!, 1e-9) // the louder track's peak
+        assertEquals(entries.getValue("b1").replayGainDb!!, entries.getValue("b1").albumGainDb!!, 0.011) // an album of one
+        // A track with no album gets no album gain; the stored figures survive a reload.
+        assertNull(entries.getValue("c1").albumGainDb)
+        assertEquals(expected, store.read().values.first { it.id == "a2" }.albumGainDb!!, 0.2)
+        assertNull(AlbumGain.apply(listOf(LibraryAudioAnalysis("x", "x", integratedLufs = -20.0, durationSeconds = 3.0))).single().albumGainDb)
+    }
 }

@@ -126,8 +126,16 @@ object DesktopScrobbling {
     suspend fun scrobble(song: Song): Result<Unit> = runCatching {
         val timestamp = System.currentTimeMillis() / 1_000L
         if (lastFmConfigured) submitLastFm(song, timestamp)
-        if (listenBrainzConfigured) submitListenBrainz(song, "single", activeStartedAtMs, song.durationMillis(), timestamp)
+        if (listenBrainzConfigured) {
+            // Through the shared offline queue: earlier listens first, this one kept if it cannot be sent now.
+            val listen = com.cosmotune.listening.PendingScrobble(com.cosmotune.listening.ListenBrainzSubmitter.SERVICE,
+                song.artist.forListenBrainz(), song.title, timestamp, song.albumName,
+                song.durationMillis().takeIf { it > 0 }?.div(1000)?.toInt())
+            listenBrainz.submitWithQueue(queue, listenBrainzToken()!!, listen)
+        }
     }
+
+    private val listenBrainz by lazy { com.cosmotune.listening.ListenBrainzSubmitter(com.cosmotune.music.data.Http.client) }
 
     /** Mirrors Android's thresholded scrobble timer and pause/resume semantics. */
     @Synchronized
@@ -228,13 +236,14 @@ object DesktopScrobbling {
         if (!DesktopScrobbleSettings.lastfmScrobble.value) return
         val listen = com.cosmotune.listening.PendingScrobble("lastfm", song.artist.forLastFm(), song.title, timestamp, song.albumName)
         // Earlier offline listens first, in order; a network failure keeps this one for later.
-        queue.flush(submit = ::sendQueued)
+        queue.flush(service = "lastfm", submit = ::sendQueued)
         if (sendQueued(listen) == com.cosmotune.listening.ScrobbleOutcome.RETRY_LATER) queue.add(listen)
     }
 
     /** Retries any listens kept while offline, for example after signing in again. */
     fun flushPending() {
-        if (lastFmConfigured) scope.launch { queue.flush(submit = ::sendQueued) }
+        if (lastFmConfigured) scope.launch { queue.flush(service = "lastfm", submit = ::sendQueued) }
+        if (listenBrainzConfigured) scope.launch { listenBrainz.flush(queue, listenBrainzToken()!!) }
     }
 
     private suspend fun sendQueued(item: com.cosmotune.listening.PendingScrobble): com.cosmotune.listening.ScrobbleOutcome {

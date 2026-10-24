@@ -27,6 +27,7 @@ internal object DesktopTrayMenu {
     private const val ID_SETTINGS = 8
     private const val ID_SEPARATOR_BOTTOM = 9
     private const val ID_QUIT = 10
+    private const val ID_MINI_PLAYER = 11
 
     private val lock = Any()
 
@@ -94,6 +95,7 @@ internal object DesktopTrayMenu {
             add(Entry(ID_PREVIOUS, label = DesktopStrings["widget_previous", "Previous"], icon = "media-skip-backward", action = previous))
             add(Entry(ID_SEPARATOR_MIDDLE, separator = true))
             add(Entry(ID_OPEN_PLAYER, label = DesktopStrings["widget_open_cosmotune", "Open Cosmotune"], icon = "media-playback-start", action = openPlayer))
+            add(Entry(ID_MINI_PLAYER, label = "Mini player", icon = "view-restore", action = DesktopMiniPlayer::toggle))
             add(Entry(ID_SETTINGS, label = DesktopStrings["settings", "Settings"], icon = "preferences-system", action = openSettings))
             add(Entry(ID_SEPARATOR_BOTTOM, separator = true))
             add(Entry(ID_QUIT, label = DesktopStrings["d_quit_cosmotune", "Quit Cosmotune"], icon = "application-exit", action = quit))

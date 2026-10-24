@@ -168,10 +168,13 @@ class DesktopPersistence {
 
     internal fun saveSourceConfigs(configs: List<DesktopSourceConfig>) {
         val normalized = configs.map { config ->
-            if (config.kind == DesktopSourceKind.ADDON) {
-                config.copy(baseUrl = DesktopAddonClient.normalizeBase(config.baseUrl))
-            } else {
-                config
+            when (config.kind) {
+                DesktopSourceKind.ADDON -> config.copy(baseUrl = DesktopAddonClient.normalizeBase(config.baseUrl))
+                DesktopSourceKind.SUBSONIC -> config.copy(
+                    baseUrl = com.cosmotune.music.data.subsonic.SubsonicClient.normalize(config.baseUrl)?.toString()?.removeSuffix("/")
+                        ?: config.baseUrl.trim(),
+                )
+                else -> config
             }
         }
         val raw = sourceJson.encodeToString(normalized)
