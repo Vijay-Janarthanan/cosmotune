@@ -715,4 +715,12 @@
     <string name="listen_together_open">Escuchar juntos</string>
     <string name="listen_together_open_count">Escuchando juntos · %1$d</string>
     <string name="miscellaneous_footer">Al activarlo, cerrar la app desde recientes también detiene la música.</string>
+    <string name="artist_signatures">Firmas de artistas</string>
+    <string name="artist_signatures_subtitle">Muestra una firma manuscrita cuando Apple Music no tiene logotipo de título</string>
+    <string name="artist_signatures_url">URL de la API de firmas</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Sin configurar — toca para establecer la URL de la API</string>
+    <string name="artist_signatures_test_failed">No se pudo contactar con la API en esa URL</string>
+    <string name="show_queue_history">Mostrar historial de la cola</string>
+    <string name="show_queue_history_subtitle">Muestra hasta 25 canciones reproducidas antes de «Reproduciendo ahora» en la cola</string>
 </resources>

@@ -668,4 +668,12 @@
     <string name="listen_together_open">一緒に聴く</string>
     <string name="listen_together_open_count">一緒に聴いています · %1$d</string>
     <string name="miscellaneous_footer">オンにすると、最近のアプリ画面からアプリを終了した際に音楽の再生も停止します。</string>
+    <string name="artist_signatures">アーティストの署名</string>
+    <string name="artist_signatures_subtitle">Apple Musicにタイトルロゴがない場合に手書きの署名を表示します</string>
+    <string name="artist_signatures_url">署名APIのURL</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">未設定 — APIのURLを設定するにはタップしてください</string>
+    <string name="artist_signatures_test_failed">そのURLでAPIに到達できませんでした</string>
+    <string name="show_queue_history">キューの履歴を表示</string>
+    <string name="show_queue_history_subtitle">キューの「再生中」の上に、再生済みの曲を最大25曲表示します</string>
 </resources>

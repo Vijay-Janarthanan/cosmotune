@@ -718,4 +718,12 @@
     <string name="listen_together_open">Słuchajcie razem</string>
     <string name="listen_together_open_count">Wspólne słuchanie · %1$d</string>
     <string name="miscellaneous_footer">Po włączeniu, zamknięcie aplikacji z listy ostatnio używanych aplikacji zatrzyma odtwarzanie muzyki.</string>
+    <string name="artist_signatures">Podpisy artystów</string>
+    <string name="artist_signatures_subtitle">Pokazuje własnoręczny podpis, gdy Apple Music nie ma logo tytułowego</string>
+    <string name="artist_signatures_url">Adres URL interfejsu API podpisów</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Nieskonfigurowano — dotknij, aby ustawić adres URL interfejsu API</string>
+    <string name="artist_signatures_test_failed">Nie można połączyć się z API pod tym adresem URL</string>
+    <string name="show_queue_history">Pokaż historię kolejki</string>
+    <string name="show_queue_history_subtitle">Pokazuje do 25 wcześniej odtworzonych utworów nad pozycją „Teraz odtwarzane” w kolejce</string>
 </resources>

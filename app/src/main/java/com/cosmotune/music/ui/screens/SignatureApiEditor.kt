@@ -39,19 +39,16 @@ fun SignatureApiEditor(hazeState: HazeState, onDismiss: () -> Unit) {
     val connected = stringResource(R.string.connected)
     val failed = stringResource(R.string.artist_signatures_test_failed)
 
-    val test: (onGood: () -> Unit) -> Unit = { onGood ->
-        val normalized = AppSettings.normalizeSignatureApiUrl(input)
-        if (!ArtistSignatureRepository.isValidBaseUrl(normalized)) {
-            status = failed to false
-        } else {
-            busy = true
-            status = null
-            scope.launch {
-                val ok = ArtistSignatureRepository.checkHealth(normalized)
-                busy = false
-                status = (if (ok) connected else failed) to ok
-                if (ok) onGood()
-            }
+    // The same decision the desktop editor makes (ArtistSignatureRepository.checkForSave): a malformed address is refused
+    // without a request, and only a 2xx health answer may be saved.
+    val test: (onGood: (String) -> Unit) -> Unit = { onGood ->
+        busy = true
+        status = null
+        scope.launch {
+            val check = ArtistSignatureRepository.checkForSave(AppSettings.normalizeSignatureApiUrl(input))
+            busy = false
+            status = if (check is ArtistSignatureRepository.SaveCheck.Ready) connected to true else failed to false
+            if (check is ArtistSignatureRepository.SaveCheck.Ready) onGood(check.baseUrl)
         }
     }
 
@@ -79,8 +76,8 @@ fun SignatureApiEditor(hazeState: HazeState, onDismiss: () -> Unit) {
         canSubmit = input.isNotBlank(),
         onTest = { test {} },
         onSave = {
-            test {
-                AppSettings.setSignatureApiUrl(AppSettings.normalizeSignatureApiUrl(input))
+            test { base ->
+                AppSettings.setSignatureApiUrl(base)
                 AppSettings.setSignatureApiEnabled(true)
                 ArtistSignatureRepository.clear()
                 onDismiss()

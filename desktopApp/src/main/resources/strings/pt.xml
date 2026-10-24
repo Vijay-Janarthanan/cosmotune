@@ -690,4 +690,12 @@
     <string name="listen_together_open">Ouvir junto</string>
     <string name="listen_together_open_count">Ouvindo junto · %1$d</string>
     <string name="miscellaneous_footer">Quando ativado, fechar o app pela tela de apps recentes também interrompe a reprodução de música.</string>
+    <string name="artist_signatures">Assinaturas de artistas</string>
+    <string name="artist_signatures_subtitle">Mostra uma assinatura manuscrita quando o Apple Music não tem logotipo de título</string>
+    <string name="artist_signatures_url">URL da API de assinaturas</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Não configurado — toque para definir a URL da API</string>
+    <string name="artist_signatures_test_failed">Não foi possível alcançar a API nesse URL</string>
+    <string name="show_queue_history">Mostrar histórico da fila</string>
+    <string name="show_queue_history_subtitle">Mostra até 25 músicas já tocadas acima de «Tocando agora» na fila</string>
 </resources>

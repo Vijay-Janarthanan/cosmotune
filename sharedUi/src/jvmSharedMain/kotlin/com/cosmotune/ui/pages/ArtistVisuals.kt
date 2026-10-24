@@ -84,12 +84,20 @@ fun ArtistMotionArtwork(art: AppleArtistArt?, fallbackUrl: String?, modifier: Mo
     var rendered by remember(clip) { mutableStateOf(false) }
     Box(modifier) {
         AsyncImage(art?.heroUrl ?: fallbackUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        if (animated && !reduced && (cellular != true || overCellular) && clip != null) {
+        if (clip != null && artistMotionPlays(animated, reduced, cellular, overCellular)) {
             CanvasArtworkPlayer(clip, isPlaying = true, modifier = Modifier.fillMaxSize(), contentMode = CanvasContentMode.CROP,
                 onRenderedChanged = { rendered = it }, presentationAlpha = { if (rendered) 1f else 0f })
         }
     }
 }
+
+/**
+ * Whether the artist's muted header loop may replace the still: the listener's animated-artwork setting is on, the system
+ * has not asked for reduced motion, and a metered connection is used only when canvas over mobile data is allowed. An
+ * unknown network ([metered] null) is not treated as metered, as the player's own canvas does not treat it so.
+ */
+fun artistMotionPlays(animated: Boolean, reducedMotion: Boolean, metered: Boolean?, overCellular: Boolean): Boolean =
+    animated && !reducedMotion && (metered != true || overCellular)
 
 /** SVG ink follows the palette; raster scans retain a light backing so their ink stays legible. */
 @Composable
