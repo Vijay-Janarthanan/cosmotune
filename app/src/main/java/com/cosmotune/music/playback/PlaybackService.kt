@@ -78,6 +78,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.guava.future
 import com.cosmotune.music.playback.audio.DspChain
 import com.cosmotune.music.playback.cast.CastController
+import com.cosmotune.music.playback.cast.CastFormatSupport
 import com.cosmotune.music.playback.cast.CastPlayback
 import com.cosmotune.music.playback.cast.CastSink
 import com.cosmotune.music.playback.cast.RemoteSpeaker
@@ -1817,7 +1818,17 @@ class PlaybackService : MediaLibraryService() {
         if (resolved.scheme != "http" && resolved.scheme != "https") {
             null
         } else {
-            CastStream(resolved.toString(), CastPlayback.mimeTypeOf(resolved))
+            val mime = CastPlayback.mimeTypeOf(resolved)
+            val extension = resolved.lastPathSegment?.substringAfterLast('.', "")?.ifEmpty { null }
+            // Refused here, with the "cannot be cast" message, rather than
+            // sent to a receiver that cannot decode it and left silent.
+            when (val verdict = CastFormatSupport.check(mime, extension)) {
+                is CastFormatSupport.Verdict.Supported -> CastStream(resolved.toString(), mime)
+                is CastFormatSupport.Verdict.Unsupported -> {
+                    TrackLog.i("CosmotuneCast", "not cast: ${verdict.reason}", about = item.mediaId)
+                    null
+                }
+            }
         }
     }
 

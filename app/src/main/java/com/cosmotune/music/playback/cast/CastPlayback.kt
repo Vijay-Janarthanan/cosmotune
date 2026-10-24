@@ -216,23 +216,26 @@ class CastPlayback(
 
         val player = localPlayer()
         if (player != null) {
-            val wasPlaying = player.playWhenReady && player.playbackState != Player.STATE_ENDED
-            val position = player.currentPosition.coerceAtLeast(0L)
-            val currentId = player.currentMediaItem?.mediaId
+            val local = CastHandover.LocalState(
+                currentMediaId = player.currentMediaItem?.mediaId,
+                positionMs = player.currentPosition,
+                playing = player.playWhenReady && player.playbackState != Player.STATE_ENDED,
+            )
             // The phone goes quiet first, whatever happens next, so the two
             // are never both audible.
             player.pause()
             val onReceiver = remote.mediaStatus?.queueItems
                 ?.firstOrNull { it.itemId == remote.mediaStatus?.currentItemId }
                 ?.mediaId()
-            if (resumed && currentId != null && currentId == onReceiver) {
+            when (val start = CastHandover.onStart(local, resumed, onReceiver)) {
                 // A session that survived the app: the receiver is already on
                 // this track, so it keeps going instead of being restarted.
-                lastItemId = remote.mediaStatus?.currentItemId ?: MediaQueueItem.INVALID_ITEM_ID
-                wantsPlay = remote.mediaStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
-                scheduleReconcile()
-            } else {
-                load(player.currentMediaItem, position, play = wasPlaying)
+                CastHandover.Start.KeepReceiver -> {
+                    lastItemId = remote.mediaStatus?.currentItemId ?: MediaQueueItem.INVALID_ITEM_ID
+                    wantsPlay = remote.mediaStatus?.playerState == MediaStatus.PLAYER_STATE_PLAYING
+                    scheduleReconcile()
+                }
+                is CastHandover.Start.Load -> load(player.currentMediaItem, start.positionMs, play = start.play)
             }
         }
         sink?.onRemoteRouteChanged()
@@ -257,15 +260,22 @@ class CastPlayback(
      */
     fun onSessionEnded(error: Int) {
         if (!active) return
-        val resume = resumeHereOnEnd && endWasPlaying
+        val choseThisDevice = resumeHereOnEnd
         resumeHereOnEnd = false
         release()
         val player = localPlayer()
+        var resume = false
         if (player != null) {
-            val index = indexOfMediaId(player, endMediaId)
-            if (index != null) player.seekTo(index, endPositionMs) else player.seekTo(endPositionMs)
+            val plan = CastHandover.onEnd(
+                end = CastHandover.ReceiverEnd(endMediaId, endPositionMs, endWasPlaying),
+                localQueue = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId },
+                localCurrentIndex = player.currentMediaItemIndex,
+                listenerChoseThisDevice = choseThisDevice,
+            )
+            resume = plan.play
+            if (plan.queueIndex != null) player.seekTo(plan.queueIndex, plan.positionMs) else player.seekTo(plan.positionMs)
             if (player.playbackState == Player.STATE_IDLE && player.mediaItemCount > 0) player.prepare()
-            if (resume) player.play()
+            if (plan.play) player.play()
         }
         Log.i(TAG, "session ended: error=$error resumeHere=$resume")
         sink?.onRemoteRouteChanged()
@@ -563,17 +573,12 @@ class CastPlayback(
         return status.getQueueItemById(status.currentItemId)?.mediaId()
     }
 
-    /**
-     * The row of [mediaId] nearest the one playing — a track queued twice is
-     * the case where more than one answers, and the near one is the one meant.
-     */
-    private fun indexOfMediaId(player: Player, mediaId: String?): Int? {
-        if (mediaId == null) return null
-        val at = player.currentMediaItemIndex.coerceAtLeast(0)
-        return (0 until player.mediaItemCount)
-            .filter { player.getMediaItemAt(it).mediaId == mediaId }
-            .minByOrNull { kotlin.math.abs(it - at) }
-    }
+    /** The row of [mediaId] nearest the one playing; see [CastHandover.nearestIndexOf]. */
+    private fun indexOfMediaId(player: Player, mediaId: String?): Int? = CastHandover.nearestIndexOf(
+        mediaId,
+        (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId },
+        player.currentMediaItemIndex,
+    )
 
     private fun receiverRepeat(repeatMode: Int): Int =
         if (repeatMode == Player.REPEAT_MODE_ONE) {
@@ -607,6 +612,8 @@ class CastPlayback(
                 path.endsWith(".mp3") -> "audio/mpeg"
                 path.endsWith(".ogg") || path.endsWith(".opus") -> "audio/ogg"
                 path.endsWith(".wav") -> "audio/wav"
+                path.endsWith(".webm") -> "audio/webm"
+                path.endsWith(".aac") -> "audio/aac"
                 path.endsWith(".mpd") -> "application/dash+xml"
                 path.endsWith(".m3u8") -> "application/x-mpegurl"
                 else -> "audio/mp4"
