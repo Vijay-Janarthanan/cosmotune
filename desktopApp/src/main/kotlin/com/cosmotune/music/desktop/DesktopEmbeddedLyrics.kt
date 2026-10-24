@@ -47,8 +47,9 @@ internal object DesktopEmbeddedLyrics {
                 }
                 buffer.copyOf(total)
             }
-        }.getOrNull() ?: return null
-        return fromBytes(head)
+        }.getOrNull()
+        // Lyrics stored in the file win; a same-name .lrc beside it is the fallback.
+        return head?.let(::fromBytes) ?: com.cosmotune.music.data.lyrics.LrcSidecar.read(path.toFile())
     }
 
     /**

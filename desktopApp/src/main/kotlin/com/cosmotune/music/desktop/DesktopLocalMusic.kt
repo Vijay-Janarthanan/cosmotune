@@ -104,7 +104,7 @@ object DesktopLocalMusic {
 
     internal const val KEY_FILTER_NON_MUSIC_AUDIO = "filter_non_music_audio"
 
-    private fun Path.toSong(): Song {
+    internal fun Path.toSong(): Song {
         val absolutePath = toAbsolutePath().normalize()
         val attributes = runCatching {
             Files.readAttributes(absolutePath, BasicFileAttributes::class.java)
@@ -123,10 +123,18 @@ object DesktopLocalMusic {
                 else -> value.uppercase(Locale.ROOT)
             }
         }
+        // FLAC/MP3 tags first (read locally, headers only); file and folder names fill what is missing.
+        val tags = if (extension.lowercase(Locale.ROOT) in setOf("flac", "mp3")) {
+            runCatching { com.cosmotune.listening.LocalTagEditor.read(absolutePath.toFile()) }.getOrDefault(emptyMap())
+        } else emptyMap()
+        val folders = absolutePath.parent?.let { parent -> (0 until parent.nameCount).map { parent.getName(it).toString() } }.orEmpty()
+        val artist = com.cosmotune.music.data.model.ArtistIdentity.localArtist(tags["ARTIST"], tags["ALBUM_ARTIST"], fileName.toString(), folders)
+            ?: parsed.artist
         return Song(
             videoId = "local:$identity",
-            title = parsed.title,
-            artist = parsed.artist,
+            title = tags["TITLE"]?.trim()?.takeIf { it.isNotEmpty() } ?: parsed.title,
+            artist = artist,
+            albumName = tags["ALBUM"]?.trim()?.takeIf { it.isNotEmpty() },
             thumbnailUrl = null,
             localUri = absolutePath.toUri().toString(),
             localPath = absolutePath.toString(),

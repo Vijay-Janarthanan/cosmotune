@@ -6736,7 +6736,8 @@ class PlaybackService : MediaLibraryService() {
             AudioOutputStatus.current.value.routeKind == AudioRouting.Kind.PHONE
         ) return null
         val id = mediaId?.takeIf { it.isNotBlank() } ?: return null
-        val loudnessDb = StreamResolver.loudnessDbFor(id) ?: return null
+        // Streams keep the provider's figure; local files use a library scan's measurement.
+        val loudnessDb = StreamResolver.loudnessDbFor(id) ?: com.cosmotune.audio.LibraryLoudness.loudnessDbFor(id) ?: return null
         return (-loudnessDb * 100.0).roundToInt().coerceIn(MIN_LOUDNESS_GAIN_MB, MAX_LOUDNESS_GAIN_MB)
     }
 
@@ -6763,7 +6764,7 @@ class PlaybackService : MediaLibraryService() {
 
     private fun publishLoudnessFor(mediaId: String?) {
         val gainMb = loudnessGainMb(mediaId)
-        val lufs = mediaId?.takeIf { it.isNotBlank() }?.let(StreamResolver::loudnessDbFor)
+        val lufs = mediaId?.takeIf { it.isNotBlank() }?.let { StreamResolver.loudnessDbFor(it) ?: com.cosmotune.audio.LibraryLoudness.loudnessDbFor(it) }
         if (gainMb == null || lufs == null) {
             AudioOutputStatus.publishLoudness(gainDb = null, lufs = null)
         } else {
@@ -6842,7 +6843,7 @@ class PlaybackService : MediaLibraryService() {
                     secret = snapshot.secret,
                     sessionKey = snapshot.sessionKey,
                 )
-                val manager = scrobbleManager ?: ScrobbleManager(scope).also {
+                val manager = scrobbleManager ?: ScrobbleManager(scope, com.cosmotune.listening.ScrobbleQueue(java.io.File(filesDir, "cosmotune-scrobble-queue.json"))).also {
                     scrobbleManager = it
                 }
                 manager.minSongDuration = snapshot.minDuration
@@ -6850,6 +6851,8 @@ class PlaybackService : MediaLibraryService() {
                 manager.scrobbleDelaySeconds = snapshot.delaySeconds
                 manager.useNowPlaying = snapshot.nowPlaying
                 manager.usePrimaryArtistOnly = snapshot.primaryArtistOnly
+                // Listens kept while offline go out once a session is configured again.
+                manager.flushPending()
 
                 player?.let { exoPlayer ->
                     if (exoPlayer.isPlaying) {

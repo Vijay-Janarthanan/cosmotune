@@ -75,25 +75,69 @@ data class ListeningSession(
 }
 
 @Serializable
-enum class SmartOrder { TITLE, RECENTLY_ADDED, ARTIST }
+enum class SmartOrder { TITLE, RECENTLY_ADDED, ARTIST, SHUFFLE, LONGEST, SHORTEST }
 
+@Serializable
+enum class SmartDuration(val range: LongRange) { ANY(0L..Long.MAX_VALUE), SHORT(0L..179L), MEDIUM(180L..359L), LONG(360L..Long.MAX_VALUE) }
+
+/**
+ * Rules evaluated against the local library on every open. Every field defaults to "no filter",
+ * so rules saved by older versions keep their meaning.
+ */
 @Serializable
 data class SmartPlaylist(
     val id: String = UUID.randomUUID().toString(), val name: String,
     val likedOnly: Boolean = true, val downloadedOnly: Boolean = false,
     val excludeRecent: Boolean = false, val order: SmartOrder = SmartOrder.TITLE,
     val pinned: Boolean = false,
+    val recentOnly: Boolean = false,
+    /** Case-insensitive text that the artist (or any credited artist) must contain. */
+    val artistContains: String = "",
+    val albumContains: String = "",
+    val duration: SmartDuration = SmartDuration.ANY,
+    /** Only tracks added to this device within this many days; null keeps every date. */
+    val addedWithinDays: Int? = null,
+    val excludeExplicit: Boolean = false,
+    /** Downloads or files saved in a lossless format (by container, not proof of the original master). */
+    val losslessOnly: Boolean = false,
+    /** Keep at most this many tracks after ordering; null keeps all. */
+    val limit: Int? = null,
 ) {
-    fun songs(library: ListeningLibrary): List<Song> {
+    fun songs(library: ListeningLibrary, now: Long = System.currentTimeMillis()): List<Song> {
+        val artist = artistContains.trim().lowercase(java.util.Locale.ROOT)
+        val album = albumContains.trim().lowercase(java.util.Locale.ROOT)
+        val since = addedWithinDays?.let { now / 1000 - it.toLong() * 86_400 }
         val selected = library.songs.distinctBy { it.videoId }.filter {
             (!likedOnly || it.videoId in library.likedIds) &&
                 (!downloadedOnly || it.videoId in library.downloadedIds) &&
-                (!excludeRecent || it.videoId !in library.recentIds)
+                (!excludeRecent || it.videoId !in library.recentIds) &&
+                (!recentOnly || it.videoId in library.recentIds) &&
+                (artist.isEmpty() || (listOf(it.artist) + it.artists.map { a -> a.name }).any { name -> name.lowercase(java.util.Locale.ROOT).contains(artist) }) &&
+                (album.isEmpty() || it.albumName.orEmpty().lowercase(java.util.Locale.ROOT).contains(album)) &&
+                (duration == SmartDuration.ANY || durationSeconds(it.durationText)?.let { d -> d in duration.range } == true) &&
+                (since == null || (it.localDateAddedSeconds ?: Long.MIN_VALUE) >= since) &&
+                (!excludeExplicit || it.isExplicit != true) &&
+                (!losslessOnly || it.sourceHiRes || it.downloadFormat?.lowercase(java.util.Locale.ROOT)?.let { f -> LOSSLESS.any(f::contains) } == true)
         }
-        return when (order) {
+        val ordered = when (order) {
             SmartOrder.TITLE -> selected.sortedBy { it.title.lowercase(java.util.Locale.ROOT) }
             SmartOrder.ARTIST -> selected.sortedWith(compareBy({ it.artist.lowercase(java.util.Locale.ROOT) }, { it.title.lowercase(java.util.Locale.ROOT) }))
             SmartOrder.RECENTLY_ADDED -> selected.sortedByDescending { it.localDateAddedSeconds ?: 0L }
+            // Stable per rule: the same library gives the same order until the rule or library changes.
+            SmartOrder.SHUFFLE -> selected.sortedBy { (id + it.videoId).hashCode() }
+            SmartOrder.LONGEST -> selected.sortedByDescending { durationSeconds(it.durationText) ?: -1L }
+            SmartOrder.SHORTEST -> selected.sortedBy { durationSeconds(it.durationText) ?: Long.MAX_VALUE }
+        }
+        return limit?.let { ordered.take(it) } ?: ordered
+    }
+
+    companion object {
+        private val LOSSLESS = listOf("flac", "alac", "wav", "aiff", "dsd", "dsf", "ape", "wavpack")
+        /** "3:45" or "1:02:03" to seconds; null when the text is not a duration. */
+        fun durationSeconds(text: String?): Long? {
+            val parts = text?.trim()?.split(':')?.takeIf { it.size in 2..3 } ?: return null
+            val numbers = parts.map { it.toLongOrNull()?.takeIf { n -> n >= 0 } ?: return null }
+            return numbers.fold(0L) { total, n -> total * 60 + n }
         }
     }
 }
@@ -115,7 +159,30 @@ data class ReleaseNotice(
 @Serializable
 data class ListeningPreferences(
     val setupComplete: Boolean = false, val contentLanguage: String = "", val preferLocal: Boolean = false,
+    /** Check followed artists about once a day while Cosmotune is open. */
+    val autoCheckReleases: Boolean = false,
+    /** Artist names containing separators that are one artist (applied to matching and statistics). */
+    val artistExceptions: List<String> = emptyList(),
 )
+
+/** Followed artists whose last successful check is older than [intervalMs], oldest first. */
+fun dueForReleaseCheck(artists: List<WatchedArtist>, now: Long, intervalMs: Long = 24L * 60 * 60 * 1000): List<WatchedArtist> =
+    artists.filter { (it.checkedAt ?: Long.MIN_VALUE) <= now - intervalMs }.sortedBy { it.checkedAt ?: Long.MIN_VALUE }
+
+/** Only catalogue artist pages can be checked for releases; local-file artist keys are skipped. */
+private val CATALOGUE_ARTIST = Regex("(UC|MPLA)[A-Za-z0-9_-]{10,64}")
+
+/** Artists in the local library by how many tracks they have, excluding those already followed. */
+fun libraryArtists(songs: List<Song>, followed: Collection<WatchedArtist>, limit: Int = 20): List<Pair<WatchedArtist, Int>> {
+    val known = followed.mapTo(HashSet()) { it.id }
+    return songs.distinctBy { it.videoId }.flatMap { song ->
+        (song.artists.mapNotNull { a -> a.browseId?.let { it to a.name } }.ifEmpty { listOfNotNull(song.artistId?.let { it to song.artist }) })
+    }.filter { (id, name) -> CATALOGUE_ARTIST.matches(id) && name.isNotBlank() && id !in known }
+        .groupBy({ it.first }, { it.second })
+        .map { (id, names) -> WatchedArtist(id, names.groupingBy { it }.eachCount().maxBy { it.value }.key.take(80)) to names.size }
+        .sortedWith(compareByDescending<Pair<WatchedArtist, Int>> { it.second }.thenBy { it.first.name.lowercase(java.util.Locale.ROOT) })
+        .take(limit)
+}
 
 @Serializable
 data class ListeningState(
@@ -127,6 +194,7 @@ data class ListeningState(
     val preferences: ListeningPreferences = ListeningPreferences(),
     val pinnedPlaylistIds: Set<String> = emptySet(),
     val diagnostics: ListeningDiagnostics? = null,
+    val linkedPlaylists: List<LinkedPlaylist> = emptyList(),
 )
 
 /** Identical file format on Android, Windows, Linux and macOS. Never stores account secrets. */
@@ -180,6 +248,13 @@ class ListeningStore(private val file: File) {
     fun deleteSmart(id: String) = update { it.copy(smartPlaylists = it.smartPlaylists.filterNot { p -> p.id == id }) }
     fun pinPlaylist(id: String) = update { it.copy(pinnedPlaylistIds = if (id in it.pinnedPlaylistIds) it.pinnedPlaylistIds - id else it.pinnedPlaylistIds + id) }
     fun recordDiagnostics(result: ListeningDiagnostics) = update { it.copy(diagnostics = result) }
+    fun saveLinked(playlist: LinkedPlaylist) = update { s ->
+        require(s.linkedPlaylists.size < 50 || s.linkedPlaylists.any { it.id == playlist.id }) { "You can link up to 50 playlists." }
+        require(s.linkedPlaylists.none { it.id != playlist.id && it.source == playlist.source && it.remoteId == playlist.remoteId }) { "This playlist is already linked." }
+        val named = playlist.copy(name = cleanName(playlist.name))
+        s.copy(linkedPlaylists = if (s.linkedPlaylists.any { it.id == playlist.id }) s.linkedPlaylists.map { if (it.id == playlist.id) named else it } else s.linkedPlaylists + named)
+    }
+    fun unlink(id: String) = update { it.copy(linkedPlaylists = it.linkedPlaylists.filterNot { p -> p.id == id }) }
 
     fun watchArtist(id: String, name: String) = update {
         require(id.isNotBlank()) { "Choose an artist from search." }
@@ -213,6 +288,10 @@ class ListeningStore(private val file: File) {
             artists = (current.artists + incoming.artists).distinctBy { it.id },
             inbox = (current.inbox + incoming.inbox).distinctBy { it.artistId to it.id }.take(500),
             pinnedPlaylistIds = current.pinnedPlaylistIds + incoming.pinnedPlaylistIds,
+            preferences = current.preferences.copy(artistExceptions = (current.preferences.artistExceptions + incoming.preferences.artistExceptions)
+                .distinctBy { it.lowercase(java.util.Locale.ROOT) }.take(200)),
+            linkedPlaylists = (current.linkedPlaylists + incoming.linkedPlaylists).distinctBy { it.id }
+                .distinctBy { it.source to it.remoteId }.take(50),
         ) }
     }
 
@@ -224,12 +303,19 @@ class ListeningStore(private val file: File) {
             require(q.tracks.all { it.id.isNotBlank() }) { "A saved track has no identity." }
         }
         require(s.sessions.map { it.id }.distinct().size == s.sessions.size) { "Saved session identities must be unique." }
-        require(s.smartPlaylists.all { it.id.isNotBlank() && it.name.isNotBlank() && it.name.length <= 80 }) { "A smart playlist is invalid." }
+        require(s.smartPlaylists.all { it.id.isNotBlank() && it.name.isNotBlank() && it.name.length <= 80 && it.artistContains.length <= 200 &&
+            it.albumContains.length <= 200 && (it.addedWithinDays ?: 1) in 1..36_500 && (it.limit ?: 1) in 1..ListeningStore.MAX_TRACKS }) { "A smart playlist is invalid." }
         require(s.smartPlaylists.map { it.id }.distinct().size == s.smartPlaylists.size) { "Smart playlist identities must be unique." }
         require(s.artists.all { it.id.isNotBlank() && it.name.isNotBlank() && it.known.size <= 10000 }) { "An artist entry is invalid." }
         require(s.artists.map { it.id }.distinct().size == s.artists.size) { "Artist identities must be unique." }
         require(s.inbox.size <= 500 && s.inbox.all { it.id.isNotBlank() && it.artistId.isNotBlank() } &&
             s.inbox.map { it.artistId to it.id }.distinct().size == s.inbox.size) { "The release inbox is invalid." }
+        require(s.linkedPlaylists.size <= 50 && s.linkedPlaylists.map { it.id }.distinct().size == s.linkedPlaylists.size) { "Linked playlists are invalid." }
+        s.linkedPlaylists.forEach { p ->
+            require(p.id.isNotBlank() && p.name.isNotBlank() && p.name.length <= 80 && p.remoteId.isNotBlank() && p.source.isNotBlank() &&
+                p.entries.size <= MAX_TRACKS && p.base.size <= MAX_TRACKS && p.entries.all { it.track.id.isNotBlank() } && p.base.all { it.id.isNotBlank() }) { "A linked playlist is invalid." }
+        }
+        require(s.preferences.artistExceptions.size <= 200 && s.preferences.artistExceptions.all { it.length in 2..120 }) { "Artist exceptions are invalid." }
         s.diagnostics?.let { report ->
             require(report.checks.size <= 20 && report.checks.map { it.name }.distinct().size == report.checks.size) { "The diagnostic report is invalid." }
         }

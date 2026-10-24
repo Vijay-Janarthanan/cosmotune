@@ -33,7 +33,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 enum class ListeningTab(val label: String) {
-    SESSIONS("Sessions"), SMART("Smart playlists"), REPLAY("Replay playlists"),
+    SESSIONS("Sessions"), SMART("Smart playlists"), LINKED("Linked playlists"), REPLAY("Replay playlists"),
     RELEASES("New releases"), CONNECTION("Connection"), SETUP("Getting started"), BACKUP("Backup & transfer"), LIBRARY("Library review"), REMOTE("Phone remote")
 }
 
@@ -53,6 +53,17 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
     val state = store?.state?.collectAsState()?.value
     val firstRun = state != null && !state.preferences.setupComplete && !host.existingUser && !setupDismissed
     LaunchedEffect(firstRun) { if (firstRun) tab = ListeningTab.SETUP }
+    val exceptions = state?.preferences?.artistExceptions
+    LaunchedEffect(exceptions) { if (exceptions != null) com.cosmotune.music.data.model.ArtistIdentity.setUserExceptions(exceptions) }
+    // While Cosmotune is open (this workspace stays composed when closed), check stale artists about daily.
+    val autoReleases = state?.preferences?.autoCheckReleases == true
+    LaunchedEffect(store, autoReleases) {
+        if (store == null || !autoReleases) return@LaunchedEffect
+        while (true) {
+            refreshDueReleases(store, latestHost.releases)
+            kotlinx.coroutines.delay(60 * 60 * 1000L)
+        }
+    }
     if (!open && !firstRun) return
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
@@ -100,6 +111,7 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
                     } else when (tab) {
                         ListeningTab.SESSIONS -> SessionsPage(state, host, store, busy, run, close)
                         ListeningTab.SMART -> SmartPage(state, host, store, busy, run, close)
+                        ListeningTab.LINKED -> LinkedPlaylistsPage(state, host, store, busy, run, close)
                         ListeningTab.REPLAY -> ReplayPage(host, busy, run)
                         ListeningTab.RELEASES -> ReleasesPage(state, host, store, busy, run, close)
                         ListeningTab.CONNECTION -> ConnectionPage(state, host, store, busy, run)
@@ -187,10 +199,29 @@ private fun ColumnScope.SmartPage(state: ListeningState, host: ListeningToolsHos
             OutlinedTextField(draft.name, { draft = draft.copy(name = it.take(80)) }, label = { Text("Playlist name") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("listening:smart:name"))
             ToggleRow("Liked tracks", draft.likedOnly) { draft = draft.copy(likedOnly = it) }
             ToggleRow("Downloaded on this device", draft.downloadedOnly) { draft = draft.copy(downloadedOnly = it) }
-            ToggleRow("Not in recent history", draft.excludeRecent) { draft = draft.copy(excludeRecent = it) }
+            ToggleRow("Not in recent history", draft.excludeRecent) { draft = draft.copy(excludeRecent = it, recentOnly = if (it) false else draft.recentOnly) }
+            ToggleRow("Only recent history", draft.recentOnly) { draft = draft.copy(recentOnly = it, excludeRecent = if (it) false else draft.excludeRecent) }
+            OutlinedTextField(draft.artistContains, { draft = draft.copy(artistContains = it.take(200)) }, label = { Text("Artist contains") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("listening:smart:artist"))
+            OutlinedTextField(draft.albumContains, { draft = draft.copy(albumContains = it.take(200)) }, label = { Text("Album contains") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("listening:smart:album"))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SmartDuration.entries.forEach { length ->
+                    FilterChip(draft.duration == length, { draft = draft.copy(duration = length) }, modifier = Modifier.testTag("listening:smart:duration:${length.name}"),
+                        label = { Text(when (length) { SmartDuration.ANY -> "Any length"; SmartDuration.SHORT -> "Under 3 min"; SmartDuration.MEDIUM -> "3–6 min"; SmartDuration.LONG -> "Over 6 min" }) })
+                }
+            }
+            ToggleRow("Added in the last 30 days", draft.addedWithinDays != null) { draft = draft.copy(addedWithinDays = if (it) 30 else null) }
+            ToggleRow("Hide explicit tracks", draft.excludeExplicit) { draft = draft.copy(excludeExplicit = it) }
+            ToggleRow("Lossless files only", draft.losslessOnly) { draft = draft.copy(losslessOnly = it) }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SmartOrder.entries.forEach { order ->
-                    FilterChip(draft.order == order, { draft = draft.copy(order = order) }, label = { Text(when(order) { SmartOrder.TITLE -> "Title"; SmartOrder.ARTIST -> "Artist"; SmartOrder.RECENTLY_ADDED -> "Recently added" }) })
+                    FilterChip(draft.order == order, { draft = draft.copy(order = order) }, label = { Text(when(order) {
+                        SmartOrder.TITLE -> "Title"; SmartOrder.ARTIST -> "Artist"; SmartOrder.RECENTLY_ADDED -> "Recently added"
+                        SmartOrder.SHUFFLE -> "Shuffled"; SmartOrder.LONGEST -> "Longest first"; SmartOrder.SHORTEST -> "Shortest first" }) })
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(null, 25, 50, 100).forEach { cap ->
+                    FilterChip(draft.limit == cap, { draft = draft.copy(limit = cap) }, label = { Text(cap?.let { "Up to $it" } ?: "No limit") }, modifier = Modifier.testTag("listening:smart:limit:${cap ?: 0}"))
                 }
             }
             Text("${songs.size} matching tracks", Modifier.padding(vertical = 8.dp).testTag("listening:smart:count"))
@@ -266,22 +297,33 @@ private fun ColumnScope.ReleasesPage(state: ListeningState, host: ListeningTools
                 Text(artist.name, Modifier.weight(1f))
                 ToolButton(if (watched) "Following" else "Follow", enabled = !busy && !watched, onClick = { run {
                     withContext(Dispatchers.IO) { store.watchArtist(artist.id, artist.name) }
-                    val releases = ListeningNetwork.releases(artist)
+                    val releases = host.releases(artist)
                     withContext(Dispatchers.IO) { store.acceptReleases(artist.id, releases) }
                     "Following ${artist.name}. Future checks will show newly discovered releases."
                 } })
             }
         }
-        item {
-            ToolButton("Check for releases", enabled = !busy && state.artists.isNotEmpty(), onClick = { run {
-                var failures = 0
-                for (artist in state.artists) {
-                    try {
-                        val releases = ListeningNetwork.releases(artist)
+        val suggestions = libraryArtists(host.library.songs, state.artists, limit = 12)
+        if (suggestions.isNotEmpty() && state.artists.size < 50) {
+            item { Text("From your library", style = MaterialTheme.typography.titleMedium) }
+            items(suggestions, key = { "library:${it.first.id}" }) { (artist, count) ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("${artist.name} · $count tracks", Modifier.weight(1f))
+                    ToolButton("Follow", enabled = !busy, kind = CosmoButtonKind.TONAL, tag = "listening:releases:library:${artist.id}", onClick = { run {
+                        withContext(Dispatchers.IO) { store.watchArtist(artist.id, artist.name) }
+                        val releases = host.releases(artist)
                         withContext(Dispatchers.IO) { store.acceptReleases(artist.id, releases) }
-                    } catch (_: kotlinx.coroutines.TimeoutCancellationException) { failures++ }
-                    catch (e: CancellationException) { throw e } catch (_: Exception) { failures++ }
+                        "Following ${artist.name}. Future checks will show newly discovered releases."
+                    } })
                 }
+            }
+        }
+        item {
+            ToggleRow("Check daily while Cosmotune is open", state.preferences.autoCheckReleases) { enabled ->
+                run { withContext(Dispatchers.IO) { store.update { it.copy(preferences = it.preferences.copy(autoCheckReleases = enabled)) } }; null }
+            }
+            ToolButton("Check for releases", enabled = !busy && state.artists.isNotEmpty(), tag = "listening:releases:check", onClick = { run {
+                val failures = refreshDueReleases(store, host.releases, force = true)
                 if (failures > 0) "$failures artist checks failed. Saved releases were kept; retry when connected." else "Release checks complete"
             } })
         }
@@ -422,3 +464,17 @@ internal fun ToolButton(text: String, onClick: () -> Unit, enabled: Boolean = tr
 }
 
 private fun stamp(millis: Long): String = DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(millis))
+
+/** Checks due (or, with [force], all) followed artists; returns how many checks failed. Saved releases are never dropped. */
+internal suspend fun refreshDueReleases(store: ListeningStore, lookup: suspend (WatchedArtist) -> List<ReleaseNotice>, force: Boolean = false): Int {
+    val artists = store.state.value.artists.let { if (force) it else dueForReleaseCheck(it, System.currentTimeMillis()) }
+    var failures = 0
+    for (artist in artists) {
+        try {
+            val releases = lookup(artist)
+            withContext(Dispatchers.IO) { store.acceptReleases(artist.id, releases) }
+        } catch (_: kotlinx.coroutines.TimeoutCancellationException) { failures++ }
+        catch (e: CancellationException) { throw e } catch (_: Exception) { failures++ }
+    }
+    return failures
+}

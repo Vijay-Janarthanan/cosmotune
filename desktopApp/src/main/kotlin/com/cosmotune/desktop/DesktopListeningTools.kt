@@ -22,10 +22,8 @@ fun DesktopListeningTools(
     applySetup: (ListeningPreferences, Boolean) -> Unit, sourceSummary: String,
     remote: ListeningRemoteHost,
 ) {
-    val base = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
-        ?: "${System.getProperty("user.home")}/.local/share"
     ListeningTools(open, ListeningToolsHost(
-        file = File(base, "cosmotune/listening.json"), library = library, queue = queue,
+        file = desktopListeningFile(), library = library, queue = queue,
         replay = { window ->
             val period = if (window == ReplayWindow.MONTH) DesktopReplayPeriod.THIS_MONTH else DesktopReplayPeriod.THIS_YEAR
             val summary = DesktopListeningStats.summary(period)
@@ -51,8 +49,17 @@ fun DesktopListeningTools(
             }
         } },
         sourceSummary = sourceSummary, existingUser = library.songs.isNotEmpty(), remote = remote,
+        pcmDecoder = DesktopLibraryPcmDecoder,
+        trashFiles = desktopTrash(),
         languageChoices = DesktopStrings.available.map { it.tag to it.label },
     ), onDismiss)
+}
+
+/** The listening store; measured library loudness lives beside it. */
+fun desktopListeningFile(): File {
+    val base = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
+        ?: "${System.getProperty("user.home")}/.local/share"
+    return File(base, "cosmotune/listening.json")
 }
 
 internal suspend fun chooseCosmotuneFile(name: String, saving: Boolean): File? = withContext(Dispatchers.IO) {
@@ -66,4 +73,13 @@ internal suspend fun chooseCosmotuneFile(name: String, saving: Boolean): File? =
         } finally { dialog.dispose() }
     }
     selected
+}
+
+/** The operating system's own trash (recoverable), where the desktop supports it. */
+internal fun desktopTrash(): (suspend (List<Song>) -> Int)? {
+    val desktop = runCatching { java.awt.Desktop.getDesktop().takeIf { java.awt.Desktop.isDesktopSupported() && it.isSupported(java.awt.Desktop.Action.MOVE_TO_TRASH) } }.getOrNull()
+        ?: return null
+    return { songs -> withContext(Dispatchers.IO) {
+        songs.mapNotNull { it.localPath?.let(::File)?.takeIf { f -> f.isAbsolute && f.isFile } }.distinct().count { runCatching { desktop.moveToTrash(it) }.getOrDefault(false) }
+    } }
 }
