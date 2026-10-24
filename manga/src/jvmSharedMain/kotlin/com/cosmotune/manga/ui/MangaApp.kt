@@ -134,13 +134,32 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                     } }) { Text("Refresh chapters") }
                     if (saved) TextButton(enabled = transfer?.isActive != true, onClick = { action { repository.removeBook(book.id); selected = null } }) { Text("Remove from library") }
                 }
-                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp)) {
-                    item {
+                val editions = book.editions()
+                var edition by rememberSaveable(book.id) { mutableStateOf("") }
+                var newestFirst by rememberSaveable(book.id) { mutableStateOf(false) }
+                var unreadOnly by rememberSaveable(book.id) { mutableStateOf(false) }
+                if (edition.isNotBlank() && edition !in editions) edition = ""
+                val listed = book.listedChapters(edition, newestFirst, unreadOnly, state.readChapters)
+                LazyColumn(Modifier.weight(1f).testTag("manga:chapters"), contentPadding = PaddingValues(vertical = 12.dp)) {
+                    item(key = "series:header") {
                         Text(book.authors.joinToString(" · "), style = MaterialTheme.typography.labelLarge)
                         if (book.description.isNotBlank()) Text(org.jsoup.Jsoup.parse(book.description).text(), modifier = Modifier.padding(vertical = 12.dp))
                         if (book.chapters.isEmpty()) Text("Refresh chapters to load this series.")
+                        else {
+                            if (editions.size > 1) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("manga:editions")) {
+                                FilterChip(selected = edition.isBlank(), onClick = { edition = "" }, label = { Text("All editions") })
+                                editions.forEach { item -> FilterChip(selected = edition == item, onClick = { edition = item }, label = { Text(item) }) }
+                            }
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+                                TextButton(onClick = { newestFirst = !newestFirst }) { Text(if (newestFirst) "Newest first" else "Oldest first") }
+                                FilterChip(selected = unreadOnly, onClick = { unreadOnly = !unreadOnly }, label = { Text("Unread only") })
+                                Text("${listed.size} of ${book.chapters.size} chapters · ${book.chapters.count { it.id !in state.readChapters }} unread",
+                                    style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.CenterVertically))
+                            }
+                            if (listed.isEmpty()) Text(if (unreadOnly) "Every chapter here is read." else "No chapters in this edition.", modifier = Modifier.padding(vertical = 12.dp))
+                        }
                     }
-                    items(book.chapters, key = { it.id }) { item ->
+                    items(listed, key = { it.id }) { item ->
                         val read = state.progress[book.id]?.takeIf { it.chapterId == item.id }
                         val finished = item.id in state.readChapters
                         Row(Modifier.fillMaxWidth().clickable { action { repository.store.save(book); chapter = item } }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -203,15 +222,42 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
 @Composable
 private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: String, query: String, onBook: (MangaBook) -> Unit) {
     val library by repository.store.state.collectAsState()
-    var results by remember(sourceId, query) { mutableStateOf(emptyList<MangaBook>()) }
-    var next by remember(sourceId, query) { mutableStateOf<Int?>(0) }
-    var requested by remember(sourceId, query) { mutableIntStateOf(0) }
+    val configuration: Any? = if (sourceId == "all") library.sources else library.sources.find { it.id == sourceId }
+    // A changed source configuration (another catalogue language) starts its catalogue again from the first page.
+    var results by remember(sourceId, query, configuration) { mutableStateOf(emptyList<MangaBook>()) }
+    var next by remember(sourceId, query, configuration) { mutableStateOf<Int?>(0) }
+    var requested by remember(sourceId, query, configuration) { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var aggregate by remember(sourceId, query) { mutableStateOf<MangaSearchResults?>(null) }
     var searchJob by remember { mutableStateOf<Job?>(null) }
     var loadGeneration by remember { mutableIntStateOf(0) }
-    val configuration: Any? = if (sourceId == "all") library.sources else library.sources.find { it.id == sourceId }
+    var languages by remember(sourceId) { mutableStateOf(emptyList<String>()) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(sourceId) {
+        languages = if (sourceId == "library" || sourceId == "all") emptyList() else try { repository.languages(sourceId) }
+            catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
+    }
+    if (languages.isNotEmpty()) {
+        val chosen = (configuration as? MangaSourceConfig)?.settings?.get(MANGA_LANGUAGE_SETTING).orEmpty()
+        var open by remember { mutableStateOf(false) }
+        fun label(tag: String) = if (tag.isBlank()) "Source default" else java.util.Locale.forLanguageTag(tag).let { locale ->
+            locale.getDisplayName(locale).replaceFirstChar { it.titlecase(locale) }.ifBlank { tag } + " ($tag)"
+        }
+        Box(Modifier.padding(top = 8.dp)) {
+            TextButton(onClick = { open = true }, modifier = Modifier.testTag("manga:catalogue:language")) { Text("Language: ${label(chosen)}") }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                (listOf("") + languages).forEach { tag -> DropdownMenuItem(text = { Text(label(tag)) }, onClick = {
+                    open = false
+                    scope.launch {
+                        try { repository.chooseLanguage(sourceId, tag) }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (failure: Exception) { error = failure.message ?: "Language could not be saved" }
+                    }
+                }) }
+            }
+        }
+    }
     val revision by repository.sourceChanges.collectAsState()
     LaunchedEffect(sourceId, query, requested, configuration, revision) {
         val generation = ++loadGeneration

@@ -61,8 +61,15 @@ import com.cosmotune.manga.data.MangaImageImport
                 if (picker.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) directory = picker.selectedFile
             }
             directory?.let { folder ->
-                val images = folder.listFiles().orEmpty().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp", "avif", "gif") }
-                MangaFolderImport(folder.name, images.map { image -> MangaImageImport(image.name) { image.inputStream() } })
+                fun images(directory: File) = directory.listFiles().orEmpty().filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp", "avif", "gif") }
+                // A series folder holds its pages, or one subfolder per chapter (one level, symbolic links are not followed).
+                val direct = images(folder)
+                val chapters = if (direct.isNotEmpty()) emptyList() else folder.listFiles().orEmpty()
+                    .filter { it.isDirectory && !java.nio.file.Files.isSymbolicLink(it.toPath()) }.take(1_001)
+                val imports = direct.map { image -> MangaImageImport(image.name) { image.inputStream() } } +
+                    chapters.flatMap { chapter -> images(chapter).map { image -> MangaImageImport(image.name, chapter.name) { image.inputStream() } } }
+                require(imports.size <= 10_000) { "Folder contains too many images" }
+                MangaFolderImport(folder.name, imports)
             }
         } }
         result.fold(onSuccess = { if (it != null) latest.value(Result.success(it)) }, onFailure = { latest.value(Result.failure(it)) })

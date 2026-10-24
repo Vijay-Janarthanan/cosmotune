@@ -18,29 +18,35 @@ class MangaArchive(private val root: File) {
     private val books = File(root, "books").apply { mkdirs() }
     private val pages = File(root, "cache/pages").apply { mkdirs() }
 
+    /** Images with a [MangaImageImport.chapter] become one chapter per folder; the folder name is kept only as the chapter title. */
     suspend fun importImages(name: String, images: List<MangaImageImport>): MangaBook = withContext(Dispatchers.IO) {
         require(images.isNotEmpty() && images.size <= MAX_ENTRIES) { "Choose a folder with 1 to 10,000 page images" }
+        val chapters = images.groupBy { safeFolder(it.chapter) }
+        require(chapters.size <= MAX_CHAPTERS) { "Choose a folder with at most 1,000 chapter folders" }
         val temporary = File.createTempFile("folder-", ".cbz", books)
         try {
             var total = 0L
             ZipOutputStream(temporary.outputStream()).use { zip ->
-                images.sortedWith { left, right -> NaturalPageOrder.compare(left.name, right.name) }.forEachIndexed { index, image ->
-                    val extension = image.name.substringAfterLast('.', "").lowercase()
-                    require(extension in IMAGE_EXTENSIONS) { "Unsupported page image" }
-                    zip.putNextEntry(ZipEntry("${index.toString().padStart(5, '0')}.$extension"))
-                    var pageSize = 0L
-                    image.open().use { input ->
-                        val buffer = ByteArray(32 * 1024)
-                        while (true) {
-                            currentCoroutineContext().ensureActive()
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            pageSize += count; total += count
-                            require(pageSize <= MAX_PAGE_BYTES && total <= MAX_ARCHIVE_BYTES) { "Image folder exceeds the import limit" }
-                            zip.write(buffer, 0, count)
+                chapters.keys.sortedWith(NaturalPageOrder).forEach { folder ->
+                    val prefix = if (folder.isEmpty()) "" else "$folder/"
+                    chapters.getValue(folder).sortedWith { left, right -> NaturalPageOrder.compare(left.name, right.name) }.forEachIndexed { index, image ->
+                        val extension = image.name.substringAfterLast('.', "").lowercase()
+                        require(extension in IMAGE_EXTENSIONS) { "Unsupported page image" }
+                        zip.putNextEntry(ZipEntry("$prefix${index.toString().padStart(5, '0')}.$extension"))
+                        var pageSize = 0L
+                        image.open().use { input ->
+                            val buffer = ByteArray(32 * 1024)
+                            while (true) {
+                                currentCoroutineContext().ensureActive()
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                pageSize += count; total += count
+                                require(pageSize <= MAX_PAGE_BYTES && total <= MAX_ARCHIVE_BYTES) { "Image folder exceeds the import limit" }
+                                zip.write(buffer, 0, count)
+                            }
                         }
+                        zip.closeEntry()
                     }
-                    zip.closeEntry()
                 }
             }
             import("$name.cbz") { temporary.inputStream() }
@@ -67,20 +73,32 @@ class MangaArchive(private val root: File) {
             } }
             val hash = digest.digest().joinToString("") { "%02x".format(it) }
             val target = File(books, "$hash.cbz")
-            val entries = entries(temporary)
-            require(entries.isNotEmpty()) { "This archive contains no supported page images" }
+            val contents = inspect(temporary)
+            require(contents.pages.isNotEmpty()) { "This archive contains no supported page images" }
             move(temporary, target)
             val bookId = "local:$hash"
+            val info = contents.info
+            val folders = chapterFolders(contents.pages)
+            val chapters = if (folders == null) listOf(MangaChapter("$bookId:chapter", bookId, "local", info?.title?.takeIf { it.isNotBlank() } ?: "Read", "",
+                number = info?.number ?: 0f, language = info?.language.orEmpty(), archiveFile = target.path))
+            else folders.mapIndexed { index, (folder, title) ->
+                val key = MessageDigest.getInstance("SHA-256").digest(folder.toByteArray(Charsets.UTF_8)).take(8).joinToString("") { "%02x".format(it) }
+                MangaChapter("$bookId:chapter:$key", bookId, "local", title, "$folder/", number = index + 1f,
+                    language = info?.language.orEmpty(), archiveFile = target.path)
+            }
             MangaBook(
-                id = bookId, sourceId = "local", title = File(name).nameWithoutExtension,
-                chapters = listOf(MangaChapter("$bookId:chapter", bookId, "local", "Read", "", archiveFile = target.path)),
+                id = bookId, sourceId = "local", title = info?.series?.takeIf { it.isNotBlank() } ?: File(name).nameWithoutExtension,
+                authors = info?.authors.orEmpty(), description = info?.summary.orEmpty(), tags = info?.genres.orEmpty(),
+                language = info?.language.orEmpty(), chapters = chapters,
             )
         } finally { temporary.delete() }
     }
 
     suspend fun chapterPages(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
         val archive = ownedArchive(chapter.archiveFile ?: error("Archive is missing"))
-        entries(archive).mapIndexed { index, name ->
+        val folder = chapter.url.takeIf { it.endsWith("/") }?.removeSuffix("/")
+        // Single-chapter archives (and every import made before chapter folders) read all pages.
+        inspect(archive).pages.filter { folder == null || pageFolder(it) == folder }.mapIndexed { index, name ->
             MangaPage("${chapter.id}:$index", archiveFile = archive.path, archiveEntry = name)
         }
     }
@@ -124,18 +142,53 @@ class MangaArchive(private val root: File) {
         return archive
     }
 
-    private fun entries(file: File): List<String> = ZipFile(file).use { zip ->
+    private class Contents(val pages: List<String>, val info: ComicInfo?)
+
+    private fun inspect(file: File): Contents = ZipFile(file).use { zip ->
         val list = zip.entries().asSequence().take(MAX_ENTRIES + 1).toList()
         require(list.size <= MAX_ENTRIES) { "Archive contains too many entries" }
-        list.filter { !it.isDirectory && it.name.substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS }
+        val pages = list.filter { !it.isDirectory && it.name.substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS }
             .map { it.name }.sortedWith(NaturalPageOrder)
+        // Only a root ComicInfo.xml describes the book; oversized or unreadable metadata is ignored, never fatal.
+        val info = list.firstOrNull { !it.isDirectory && it.name.equals("ComicInfo.xml", true) }
+            ?.takeIf { it.size in 0..MAX_COMIC_INFO_BYTES }
+            ?.let { entry -> runCatching {
+                val bytes = zip.getInputStream(entry).use { it.readNBytes(MAX_COMIC_INFO_BYTES.toInt() + 1) }
+                if (bytes.size > MAX_COMIC_INFO_BYTES) null else ComicInfo.parse(bytes.toString(Charsets.UTF_8))
+            }.getOrNull() }
+        Contents(pages, info)
     }
 
     companion object {
         const val MAX_ARCHIVE_BYTES = 512L * 1024 * 1024
         const val MAX_PAGE_BYTES = 32L * 1024 * 1024
         private const val MAX_ENTRIES = 10_000
+        private const val MAX_CHAPTERS = 1_000
+        private const val MAX_COMIC_INFO_BYTES = 256L * 1024
         private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "avif", "gif")
+
+        /** The folder of an entry, or "" for the root; a path with empty, "." or ".." segments counts as the root. */
+        internal fun pageFolder(entry: String): String {
+            val folder = entry.replace('\\', '/').substringBeforeLast('/', "")
+            return if (folder.split('/').any { it.isEmpty() || it == "." || it == ".." }) "" else folder
+        }
+
+        /**
+         * Pages in two or more folders, with none at the root, are chapters in natural folder order, titled by the part of their path
+         * that differs. Anything else stays one chapter, as every earlier import did.
+         */
+        internal fun chapterFolders(pages: List<String>): List<Pair<String, String>>? {
+            val folders = pages.map(::pageFolder).distinct()
+            if (folders.size < 2 || "" in folders || folders.size > MAX_CHAPTERS) return null
+            val split = folders.map { it.split('/') }
+            var common = 0
+            while (split.all { it.size > common + 1 } && split.map { it[common] }.distinct().size == 1) common++
+            return folders.sortedWith(NaturalPageOrder).map { folder -> folder to folder.split('/').drop(common).joinToString(" · ").take(500) }
+        }
+
+        private fun safeFolder(name: String): String = name.filterNot { it == '/' || it == '\\' || it.isISOControl() }.trim()
+            .takeUnless { it == "." || it == ".." }.orEmpty().take(120)
+
         internal fun move(from: File, to: File) {
             try { Files.move(from.toPath(), to.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING) }
             catch (_: java.nio.file.AtomicMoveNotSupportedException) {
@@ -145,7 +198,23 @@ class MangaArchive(private val root: File) {
     }
 }
 
-data class MangaImageImport(val name: String, val open: () -> InputStream)
+/** [chapter] names the chapter folder an image came from; "" keeps it in a single chapter. */
+data class MangaImageImport(val name: String, val chapter: String = "", val open: () -> InputStream)
+
+/** The subset of the ComicRack ComicInfo.xml schema that describes a book. Parsed without DTDs or external entities. */
+internal data class ComicInfo(val series: String, val title: String, val number: Float?, val summary: String,
+    val authors: List<String>, val genres: List<String>, val language: String) {
+    companion object {
+        fun parse(xml: String): ComicInfo {
+            val root = org.jsoup.Jsoup.parse(xml, "", org.jsoup.parser.Parser.xmlParser()).children().firstOrNull { it.tagName().equals("ComicInfo", true) }
+                ?: error("Not a ComicInfo document")
+            fun text(tag: String) = root.children().firstOrNull { it.tagName().equals(tag, true) }?.text()?.trim().orEmpty().take(100_000)
+            fun list(vararg tags: String) = tags.flatMap { text(it).split(',', ';') }.map { it.trim().take(200) }.filter(String::isNotBlank).distinct().take(50)
+            return ComicInfo(text("Series").take(500), text("Title").take(500), text("Number").toFloatOrNull(), text("Summary"),
+                list("Writer", "Penciller"), list("Genre"), text("LanguageISO").take(32))
+        }
+    }
+}
 data class MangaFolderImport(val name: String, val images: List<MangaImageImport>)
 
 /** Numeric segments compare by significant length first, avoiding integer overflow on long filenames. */
