@@ -107,30 +107,46 @@ object AppleArtistArtRepository {
         return entry.art
     }
 
+    /** The iTunes search endpoint; a test points it at a local fixture server. */
+    @Volatile
+    internal var searchEndpoint = "https://itunes.apple.com/search"
+
+    /** Forgets every settled lookup; for tests, which share this process-wide cache. */
+    internal fun clearForTest() {
+        synchronized(cache) { cache.clear() }
+    }
+
     private fun lookup(artistName: String, key: String): Entry? {
         val search = get(
-            "https://itunes.apple.com/search?term=${URLEncoder.encode(artistName, "UTF-8")}" +
+            "$searchEndpoint?term=${URLEncoder.encode(artistName, "UTF-8")}" +
                 "&entity=musicArtist&limit=5",
         ) ?: return null
-        val results = JSONObject(search).optJSONArray("results") ?: JSONArray()
-        var page: String? = null
-        for (i in 0 until results.length()) {
-            val r = results.getJSONObject(i)
-            if (r.optString("artistName").normalized() == key) {
-                // The link carries the artist's slug; the bare id answers with
-                // a redirect to it, one more round trip for the same page.
-                page = r.optString("artistLinkUrl").substringBefore('?').takeIf { it.isNotBlank() }
-                    ?: r.optLong("artistId").takeIf { it > 0 }?.let { "https://music.apple.com/us/artist/$it" }
-                break
-            }
-        }
-        if (page == null) return Entry(null)
-
+        val page = artistPageFor(search, artistName) ?: return Entry(null)
         val html = get(page) ?: return null
         return Entry(parse(html))
     }
 
-    private fun parse(html: String): AppleArtistArt? {
+    /**
+     * The Apple Music page of the search result whose name is [artistName] once
+     * normalized, or null when no result is that artist: a search happily
+     * returns somebody else, and their photo is worse than none.
+     */
+    internal fun artistPageFor(searchJson: String, artistName: String): String? {
+        val key = artistName.normalized()
+        if (key.isEmpty()) return null
+        val results = JSONObject(searchJson).optJSONArray("results") ?: JSONArray()
+        for (i in 0 until results.length()) {
+            val r = results.optJSONObject(i) ?: continue
+            if (r.optString("artistName").normalized() != key) continue
+            // The link carries the artist's slug; the bare id answers with
+            // a redirect to it, one more round trip for the same page.
+            return r.optString("artistLinkUrl").substringBefore('?').takeIf { it.startsWith("http") }
+                ?: r.optLong("artistId").takeIf { it > 0 }?.let { "https://music.apple.com/us/artist/$it" }
+        }
+        return null
+    }
+
+    internal fun parse(html: String): AppleArtistArt? {
         val marker = html.indexOf("id=\"serialized-server-data\"")
         if (marker < 0) return null
         val start = html.indexOf('>', marker) + 1

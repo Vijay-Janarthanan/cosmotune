@@ -734,4 +734,12 @@
     <string name="listen_together_open">Birlikte dinle</string>
     <string name="listen_together_open_count">Birlikte dinleme · %1$d</string>
     <string name="miscellaneous_footer">Etkinleştirildiğinde, uygulamayı son kullanılanlar ekranından kapatmak müzik çalmayı da durdurur.</string>
+    <string name="artist_signatures">Sanatçı imzaları</string>
+    <string name="artist_signatures_subtitle">Apple Music\'te başlık logosu yokken el yazısı imza gösterir</string>
+    <string name="artist_signatures_url">İmza API URL\'si</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Yapılandırılmadı — API URL\'sini ayarlamak için dokunun</string>
+    <string name="artist_signatures_test_failed">Bu URL\'de API\'ye ulaşılamadı</string>
+    <string name="show_queue_history">Sıra geçmişini göster</string>
+    <string name="show_queue_history_subtitle">Sırada “Şimdi çalıyor” öğesinin üstünde daha önce çalınan en fazla 25 şarkıyı gösterir</string>
 </resources>

@@ -84,6 +84,11 @@ internal fun DesktopListenTogetherDialog(autoplayEnabled: Boolean, onDismiss: ()
     LaunchedEffect(server) {
         if (serverDraft == server || serverDraft.isBlank()) serverDraft = server
     }
+    // The server status row polls only while this panel is open (DesktopListenTogether.setScreenActive).
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        DesktopListenTogether.setScreenActive(true)
+        onDispose { DesktopListenTogether.setScreenActive(false) }
+    }
 
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 920) {
         Column(desktopPanelBody(cardMax = 760.dp, cardMin = 560.dp, fill = true)) {

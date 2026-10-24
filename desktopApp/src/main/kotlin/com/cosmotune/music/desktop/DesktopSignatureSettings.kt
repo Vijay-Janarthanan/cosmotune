@@ -15,60 +15,117 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.data.canvas.ArtistSignatureRepository
+import com.cosmotune.music.data.canvas.ArtistSignatureRepository.SaveCheck
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-internal object DesktopSignatureSettings {
-    private val persistence = DesktopPersistence()
-    val enabled = MutableStateFlow(persistence.boolean("signature_api_enabled", false))
-    val url = MutableStateFlow(persistence.string("signature_api_url", ""))
+/**
+ * The artist-signature provider's two stored values. The store is passed in so a test can use a map instead of the
+ * real preferences; the app's instance is [DesktopSignatureSettings].
+ */
+internal class DesktopSignatureSettingsModel(
+    private val readBoolean: (String, Boolean) -> Boolean,
+    private val readString: (String, String) -> String,
+    private val saveBoolean: (String, Boolean) -> Unit,
+    private val saveString: (String, String) -> Unit,
+    private val forgetSignatures: () -> Unit = ArtistSignatureRepository::clear,
+    private val check: suspend (String) -> SaveCheck = ArtistSignatureRepository::checkForSave,
+) {
+    private val _enabled = MutableStateFlow(readBoolean(KEY_ENABLED, false))
+    private val _url = MutableStateFlow(ArtistSignatureRepository.normalizeBaseUrl(readString(KEY_URL, "")))
+    val enabled: StateFlow<Boolean> = _enabled
+    val url: StateFlow<String> = _url
+
     fun enable(value: Boolean) {
-        enabled.value = value
-        persistence.saveBoolean("signature_api_enabled", value)
+        _enabled.value = value
+        saveBoolean(KEY_ENABLED, value)
     }
-    fun save(value: String) {
-        url.value = ArtistSignatureRepository.normalizeBaseUrl(value)
-        persistence.saveString("signature_api_url", url.value)
-        ArtistSignatureRepository.clear()
-        enable(url.value.isNotBlank())
+
+    /**
+     * What the editor's Save does with [draft]: a blank address forgets the provider, a malformed or unreachable one
+     * changes nothing, and a healthy one is stored, turned on and the cached signatures of the old address dropped.
+     */
+    suspend fun submit(draft: String): SaveCheck {
+        val result = check(draft)
+        when (result) {
+            SaveCheck.Remove -> store("", enabled = false)
+            is SaveCheck.Ready -> store(result.baseUrl, enabled = true)
+            SaveCheck.Invalid, SaveCheck.Unreachable -> Unit
+        }
+        return result
+    }
+
+    private fun store(value: String, enabled: Boolean) {
+        _url.value = value
+        saveString(KEY_URL, value)
+        forgetSignatures()
+        enable(enabled)
+    }
+
+    companion object {
+        const val KEY_ENABLED = "signature_api_enabled"
+        const val KEY_URL = "signature_api_url"
     }
 }
 
+internal val DesktopSignatureSettings: DesktopSignatureSettingsModel by lazy {
+    val persistence = DesktopPersistence()
+    DesktopSignatureSettingsModel(
+        readBoolean = persistence::boolean,
+        readString = persistence::string,
+        saveBoolean = persistence::saveBoolean,
+        saveString = persistence::saveString,
+    )
+}
+
 @Composable
-internal fun DesktopArtistSignatureSettings() {
-    val enabled by DesktopSignatureSettings.enabled.collectAsStateWithLifecycle()
-    val stored by DesktopSignatureSettings.url.collectAsStateWithLifecycle()
+internal fun DesktopArtistSignatureSettings(settings: DesktopSignatureSettingsModel = DesktopSignatureSettings) {
+    val enabled by settings.enabled.collectAsStateWithLifecycle()
+    val stored by settings.url.collectAsStateWithLifecycle()
     var editor by remember { mutableStateOf(false) }
     var draft by remember(editor) { mutableStateOf(stored) }
     var busy by remember(editor) { mutableStateOf(false) }
     var error by remember(editor) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    SettingsToggle("Artist signatures", "Show a configured provider's handwritten artist signatures", enabled, DesktopSignatureSettings::enable)
-    SettingsNavigationRow("Signature API URL", if (stored.isBlank()) "Not configured" else "Configured", onClick = { editor = true })
+    val subtitle = DesktopStrings["artist_signatures_subtitle", "Shows a handwritten signature when Apple Music has no title logo"]
+    SettingsToggle(DesktopStrings["artist_signatures", "Artist signatures"], subtitle, enabled, settings::enable)
+    SettingsNavigationRow(
+        DesktopStrings["artist_signatures_url", "Signature API URL"],
+        if (stored.isBlank()) DesktopStrings["artist_signatures_unconfigured", "Not configured — tap to set the API URL"]
+        else DesktopStrings["connected", "Connected"],
+        onClick = { editor = true },
+    )
     if (editor) AlertDialog(
         onDismissRequest = { if (!busy) editor = false },
-        title = { Text("Artist signatures") },
+        title = { Text(DesktopStrings["artist_signatures_url", "Signature API URL"]) },
         text = {
             Column {
-                Text("Use an artist-signature API that provides /v1/health and /v1/signatures. Leaving the URL blank removes it.")
-                OutlinedTextField(draft, { draft = it; error = null }, label = { Text("API URL") }, enabled = !busy, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text(subtitle)
+                OutlinedTextField(
+                    draft,
+                    { draft = it; error = null },
+                    placeholder = { Text(DesktopStrings["artist_signatures_url_hint", "https://signatures.example.com"]) },
+                    enabled = !busy,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 error?.let { Text(it) }
             }
         },
         confirmButton = {
             TextButton(enabled = !busy, onClick = {
-                if (draft.isBlank()) { DesktopSignatureSettings.save(""); editor = false }
-                else {
-                    busy = true
-                    scope.launch {
-                        if (ArtistSignatureRepository.checkHealth(draft)) {
-                            DesktopSignatureSettings.save(draft); editor = false
-                        } else error = "Could not reach a signature API at that URL"
-                        busy = false
+                busy = true
+                scope.launch {
+                    when (settings.submit(draft)) {
+                        SaveCheck.Remove, is SaveCheck.Ready -> editor = false
+                        SaveCheck.Invalid, SaveCheck.Unreachable ->
+                            error = DesktopStrings["artist_signatures_test_failed", "Could not reach the API at that URL"]
                     }
+                    busy = false
                 }
-            }) { Text(if (busy) "Checking…" else "Save") }
+            }) { Text(DesktopStrings["save", "Save"]) }
         },
-        dismissButton = { TextButton(enabled = !busy, onClick = { editor = false }) { Text("Cancel") } },
+        dismissButton = { TextButton(enabled = !busy, onClick = { editor = false }) { Text(DesktopStrings["cancel", "Cancel"]) } },
     )
 }
