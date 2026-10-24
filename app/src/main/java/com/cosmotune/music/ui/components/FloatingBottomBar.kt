@@ -171,6 +171,7 @@ fun FloatingBottomBar(
     val haptics = rememberHaptics()
     val density = LocalDensity.current
     val currentSelectedIndex by rememberUpdatedState(selectedIndex)
+    val currentLastIndex by rememberUpdatedState(tabs.lastIndex)
 
     var rowSize by remember { mutableStateOf(IntSize.Zero) }
     val gapPx = with(density) { 6.dp.toPx() }
@@ -185,6 +186,7 @@ fun FloatingBottomBar(
     val tabStepPx = if (rowSize.width > 0 && n > 0) {
         (rowSize.width + gapPx) / n
     } else 0f
+    val currentStepPx by rememberUpdatedState(tabStepPx)
 
     val pillTargetPx = if (tabStepPx > 0f) {
         selectedIndex * tabStepPx + dragOffset
@@ -258,19 +260,19 @@ fun FloatingBottomBar(
                 .fillMaxWidth()
                 .onSizeChanged { rowSize = it }
                 .pointerInput(Unit) {
+                    // Read through the updated states, not the values of the first composition: the row has no width
+                    // then (a step of 0), and the selection moves on with every tab change (BC-34).
                     var totalDrag = 0f
+                    var dragStartIndex = currentSelectedIndex
                     detectHorizontalDragGestures(
-                        onDragStart = { totalDrag = 0f },
+                        onDragStart = {
+                            totalDrag = 0f
+                            dragStartIndex = currentSelectedIndex
+                        },
                         onDragCancel = { dragOffset = 0f },
                         onDragEnd = {
-                            if (tabStepPx > 0f) {
-                                val ratio = totalDrag / tabStepPx
-                                val shift = when {
-                                    ratio > 0.35f -> kotlin.math.max(1, ratio.roundToInt())
-                                    ratio < -0.35f -> kotlin.math.min(-1, ratio.roundToInt())
-                                    else -> 0
-                                }
-                                val newIndex = (currentSelectedIndex + shift).coerceIn(0, tabs.lastIndex)
+                            if (currentStepPx > 0f) {
+                                val newIndex = TabDrag.target(dragStartIndex, totalDrag, currentStepPx, currentLastIndex)
                                 if (newIndex != currentSelectedIndex) {
                                     onTabSelected(newIndex)
                                 }
@@ -279,19 +281,10 @@ fun FloatingBottomBar(
                         },
                         onHorizontalDrag = { _, delta ->
                             totalDrag += delta
-                            val rawPx = when {
-                                totalDrag > 0 && currentSelectedIndex == tabs.lastIndex ->
-                                    totalDrag * 0.25f
-                                totalDrag < 0 && currentSelectedIndex == 0 ->
-                                    totalDrag * 0.25f
-                                else -> totalDrag
-                            }
-                            dragOffset = rawPx
+                            val absoluteIndexFloat = TabDrag.position(dragStartIndex, totalDrag, currentStepPx, currentLastIndex)
+                            dragOffset = (absoluteIndexFloat - currentSelectedIndex) * currentStepPx
 
-                            val approxTab =
-                                (currentSelectedIndex + dragOffset / tabStepPx)
-                                    .coerceIn(0f, tabs.lastIndex.toFloat())
-                                    .roundToInt()
+                            val approxTab = absoluteIndexFloat.roundToInt()
                             if (approxTab != lastHapticTab) {
                                 haptics.play(Haptic.Tick)
                                 lastHapticTab = approxTab
