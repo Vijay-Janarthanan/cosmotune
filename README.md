@@ -8,7 +8,7 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-<p>For Android, Windows, Linux and macOS. Free and open source.</p>
+<p>For Android, Windows, Linux and macOS, with a Wear OS watch app, an Android TV app and a browser companion. Free and open source.</p>
 
 <p>
   <a href="https://github.com/Vijay-Janarthanan/cosmotune/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Vijay-Janarthanan/cosmotune?label=release&color=F2A28D&labelColor=2A1A1E"></a>
@@ -69,10 +69,13 @@
       source has the timing, and they can be translated or romanised. The queue can be reordered and saved as a named session to
       open again later. Replay shows your listening by month and year and can turn it into a playlist.</p>
       <p>Cosmotune also plays the music files on your device and keeps downloaded songs for listening offline.</p>
-      <p>Version 1.0.3 adds a <a href="docs/LOCAL_RECOMMENDATIONS.md">3.19 MB local recommendation model</a> for AutoPlay and radio,
-      trained with ListenBrainz, Music4All-Onion, Yambda and music metadata/acoustic context. It ranks on the device and keeps live
-      provider radio/search for current songs. Raw listening histories and the full training catalogue are not bundled.
-      <a href="docs/PACKAGE_SIZE.md">Desktop packages also drop foreign-platform ONNX and SQLite binaries</a>.</p>
+      <p>AutoPlay and radio are ranked on the device by a <a href="docs/LOCAL_RECOMMENDATIONS.md">3.19 MB local recommendation model</a>,
+      trained with ListenBrainz, Music4All-Onion, Yambda and music metadata/acoustic context, plus a small private learner that
+      follows your plays and skips. Live provider radio and search still supply current songs. Raw listening histories and the full
+      training catalogue are not bundled.</p>
+      <p>Version 1.0.4 adds library tools (loudness analysis, duplicate review, tag editing, M3U8 export, linked playlists, quality
+      review), search across your add-ons and provider packages, Subsonic servers, Manga mode, a phone remote for the desktop and the
+      TV, and companions for Wear OS, Android TV and the browser. See the <a href="docs/releases/1.0.4.md">release notes</a>.</p>
     </td>
   </tr>
   <tr>
@@ -135,7 +138,7 @@
   </tr>
 </table>
 
-Android and desktop are supported today. An iOS app is not available yet.
+Android phones and tablets, Wear OS watches, Android TV, Windows, Linux and macOS are supported, and the music player also runs in a browser. An iOS app is not available yet.
 
 ## Download
 
@@ -156,6 +159,66 @@ Version 1.0.4. The links below always fetch the newest release.
 
 Needs Android 8.0 or newer. Open the downloaded file; Android asks once to allow installs from the app you downloaded it with
 (your browser or file manager). Most phones need `arm64-v8a`; the universal file works on every phone.
+
+</details>
+
+### Wear OS
+
+| File | For |
+| :-- | :-- |
+| [CosmotuneWear.apk](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/CosmotuneWear.apk) | Wear OS 3 or newer watches, paired with a phone that has Cosmotune |
+
+<details>
+<summary>Installing on a watch</summary>
+
+You usually do not need this file: the phone app carries the matching watch app. On the phone, open Settings, Cosmotune for
+Wear OS, choose your watch and **Install**, then follow the steps (same Wi-Fi, Developer options and Wireless debugging on the
+watch, the six-digit pairing code). This needs Android 11 or newer on the phone. Later updates are sent from the phone.
+
+The watch app only works with the Cosmotune phone app from the same release page (they must be signed with the same key). To
+install the file yourself, turn on Wireless debugging on the watch and use `adb install CosmotuneWear.apk`.
+[Wear OS details and limits](wearos/README.md).
+
+</details>
+
+### Android TV
+
+| File | For |
+| :-- | :-- |
+| [CosmotuneTV-android-armeabi-v7a.apk](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/CosmotuneTV-android-armeabi-v7a.apk) | TVs and boxes with 32-bit Android (common, even on a 64-bit chip) |
+| [CosmotuneTV-android-arm64-v8a.apk](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/CosmotuneTV-android-arm64-v8a.apk) | TVs and boxes with 64-bit Android |
+| [CosmotuneTV-android-x86_64.apk](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/CosmotuneTV-android-x86_64.apk) | Emulators and x86 devices |
+| [CosmotuneTV-android-universal.apk](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/CosmotuneTV-android-universal.apk) | Any TV, when you are not sure (a larger file) |
+
+<details>
+<summary>Installing on a TV</summary>
+
+Needs Android TV or Google TV with Android 8.0 or newer. Copy the file to the TV with a USB stick or a file-transfer app and open
+it with a file manager, allowing installs from that app once, or use `adb install` over the network. The TV app is separate from
+the phone app: it has its own settings, profiles and sign-in, and it updates itself only with TV packages.
+[TV details](tv/README.md).
+
+</details>
+
+### Browser
+
+| File | For |
+| :-- | :-- |
+| [Cosmotune-helper-chrome.zip](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-helper-chrome.zip) | The helper extension for Chrome, Edge and other Chromium browsers |
+| [Cosmotune-helper-firefox.zip](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-helper-firefox.zip) | The helper extension for Firefox 128 or newer |
+| [Cosmotune-web.zip](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest/download/Cosmotune-web.zip) | The browser player, to host on your own web server |
+
+<details>
+<summary>Installing the browser companion</summary>
+
+There is no public Cosmotune site: the player is a static site you host yourself (serve the unzipped folder, sending unknown
+paths to `index.html`). The helper only answers the site addresses the release was built for; with none configured it answers
+only a local copy at `http://localhost:5173`. [Hosting and build notes](web/README.md).
+
+Chromium: unzip the helper, open `chrome://extensions`, turn on Developer mode, choose **Load unpacked** and pick the folder
+inside. Firefox: open `about:debugging`, This Firefox, **Load Temporary Add-on**, and pick `manifest.json` inside the unzipped
+folder; Firefox removes an unsigned add-on when it restarts. Connecting YouTube Music or Spotify is a separate choice in the
+helper.
 
 </details>
 
@@ -264,8 +327,9 @@ download it for you; the desktop app opens the download in your browser. The new
 <details>
 <summary>Which platforms does it run on?</summary>
 
-Android 8.0 or newer, 64-bit Windows, Linux on x86_64 (AppImage, deb or rpm), and macOS on Apple Silicon and Intel. An iOS app is
-not available yet.
+Android 8.0 or newer, Wear OS 3 or newer, Android TV or Google TV with Android 8.0 or newer, 64-bit Windows, Linux on x86_64
+(AppImage, deb or rpm), and macOS on Apple Silicon and Intel. The browser player runs in current Chromium browsers and Firefox 128
+or newer with its helper extension. An iOS app is not available yet.
 
 </details>
 
@@ -281,13 +345,15 @@ No. Video mode reads YouTube's public pages without an account, which YouTube's 
 
 [Feature tracker](FEATURE_TRACKER.md) records features from BitChord, Mornye, Lokal and Tsuki alongside Cosmotune's own work, with implementation, verification and release status kept separate.
 
-The 1.0.4 work adds artist motion headers, optional artist signatures, a compact audio-format readout, queue fixes and a Wear OS companion. The watch can control the phone or act as its audio output; installation uses the matching companion APK bundled with the phone. See [Wear OS setup and limitations](wearos/README.md). These changes are still being validated before publication.
+Version 1.0.4 brings in the BitChord changes up to `edc1e6f3` (with its Wear OS, TV and browser companions), Mornye's
+provider packages and local learning ([review](docs/MORNYE_REVIEW.md)), Lokal's provider and library features
+([review](docs/LOKAL_REVIEW.md)) and Manga mode from Tsuki and the Kotatsu parsers ([plan](docs/MANGA_PLAN.md)). The
+[release notes](docs/releases/1.0.4.md) list what is new and what is not finished; checks that need real devices or accounts are
+in the [device checklist](docs/DEVICE_CHECKLIST_1.0.4.md).
 
-The same 1.0.4 scope includes [Mornye providers and local learning](docs/MORNYE_REVIEW.md), [Lokal providers and library features](docs/LOKAL_REVIEW.md), and [Manga mode](docs/MANGA_PLAN.md). Manga now has a local reader, shared source adapter, global enabled-source search, custom HTML templates, progress/downloads, optional Komga flow and Android extension/store integration in development. One publisher-verified real Android extension passed catalogue/chapter/page/image checks; the detailed plan distinguishes that from broader compatibility. Manga and the broader provider runtime are not yet published; the tracker records their remaining checks.
-
-Development also includes [local library review and M3U8 export](docs/LOCAL_LIBRARY_TOOLS.md), byte-verified duplicate groups and previewed saved-session file repairs, plus a [paired desktop/TV phone remote](docs/LAN_REMOTE.md) with QR setup, playback/seek/volume and scoped music search. A signed minified Android checkpoint passed real Music/Manga/Video mode switching and a public Manga Plus chapter with restored progress. The separate [TV app](tv/README.md) has signed packages and a D-pad setup/Home/settings walkthrough; remote/effect follow-up checks are in progress. The [browser player and helper extensions](web/README.md) build separately, with parser/player/bridge tests and package licence checks. No browser site is deployed automatically. These are implementation checkpoints for the coordinated 1.0.4 update, not a published release.
-
-[Provider packages](docs/PROVIDER_PACKAGES.md) now have shared repository/import management, reviewed installation, settings, search, catalogue/home browsing and direct audio streaming in development. A live public JioSaavn source passed metadata and AAC decoding checks. Checked source covers and provider-fed Home sections now use the native loaders and queues. [Local source libraries](docs/SOURCE_LIBRARY.md) add source ratings, saved collections and follows without a YouTube account. Provider-owned PKCE sign-in, protected cookies and bounded cipher helpers now have fixture coverage. Segmented audio downloads share bounded/cancellable transport on phone and desktop. The runtime's remaining signed-session, automatic callback, transform and output-device work is documented; importing a package alone does not establish full compatibility. [Local preference learning](docs/LOCAL_PREFERENCE_LEARNING.md) adds 65,568 bytes of private state while keeping the base model and personal files below 5 MB.
+More detail: [Wear OS](wearos/README.md), [Android TV](tv/README.md), [browser companion](web/README.md),
+[phone remote](docs/LAN_REMOTE.md), [library tools](docs/LOCAL_LIBRARY_TOOLS.md), [provider packages](docs/PROVIDER_PACKAGES.md),
+[source libraries](docs/SOURCE_LIBRARY.md) and [local preference learning](docs/LOCAL_PREFERENCE_LEARNING.md).
 
 ## Feedback and contributing
 

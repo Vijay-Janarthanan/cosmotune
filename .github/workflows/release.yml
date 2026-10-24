@@ -347,6 +347,10 @@ jobs:
           v="${{ inputs.version }}"
           [ -n "$v" ] || v="${GITHUB_REF_NAME#v}"
           python3 tools/package-web.py --version "$v" --output dist
+          # File names that stay the same from one version to the next, as the watch and TV packages have.
+          cp "dist/Cosmotune-$v-web.zip" dist/Cosmotune-web.zip
+          cp "dist/Cosmotune-$v-helper-chrome.zip" dist/Cosmotune-helper-chrome.zip
+          cp "dist/Cosmotune-$v-helper-firefox.zip" dist/Cosmotune-helper-firefox.zip
       - uses: actions/upload-artifact@v4
         with:
           name: web-artifacts
