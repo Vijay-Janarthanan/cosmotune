@@ -221,6 +221,7 @@ fun SettingsScreen(
     val sessionId by AppSettings.audioSessionId.collectAsStateWithLifecycle()
     val outputPcmMode by AppSettings.outputPcmMode.collectAsStateWithLifecycle()
     val preferUsbDac by AppSettings.preferUsbDac.collectAsStateWithLifecycle()
+    val bitPerfectUsb by AppSettings.bitPerfectUsb.collectAsStateWithLifecycle()
     val loudnessNormalization by AppSettings.loudnessNormalization.collectAsStateWithLifecycle()
     val loudnessOffOnSpeaker by AppSettings.loudnessOffOnSpeaker.collectAsStateWithLifecycle()
     val outputStatus by AudioOutputStatus.current.collectAsStateWithLifecycle()
@@ -600,6 +601,19 @@ fun SettingsScreen(
                     checked = preferUsbDac,
                     onCheckedChange = AppSettings::setPreferUsbDac,
                     badge = stringResource(R.string.connected).takeIf { outputStatus.isUsb },
+                )
+            }
+            val bitPerfectTitle = stringResource(R.string.bit_perfect_usb)
+            row(bitPerfectTitle, "bit-perfect", "bitperfect", "usb", "dac", "output") {
+                SettingsSubRow(
+                    title = bitPerfectTitle,
+                    checked = bitPerfectUsb,
+                    onCheckedChange = AppSettings::setBitPerfectUsb,
+                    // What Android actually did, not what was asked for.
+                    subtitle = listOfNotNull(
+                        outputStatus.bitPerfect.detail.takeIf { bitPerfectUsb },
+                        stringResource(R.string.bit_perfect_usb_subtitle),
+                    ).joinToString(" · "),
                 )
             }
             val loudnessTitle = stringResource(R.string.loudness_normalization)

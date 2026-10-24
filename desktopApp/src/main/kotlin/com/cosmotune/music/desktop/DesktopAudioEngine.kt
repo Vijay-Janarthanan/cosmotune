@@ -1904,6 +1904,17 @@ class DesktopPlaybackEngine(
             bufferBytes = sink.bufferBytes,
             equalizerEnabled = equalizerEnabled,
             skipSilence = skipSilenceEnabled,
+            outputApi = sink.outputApi,
+            loudnessActive = track != null && loudnessNormalization && (
+                if (track.stream.sourceId == "youtube") com.cosmotune.music.data.innertube.StreamResolver.loudnessDbFor(track.song.videoId)
+                else com.cosmotune.audio.LibraryLoudness.loudnessDbFor(track.song.videoId)
+                ) != null,
+            volumeBelowFull = volume < 1f,
+            systemName = when {
+                DesktopPlatform.isWindows -> "Windows"
+                DesktopPlatform.isMac -> "macOS"
+                else -> "the system"
+            },
         )
     }
 

@@ -244,6 +244,13 @@ object AppSettings {
     val preferUsbDac = MutableStateFlow(false)
 
     /**
+     * Ask Android 14+ for its bit-perfect mixer on a USB DAC. Off by default:
+     * while it holds the DAC, Android plays this app's audio unmixed, which
+     * changes how other sounds and volume behave on that device.
+     */
+    val bitPerfectUsb = MutableStateFlow(false)
+
+    /**
      * Level every track to the same loudness, using YouTube's own
      * normalization figure for it — see
      * [com.cosmotune.music.playback.PlaybackService.setupLoudnessEnhancer].
@@ -838,6 +845,7 @@ object AppSettings {
             )
         }.getOrDefault(OutputPcmMode.PCM_16)
         preferUsbDac.value = prefs.getBoolean(KEY_PREFER_USB_DAC, false)
+        bitPerfectUsb.value = prefs.getBoolean(KEY_BIT_PERFECT_USB, false)
         loudnessNormalization.value = prefs.getBoolean(KEY_LOUDNESS_NORMALIZATION, true)
         loudnessOffOnSpeaker.value = prefs.getBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, true)
         dolbyAtmos.value = prefs.getBoolean(KEY_DOLBY_ATMOS, true)
@@ -1582,6 +1590,11 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_PREFER_USB_DAC, value).apply()
     }
 
+    fun setBitPerfectUsb(value: Boolean) {
+        bitPerfectUsb.value = value
+        prefs.edit().putBoolean(KEY_BIT_PERFECT_USB, value).apply()
+    }
+
     fun setLoudnessOffOnSpeaker(value: Boolean) {
         loudnessOffOnSpeaker.value = value
         prefs.edit().putBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, value).apply()
@@ -2042,6 +2055,7 @@ object AppSettings {
     private const val KEY_SKIP_SILENCE = "skip_silence"
     private const val KEY_OUTPUT_PCM_MODE = "output_pcm_mode"
     private const val KEY_PREFER_USB_DAC = "prefer_usb_dac"
+    private const val KEY_BIT_PERFECT_USB = "bit_perfect_usb"
     private const val KEY_LOUDNESS_NORMALIZATION = "loudness_normalization"
     private const val KEY_LOUDNESS_OFF_ON_SPEAKER = "loudness_off_on_speaker"
     private const val KEY_DOLBY_ATMOS = "dolby_atmos"

@@ -14,6 +14,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import com.cosmotune.music.data.settings.OutputPcmMode
+import com.cosmotune.music.playback.audio.BitPerfectMixerPolicy
 import com.cosmotune.music.playback.audio.DirectAudioProbe
 import com.cosmotune.music.playback.audio.FallbackReason
 import com.cosmotune.music.playback.audio.OutputNegotiationResult
@@ -117,6 +118,12 @@ object AudioOutputStatus {
         val loudnessGainDb: Float? = null,
         /** YouTube's own normalization figure for the playing track, in dB, when known. */
         val loudnessLufs: Float? = null,
+        /**
+         * Android 14's bit-perfect USB mixer, as requested and as read back. Only
+         * [BitPerfectMixerPolicy.State.confirmed] lets a readout call the output
+         * bit-perfect; see `BitPerfectMixer`.
+         */
+        val bitPerfect: BitPerfectMixerPolicy.State = BitPerfectMixerPolicy.State(),
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -158,7 +165,8 @@ object AudioOutputStatus {
                 outputExact == other.outputExact &&
                 outputExactDetail == other.outputExactDetail &&
                 loudnessGainDb == other.loudnessGainDb &&
-                loudnessLufs == other.loudnessLufs
+                loudnessLufs == other.loudnessLufs &&
+                bitPerfect == other.bitPerfect
         }
 
         override fun hashCode(): Int {
@@ -200,6 +208,7 @@ object AudioOutputStatus {
             result = 31 * result + (outputExactDetail?.hashCode() ?: 0)
             result = 31 * result + (loudnessGainDb?.hashCode() ?: 0)
             result = 31 * result + (loudnessLufs?.hashCode() ?: 0)
+            result = 31 * result + bitPerfect.hashCode()
             return result
         }
     }
@@ -361,6 +370,11 @@ object AudioOutputStatus {
             loudnessGainDb = null,
             loudnessLufs = null,
         )
+    }
+
+    fun publishBitPerfect(state: BitPerfectMixerPolicy.State) {
+        if (current.value.bitPerfect == state) return
+        current.value = current.value.copy(bitPerfect = state)
     }
 
     fun publishDecoder(decoderName: String?) {

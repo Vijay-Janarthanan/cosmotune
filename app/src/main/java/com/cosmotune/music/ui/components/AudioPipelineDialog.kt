@@ -61,6 +61,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cosmotune.audio.OutputFidelityFacts
+import com.cosmotune.audio.OutputFidelityVerdict
+import com.cosmotune.audio.OutputMixing
 import com.cosmotune.music.R
 import com.cosmotune.music.data.NerdStats
 import com.cosmotune.music.data.settings.AppSettings
@@ -102,24 +105,40 @@ private val PIPELINE_ICON_TINT = Color.White.copy(alpha = 0.6f)
  * precision preference — but the readout is not, because "is it exact right
  * now" is worth answering whether or not there is a switch that forces it.
  */
-private fun bitExactVerdict(
+internal fun bitExactVerdict(
     dsd: Boolean,
     outputExact: Boolean,
     outputExactDetail: String?,
     loudnessActive: Boolean,
     eqActive: Boolean,
     spatialActive: Boolean,
-): String = when {
-    // Not a fault to fix: there is no DSD output path (native DSD or DoP)
-    // here, so the PCM conversion is a deviation every DSD track carries,
-    // whatever the stages after it do.
-    dsd -> "No — DSD converted to PCM"
-    loudnessActive -> "No — loudness normalization"
-    eqActive -> "No — equalizer"
-    spatialActive -> "No — spatial audio"
-    outputExact -> "Yes${outputExactDetail?.let { " ($it)" }.orEmpty()}"
-    else -> "No — ${outputExactDetail ?: "converted downstream"}"
-}
+    bitPerfectConfirmed: Boolean = false,
+    directActual: Boolean = false,
+): String = OutputFidelityVerdict.label(
+    OutputFidelityFacts(
+        // Not a fault to fix: there is no DSD output path (native DSD or DoP)
+        // here, so the PCM conversion is a deviation every DSD track carries,
+        // whatever the stages after it do.
+        dsdConvertedToPcm = dsd,
+        alteringStage = when {
+            loudnessActive -> "loudness normalization"
+            eqActive -> "equalizer"
+            spatialActive -> "spatial audio"
+            else -> null
+        },
+        encodingExact = outputExact,
+        encodingDetail = outputExactDetail,
+        // "Exact into the AudioTrack" is only half of it: AudioFlinger may still
+        // resample, mix or apply volume. Only Android 14's bit-perfect mixer,
+        // read back for exactly this track's format, may be called bit-perfect.
+        mixing = when {
+            bitPerfectConfirmed -> OutputMixing.BIT_PERFECT_CONFIRMED
+            directActual -> OutputMixing.DIRECT_UNCONFIRMED
+            else -> OutputMixing.SYSTEM_MIXER
+        },
+        systemName = "Android",
+    ),
+)
 
 /**
  * Full audio playback pipeline inspection surface, opened from the "Audio Pipeline"
@@ -428,6 +447,8 @@ fun AudioPipelineDialog(
                         loudnessActive = loudnessNormalization && outputStatus.loudnessGainDb != null,
                         eqActive = eqEnabled,
                         spatialActive = spatialAudio,
+                        bitPerfectConfirmed = outputStatus.bitPerfect.confirmed,
+                        directActual = outputStatus.directPlaybackActual,
                     ),
                 )
             }
@@ -476,9 +497,14 @@ fun AudioPipelineDialog(
                         "Not Supported (Mixed Path)"
                 }
                 PipelineRow("Direct", directStatusText)
+                if (outputStatus.bitPerfect.status != com.cosmotune.music.playback.audio.BitPerfectMixerPolicy.Status.OFF) {
+                    PipelineRow("Bit-perfect mixer", outputStatus.bitPerfect.detail)
+                }
                 PipelineRow("AudioTrack", audioTrackText)
 
                 val mixerText = when {
+                    outputStatus.bitPerfect.confirmed ->
+                        "Android bit-perfect mixer (unmixed)"
                     outputStatus.transportType == com.cosmotune.music.playback.audio.TransportType.DIRECT_USB ->
                         "Direct (Bypasses System Mixer)"
                     outputStatus.directPlaybackActual ->
