@@ -32,6 +32,8 @@ internal object DesktopWindowsMedia {
         val onNext: () -> Unit,
         val onPrevious: () -> Unit,
         val onStop: () -> Unit,
+        /** Moves playback to where the shell's scrubber was let go, in milliseconds (see [seekTarget]). */
+        val onSeek: (Long) -> Unit = {},
     )
 
     private val available: Boolean by lazy {
@@ -98,6 +100,19 @@ internal object DesktopWindowsMedia {
             BUTTON_STOP -> target.onStop()
         }
     }
+
+    /** Called from the native side when the shell's scrubber is dragged to a new position (`PlaybackPositionChangeRequested`). */
+    @JvmStatic
+    fun onSeek(positionMs: Long) {
+        controller?.onSeek(positionMs)
+    }
+
+    /**
+     * Where a scrubber request lands: inside the track. The shell sends what its bar was dragged to, which can be past the end
+     * of a track whose length it had a moment ago, or negative after a rounding of ticks.
+     */
+    internal fun seekTarget(requestedMs: Long, durationMs: Long): Long =
+        if (durationMs > 0) requestedMs.coerceIn(0L, durationMs) else requestedMs.coerceAtLeast(0L)
 
     private external fun nativeStart(): Boolean
     private external fun nativeStop()

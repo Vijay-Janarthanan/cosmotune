@@ -59,9 +59,16 @@ import kotlinx.coroutines.launch
  * description's place rather than appearing beside it, because a wrong password
  * is the only thing anybody needs told at that moment. The password is sent to
  * `auth.getMobileSession` and never stored — only the session key it returns.
+ *
+ * A build without Last.fm app credentials of its own (BC-35, upstream `6f30aa27`/`94cba2fa`) asks for the listener's own API
+ * key and shared secret on the same screen; they are kept beside the session key in the desktop's settings (never in a
+ * listening export, never logged) so later scrobbles can sign themselves.
  */
 @Composable
 internal fun DesktopLastfmLoginDialog(onDismiss: () -> Unit) {
+    val needsAppKey = !DesktopScrobbling.hasBuiltInLastFmKey
+    var apiKey by remember { mutableStateOf(DesktopScrobbleSettings.lastfmApiKey.value) }
+    var apiSecret by remember { mutableStateOf(DesktopScrobbleSettings.lastfmApiSecret.value) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -70,10 +77,17 @@ internal fun DesktopLastfmLoginDialog(onDismiss: () -> Unit) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
+    val ready = DesktopLastFmCredentials.signInReady(needsAppKey, apiKey, apiSecret, username, password)
+
     fun submit() {
-        if (busy || username.isBlank() || password.isBlank()) return
+        if (busy || !ready) return
         busy = true
         error = null
+        // The sign-in request is signed with the app credentials, so they are saved first.
+        if (needsAppKey) {
+            DesktopScrobbleSettings.setLastfmApiKey(apiKey.trim())
+            DesktopScrobbleSettings.setLastfmApiSecret(apiSecret.trim())
+        }
         scope.launch {
             DesktopScrobbling.signInToLastFm(username.trim(), password)
                 .onSuccess { onDismiss() }
@@ -85,9 +99,32 @@ internal fun DesktopLastfmLoginDialog(onDismiss: () -> Unit) {
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 380) {
         DialogHeading(
             title = DesktopStrings["d_sign_in_to_last_fm", "Sign in to Last.fm"],
-            message = error ?: "Your password is sent to Last.fm once and never stored.",
+            message = error ?: if (needsAppKey) {
+                "Your password is sent to Last.fm once and never stored. The API key and shared secret are your own app's, from last.fm/api."
+            } else {
+                "Your password is sent to Last.fm once and never stored."
+            },
             isError = error != null,
         )
+        if (needsAppKey) {
+            DialogField(
+                value = apiKey,
+                onValueChange = { apiKey = it },
+                placeholder = DesktopStrings["lastfm_api_key", "API key"],
+                enabled = !busy,
+                imeAction = ImeAction.Next,
+            )
+            Spacer(Modifier.height(8.dp))
+            DialogField(
+                value = apiSecret,
+                onValueChange = { apiSecret = it },
+                placeholder = DesktopStrings["lastfm_shared_secret", "Shared secret"],
+                enabled = !busy,
+                isPassword = true,
+                imeAction = ImeAction.Next,
+            )
+            Spacer(Modifier.height(8.dp))
+        }
         DialogField(
             value = username,
             onValueChange = { username = it },
@@ -107,7 +144,7 @@ internal fun DesktopLastfmLoginDialog(onDismiss: () -> Unit) {
         )
         DialogActions(
             confirm = if (busy) "Signing in…" else "Sign in",
-            confirmEnabled = !busy && username.isNotBlank() && password.isNotBlank(),
+            confirmEnabled = !busy && ready,
             busy = busy,
             onConfirm = ::submit,
             onDismiss = onDismiss,

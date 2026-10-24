@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -141,6 +142,7 @@ internal fun CosmoDesktopCollectionPage(
     downloadedIds: Set<String>,
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
+    onReorder: (() -> Unit)? = null,
     nowPlaying: Song? = null,
     isPlaying: Boolean = LocalCosmoPlaying.current,
 ) {
@@ -190,6 +192,7 @@ internal fun CosmoDesktopCollectionPage(
                     onShare = onShare,
                     onRename = onRename,
                     onDelete = onDelete,
+                    onReorder = onReorder,
                 )
             }
             if (searching) {
@@ -254,6 +257,7 @@ private fun CollectionHero(
     onShare: (() -> Unit)?,
     onRename: (() -> Unit)?,
     onDelete: (() -> Unit)?,
+    onReorder: (() -> Unit)? = null,
 ) {
     val songs = collection.songs
     val colors = LocalCosmoColors.current
@@ -340,6 +344,7 @@ private fun CollectionHero(
                 onShare = onShare,
                 onRename = onRename,
                 onDelete = onDelete,
+                onReorder = onReorder,
                 sourceLibrary = { com.cosmotune.music.desktop.DesktopSourceLibraryButton(collection) },
             )
         }
@@ -357,6 +362,7 @@ private fun HeroActions(
     onShare: (() -> Unit)?,
     onRename: (() -> Unit)?,
     onDelete: (() -> Unit)?,
+    onReorder: (() -> Unit)? = null,
     sourceLibrary: @Composable () -> Unit = {},
 ) {
     var moreOpen by remember { mutableStateOf(false) }
@@ -418,6 +424,16 @@ private fun HeroActions(
                         onClick = {
                             moreOpen = false
                             rename()
+                        },
+                    )
+                }
+                onReorder?.let { reorder ->
+                    DropdownMenuItem(
+                        text = { Text(DesktopStrings["reorder_playlist", "Edit order"]) },
+                        leadingIcon = { Icon(Icons.Rounded.DragHandle, null) },
+                        onClick = {
+                            moreOpen = false
+                            reorder()
                         },
                     )
                 }

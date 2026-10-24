@@ -130,6 +130,7 @@ import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Extension
@@ -1480,6 +1481,7 @@ fun CosmotuneDesktopApp() {
         playlistTarget = null
         overlays.rename = false
         overlays.delete = false
+        overlays.reorder = false
         playlistError = null
         playlistBusy = false
     }
@@ -1767,6 +1769,13 @@ fun CosmotuneDesktopApp() {
                 onNext = ::playNext,
                 onPrevious = ::playPrevious,
                 onStop = ::pauseFromUser,
+                // The shell's scrubber (BC-35): as MPRIS's SetPosition, refused while the party host holds the controls.
+                onSeek = { positionMs ->
+                    if (!DesktopListenTogether.state.value.controlsLocked) {
+                        playbackEngine.seekTo(DesktopWindowsMedia.seekTarget(positionMs, playbackEngine.state.value.durationMs))
+                        partySync.onLocalIntent()
+                    }
+                },
             ),
         )
         onDispose { DesktopWindowsMedia.stop() }
@@ -2844,6 +2853,34 @@ fun CosmotuneDesktopApp() {
         }
     }
 
+    /**
+     * Sends a new order for the playlist being read (BC-35). [original] and [reordered] are the same whole list of entries, as it
+     * was and as the listener left it: a reorder is sent as moves relative to neighbours and needs every entry to move against.
+     */
+    fun reorderOpenPlaylist(original: List<Song>, reordered: List<Song>) {
+        val collection = openedCollection ?: return
+        playlistBusy = true
+        playlistError = null
+        scope.launch {
+            DesktopSearchClient.reorderPlaylist(
+                collection.playlistId,
+                current = original.mapNotNull { it.setVideoId },
+                target = reordered.mapNotNull { it.setVideoId },
+            ).onSuccess {
+                val current = openedCollection
+                if (current != null && current.browseId == collection.browseId) {
+                    // The whole list arrived to be reordered, so the page now shows all of it and has no further page to ask for.
+                    openedCollection = current.copy(songs = reordered, continuation = null)
+                }
+                closePlaylistDialogs()
+                libraryStale = true
+            }.onFailure {
+                playlistBusy = false
+                playlistError = it.message ?: "Could not reorder the playlist"
+            }
+        }
+    }
+
     fun deleteOpenPlaylist() {
         val collection = openedCollection ?: return
         playlistBusy = true
@@ -3893,6 +3930,17 @@ fun CosmotuneDesktopApp() {
                             onDismiss = ::closePlaylistDialogs,
                         )
                     }
+                    val reorderCollection = openedCollection?.takeIf { overlays.reorder }
+                    if (reorderCollection != null) {
+                        DesktopReorderPlaylistDialog(
+                            browseId = reorderCollection.browseId,
+                            busy = playlistBusy,
+                            error = playlistError,
+                            load = DesktopSearchClient::playlistEntries,
+                            onSave = ::reorderOpenPlaylist,
+                            onDismiss = ::closePlaylistDialogs,
+                        )
+                    }
                     if (overlays.delete) {
                         DesktopDeletePlaylistDialog(
                             title = openedCollection?.title.orEmpty(),
@@ -4314,6 +4362,9 @@ fun CosmotuneDesktopApp() {
                                 ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
                                 ?.let { collection -> { shareCollection(collection) } },
                             onDelete = { overlays.delete = true }.takeIf { openedCollection?.owned == true },
+                            onReorder = { overlays.reorder = true }.takeIf {
+                                openedCollection?.owned == true && openedCollection?.type == BrowseType.PLAYLIST
+                            },
                             onRemoveFromPlaylist = ::removeFromOpenPlaylist
                                 .takeIf { openedCollection?.owned == true },
                             likedIds = likedIds,
@@ -7219,8 +7270,10 @@ private fun DesktopCollectionPage(
     downloadedIds: Set<String>,
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
+    /** Opens the reorder dialog; only a playlist the account owns can be rearranged (BC-35). */
+    onReorder: (() -> Unit)? = null,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, nowPlaying = LocalNowPlaying.current)
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, nowPlaying = LocalNowPlaying.current)
     val songs = collection.songs
     // The phone's "search this list": a filter over the rows already loaded.
     var searching by remember(collection.browseId) { mutableStateOf(false) }
@@ -7379,6 +7432,16 @@ private fun DesktopCollectionPage(
                                             onClick = {
                                                 moreOpen = false
                                                 rename()
+                                            },
+                                        )
+                                    }
+                                    onReorder?.let { reorder ->
+                                        DropdownMenuItem(
+                                            text = { Text(DesktopStrings["reorder_playlist", "Edit order"]) },
+                                            leadingIcon = { Icon(Icons.Rounded.DragHandle, null) },
+                                            onClick = {
+                                                moreOpen = false
+                                                reorder()
                                             },
                                         )
                                     }
