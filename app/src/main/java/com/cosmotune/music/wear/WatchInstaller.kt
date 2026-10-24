@@ -86,7 +86,7 @@ object WatchInstaller {
     private var cachedHash: String? = null
 
     private fun bundledHash(context: Context): String? = cachedHash ?: runCatching {
-        context.assets.open(SHA_ASSET).bufferedReader().use { it.readText().trim() }
+        WatchApkFile.normalizedHash(context.assets.open(SHA_ASSET).bufferedReader().use { it.readText() })
     }.getOrNull()?.also { cachedHash = it }
 
     // ---- What is on the watches ----
@@ -147,15 +147,15 @@ object WatchInstaller {
         // Just put there by this phone: a first answer can take a moment while
         // the new install settles, and "not installed" would be a lie meanwhile.
         if (answer == null && System.currentTimeMillis() - (installedAt[nodeId] ?: 0L) < SETTLE_MS) return
-        val status = when {
-            // Only an answer proves the app is there. Play services goes on
-            // listing a watch's capabilities for a while after the app is
-            // uninstalled, and offering Update to an empty watch is a channel
-            // with nobody at the other end — it just times out.
-            answer == null -> WatchAppStatus.NOT_INSTALLED
-            answer.getString(P.KEY_APK_SHA256) == bundledHash(app) -> WatchAppStatus.UP_TO_DATE
-            else -> WatchAppStatus.UPDATE_AVAILABLE
-        }
+        // Only an answer proves the app is there. Play services goes on
+        // listing a watch's capabilities for a while after the app is
+        // uninstalled, and offering Update to an empty watch is a channel
+        // with nobody at the other end — it just times out.
+        val status = WatchApkFile.status(
+            answered = answer != null,
+            watchSha256 = answer?.getString(P.KEY_APK_SHA256),
+            bundledSha256 = bundledHash(app),
+        )
         _watches.update { list ->
             list?.map {
                 if (it.nodeId != nodeId) it else it.copy(status = status, versionName = answer?.getString(P.KEY_VERSION_NAME))
@@ -223,16 +223,17 @@ object WatchInstaller {
             .onFailure { Log.w(TAG, "couldn't open the watch app: ${it.message}") }
     }
 
-    /** The bundled APK, as a file — sendFile and the ADB stream both want one. */
+    /**
+     * The bundled APK, as a file — sendFile and the ADB stream both want one —
+     * checked against the bundled SHA-256 before every use, so a short copy is
+     * never sent or kept.
+     */
     private fun bundledApk(app: Context): File {
         val target = File(app.cacheDir, "wear/CosmotuneWear.apk")
-        val hash = bundledHash(app)
-        val stamp = File(target.parentFile, "CosmotuneWear.sha256")
-        if (target.exists() && stamp.exists() && stamp.readText() == hash) return target
-        target.parentFile?.mkdirs()
-        app.assets.open(APK_ASSET).use { input -> target.outputStream().use { input.copyTo(it) } }
-        stamp.writeText(hash.orEmpty())
-        return target
+        val hash = bundledHash(app) ?: error("this build carries no watch app")
+        // The stamp file earlier builds trusted in place of the bytes.
+        File(target.parentFile, "CosmotuneWear.sha256").delete()
+        return WatchApkFile.materialize(target, hash) { app.assets.open(APK_ASSET) }
     }
 
     // ---- The first install, over Wireless debugging ----
@@ -302,12 +303,12 @@ object WatchInstaller {
                     apk.inputStream().use { it.copyTo(out, 64 * 1024) }
                     out.flush()
                     val reply = withTimeoutOrNull(120_000) {
-                        runInterruptible { readInstallerReply(stream.openInputStream()) }
+                        runInterruptible { WatchApkFile.installerReply(stream.openInputStream()) }
                     }
                     reply ?: error("the watch didn’t answer")
                 }
                 Log.i(TAG, "watch install: ${output.trim()}")
-                if (!output.contains("Success")) error(output.trim().ifEmpty { "install failed" })
+                if (!WatchApkFile.installSucceeded(output)) error(output.trim().ifEmpty { "install failed" })
                 // Opened once, over the same connection: a just-installed app
                 // is "stopped" until it first runs, and Play services will not
                 // wake it to answer the phone until then. It is also the
@@ -334,20 +335,6 @@ object WatchInstaller {
                 runCatching { manager.close() }
             }
         }
-    }
-
-    /** Reads `cmd package install`'s answer up to its verdict, not to an end of stream that may never come. */
-    private fun readInstallerReply(input: java.io.InputStream): String {
-        val text = StringBuilder()
-        val buffer = ByteArray(1024)
-        while (true) {
-            val read = input.read(buffer)
-            if (read < 0) break
-            text.append(String(buffer, 0, read, Charsets.UTF_8))
-            // The verdict arrives as one line; either word ends the wait.
-            if ("Success" in text || "Failure" in text) break
-        }
-        return text.toString()
     }
 
     private fun discover(manager: NsdManager, type: String, onFound: (String, Int) -> Unit) {

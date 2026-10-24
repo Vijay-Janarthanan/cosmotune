@@ -17,6 +17,7 @@ import com.google.android.gms.wearable.Wearable
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import com.cosmotune.music.wear.WearWire
 import com.cosmotune.music.wear.WearProtocol as P
 
 /**
@@ -77,7 +78,7 @@ object Speaker {
 
     private fun handleOnMain(context: Context, command: String, payload: ByteArray?) {
         app = context
-        val text = payload?.let { String(it, Charsets.UTF_8) }.orEmpty()
+        val text = WearWire.argOf(payload)
         when (command) {
             P.SPEAKER_LOAD -> {
                 val map = payload?.let { runCatching { DataMap.fromByteArray(it) }.getOrNull() } ?: return
@@ -132,9 +133,7 @@ object Speaker {
     private fun reconcileAhead(p: ExoPlayer, wanted: List<MediaItem>) {
         val after = p.currentMediaItemIndex + 1
         val held = (after until p.mediaItemCount).map { p.getMediaItemAt(it).mediaId }
-        var same = 0
-        while (same < held.size && same < wanted.size && held[same] == wanted[same].mediaId) same++
-        if (same == held.size && same == wanted.size) return
+        val same = WearWire.keepAhead(held, wanted.map { it.mediaId }) ?: return
         if (after + same < p.mediaItemCount) p.removeMediaItems(after + same, p.mediaItemCount)
         if (same < wanted.size) p.addMediaItems(wanted.drop(same))
     }
@@ -152,8 +151,7 @@ object Speaker {
      * The phone wraps the queue itself, so the watch never loops the few tracks
      * it holds; only repeat-one, which stays inside the track, is played here.
      */
-    private fun watchRepeat(phoneMode: Int): Int =
-        if (phoneMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+    private fun watchRepeat(phoneMode: Int): Int = WearWire.watchRepeat(phoneMode)
 
     private fun DataMap.tracks(): List<MediaItem> = getDataMapArrayList(P.KEY_TRACKS).orEmpty().map {
         MediaItem.Builder()
@@ -172,10 +170,7 @@ object Speaker {
         val audio = context.getSystemService(AudioManager::class.java) ?: return
         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val now = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val target = when {
-            spec.startsWith("=") -> spec.drop(1).toIntOrNull() ?: return
-            else -> now + (spec.removePrefix("+").toIntOrNull() ?: return)
-        }.coerceIn(0, max)
+        val target = WearWire.volumeTarget(spec, now, max) ?: return
         audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
     }
 
@@ -213,7 +208,7 @@ object Speaker {
             val node = PhoneStreamDataSource.phoneNode(context) ?: return@execute
             runCatching {
                 Tasks.await(
-                    Wearable.getMessageClient(context).sendMessage(node, "${P.PATH_COMMAND}/${P.CMD_SPEAKER_STATUS}", bytes),
+                    Wearable.getMessageClient(context).sendMessage(node, WearWire.commandPath(P.CMD_SPEAKER_STATUS), bytes),
                     10, TimeUnit.SECONDS,
                 )
             }

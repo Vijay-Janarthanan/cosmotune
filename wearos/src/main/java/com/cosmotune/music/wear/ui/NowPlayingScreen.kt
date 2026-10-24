@@ -112,7 +112,7 @@ fun NowPlayingScreen(
     actions: PlayerActions,
 ) {
     val view = LocalView.current
-    var rotary by remember { mutableFloatStateOf(0f) }
+    val detents = remember { RotaryDetents(ROTARY_STEP_PX) }
     // Bumped on every crown step; the readout shows while it keeps changing.
     var volumeNudge by remember { mutableIntStateOf(0) }
 
@@ -122,7 +122,7 @@ fun NowPlayingScreen(
     var scrubActivity by remember { mutableIntStateOf(0) }
     fun scrubBy(deltaMs: Long) {
         val from = scrubMs ?: return
-        scrubMs = (from + deltaMs).coerceIn(0L, np.durationMs.coerceAtLeast(0L))
+        scrubMs = scrubTarget(from, deltaMs, np.durationMs)
         scrubActivity++
     }
     fun commitScrub() {
@@ -146,16 +146,9 @@ fun NowPlayingScreen(
         Modifier
             .fillMaxSize()
             .onRotaryScrollEvent { event ->
-                val px = event.verticalScrollPixels
                 // A notched bezel reports one big event per detent, a smooth
                 // crown a stream of small ones: one step per detent either way.
-                val steps = if (abs(px) >= ROTARY_STEP_PX) {
-                    rotary = 0f
-                    if (px > 0) 1 else -1
-                } else {
-                    rotary += px
-                    (rotary / ROTARY_STEP_PX).toInt().also { rotary -= it * ROTARY_STEP_PX }
-                }
+                val steps = detents.steps(event.verticalScrollPixels)
                 if (steps != 0) {
                     // While scrubbing the bezel seeks instead, five seconds a detent.
                     if (scrubMs != null) {
@@ -507,7 +500,7 @@ private fun formatDelta(ms: Long): String =
 private fun rememberProgress(np: NowPlaying): State<Float> {
     val progress = remember { mutableFloatStateOf(np.progressAt(System.currentTimeMillis())) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    // The always-on screen draws its own ring once a minute; this one rests.
+    // The always-on player covers this screen and draws no ring: this one rests.
     val ambient = LocalAmbient.current.active
     LaunchedEffect(np, ambient) {
         progress.floatValue = np.progressAt(System.currentTimeMillis())
@@ -640,7 +633,7 @@ private fun BoxScope.VolumeReadout(volume: Volume?, nudge: Int, edgeInset: Dp) {
 }
 
 /** Crown travel per volume step, for crowns that report a stream of small events. */
-private const val ROTARY_STEP_PX = 48f
+private const val ROTARY_STEP_PX = RotaryDetents.DEFAULT_STEP_PX
 private const val PROGRESS_TICK_MS = 500L
 private const val VOLUME_SHOWN_MS = 1_400L
 private const val VOLUME_ARC = 64f

@@ -31,6 +31,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import com.cosmotune.music.wear.playback.Speaker
+import com.cosmotune.music.wear.WearWire
 import com.cosmotune.music.wear.WearProtocol as P
 
 /**
@@ -312,7 +313,7 @@ class PhoneLink(context: Context, private val scope: CoroutineScope) :
                 return false
             }
             val sent = runCatching {
-                messageClient.sendMessage(node, "${P.PATH_COMMAND}/$command", arg.toByteArray()).await()
+                messageClient.sendMessage(node, WearWire.commandPath(command), arg.toByteArray(Charsets.UTF_8)).await()
             }.onFailure { Log.w(TAG, "send $command (attempt $attempt): ${it.message}") }.isSuccess
             if (sent) return true
             // The node may have changed (phone rebooted, re-paired): look again once.
