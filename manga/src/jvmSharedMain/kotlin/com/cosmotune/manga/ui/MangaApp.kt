@@ -342,12 +342,13 @@ private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: St
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         items(books, key = { it.id }) { book ->
             Column(Modifier.clip(RoundedCornerShape(12.dp)).clickable { onBook(book) }) {
-                var cover by remember(book.id, book.coverUrl) { mutableStateOf<Any?>(book.coverUrl.takeUnless { book.sourceId.startsWith("template:") }) }
+                val signedCover = book.sourceId.startsWith("template:") || book.sourceId.startsWith("komga:")
+                var cover by remember(book.id, book.coverUrl) { mutableStateOf<Any?>(book.coverUrl.takeUnless { signedCover }) }
                 LaunchedEffect(book.id, book.coverUrl) {
                     if (book.sourceId == "local") runCatching {
                         book.chapters.firstOrNull()?.let { chapter -> repository.pages(chapter).firstOrNull()?.let { repository.pageFile(it, "local") } }
                     }.getOrNull()?.let { cover = it }
-                    else if (book.sourceId.startsWith("template:") && book.coverUrl != null) try {
+                    else if (signedCover && book.coverUrl != null) try {
                         cover = repository.pageFile(MangaPage("${book.id}:cover:${book.coverUrl}", book.coverUrl), book.sourceId)
                     } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { cover = null }
                 }
@@ -379,6 +380,9 @@ private fun MangaSources(repository: MangaRepository, onDismiss: () -> Unit) {
     var komga by remember { mutableStateOf(false) }
     var server by remember { mutableStateOf("") }
     var key by remember { mutableStateOf("") }
+    var user by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var testing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     fun action(block: suspend () -> Unit) = scope.launch {
         error = null
@@ -401,17 +405,36 @@ private fun MangaSources(repository: MangaRepository, onDismiss: () -> Unit) {
             MangaExtensionControls(repository, onError = { error = it })
             MangaTemplateControls(repository)
             if (komga) {
-                OutlinedTextField(server, { server = it }, label = { Text("Server URL") }, singleLine = true)
-                OutlinedTextField(key, { key = it }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-                TextButton(onClick = { scope.launch {
+                OutlinedTextField(server, { server = it.take(2_048) }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.testTag("manga:komga:server"))
+                OutlinedTextField(key, { key = it.take(512) }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.testTag("manga:komga:key"))
+                Text("Or sign in with a Komga user name and password instead of an API key.", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(user, { user = it.take(256) }, label = { Text("User name") }, singleLine = true)
+                OutlinedTextField(password, { password = it.take(512) }, label = { Text("Password") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                TextButton(enabled = !testing, onClick = { scope.launch {
+                    testing = true
                     try {
-                        val id = "komga:" + java.security.MessageDigest.getInstance("SHA-256").digest(server.trim().toByteArray()).take(12).joinToString("") { "%02x".format(it) }
-                        val config = MangaSourceConfig(id, "komga", "Komga", baseUrl = server.trim(), settings = mapOf("apiKey" to key))
+                        val config = KomgaSource.configuration(server, key, user, password).let { next ->
+                            state.sources.find { it.id == next.id }?.let { previous -> next.copy(enabled = previous.enabled) } ?: next
+                        }
                         KomgaSource(config, repository.context.httpClient).browse()
-                        repository.store.source(config); key = ""; komga = false; error = null
+                        repository.store.source(config); repository.invalidateSource(config.id)
+                        key = ""; password = ""; komga = false; error = null
                     } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (failure: Exception) { error = failure.message }
+                    catch (failure: Exception) { error = failure.message ?: "Komga could not be reached" }
+                    finally { testing = false }
                 } }) { Text("Test and save") }
+            }
+            state.sources.filter { it.kind == "komga" }.forEach { config ->
+                Row(Modifier.fillMaxWidth().testTag("manga:komga:${config.id}"), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) { Text(config.name); Text(config.baseUrl, style = MaterialTheme.typography.labelSmall) }
+                    Switch(checked = config.enabled, onCheckedChange = { enabled -> action { repository.store.source(config.copy(enabled = enabled)); repository.invalidateSource(config.id) } },
+                        modifier = Modifier.semantics { contentDescription = "Use ${config.name}" })
+                    TextButton(onClick = { action {
+                        repository.store.update { it.copy(sources = it.sources.filterNot { source -> source.id == config.id }) }
+                        repository.invalidateSource(config.id)
+                    } }) { Text("Remove") }
+                }
             }
             OutlinedTextField(query, { query = it.take(500) }, label = { Text("Find source") }, singleLine = true, modifier = Modifier.testTag("manga:sources:query"))
             OutlinedTextField(language, { language = it.take(32) }, label = { Text("Language code, e.g. en or ja") }, singleLine = true, modifier = Modifier.testTag("manga:sources:language"))

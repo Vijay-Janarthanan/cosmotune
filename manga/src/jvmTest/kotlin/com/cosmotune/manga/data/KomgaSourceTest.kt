@@ -8,6 +8,7 @@ import org.junit.Test
 import kotlin.test.*
 
 class KomgaSourceTest {
+    @get:org.junit.Rule val temporary = org.junit.rules.TemporaryFolder()
     @Test fun authenticatedCatalogueDetailsAndPagesPreserveSourceIdentity() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody("""{"content":[{"id":"s1","name":"Series","metadata":{"title":"Example","language":"en"}}],"last":true}"""))
@@ -29,8 +30,48 @@ class KomgaSourceTest {
             val pages = source.pages(detail.chapters.single())
             assertEquals(2, pages.size)
             assertEquals(server.url("/library/api/v1/books/b1/pages/1").toString(), pages.first().url)
-            assertEquals("test-key", pages.first().headers["X-API-Key"])
+            assertTrue(pages.first().headers.isEmpty(), "the key is never stored in page records")
+            assertEquals("test-key", source.imageRequest(pages.first()).header("X-API-Key"), "it is added to the server's own page requests")
         }
+    }
+
+    @Test fun passwordSignInMetadataCoversAndRejectedSignInAreHandled() = runBlocking<Unit> {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"content":[{"id":"s1","name":"Folder name","metadata":{"title":"","summary":"About","genres":["Drama"],"tags":["Ongoing","Drama"]},
+                "booksMetadata":{"authors":[{"name":"A. Writer","role":"writer"},{"name":"B. Artist","role":"penciller"},{"name":"A. Writer","role":"cover"}]}}],"last":false}"""))
+            val config = KomgaSource.configuration(server.url("/").toString(), username = "reader", password = "pässword")
+            assertEquals(config.id, KomgaSource.configuration(server.url("/").toString(), apiKey = "new-key").id, "the same server keeps one identity")
+            assertFailsWith<IllegalArgumentException> { KomgaSource.configuration(server.url("/").toString()) }
+            val source = KomgaSource(config, OkHttpClient())
+            val page = source.browse()
+            assertEquals(40, page.nextOffset)
+            val book = page.books.single()
+            assertEquals("Folder name", book.title)
+            assertEquals(listOf("A. Writer", "B. Artist"), book.authors)
+            assertEquals(listOf("Drama", "Ongoing"), book.tags)
+            assertEquals("About", book.description)
+            assertEquals(server.url("/api/v1/series/s1/thumbnail").toString(), book.coverUrl)
+            assertEquals(okhttp3.Credentials.basic("reader", "pässword", Charsets.UTF_8), server.takeRequest().getHeader("Authorization"))
+            assertFailsWith<IllegalArgumentException> { source.imageRequest(MangaPage("x", "https://elsewhere.invalid/api/v1/books/b/pages/1")) }
+            server.enqueue(MockResponse().setResponseCode(401))
+            assertTrue("rejected the API key or sign-in" in assertFailsWith<MangaSourceFailure> { source.browse() }.message.orEmpty())
+        }
+    }
+
+    @Test fun signedCoversAndPagesAreFetchedThroughTheRepositoryWithoutFollowingRedirects() = runBlocking {
+        MockWebServer().use { server -> MockWebServer().use { other ->
+            val store = MangaStore(temporary.newFolder())
+            val config = KomgaSource.configuration(server.url("/").toString(), apiKey = "secret")
+            store.source(config)
+            val repository = MangaRepository(store)
+            server.enqueue(MockResponse().setBody(okio.Buffer().write(byteArrayOf(7, 7, 7))))
+            val cover = repository.pageFile(MangaPage("komga:cover", server.url("/api/v1/series/s1/thumbnail").toString()), config.id)
+            assertContentEquals(byteArrayOf(7, 7, 7), cover.readBytes())
+            assertEquals("secret", server.takeRequest().getHeader("X-API-Key"))
+            server.enqueue(MockResponse().setResponseCode(302).addHeader("Location", other.url("/collect")))
+            assertFails { repository.pageFile(MangaPage("komga:moved", server.url("/api/v1/books/b/pages/1").toString()), config.id) }
+            assertEquals(0, other.requestCount, "a redirect never carries the key to another server")
+        } }
     }
 
     @Test fun privateApiKeyIsNotForwardedAcrossRedirects() = runBlocking {
