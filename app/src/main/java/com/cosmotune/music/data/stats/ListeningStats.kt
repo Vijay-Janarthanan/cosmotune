@@ -13,10 +13,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.ZoneId
 import java.util.Locale
 
 /**
@@ -106,13 +106,27 @@ object ListeningStats {
         val summary: ReplaySummary,
     )
 
-    fun init(context: Context) {
-        directory = File(context.filesDir, DIRECTORY)
+    /**
+     * Where "now" comes from: the day a sample is filed under and the day a
+     * period is measured back from. The system clock, except in tests, which
+     * need a week that straddles two months on demand.
+     */
+    @Volatile
+    internal var clock: Clock = Clock.systemDefaultZone()
+
+    fun init(context: Context) = init(File(context.filesDir, DIRECTORY))
+
+    /** As [init], on a folder of the caller's choosing (the tests' temporary one). */
+    internal fun init(folder: File) {
+        directory = folder
+        open = null
+        dirty = false
+        cached = null
         // Opening a month means reading and parsing it, and the first thing to
         // ask for one is the playback sampler — on the main thread, a few
         // seconds into the first track. Done here instead, it has happened long
         // before anything is playing.
-        writer.launch { synchronized(lock) { bucketFor(YearMonth.now()) } }
+        writer.launch { synchronized(lock) { bucketFor(YearMonth.now(clock)) } }
     }
 
     private val ready: Boolean get() = this::directory.isInitialized
@@ -132,8 +146,8 @@ object ListeningStats {
         if (!ready) return
         if (playedMs <= 0 && !countsAsPlay) return
         if (song.videoId.isBlank()) return
-        val now = System.currentTimeMillis()
-        val at = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault())
+        val now = clock.millis()
+        val at = Instant.ofEpochMilli(now).atZone(clock.zone)
         val dayKey = "${at.year}-${"%02d".format(at.monthValue)}-${"%02d".format(at.dayOfMonth)}"
         synchronized(lock) {
             val bucket = bucketFor(YearMonth.from(at))
@@ -318,7 +332,7 @@ object ListeningStats {
      */
     suspend fun summary(period: ReplayPeriod): ReplaySummary = withContext(Dispatchers.IO) {
         flushAndAwait()
-        val today = LocalDate.now()
+        val today = LocalDate.now(clock)
         val facts = ArtistFacts.revision.value
         // Every input to the merge, so the cache cannot be stale: which months
         // are on disk and what is in them ([version]), what is known about the
@@ -581,12 +595,16 @@ object ListeningStats {
             addDaySubs(bucket)
             bucket.days.forEach { (day, ms) ->
                 val candidate = "${bucket.month}-%02d".format(day)
-                val date = runCatching { LocalDate.parse(candidate.replace("-", "/")) }.getOrNull()
+                // Already ISO (YYYY-MM-DD). It used to be parsed with its dashes
+                // turned into slashes, which never parses, so a week never had a
+                // busiest day.
+                val date = runCatching { LocalDate.parse(candidate) }.getOrNull()
                     ?: return@forEach
                 if (date >= range.first && date <= range.second) {
                     days[candidate] = (days[candidate] ?: 0L) + ms
                 }
             }
+            if (earliest == null || bucket.month < earliest!!) earliest = bucket.month
         }
 
         fun toSummary(period: ReplayPeriod, today: LocalDate): ReplaySummary {
@@ -868,7 +886,7 @@ data class TrackEntry(
         }
     }
 
-    /** Sum ms/plays for days that fall within [range]. Falls back to full totals if .days is empty. */
+    /** Sum ms/plays for the days that fall within [range]; nothing for an entry without daily data. */
     fun weekRange(range: Pair<LocalDate, LocalDate>): Pair<Long, Int> {
         var totalMs = 0L
         var totalPlays = 0
@@ -880,10 +898,11 @@ data class TrackEntry(
                     totalPlays += stats.plays
                 }
             }
-        } else {
-            // Legacy data: .days was never populated — use overall totals.
-            return ms to plays
         }
+        // An entry with no days at all was filed before the daily breakdown
+        // existed: its listening cannot be placed in any week, so it is left
+        // out rather than counted whole (which put a month, or the month
+        // before, into "This week").
         return totalMs to totalPlays
     }
 }
@@ -929,7 +948,7 @@ data class NameEntry(
         }
     }
 
-    /** Sum ms/plays for days that fall within [range]. Falls back to full totals if .days is empty. */
+    /** Sum ms/plays for the days that fall within [range]; nothing for an entry without daily data. */
     fun weekRange(range: Pair<LocalDate, LocalDate>): Pair<Long, Int> {
         var totalMs = 0L
         var totalPlays = 0
@@ -941,10 +960,11 @@ data class NameEntry(
                     totalPlays += stats.plays
                 }
             }
-        } else {
-            // Legacy data: .days was never populated — use overall totals.
-            return ms to plays
         }
+        // An entry with no days at all was filed before the daily breakdown
+        // existed: its listening cannot be placed in any week, so it is left
+        // out rather than counted whole (which put a month, or the month
+        // before, into "This week").
         return totalMs to totalPlays
     }
 }

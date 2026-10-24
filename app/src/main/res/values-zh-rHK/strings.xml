@@ -1282,4 +1282,9 @@
     <string name="artist_signatures_unconfigured">尚未設定，點選以設定 API 網址</string>
     <string name="artist_signatures_test_failed">無法連線到該網址的 API</string>
     <string name="signed_by">%1$s 的簽名</string>
+    <string name="not_enough_this_week">本週再多播放幾首歌曲即可解鎖你的 Replay。</string>
+    <string name="replay_artist_start_week">整週裡，</string>
+    <string name="replay_songs_end_week"> 填滿了你的這一週。</string>
+    <string name="replay_summary_end_week">週</string>
+    <string name="replay_this_week">本週</string>
 </resources>
