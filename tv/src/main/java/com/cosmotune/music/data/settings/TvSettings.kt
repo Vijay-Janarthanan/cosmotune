@@ -172,11 +172,20 @@ object TvSettings {
     }
 
     /**
-     * Verifies the entered PIN against the profile's stored salted hash in constant time.
-     * Also migrates legacy plaintext PINs if found upon successful match.
+     * Verifies the entered PIN against the profile's stored salted hash in constant time, and
+     * applies that profile's [TvPinThrottle] here rather than only in the keypad: while a cooldown
+     * runs every attempt is refused without being checked, a wrong PIN is counted towards the next
+     * cooldown and a right one clears it. Also migrates legacy plaintext PINs on a match.
      */
     fun verifyProfilePin(profileId: String, pin: String): Boolean {
         if (!this::prefs.isInitialized) return false
+        if (TvPinThrottle.getDelayRemainingMs(profileId) > 0L) return false
+        val matches = checkProfilePin(profileId, pin)
+        if (matches) TvPinThrottle.recordSuccess(profileId) else if (isProfileLocked(profileId)) TvPinThrottle.recordFailure(profileId)
+        return matches
+    }
+
+    private fun checkProfilePin(profileId: String, pin: String): Boolean {
         if (pin.length != 4 || pin.any { it !in '0'..'9' }) return false
         val stored = prefs.getString("$KEY_PROFILE_PIN_PREFIX$profileId", null) ?: return false
         if (stored.isBlank() || stored.length > 256) return false

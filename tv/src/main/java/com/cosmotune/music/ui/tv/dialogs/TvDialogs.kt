@@ -732,7 +732,8 @@ private fun TvPinDialog(
             val success = onPinEntered(candidate)
             if (!success) {
                 pin = ""
-                val delayMs = throttleKey?.let { TvPinThrottle.recordFailure(it) } ?: 0L
+                // TvSettings.verifyProfilePin has counted the attempt; show what it set.
+                val delayMs = throttleKey?.let { TvPinThrottle.getDelayRemainingMs(it) } ?: 0L
                 localError = errorMessage ?: "Incorrect PIN"
                 if (delayMs > 0L) {
                     val sec = ceil(delayMs / 1000.0).toInt()
@@ -744,8 +745,6 @@ private fun TvPinDialog(
                     throttleText = null
                     isInputBlocked = false
                 }
-            } else {
-                throttleKey?.let { TvPinThrottle.recordSuccess(it) }
             }
         }
     }
