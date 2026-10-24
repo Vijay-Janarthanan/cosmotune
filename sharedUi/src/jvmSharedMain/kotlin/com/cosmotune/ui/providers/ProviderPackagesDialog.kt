@@ -1,5 +1,6 @@
 package com.cosmotune.ui.providers
 
+import com.cosmotune.providers.statusAgainst
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -170,8 +171,16 @@ private fun ProviderPackageContent(manager: ProviderManager, onDismiss: () -> Un
                             Text(item.version, style = MaterialTheme.typography.labelMedium)
                             Text(item.description, style = MaterialTheme.typography.bodySmall, maxLines = 3, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        TextButton(enabled = !busy, onClick = { run { review = manager.repositories.download(item) } }) {
-                            Text(if (state.installed.any { it.manifest.name == item.identity }) "Review update" else "Download")
+                        val status = item.statusAgainst(state.installed.find { it.manifest.name == item.identity })
+                        TextButton(enabled = !busy && status != com.cosmotune.providers.ProviderListingStatus.CURRENT &&
+                            status != com.cosmotune.providers.ProviderListingStatus.OLDER,
+                            onClick = { run { review = manager.repositories.download(item) } }) {
+                            Text(when (status) {
+                                com.cosmotune.providers.ProviderListingStatus.NEW -> "Download"
+                                com.cosmotune.providers.ProviderListingStatus.UPDATE -> "Review update"
+                                com.cosmotune.providers.ProviderListingStatus.CURRENT -> "Installed"
+                                com.cosmotune.providers.ProviderListingStatus.OLDER -> "Older than installed"
+                            })
                         }
                     }
                     HorizontalDivider()

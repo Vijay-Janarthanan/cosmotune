@@ -121,3 +121,5 @@ LK-20 sends ListenBrainz listens through the shared offline queue on both hosts;
 
 
 Provider/add-on rows (worktree cx-p1). LK-01: the 2 MiB add-on metadata limit now has real-HTTP checks on the phone client too (declared and chunked bodies, exact limit, search and album pages) next to the desktop and shared ones. LK-02 is backed by the existing settings, priority and masking tests and is marked implemented. LK-03: an explicit catalogue refresh now re-reads the add-on manifest on both hosts, so newly declared or withdrawn album/artist pages take effect. LK-05: a desktop transfer timeout no longer leaves a stuck Running row; failure, restart and Retry-with-quality paths are tested with an isolated journal.
+
+LK-04/MN-04 (cx-p1): provider packages that only offer the SDK's file-only `download` route now play on both hosts through a leased, range-capable loopback copy that is deleted when the provider is disabled; repository listings only offer real updates and downloads are checked against the listing. MN-04 stays in progress for manifest-aware HLS/DASH relaying, the FFmpeg API and real-provider walkthroughs.

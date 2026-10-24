@@ -30,7 +30,7 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
         work.report(bytes, total, completed, count)
         report(ProviderWorkProgress(status, bytes, total, segmentsCompleted = completed, segmentsTotal = count), total == bytes)
     }
-    private val files by lazy { ProviderFiles(java.io.File(store.root, "workspaces/${install.manifest.name}"), network,
+    internal val files by lazy { ProviderFiles(java.io.File(store.root, "workspaces/${install.manifest.name}"), network,
         progress = { bytes, total -> fileProgress(bytes, total) },
         segmentProgress = { bytes, total, completed, count -> fileProgress(bytes, total, completed, count) }) }
     fun cancel() { network.cancel(); work.close(); mutableProgress.value = null }
