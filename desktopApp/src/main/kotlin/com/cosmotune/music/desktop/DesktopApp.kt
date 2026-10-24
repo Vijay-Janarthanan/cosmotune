@@ -1726,6 +1726,8 @@ fun CosmotuneDesktopApp() {
                     partySync.onLocalIntent()
                 }
             },
+            // Position is read by the shell whenever it likes, so from the engine, not the last update.
+            livePlayback = { playbackEngine.state.value },
         )
     }
     DisposableEffect(mprisController) {
@@ -1928,7 +1930,10 @@ fun CosmotuneDesktopApp() {
     }
 
     LaunchedEffect(
-        playback.song?.videoId,
+        // The whole song, not its id: an album or artwork found after the track started is
+        // Metadata the shell has to be sent. And every seek, which MPRIS announces as Seeked.
+        playback.song,
+        playback.seeks,
         playback.isPlaying,
         playback.durationMs,
         playback.volume,
