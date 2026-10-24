@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 
 /** The idle Listen Together health poll shared by the phone and the desktop. */
 class IdleHealthTest {
-    // The policy cases follow BitChord's ListenTogetherIdleHealthTest (upstream PR #820) for the same rule.
+    // The policy cases follow upstream's ListenTogetherIdleHealthTest (PR #820) for the same rule.
     @Test fun aClosedScreenNeverProbes() {
         assertTrue(IdleHealthPolicy.shouldSkipIdleProbe(false, false, false, null))
         assertTrue(IdleHealthPolicy.shouldSkipIdleProbe(false, false, true, false))
