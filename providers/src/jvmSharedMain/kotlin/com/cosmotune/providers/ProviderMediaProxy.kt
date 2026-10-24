@@ -13,9 +13,13 @@ import kotlinx.serialization.json.*
 
 /** Loopback byte transport keeps remote provider addresses/headers behind the provider network boundary. */
 internal class ProviderMediaProxy : AutoCloseable {
-    private data class Lease(val provider: String, val remote: String, val headers: JsonObject, val network: ProviderNetwork,
+    /** Either a remote address fetched through [network], or a prepared local [file] released with the lease. */
+    private data class Lease(val provider: String, val remote: String?, val headers: JsonObject, val network: ProviderNetwork?,
+        val file: java.io.File? = null, val release: AutoCloseable? = null,
         val created: Long = System.nanoTime(), var active: Int = 0,
-        val clients: MutableSet<Socket> = java.util.concurrent.ConcurrentHashMap.newKeySet())
+        val clients: MutableSet<Socket> = java.util.concurrent.ConcurrentHashMap.newKeySet()) {
+        fun dispose() { network?.cancel(); release?.let { runCatching { it.close() } } }
+    }
     private val lock = Any()
     private val leases = LinkedHashMap<String, Lease>()
     private val sockets = java.util.concurrent.ConcurrentHashMap.newKeySet<Socket>()
@@ -36,25 +40,42 @@ internal class ProviderMediaProxy : AutoCloseable {
 
     fun register(provider: String, remote: String, headers: JsonObject, network: ProviderNetwork): String {
         network.address(remote)
+        return add(Lease(provider, remote, headers, network))
+    }
+
+    /**
+     * Serves a complete file a provider prepared in its own workspace (the SDK's file-only `download`
+     * route). [release] is closed with the lease (revoke, expiry, eviction or shutdown), which deletes
+     * the disposable copy; the decoder only ever sees the loopback address, never the workspace path.
+     */
+    fun registerFile(provider: String, file: java.io.File, release: AutoCloseable): String {
+        require(file.isFile && file.length() in 1..MAX_MEDIA_BYTES) { "Provider returned no complete media file" }
+        return add(Lease(provider, null, JsonObject(emptyMap()), null, file, release))
+    }
+
+    private fun add(lease: Lease): String {
         val token = UUID.randomUUID().toString().replace("-", "")
-        synchronized(lock) {
-            check(!closed)
-            leases.entries.filter { elapsed(it.value) > MAX_AGE_MS && it.value.active == 0 }.map { it.key }.forEach { leases.remove(it)?.network?.cancel() }
-            while (leases.size >= 64) {
-                val victim = leases.entries.firstOrNull { it.value.active == 0 } ?: error("Provider media capacity is busy")
-                leases.remove(victim.key)?.network?.cancel()
+        val dropped = mutableListOf<Lease>()
+        try {
+            synchronized(lock) {
+                check(!closed)
+                leases.entries.filter { elapsed(it.value) > MAX_AGE_MS && it.value.active == 0 }.map { it.key }.forEach { leases.remove(it)?.let(dropped::add) }
+                while (leases.size >= 64) {
+                    val victim = leases.entries.firstOrNull { it.value.active == 0 } ?: error("Provider media capacity is busy")
+                    leases.remove(victim.key)?.let(dropped::add)
+                }
+                leases[token] = lease
             }
-            leases[token] = Lease(provider, remote, headers, network)
-        }
+        } finally { dropped.forEach(Lease::dispose) }
         return "http://127.0.0.1:${server.localPort}/$token/media"
     }
 
     fun revoke(provider: String) {
         val removed = synchronized(lock) { leases.filterValues { it.provider == provider }.keys.mapNotNull(leases::remove) }
         removed.forEach { lease ->
-            lease.network.cancel()
             // Cancelling upstream cannot interrupt a write blocked on a paused local reader.
             lease.clients.forEach { runCatching { it.close() } }
+            lease.dispose()
         }
     }
 
@@ -95,6 +116,11 @@ internal class ProviderMediaProxy : AutoCloseable {
             lease = held
             deadline.cancel(false)
             deadline = deadlines.schedule({ runCatching { socket.close() } }, 5, TimeUnit.MINUTES)
+            if (held.file != null) {
+                serveFile(socket, request[0], held.file, headers["range"]) { sent = true }
+                return
+            }
+            val network = requireNotNull(held.network); val remote = requireNotNull(held.remote)
             val options = buildJsonObject {
                 put("method", request[0])
                 putJsonObject("headers") {
@@ -103,7 +129,7 @@ internal class ProviderMediaProxy : AutoCloseable {
                     headers["if-range"]?.let { require(it.length <= 8_192); put("If-Range", it) }
                 }
             }
-            held.network.withResponse(held.remote, options, media = true) { response ->
+            network.withResponse(remote, options, media = true) { response ->
                 require(response.code in setOf(200, 206, 416)) { "Provider did not return media" }
                 val size = response.body.contentLength()
                 require(size <= MAX_MEDIA_BYTES)
@@ -138,9 +164,48 @@ internal class ProviderMediaProxy : AutoCloseable {
     override fun close() {
         val old = synchronized(lock) { if (closed) return; closed = true; leases.values.toList().also { leases.clear() } }
         runCatching { server.close() }
-        old.forEach { it.network.cancel() }
+        old.forEach(Lease::dispose)
         sockets.forEach { runCatching { it.close() } }; sockets.clear()
         workers.shutdownNow()
+    }
+    /** Byte ranges over a prepared file, with the same response hardening as relayed media. */
+    private fun serveFile(socket: Socket, method: String, file: java.io.File, range: String?, onHead: () -> Unit) {
+        val size = file.length()
+        var start = 0L; var end = size - 1; var status = "200 OK"
+        if (range != null) {
+            require(RANGE.matches(range))
+            val spec = range.removePrefix("bytes=")
+            val first = spec.substringBefore('-'); val last = spec.substringAfter('-')
+            if (first.isEmpty()) start = (size - last.toLong()).coerceAtLeast(0)
+            else { start = first.toLong(); if (last.isNotEmpty()) end = minOf(last.toLong(), size - 1) }
+            status = if (start >= size || start > end) "416 Range Not Satisfiable" else "206 Partial Content"
+        }
+        val output = BufferedOutputStream(socket.getOutputStream())
+        val satisfiable = !status.startsWith("416")
+        val length = if (satisfiable) end - start + 1 else 0L
+        val head = buildString {
+            append("HTTP/1.1 $status\r\nConnection: close\r\nCache-Control: private, no-store\r\nX-Content-Type-Options: nosniff\r\nContent-Security-Policy: default-src 'none'; sandbox\r\n")
+            append("Accept-Ranges: bytes\r\nContent-Type: ${contentType(file)}\r\nContent-Length: $length\r\n")
+            if (status.startsWith("206")) append("Content-Range: bytes $start-$end/$size\r\n")
+            if (!satisfiable) append("Content-Range: bytes */$size\r\n")
+            append("\r\n")
+        }
+        output.write(head.toByteArray(Charsets.US_ASCII)); output.flush(); onHead()
+        if (method == "HEAD" || !satisfiable) return
+        java.io.RandomAccessFile(file, "r").use { input ->
+            input.seek(start)
+            val bytes = ByteArray(64 * 1024); var remaining = length
+            while (remaining > 0) {
+                val count = input.read(bytes, 0, minOf(bytes.size.toLong(), remaining).toInt())
+                if (count < 0) break
+                output.write(bytes, 0, count); output.flush(); remaining -= count
+            }
+        }
+    }
+    private fun contentType(file: java.io.File): String = when (runCatching { ProviderPreparedMedia.container(file) }.getOrNull()) {
+        "flac" -> "audio/flac"; "mp4" -> "audio/mp4"; "mp3" -> "audio/mpeg"; "aac" -> "audio/aac"
+        "ogg", "opus" -> "audio/ogg"; "wav" -> "audio/wav"; "aiff" -> "audio/aiff"
+        else -> "application/octet-stream"
     }
     private fun elapsed(lease: Lease) = (System.nanoTime() - lease.created) / 1_000_000
     private companion object {

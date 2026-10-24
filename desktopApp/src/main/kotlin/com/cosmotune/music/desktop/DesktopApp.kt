@@ -2499,10 +2499,9 @@ fun CosmotuneDesktopApp() {
     }
 
     fun publishProviderHomeShelves(shelves: List<HomeShelf>) {
-        val owners = shelves.mapNotNull { it.sourceId }.toSet()
-        val existing = (homeState as? UiState.Success)?.data.orEmpty()
-        existing.filter { it.sourceId in owners }.forEach { homeSeenTitles.remove(it.title.lowercase()) }
-        homeState = UiState.Success(existing.filterNot { it.sourceId in owners })
+        val (kept, removed) = com.cosmotune.providers.ProviderHome.replacing((homeState as? UiState.Success)?.data.orEmpty(), shelves)
+        removed.forEach { homeSeenTitles.remove(it.title.lowercase()) }
+        homeState = UiState.Success(kept)
         publishHomeShelves(shelves)
     }
 

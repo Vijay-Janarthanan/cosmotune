@@ -174,6 +174,16 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         }
         // Initialize LastFM with saved settings if available
         initLastfm()
+        // LK-06: the Last.fm radio feed exists only while the listener opted in and is signed in.
+        CoroutineScope(Dispatchers.Default).launch {
+            kotlinx.coroutines.flow.combine(
+                AppSettings.lastfmRecommendations, AppSettings.lastfmSessionKey, AppSettings.lastfmUsername,
+                AppSettings.lastfmApiKey, AppSettings.lastfmEndpoint,
+            ) { optedIn, session, user, key, endpoint ->
+                com.cosmotune.music.data.recommendations.LastFmDiscovery.configured(optedIn, session, user, key,
+                    endpoint.takeIf { it.isNotBlank() && it != LastFM.DEFAULT_API_ENDPOINT })
+            }.collect { com.cosmotune.music.data.recommendations.LocalRecommendations.useLastFm(it) }
+        }
         // The public "apps open right now" count; see Presence.
         com.cosmotune.music.data.presence.AndroidPresence.install(this)
         backgroundInit.join()

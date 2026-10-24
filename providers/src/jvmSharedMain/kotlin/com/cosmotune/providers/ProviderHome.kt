@@ -35,6 +35,17 @@ object ProviderHome {
         }
     }
 
+    /**
+     * What a host's Home keeps when [incoming] provider shelves arrive: every shelf of the core feed
+     * and of other providers, minus the shelves previously published by the same providers (a refresh
+     * replaces them rather than appending a second copy). The dropped shelves are returned so the host
+     * can forget their titles before de-duplicating the new ones. Both Android and desktop use this.
+     */
+    fun replacing(existing: List<HomeShelf>, incoming: List<HomeShelf>): Pair<List<HomeShelf>, List<HomeShelf>> {
+        val owners = incoming.mapNotNull { it.sourceId }.toSet()
+        return existing.partition { it.sourceId !in owners }
+    }
+
     internal fun shelves(title: String, sections: List<ProviderHomeSection>): List<HomeShelf> = sections.take(20).mapNotNull { section ->
         val tracks = section.tracks.take(50).map { track ->
             val song = track.song()

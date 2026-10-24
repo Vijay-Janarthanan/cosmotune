@@ -51,6 +51,7 @@ fun DesktopListeningTools(
         sourceSummary = sourceSummary, existingUser = library.songs.isNotEmpty(), remote = remote,
         pcmDecoder = DesktopLibraryPcmDecoder,
         trashFiles = desktopTrash(),
+        requestLosslessCopies = { songs -> songs.count { com.cosmotune.music.desktop.DesktopDownloadQueue.enqueue(it, quality = "LOSSLESS") } },
         languageChoices = DesktopStrings.available.map { it.tag to it.label },
     ), onDismiss)
 }

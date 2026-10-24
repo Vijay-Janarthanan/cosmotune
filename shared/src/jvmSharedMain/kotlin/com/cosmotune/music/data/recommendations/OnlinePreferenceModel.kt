@@ -25,11 +25,13 @@ internal class OnlinePreferenceModel {
         weights.fill(0.0); gradients.fill(0.0); observations = 0; updatedDay = 0
     }
 
-    @Synchronized fun adjustment(previous: Song?, song: Song, hour: Int, day: Long): Float {
+    @Synchronized fun adjustment(previous: Song?, song: Song, hour: Int, day: Long, work: RankingWork? = null): Float {
         if (!enabled || observations < 5) return 0f
-        decay(day)
+        decay(day, work)
         val strength = (observations / 40.0).coerceAtMost(1.0)
-        return ((probability(features(previous, song, hour)) - .5) * .3 * strength).toFloat()
+        val indices = features(previous, song, hour)
+        work?.let { it.preferenceFeatures += indices.size }
+        return ((probability(indices) - .5) * .3 * strength).toFloat()
     }
 
     @Synchronized fun learn(previous: Song?, song: Song, liked: Boolean, hour: Int, day: Long) {
@@ -46,9 +48,10 @@ internal class OnlinePreferenceModel {
         observations = (observations + 1).coerceAtMost(1_000_000_000)
     }
 
-    private fun decay(day: Long) {
+    private fun decay(day: Long, work: RankingWork? = null) {
         if (updatedDay == 0L) { updatedDay = day; return }
         if (day <= updatedDay) return
+        work?.let { it.decayedValues += 2L * FEATURES }
         val factor = .98.pow((day - updatedDay).coerceAtMost(3650).toDouble())
         for (i in weights.indices) { weights[i] *= factor; gradients[i] *= factor }
         updatedDay = day

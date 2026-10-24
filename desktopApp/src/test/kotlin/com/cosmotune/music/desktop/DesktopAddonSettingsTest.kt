@@ -66,4 +66,38 @@ class DesktopAddonSettingsTest {
             assertEquals("A recording", parameters["q"])
         } finally { client.clear(); server.stop(0) }
     }
+
+    @Test fun anExplicitRefreshRereadsTheManifestSoNewlyDeclaredPagesOpen() = runBlocking<Unit> {
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        val manifestReads = java.util.concurrent.atomic.AtomicInteger()
+        val artistReads = java.util.concurrent.atomic.AtomicInteger()
+        val resources = java.util.concurrent.atomic.AtomicReference("\"search\",\"album\"")
+        server.createContext("/manifest.json") { request ->
+            manifestReads.incrementAndGet()
+            val bytes = """{"id":"fixture","resources":[${resources.get()}]}""".toByteArray()
+            request.sendResponseHeaders(200, bytes.size.toLong()); request.responseBody.use { it.write(bytes) }; request.close()
+        }
+        server.createContext("/artist/") { request ->
+            artistReads.incrementAndGet()
+            val bytes = """{"id":"one","name":"An artist","tracks":[]}""".toByteArray()
+            request.sendResponseHeaders(200, bytes.size.toLong()); request.responseBody.use { it.write(bytes) }; request.close()
+        }
+        server.start()
+        val client = DesktopAddonClient("http://127.0.0.1:${server.address.port}")
+        try {
+            assertTrue(client.artist("one").isFailure)
+            resources.set("\"search\",\"album\",\"artist\"")
+            // Ordinary reads keep the cached description: no surprise requests while browsing.
+            assertTrue(client.artist("one").isFailure)
+            assertEquals(1, manifestReads.get())
+            assertEquals(0, artistReads.get())
+            assertTrue(client.artist("one", force = true).isSuccess)
+            assertEquals(2, manifestReads.get())
+            assertEquals(1, artistReads.get())
+            // And a source that withdraws a page type stops being asked for it after a refresh.
+            resources.set("\"search\"")
+            assertTrue(client.artist("one", force = true).isFailure)
+            assertEquals(1, artistReads.get())
+        } finally { client.clear(); server.stop(0) }
+    }
 }

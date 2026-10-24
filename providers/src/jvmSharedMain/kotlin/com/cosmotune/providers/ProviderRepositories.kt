@@ -29,6 +29,21 @@ import okhttp3.Request
     }
 }
 
+/** How a repository listing relates to what is installed, so Sources only offers a real update. */
+enum class ProviderListingStatus { NEW, UPDATE, CURRENT, OLDER }
+
+fun ProviderRepositoryEntry.statusAgainst(installed: ProviderInstall?): ProviderListingStatus {
+    if (installed == null) return ProviderListingStatus.NEW
+    val order = ProviderManager.compareVersions(version, installed.manifest.version)
+    return when {
+        order > 0 -> ProviderListingStatus.UPDATE
+        order < 0 -> ProviderListingStatus.OLDER
+        // The same version republished with different bytes is offered for review, never installed silently.
+        sha256.equals(installed.sha256, ignoreCase = true) -> ProviderListingStatus.CURRENT
+        else -> ProviderListingStatus.UPDATE
+    }
+}
+
 @Serializable data class ProviderRepositoryIndex(val version: Int = 1, val name: String = "", val extensions: List<ProviderRepositoryEntry>)
 
 /** Repositories publish package hashes. A refreshed listing cannot execute or silently replace installed code. */

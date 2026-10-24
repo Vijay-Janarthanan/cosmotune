@@ -1829,11 +1829,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun publishProviderHomeShelves(shelves: List<HomeShelf>) {
-        val owners = shelves.mapNotNull { it.sourceId }.toSet()
-        val existing = (_home.value as? UiState.Success)?.data.orEmpty()
-        val removed = existing.filter { it.sourceId in owners }
+        val (kept, removed) = com.cosmotune.providers.ProviderHome.replacing((_home.value as? UiState.Success)?.data.orEmpty(), shelves)
         removed.forEach { homeSeenTitles.remove(it.title.lowercase(Locale.ROOT)) }
-        _home.value = UiState.Success(existing.filterNot { it.sourceId in owners })
+        _home.value = UiState.Success(kept)
         publishHomeShelves(shelves)
     }
 

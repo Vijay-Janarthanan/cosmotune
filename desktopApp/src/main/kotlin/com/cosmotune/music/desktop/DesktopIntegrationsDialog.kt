@@ -424,6 +424,14 @@ private fun ScrobblingSection(onOpenLastfm: () -> Unit, onOpenListenBrainz: () -
                 checked = nowPlaying,
                 onCheckedChange = DesktopScrobbleSettings::setLastfmNowPlaying,
             )
+            val suggestions by DesktopScrobbleSettings.lastfmRecommendations.collectAsState()
+            DesktopCardRule()
+            PanelSwitchRow(
+                title = "Radio suggestions from Last.fm",
+                subtitle = "Radio asks Last.fm for tracks similar to what is playing and favours your top artists. Sends the playing track and your username to Last.fm.",
+                checked = suggestions,
+                onCheckedChange = DesktopScrobbleSettings::setLastfmRecommendations,
+            )
         }
     }
 

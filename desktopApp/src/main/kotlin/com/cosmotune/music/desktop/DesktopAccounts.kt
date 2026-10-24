@@ -302,7 +302,7 @@ internal object DesktopAccounts {
 
     fun remove(accountId: String) {
         DesktopSecretStore.remove(attributesFor(accountId))
-        persistence.saveString(cookieFallbackKey(accountId), "")
+        DesktopSecretPreferences.shared.write(cookieFallbackKey(accountId), "")
         val remaining = accounts().filterNot { it.accountId == accountId }
         write(remaining)
         val next = remaining.firstOrNull()
@@ -328,17 +328,17 @@ internal object DesktopAccounts {
             secret = cookie.toByteArray(Charsets.UTF_8),
         )
         if (stored) {
-            persistence.saveString(cookieFallbackKey(accountId), "")
+            DesktopSecretPreferences.shared.write(cookieFallbackKey(accountId), "")
         } else {
-            DesktopTrackLog.log("no keyring available; keeping the session in preferences instead")
-            DesktopPreferenceChunks.write(persistence.preferences, cookieFallbackKey(accountId), cookie)
+            // Windows and macOS have no Secret Service: DPAPI or an owner-only file, never a plain preference.
+            DesktopTrackLog.log("no keyring available; keeping the session in the protected app store instead")
+            DesktopSecretPreferences.shared.write(cookieFallbackKey(accountId), cookie)
         }
     }
 
     fun cookieOf(accountId: String): String? =
         DesktopSecretStore.lookup(attributesFor(accountId))?.toString(Charsets.UTF_8)?.takeIf { it.isNotBlank() }
-            ?: DesktopPreferenceChunks.read(persistence.preferences, cookieFallbackKey(accountId))
-                ?.takeIf { it.isNotBlank() }
+            ?: DesktopSecretPreferences.shared.read(cookieFallbackKey(accountId)).takeIf { it.isNotBlank() }
 
     private fun cookieFallbackKey(accountId: String) = "google_cookie_$accountId"
 

@@ -652,6 +652,8 @@ object AppSettings {
     val lastfmEndpoint = MutableStateFlow("")
     val lastfmScrobbleEnabled = MutableStateFlow(false)
     val lastfmNowPlaying = MutableStateFlow(false)
+    /** LK-06: radio may ask Last.fm for similar tracks and the account's top artists. Off until the listener opts in. */
+    val lastfmRecommendations = MutableStateFlow(false)
     val lastfmPrimaryArtistOnly = MutableStateFlow(false)
     val scrobbleMinDuration = MutableStateFlow(30)
     val scrobbleDelayPercent = MutableStateFlow(0.5f)
@@ -926,6 +928,7 @@ object AppSettings {
         lastfmScrobbleEnabled.value = prefs.getBoolean(KEY_LASTFM_SCROBBLE_ENABLED, false)
         lastfmNowPlaying.value = prefs.getBoolean(KEY_LASTFM_NOW_PLAYING, false) && lastfmScrobbleEnabled.value
         lastfmPrimaryArtistOnly.value = prefs.getBoolean(KEY_LASTFM_PRIMARY_ARTIST_ONLY, false)
+        lastfmRecommendations.value = prefs.getBoolean(KEY_LASTFM_RECOMMENDATIONS, false)
         scrobbleMinDuration.value = prefs.getInt(KEY_SCROBBLE_MIN_DURATION, 30)
         scrobbleDelayPercent.value = prefs.getFloat(KEY_SCROBBLE_DELAY_PERCENT, 0.5f)
         scrobbleDelaySeconds.value = prefs.getInt(KEY_SCROBBLE_DELAY_SECONDS, 180)
@@ -1574,6 +1577,11 @@ object AppSettings {
             .apply()
     }
 
+    fun setLastfmRecommendations(value: Boolean) {
+        lastfmRecommendations.value = value
+        prefs.edit().putBoolean(KEY_LASTFM_RECOMMENDATIONS, value).apply()
+    }
+
     fun setLastfmNowPlaying(value: Boolean) {
         if (!lastfmScrobbleEnabled.value && value) return
         lastfmNowPlaying.value = value
@@ -2137,6 +2145,7 @@ object AppSettings {
     private const val KEY_LASTFM_ENDPOINT = "lastfm_endpoint"
     private const val KEY_LASTFM_SCROBBLE_ENABLED = "lastfm_scrobble_enabled"
     private const val KEY_LASTFM_NOW_PLAYING = "lastfm_now_playing"
+    private const val KEY_LASTFM_RECOMMENDATIONS = "lastfm_recommendations"
     private const val KEY_LASTFM_PRIMARY_ARTIST_ONLY = "lastfm_primary_artist_only"
     private const val KEY_SCROBBLE_MIN_DURATION = "scrobble_min_duration"
     private const val KEY_SCROBBLE_DELAY_PERCENT = "scrobble_delay_percent"

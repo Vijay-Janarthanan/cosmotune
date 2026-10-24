@@ -240,6 +240,13 @@ internal fun ColumnScope.LibraryReviewPage(
                 repairs = withContext(Dispatchers.IO) { previewLosslessUpgrades(store.state.value, analysis, current.available) }
                 if (repairs.isNullOrEmpty()) "No analysed lossless copies of saved lossy entries were found" else "Review ${repairs!!.size} upgrades below. Audio files are not changed."
             } })
+            host.requestLosslessCopies?.let { request ->
+                ToolButton("Get lossless copies from sources", enabled = !working, tag = "listening:audit:lossless-copies", onClick = { run {
+                    val wanted = withContext(Dispatchers.IO) { losslessCopyRequests(store.state.value, analysis) }
+                    if (wanted.isEmpty()) "No analysed lossy entries need a lossless copy"
+                    else "Queued ${request(wanted.map { it.song() })} lossless downloads. Each is labelled from its own bytes; analyse the library again, then preview upgrades."
+                } })
+            }
             Text("Moved or renamed files are found by the fingerprint an earlier analysis recorded (exact size, length and loudness), only when one file matches.", style = MaterialTheme.typography.bodySmall)
             ToolButton("Find moved files", enabled = !working, tag = "listening:audit:moved", onClick = { run {
                 val current = latestHost

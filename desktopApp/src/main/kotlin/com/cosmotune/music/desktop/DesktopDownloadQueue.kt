@@ -72,6 +72,8 @@ object DesktopDownloadQueue {
     internal var transfer: suspend (Song, String, (Long, Long?) -> Unit) -> Result<Song> = { song, quality, progress ->
         DesktopDownloadManager.download(song, quality, progress)
     }
+    /** The quality a new request is asked at; injectable so tests never read the user's settings. */
+    internal var defaultQuality: () -> String = { DesktopPersistence().string("download_quality", "LOSSLESS") }
     private val mutableStorageError = MutableStateFlow<String?>(null)
     val storageError: StateFlow<String?> = mutableStorageError
 
@@ -108,14 +110,17 @@ object DesktopDownloadQueue {
      * A second tap on a track already queued or running is a no-op rather than a second transfer:
      * the row it would produce is the same row.
      */
-    fun enqueue(song: Song) {
+    fun enqueue(song: Song) { enqueue(song, null) }
+
+    /** [quality] overrides the saved/default rung (the library's "Get lossless copies"); true when queued. */
+    fun enqueue(song: Song, quality: String?): Boolean {
         synchronized(lock) {
         val id = song.videoId
-        if (id.isBlank()) return
+        if (id.isBlank()) return false
         val item = synchronized(lock) {
-            if (id in pending || id in running) return
-            val quality = journal?.entries?.value?.find { it.track.id == id }?.quality
-                ?: DesktopPersistence().string("download_quality", "LOSSLESS")
+            if (id in pending || id in running) return false
+            val quality = quality ?: journal?.entries?.value?.find { it.track.id == id }?.quality
+                ?: defaultQuality()
             DesktopDownloadItem(song, DesktopDownloadState.Queued, sequence.incrementAndGet(), quality)
                 .also { pending[id] = it }
         }
@@ -123,9 +128,10 @@ object DesktopDownloadQueue {
         try { journal?.enqueue(song, item.sequence, item.quality) }
         catch (_: Exception) {
             synchronized(lock) { pending.remove(id) }
-            failed(id, item, IllegalStateException("The saved download queue is full.")); return
+            failed(id, item, IllegalStateException("The saved download queue is full.")); return false
         }
         ensureWorkers()
+        return true
         }
     }
 
@@ -173,7 +179,7 @@ object DesktopDownloadQueue {
             val item = synchronized(lock) {
                 if (id.isBlank() || id in pending || id in running || id in _active.value) return@forEach
                 DesktopDownloadItem(song, DesktopDownloadState.Failed(MISSING_FILE), sequence.incrementAndGet(),
-                    DesktopPersistence().string("download_quality", "LOSSLESS"))
+                    defaultQuality())
             }
             _active.update { it + (id to item) }
             runCatching { journal?.enqueue(song, item.sequence, item.quality); journal?.phase(id, item.sequence, com.cosmotune.music.data.downloads.MusicDownloadPhase.FAILED, MISSING_FILE) }
@@ -250,10 +256,16 @@ object DesktopDownloadQueue {
     }
 
     private fun failed(id: String, item: DesktopDownloadItem, cause: Throwable) {
-        // A cancelled transfer already left the manager; it is not a failure to report.
-        if (cause is kotlinx.coroutines.CancellationException) return
+        // A cancelled transfer already left the manager (cancel removes its row), so the sequence
+        // check is what tells a listener's cancel apart from a failure. A cancellation that did not
+        // come from the listener (a timeout inside the transfer) is a failure: returning early here
+        // used to leave that row "Running" forever, in the manager and in the saved queue.
         if (_active.value[id]?.sequence != item.sequence) return
-        val reason = cause.message?.takeIf(String::isNotBlank) ?: "The download did not finish"
+        val reason = when (cause) {
+            is kotlinx.coroutines.TimeoutCancellationException -> "The download timed out. Retry to try again."
+            is kotlinx.coroutines.CancellationException -> "Interrupted download. Retry to resume."
+            else -> cause.message?.takeIf(String::isNotBlank) ?: "The download did not finish"
+        }
         journal?.phase(id, item.sequence, MusicDownloadPhase.FAILED, reason)
         _active.update { it + (id to item.copy(state = DesktopDownloadState.Failed(reason))) }
         DesktopTrackLog.log("download failed for '${item.song.title}' — $reason")
@@ -292,6 +304,12 @@ object DesktopDownloadQueue {
         synchronized(lock) { if (runningSequence[videoId] == expectedSequence) {
             running.remove(videoId); runningProviders.remove(videoId); runningSequence.remove(videoId)
         } }
+    }
+
+    /** Tests only: forgets the restored journal so each test can restore its own isolated file. */
+    internal fun detachJournalForTest() {
+        synchronized(lock) { journal?.close(); journal = null }
+        mutableStorageError.value = null
     }
 
     internal suspend fun awaitIdle() {

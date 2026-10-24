@@ -286,10 +286,14 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
     suspend fun stream(name: String, trackId: String, maxKbps: Int? = null, lossless: Boolean = false, forDownload: Boolean = false): ProviderAudioStream = operation(name) { runtime ->
         require(trackId.isNotBlank() && trackId.length <= 8_192)
         val install = requireNotNull(store.state.value.installed.find { it.manifest.name == name && it.enabled && name !in revokedNames })
+        val quality = ProviderAudioQuality.choose(install.manifest.qualityOptions, maxKbps, lossless)
+        if ("download_provider" in install.manifest.type && "getDownloadUrl" !in runtime.session.methods &&
+            "download" in runtime.session.methods && install.manifest.permissions.file) {
+            return@operation preparedStream(name, install, runtime, trackId, quality, maxKbps, lossless, forDownload)
+        }
         require("download_provider" in install.manifest.type && "getDownloadUrl" in runtime.session.methods) {
             "This provider does not expose a direct audio stream"
         }
-        val quality = ProviderAudioQuality.choose(install.manifest.qualityOptions, maxKbps, lossless)
         val raw = Json.parseToJsonElement(runtime.session.invoke("getDownloadUrl", buildJsonArray {
             add(trackId); add(quality); addJsonObject { put("purpose", if (forDownload) "download" else "playback") }
         })) as? JsonObject ?: error("Provider returned no direct audio stream")
@@ -317,6 +321,44 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
         } } catch (error: Throwable) { network.cancel(); throw error }
         ProviderAudioStream(local, install.manifest.title, codec, kbps,
             (raw["track"] as? JsonObject)?.get("duration_ms")?.let { (it as? JsonPrimitive)?.longOrNull?.takeIf { duration -> duration in 1..86_400_000 } }, container)
+    }
+
+    /**
+     * The SDK's file-only route: `download(trackId, quality, outputPath)` writes a complete file into the
+     * provider's own workspace and answers with its `file_path`. The file is checked (inside the
+     * workspace, complete, a recognised audio container by its bytes, not its suffix), given a disposable
+     * leased copy, and served to the player over the same loopback relay as remote media. The lease is
+     * revoked with the provider, which deletes the copy.
+     */
+    private suspend fun preparedStream(name: String, install: ProviderInstall, runtime: Runtime, trackId: String, quality: String,
+                               maxKbps: Int?, lossless: Boolean, forDownload: Boolean): ProviderAudioStream {
+        val prepared = ProviderPreparedMedia.create(runtime.host.files)
+        try {
+            val requested = prepared.outputPath + if (lossless) ".flac" else ".m4a"
+            val raw = Json.parseToJsonElement(runtime.session.invoke("download", buildJsonArray {
+                add(trackId); add(quality); add(requested)
+                addJsonObject { put("purpose", if (forDownload) "download" else "playback") }
+            })) as? JsonObject ?: error("Provider returned no media file")
+            require(raw["success"] != JsonPrimitive(false)) { "Provider could not resolve this recording" }
+            val returned = ((raw["file_path"] ?: raw["path"]) as? JsonPrimitive)?.contentOrNull ?: requested
+            val file = prepared.accept(returned) { runtime.host.network.isCancelled }
+            // The bytes decide the container; a provider may leave a `.flac` suffix on MP4 audio.
+            val container = ProviderPreparedMedia.container(file)
+            val declared = ((raw["audio_codec"] ?: raw["codec"]) as? JsonPrimitive)?.contentOrNull
+                ?.lowercase(java.util.Locale.ROOT)?.takeIf { it.matches(Regex("[a-z0-9_-]{1,40}")) }
+            val codec = when (container) { "flac" -> "flac"; "mp3" -> "mp3"; "opus" -> "opus"; "wav" -> "pcm"; "aac" -> "aac"; else -> declared }
+            val kbps = (raw["quality"] as? JsonPrimitive)?.contentOrNull?.let(ProviderAudioQuality::bitrate)
+            require(maxKbps == null || kbps != null && kbps <= maxKbps) { "Provider stream does not confirm the requested bitrate limit" }
+            val local = synchronized(cacheLock) {
+                check(!closed && name !in revokedNames && store.state.value.installed.any { it.manifest.name == name && it.enabled && it.sha256 == install.sha256 }) {
+                    "Provider media access changed"
+                }
+                media.registerFile(name, file, prepared)
+            }
+            return ProviderAudioStream(local, install.manifest.title, codec, kbps,
+                (raw["track"] as? JsonObject)?.get("duration_ms")?.let { (it as? JsonPrimitive)?.longOrNull?.takeIf { duration -> duration in 1..86_400_000 } },
+                if (container == "mp4") "m4a" else container)
+        } catch (error: Throwable) { prepared.close(); throw error }
     }
 
     suspend fun settingAction(name: String, key: String) {

@@ -106,7 +106,10 @@ class DesktopPersistence {
     /** The source list is the desktop equivalent of Android's encrypted SourceRegistry state. */
     internal fun sourceConfigs(): List<DesktopSourceConfig> {
         val protected = DesktopPreferenceChunks.read(preferences, KEY_SOURCE_CONFIGS_PROTECTED)
-        val legacy = DesktopPreferenceChunks.read(preferences, KEY_SOURCE_CONFIGS)
+        // macOS/Linux keep the list (add-on secret fields, Subsonic keys) in the owner-only credential
+        // folder; an older plain preference copy is moved there on this read (LK-20).
+        val legacy = if (DesktopPlatform.isWindows) DesktopPreferenceChunks.read(preferences, KEY_SOURCE_CONFIGS)
+            else DesktopSecretPreferences.shared.read(KEY_SOURCE_CONFIGS).ifEmpty { null }
         val raw = if (protected != null) {
             runCatching { Base64.getDecoder().decode(protected) }.getOrNull()
                 ?.let(DesktopWindowsCrypto::unprotect)
@@ -188,7 +191,7 @@ class DesktopPersistence {
             )
             DesktopPreferenceChunks.remove(preferences, KEY_SOURCE_CONFIGS)
         } else {
-            DesktopPreferenceChunks.write(preferences, KEY_SOURCE_CONFIGS, raw)
+            DesktopSecretPreferences.shared.write(KEY_SOURCE_CONFIGS, raw)
         }
         publishArtworkSources(normalized)
     }

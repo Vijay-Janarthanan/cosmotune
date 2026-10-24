@@ -178,7 +178,7 @@ class AddonClient(rawBaseUrl: String, val userSettings: Map<String, String> = em
 
     suspend fun searchCatalogue(query: String, tier: String = TIER_LOSSLESS, force: Boolean = false): Result<JsonObject> {
         if (query.isBlank()) return Result.success(JsonObject(emptyMap()))
-        if (force) catalogues.clearCompleted()
+        if (force) { manifests.clearCompleted(); catalogues.clearCompleted() }
         val params = settingsFor(tier) + ("q" to query.trim().take(500))
         return catalogues.get(key = keyOf("search", params.toString()), describe = { "addon catalogue search(${redact(baseUrl)})" }) { fetch<JsonObject>(endpoint(listOf("search"), params)) }
     }
@@ -189,6 +189,9 @@ class AddonClient(rawBaseUrl: String, val userSettings: Map<String, String> = em
 
     private suspend fun catalogue(resource: String, id: String, tier: String, force: Boolean): Result<JsonObject> {
         if (id.isBlank() || id.length > 8_192) return Result.failure(AddonException("Invalid catalogue identity"))
+        // An explicit refresh re-reads the manifest too, so a source that has since added or dropped
+        // album/artist pages (or changed its settings schema) is asked under its current description.
+        if (force) manifests.clearCompleted()
         val descriptor = manifest().getOrElse { return Result.failure(it) }
         if (!descriptor.declares(resource)) return Result.failure(AddonException("This source does not offer $resource pages"))
         if (force) catalogues.clearCompleted()

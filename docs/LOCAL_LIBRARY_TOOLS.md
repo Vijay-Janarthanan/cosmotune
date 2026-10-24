@@ -46,3 +46,7 @@ Remaining library limits: decoder analysis on Android is compiled but not run he
 
 **Save lyrics as .lrc (MN-09).** The lyrics share flow on both hosts has *Save as .lrc*, which writes the whole song's lyrics (not only the picked lines) with `[ti:]`, `[ar:]`, `[al:]` and `[length:]` headers, a stamp per line, enhanced `<mm:ss.xx>` word stamps where the provider timed words, and background vocals as their own lines in parentheses. Untimed lyrics are written as plain lines.
 
+
+## Provider-based lossless copies and delivered-format checks (cx-p1)
+
+Library review on both hosts can now ask the enabled sources for lossless copies of analysed lossy entries (*Get lossless copies from sources*). Only catalogue or source-qualified recordings without a verified lossless copy are queued, at the LOSSLESS rung. Every finished download is labelled from its own bytes by the shared `DeliveredAudio` check: a FLAC claim over AAC keeps no lossless badge, an unverified claim is dropped, and a web page saved as audio fails the download. After the next analysis, *Preview lossless upgrades* offers only copies measured as lossless without a lossy-source spectrum; audio files are never overwritten. Real providers were not used to check this.

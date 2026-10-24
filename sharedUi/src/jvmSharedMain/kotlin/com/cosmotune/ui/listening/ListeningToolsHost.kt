@@ -44,6 +44,8 @@ data class ListeningToolsHost(
     val analysisFile: File = com.cosmotune.audio.LibraryAnalysisStore.beside(file),
     /** Moves local copies to the platform trash and returns how many moved; null where the host cannot. */
     val trashFiles: (suspend (List<Song>) -> Int)? = null,
+    /** Queues LOSSLESS downloads of these recordings from the enabled sources and says how many were queued (LK-08). */
+    val requestLosslessCopies: ((List<Song>) -> Int)? = null,
     /** Called after Cosmotune rewrote a local file's tags, so the platform library can rescan it. */
     val onLocalFileChanged: (String) -> Unit = {},
     /** Release lookup for followed artists; shared YouTube Music catalogue by default. */

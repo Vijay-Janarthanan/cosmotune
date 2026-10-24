@@ -102,6 +102,28 @@ class AddonSourceTest {
         } finally { client.clear() }
     }
 
+    @Test fun anExplicitRefreshRereadsTheManifestSoNewlyDeclaredPagesOpen() = runBlocking<Unit> {
+        routes["/manifest.json"] = MockResponse().setBody("""{"id":"fixture","resources":["search","album"]}""")
+        routes["/artist/one"] = MockResponse().setBody("""{"id":"one","name":"An artist","tracks":[]}""")
+        val client = AddonClient(server.url("/").toString())
+        fun count(prefix: String) = synchronized(seen) { seen.count { it.requestUrl?.encodedPath?.startsWith(prefix) == true } }
+        try {
+            assertTrue(client.artist("one").isFailure)
+            routes["/manifest.json"] = MockResponse().setBody("""{"id":"fixture","resources":["search","album","artist"]}""")
+            // Ordinary reads keep the cached description: no surprise requests while browsing.
+            assertTrue(client.artist("one").isFailure)
+            assertEquals(1, count("/manifest.json"))
+            assertEquals(0, count("/artist/"))
+            assertTrue(client.artist("one", force = true).isSuccess)
+            assertEquals(2, count("/manifest.json"))
+            assertEquals(1, count("/artist/"))
+            // A source that withdraws a page type stops being asked for it after a refresh.
+            routes["/manifest.json"] = MockResponse().setBody("""{"id":"fixture","resources":["search"]}""")
+            assertTrue(client.artist("one", force = true).isFailure)
+            assertEquals(1, count("/artist/"))
+        } finally { client.clear() }
+    }
+
     @Test fun catalogueRecordingsKeepSourceOwnershipAndDisabledSourcesAreNotContacted() = runBlocking<Unit> {
         routes["/manifest.json"] = MockResponse().setBody("""{"id":"fixture","resources":["search","album","stream"]}""")
         routes["/album/one"] = MockResponse().setBody("""{"id":"one","title":"An album","tracks":[{"id":"recording","title":"A song","artist":"Singer","format":"flac","duration":180}]}""")
