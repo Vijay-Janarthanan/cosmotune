@@ -11,18 +11,25 @@ import org.jsoup.Jsoup
     val pageParam: String = "page", val pageSize: Int = 20, val itemSelector: String, val titleSelector: String = "a",
     val linkSelector: String = "a", val coverSelector: String = "img", val searchEndpoint: String = "/",
     val searchParam: String = "s", val searchParams: Map<String, String> = emptyMap(), val parameters: Map<String, String> = emptyMap())
+/** [endpoint] is used by JSON templates only: the API address of a series, with `{link}` standing for the series link. */
 @Serializable data class MangaDetailTemplate(val titleSelector: String = "h1", val coverSelector: String = "",
-    val descriptionSelector: String = "", val authorSelector: String = "", val genreSelector: String = "")
+    val descriptionSelector: String = "", val authorSelector: String = "", val genreSelector: String = "", val endpoint: String = "")
+/** [numberSelector] is used by JSON templates only; HTML templates read the number from the chapter title. */
 @Serializable data class MangaChapterTemplate(val selector: String, val titleSelector: String = "a", val linkSelector: String = "a",
-    val newestFirst: Boolean = true, val endpoint: String = "", val method: String = "GET", val parameters: Map<String, String> = emptyMap())
-@Serializable data class MangaPageTemplate(val imageSelector: String)
+    val newestFirst: Boolean = true, val endpoint: String = "", val method: String = "GET", val parameters: Map<String, String> = emptyMap(),
+    val numberSelector: String = "")
+/** [endpoint] and [imageField] are used by JSON templates only: the chapter's API address (`{link}`) and the address field of each image object. */
+@Serializable data class MangaPageTemplate(val imageSelector: String, val endpoint: String = "", val imageField: String = "")
 
-/** Declarative HTML selectors only. Templates do not execute JavaScript or grant app credentials. */
+/**
+ * Declarative templates only: CSS selectors over HTML pages (`type` "html"), or dot-separated field paths over JSON API responses
+ * (`type` "json", `$` for the response root). Templates do not execute JavaScript or grant app credentials.
+ */
 @Serializable data class MangaHtmlTemplate(val name: String, val version: String = "1", val type: String = "html",
     val mangaList: MangaListTemplate, val mangaDetail: MangaDetailTemplate = MangaDetailTemplate(),
     val chapterList: MangaChapterTemplate, val pageList: MangaPageTemplate) {
     fun validate(): MangaHtmlTemplate = apply {
-        require(type == "html") { "This template needs an unsupported content type" }
+        require(type == "html" || type == "json") { "This template needs an unsupported content type" }
         require(name.isNotBlank() && name.length <= 120 && version.length <= 32)
         require(mangaList.pageSize in 1..100 && mangaList.pagination in setOf("page", "offset", "path", "wordpress", "none"))
         require(mangaList.method in setOf("GET", "POST") && chapterList.method in setOf("GET", "POST"))
@@ -30,12 +37,16 @@ import org.jsoup.Jsoup
             mangaDetail.titleSelector, mangaDetail.coverSelector, mangaDetail.descriptionSelector, mangaDetail.authorSelector,
             mangaDetail.genreSelector, chapterList.selector, chapterList.titleSelector, chapterList.linkSelector, pageList.imageSelector)
         require(mangaList.itemSelector.isNotBlank() && chapterList.selector.isNotBlank() && pageList.imageSelector.isNotBlank())
-        val document = Jsoup.parse("<html></html>")
-        selectors.forEach { selector ->
-            require(selector.length <= 1_024 && !selector.contains(":matches", true)) { "Template selector is too complex" }
-            if (selector.isNotBlank()) document.select(selector)
+        if (type == "json") (selectors + listOf(chapterList.numberSelector, pageList.imageField)).forEach { path ->
+            require(path.isBlank() || path == "$" || path.length <= 256 && JSON_PATH.matches(path)) { "JSON template paths are dot-separated field names, for example data.items" }
+        } else {
+            val document = Jsoup.parse("<html></html>")
+            selectors.forEach { selector ->
+                require(selector.length <= 1_024 && !selector.contains(":matches", true)) { "Template selector is too complex" }
+                if (selector.isNotBlank()) document.select(selector)
+            }
         }
-        listOf(mangaList.endpoint, mangaList.searchEndpoint, chapterList.endpoint).forEach { require(it.length <= 4_096) }
+        listOf(mangaList.endpoint, mangaList.searchEndpoint, chapterList.endpoint, mangaDetail.endpoint, pageList.endpoint).forEach { require(it.length <= 4_096) }
         listOf(mangaList.parameters, mangaList.searchParams, chapterList.parameters).forEach { values ->
             require(values.size <= 50 && values.all { it.key.length <= 120 && it.value.length <= 4_096 })
         }
@@ -54,6 +65,7 @@ import org.jsoup.Jsoup
     }
     companion object {
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+        private val JSON_PATH = Regex("[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*")
         fun parse(text: String): MangaHtmlTemplate {
             require(text.toByteArray(Charsets.UTF_8).size <= 128 * 1024) { "Template exceeds 128 KB" }
             return json.decodeFromString<MangaHtmlTemplate>(text).validate()

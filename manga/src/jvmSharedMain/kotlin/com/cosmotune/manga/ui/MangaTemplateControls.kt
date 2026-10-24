@@ -50,13 +50,13 @@ fun MangaTemplateControls(repository: MangaRepository) {
     AlertDialog(onDismissRequest = { if (!busy) { open = false; editor = false } }, title = { Text(if (editor) "Custom manga website" else "Custom manga sources") },
         text = { Column(Modifier.heightIn(max = 540.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (editor) {
-                Text("Choose a known HTML family or paste a declarative HTML template. A template defines selectors and requests; it does not run site scripts. Some sites require browser verification.")
+                Text("Choose a known HTML family, or paste a declarative template: CSS selectors over a site's pages (\"type\": \"html\") or field paths over its JSON API (\"type\": \"json\"). A template defines requests and selectors; it does not run site scripts. Some sites require browser verification.")
                 OutlinedTextField(name, { if (it.length <= 120) name = it }, label = { Text("Source name") }, modifier = Modifier.fillMaxWidth().testTag("manga-template:name"), singleLine = true)
                 OutlinedTextField(address, { if (it.length <= 4_096) address = it }, label = { Text("Website URL") }, modifier = Modifier.fillMaxWidth().testTag("manga-template:url"), singleLine = true)
                 OutlinedTextField(language, { if (it.length <= 32) language = it }, label = { Text("Language code") }, singleLine = true)
                 FlowRow { MangaHtmlTemplate.presets.forEach { preset -> TextButton(enabled = !busy, onClick = { raw = preset.encode(); result = null }) { Text(preset.name) } } }
                 OutlinedTextField(raw, { if (it.toByteArray(Charsets.UTF_8).size <= 128 * 1024) { raw = it; result = null } },
-                    label = { Text("HTML template JSON") }, modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp, max = 220.dp).testTag("manga-template:json"))
+                    label = { Text("Template (JSON text)") }, modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp, max = 220.dp).testTag("manga-template:json"))
                 Row { Checkbox(local, { local = it }); Text("Allow this website on my local network", Modifier.padding(top = 12.dp)) }
                 Text("Android still requires HTTPS for external servers. Existing music account cookies are never used by this source.", style = MaterialTheme.typography.bodySmall)
                 TextButton(enabled = !busy, onClick = { action {
