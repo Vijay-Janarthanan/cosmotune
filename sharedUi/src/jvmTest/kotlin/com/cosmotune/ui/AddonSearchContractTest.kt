@@ -21,7 +21,11 @@ class AddonSearchContractTest {
         assertTrue("if (AddonSearch.shouldSearch(q, submitted = true)) runAddonSearch(q)" in SourceContract.functionBody(viewModel, "submitSearch"))
         val run = SourceContract.functionBody(viewModel, "runAddonSearch")
         assertTrue("AddonSearch.search(q, sources)" in run)
-        assertTrue("SourceRegistry.active().filterIsInstance<AddonSource>()" in run && "addonSearchSources()" in run)
+        assertTrue(
+            "SourceRegistry.active().mapNotNull" in run && "is AddonSource ->" in run &&
+                "is com.cosmotune.music.data.sources.SubsonicSource ->" in run && "addonSearchSources()" in run,
+            "the add-on search covers the HTTP add-ons, the listener's Subsonic servers and the provider packages",
+        )
         assertFalse("runSearch(" in run, "the add-on search never falls through to YouTube Music")
     }
 
