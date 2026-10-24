@@ -251,6 +251,7 @@ import com.cosmotune.music.ui.components.SearchField
 import com.cosmotune.music.sharedui.resources.Res as SharedRes
 import com.cosmotune.music.sharedui.resources.search_hint
 import com.cosmotune.music.sharedui.resources.search_library_hint
+import com.cosmotune.music.sharedui.resources.search_addons_hint
 import com.cosmotune.music.ui.components.TopBarDownloadButton
 import com.cosmotune.music.ui.components.optimizedHazeEffect
 import com.cosmotune.music.ui.components.topBarContentPadding
@@ -739,6 +740,7 @@ private fun CosmotuneApp(
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val searchSource by viewModel.searchSource.collectAsStateWithLifecycle()
     val libraryResults by viewModel.libraryResults.collectAsStateWithLifecycle()
+    val addonResults by viewModel.addonResults.collectAsStateWithLifecycle()
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
     val incomingJamInvite by JamInviteLink.pending.collectAsStateWithLifecycle()
     var activeJamInviteCode by rememberSaveable { mutableStateOf<String?>(null) }
@@ -3262,9 +3264,11 @@ private fun CosmotuneApp(
                             // app has one look for "pick one of these".
                             sourceSwitcher = {
                                 SegmentedControl(
+                                    // In SearchSource order: the selected index is the source's ordinal.
                                     options = listOf(
                                         stringResource(R.string.search_source_youtube),
                                         stringResource(R.string.library),
+                                        stringResource(R.string.search_source_addons),
                                     ),
                                     selectedIndex = searchSource.ordinal,
                                     onSelect = { index -> onSearchSourceChange(SearchSource.entries[index]) },
@@ -3283,6 +3287,28 @@ private fun CosmotuneApp(
                                         context.getString(R.string.local_music),
                                         PlaybackSourceType.BROWSE,
                                         "local:all",
+                                    ),
+                                )
+                            },
+                            // The add-ons' combined answer, asked only on submit (see AddonSearch); a row plays the add-on's own
+                            // stream, the other results queued behind it.
+                            searchingAddons = searchSource == SearchSource.ADDONS,
+                            addonResults = addonResults,
+                            addonHistory = viewModel.addonSearchHistory.collectAsStateWithLifecycle().value,
+                            onAddonHistoryClick = { term ->
+                                viewModel.onQueryChange(term)
+                                viewModel.submitSearch()
+                            },
+                            onAddonHistoryRemove = viewModel::removeAddonSearch,
+                            onAddonHistoryClear = viewModel::clearAddonSearchHistory,
+                            onAddonSongClick = { songs, index ->
+                                playFrom(
+                                    songs,
+                                    index,
+                                    QueueSource(
+                                        context.getString(R.string.search_source_addons),
+                                        PlaybackSourceType.BROWSE,
+                                        "addons:search",
                                     ),
                                 )
                             },
@@ -3578,6 +3604,8 @@ private fun CosmotuneApp(
                                 placeholder = org.jetbrains.compose.resources.stringResource(
                                     if (searchSource == SearchSource.LIBRARY) {
                                         SharedRes.string.search_library_hint
+                                    } else if (searchSource == SearchSource.ADDONS) {
+                                        SharedRes.string.search_addons_hint
                                     } else {
                                         SharedRes.string.search_hint
                                     },

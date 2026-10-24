@@ -50,7 +50,7 @@ import com.cosmotune.music.data.model.BrowseType
 import com.cosmotune.music.data.model.DetailPage
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.cosmo_add
 import com.cosmotune.music.sharedui.resources.cosmo_duration_h_min
@@ -278,13 +278,15 @@ fun CosmoReleasePage(
                 if (matches.isEmpty() && songs.isNotEmpty()) {
                     item(key = "no-matches") { MessageState(stringResource(Res.string.cosmo_search_no_results, query)) }
                 }
+                // The row that was played lights, not every namesake: see [playingRowMatcher].
+                val isCurrentRow = playingRowMatcher(matches.map { it.value }, currentSong)
                 itemsIndexed(
                     items = matches,
                     key = { _, entry -> "${entry.index}_${entry.value.videoId}" },
                     contentType = { _, _ -> "track" },
                 ) { position, entry ->
                     val song = entry.value
-                    val isCurrent = song.isSameTrackAs(currentSong)
+                    val isCurrent = isCurrentRow(song)
                     CosmoSongRow(
                         song = if (numbered) song else song.copy(thumbnailUrl = song.thumbnailUrl ?: page.thumbnailUrl),
                         onClick = { onSongClick(queue, position) },
@@ -305,12 +307,13 @@ fun CosmoReleasePage(
         // What YouTube offers to round a playlist out: never folded into the list above (`DetailPage.suggestedSongs`).
         if (suggested.isNotEmpty()) {
             item(key = "suggested-heading", contentType = "heading") { CosmoOverline(stringResource(Res.string.cosmo_suggested)) }
+            val isSuggestedCurrent = playingRowMatcher(suggested, currentSong)
             itemsIndexed(
                 items = suggested,
                 key = { _, song -> "suggested-${song.videoId}" },
                 contentType = { _, _ -> "suggested" },
             ) { index, song ->
-                val isCurrent = song.isSameTrackAs(currentSong)
+                val isCurrent = isSuggestedCurrent(song)
                 SuggestedRow(
                     song = song,
                     isCurrent = isCurrent,

@@ -87,6 +87,8 @@ import kotlinx.coroutines.sync.withPermit
 import com.cosmotune.music.data.sources.AddonSource
 import com.cosmotune.music.data.sources.SourceKind
 import com.cosmotune.music.data.sources.SourceRegistry
+import com.cosmotune.music.data.search.AddonSearch
+import com.cosmotune.music.data.search.AddonSearchSource
 import com.cosmotune.music.data.sources.SourceResolver
 import com.cosmotune.music.data.sources.TrackMatcher
 import com.cosmotune.music.playback.AudioCache
@@ -2100,7 +2102,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _suggestions.value = emptyList()
         _typeaheadResults.value = emptyList()
         if (_searchSource.value == SearchSource.ADDONS) {
-            runAddonSearch(q)
+            if (AddonSearch.shouldSearch(q, submitted = true)) runAddonSearch(q)
             return
         }
         runSearch(anonymous = false)
@@ -2115,36 +2117,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         SearchHistory.recordAddonQuery(q)
         addonSearchJob?.cancel()
         _searchScrollReset.value += 1
-        val addons = SourceRegistry.active().filterIsInstance<AddonSource>()
-        val providerManager = com.cosmotune.providers.ProviderHub.state.value.manager
-        val providerNames = providerManager?.store?.state?.value?.installed.orEmpty()
-            .filter { it.enabled && "metadata_provider" in it.manifest.type }.map { it.manifest.name }
-        if (addons.isEmpty() && providerNames.isEmpty()) {
+        // Each catalogue through its own search call, so its settings and scoped runtime apply; see [AddonSearch]. The HTTP
+        // add-ons of the source list (enabled, and not waiting for a lossless output) and the enabled provider packages.
+        val sources = SourceRegistry.active().filterIsInstance<AddonSource>().map { addon ->
+            AddonSearchSource(addon.configId) { query, limit -> addon.search(query, limit = limit) }
+        } + com.cosmotune.providers.ProviderHub.state.value.manager?.addonSearchSources().orEmpty()
+        if (sources.isEmpty()) {
             _addonResults.value = UiState.Error(text(R.string.search_addons_none))
             return
         }
         _addonResults.value = UiState.Loading
         addonSearchJob = viewModelScope.launch {
-            val perAddon = coroutineScope {
-                addons.map { addon ->
-                    async {
-                        withTimeoutOrNull(ADDON_SEARCH_TIMEOUT_MS) {
-                            runCatching { addon.search(q, limit = ADDON_SEARCH_LIMIT) }.getOrDefault(emptyList())
-                        } ?: emptyList()
-                    }
-                }.plus(providerNames.map { name -> async {
-                    withTimeoutOrNull(ADDON_SEARCH_TIMEOUT_MS) {
-                        try { requireNotNull(providerManager).search(name, q, ADDON_SEARCH_LIMIT).map { it.song() } }
-                        catch (cancelled: CancellationException) { throw cancelled }
-                        catch (_: Exception) { emptyList() }
-                    } ?: emptyList()
-                } }).map { it.await() }
-            }
-            val merged = buildList {
-                val longest = perAddon.maxOfOrNull { it.size } ?: 0
-                for (i in 0 until longest) perAddon.forEach { rows -> rows.getOrNull(i)?.let(::add) }
-            }
-            _addonResults.value = UiState.Success(merged)
+            _addonResults.value = UiState.Success(AddonSearch.search(q, sources))
         }
     }
 
@@ -2520,9 +2504,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
-        /** Per-addon budget for the Addons search tab; a slow addon is left out, not waited on. */
-        private const val ADDON_SEARCH_TIMEOUT_MS = 12_000L
-        private const val ADDON_SEARCH_LIMIT = 20
 
         /** How many Spotify tracks are looked up on YouTube Music at once. */
         private const val SPOTIFY_MATCH_PARALLELISM = 6

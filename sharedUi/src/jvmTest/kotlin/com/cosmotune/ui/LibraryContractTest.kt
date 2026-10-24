@@ -259,7 +259,7 @@ class LibraryContractTest {
         assertTrue("songListSkeleton(count = 10, keyPrefix = \"skeleton:history\")" in code)
         assertTrue(Regex("""MessageState\(message = state\.message, actionLabel = stringResource\(Res\.string\.retry\), onAction = onRetry\)""").containsMatchIn(code))
         assertTrue("onClick = { onSongClick(songs, index) }" in code && "onLongPress = { onSongLongPress(song) }" in code && "onSwipeToQueue = { onSongSwipe(song) }" in code)
-        assertTrue("song.isSameTrackAs(currentSong)" in code && "isPlaying = current && isPlaying" in code)
+        assertTrue("playingRowMatcher(songs, currentSong)" in code && "isPlaying = current && isPlaying" in code)
     }
 
     @Test fun everyStringTheNewPagesNameExists() {

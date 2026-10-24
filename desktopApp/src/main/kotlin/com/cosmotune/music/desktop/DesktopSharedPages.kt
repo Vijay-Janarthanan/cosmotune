@@ -143,6 +143,20 @@ internal object DesktopSearchHistory {
     private const val MAX_ENTRIES = 20
 }
 
+/** The words searched in the Add-ons source, newest first (the rules are [com.cosmotune.music.data.search.AddonQueryHistory]'s). */
+internal object DesktopAddonSearchHistory {
+    private val persistence = DesktopPersistence()
+    private val history = com.cosmotune.music.data.search.AddonQueryHistory(
+        read = { persistence.string(KEY, "[]") },
+        write = { persistence.saveString(KEY, it) },
+    )
+    val recent: StateFlow<List<String>> get() = history.recent
+    fun record(query: String) = history.record(query)
+    fun remove(query: String) = history.remove(query)
+    fun clear() = history.clear()
+    private const val KEY = "addon_search_history"
+}
+
 /**
  * Opens a page's menus where the pointer is.
  *

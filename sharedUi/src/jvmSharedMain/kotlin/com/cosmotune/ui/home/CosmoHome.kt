@@ -50,6 +50,7 @@ import com.cosmotune.music.data.model.MoodGenre
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.data.model.playingShelfItemMatcher
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.cosmo_home_afternoon
 import com.cosmotune.music.sharedui.resources.cosmo_home_evening
@@ -375,6 +376,7 @@ private fun HomeRecents(
         BoxWithConstraints {
             val pageWidth = minOf(maxWidth - RECENTS_PAGE_INSET, RECENTS_PAGE_MAX)
             val pages = remember(shelf.items) { shelf.items.chunked(RECENT_TRACKS_PER_PAGE) }
+            val isCurrentItem = playingShelfItemMatcher(shelf.items, currentSong)
             ShelfRow(
                 contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
                 horizontalArrangement = Arrangement.spacedBy(CosmoSpacing.gutter),
@@ -382,7 +384,7 @@ private fun HomeRecents(
                 itemsIndexed(pages, key = { index, _ -> "recents-page:$index" }) { _, page ->
                     Column(Modifier.width(pageWidth)) {
                         page.forEach { item ->
-                            val current = item.isSong(currentSong)
+                            val current = isCurrentItem(item)
                             CosmoListRow(
                                 title = item.title,
                                 onClick = { onItemClick(item) },

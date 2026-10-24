@@ -64,6 +64,13 @@ fun SearchSwitch(
     libraryResults: UiState<List<Song>>? = null,
     onLibrarySongClick: (List<Song>, Int) -> Unit = onSongClick,
     sourceSwitcher: (@Composable () -> Unit)? = null,
+    searchingAddons: Boolean = false,
+    addonResults: UiState<List<Song>>? = null,
+    addonHistory: List<String> = emptyList(),
+    onAddonHistoryClick: (String) -> Unit = {},
+    onAddonHistoryRemove: (String) -> Unit = {},
+    onAddonHistoryClear: () -> Unit = {},
+    onAddonSongClick: (List<Song>, Int) -> Unit = onSongClick,
     browse: CosmoBrowse? = null,
 ) {
     if (LocalCosmoShell.current != null) {
@@ -78,7 +85,10 @@ fun SearchSwitch(
             onHistoryClick = onHistoryClick, onHistoryRemove = onHistoryRemove, onHistoryClear = onHistoryClear,
             onTypeaheadLongPress = onTypeaheadLongPress, modifier = modifier, contentPadding = contentPadding,
             topPadding = topPadding, showField = showField, searchingLibrary = searchingLibrary, libraryResults = libraryResults,
-            onLibrarySongClick = onLibrarySongClick, sourceSwitcher = sourceSwitcher, browse = browse,
+            onLibrarySongClick = onLibrarySongClick, sourceSwitcher = sourceSwitcher, searchingAddons = searchingAddons,
+            addonResults = addonResults, addonHistory = addonHistory, onAddonHistoryClick = onAddonHistoryClick,
+            onAddonHistoryRemove = onAddonHistoryRemove, onAddonHistoryClear = onAddonHistoryClear,
+            onAddonSongClick = onAddonSongClick, browse = browse,
         )
     } else {
         SearchScreen(
@@ -92,7 +102,10 @@ fun SearchSwitch(
             onHistoryClick = onHistoryClick, onHistoryRemove = onHistoryRemove, onHistoryClear = onHistoryClear,
             onTypeaheadLongPress = onTypeaheadLongPress, modifier = modifier, contentPadding = contentPadding,
             topPadding = topPadding, showField = showField, searchingLibrary = searchingLibrary, libraryResults = libraryResults,
-            onLibrarySongClick = onLibrarySongClick, sourceSwitcher = sourceSwitcher,
+            onLibrarySongClick = onLibrarySongClick, sourceSwitcher = sourceSwitcher, searchingAddons = searchingAddons,
+            addonResults = addonResults, addonHistory = addonHistory, onAddonHistoryClick = onAddonHistoryClick,
+            onAddonHistoryRemove = onAddonHistoryRemove, onAddonHistoryClear = onAddonHistoryClear,
+            onAddonSongClick = onAddonSongClick,
         )
     }
 }

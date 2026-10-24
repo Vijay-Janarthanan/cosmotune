@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import com.cosmotune.ui.blocks.CosmoSongRow
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.retry
 import com.cosmotune.music.ui.components.MessageState
@@ -48,9 +48,11 @@ fun CosmoHistory(
 
             is UiState.Success -> {
                 val songs = state.data
+                // The row that was played lights, not every namesake: see [playingRowMatcher].
+                val isCurrentRow = playingRowMatcher(songs, currentSong)
                 items(count = songs.size, key = { "${songs[it].videoId}:$it" }) { index ->
                     val song = songs[index]
-                    val current = song.isSameTrackAs(currentSong)
+                    val current = isCurrentRow(song)
                     CosmoSongRow(
                         song = song,
                         onClick = { onSongClick(songs, index) },

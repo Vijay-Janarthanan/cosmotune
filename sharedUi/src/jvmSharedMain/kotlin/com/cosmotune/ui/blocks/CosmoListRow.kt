@@ -165,6 +165,8 @@ internal fun CosmoRowFrame(
     titleContent: (@Composable () -> Unit)?,
     leadingContent: @Composable () -> Unit,
     trailing: (@Composable RowScope.() -> Unit)?,
+    /** Drawn before the subtitle on its line, in the subtitle's colour (a song row's source-quality badge). */
+    subtitleLeading: (@Composable (color: Color, style: TextStyle) -> Unit)? = null,
 ) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
@@ -199,7 +201,21 @@ internal fun CosmoRowFrame(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (!subtitle.isNullOrBlank()) {
+            if (subtitleLeading != null) {
+                val style = type.forText(type.rowSubtitleStyle(), subtitle.orEmpty())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    subtitleLeading(Color(palette.textSecondary), style)
+                    if (!subtitle.isNullOrBlank()) {
+                        Text(
+                            text = " · $subtitle",
+                            style = style,
+                            color = Color(palette.textSecondary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            } else if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
                     style = type.forText(type.rowSubtitleStyle(), subtitle),

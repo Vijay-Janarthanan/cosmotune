@@ -72,6 +72,8 @@ import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.ui.theme.tabular
 import com.cosmotune.music.data.model.ROW_ART_PX
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.ui.components.SourceQualityBadge
+import com.cosmotune.music.ui.components.sourceQualityBadge
 import com.cosmotune.music.desktop.DesktopArtwork
 import com.cosmotune.music.desktop.DesktopStrings
 
@@ -240,21 +242,21 @@ internal fun DesktopRowNumber(number: Int) {
     )
 }
 
-/** The quality mark the old row showed for a lossless or high-rate source, in the accent. */
+/**
+ * The tier the row's source offered (an add-on's Lossless, Hi-Res Lossless, Dolby Atmos or High quality; a local file's
+ * container), drawn with the player badge's glyph and label ([SourceQualityBadge]) in the accent. Unlabelled and LOW rows get none.
+ */
 @Composable
 private fun DesktopSourceQuality(song: Song) {
-    val badge = song.sourceQuality?.uppercase()?.takeIf { it in SHOWN_QUALITIES } ?: return
+    val quality = song.sourceQualityBadge() ?: return
     val type = LocalCosmoType.current
-    Text(
-        text = badge,
-        style = type.desktopRowSubtitle().copy(fontWeight = FontWeight(650), fontSize = 11.sp, letterSpacing = 0.5.sp),
+    SourceQualityBadge(
+        quality = quality,
         color = Color(LocalCosmoColors.current.palette.accentStrong),
-        maxLines = 1,
+        style = type.desktopRowSubtitle().copy(fontWeight = FontWeight(650), fontSize = 11.sp, letterSpacing = 0.5.sp),
         modifier = Modifier.padding(horizontal = 8.dp),
     )
 }
-
-private val SHOWN_QUALITIES = setOf("LOSSLESS", "FLAC", "HI-RES", "HIRES", "HIGH", "320")
 
 // ---- the surface of a row ----
 

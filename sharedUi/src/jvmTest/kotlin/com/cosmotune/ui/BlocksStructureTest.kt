@@ -185,7 +185,7 @@ class BlocksStructureTest {
             names("CosmoListRow", "CosmoListRow"),
         )
         assertEquals(
-            listOf("song", "onClick", "modifier", "onLongPress", "onMore", "onSwipeToQueue", "trackNumber", "downloadedTint", "isCurrent", "isPlaying", "selected", "height", "trailingText"),
+            listOf("song", "onClick", "modifier", "onLongPress", "onMore", "onSwipeToQueue", "trackNumber", "downloadedTint", "isCurrent", "isPlaying", "selected", "height", "trailingText", "showSourceQuality"),
             names("CosmoSongRow", "CosmoSongRow"),
         )
         assertEquals(

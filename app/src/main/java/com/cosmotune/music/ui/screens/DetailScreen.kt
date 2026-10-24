@@ -130,10 +130,11 @@ import com.cosmotune.music.data.model.SubscriptionState
 import com.cosmotune.music.data.model.UiState
 import com.cosmotune.music.data.model.artworkAt
 import com.cosmotune.music.data.model.durationMillis
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.ui.components.DownloadedBadge
 import com.cosmotune.music.ui.components.ExplicitSongTitle
+import com.cosmotune.music.ui.components.rememberShelfFlingBehavior
 import com.cosmotune.music.ui.components.LIBRARY_GRID_SPACING
 import com.cosmotune.music.ui.components.MessageState
 import com.cosmotune.music.ui.components.PAGE_GUTTER
@@ -574,6 +575,7 @@ fun DetailScreen(
                     // it pages sideways four at a time and stops at twenty.
                     item {
                         val top = state.data.take(MAX_ARTIST_SONGS)
+                        val isCurrentRow = remember(top, currentSong) { playingRowMatcher(top, currentSong) }
                         SectionHeading(
                             title = stringResource(R.string.top_songs),
                             palette = palette,
@@ -581,9 +583,13 @@ fun DetailScreen(
                         )
                         BoxWithConstraints {
                             val columnWidth = trackColumnWidth(maxWidth)
+                            // The top songs page sideways a column at a time and settle on one (BC-32).
+                            val topSongsState = rememberLazyListState()
                             LazyRow(
+                                state = topSongsState,
                                 contentPadding = PaddingValues(horizontal = ARTIST_CONTENT_GUTTER),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                flingBehavior = rememberShelfFlingBehavior(topSongsState),
                             ) {
                                 items(top.chunked(SONGS_PER_COLUMN)) { column ->
                                     Column(Modifier.width(columnWidth)) {
@@ -594,8 +600,8 @@ fun DetailScreen(
                                                 onClick = { onSongClick(top, top.indexOf(song)) },
                                                 onLongPress = { onSongLongPress(song) },
                                                 downloadedTint = downloadedTint,
-                                                isCurrent = song.isSameTrackAs(currentSong),
-                                                isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                                                isCurrent = isCurrentRow(song),
+                                                isPlaying = isCurrentRow(song) && isPlaying,
                                             )
                                         }
                                     }
@@ -608,6 +614,8 @@ fun DetailScreen(
                     // already the largest thing on the page — Apple Music
                     // numbers those rows instead, and so does this.
                     val numbered = page.type == BrowseType.ALBUM
+                    val matchedSongs = matches.map { it.value }
+                    val isCurrentRow = playingRowMatcher(matchedSongs, currentSong)
                     if (matches.isEmpty() && state.data.isNotEmpty()) {
                         item(key = "no-matches") {
                             MessageState(stringResource(R.string.nothing_matches, query))
@@ -618,7 +626,7 @@ fun DetailScreen(
                         key = { _, entry -> "${entry.index}_${entry.value.videoId}" },
                     ) { position, entry ->
                         val song = entry.value
-                        val isCurrent = song.isSameTrackAs(currentSong)
+                        val isCurrent = isCurrentRow(song)
                         SongRow(
                             song = if (numbered) {
                                 song
@@ -660,6 +668,7 @@ fun DetailScreen(
                 item(key = "suggested-heading") {
                     SectionHeading(stringResource(R.string.suggested), palette)
                 }
+                val isSuggestedCurrent = playingRowMatcher(suggested, currentSong)
                 itemsIndexed(
                     suggested,
                     key = { _, song -> "suggested-${song.videoId}" },
@@ -671,8 +680,8 @@ fun DetailScreen(
                         onLongPress = { onSongLongPress(song) },
                         onAdd = { onAddSuggested(song) },
                         downloadedTint = downloadedTint,
-                        isCurrent = song.isSameTrackAs(currentSong),
-                        isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                        isCurrent = isSuggestedCurrent(song),
+                        isPlaying = isSuggestedCurrent(song) && isPlaying,
                     )
                     if (index < suggested.lastIndex) {
                         HorizontalDivider(
@@ -697,9 +706,12 @@ fun DetailScreen(
                         onShowAll = if (canShowAll) { { onActiveShelfChange(shelf) } } else null,
                         horizontalPadding = ARTIST_CONTENT_GUTTER,
                     )
+                    val carouselState = rememberLazyListState()
                     LazyRow(
+                        state = carouselState,
                         contentPadding = PaddingValues(horizontal = ARTIST_CONTENT_GUTTER),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        flingBehavior = rememberShelfFlingBehavior(carouselState),
                     ) {
                         items(displayItems) { item ->
                             SectionCard(

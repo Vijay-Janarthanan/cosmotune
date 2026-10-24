@@ -76,7 +76,7 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.SubscriptionState
 import com.cosmotune.music.data.model.UiState
 import com.cosmotune.music.data.model.artworkAt
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.cosmo_follow
 import com.cosmotune.music.sharedui.resources.cosmo_following
@@ -245,12 +245,13 @@ private fun ArtistList(
                 }
                 if (popular.isNotEmpty()) {
                     item(key = "popular-heading", contentType = "heading") { CosmoOverline(stringResource(Res.string.cosmo_popular)) }
+                    val isCurrentRow = playingRowMatcher(popular, currentSong)
                     itemsIndexed(
                         items = popular,
                         key = { index, song -> "popular-$index-${song.videoId}" },
                         contentType = { _, _ -> "popular" },
                     ) { index, song ->
-                        val isCurrent = song.isSameTrackAs(currentSong)
+                        val isCurrent = isCurrentRow(song)
                         CosmoSongRow(
                             song = song,
                             onClick = { onSongClick(songs, index) },

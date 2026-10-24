@@ -70,7 +70,7 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.durationMillis
 import com.cosmotune.music.data.model.isMatchMissing
 import com.cosmotune.music.data.model.isMatchPending
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.data.model.isUnresolvedSpotify
 import com.cosmotune.music.desktop.DesktopArtwork
 import com.cosmotune.music.desktop.DesktopCanvasArtwork
@@ -148,6 +148,8 @@ internal fun CosmoDesktopCollectionPage(
     // "Search this list": a filter over the rows already loaded.
     var searching by remember(collection.browseId) { mutableStateOf(false) }
     var listQuery by remember(collection.browseId) { mutableStateOf("") }
+    // The row that was played lights, not every namesake: see [playingRowMatcher].
+    val isCurrentRow = remember(songs, nowPlaying) { playingRowMatcher(songs, nowPlaying) }
     val shownSongs = remember(songs, listQuery) {
         val needle = listQuery.trim()
         songs.withIndex().filter { (_, song) ->
@@ -212,7 +214,7 @@ internal fun CosmoDesktopCollectionPage(
                     // Striped by place on screen, not track number, so a filtered list still alternates.
                     striped = position % 2 == 1,
                     showAlbum = showAlbum,
-                    isCurrent = song.isSameTrackAs(nowPlaying),
+                    isCurrent = isCurrentRow(song),
                     isPlaying = isPlaying,
                     liked = song.videoId in likedIds,
                     downloaded = song.videoId in downloadedIds,
