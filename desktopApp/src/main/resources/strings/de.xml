@@ -686,4 +686,12 @@
     <string name="listen_together_open">Gemeinsam hören</string>
     <string name="listen_together_open_count">Gemeinsam hören · %1$d</string>
     <string name="miscellaneous_footer">Wenn aktiviert, stoppt das Schließen der App aus den letzten Apps auch die Musikwiedergabe.</string>
+    <string name="artist_signatures">Künstlersignaturen</string>
+    <string name="artist_signatures_subtitle">Zeigt eine handschriftliche Signatur, wenn Apple Music kein Titellogo hat</string>
+    <string name="artist_signatures_url">Signatur-API-URL</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Nicht konfiguriert — tippen, um die API-URL festzulegen</string>
+    <string name="artist_signatures_test_failed">Die API war unter dieser URL nicht erreichbar</string>
+    <string name="show_queue_history">Wiedergabeverlauf anzeigen</string>
+    <string name="show_queue_history_subtitle">Bis zu 25 zuletzt gespielte Songs über „Aktuelle Wiedergabe“ in der Warteschlange anzeigen</string>
 </resources>

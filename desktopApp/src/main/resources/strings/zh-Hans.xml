@@ -670,4 +670,12 @@
     <string name="listen_together_open">一起听</string>
     <string name="listen_together_open_count">一起听 · %1$d</string>
     <string name="miscellaneous_footer">启用后，从最近任务界面关闭应用也会停止音乐播放。</string>
+    <string name="artist_signatures">艺术家签名</string>
+    <string name="artist_signatures_subtitle">显示已配置来源提供的艺术家手写签名</string>
+    <string name="artist_signatures_url">签名 API 地址</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">尚未配置，点按设置 API 地址</string>
+    <string name="artist_signatures_test_failed">无法连接到该地址的 API</string>
+    <string name="show_queue_history">显示队列历史</string>
+    <string name="show_queue_history_subtitle">在队列中“正在播放”上方显示最多 25 首已播放的歌曲</string>
 </resources>

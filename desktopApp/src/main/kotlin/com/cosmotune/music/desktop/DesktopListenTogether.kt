@@ -232,10 +232,37 @@ internal object DesktopListenTogether {
     }
 
     fun refreshServerHealth() {
+        healthMonitor.noteProbe()
         healthJob?.cancel()
         _serverStatus.value = ServerStatus(Health.CHECKING)
         healthJob = scope.launch { resolveIdleServer(forceProbe = true) }
     }
+
+    /**
+     * The idle status row's poll, as on the phone: only while the Listen Together page is open, never while the party
+     * socket is live, at most every 10 s, and without flashing "Checking" over the last answer. A desktop has no
+     * metered-network signal, so that rule never applies here.
+     */
+    private val healthMonitor by lazy {
+        com.cosmotune.music.data.listentogether.IdleHealthMonitor(
+            scope = scope,
+            nowMs = { System.nanoTime() / 1_000_000L },
+            state = {
+                val snapshot = _state.value
+                com.cosmotune.music.data.listentogether.IdleHealthMonitor.State(
+                    connectionLive = snapshot.connection == Connection.LIVE,
+                    inParty = snapshot.inParty,
+                    metered = null,
+                )
+            },
+            probe = {
+                if (healthJob?.isActive != true) resolveIdleServer(forceProbe = true)
+            },
+        )
+    }
+
+    /** Called by the Listen Together page as it opens and closes. */
+    fun setScreenActive(active: Boolean) = healthMonitor.setScreenActive(active)
 
     fun nickname(): String = persistence.string(KEY_NICKNAME)
 

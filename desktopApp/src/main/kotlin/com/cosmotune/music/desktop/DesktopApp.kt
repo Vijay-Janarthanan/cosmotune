@@ -654,6 +654,12 @@ fun CosmotuneDesktopApp() {
     var autoplaySeed by remember { mutableStateOf<String?>(null) }
     var autoplayJob by remember { mutableStateOf<Job?>(null) }
     var automix by remember { mutableStateOf(persistence.boolean("automix", false)) }
+    // A manual skip blends into the already-prepared next track over ~15s instead of cutting.
+    var automixOnSkip by remember { mutableStateOf(persistence.boolean(DesktopAutomixOptions.KEY_ON_SKIP, false)) }
+    // Apple-style Automix phrase length in bars: 0 = adaptive (default), 8 or 16 = fixed.
+    var automixPhraseBars by remember {
+        mutableStateOf(DesktopAutomixOptions.phraseBars(persistence.string(DesktopAutomixOptions.KEY_PHRASE_BARS, "0")))
+    }
     var automixPerformance by remember {
         mutableStateOf(
             runCatching { AutomixPerformanceMode.valueOf(persistence.string("automix_performance", "BALANCED")) }
@@ -1413,6 +1419,14 @@ fun CosmotuneDesktopApp() {
         if (liveQueue.hasNext || repeatMode == DesktopRepeatMode.ALL || autoplay) {
             playbackEngine.state.value.song?.videoId?.let(com.cosmotune.music.data.recommendations.LocalPreferenceLearning::onSkipped)
         }
+        // Automix on skip: when the next deck is already prepared, blend into it instead of cutting. The blend's own
+        // hand-off advances the queue, so a mix that started returns here; anything else is the ordinary skip.
+        if (DesktopAutomixOptions.skipMix(automixOnSkip, DesktopListenTogether.state.value.inParty) && repeatMode != DesktopRepeatMode.ONE) {
+            val upcoming = selectedSong?.videoId?.let {
+                liveQueue.followingFor(it, repeatAll = repeatMode == DesktopRepeatMode.ALL)
+            }
+            if (upcoming != null && playbackEngine.beginSkipMix(upcoming.videoId, DesktopAutomixOptions.SKIP_MIX_SECONDS)) return
+        }
         advanceQueue()
     }
 
@@ -1779,9 +1793,12 @@ fun CosmotuneDesktopApp() {
     // the next song at a different moment and be dragged back by a correcting seek. The transition a
     // party shares is the plain one. The settings themselves are left alone and come back after.
     val inParty = partyState.inParty
-    LaunchedEffect(automix, crossfadeSeconds, inParty, audioQuality, selectedSong?.videoId, queue, liveQueue.index, shuffle, repeatMode) {
+    LaunchedEffect(automix, automixOnSkip, automixPhraseBars, crossfadeSeconds, inParty, audioQuality, selectedSong?.videoId, queue, liveQueue.index, shuffle, repeatMode) {
         playbackEngine.setAutomixEnabled(automix && !inParty)
+        playbackEngine.setAutomixPhraseBars(DesktopAutomixOptions.enginePhraseBars(automix, inParty, automixPhraseBars))
         playbackEngine.setCrossfadeSeconds(if (inParty) 0 else crossfadeSeconds)
+        // A party mixes only with the plain transition, so a skip there cuts like it always did.
+        playbackEngine.setSkipMixEnabled(DesktopAutomixOptions.skipMix(automixOnSkip, inParty))
         // Exactly what Next would play, so a crossfade can never blend into anything else. Shuffle
         // is already the queue's order; picking "the first track that is not this one" under it
         // blended into a song from history whenever the current one was not at the top.
@@ -3023,17 +3040,7 @@ fun CosmotuneDesktopApp() {
 
     // The engine's measured stream, as the player's quality badge and stats line read it.
     LaunchedEffect(playback.streamFormat, playback.streamSourceId) {
-        NerdStats.current.value = playback.streamFormat?.let { format ->
-            val codec = format.codec?.substringAfterLast('/')?.substringBefore(';')?.trim()?.lowercase()
-            NerdStats.Snapshot(
-                mimeType = codec?.let { "audio/$it" },
-                bitrateKbps = format.kbps,
-                sampleRateHz = format.sampleRateHz,
-                channels = format.channels,
-                bitDepth = format.bitDepth,
-                sourceName = playback.streamSourceId,
-            )
-        }
+        NerdStats.current.value = desktopNerdSnapshot(playback.streamFormat, playback.streamSourceId)
     }
     LaunchedEffect(playback.searchingBetter, selectedSong?.videoId) {
         NerdStats.racingLossless.value = selectedSong?.videoId
@@ -3931,6 +3938,16 @@ fun CosmotuneDesktopApp() {
                                     onAutomixChange = {
                                         automix = it
                                         persistence.saveBoolean("automix", it)
+                                    },
+                                    automixOnSkip = automixOnSkip,
+                                    onAutomixOnSkipChange = {
+                                        automixOnSkip = it
+                                        persistence.saveBoolean(DesktopAutomixOptions.KEY_ON_SKIP, it)
+                                    },
+                                    automixPhraseBars = automixPhraseBars,
+                                    onAutomixPhraseBarsChange = {
+                                        automixPhraseBars = DesktopAutomixOptions.phraseBars(it.toString())
+                                        persistence.saveString(DesktopAutomixOptions.KEY_PHRASE_BARS, automixPhraseBars.toString())
                                     },
                                     automixPerformance = automixPerformance,
                                     onAutomixPerformanceChange = {
@@ -5926,6 +5943,10 @@ private fun DesktopSettingsScreen(
     onAutoplayChange: (Boolean) -> Unit,
     automix: Boolean,
     onAutomixChange: (Boolean) -> Unit,
+    automixOnSkip: Boolean,
+    onAutomixOnSkipChange: (Boolean) -> Unit,
+    automixPhraseBars: Int,
+    onAutomixPhraseBarsChange: (Int) -> Unit,
     automixPerformance: AutomixPerformanceMode,
     onAutomixPerformanceChange: (AutomixPerformanceMode) -> Unit,
     shuffle: Boolean,
@@ -6074,6 +6095,35 @@ private fun DesktopSettingsScreen(
                         automix,
                         onAutomixChange,
                     )
+                    SettingsToggle(
+                        DesktopStrings["automix_on_skip", "Automix on skip"],
+                        DesktopStrings["automix_on_skip_subtitle", "When you skip ahead, mix into the next song over ~15s instead of cutting"],
+                        automixOnSkip,
+                        onAutomixOnSkipChange,
+                    )
+                    if (automix) {
+                        val phraseTitle = DesktopStrings["automix_phrase_length", "Automix phrase length"]
+                        val phraseSubtitle = DesktopStrings["automix_phrase_length_subtitle", "Blend over a fixed number of bars, beat-aligned"]
+                        if (settingsRowVisible(phraseTitle, phraseSubtitle)) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
+                                Text(phraseTitle, fontWeight = FontWeight.Medium)
+                                Text(phraseSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(10.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    DesktopAutomixOptions.PHRASE_CHOICES.forEach { bars ->
+                                        FilterChip(
+                                            colors = desktopChipColors(),
+                                            selected = automixPhraseBars == bars,
+                                            onClick = { onAutomixPhraseBarsChange(bars) },
+                                            label = { Text(phraseBarsLabel(bars)) },
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text(phraseBarsDetail(automixPhraseBars), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
                     if (settingsRowVisible(DesktopStrings["automix_performance", "Automix performance"], DesktopStrings["automix_performance_subtitle", "Sets how much CPU background analysis may use"])) {
                         Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
                             Text(DesktopStrings["automix_performance", "Automix performance"], fontWeight = FontWeight.Medium)
@@ -8183,3 +8233,17 @@ private fun formatCollectionDuration(totalSeconds: Long): String {
 }
 
 private fun formatSleepTimer(ms: Long): String = formatTime(ms)
+
+/** Chip label for an Apple-style Automix phrase length, in bars; 0 is the adaptive default. */
+private fun phraseBarsLabel(bars: Int): String = when (bars) {
+    8 -> DesktopStrings["automix_phrase_8", "8 bars"]
+    16 -> DesktopStrings["automix_phrase_16", "16 bars"]
+    else -> DesktopStrings["automix_phrase_auto", "Auto"]
+}
+
+/** What the selected phrase length does, shown under the chips. */
+private fun phraseBarsDetail(bars: Int): String = when (bars) {
+    8 -> DesktopStrings["automix_phrase_8_detail", "Mixes over exactly 8 bars, both edges on the beat grid"]
+    16 -> DesktopStrings["automix_phrase_16_detail", "Mixes over exactly 16 bars, both edges on the beat grid"]
+    else -> DesktopStrings["automix_phrase_auto_detail", "Chooses each transition's length from the two tracks"]
+}

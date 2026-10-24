@@ -686,4 +686,12 @@
     <string name="listen_together_open">Écouter ensemble</string>
     <string name="listen_together_open_count">Écoute commune · %1$d</string>
     <string name="miscellaneous_footer">Une fois activé, fermer l\'application depuis les applications récentes arrête aussi la musique.</string>
+    <string name="artist_signatures">Signatures d\'artistes</string>
+    <string name="artist_signatures_subtitle">Affiche une signature manuscrite quand Apple Music n\'a pas de logo de titre</string>
+    <string name="artist_signatures_url">URL de l\'API de signatures</string>
+    <string name="artist_signatures_url_hint">https://signatures.example.com</string>
+    <string name="artist_signatures_unconfigured">Non configuré — touchez pour définir l\'URL de l\'API</string>
+    <string name="artist_signatures_test_failed">Impossible de joindre l\'API à cette URL</string>
+    <string name="show_queue_history">Afficher l’historique de la file</string>
+    <string name="show_queue_history_subtitle">Affiche jusqu’à 25 titres déjà écoutés au-dessus de « En cours de lecture » dans la file</string>
 </resources>
