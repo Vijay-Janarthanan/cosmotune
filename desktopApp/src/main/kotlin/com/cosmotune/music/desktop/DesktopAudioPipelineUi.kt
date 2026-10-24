@@ -1,5 +1,7 @@
 package com.cosmotune.music.desktop
 
+import com.cosmotune.audio.OutputFidelityVerdict
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -67,7 +69,9 @@ internal fun DesktopAudioPipelineDialog(
                     if (pipeline.resampling) {
                         "${pipeline.decodedSampleRateHz?.div(1000.0)} kHz → ${pipeline.outputSampleRateHz?.div(1000.0)} kHz"
                     } else {
-                        DesktopStrings["d_bit_perfect", "Bit-perfect · no conversion"]
+                        // Not "bit-perfect": Cosmotune does not convert the rate, but the shared
+                        // output it writes to may (see the Bit-exact row below).
+                        DesktopStrings["d_no_app_resampling", "None in Cosmotune"]
                     },
                 )
             }
@@ -80,9 +84,13 @@ internal fun DesktopAudioPipelineDialog(
                     DesktopStrings["skip_silence", "Skip silence"],
                     if (pipeline.skipSilence) DesktopStrings["on", "On"] else DesktopStrings["off", "Off"],
                 )
+                PipelineRow(
+                    DesktopStrings["pipeline_bit_exact", "Bit-exact"],
+                    OutputFidelityVerdict.label(pipeline.fidelityFacts()),
+                )
             }
             PipelineStage(DesktopStrings["pipeline_output_device", "Output"]) {
-                PipelineRow(DesktopStrings["pipeline_output_api", "Output API"], "javax.sound")
+                PipelineRow(DesktopStrings["pipeline_output_api", "Output API"], pipeline.outputApi)
                 PipelineRow(DesktopStrings["pipeline_device_name", "Device"], pipeline.deviceName)
                 PipelineRow(
                     DesktopStrings["pipeline_pcm_format", "PCM format"],

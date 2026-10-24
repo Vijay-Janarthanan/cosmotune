@@ -786,6 +786,8 @@
     <string name="output_precision">出力精度</string>
 
     <string name="prefer_usb_dac">USB DAC を優先</string>
+    <string name="bit_perfect_usb">ビットパーフェクト USB 出力</string>
+    <string name="bit_perfect_usb_subtitle">Android 14 以降と USB DAC が必要です。DAC を占有している間は、そのデバイスでほかの音や音量の動作が変わることがあります。</string>
     <string name="loudness_normalization">音量の正規化</string>
     <string name="loudness_normalization_subtitle">すべての曲を同じラウドネスにそろえます</string>
     <string name="loudness_off_on_speaker">バイトフォンで無効化</string>

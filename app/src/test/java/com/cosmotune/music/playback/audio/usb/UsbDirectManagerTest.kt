@@ -49,6 +49,7 @@ class UsbDirectManagerTest {
             uacVersion = 1,
             maxPacketSize = 384,
             hasPermission = false,
+            transportInstalled = true,
         )
 
         assertFalse(isViable)
@@ -63,6 +64,7 @@ class UsbDirectManagerTest {
             uacVersion = 1,
             maxPacketSize = 384,
             hasPermission = true,
+            transportInstalled = true,
         )
 
         assertFalse(isViable)
@@ -76,10 +78,27 @@ class UsbDirectManagerTest {
             uacVersion = 2,
             maxPacketSize = 1024,
             hasPermission = true,
+            transportInstalled = true,
         )
 
         assertTrue(isViable)
         assertTrue(reason.contains("UAC2 device ready for direct userspace transfer"))
+    }
+
+    @Test
+    fun withoutAUserspaceTransportNoDeviceIsReportedViable() {
+        // No userspace transport ships, so a permitted UAC2 DAC still plays through Android's
+        // driver and the readout must not report "Direct USB" for it.
+        assertFalse(UsbDirectManager.USERSPACE_TRANSPORT_INSTALLED)
+        val (isViable, reason) = UsbDirectManager.evaluateViability(
+            productName = "HiFi UAC2 DAC",
+            uacVersion = 2,
+            maxPacketSize = 1024,
+            hasPermission = true,
+        )
+
+        assertFalse(isViable)
+        assertTrue(reason.contains("no userspace USB driver"))
     }
 
     @Test

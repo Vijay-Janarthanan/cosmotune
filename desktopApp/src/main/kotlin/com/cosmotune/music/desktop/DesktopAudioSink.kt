@@ -34,6 +34,14 @@ internal class DesktopAudioSink {
 
     val isOpen: Boolean get() = windowsOutput || line != null
 
+    /** Which output path is open: both are shared paths through the system mixer. */
+    val outputApi: String?
+        get() = when {
+            windowsOutput -> "WASAPI shared"
+            line != null -> "Java Sound"
+            else -> null
+        }
+
     /** Whether the live line already belongs to the choice currently shown in the player. */
     fun isUsingSelection(id: String): Boolean = isOpen && openedForSelection == id
 

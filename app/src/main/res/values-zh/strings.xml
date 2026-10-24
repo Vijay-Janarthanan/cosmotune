@@ -851,6 +851,8 @@
     <string name="playlist_action">播放列表</string>
 
     <string name="prefer_usb_dac">首选 USB DAC</string>
+    <string name="bit_perfect_usb">比特精确 USB 输出</string>
+    <string name="bit_perfect_usb_subtitle">需要 Android 14 或更高版本及 USB DAC。占用 DAC 期间，该设备上的其他声音和音量可能表现不同。</string>
     <string name="loudness_normalization">响度标准化</string>
     <string name="loudness_normalization_subtitle">将每首曲目调整到相同响度</string>
     <string name="loudness_off_on_speaker">在手机扬声器上停用</string>

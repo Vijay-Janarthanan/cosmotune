@@ -972,6 +972,8 @@
     <string name="output_precision">Output precision</string>
 
     <string name="prefer_usb_dac">Prefer USB DAC</string>
+    <string name="bit_perfect_usb">Bit-perfect USB output</string>
+    <string name="bit_perfect_usb_subtitle">Android 14 or later with a USB DAC. While it holds the DAC, other sounds and the volume may behave differently on that device.</string>
 
     <string name="loudness_normalization">Loudness normalization</string>
 

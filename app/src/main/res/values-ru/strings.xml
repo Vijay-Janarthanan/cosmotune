@@ -898,6 +898,8 @@
     <string name="playlist_action">Плейлист</string>
 
     <string name="prefer_usb_dac">Предпочитать USB ЦАП</string>
+    <string name="bit_perfect_usb">Побитово точный вывод USB</string>
+    <string name="bit_perfect_usb_subtitle">Android 14 или новее и USB-ЦАП. Пока ЦАП занят, другие звуки и громкость на этом устройстве могут работать иначе.</string>
     <string name="loudness_normalization">Нормализация громкости</string>
     <string name="loudness_normalization_subtitle">Выравнивает громкость всех треков</string>
     <string name="loudness_off_on_speaker">Отключить на динамике телефона</string>

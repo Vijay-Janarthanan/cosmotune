@@ -851,6 +851,8 @@
     <string name="output_precision">Çıkış hassasiyeti</string>
 
     <string name="prefer_usb_dac">USB DAC tercih et</string>
+    <string name="bit_perfect_usb">Bit-mükemmel USB çıkışı</string>
+    <string name="bit_perfect_usb_subtitle">Android 14 veya üstü ve bir USB DAC gerekir. DAC kullanımdayken o cihazda diğer sesler ve ses düzeyi farklı davranabilir.</string>
     <string name="loudness_normalization">Ses yüksekliği normalleştirme</string>
     <string name="loudness_normalization_subtitle">Her parçayı aynı ses yüksekliğine getirir</string>
     <string name="loudness_off_on_speaker">Telefon hoparlöründe kapat</string>

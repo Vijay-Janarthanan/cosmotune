@@ -178,15 +178,27 @@ object UsbDirectManager {
         else -> 44100
     }
 
+    /**
+     * Whether a userspace USB audio transport is installed. None is: the only
+     * [DirectAudioOutput] is [DefaultDirectAudioOutput], which accepts nothing,
+     * so every sample goes through Android's own USB audio driver. A probe must
+     * not report direct USB as viable while that is so, or the readout would
+     * claim a path the audio never takes.
+     */
+    internal const val USERSPACE_TRANSPORT_INSTALLED = false
+
     internal fun evaluateViability(
         productName: String,
         uacVersion: Int,
         maxPacketSize: Int,
         hasPermission: Boolean,
+        transportInstalled: Boolean = USERSPACE_TRANSPORT_INSTALLED,
     ): Pair<Boolean, String> {
-        val isViable = hasPermission && uacVersion >= 2
+        val isViable = transportInstalled && hasPermission && uacVersion >= 2
         val reason = buildString {
-            if (!hasPermission) {
+            if (!transportInstalled) {
+                append("Cosmotune has no userspace USB driver; '$productName' plays through Android's USB audio driver")
+            } else if (!hasPermission) {
                 append("Direct USB requires USB host permission for '$productName' (managed by Android ALSA driver)")
             } else if (uacVersion < 2) {
                 append("UAC1 device (max packet $maxPacketSize bytes) currently owned by kernel snd-usb-audio driver")

@@ -869,6 +869,8 @@
     <string name="output_precision">Precisione di uscita</string>
 
     <string name="prefer_usb_dac">Preferisci DAC USB</string>
+    <string name="bit_perfect_usb">Uscita USB bit-perfect</string>
+    <string name="bit_perfect_usb_subtitle">Android 14 o successivo con un DAC USB. Finché occupa il DAC, gli altri suoni e il volume possono comportarsi diversamente su quel dispositivo.</string>
     <string name="loudness_normalization">Normalizzazione del volume</string>
     <string name="loudness_normalization_subtitle">Porta ogni brano alla stessa intensità sonora</string>
     <string name="loudness_off_on_speaker">Disattiva sull\'altoparlante del telefono</string>

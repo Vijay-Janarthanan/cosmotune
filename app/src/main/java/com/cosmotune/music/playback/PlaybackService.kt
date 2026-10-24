@@ -78,6 +78,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.guava.future
 import com.cosmotune.music.playback.audio.DspChain
 import com.cosmotune.music.playback.cast.CastController
+import com.cosmotune.music.playback.cast.CastFormatSupport
 import com.cosmotune.music.playback.cast.CastPlayback
 import com.cosmotune.music.playback.cast.CastSink
 import com.cosmotune.music.playback.cast.RemoteSpeaker
@@ -85,6 +86,8 @@ import com.cosmotune.music.playback.cast.Speakers
 import com.cosmotune.music.playback.cast.CastStream
 import com.cosmotune.music.playback.audio.PrecisionAudioSink
 import com.cosmotune.music.playback.dsd.DsdExtractorsFactory
+import com.cosmotune.music.playback.audio.BitPerfectMixer
+import com.cosmotune.music.playback.audio.BitPerfectMixerPolicy
 import com.cosmotune.music.playback.audio.DirectAudioProbe
 import com.cosmotune.music.playback.audio.OutputNegotiator
 import com.cosmotune.music.playback.audio.PcmEncoding
@@ -531,6 +534,13 @@ class PlaybackService : MediaLibraryService() {
 
     private val audioManager by lazy { getSystemService(AudioManager::class.java) }
     private val bluetoothTracker by lazy { BluetoothAudioTracker(this) }
+
+    /** Android 14's bit-perfect USB mixer, held only while the listener has it switched on. */
+    private val bitPerfectMixer = BitPerfectMixer()
+
+    /** The AudioTrack format last opened, and a count of opens, for [applyBitPerfectMixer]. */
+    private var openTrackFormat: BitPerfectMixerPolicy.TrackFormat? = null
+    private var openTrackGeneration = 0L
     private var currentAudioInputFormat: Format? = null
     private val outputDeviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<AudioDeviceInfo>) {
@@ -1244,6 +1254,13 @@ class PlaybackService : MediaLibraryService() {
                 sampleRateHz = audioTrackConfig.sampleRate,
                 bufferSize = audioTrackConfig.bufferSize,
             )
+            openTrackFormat = BitPerfectMixerPolicy.TrackFormat(
+                encoding = audioTrackConfig.encoding,
+                sampleRateHz = audioTrackConfig.sampleRate,
+                channelCount = Integer.bitCount(audioTrackConfig.channelConfig),
+            )
+            openTrackGeneration++
+            applyBitPerfectMixer()
             TrackLog.i(
                 "AUDIO_OUT",
                 "AudioTrack ${audioTrackConfig.sampleRate}Hz encoding=${audioTrackConfig.encoding}",
@@ -1801,7 +1818,17 @@ class PlaybackService : MediaLibraryService() {
         if (resolved.scheme != "http" && resolved.scheme != "https") {
             null
         } else {
-            CastStream(resolved.toString(), CastPlayback.mimeTypeOf(resolved))
+            val mime = CastPlayback.mimeTypeOf(resolved)
+            val extension = resolved.lastPathSegment?.substringAfterLast('.', "")?.ifEmpty { null }
+            // Refused here, with the "cannot be cast" message, rather than
+            // sent to a receiver that cannot decode it and left silent.
+            when (val verdict = CastFormatSupport.check(mime, extension)) {
+                is CastFormatSupport.Verdict.Supported -> CastStream(resolved.toString(), mime)
+                is CastFormatSupport.Verdict.Unsupported -> {
+                    TrackLog.i("CosmotuneCast", "not cast: ${verdict.reason}", about = item.mediaId)
+                    null
+                }
+            }
         }
     }
 
@@ -6352,6 +6379,24 @@ class PlaybackService : MediaLibraryService() {
         if (format != null) {
             resolvePreferredOutputEncoding(format)
         }
+        applyBitPerfectMixer()
+    }
+
+    /**
+     * Asks for, keeps or gives back Android 14's bit-perfect USB mixer for the
+     * open track, and publishes what Android confirmed. Off unless the listener
+     * switched it on; every failure leaves the normal mixed path in place.
+     */
+    private fun applyBitPerfectMixer() {
+        val manager = audioManager ?: return
+        val state = bitPerfectMixer.apply(
+            manager = manager,
+            enabled = AppSettings.bitPerfectUsb.value,
+            device = resolveActiveOutputDevice(),
+            track = openTrackFormat,
+            trackGeneration = openTrackGeneration,
+        )
+        AudioOutputStatus.publishBitPerfect(state)
     }
 
     private fun resolvePreferredOutputEncoding(format: Format): PcmEncoding? {
@@ -6606,6 +6651,9 @@ class PlaybackService : MediaLibraryService() {
         }
         scope.launch {
             AppSettings.preferUsbDac.drop(1).collect { requestOutputReconfiguration() }
+        }
+        scope.launch {
+            AppSettings.bitPerfectUsb.drop(1).collect { requestOutputReconfiguration() }
         }
         scope.launch {
             AudioRouting.selectedId.drop(1).collect { requestOutputReconfiguration() }
@@ -7158,6 +7206,7 @@ class PlaybackService : MediaLibraryService() {
         castPlayback.release()
         closeAudioEffectSession()
         bluetoothTracker.stop()
+        audioManager?.let(bitPerfectMixer::release)
         audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)
         partySync?.stop()
         partySync = null
