@@ -131,8 +131,8 @@
       controls. Parties run through a party server whose address you enter in the app.</p>
       <h3>Private by default</h3>
       <p>There is no Cosmotune account and nothing to sign up for. Your history, preferences, subscriptions and playlists are kept on
-      your device. Every service the app talks to is listed under <a href="#what-it-contacts">What it contacts</a>, and the optional
-      ones can be switched off.</p>
+      your device. The services the app talks to are described under <a href="#what-it-contacts">What it contacts</a>, and the
+      optional ones can be switched off.</p>
     </td>
     <td align="center"><img alt="Video settings: quality on Wi-Fi and on mobile data, codec, speed, double-tap to seek and autoplay" src="docs/images/phone-video-settings.webp" width="230"></td>
   </tr>
@@ -310,7 +310,7 @@ videos in its own cache folder. Moving them to another device is an export and i
 <details>
 <summary>What does it connect to?</summary>
 
-The full list, with what is sent to each service and how to switch the optional ones off, is under
+The services it talks to, what is sent to each and how to switch the optional ones off are described under
 [What it contacts](#what-it-contacts).
 
 </details>
@@ -372,6 +372,26 @@ Needs JDK 21. `./gradlew :desktopApp:run` starts the desktop app;
 
 ## What it contacts
 
+Music and Video mode get their catalogue, streams and covers from YouTube Music and YouTube, and the player also uses
+the lyric, cover and canvas services it had before 1.0.4, which are not itemised here. The table sums up the other
+services, including every one that 1.0.4 added; the paragraphs below it say what each one is sent.
+
+| What | Contacts | When | Default | Switch it off |
+| :-- | :-- | :-- | :-- | :-- |
+| Update check | `api.github.com` (this repository's latest release) | Each start | On | No switch |
+| Music video (OpenCanvas) | YouTube, `cdn.jsdelivr.net` | Each song | On (not on mobile data on Android) | Settings > Appearance |
+| Video mode extras | `sponsor.ajay.app`, `dearrow-thumb.ajay.app`, `returnyoutubedislikeapi.com` | Each video you open in Video mode | On | Video settings |
+| Artist photo and header video | `itunes.apple.com`, `music.apple.com`, Apple's image and video servers | Opening an artist page | On | The video follows "Animated cover art"; the lookup has no switch |
+| Artist signatures | The address you enter (there is none by default) | Opening an artist page | Off | Settings > Appearance > Artist signatures |
+| Scrobbling | `ws.audioscrobbler.com` (Last.fm), `api.listenbrainz.org` | Each play | Off until you connect an account | Account & scrobbling (Android), Account & integrations (desktop) |
+| Radio suggestions from Last.fm | `ws.audioscrobbler.com` | Radio, while connected to Last.fm | Off | The same screen as scrobbling |
+| New releases daily check | YouTube Music | Once a day while the app is open | Off | Listening tools > New releases |
+| Provider packages, repositories, HTTP add-ons, Subsonic | Only the ones you add, and the sites a package declares | When you use them | None added | Sources |
+| Manga sources and Komga | Only the sources and the server you add | When you browse, read or download | None added | Manga > Sources |
+| Phone remote (desktop, TV) | Nothing outside your local network | While you have it started | Off | Stop |
+| Wear OS watch | The paired phone only | While connected | - | - |
+| Browser companion | YouTube Music, YouTube, and what you connect or allow in the helper | While you use it | - | The helper's own controls |
+
 The music video needs an internet connection. With it on (the default), Cosmotune searches YouTube for each song's
 video by title and artist, then reads the start of the song's file and of up to six candidate videos' files from
 YouTube's servers to line them up: about 320 KB per file, and more for a file with a large header or another layout,
@@ -393,6 +413,75 @@ video id you open (`sponsor.ajay.app`); DeArrow gets the same for titles and the
 (`sponsor.ajay.app`, `dearrow-thumb.ajay.app`); Return YouTube Dislike gets the video id of each video page you open
 (`returnyoutubedislikeapi.com`). Each can be switched off in Video settings. Your history, subscriptions and
 playlists are kept on the device.
+
+**Artist pages** on the phone, the desktop and the TV look the artist up on Apple Music with no account: the artist's
+name goes to the iTunes search (`itunes.apple.com`), the matching artist's `music.apple.com` page is read, and the
+photo, title logo and short header video come from the Apple servers that page names. This happens when an artist
+page opens; the answer is remembered while the app runs (up to 64 artists), so a revisit asks nothing. The lookup has no switch of its own.
+The header video is muted and plays only while "Animated cover art" (Android) or "Animated canvas" (desktop) is on and
+the system has not asked for reduced motion, and on mobile data only with "Play animated cover over cellular" on;
+otherwise the still photo is shown and the video is not fetched.
+
+**Artist signatures** are off by default, and Cosmotune has no signature service of its own. When you enter a
+signature API address under Settings > Appearance > Artist signatures, saving it asks that address's `/v1/health`, and
+each artist page you open then sends the artist's name to it (`/v1/signatures?artist=...`). The signature image is
+loaded from the address the service answers with. Switch it off on the same row.
+
+**Last.fm and ListenBrainz** are used only after you connect them, under Settings > Account & scrobbling (Android) or
+Account & integrations (desktop). Scrobbling sends each played track's artist, title, album, length and time to
+`ws.audioscrobbler.com` (Last.fm) or `api.listenbrainz.org` (ListenBrainz); Last.fm's "Now playing" (a setting on
+the same screen) and ListenBrainz also get the track that is playing now. Listens made offline are queued and sent
+later. *Radio suggestions from Last.fm*, off by default and on the same screen, sends the artist and title of the
+song a radio starts from to Last.fm to ask for similar tracks and, at most every six hours, your Last.fm user name to
+ask for your top artists. It never sends the session key; the answers are only candidates that must match a catalogue
+recording before they can play. **New releases** (Listening tools) reads your followed artists' pages from YouTube
+Music when you press "Check for releases", and once a day while Cosmotune is open only if you turn on "Check daily
+while Cosmotune is open" (off by default). Nothing is checked while the app is closed.
+
+**Sources you add.** Cosmotune comes with no provider package, package repository, HTTP add-on or Subsonic server.
+A repository you add must use HTTPS; it is read when you open or refresh it, and a package is downloaded only when you
+choose it for review. Nothing is installed or updated without your review of its identity, hash and permissions. An
+installed provider package runs its own code, which can reach only the network domains it declared in the permissions
+you reviewed, private network addresses only if it asked for local network access, and cover images from other hosts
+only if it asked for public artwork. An enabled package is asked when you search, browse, play or download with it,
+and, if it offers Home sections, when Home loads or you pull to refresh, with your region and language (the package's
+own setting, or the device's). Its audio reaches the player through a relay on this device's loopback address. A sign-in
+that a package asks for opens in your browser and comes back to the app once. HTTP add-ons get your searches, the
+requests for streams and pages, and the settings you saved for them. A Subsonic or OpenSubsonic server gets your user
+name with a salted password token, or your API key, on every request; redirects are not followed, so these never reach
+another host. On Android every server you add must use https. Disable or remove any of them under Sources.
+
+**Manga mode** reads files on your device and contacts nothing until you add a source. A catalogue site you add from the
+source list, a website source you define, or a Mihon extension (Android only) is contacted when you browse, search,
+open a series or chapter, show your library's covers, download chapters or press "Check for updates"; it gets your
+searches and the pages you open. A website source you define browses only its own site (its page images may come
+from other HTTPS hosts), and reaches private network addresses only if you allow them. A Mihon extension is its publisher's code and contacts the sites it was written for.
+An extension store (an HTTPS address you enter, or Keiyoushi's on GitHub when you pick it) is read when you open it,
+and an extension file is downloaded from it only when you choose one. A Komga server is your own: the API key, or the
+user name and password, you entered is sent only to that server's address and never across a redirect. Switch off or
+remove a source in Manga > Sources.
+
+**Phone remote** (desktop: Listening tools > Phone remote; TV: Settings > Connections > Phone remote) is off until you
+start it. It then serves a control page from this device on one local IPv4 address you choose (a private or loopback
+address, never a public one) and answers only requests that carry the pairing key from its QR code. Each start makes a
+new key, and Stop disconnects every phone. It sends no audio to the phone. The page uses plain HTTP on your local
+network, so keep the pairing link private and use it on a network you trust.
+
+**Wear OS.** The watch app talks only to the paired phone, through Wear OS's phone-watch connection (Google Play
+services): the controls, what is playing and, when the watch is the speaker, the audio the phone reads for it. The watch
+app has no network code of its own. Installing or updating it from the phone (Settings > Cosmotune for Wear OS) finds
+the watch's Wireless debugging service on your Wi-Fi and connects to it after you enter the watch's pairing code; the
+watch app file comes from inside the phone app. **Android TV** contacts the same services as the phone app; its update
+check asks GitHub for this repository's latest release and offers only TV packages.
+
+**Browser companion.** Nothing is hosted for you: the player page comes from wherever you host it. Through the helper
+extension it talks to YouTube Music, YouTube and YouTube's video servers, using your browser's YouTube sign-in only
+after you connect it in the helper, and to Spotify only after you connect Spotify. For lyrics and artist artwork the
+page sends the song's title and artist (or the artist's name) to lyric services and to Apple Music's search: directly
+from the page when a service allows that, and otherwise through the helper, only for the hosts you allow on the
+helper's own page (the list is in [`web/extension/lib/lyricHosts.ts`](web/extension/lib/lyricHosts.ts)). Listen
+Together uses only a party server you set in Settings. The helper answers only the site addresses it was built for and
+keeps account cookies and tokens inside the extension. Discord is off.
 
 ## Disclaimer
 
