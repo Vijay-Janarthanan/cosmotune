@@ -96,7 +96,9 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.R
 import com.cosmotune.music.ui.components.ExplicitSongTitle
 import com.cosmotune.music.data.model.artworkAt
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
+import com.cosmotune.music.data.sortedForAlbum
+import com.cosmotune.music.data.useTrackTags
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.data.settings.LibraryViewType
 import com.cosmotune.music.data.settings.LocalMusicSort
@@ -516,6 +518,8 @@ private fun SongsTab(
     onSongSwipe: (Song) -> Unit,
     contentPadding: PaddingValues,
 ) {
+    // The row that was played lights, not every row sharing its name — see [playingRowMatcher].
+    val isCurrentRow = remember(songs, currentSong) { playingRowMatcher(songs, currentSong) }
     if (viewType == LibraryViewType.GRID) {
         val gridState = rememberLazyGridState()
         LazyVerticalGrid(
@@ -542,8 +546,8 @@ private fun SongsTab(
                 SongGridCard(
                     song = song,
                     selected = song.videoId in selectedIds,
-                    isCurrent = song.isSameTrackAs(currentSong),
-                    isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                    isCurrent = isCurrentRow(song),
+                    isPlaying = isCurrentRow(song) && isPlaying,
                     searchPlayingStyle = true,
                     onClick = { onSongClick(songs, index) },
                     onLongPress = { onSongLongPress(song) },
@@ -567,8 +571,8 @@ private fun SongsTab(
                 SongRow(
                     song = song,
                     selected = song.videoId in selectedIds,
-                    isCurrent = song.isSameTrackAs(currentSong),
-                    isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                    isCurrent = isCurrentRow(song),
+                    isPlaying = isCurrentRow(song) && isPlaying,
                     searchPlayingStyle = true,
                     activeTint = PlayingAccent,
                     onClick = { onSongClick(songs, index) },
@@ -871,7 +875,7 @@ private fun ArtistGridCard(
  * an album, and the order its tracks go in — and none of those has anywhere to
  * live in a map entry.
  */
-private class AlbumEntry(
+internal class AlbumEntry(
     val title: String,
     val artist: String,
     val thumbnailUrl: String?,
@@ -905,7 +909,7 @@ private class AlbumEntry(
  * Releases lead within their own alphabetical run rather than being sorted
  * together, because a tag grouping is a guess and a recorded release is not.
  */
-private fun albumEntries(
+internal fun albumEntries(
     songs: List<Song>,
     collections: List<DownloadedCollection>,
 ): List<AlbumEntry> {
@@ -935,7 +939,7 @@ private fun albumEntries(
                 artist = group.firstOrNull()?.artist.orEmpty(),
                 thumbnailUrl = group.firstNotNullOfOrNull { it.thumbnailUrl },
                 playlist = false,
-                songs = group,
+                songs = group.sortedForAlbum(),
                 asked = false,
                 key = "tagged:$name",
             )
@@ -1372,6 +1376,9 @@ private fun DrillDownSongList(
     onBack: () -> Unit,
     contentPadding: PaddingValues,
 ) {
+    val isCurrentRow = remember(songs, currentSong) { playingRowMatcher(songs, currentSong) }
+    // An album's rows show the release's own numbers; an artist's mixed rows keep positional ones.
+    val numberedByTag = remember(songs) { songs.useTrackTags() }
     if (viewType == LibraryViewType.GRID) {
         val gridState = rememberLazyGridState()
         LazyVerticalGrid(
@@ -1407,8 +1414,8 @@ private fun DrillDownSongList(
                 SongGridCard(
                     song = song,
                     selected = song.videoId in selectedIds,
-                    isCurrent = song.isSameTrackAs(currentSong),
-                    isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                    isCurrent = isCurrentRow(song),
+                    isPlaying = isCurrentRow(song) && isPlaying,
                     searchPlayingStyle = true,
                     onClick = { onSongClick(songs, index) },
                     onLongPress = { onSongLongPress(song) },
@@ -1442,11 +1449,11 @@ private fun DrillDownSongList(
                 SongRow(
                     song = song,
                     selected = song.videoId in selectedIds,
-                    isCurrent = song.isSameTrackAs(currentSong),
-                    isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                    isCurrent = isCurrentRow(song),
+                    isPlaying = isCurrentRow(song) && isPlaying,
                     searchPlayingStyle = true,
                     activeTint = PlayingAccent,
-                    trackNumber = index + 1,
+                    trackNumber = if (numberedByTag) song.trackNumber ?: (index + 1) else (index + 1),
                     onClick = { onSongClick(songs, index) },
                     onLongPress = { onSongLongPress(song) },
                     onMore = onSongMore?.let { more -> { more(song) } },
