@@ -5,7 +5,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import com.cosmotune.music.data.LikeState
+import com.cosmotune.music.data.model.LikeStatus
+import com.cosmotune.music.data.settings.AppSettings
+import com.cosmotune.music.playback.QueueShuffle
+import com.cosmotune.music.playback.toggleShuffle
 import com.cosmotune.music.data.YtMusicRepository
 import com.cosmotune.music.data.listentogether.ListenTogether
 import com.cosmotune.music.data.settings.TvSettings
@@ -46,6 +52,17 @@ internal fun rememberTvPhoneRemote(
             }
 
             override fun playback() = if (currentScope()) status.get() else RemotePlayback()
+
+            override suspend fun queue(): RemoteQueue = withContext(Dispatchers.Main) {
+                if (!currentScope()) return@withContext RemoteQueue()
+                val songs = input.value.player.queue
+                val at = input.value.player.queueIndex
+                if (at !in songs.indices) return@withContext RemoteQueue()
+                // One played row for context, the playing one, and what follows.
+                RemoteQueue(at, ((at - 1).coerceAtLeast(0)..(at + 50).coerceAtMost(songs.lastIndex)).map { i ->
+                    RemoteQueueItem(i, songs[i].title, songs[i].artist)
+                })
+            }
 
             override suspend fun search(query: String): List<RemoteTrack> {
                 check(currentScope()) { "Unlock the current TV profile first" }
@@ -90,6 +107,24 @@ internal fun rememberTvPhoneRemote(
                         val song = synchronized(tracks) { tracks[command.trackId] } ?: error("Search for this recording again")
                         current.playSongs(listOf(song), 0)
                     }
+                    RemoteAction.SHUFFLE -> current.toggleShuffle()
+                    // The player's own order: off, all, one; saved like its button saves it.
+                    RemoteAction.REPEAT -> {
+                        val next = when (current.repeatMode) {
+                            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                            else -> Player.REPEAT_MODE_OFF
+                        }
+                        AppSettings.setRepeatMode(next)
+                        current.repeatMode = next
+                    }
+                    RemoteAction.LIKE -> viewModel.toggleLike(checkNotNull(input.value.player.song) { "Nothing is playing" }.videoId)
+                    RemoteAction.PLAY_QUEUE_INDEX -> {
+                        val index = checkNotNull(command.index)
+                        check(index in 0 until current.mediaItemCount) { "That queue entry has gone" }
+                        current.seekToDefaultPosition(index)
+                        current.play()
+                    }
                 }
             }
         })
@@ -97,9 +132,17 @@ internal fun rememberTvPhoneRemote(
     LaunchedEffect(controller, mediaController) {
         while (isActive) {
             val current = input.value
+            val song = current.player.song
             status.set(if (!current.allowed) RemotePlayback() else RemotePlayback(
-                current.player.song?.title ?: "Nothing playing", current.player.song?.artist.orEmpty(), current.player.isPlaying,
-                current.player.position.positionMs, current.player.durationMs.takeIf { it > 0 }, current.controller?.volume))
+                song?.title ?: "Nothing playing", song?.artist.orEmpty(), current.player.isPlaying,
+                current.player.position.positionMs, current.player.durationMs.takeIf { it > 0 }, current.controller?.volume,
+                shuffle = QueueShuffle.enabled.value,
+                repeat = when (current.controller?.repeatMode ?: current.player.repeatMode) {
+                    Player.REPEAT_MODE_ALL -> RemoteRepeat.ALL
+                    Player.REPEAT_MODE_ONE -> RemoteRepeat.ONE
+                    else -> RemoteRepeat.OFF
+                },
+                liked = song?.let { LikeState.overrides.value[it.videoId] == LikeStatus.LIKE }))
             delay(250)
         }
     }
@@ -128,7 +171,7 @@ internal fun TvPhoneRemoteDialog(controller: LanRemoteController, onDismiss: () 
         finally { busy = false }
     } }
     TvDialog(title = "Phone remote", width = 700.dp, onDismissRequest = onDismiss) {
-        Text("Pair a browser on the same network for playback, volume, seeking and music search. Account cookies stay on the TV.", color = TvGlass.TextSecondary)
+        Text("Pair a browser on the same network for playback, volume, seeking, shuffle, repeat, Love, Up Next and music search. Account cookies stay on the TV.", color = TvGlass.TextSecondary)
         error?.let { Text(it, color = TvGlass.TextPrimary) }
         val active = session
         if (active == null) {

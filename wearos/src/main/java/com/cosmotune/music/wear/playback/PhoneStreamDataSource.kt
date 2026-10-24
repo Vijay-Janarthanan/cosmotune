@@ -18,6 +18,7 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
+import com.cosmotune.music.wear.WearWire
 import com.cosmotune.music.wear.WearProtocol as P
 
 /**
@@ -36,6 +37,7 @@ class PhoneStreamDataSource(context: Context) : BaseDataSource(true) {
     private val channels = Wearable.getChannelClient(app)
     private var channel: ChannelClient.Channel? = null
     private var input: InputStream? = null
+    private var body: WearWire.StreamBody? = null
     private var uri: Uri? = null
     private var remaining = C.LENGTH_UNSET.toLong()
 
@@ -48,21 +50,18 @@ class PhoneStreamDataSource(context: Context) : BaseDataSource(true) {
             val opened = Tasks.await(channels.openChannel(node, P.PATH_STREAM), OPEN_TIMEOUT_S, TimeUnit.SECONDS)
             channel = opened
             DataOutputStream(Tasks.await(channels.getOutputStream(opened), OPEN_TIMEOUT_S, TimeUnit.SECONDS)).apply {
-                writeUTF(dataSpec.uri.toString())
-                writeLong(dataSpec.position)
-                writeLong(dataSpec.length)
+                WearWire.StreamRequest(dataSpec.uri.toString(), dataSpec.position, dataSpec.length).writeTo(this)
                 flush()
             }
             val stream = DataInputStream(
                 BufferedInputStream(Tasks.await(channels.getInputStream(opened), OPEN_TIMEOUT_S, TimeUnit.SECONDS), BUFFER),
             )
             // The phone may spend seconds resolving before it answers.
-            if (stream.readUnsignedByte() != P.STREAM_OK) {
-                throw DataSourceException(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS)
-            }
-            val length = stream.readLong()
+            val reply = WearWire.StreamReply.readFrom(stream)
+            if (!reply.ok) throw DataSourceException(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS)
             input = stream
-            remaining = if (dataSpec.length != C.LENGTH_UNSET.toLong()) dataSpec.length else length
+            remaining = WearWire.expectedLength(dataSpec.length, reply)
+            body = WearWire.StreamBody(stream, remaining)
         } catch (e: DataSourceException) {
             close()
             throw e
@@ -77,16 +76,14 @@ class PhoneStreamDataSource(context: Context) : BaseDataSource(true) {
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
         if (length == 0) return 0
-        if (remaining == 0L) return C.RESULT_END_OF_INPUT
-        val stream = input ?: return C.RESULT_END_OF_INPUT
-        val want = if (remaining == C.LENGTH_UNSET.toLong()) length else minOf(length.toLong(), remaining).toInt()
+        val stream = body ?: return C.RESULT_END_OF_INPUT
         val read = try {
-            stream.read(buffer, offset, want)
+            stream.read(buffer, offset, length)
         } catch (e: Exception) {
             throw DataSourceException(e, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)
         }
         if (read == -1) return C.RESULT_END_OF_INPUT
-        if (remaining != C.LENGTH_UNSET.toLong()) remaining -= read
+        remaining = stream.remaining
         bytesTransferred(read)
         return read
     }
@@ -96,6 +93,7 @@ class PhoneStreamDataSource(context: Context) : BaseDataSource(true) {
     override fun close() {
         runCatching { input?.close() }
         input = null
+        body = null
         channel?.let { runCatching { channels.close(it) } }
         if (channel != null) transferEnded()
         channel = null

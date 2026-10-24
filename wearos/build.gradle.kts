@@ -164,4 +164,8 @@ dependencies {
     // Lets a sideloaded install use the baseline profiles Compose ships with,
     // instead of starting every screen interpreted.
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+
+    // Plain JVM tests of the watch's own rules (crown steps, playhead, burn-in
+    // orbit). The shared wire is tested from :app, which compiles it too.
+    testImplementation("junit:junit:4.13.2")
 }

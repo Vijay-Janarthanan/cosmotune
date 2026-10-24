@@ -145,4 +145,58 @@ class LanRemoteServerTest {
             withTimeout(3000) { cancelled.await(); request.await() }
         } finally { server.close() }
     }
+
+    private class QueueHost : LanRemoteHost {
+        val commands = CopyOnWriteArrayList<RemoteCommand>()
+        override fun playback() = RemotePlayback("Song", "Singer", true, 0, 1000, 0.5f, shuffle = true, repeat = RemoteRepeat.ALL, liked = false)
+        override suspend fun command(command: RemoteCommand) { commands += command }
+        override suspend fun queue() = RemoteQueue(4, (3..200).map { RemoteQueueItem(it, "Track $it" + "x".repeat(if (it == 5) 900 else 0), "Artist") })
+    }
+
+    @Test fun shuffleRepeatLoveAndUpNextAreTypedAndBounded() {
+        val host = QueueHost()
+        LanRemoteServer.start(host).use { server ->
+            val status = Json.parseToJsonElement(exchange(server, "/api/status", key = key(server)).body).jsonObject
+            assertEquals("true", status["shuffle"].toString()); assertEquals("\"ALL\"", status["repeat"].toString())
+            assertEquals("false", status["liked"].toString())
+            assertEquals(401, exchange(server, "/api/queue").status)
+            assertEquals(405, exchange(server, "/api/queue", "{}", key(server)).status)
+            val queue = Json.decodeFromString(RemoteQueue.serializer(), exchange(server, "/api/queue", key = key(server)).body)
+            assertEquals(4, queue.current); assertEquals(100, queue.items.size); assertEquals(3, queue.items.first().index)
+            assertEquals(500, queue.items.first { it.index == 5 }.title.length)
+            for (action in listOf("SHUFFLE", "REPEAT", "LIKE")) {
+                assertEquals(200, exchange(server, "/api/action", """{"action":"$action"}""", key(server)).status)
+            }
+            assertEquals(200, exchange(server, "/api/action", """{"action":"PLAY_QUEUE_INDEX","index":7}""", key(server)).status)
+            // An index only goes with a queue jump, a jump needs one in range, and nothing else rides along.
+            for (bad in listOf("""{"action":"PLAY_QUEUE_INDEX"}""", """{"action":"PLAY_QUEUE_INDEX","index":-1}""",
+                    """{"action":"PLAY_QUEUE_INDEX","index":7,"positionMs":3}""", """{"action":"NEXT","index":2}""",
+                    """{"action":"LIKE","trackId":"x"}""", """{"action":"REPEAT","volume":0.5}""")) {
+                assertEquals(400, exchange(server, "/api/action", bad, key(server)).status, bad)
+            }
+            assertEquals(listOf(RemoteAction.SHUFFLE, RemoteAction.REPEAT, RemoteAction.LIKE, RemoteAction.PLAY_QUEUE_INDEX),
+                host.commands.map { it.action })
+            assertEquals(7, host.commands.last().index)
+            val page = exchange(server, "/").body
+            assertTrue(page.contains("/api/queue")); assertTrue(page.contains("PLAY_QUEUE_INDEX"))
+        }
+    }
+
+    @Test fun hostsWithoutTheNewControlsKeepTheOldContract() {
+        LanRemoteServer.start(Host()).use { server ->
+            val status = Json.parseToJsonElement(exchange(server, "/api/status", key = key(server)).body).jsonObject
+            assertEquals("null", status["shuffle"].toString()); assertEquals("null", status["liked"].toString())
+            assertEquals(RemoteQueue(), Json.decodeFromString(RemoteQueue.serializer(), exchange(server, "/api/queue", key = key(server)).body))
+        }
+        assertEquals(listOf(RemoteRepeat.ALL, RemoteRepeat.ONE, RemoteRepeat.OFF), RemoteRepeat.entries.map { it.next() })
+    }
+
+    @Test fun thePageScriptHasNoStringBrokenAcrossLines() {
+        // A raw line break inside a quoted JavaScript string stops the whole page script.
+        val script = LanRemotePage.html.substringAfter("<script>").substringBefore("</script>")
+        script.lines().forEachIndexed { i, line ->
+            val quotes = Regex("""(?<!\\)'""").findAll(line).count()
+            assertEquals(0, quotes % 2, "unbalanced quote on script line ${i + 1}: ${line.take(60)}")
+        }
+    }
 }

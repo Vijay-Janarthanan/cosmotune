@@ -18,6 +18,7 @@ import com.google.android.gms.wearable.WearableListenerService
 import com.cosmotune.music.wear.playback.Speaker
 import com.cosmotune.music.wear.R
 import com.cosmotune.music.wear.WearActivity
+import com.cosmotune.music.wear.WearWire
 import com.cosmotune.music.wear.WearProtocol as P
 
 /**
@@ -38,7 +39,7 @@ class NowPlayingListener : WearableListenerService() {
         val path = event.path ?: return
         when {
             path == P.PATH_WATCH_INFO_REQUEST -> SelfUpdate.publishInfo(this)
-            path.startsWith(P.PATH_SPEAKER + "/") -> Speaker.handle(this, path.substringAfterLast('/'), event.data)
+            path.startsWith(P.PATH_SPEAKER + "/") -> WearWire.speakerCommandOf(path)?.let { Speaker.handle(this, it, event.data) }
         }
     }
 

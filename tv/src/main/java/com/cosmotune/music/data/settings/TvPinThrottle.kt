@@ -35,6 +35,11 @@ object TvPinThrottle {
 
     fun init(preferences: SharedPreferences) {
         prefs = preferences
+        // The maps only cache what [prefs] holds; a new store starts from what it holds.
+        memoryAttempts.clear()
+        memoryLockUntil.clear()
+        memoryLockSince.clear()
+        memoryLockDelay.clear()
     }
 
     /**
@@ -80,9 +85,13 @@ object TvPinThrottle {
         val until = getLockUntil(key)
         if (until == 0L) return 0L
         // A monotonic clock reading below the one the failure was recorded at means the device
-        // rebooted since, so the deadline is meaningless: make the user wait the full delay again.
+        // rebooted since, so the deadline is meaningless: make the user wait the full delay again,
+        // counted from this boot, so it runs down instead of restarting at every look.
         if (now < getLong(key, KEY_LOCK_SINCE_PREFIX, memoryLockSince)) {
-            return getLong(key, KEY_LOCK_DELAY_PREFIX, memoryLockDelay)
+            val delay = getLong(key, KEY_LOCK_DELAY_PREFIX, memoryLockDelay)
+            setLong(key, KEY_LOCK_SINCE_PREFIX, memoryLockSince, now)
+            setLockUntil(key, now + delay)
+            return delay
         }
         val remaining = until - now
         return if (remaining > 0L) remaining else 0L
