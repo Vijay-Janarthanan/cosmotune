@@ -157,6 +157,12 @@ jobs:
           name: windows-release-test-reports
           path: |
             desktopApp/build/test-results/test/*.xml
+            uiTests/build/test-results/test/*.xml
+            sharedUi/build/test-results/jvmTest/*.xml
+            video/build/test-results/jvmTest/*.xml
+            manga/build/test-results/jvmTest/*.xml
+            providers/build/test-results/jvmTest/*.xml
+            remote/build/test-results/jvmTest/*.xml
             desktopApp/build/reports/tests/
 
       - name: Collect
@@ -226,6 +232,12 @@ jobs:
           name: macos-${{ matrix.arch }}-release-test-reports
           path: |
             desktopApp/build/test-results/test/*.xml
+            uiTests/build/test-results/test/*.xml
+            sharedUi/build/test-results/jvmTest/*.xml
+            video/build/test-results/jvmTest/*.xml
+            manga/build/test-results/jvmTest/*.xml
+            providers/build/test-results/jvmTest/*.xml
+            remote/build/test-results/jvmTest/*.xml
             desktopApp/build/reports/tests/
 
       - name: The analyser and models are in the jar
@@ -263,8 +275,8 @@ jobs:
           name: macos-${{ matrix.arch }}-artifacts
           path: dist/*
 
-  android:
-    name: Android · signed APKs
+  android-phone:
+    name: Android · phone and watch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -304,8 +316,94 @@ jobs:
 
       - run: chmod +x gradlew
 
-      - name: Build the signed APKs
-        run: ./gradlew --max-workers=1 :app:assembleProdRelease :wearos:assembleProdRelease :tv:testProdDebugUnitTest :tv:assembleProdRelease
+      - name: Build the signed phone and watch APKs
+        run: ./gradlew --max-workers=1 :app:assembleProdRelease :wearos:assembleProdRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-phone-build
+          path: app/build/outputs/apk/prod/release
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-watch-build
+          path: wearos/build/outputs/apk/prod/release
+          retention-days: 1
+
+  android-tv:
+    name: Android · TV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: The signing secrets are set
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # Without them the job would write an empty keystore and fail later inside R8 packaging with
+          # a keystore error; the phone and watch must be signed with the same release key.
+          missing=""
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then echo "::error::Release signing secrets are not set:$missing"; exit 1; fi
+
+      - name: Keystore and local.properties
+        run: |
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > cosmotune-release.jks
+          {
+            echo "storeFile=cosmotune-release.jks"
+            echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}"
+            echo "keyAlias=${{ secrets.KEY_ALIAS }}"
+            echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
+          } > keystore.properties
+
+      - run: chmod +x gradlew
+
+      - name: Build the signed TV APKs
+        run: ./gradlew --max-workers=1 :tv:testProdDebugUnitTest :tv:assembleProdRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-tv-build
+          path: tv/build/outputs/apk/prod/release
+          retention-days: 1
+
+  android:
+    name: Android · signed APKs
+    needs: [android-phone, android-tv]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-phone-build
+          path: app/build/outputs/apk/prod/release
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-watch-build
+          path: wearos/build/outputs/apk/prod/release
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-tv-build
+          path: tv/build/outputs/apk/prod/release
 
       - name: Verify OpenCanvas import and packaged models
         run: |

@@ -129,12 +129,29 @@ class ReleaseWorkflowTest {
     }
 
     @Test
-    fun theAndroidReleaseJobStopsWhenASigningSecretIsMissing() {
-        val job = release.substringAfter("  android:").substringBefore("\n  web:")
-        val check = job.indexOf("The signing secrets are set")
-        assertTrue(check >= 0 && check < job.indexOf("Build the signed APKs"), "no secret check before the signed build")
-        for (secret in listOf("KEYSTORE_BASE64", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")) {
-            assertTrue("$secret: \${{ secrets.$secret }}" in job, "$secret is not checked")
+    fun theAndroidBuildJobsStopWhenASigningSecretIsMissing() {
+        for ((start, end) in listOf("  android-phone:" to "\n  android-tv:", "  android-tv:" to "\n  android:\n")) {
+            val job = release.substringAfter(start).substringBefore(end)
+            val check = job.indexOf("The signing secrets are set")
+            assertTrue(check >= 0 && check < job.indexOf("Build the signed"), "$start: no secret check before the signed build")
+            for (secret in listOf("KEYSTORE_BASE64", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")) {
+                assertTrue("$secret: \${{ secrets.$secret }}" in job, "$start: $secret is not checked")
+            }
+        }
+    }
+
+    @Test
+    fun theAndroidPackagesAreBuiltInParallelAndVerifiedTogether() {
+        val verify = release.substringAfter("\n  android:\n").substringBefore("\n  web:")
+        assertTrue("needs: [android-phone, android-tv]" in verify, "the verify job waits for both builds")
+        assertTrue("needs: [linux, windows, macos, android, web]" in release, "publishing waits for the verify job")
+        for (job in listOf("android-phone", "android-tv")) assertTrue("\n  $job:" in release, "$job is its own job")
+        val handedOver = Regex("""name: (android-[a-z]+-build)""").findAll(release).map { it.groupValues[1] }.toSet()
+        assertEquals(setOf("android-phone-build", "android-watch-build", "android-tv-build"), handedOver)
+        // The publish job collects every artifact named *-artifacts: the hand-over artifacts must not match that.
+        assertTrue(handedOver.none { it.endsWith("-artifacts") })
+        for (script in listOf("verify-wear-packaging.py", "verify-tv-packaging.py", "verify-opencanvas-import.py")) {
+            assertTrue(script in verify, "$script runs in the verify job, after both builds")
         }
     }
 }
