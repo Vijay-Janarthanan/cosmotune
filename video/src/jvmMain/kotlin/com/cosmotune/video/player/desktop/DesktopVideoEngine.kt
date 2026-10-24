@@ -332,7 +332,8 @@ class DesktopVideoEngine internal constructor(
             }
             unsupported = true
         }
-        snapshotFlow.update { unsupportedSnapshot(it) }
+        // The player thread can get here after release(): a released engine stays IDLE.
+        if (!released) snapshotFlow.update { unsupportedSnapshot(it) }
         return null
     }
 

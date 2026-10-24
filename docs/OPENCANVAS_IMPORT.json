@@ -106,7 +106,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/OpenCanvas.kt",
       "normalizeLf": true,
-      "sha256": "fd111ae840c54c5b7019b287eb68dd0a099ae0c1acd71bf882a927701faa5fe0"
+      "sha256": "c7c42dc856fc249dc5f049e40281741285ad55f2ce2cd6bcb9742eed4ba5efbc"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvasConfig.kt",
@@ -166,7 +166,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
       "normalizeLf": true,
-      "sha256": "7e43345ac5667bd10680e1c77efa9de36674e0c167e37297fb0292e9c3ca8f74"
+      "sha256": "ca4a476d0d2cb4a1c3c84867402df44b96f7d1aaef061f0b682a0c136422e4f5"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
@@ -247,5 +247,6 @@
       "sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
     }
   ],
-  "revisionStatus": "published on OpenCanvas main"
+  "revisionStatus": "published on OpenCanvas main",
+  "localChanges": "Cosmotune 1.0.5 changed OpenCanvas.kt (SUBJECT_FRAMING switch, off) and MusicVideoSearch.kt (4 s per search, 6 s budget, unfiltered ranking when no publisher evidence); apply the same two changes in the OpenCanvas repository"
 }
