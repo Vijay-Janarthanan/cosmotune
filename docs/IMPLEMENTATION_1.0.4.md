@@ -119,3 +119,5 @@ LK-09 adds shared columns and filters to the main local library lists of both ho
 
 LK-20 sends ListenBrainz listens through the shared offline queue on both hosts; the token review found both hosts keep scrobbling tokens in app-private preferences rather than a secret store. MN-09 adds a listener-facing "Save as .lrc" on both hosts. Device, real-server and account checks remain as listed in the tracker. Details: `docs/LOCAL_LIBRARY_TOOLS.md`.
 
+
+Provider/add-on rows (worktree cx-p1). LK-01: the 2 MiB add-on metadata limit now has real-HTTP checks on the phone client too (declared and chunked bodies, exact limit, search and album pages) next to the desktop and shared ones. LK-02 is backed by the existing settings, priority and masking tests and is marked implemented. LK-03: an explicit catalogue refresh now re-reads the add-on manifest on both hosts, so newly declared or withdrawn album/artist pages take effect. LK-05: a desktop transfer timeout no longer leaves a stuck Running row; failure, restart and Retry-with-quality paths are tested with an isolated journal.

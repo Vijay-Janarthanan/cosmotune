@@ -23,8 +23,11 @@ class DesktopDownloadQueueTest {
         DesktopDownloadQueue.cancelAll()
         withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
         original = DesktopDownloadQueue.transfer
+        originalQuality = DesktopDownloadQueue.defaultQuality
+        DesktopDownloadQueue.defaultQuality = { "LOSSLESS" }
         DesktopDownloadQueue.transfer = { _, _, _ -> awaitCancellation() }
     }
+    private var originalQuality: (() -> String)? = null
 
     private fun song(id: String) = Song(videoId = id, title = "Track $id", artist = "Artist", thumbnailUrl = "")
 
@@ -33,6 +36,77 @@ class DesktopDownloadQueueTest {
         DesktopDownloadQueue.cancelAll()
         runBlocking { withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() } }
         original?.let { DesktopDownloadQueue.transfer = it }
+        originalQuality?.let { DesktopDownloadQueue.defaultQuality = it }
+        DesktopDownloadQueue.detachJournalForTest()
+    }
+
+    private fun journalFile(): java.io.File =
+        kotlin.io.path.createTempDirectory("cosmotune-queue-").toFile().also { it.deleteOnExit() }.resolve("queue.json")
+
+    @Test fun `a failed transfer stays visible with its reason, is saved, and Retry keeps its quality`() = runBlocking {
+        val file = journalFile()
+        DesktopDownloadQueue.restore(file)
+        DesktopDownloadQueue.defaultQuality = { "HIGH" }
+        val asked = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        DesktopDownloadQueue.transfer = { song, quality, _ ->
+            asked += quality
+            if (calls.incrementAndGet() == 1) Result.failure(java.io.IOException("The server closed the connection"))
+            else Result.success(song)
+        }
+        val item = song("src:first::fails")
+        DesktopDownloadQueue.enqueue(item)
+        withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
+        val failed = DesktopDownloadQueue.active.value.getValue(item.videoId)
+        assertEquals(DesktopDownloadState.Failed("The server closed the connection"), failed.state)
+        // The saved queue holds the failure, not a running row, so a restart shows it for Retry.
+        withTimeout(5_000) { while (!(file.exists() && file.readText().contains("\"FAILED\""))) delay(20) }
+        com.cosmotune.music.data.downloads.MusicDownloadJournal(file).use { saved ->
+            val entry = saved.entries.value.single()
+            assertEquals("HIGH", entry.quality)
+            assertEquals("The server closed the connection", entry.error)
+        }
+
+        // The listener changes the default afterwards; Retry still asks for what was requested.
+        DesktopDownloadQueue.defaultQuality = { "LOW" }
+        DesktopDownloadQueue.retry(item.videoId)
+        withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
+        assertEquals(listOf("HIGH", "HIGH"), asked)
+        assertFalse(item.videoId in DesktopDownloadQueue.active.value)
+    }
+
+    @Test fun `a timeout inside a transfer is reported as a failure instead of leaving a stuck row`() = runBlocking {
+        DesktopDownloadQueue.transfer = { _, _, _ -> withTimeout(20) { awaitCancellation() } }
+        val item = song("src:first::slow")
+        DesktopDownloadQueue.enqueue(item)
+        withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
+        assertEquals(
+            DesktopDownloadState.Failed("The download timed out. Retry to try again."),
+            DesktopDownloadQueue.active.value.getValue(item.videoId).state,
+        )
+    }
+
+    @Test fun `interrupted work from a previous run is offered for Retry and not fetched until asked`() = runBlocking {
+        val file = journalFile()
+        com.cosmotune.music.data.downloads.MusicDownloadJournal(file).use { previous ->
+            previous.enqueue(song("src:first::one"), 4, "HIGH")
+            previous.enqueue(song("src:first::two"), 5, "LOSSLESS")
+            previous.phase("src:first::two", 5, com.cosmotune.music.data.downloads.MusicDownloadPhase.FAILED, "Disk full")
+            previous.flush()
+        }
+        val asked = java.util.concurrent.ConcurrentHashMap<String, String>()
+        DesktopDownloadQueue.transfer = { song, quality, _ -> asked[song.videoId] = quality; Result.success(song) }
+        DesktopDownloadQueue.restore(file)
+        val rows = DesktopDownloadQueue.active.value
+        assertEquals(DesktopDownloadState.Failed("Interrupted download. Retry to resume."), rows.getValue("src:first::one").state)
+        assertEquals(DesktopDownloadState.Failed("Disk full"), rows.getValue("src:first::two").state)
+        delay(100)
+        assertTrue(asked.isEmpty(), "restoring must not start network transfers")
+        DesktopDownloadQueue.retry("src:first::one")
+        withTimeout(5_000) { DesktopDownloadQueue.awaitIdle() }
+        assertEquals(mapOf("src:first::one" to "HIGH"), asked.toMap())
+        // A later request for the same track keeps the order after the restored ones.
+        assertTrue("src:first::two" in DesktopDownloadQueue.active.value)
     }
 
     @Test fun `cancelling a running job leaves other providers able to finish`() = runBlocking {

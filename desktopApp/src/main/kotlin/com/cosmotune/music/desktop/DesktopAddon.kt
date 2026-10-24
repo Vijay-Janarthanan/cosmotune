@@ -372,7 +372,7 @@ internal class DesktopAddonClient(
 
     suspend fun searchCatalogue(query: String, tier: String = TIER_LOSSLESS, force: Boolean = false): Result<JsonObject> {
         if (query.isBlank()) return Result.success(JsonObject(emptyMap()))
-        if (force) catalogues.clearCompleted()
+        if (force) { manifests.clearCompleted(); catalogues.clearCompleted() }
         val params = settingsFor(tier) + ("q" to query.trim().take(500))
         return catalogues.get(keyOf("search", params.toString())) { fetch<JsonObject>(endpoint(listOf("search"), params)) }
     }
@@ -383,6 +383,9 @@ internal class DesktopAddonClient(
 
     private suspend fun catalogue(resource: String, id: String, tier: String, force: Boolean): Result<JsonObject> {
         if (id.isBlank() || id.length > 8_192) return Result.failure(DesktopAddonException("Invalid catalogue identity"))
+        // An explicit refresh re-reads the manifest too, so a source that has since added or dropped
+        // album/artist pages (or changed its settings schema) is asked under its current description.
+        if (force) manifests.clearCompleted()
         val descriptor = manifest().getOrElse { return Result.failure(it) }
         if (!descriptor.declares(resource)) return Result.failure(DesktopAddonException("This source does not offer $resource pages"))
         if (force) catalogues.clearCompleted()
