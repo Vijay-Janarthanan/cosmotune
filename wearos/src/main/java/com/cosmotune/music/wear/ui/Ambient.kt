@@ -59,14 +59,8 @@ fun AmbientPlayer(np: NowPlaying, ambient: Ambient) {
     val secondary = if (ambient.lowBit) Color.White else Color.White.copy(alpha = 0.55f)
     // A small orbit rather than a random jump: never more than 6dp from centre.
     val shift = remember(ambient.tick, ambient.burnInProtection) {
-        if (!ambient.burnInProtection) {
-            Offset.Zero
-        } else {
-            val step = ambient.tick % 8
-            val dx = intArrayOf(0, 4, 6, 4, 0, -4, -6, -4)[step]
-            val dy = intArrayOf(-6, -4, 0, 4, 6, 4, 0, -4)[step]
-            Offset(dx.toFloat(), dy.toFloat())
-        }
+        val (dx, dy) = burnInShiftDp(ambient.tick, ambient.burnInProtection)
+        Offset(dx.toFloat(), dy.toFloat())
     }
 
     BoxWithConstraints(
@@ -114,6 +108,20 @@ fun AmbientPlayer(np: NowPlaying, ambient: Ambient) {
         )
     }
 }
+
+/**
+ * The always-on player's offset from centre for the [tick]th ambient update,
+ * in dp: one step round an eight-point orbit per update, never more than 6dp
+ * out, and none at all when the panel does not ask for burn-in protection.
+ */
+fun burnInShiftDp(tick: Int, burnInProtection: Boolean): Pair<Int, Int> {
+    if (!burnInProtection) return 0 to 0
+    val step = Math.floorMod(tick, ORBIT_X.size)
+    return ORBIT_X[step] to ORBIT_Y[step]
+}
+
+private val ORBIT_X = intArrayOf(0, 4, 6, 4, 0, -4, -6, -4)
+private val ORBIT_Y = intArrayOf(-6, -4, 0, 4, 6, 4, 0, -4)
 
 /** ic_logo's viewport, 730 x 484 — as the phone's Home draws it. */
 private const val LOGO_ASPECT = 730f / 484f

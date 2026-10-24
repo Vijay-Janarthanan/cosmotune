@@ -60,9 +60,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.BufferedOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
 import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -377,81 +374,74 @@ object WearBridge {
         val app = context.applicationContext
         streamPool.execute {
             val client = Wearable.getChannelClient(app)
-            var source: DataSource? = null
             try {
-                val input = DataInputStream(Tasks.await(client.getInputStream(channel), 10, TimeUnit.SECONDS))
-                val output = DataOutputStream(
-                    BufferedOutputStream(Tasks.await(client.getOutputStream(channel), 10, TimeUnit.SECONDS), STREAM_BUFFER),
-                )
-                val uri = input.readUTF()
-                val position = input.readLong()
-                val length = input.readLong()
+                val input = Tasks.await(client.getInputStream(channel), 10, TimeUnit.SECONDS)
+                val output = Tasks.await(client.getOutputStream(channel), 10, TimeUnit.SECONDS)
                 val asked = SystemClock.elapsedRealtime()
-                val factory = streams ?: run {
-                    // The service builds the chain: bring it up and give it a moment.
-                    ensureService()
-                    var waited = 0
-                    while (streams == null && waited < 6_000) {
-                        Thread.sleep(100)
-                        waited += 100
+                var uri = ""
+                val served = WatchStreamServer.serve(input, output, STREAM_BUFFER) { request ->
+                    uri = request.uri
+                    val factory = streams ?: run {
+                        // The service builds the chain: bring it up and give it a moment.
+                        ensureService()
+                        var waited = 0
+                        while (streams == null && waited < 6_000) {
+                            Thread.sleep(100)
+                            waited += 100
+                        }
+                        streams
                     }
-                    streams
+                    factory?.let { f -> openForWatch(f.createDataSource(), request) }
                 }
-                val opened = factory?.let { f ->
-                    val ds = f.createDataSource().also { source = it }
-                    runCatching {
-                        ds.open(
-                            DataSpec.Builder()
-                                .setUri(
-                                    // An addon track's cache entry is named by
-                                    // the track alone, whatever quality filled
-                                    // it, so the watch's read gets its own —
-                                    // never the lossless file the phone cached.
-                                    // A YouTube-matched track needs nothing: the
-                                    // capped ceiling already keys it apart. And
-                                    // only those: the tag is in the address, so
-                                    // it also misses the resolver's own cache.
-                                    Uri.parse(uri).let { parsed ->
-                                        if (parsed.scheme != "cosmotune" || parsed.authority != "source") parsed else parsed.buildUpon()
-                                            .appendQueryParameter(AudioCache.WATCH_READ_PARAM, "1")
-                                            .build()
-                                    },
-                                )
-                                .setPosition(position)
-                                .setLength(if (length < 0) C.LENGTH_UNSET.toLong() else length)
-                                .build(),
-                        )
-                    }.onFailure { Log.w(TAG, "stream open failed: ${it.message}") }.getOrNull()
+                if (served < 0) {
+                    Log.d(TAG, "stream failed @${uri.take(60)}")
+                } else {
+                    Log.d(TAG, "stream done ${served / 1024}KB in ${SystemClock.elapsedRealtime() - asked}ms ${uri.take(60)}")
                 }
-                val ds = source
-                if (opened == null || ds == null) {
-                    output.writeByte(P.STREAM_FAILED)
-                    output.writeLong(-1L)
-                    output.flush()
-                    return@execute
-                }
-                output.writeByte(P.STREAM_OK)
-                output.writeLong(if (opened == C.LENGTH_UNSET.toLong()) -1L else opened)
-                output.flush()
-                Log.d(TAG, "stream open ${SystemClock.elapsedRealtime() - asked}ms @$position ${uri.take(60)}")
-                val buffer = ByteArray(STREAM_BUFFER)
-                var served = 0L
-                while (true) {
-                    val read = ds.read(buffer, 0, buffer.size)
-                    if (read == C.RESULT_END_OF_INPUT) break
-                    if (read > 0) {
-                        output.write(buffer, 0, read)
-                        served += read
-                    }
-                }
-                output.flush()
-                Log.d(TAG, "stream done ${served / 1024}KB in ${SystemClock.elapsedRealtime() - asked}ms")
             } catch (e: Exception) {
                 Log.d(TAG, "stream ended: ${e.javaClass.simpleName} ${e.message}")
             } finally {
-                runCatching { source?.close() }
                 runCatching { Tasks.await(client.close(channel), 5, TimeUnit.SECONDS) }
             }
+        }
+    }
+
+    /** Opens [request] on one of the phone's own data sources, or null (closing it) when it can't. */
+    private fun openForWatch(ds: DataSource, request: WearWire.StreamRequest): WatchStreamServer.Source? {
+        val opened = runCatching {
+            ds.open(
+                DataSpec.Builder()
+                    .setUri(
+                        // An addon track's cache entry is named by
+                        // the track alone, whatever quality filled
+                        // it, so the watch's read gets its own —
+                        // never the lossless file the phone cached.
+                        // A YouTube-matched track needs nothing: the
+                        // capped ceiling already keys it apart. And
+                        // only those: the tag is in the address, so
+                        // it also misses the resolver's own cache.
+                        Uri.parse(request.uri).let { parsed ->
+                            if (parsed.scheme != "cosmotune" || parsed.authority != "source") parsed else parsed.buildUpon()
+                                .appendQueryParameter(AudioCache.WATCH_READ_PARAM, "1")
+                                .build()
+                        },
+                    )
+                    .setPosition(request.position)
+                    .setLength(if (request.length < 0) C.LENGTH_UNSET.toLong() else request.length)
+                    .build(),
+            )
+        }.onFailure { Log.w(TAG, "stream open failed: ${it.message}") }.getOrNull()
+        if (opened == null) {
+            runCatching { ds.close() }
+            return null
+        }
+        return object : WatchStreamServer.Source {
+            override val length: Long = if (opened == C.LENGTH_UNSET.toLong()) -1L else opened
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                val read = ds.read(buffer, offset, length)
+                return if (read == C.RESULT_END_OF_INPUT) -1 else read
+            }
+            override fun close() = ds.close()
         }
     }
 
@@ -606,10 +596,8 @@ class WearCommandService : WearableListenerService() {
     private val main = Handler(Looper.getMainLooper())
 
     override fun onMessageReceived(event: MessageEvent) {
-        val path = event.path ?: return
-        if (!path.startsWith(P.PATH_COMMAND + "/")) return
-        val command = path.substringAfterLast('/')
-        val arg = event.data?.let { String(it, Charsets.UTF_8) }.orEmpty()
+        val command = WearWire.commandOf(event.path) ?: return
+        val arg = WearWire.argOf(event.data)
         WearBridge.onWatchSeen(this)
 
         when (command) {
@@ -618,7 +606,7 @@ class WearCommandService : WearableListenerService() {
                 return
             }
             P.CMD_VOLUME -> {
-                val steps = arg.toIntOrNull() ?: 0
+                val steps = WearWire.volumeSteps(arg)
                 // The crown turns whatever is the speaker.
                 val speaker = WearBridge.speaker
                 if (speaker?.active == true) main.post { speaker.nudgeVolume(steps) } else WearBridge.adjustVolume(this, steps)
@@ -687,11 +675,7 @@ class WearCommandService : WearableListenerService() {
             )
             // Same cycle, and same persistence, as the player's own button.
             P.CMD_REPEAT -> {
-                val next = when (controller.repeatMode) {
-                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                    else -> Player.REPEAT_MODE_OFF
-                }
+                val next = WearWire.nextRepeatMode(controller.repeatMode)
                 AppSettings.setRepeatMode(next)
                 controller.repeatMode = next
             }
@@ -700,11 +684,11 @@ class WearCommandService : WearableListenerService() {
                 WearBridge.publishOutputs(this)
             }
             P.CMD_SEEK -> {
-                val position = arg.toLongOrNull() ?: return
-                controller.seekTo(position.coerceAtLeast(0L))
+                val position = WearWire.seekTarget(arg) ?: return
+                controller.seekTo(position)
             }
             P.CMD_SKIP_TO -> {
-                val index = arg.toIntOrNull()?.takeIf { it in 0 until controller.mediaItemCount } ?: return
+                val index = WearWire.skipTarget(arg, controller.mediaItemCount) ?: return
                 controller.seekToDefaultPosition(index)
                 controller.prepareIfIdle()
                 controller.play()
@@ -712,9 +696,7 @@ class WearCommandService : WearableListenerService() {
             P.CMD_QUEUE -> {
                 val current = controller.currentMediaItemIndex
                 // One played track above the playing one, for context, like the phone's list.
-                val from = (current - 1).coerceAtLeast(0)
-                val to = (current + WearBridge.queueAhead).coerceAtMost(controller.mediaItemCount - 1)
-                val rows = (from..to).map { i ->
+                val rows = WearWire.queueWindow(current, WearBridge.queueAhead, controller.mediaItemCount).map { i ->
                     val metadata = controller.getMediaItemAt(i).mediaMetadata
                     WearBridge.QueueRow(
                         index = i,
@@ -1105,7 +1087,7 @@ internal class WatchSpeaker(
     private fun send(command: String, arg: String = "") = send(command, arg.toByteArray())
 
     private fun send(command: String, payload: ByteArray) {
-        WearBridge.sendToWatch(app, "${P.PATH_SPEAKER}/$command", payload) { delivered ->
+        WearBridge.sendToWatch(app, WearWire.speakerPath(command), payload) { delivered ->
             // A watch that cannot be reached is not a speaker any more: the
             // music comes back to the phone, paused, rather than going silent.
             if (!delivered) main.post { if (active) stop(resumeHere = false) }

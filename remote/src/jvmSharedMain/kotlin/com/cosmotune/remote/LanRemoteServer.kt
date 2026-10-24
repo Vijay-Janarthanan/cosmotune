@@ -24,19 +24,46 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
+/** The player's repeat setting, in the order its own button cycles. */
+@Serializable enum class RemoteRepeat { OFF, ALL, ONE }
+
+/**
+ * What the page shows. [shuffle], [repeat] and [liked] are null when the host
+ * does not offer that control (or, for [liked], when the playing track cannot
+ * be loved), and the page then hides it.
+ */
 @Serializable data class RemotePlayback(
     val title: String = "Nothing playing", val artist: String = "", val playing: Boolean = false,
     val positionMs: Long = 0, val durationMs: Long? = null, val volume: Float? = null,
+    val shuffle: Boolean? = null, val repeat: RemoteRepeat? = null, val liked: Boolean? = null,
 )
 @Serializable data class RemoteTrack(val id: String, val title: String, val artist: String)
-@Serializable enum class RemoteAction { PLAY, PAUSE, TOGGLE, NEXT, PREVIOUS, SEEK, VOLUME, PLAY_TRACK }
-@Serializable data class RemoteCommand(val action: RemoteAction, val positionMs: Long? = null, val volume: Float? = null, val trackId: String? = null)
+
+/** One Up Next row. [index] is its absolute place in the host's queue, what [RemoteAction.PLAY_QUEUE_INDEX] names. */
+@Serializable data class RemoteQueueItem(val index: Int, val title: String, val artist: String)
+@Serializable data class RemoteQueue(val current: Int = -1, val items: List<RemoteQueueItem> = emptyList())
+
+@Serializable enum class RemoteAction { PLAY, PAUSE, TOGGLE, NEXT, PREVIOUS, SEEK, VOLUME, PLAY_TRACK, SHUFFLE, REPEAT, LIKE, PLAY_QUEUE_INDEX }
+@Serializable data class RemoteCommand(
+    val action: RemoteAction, val positionMs: Long? = null, val volume: Float? = null, val trackId: String? = null,
+    val index: Int? = null,
+)
 
 /** Native hosts marshal commands to their player thread and expose metadata, never account cookies or stream URLs. */
 interface LanRemoteHost {
     fun playback(): RemotePlayback
     suspend fun command(command: RemoteCommand)
     suspend fun search(query: String): List<RemoteTrack> = emptyList()
+
+    /** The queue around the playing track; empty when the host does not offer Up Next. */
+    suspend fun queue(): RemoteQueue = RemoteQueue()
+}
+
+/** The repeat setting after the player's own button: off, all, one, off. */
+fun RemoteRepeat.next(): RemoteRepeat = when (this) {
+    RemoteRepeat.OFF -> RemoteRepeat.ALL
+    RemoteRepeat.ALL -> RemoteRepeat.ONE
+    RemoteRepeat.ONE -> RemoteRepeat.OFF
 }
 
 /** Token is deliberately absent from toString/logging. Pairing links carry it in the URL fragment. */
@@ -132,13 +159,24 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
                 val array = kotlinx.serialization.builtins.ListSerializer(RemoteTrack.serializer())
                 respond(socket, 200, "application/json", json.encodeToString(array, visible))
             }
+            request.method == "GET" && request.path == "/api/queue" -> {
+                val queue = host.queue()
+                val items = queue.items.take(MAX_QUEUE_ROWS).map { item ->
+                    if (item.index !in 0..MAX_QUEUE_INDEX) throw BadRequest()
+                    item.copy(title = item.title.take(500), artist = item.artist.take(500))
+                }
+                val current = queue.current.takeIf { it in 0..MAX_QUEUE_INDEX } ?: -1
+                respond(socket, 200, "application/json", json.encodeToString(RemoteQueue.serializer(), RemoteQueue(current, items)))
+            }
             request.method == "POST" && request.path == "/api/action" -> {
                 if (request.headers["content-type"]?.substringBefore(';')?.trim()?.lowercase(Locale.ROOT) != "application/json") throw BadRequest()
                 val command = try { json.decodeFromString<RemoteCommand>(request.body.toString(Charsets.UTF_8)) } catch (_: Exception) { throw BadRequest() }
+                if (command.action != RemoteAction.PLAY_QUEUE_INDEX && command.index != null) throw BadRequest()
                 when (command.action) {
                     RemoteAction.SEEK -> if (command.positionMs == null || command.positionMs !in 0..MAX_POSITION || command.volume != null || command.trackId != null) throw BadRequest()
                     RemoteAction.VOLUME -> if (command.volume == null || !command.volume.isFinite() || command.volume !in 0f..1f || command.positionMs != null || command.trackId != null) throw BadRequest()
                     RemoteAction.PLAY_TRACK -> if (command.trackId == null || synchronized(knownTracks) { command.trackId !in knownTracks } || command.positionMs != null || command.volume != null) throw BadRequest()
+                    RemoteAction.PLAY_QUEUE_INDEX -> if (command.index == null || command.index !in 0..MAX_QUEUE_INDEX || command.trackId != null || command.positionMs != null || command.volume != null) throw BadRequest()
                     else -> if (command.trackId != null || command.positionMs != null || command.volume != null) throw BadRequest()
                 }
                 commandMutex.withLock {
@@ -150,7 +188,7 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
                 }
                 respond(socket, 200, "application/json", "{\"ok\":true}")
             }
-            request.path.substringBefore('?') in setOf("/api/action", "/api/status", "/api/search") -> respond(socket, 405, "text/plain", "Method not allowed")
+            request.path.substringBefore('?') in setOf("/api/action", "/api/status", "/api/search", "/api/queue") -> respond(socket, 405, "text/plain", "Method not allowed")
             else -> respond(socket, 404, "text/plain", "Not found")
         }
     }
@@ -220,6 +258,8 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
 
     companion object {
         private const val MAX_POSITION = 7L * 24 * 60 * 60 * 1000
+        private const val MAX_QUEUE_ROWS = 100
+        private const val MAX_QUEUE_INDEX = 1_000_000
         fun start(host: LanRemoteHost, address: InetAddress = InetAddress.getByName("127.0.0.1"), port: Int = 0): LanRemoteServer {
             require(port in 0..65535)
             require(address is Inet4Address && !address.isAnyLocalAddress && (address.isLoopbackAddress || address.isSiteLocalAddress)) { "Select a local IPv4 interface" }

@@ -13,10 +13,15 @@ object LanRemotePreview {
         val file = File(args.single())
         require(file.name == "remote-preview-link.txt")
         val songs = listOf(RemoteTrack("fixture:one", "Preview track one", "Test player"), RemoteTrack("fixture:two", "Preview track two", "Test player"))
-        val state = MutableStateFlow(RemotePlayback(songs[0].title, songs[0].artist, false, 10_000, 180_000, 0.5f))
+        val state = MutableStateFlow(RemotePlayback(songs[0].title, songs[0].artist, false, 10_000, 180_000, 0.5f,
+            shuffle = false, repeat = RemoteRepeat.OFF, liked = false))
         val host = object : LanRemoteHost {
             override fun playback() = state.value
             override suspend fun search(query: String) = songs.filter { query.isBlank() || it.title.contains(query, true) }
+            override suspend fun queue(): RemoteQueue {
+                val at = songs.indexOfFirst { it.title == state.value.title }.coerceAtLeast(0)
+                return RemoteQueue(at, songs.mapIndexed { i, song -> RemoteQueueItem(i, song.title, song.artist) })
+            }
             override suspend fun command(command: RemoteCommand) {
                 when (command.action) {
                     RemoteAction.PLAY -> state.update { it.copy(playing = true) }
@@ -24,6 +29,12 @@ object LanRemotePreview {
                     RemoteAction.TOGGLE -> state.update { it.copy(playing = !it.playing) }
                     RemoteAction.SEEK -> state.update { it.copy(positionMs = checkNotNull(command.positionMs).coerceAtMost(it.durationMs ?: 0)) }
                     RemoteAction.VOLUME -> state.update { it.copy(volume = command.volume) }
+                    RemoteAction.SHUFFLE -> state.update { it.copy(shuffle = it.shuffle != true) }
+                    RemoteAction.REPEAT -> state.update { it.copy(repeat = (it.repeat ?: RemoteRepeat.OFF).next()) }
+                    RemoteAction.LIKE -> state.update { it.copy(liked = it.liked != true) }
+                    RemoteAction.PLAY_QUEUE_INDEX -> songs[checkNotNull(command.index)].let { song ->
+                        state.update { it.copy(title = song.title, artist = song.artist, playing = true, positionMs = 0) }
+                    }
                     RemoteAction.NEXT, RemoteAction.PREVIOUS, RemoteAction.PLAY_TRACK -> {
                         val song = when (command.action) {
                             RemoteAction.NEXT -> songs[1]

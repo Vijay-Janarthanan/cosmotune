@@ -34,8 +34,9 @@ Whole range, final state of 200 native files: 918 hunks, 451 present, 384 missin
 
 Found and fixed during the audit: Replay and settings pages now close when the player opens an album or artist (`3e56da1f`,
 BC-18), the desktop account button follows the selected profile (`52c0683f`, BC-21) and the live Genius scrape no longer
-runs in unit tests without `LIVE_TESTS=1` (`66f9c546`). Flagged for its owner: the Cast crash fix `8636423e` is still missing
-(BC-11).
+runs in unit tests without `LIVE_TESTS=1` (`66f9c546`). Flagged for its owner and resolved: the Cast crash fix `8636423e` is present (the callbacks catch and Cast
+requests wait through the callback, as in `edc1e6f3`); its unmatched hunks are the CastLog lines upstream removed in `d45c5d21`.
+`CastAwaitResultTest` now holds the fix (BC-11).
 
 ## Every commit
 
@@ -142,7 +143,7 @@ this branch; files with missing hunks; the row that owns it.
 | `ff0fca0d` | feat: defer bounded edits until crossfade settlement | 4 / 0 | 12 / 1 / 2 | PlaybackService.kt:1 | BC-05 |
 | `6cbb4591` | feat: bound album and playlist context windows | 8 / 0 | 17 / 3 / 16 | MainActivity.kt:1, PlaybackService.kt:1, MainViewModel.kt:1 | BC-05 |
 | `376b6329` | Redesign album/playlist header after Apple Music | 4 / 0 | 0 / 30 / 3 | DetailScreen.kt:21, MainActivity.kt:5, ArtworkPalette.kt:3, Common.kt:1 | BC-29 |
-| `8636423e` | fix: chromecast crash | 5 / 1 | 3 / 13 / 6 | CastController.kt:6, CastPlayback.kt:5, CastLog.kt:1, CastOptionsProvider.kt:1 | BC-11 (Cast crash fix still missing) |
+| `8636423e` | fix: chromecast crash | 5 / 1 | 3 / 13 / 6 | CastController.kt:6, CastPlayback.kt:5, CastLog.kt:1, CastOptionsProvider.kt:1 | BC-11 (fix present; unmatched hunks are the logging removed in `d45c5d21`; `CastAwaitResultTest`) |
 | `c65bff5c` | wear os support | 29 / 56 | 55 / 32 / 8 | MainActivity.kt:17, build.gradle.kts:4, SettingsSheet.kt:3, PlayerHost.kt:2, android.yml:1, proguard-rules.pro:1 | BC-12 to BC-16 |
 | `58ec7391` | setup.sh: smaller TCP buffers and a watchdog that restarts Caddy when /healthz keeps failing | 1 / 0 | 0 / 1 / 0 | setup.sh:1 | BC-36 |
 | `2160a822` | addon search | 7 / 0 | 14 / 15 / 1 | SearchScreen.kt:8, MainActivity.kt:5, strings.xml:1, strings.xml:1 | BC-31 |
