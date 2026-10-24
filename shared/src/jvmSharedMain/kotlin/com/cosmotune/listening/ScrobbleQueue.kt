@@ -40,16 +40,20 @@ class ScrobbleQueue(private val file: File, private val maxItems: Int = 2_000) {
         write((current + item.copy(artist = item.artist.take(512), track = item.track.take(512), album = item.album?.take(512))).takeLast(maxItems))
     }
 
-    /** Submits in listening order; stops at the first retryable failure so order is preserved. Concurrent flushes are skipped. */
-    suspend fun flush(nowSeconds: Long = System.currentTimeMillis() / 1000, submit: suspend (PendingScrobble) -> ScrobbleOutcome): ScrobbleFlush {
+    /**
+     * Submits in listening order; stops at the first retryable failure so order is preserved. Concurrent flushes are skipped.
+     * With [service], only that service's listens are submitted; the others stay queued untouched.
+     */
+    suspend fun flush(nowSeconds: Long = System.currentTimeMillis() / 1000, service: String? = null,
+        submit: suspend (PendingScrobble) -> ScrobbleOutcome): ScrobbleFlush {
         if (!flushing.compareAndSet(false, true)) return ScrobbleFlush(0, 0, 0, pending().size)
         try {
             var sent = 0; var rejected = 0; var expired = 0
-            val snapshot = pending()
+            val snapshot = pending().filter { service == null || it.service == service }
             val done = HashSet<PendingScrobble>()
             val retried = HashMap<PendingScrobble, PendingScrobble>()
             for (item in snapshot) {
-                if (item.timestampSeconds < nowSeconds - MAX_AGE_SECONDS) { expired++; done += item; continue }
+                if (item.timestampSeconds < nowSeconds - maxAgeSeconds(item.service)) { expired++; done += item; continue }
                 val outcome = try { submit(item) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { ScrobbleOutcome.RETRY_LATER }
                 when (outcome) {
                     ScrobbleOutcome.SENT -> { sent++; done += item }
@@ -89,6 +93,10 @@ class ScrobbleQueue(private val file: File, private val maxItems: Int = 2_000) {
     companion object {
         /** Last.fm accepts scrobbles up to 14 days old. */
         const val MAX_AGE_SECONDS = 14L * 24 * 60 * 60
+        /** ListenBrainz accepts older listens; a queued one is still dropped after half a year. */
+        const val LISTENBRAINZ_MAX_AGE_SECONDS = 183L * 24 * 60 * 60
+
+        fun maxAgeSeconds(service: String): Long = if (service == ListenBrainzSubmitter.SERVICE) LISTENBRAINZ_MAX_AGE_SECONDS else MAX_AGE_SECONDS
         const val MAX_ATTEMPTS = 50
         private const val MAX_BYTES = 4L * 1024 * 1024
 

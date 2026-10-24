@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.pointer.isBackPressed
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -2602,6 +2603,19 @@ fun CosmotuneDesktopApp() {
         tray.update(title = title, isPlaying = playback.isPlaying)
         DesktopTrayMenu.publish(title = title, playing = playback.isPlaying)
     }
+    LaunchedEffect(Unit) {
+        DesktopMiniPlayer.actions = DesktopMiniPlayer.Actions(
+            playPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+            next = ::playNext,
+            previous = ::playPrevious,
+            openMain = { DesktopWindowVisibility.show(); DesktopMiniPlayer.close() },
+        )
+    }
+    LaunchedEffect(selectedSong, playback.isPlaying, playback.positionMs / 1000, playback.durationMs) {
+        val song = selectedSong
+        DesktopMiniPlayer.publish(DesktopMiniPlayer.NowPlaying(song?.title.orEmpty(), song?.artist.orEmpty(), song?.thumbnailUrl,
+            playback.isPlaying, if (playback.durationMs > 0) playback.positionMs.toFloat() / playback.durationMs else 0f))
+    }
 
     LaunchedEffect(Unit) {
         // Unpacks the analyser and its models on first run.
@@ -2613,11 +2627,29 @@ fun CosmotuneDesktopApp() {
         // track as downloaded, refused to fetch it again, and then would not play.
         val onDisk = withContext(Dispatchers.IO) { DesktopDownloadManager.verified(downloads) }
         if (onDisk.size != downloads.size) {
+            // Repair before forgetting: a file moved within Music or Downloads is found again by
+            // name; the rest are offered for Retry in the download manager, never fetched unasked.
+            val gone = downloads.filter { song -> onDisk.none { it.videoId == song.videoId } }
+            val repaired = withContext(Dispatchers.IO) {
+                val plan = com.cosmotune.music.data.downloads.DownloadRegistryRepair.plan(
+                    gone.mapNotNull { song ->
+                        val name = song.localPath?.let { java.io.File(it).name }
+                            ?: song.localUri?.let { uri -> runCatching { java.io.File(java.net.URI(uri)).name }.getOrNull() }
+                        name?.takeIf { it.isNotBlank() }?.let { com.cosmotune.music.data.downloads.DownloadRegistryRepair.Missing(song.videoId, it) }
+                    },
+                    com.cosmotune.music.data.downloads.DownloadRegistryRepair.candidatesUnder(DesktopLocalMusic.roots().map { it.toFile() }),
+                    claimed = onDisk.mapNotNull { it.localPath?.let { path -> runCatching { java.io.File(path).canonicalPath }.getOrNull() } }.toSet(),
+                )
+                plan to gone.mapNotNull { song -> plan.relocated[song.videoId]?.let { song.copy(localPath = it.absolutePath, localUri = it.toURI().toString()) } }
+            }
+            val (plan, relocated) = repaired
             DesktopTrackLog.log(
-                "downloads: ${downloads.size - onDisk.size} recorded file(s) are gone; forgetting them",
+                "downloads: ${gone.size} recorded file(s) are gone; ${relocated.size} found again, " +
+                    "${gone.size - relocated.size} offered for Retry",
             )
-            downloads = onDisk
-            persistence.saveDownloads(onDisk)
+            downloads = onDisk + relocated
+            persistence.saveDownloads(downloads)
+            DesktopDownloadQueue.offerMissing(gone.filter { it.videoId !in plan.relocated })
         }
         loadHome()
     }
@@ -3268,6 +3300,11 @@ fun CosmotuneDesktopApp() {
                         }
                         event.key == Key.MediaPrevious -> {
                             playPrevious()
+                            true
+                        }
+                        // Ctrl/Command+Shift+M opens or closes the always-on-top mini player.
+                        event.key == Key.M && event.isShiftPressed && (event.isCtrlPressed || event.isMetaPressed) -> {
+                            DesktopMiniPlayer.toggle()
                             true
                         }
                         event.key == Key.DirectionLeft && event.isAltPressed && !overlays.nowPlaying -> {
@@ -5737,11 +5774,17 @@ private fun DesktopLocalMusicPage(
         )
     }
     var drillDown by remember(persistenceKey) { mutableStateOf<Pair<String, List<Song>>?>(null) }
-    val filteredSongs = remember(songs, sort, searchQuery) {
-        songs.sortedForDesktopLibrary(sort).filter { song ->
+    // Columns and filters (LK-09), shared with Android and kept per list.
+    var columns by remember(persistenceKey) {
+        mutableStateOf(com.cosmotune.listening.LibraryViewOptions.decode(persistence.string("${persistenceKey}_columns", "").ifBlank { null }))
+    }
+    val analysisOf = { song: Song -> com.cosmotune.audio.LibraryLoudness.analysisFor(song.videoId) }
+    val genres = remember(songs) { com.cosmotune.listening.LibraryViewOptions.genresOf(songs, analysisOf) }
+    val filteredSongs = remember(songs, sort, searchQuery, columns) {
+        columns.apply(songs.sortedForDesktopLibrary(sort).filter { song ->
             searchQuery.isBlank() || song.title.contains(searchQuery, true) || song.artist.contains(searchQuery, true) ||
                 song.albumName.orEmpty().contains(searchQuery, true)
-        }
+        }, analysisOf)
     }
     val artists = remember(filteredSongs) {
         filteredSongs.groupBy { it.artist.ifBlank { "On This Computer" } }
@@ -5782,7 +5825,12 @@ private fun DesktopLocalMusicPage(
                     Icon(if (view == DesktopLibraryView.LIST) CosmotuneIcons.GridView else CosmotuneIcons.ListView, "Change view")
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
+            com.cosmotune.ui.listening.LibraryColumnsBar(columns, genres, onChange = { next ->
+                columns = next
+                persistence.saveString("${persistenceKey}_columns", next.encode())
+            })
+            Spacer(Modifier.height(6.dp))
             TabRow(selectedTabIndex = selectedTab, containerColor = Color.Transparent) {
                 listOf("Songs", "Artists", "Albums").forEachIndexed { index, label ->
                     Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(label) })
@@ -5797,9 +5845,9 @@ private fun DesktopLocalMusicPage(
                     Text(drillDown!!.first, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(6.dp))
-                DesktopLibrarySongContent(drillDown!!.second, view, onSongClick, menu)
+                DesktopLibrarySongContent(drillDown!!.second, view, onSongClick, menu, columns)
             } else when (selectedTab) {
-                0 -> DesktopLibrarySongContent(filteredSongs, view, onSongClick, menu)
+                0 -> DesktopLibrarySongContent(filteredSongs, view, onSongClick, menu, columns)
                 1 -> DesktopLibraryGroupingContent(artists, view, onGroupClick = { drillDown = it })
                 else -> DesktopLibraryGroupingContent(albums, view, onGroupClick = { drillDown = it })
             }
@@ -5820,6 +5868,7 @@ private fun DesktopLibrarySongContent(
     view: DesktopLibraryView,
     onSongClick: (Song) -> Unit,
     menu: (@Composable (Song) -> Unit)? = null,
+    columns: com.cosmotune.listening.LibraryViewOptions? = null,
 ) {
     if (songs.isEmpty()) {
         DesktopEmptyPage(CosmotuneIcons.Search, "No matching music", "Try a different search.")
@@ -5847,14 +5896,18 @@ private fun DesktopLibrarySongContent(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             items(songs, key = Song::videoId) { song ->
-                DesktopSongRow(
-                    song,
-                    liked = false,
-                    onClick = onSongClick,
-                    onToggleLike = null,
-                    downloaded = song.localPath != null,
-                    menu = menu,
-                )
+                Column {
+                    DesktopSongRow(
+                        song,
+                        liked = false,
+                        onClick = onSongClick,
+                        onToggleLike = null,
+                        downloaded = song.localPath != null,
+                        menu = menu,
+                    )
+                    if (columns != null) com.cosmotune.ui.listening.LibraryColumnsLine(song, columns,
+                        com.cosmotune.audio.LibraryLoudness.analysisFor(song.videoId), Modifier.padding(start = 64.dp, end = 12.dp))
+                }
             }
         }
     }

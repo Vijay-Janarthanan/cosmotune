@@ -174,6 +174,45 @@ object Downloads {
         _collections.value = runCatching {
             json.decodeFromString(collectionSerializer, prefs.getString(KEY_SAVED_COLLECTIONS, null) ?: "{}")
         }.getOrDefault(emptyMap())
+        // Off the caller's thread: walking the download folders can take a moment on a large library.
+        Thread({ runCatching { repairMissing() }.onFailure { Log.w(TAG, "download repair failed", it) } }, "download-repair")
+            .apply { isDaemon = true }.start()
+    }
+
+    /**
+     * Repairs the saved-download registry (LK-12): a `file://` record whose file is gone is pointed at
+     * the one audio file with the same name in the folders the other downloads live in; what cannot be
+     * found is forgotten as saved and offered in the download manager for Retry. Nothing is fetched
+     * unasked, and `content://` records keep their existing recovery at play time.
+     */
+    internal fun repairMissing(): com.cosmotune.music.data.downloads.DownloadRegistryRepair.Plan {
+        val records = _saved.value
+        val missing = records.filter { (_, uri) -> isMissingLocalFile(uri) }
+        if (missing.isEmpty()) return com.cosmotune.music.data.downloads.DownloadRegistryRepair.Plan(emptyMap(), emptyList(), emptyList())
+        val files = records.values.mapNotNull { uri -> uri.takeIf { it.startsWith("file://") }?.let { runCatching { File(java.net.URI(it)) }.getOrNull() } }
+        val roots = files.mapNotNull { it.parentFile?.let { parent -> parent.parentFile?.takeIf { p -> p.name != "" } ?: parent } }.toSet()
+        val plan = com.cosmotune.music.data.downloads.DownloadRegistryRepair.plan(
+            missing.mapNotNull { (id, uri) -> runCatching { File(java.net.URI(uri)).name }.getOrNull()?.let { com.cosmotune.music.data.downloads.DownloadRegistryRepair.Missing(id, it) } },
+            com.cosmotune.music.data.downloads.DownloadRegistryRepair.candidatesUnder(roots),
+            claimed = files.filter { it.exists() }.mapNotNull { runCatching { it.canonicalPath }.getOrNull() }.toSet(),
+        )
+        if (plan.relocated.isNotEmpty()) record(saved = { current -> current + plan.relocated.mapValues { it.value.toURI().toString() } }, meta = { it })
+        val gone = plan.unresolved + plan.ambiguous
+        gone.forEach { id ->
+            val meta = _savedMetadata.value[id]
+            forget(id)
+            val reason = "The saved file is missing. Retry to download it again."
+            if (meta != null) {
+                val song = Song(videoId = id, title = meta.title, artist = meta.artist, thumbnailUrl = meta.thumbnailUrl, durationText = meta.durationText)
+                val seq = sequence.incrementAndGet()
+                runCatching { journal?.enqueue(song, seq, AppSettings.downloadQuality.value.name); journal?.phase(id, seq, com.cosmotune.music.data.downloads.MusicDownloadPhase.FAILED, reason) }
+                DownloadSession.queued(song, null)
+                DownloadSession.failed(id, reason)
+                _active.update { it + (id to DownloadState.Failed(reason)) }
+            }
+        }
+        Log.d(TAG, "download repair: ${plan.relocated.size} found again, ${gone.size} offered for Retry")
+        return plan
     }
 
     // ---- Asking -------------------------------------------------------------

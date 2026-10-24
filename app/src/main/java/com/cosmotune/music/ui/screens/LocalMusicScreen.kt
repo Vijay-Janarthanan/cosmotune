@@ -415,11 +415,25 @@ fun LocalMusicScreen(
                 }
 
                 key == "tab:$LOCAL_TAB_SONGS" -> {
-                    val filteredSongs = remember(sortedSongs, searchQuery) {
-                        if (searchQuery.isBlank()) sortedSongs
-                        else sortedSongs.filter { it.matchesSearch(searchQuery) }
+                    // Columns and filters (LK-09), shared with the desktop library and kept per list.
+                    val viewPrefs = androidx.compose.ui.platform.LocalContext.current
+                        .getSharedPreferences("cosmotune_library_view", android.content.Context.MODE_PRIVATE)
+                    val viewKey = if (isDownloads) "downloads" else "local"
+                    var columns by remember(viewKey) {
+                        mutableStateOf(com.cosmotune.listening.LibraryViewOptions.decode(viewPrefs.getString(viewKey, null)))
                     }
+                    val analysisOf = { song: Song -> com.cosmotune.audio.LibraryLoudness.analysisFor(song.videoId) }
+                    val genres = remember(sortedSongs) { com.cosmotune.listening.LibraryViewOptions.genresOf(sortedSongs, analysisOf) }
+                    val filteredSongs = remember(sortedSongs, searchQuery, columns) {
+                        columns.apply(if (searchQuery.isBlank()) sortedSongs else sortedSongs.filter { it.matchesSearch(searchQuery) }, analysisOf)
+                    }
+                    Column {
+                    com.cosmotune.ui.listening.LibraryColumnsBar(columns, genres, onChange = { next ->
+                        columns = next
+                        viewPrefs.edit().putString(viewKey, next.encode()).apply()
+                    }, modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 4.dp))
                     SongsTab(
+                        columns = columns,
                         songs = filteredSongs,
                         viewType = viewType,
                         selectedIds = selectedDownloadIds,
@@ -442,6 +456,7 @@ fun LocalMusicScreen(
                         onSongSwipe = onSongSwipe,
                         contentPadding = bodyContentPadding,
                     )
+                    }
                 }
 
                 key == "tab:$LOCAL_TAB_ARTISTS" -> {
@@ -505,6 +520,7 @@ fun LocalMusicScreen(
 @Composable
 private fun SongsTab(
     songs: List<Song>,
+    columns: com.cosmotune.listening.LibraryViewOptions? = null,
     viewType: LibraryViewType,
     selectedIds: Set<String> = emptySet(),
     currentSong: Song? = null,
@@ -576,6 +592,8 @@ private fun SongsTab(
                     onMore = onSongMore?.let { more -> { more(song) } },
                     onSwipeToQueue = { onSongSwipe(song) },
                 )
+                if (columns != null) com.cosmotune.ui.listening.LibraryColumnsLine(song, columns,
+                    com.cosmotune.audio.LibraryLoudness.analysisFor(song.videoId), Modifier.padding(start = ROW_DIVIDER_INSET, end = PAGE_GUTTER))
                 if (index < songs.lastIndex) {
                     HorizontalDivider(
                         modifier = Modifier.padding(start = ROW_DIVIDER_INSET),

@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -80,6 +81,8 @@ internal fun DesktopReplayPage(
     onOpenArtist: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
+    var sharing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (sharing) DesktopReplayShareDialog(summary, holder, onDismiss = { sharing = false })
     // The mesh behind this page is painted by the frame, so the chrome is tinted by it too.
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
@@ -102,7 +105,15 @@ internal fun DesktopReplayPage(
                             color = Color.White.copy(alpha = 0.6f),
                         )
                         Spacer(Modifier.height(14.dp))
-                        PeriodPicker(period, onPeriodChange)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PeriodPicker(period, onPeriodChange)
+                            if (!summary.isEmpty) {
+                                Spacer(Modifier.width(12.dp))
+                                androidx.compose.material3.TextButton(onClick = { sharing = true }) {
+                                    Text("Share card", color = Color.White, fontWeight = FontWeight.W700)
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(18.dp))
                     }
                 }

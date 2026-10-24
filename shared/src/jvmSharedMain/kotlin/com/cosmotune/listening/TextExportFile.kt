@@ -8,7 +8,7 @@ import java.nio.file.StandardCopyOption
 
 /** The native save dialog supplies the destination; metadata export never modifies a listed source. */
 fun writeTextExportFile(selected: File, text: String, extension: String): File {
-    require(extension in setOf("txt", "json", "m3u8"))
+    require(extension in setOf("txt", "json", "m3u8", "lrc"))
     val proposed = selected.absoluteFile
     val parent = requireNotNull(proposed.parentFile).canonicalFile
     require(parent.isDirectory) { "Choose an existing destination folder" }

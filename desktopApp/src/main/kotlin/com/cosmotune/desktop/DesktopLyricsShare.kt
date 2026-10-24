@@ -45,6 +45,22 @@ fun DesktopLyricsShare(request: LyricsShareRequest, onDismiss: () -> Unit) {
                 message?.let { Text(it) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onDismiss, enabled = !saving) { Text("Close") }
+                    val lrc = remember(request) { request.lrcText }
+                    // The whole song's lyrics as a standard .lrc file, beside the picture of the chosen lines.
+                    if (lrc != null) TextButton(enabled = !saving, onClick = {
+                        scope.launch {
+                            saving = true
+                            try {
+                                val target = chooseCosmotuneFile(request.lrcFileName, saving = true)
+                                if (target != null) {
+                                    withContext(Dispatchers.IO) { com.cosmotune.listening.writeTextExportFile(target, lrc, "lrc") }
+                                    message = "Lyrics saved as .lrc"
+                                }
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                            catch (_: Exception) { message = "The lyrics could not be saved. Try another location." }
+                            finally { saving = false }
+                        }
+                    }) { Text("Save as .lrc") }
                     Button(enabled = image != null && !saving, onClick = {
                         scope.launch {
                             saving = true
