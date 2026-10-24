@@ -10,6 +10,12 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -43,6 +49,16 @@ class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: Ok
             "offset" -> values[rule.pageParam] = offset.toString()
             else -> values[rule.pageParam] = page.toString()
         }
+        if (template.type == "json") {
+            val root = json(url, rule.method, values)
+            val items = root.at(rule.itemSelector) as? JsonArray ?: error("This template found no series list at ${rule.itemSelector}")
+            val books = items.take(1_000).mapNotNull { item ->
+                val link = item.at(rule.linkSelector).text()?.take(4_096) ?: return@mapNotNull null
+                val title = item.at(rule.titleSelector).text()?.trim()?.take(500)?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+                MangaBook(identity("book", link), config.id, title, link, item.at(rule.coverSelector).text()?.let { imageAddress(it, url) }, language = config.language)
+            }.distinctBy { it.id }
+            return@withContext MangaBrowsePage(books, if (books.isNotEmpty() && rule.pagination != "none") offset + rule.pageSize else null)
+        }
         val doc = document(url, rule.method, values)
         val books = doc.select(rule.itemSelector).take(1_000).mapNotNull { item ->
             val link = element(item, rule.linkSelector) ?: return@mapNotNull null
@@ -57,6 +73,7 @@ class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: Ok
 
     override suspend fun details(book: MangaBook): MangaBook = withContext(Dispatchers.IO) {
         require(book.sourceId == config.id)
+        if (template.type == "json") return@withContext jsonDetails(book)
         val url = site(book.url)
         val doc = document(url)
         val rule = template.mangaDetail
@@ -83,11 +100,70 @@ class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: Ok
 
     override suspend fun pages(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
         require(chapter.sourceId == config.id)
+        if (template.type == "json") {
+            val url = site(expand(template.pageList.endpoint.ifBlank { "{link}" }, chapter.url))
+            val images = json(url).at(template.pageList.imageSelector) as? JsonArray ?: error("This template found no page list at ${template.pageList.imageSelector}")
+            val pages = images.take(10_000).mapNotNull { item ->
+                (if (template.pageList.imageField.isBlank()) item else item.at(template.pageList.imageField)).text()?.let { imageAddress(it, url) }
+            }.distinct()
+            require(pages.isNotEmpty()) { "This template found no pages. Check its image path or the site's verification." }
+            return@withContext pages.map { image -> MangaPage(identity("page", image), image, headers = mapOf("Referer" to url.toString())) }
+        }
         val url = site(chapter.url)
         val doc = document(url)
         val pages = doc.select(template.pageList.imageSelector).take(10_000).mapNotNull { node -> image(node, url) }.distinct()
         require(pages.isNotEmpty()) { "This template found no pages. Check its image selector or the site's verification." }
         pages.map { image -> MangaPage(identity("page", image), image, headers = mapOf("Referer" to url.toString())) }
+    }
+
+    private suspend fun jsonDetails(book: MangaBook): MangaBook {
+        val rule = template.mangaDetail
+        val url = site(expand(rule.endpoint.ifBlank { "{link}" }, book.url))
+        val root = json(url)
+        val chaptersRule = template.chapterList
+        val chapterRoot = if (chaptersRule.endpoint.isBlank()) root
+            else json(site(expand(chaptersRule.endpoint, book.url).replace("{bookUrl}", url.toString().trimEnd('/')), url), chaptersRule.method, chaptersRule.parameters)
+        val items = chapterRoot.at(chaptersRule.selector) as? JsonArray ?: error("This template found no chapter list at ${chaptersRule.selector}")
+        val chapters = items.take(10_000).mapNotNull { item ->
+            val link = item.at(chaptersRule.linkSelector).text()?.take(4_096) ?: return@mapNotNull null
+            val title = item.at(chaptersRule.titleSelector).text()?.trim()?.take(500).orEmpty()
+            val number = item.at(chaptersRule.numberSelector).text()?.toFloatOrNull() ?: Regex("\\d+(?:\\.\\d+)?").find(title)?.value?.toFloatOrNull() ?: 0f
+            MangaChapter(identity("chapter", link), book.id, config.id, title.ifBlank { "Chapter ${number.toString().removeSuffix(".0")}" }, link, number, config.language)
+        }.distinctBy { it.id }.let { if (chaptersRule.newestFirst) it.reversed() else it }
+        require(chapters.isNotEmpty()) { "This template found no chapters. Check its paths or complete the site's verification." }
+        return book.copy(title = root.at(rule.titleSelector).text()?.trim()?.take(500)?.takeIf(String::isNotBlank) ?: book.title,
+            coverUrl = root.at(rule.coverSelector).text()?.let { imageAddress(it, url) } ?: book.coverUrl,
+            description = root.at(rule.descriptionSelector).text().orEmpty().take(100_000),
+            authors = root.at(rule.authorSelector).texts(), tags = root.at(rule.genreSelector).texts(), chapters = chapters)
+    }
+
+    /** `{link}` is a series or chapter link from the API: an address or path is used as is, a bare identifier as one path segment. */
+    private fun expand(endpoint: String, link: String): String = endpoint.replace("{link}",
+        if (link.contains('/') || link.contains(':')) link else java.net.URLEncoder.encode(link, Charsets.UTF_8).replace("+", "%20"))
+    private suspend fun json(address: HttpUrl, method: String = "GET", parameters: Map<String, String> = emptyMap()): JsonElement {
+        val (text, _) = fetch(address, method, parameters)
+        return try { JSON.parseToJsonElement(text) } catch (failure: kotlinx.serialization.SerializationException) {
+            throw IllegalStateException("The source did not return JSON. Check the template's endpoints or complete the site's verification.", failure)
+        }
+    }
+    private fun JsonElement?.at(path: String): JsonElement? {
+        if (this == null || path.isBlank()) return if (path.isBlank()) null else this
+        if (path == "$") return this
+        return path.split('.').fold(this as JsonElement?) { node, name -> when (node) {
+            is JsonObject -> node[name]
+            is JsonArray -> name.toIntOrNull()?.let { node.getOrNull(it) }
+            else -> null
+        } }
+    }
+    private fun JsonElement?.text(): String? = (this as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
+    /** A string, or a list of strings or of objects with a name or title, as the series' authors or genres. */
+    private fun JsonElement?.texts(): List<String> = when (this) {
+        is JsonArray -> take(100).mapNotNull { it.text() ?: (it as? JsonObject)?.let { item -> item["name"].text() ?: item["title"].text() } }
+        else -> listOfNotNull(text())
+    }.map { it.trim().take(500) }.filter(String::isNotBlank).distinct()
+    private fun imageAddress(reference: String, base: HttpUrl): String? {
+        val url = base.resolve(reference.trim()) ?: return null
+        return url.takeIf { it.username.isEmpty() && it.password.isEmpty() && (it.isHttps || local && sameOrigin(it)) }?.toString()
     }
 
     private fun sameOrigin(url: HttpUrl) = url.scheme == origin.scheme && url.host == origin.host && url.port == origin.port
@@ -102,11 +178,13 @@ class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: Ok
     private fun image(node: Element?, base: HttpUrl): String? {
         if (node == null) return null
         val ref = listOf("data-src", "data-lazy-src", "data-original", "src").firstNotNullOfOrNull { node.attr(it).trim().takeIf(String::isNotBlank) } ?: return null
-        val url = base.resolve(ref) ?: return null
-        return url.takeIf { it.username.isEmpty() && it.password.isEmpty() && (it.isHttps || local && sameOrigin(it)) }?.toString()
+        return imageAddress(ref, base)
     }
     private fun identity(kind: String, address: String) = "${config.id}:$kind:" + MessageDigest.getInstance("SHA-256").digest(address.toByteArray(Charsets.UTF_8)).take(16).joinToString("") { "%02x".format(it) }
-    private suspend fun document(address: HttpUrl, method: String = "GET", parameters: Map<String, String> = emptyMap()): Document {
+    private suspend fun document(address: HttpUrl, method: String = "GET", parameters: Map<String, String> = emptyMap()): Document =
+        fetch(address, method, parameters).let { (html, url) -> Jsoup.parse(html, url.toString()) }
+    /** The body of a site-scoped request after same-site redirects, with the address it finally came from. */
+    private suspend fun fetch(address: HttpUrl, method: String = "GET", parameters: Map<String, String> = emptyMap()): Pair<String, HttpUrl> {
         var target = address
         var verb = method
         var fields = parameters
@@ -121,7 +199,7 @@ class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: Ok
                 target = site(response.redirect, target)
                 fields = emptyMap()
                 if (response.status == 303 || verb == "POST" && response.status in setOf(301, 302)) verb = "GET"
-            } else return Jsoup.parse(response.html, target.toString())
+            } else return response.html to target
         }
         error("Source did not return a page")
     }
@@ -155,6 +233,7 @@ class TemplateMangaSource(override val config: MangaSourceConfig, baseClient: Ok
         })
     }
     companion object {
+        private val JSON = Json { ignoreUnknownKeys = true }
         private fun permittedAddress(address: InetAddress, local: Boolean): Boolean {
             if (local) return !address.isMulticastAddress && !address.isAnyLocalAddress
             if (address.isAnyLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress || address.isSiteLocalAddress || address.isMulticastAddress) return false

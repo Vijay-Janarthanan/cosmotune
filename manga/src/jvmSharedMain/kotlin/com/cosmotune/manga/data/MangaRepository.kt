@@ -9,12 +9,23 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-class MangaRepository(val store: MangaStore, private val platformSource: ((MangaSourceConfig, ParserContext) -> MangaSource)? = null) {
+class MangaRepository(val store: MangaStore,
+    /** Offline tests only: a parser in place of the pinned catalogue's. */
+    internal val kotatsuParser: ((MangaSourceConfig, ParserContext) -> org.koitharu.kotatsu.parsers.MangaParser)? = null,
+    private val platformSource: ((MangaSourceConfig, ParserContext) -> MangaSource)? = null) {
     val context = ParserContext(store.root, store.protection) { store.state.value.sources }
     private val sources = LinkedHashMap<String, Pair<MangaSourceConfig, MangaSource>>()
     private val transfers = Mutex()
@@ -30,7 +41,7 @@ class MangaRepository(val store: MangaStore, private val platformSource: ((Manga
         val config = store.state.value.sources.find { it.id == id && it.enabled } ?: error("Enable this source in Manga sources")
         sources[id]?.takeIf { it.first == config }?.let { return it.second }
         val source = sourceApi { when (config.kind) {
-            "kotatsu" -> KotatsuSource(config, context)
+            "kotatsu" -> KotatsuSource(config, context, kotatsuParser?.invoke(config, context))
             "komga" -> KomgaSource(config, context.httpClient)
             "template" -> TemplateMangaSource(config, context.httpClient)
             "mihon" -> platformSource?.invoke(config, context) ?: error("APK extension sources require the Android app")
@@ -55,6 +66,16 @@ class MangaRepository(val store: MangaStore, private val platformSource: ((Manga
 
     suspend fun browse(sourceId: String, query: String, offset: Int): MangaBrowsePage = withContext(Dispatchers.IO) {
         sourceApi { source(sourceId).browse(query, offset) }
+    }
+
+    /** The catalogue languages of a multi-language source; empty when the source has one language. */
+    suspend fun languages(sourceId: String): List<String> = withContext(Dispatchers.IO) { sourceApi { source(sourceId).languages() } }
+
+    /** Chooses a multi-language source's catalogue language ("" for its default); the catalogue reloads with the new configuration. */
+    suspend fun chooseLanguage(sourceId: String, language: String) {
+        require(language.length <= 35)
+        val config = store.state.value.sources.find { it.id == sourceId } ?: error("Enable this source in Manga sources")
+        store.source(config.copy(settings = if (language.isBlank()) config.settings - MANGA_LANGUAGE_SETTING else config.settings + (MANGA_LANGUAGE_SETTING to language)))
     }
 
     suspend fun pageFile(page: MangaPage, sourceId: String): File = pageFile(page, sourceId, null)
@@ -103,6 +124,39 @@ class MangaRepository(val store: MangaStore, private val platformSource: ((Manga
                 output
             } finally { temporary.delete() }
         } }
+    }
+
+    /**
+     * Checks every library series on an enabled network source for new chapters, [UPDATE_PARALLELISM] at a time and each within
+     * [UPDATE_TIMEOUT_MS]. A failing source fails only its own series; the report goes to [onProgress] after each series.
+     */
+    suspend fun checkForUpdates(onProgress: (MangaUpdateReport) -> Unit = {}): MangaUpdateReport = coroutineScope {
+        val state = store.state.value
+        val enabled = state.sources.filter { it.enabled }.map { it.id }.toSet()
+        val books = state.books.filter { it.sourceId != "local" && it.sourceId in enabled }
+        val gate = Semaphore(UPDATE_PARALLELISM)
+        val lock = Mutex()
+        var report = MangaUpdateReport(0, books.size, 0, 0, emptyMap())
+        books.map { book -> async {
+            gate.withPermit {
+                val outcome: Result<Int> = try {
+                    Result.success(withTimeout(UPDATE_TIMEOUT_MS) {
+                        val detail = withContext(Dispatchers.IO) { sourceApi { source(book.sourceId).details(book) } }
+                        store.refreshed(detail)
+                    })
+                } catch (timeout: TimeoutCancellationException) { Result.failure(IllegalStateException("The source did not answer in time", timeout)) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { Result.failure(failure) }
+                lock.withLock {
+                    val found = outcome.getOrDefault(0)
+                    report = report.copy(checked = report.checked + 1, newChapters = report.newChapters + found,
+                        updatedSeries = report.updatedSeries + if (found > 0) 1 else 0,
+                        failures = outcome.exceptionOrNull()?.let { report.failures + (book.id to (it.message ?: "Source unavailable")) } ?: report.failures)
+                    onProgress(report)
+                }
+            }
+        } }.awaitAll()
+        report
     }
 
     /** Files already fetched have stable names, so retrying a cancelled download resumes without refetching them. */
@@ -163,5 +217,10 @@ class MangaRepository(val store: MangaStore, private val platformSource: ((Manga
             if (file.path !in protected) { val length = file.length(); if (file.delete()) used -= length }
         }
         require(used + incoming <= limit) { "Manga storage limit reached. Remove a downloaded chapter or increase the limit." }
+    }
+
+    companion object {
+        const val UPDATE_PARALLELISM = 3
+        const val UPDATE_TIMEOUT_MS = 60_000L
     }
 }

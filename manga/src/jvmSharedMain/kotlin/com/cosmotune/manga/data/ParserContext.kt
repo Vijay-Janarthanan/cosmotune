@@ -41,6 +41,10 @@ class ParserContext(root: File, protection: MangaFileProtection = UnsealedMangaF
     override suspend fun evaluateJs(script: String): String? = evaluateMangaScript(script, 10_000)
     override suspend fun evaluateJs(baseUrl: String, script: String, timeout: Long): String? = evaluateMangaScript(script, timeout.coerceIn(1, 30_000))
     override fun requestBrowserAction(parser: MangaParser, url: String): Nothing = throw MangaBrowserRequired(url)
+    // Sources that read their pages through a hidden page script need an in-app browser engine; say so instead of a generic failure.
+    override suspend fun interceptWebViewRequests(url: String, config: org.koitharu.kotatsu.parsers.webview.InterceptionConfig): List<org.koitharu.kotatsu.parsers.webview.InterceptedRequest> =
+        throw MangaSourceFailure(BROWSER_ENGINE_REQUIRED)
+    override suspend fun captureWebViewUrls(pageUrl: String, urlPattern: Regex, timeout: Long): List<String> = throw MangaSourceFailure(BROWSER_ENGINE_REQUIRED)
     override fun createBitmap(width: Int, height: Int): Bitmap {
         require(width > 0 && height > 0 && width.toLong() * height <= 40_000_000) { "Page dimensions exceed the decoding limit" }
         return newMangaBitmap(width, height)
@@ -64,6 +68,7 @@ class ParserContext(root: File, protection: MangaFileProtection = UnsealedMangaF
             .body(output.toResponseBody("image/png".toMediaType())).build()
     }
     companion object {
+        const val BROWSER_ENGINE_REQUIRED = "This source runs its pages in a browser engine, which Cosmotune does not provide for built-in sources. Choose another source."
         const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
     }
 }

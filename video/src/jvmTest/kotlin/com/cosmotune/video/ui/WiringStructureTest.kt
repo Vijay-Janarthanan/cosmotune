@@ -220,6 +220,54 @@ class WiringStructureTest {
         assertEquals(listOf("stop()", "stop()"), playback.calls)
     }
 
+    /** MG-01: Manga is a third mode. Leaving Video for it unloads the hidden video's decoder; Manga itself never touches Music. */
+    @Test fun leavingVideoForMangaUnloadsTheHiddenVideoAndMangaLeavesMusicPlaying() = runTest {
+        val playback = FakeVideoPlayback()
+        val audio = ModeAudio(playback, backgroundScope)
+        val modes = MutableStateFlow(AppMode.VIDEO)
+        audio.watch(modes)
+        runCurrent()
+        playback.set(PlaybackUiState.Idle.copy(item = FakeVideoSource.videos[0], status = PlayerStatus.READY, playing = true))
+        modes.value = AppMode.MANGA
+        runCurrent()
+        assertEquals(listOf("stop()"), playback.calls, "a video playing when Manga opens is stopped")
+        assertEquals(1, playback.engine.unloadCount, "its engine is unloaded, which releases the platform decoder")
+        assertNull(playback.state.value.item, "nothing stays loaded behind the reader")
+        modes.value = AppMode.MUSIC
+        runCurrent()
+        modes.value = AppMode.MANGA
+        runCurrent()
+        assertEquals(1, playback.calls.size, "Manga ↔ Music with nothing loaded stops nothing twice")
+        // A paused video behind Manga is also unloaded, not only a playing one.
+        modes.value = AppMode.VIDEO
+        runCurrent()
+        playback.set(PlaybackUiState.Idle.copy(item = FakeVideoSource.videos[1], status = PlayerStatus.READY, playing = false))
+        modes.value = AppMode.MANGA
+        runCurrent()
+        assertEquals(2, playback.engine.unloadCount)
+
+        // The real engines' unload releases what they hold: the Android controller is released, the desktop frames are freed.
+        val androidEngine = VideoSourceContract.code(read("video/src/androidMain/kotlin/com/cosmotune/video/player/android/AndroidVideoEngine.kt"))
+        assertTrue("disconnect()" in androidEngine.substringAfter("override fun unload()").take(900))
+        assertTrue("c.release()" in androidEngine.substringAfter("private fun disconnect()").take(600))
+        val desktopEngine = VideoSourceContract.code(read("video/src/jvmMain/kotlin/com/cosmotune/video/player/desktop/DesktopVideoEngine.kt"))
+        assertTrue("exchange.clear(freeBuffers = true)" in desktopEngine.substringAfter("override fun unload()").take(400))
+
+        // Neither host's Manga branch pauses, stops or rebinds Music: the music service keeps playing while the reader is open.
+        val phone = VideoSourceContract.code(read("app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt"))
+        assertTrue("mode == AppMode.MANGA) holder.SaveableStateProvider(\"manga\") {" in phone && "else if (videoShell == null)" in phone)
+        val phoneManga = phone.substringAfter("mode == AppMode.MANGA) holder.SaveableStateProvider(\"manga\") {").substringBefore("else if (videoShell == null)")
+        assertTrue("MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) })" in phoneManga)
+        assertTrue("if (request.value != null) shell.settings.setMode(AppMode.MUSIC)" in phoneManga, "a music link opened while reading returns to Music")
+        val desktop = VideoSourceContract.code(read("desktopApp/src/main/kotlin/com/cosmotune/video/host/DesktopModeHost.kt"))
+        assertTrue("fun desktopMangaShown()" in desktop && "fun DesktopVideoPage(" in desktop)
+        val desktopManga = desktop.substringAfter("fun desktopMangaShown()").substringBefore("fun DesktopVideoPage(")
+        for (branch in listOf(phoneManga, desktopManga)) for (call in listOf("pause", "PlayPause", "stopVideoForMusic", "playSong", ".stop(")) {
+            assertFalse(call in branch, "the Manga branch never calls $call")
+        }
+        assertTrue("DesktopModeHost.mangaActive = shown" in desktopManga, "the desktop's music keys stand aside while Manga owns the keyboard")
+    }
+
     @Test fun theControllerPreparesTheSegmentsItIsGiven() {
         val controller = read("shared/src/commonMain/kotlin/com/cosmotune/video/player/controller/VideoPlayerController.kt")
         assertTrue("l.segments = SegmentMath.prepare(found, durationNow(l), settings.settings.value.segmentBehaviours)" in controller)

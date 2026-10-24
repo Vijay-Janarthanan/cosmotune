@@ -61,6 +61,8 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
     var error by remember { mutableStateOf(repository.store.recoveryMessage) }
     var transfer by remember { mutableStateOf<Job?>(null) }
     var downloadProgress by remember { mutableStateOf("") }
+    var updates by remember { mutableStateOf<MangaUpdateReport?>(null) }
+    var updateJob by remember { mutableStateOf<Job?>(null) }
     fun action(block: suspend () -> Unit): Job = scope.launch {
         error = null
         try { block() }
@@ -134,19 +136,53 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                     } }) { Text("Refresh chapters") }
                     if (saved) TextButton(enabled = transfer?.isActive != true, onClick = { action { repository.removeBook(book.id); selected = null } }) { Text("Remove from library") }
                 }
-                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 12.dp)) {
-                    item {
+                val editions = book.editions()
+                var edition by rememberSaveable(book.id) { mutableStateOf("") }
+                var newestFirst by rememberSaveable(book.id) { mutableStateOf(false) }
+                var unreadOnly by rememberSaveable(book.id) { mutableStateOf(false) }
+                if (edition.isNotBlank() && edition !in editions) edition = ""
+                val listed = book.listedChapters(edition, newestFirst, unreadOnly, state.readChapters)
+                LazyColumn(Modifier.weight(1f).testTag("manga:chapters"), contentPadding = PaddingValues(vertical = 12.dp)) {
+                    item(key = "series:header") {
                         Text(book.authors.joinToString(" · "), style = MaterialTheme.typography.labelLarge)
                         if (book.description.isNotBlank()) Text(org.jsoup.Jsoup.parse(book.description).text(), modifier = Modifier.padding(vertical = 12.dp))
                         if (book.chapters.isEmpty()) Text("Refresh chapters to load this series.")
+                        else {
+                            if (editions.size > 1) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("manga:editions")) {
+                                FilterChip(selected = edition.isBlank(), onClick = { edition = "" }, label = { Text("All editions") })
+                                editions.forEach { item -> FilterChip(selected = edition == item, onClick = { edition = item }, label = { Text(item) }) }
+                            }
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+                                TextButton(onClick = { newestFirst = !newestFirst }) { Text(if (newestFirst) "Newest first" else "Oldest first") }
+                                FilterChip(selected = unreadOnly, onClick = { unreadOnly = !unreadOnly }, label = { Text("Unread only") })
+                                Text("${listed.size} of ${book.chapters.size} chapters · ${book.chapters.count { it.id !in state.readChapters }} unread",
+                                    style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.CenterVertically))
+                            }
+                            if (listed.isEmpty()) Text(if (unreadOnly) "Every chapter here is read." else "No chapters in this edition.", modifier = Modifier.padding(vertical = 12.dp))
+                            val pending = if (book.sourceId == "local") emptyList() else listed.filter { it.id !in state.readChapters && !state.downloads.containsKey(it.id) }
+                            if (pending.isNotEmpty()) TextButton(enabled = transfer?.isActive != true, onClick = {
+                                transfer = scope.launch {
+                                    error = null
+                                    try {
+                                        repository.store.save(book)
+                                        pending.forEachIndexed { index, item ->
+                                            repository.download(item) { done, total -> downloadProgress = "Chapter ${index + 1} of ${pending.size} · ${item.title}: $done / $total pages" }
+                                        }
+                                    } catch (cancelled: CancellationException) { throw cancelled }
+                                    catch (failure: Exception) { error = failure.message ?: "Download failed" }
+                                }
+                            }) { Text(if (pending.size == 1) "Download 1 unread chapter" else "Download ${pending.size} unread chapters") }
+                        }
                     }
-                    items(book.chapters, key = { it.id }) { item ->
+                    items(listed, key = { it.id }) { item ->
                         val read = state.progress[book.id]?.takeIf { it.chapterId == item.id }
                         val finished = item.id in state.readChapters
                         Row(Modifier.fillMaxWidth().clickable { action { repository.store.save(book); chapter = item } }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(item.title, style = MaterialTheme.typography.titleMedium)
-                                Text(if (finished) "Read" else read?.let { "Page ${it.page + 1} of ${it.pageCount}" } ?: item.language, style = MaterialTheme.typography.labelMedium)
+                                val status = if (finished) "Read" else read?.let { "Page ${it.page + 1} of ${it.pageCount}" } ?: item.language
+                                Text(if (item.id in state.newChapters) listOf("New", status).filter(String::isNotBlank).joinToString(" · ") else status,
+                                    style = MaterialTheme.typography.labelMedium)
                             }
                             TextButton(onClick = { action { repository.store.save(book); repository.store.markRead(item, !finished) } }) {
                                 Text(if (finished) "Mark unread" else "Mark read")
@@ -184,6 +220,24 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                     }
                     OutlinedTextField(query, { query = it }, label = { Text("Search manga") }, singleLine = true, modifier = Modifier.weight(1f))
                 }
+                if (sourceId == "library" && state.books.any { it.sourceId != "local" }) Row(verticalAlignment = Alignment.CenterVertically) {
+                    val running = updateJob?.isActive == true
+                    TextButton(enabled = !running, onClick = {
+                        updateJob = scope.launch {
+                            error = null
+                            try { repository.checkForUpdates { updates = it } }
+                            catch (cancelled: CancellationException) { throw cancelled }
+                            catch (failure: Exception) { error = failure.message ?: "Updates could not be checked" }
+                        }
+                    }) { Text("Check for updates") }
+                    updates?.let { report ->
+                        val found = if (report.newChapters == 1) "1 new chapter" else "${report.newChapters} new chapters"
+                        val text = if (running) "Checking ${report.checked} of ${report.total} series · $found"
+                            else "$found in ${report.updatedSeries} series" + if (report.failures.isEmpty()) "" else " · ${report.failures.size} unavailable"
+                        Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    }
+                    if (running) TextButton(onClick = { updateJob?.cancel() }) { Text("Stop") }
+                }
                 MangaCatalogue(repository, sourceId, query, onBook = { item ->
                     selected = item
                     scope.launch {
@@ -203,15 +257,42 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
 @Composable
 private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: String, query: String, onBook: (MangaBook) -> Unit) {
     val library by repository.store.state.collectAsState()
-    var results by remember(sourceId, query) { mutableStateOf(emptyList<MangaBook>()) }
-    var next by remember(sourceId, query) { mutableStateOf<Int?>(0) }
-    var requested by remember(sourceId, query) { mutableIntStateOf(0) }
+    val configuration: Any? = if (sourceId == "all") library.sources else library.sources.find { it.id == sourceId }
+    // A changed source configuration (another catalogue language) starts its catalogue again from the first page.
+    var results by remember(sourceId, query, configuration) { mutableStateOf(emptyList<MangaBook>()) }
+    var next by remember(sourceId, query, configuration) { mutableStateOf<Int?>(0) }
+    var requested by remember(sourceId, query, configuration) { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var aggregate by remember(sourceId, query) { mutableStateOf<MangaSearchResults?>(null) }
     var searchJob by remember { mutableStateOf<Job?>(null) }
     var loadGeneration by remember { mutableIntStateOf(0) }
-    val configuration: Any? = if (sourceId == "all") library.sources else library.sources.find { it.id == sourceId }
+    var languages by remember(sourceId) { mutableStateOf(emptyList<String>()) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(sourceId) {
+        languages = if (sourceId == "library" || sourceId == "all") emptyList() else try { repository.languages(sourceId) }
+            catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
+    }
+    if (languages.isNotEmpty()) {
+        val chosen = (configuration as? MangaSourceConfig)?.settings?.get(MANGA_LANGUAGE_SETTING).orEmpty()
+        var open by remember { mutableStateOf(false) }
+        fun label(tag: String) = if (tag.isBlank()) "Source default" else java.util.Locale.forLanguageTag(tag).let { locale ->
+            locale.getDisplayName(locale).replaceFirstChar { it.titlecase(locale) }.ifBlank { tag } + " ($tag)"
+        }
+        Box(Modifier.padding(top = 8.dp)) {
+            TextButton(onClick = { open = true }, modifier = Modifier.testTag("manga:catalogue:language")) { Text("Language: ${label(chosen)}") }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                (listOf("") + languages).forEach { tag -> DropdownMenuItem(text = { Text(label(tag)) }, onClick = {
+                    open = false
+                    scope.launch {
+                        try { repository.chooseLanguage(sourceId, tag) }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (failure: Exception) { error = failure.message ?: "Language could not be saved" }
+                    }
+                }) }
+            }
+        }
+    }
     val revision by repository.sourceChanges.collectAsState()
     LaunchedEffect(sourceId, query, requested, configuration, revision) {
         val generation = ++loadGeneration
@@ -261,12 +342,13 @@ private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: St
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         items(books, key = { it.id }) { book ->
             Column(Modifier.clip(RoundedCornerShape(12.dp)).clickable { onBook(book) }) {
-                var cover by remember(book.id, book.coverUrl) { mutableStateOf<Any?>(book.coverUrl.takeUnless { book.sourceId.startsWith("template:") }) }
+                val signedCover = book.sourceId.startsWith("template:") || book.sourceId.startsWith("komga:")
+                var cover by remember(book.id, book.coverUrl) { mutableStateOf<Any?>(book.coverUrl.takeUnless { signedCover }) }
                 LaunchedEffect(book.id, book.coverUrl) {
                     if (book.sourceId == "local") runCatching {
                         book.chapters.firstOrNull()?.let { chapter -> repository.pages(chapter).firstOrNull()?.let { repository.pageFile(it, "local") } }
                     }.getOrNull()?.let { cover = it }
-                    else if (book.sourceId.startsWith("template:") && book.coverUrl != null) try {
+                    else if (signedCover && book.coverUrl != null) try {
                         cover = repository.pageFile(MangaPage("${book.id}:cover:${book.coverUrl}", book.coverUrl), book.sourceId)
                     } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { cover = null }
                 }
@@ -277,8 +359,11 @@ private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: St
                 Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, modifier = Modifier.padding(top = 8.dp))
                 if (sourceId == "all") Text(library.sources.find { it.id == book.sourceId }?.name ?: book.sourceId, style = MaterialTheme.typography.labelSmall)
                 library.progress[book.id]?.let { Text(if (it.finished) "Chapter read" else "Continue · page ${it.page + 1}", style = MaterialTheme.typography.labelSmall) }
-                if (sourceId == "library" && book.chapters.isNotEmpty()) Text("${book.chapters.count { it.id !in library.readChapters }} unread",
-                    style = MaterialTheme.typography.labelSmall)
+                if (sourceId == "library" && book.chapters.isNotEmpty()) {
+                    val fresh = book.chapters.count { it.id in library.newChapters }
+                    Text("${book.chapters.count { it.id !in library.readChapters }} unread" + if (fresh > 0) " · $fresh new" else "",
+                        style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
     }
@@ -295,6 +380,9 @@ private fun MangaSources(repository: MangaRepository, onDismiss: () -> Unit) {
     var komga by remember { mutableStateOf(false) }
     var server by remember { mutableStateOf("") }
     var key by remember { mutableStateOf("") }
+    var user by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var testing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     fun action(block: suspend () -> Unit) = scope.launch {
         error = null
@@ -317,17 +405,36 @@ private fun MangaSources(repository: MangaRepository, onDismiss: () -> Unit) {
             MangaExtensionControls(repository, onError = { error = it })
             MangaTemplateControls(repository)
             if (komga) {
-                OutlinedTextField(server, { server = it }, label = { Text("Server URL") }, singleLine = true)
-                OutlinedTextField(key, { key = it }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-                TextButton(onClick = { scope.launch {
+                OutlinedTextField(server, { server = it.take(2_048) }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.testTag("manga:komga:server"))
+                OutlinedTextField(key, { key = it.take(512) }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.testTag("manga:komga:key"))
+                Text("Or sign in with a Komga user name and password instead of an API key.", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(user, { user = it.take(256) }, label = { Text("User name") }, singleLine = true)
+                OutlinedTextField(password, { password = it.take(512) }, label = { Text("Password") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                TextButton(enabled = !testing, onClick = { scope.launch {
+                    testing = true
                     try {
-                        val id = "komga:" + java.security.MessageDigest.getInstance("SHA-256").digest(server.trim().toByteArray()).take(12).joinToString("") { "%02x".format(it) }
-                        val config = MangaSourceConfig(id, "komga", "Komga", baseUrl = server.trim(), settings = mapOf("apiKey" to key))
+                        val config = KomgaSource.configuration(server, key, user, password).let { next ->
+                            state.sources.find { it.id == next.id }?.let { previous -> next.copy(enabled = previous.enabled) } ?: next
+                        }
                         KomgaSource(config, repository.context.httpClient).browse()
-                        repository.store.source(config); key = ""; komga = false; error = null
+                        repository.store.source(config); repository.invalidateSource(config.id)
+                        key = ""; password = ""; komga = false; error = null
                     } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (failure: Exception) { error = failure.message }
+                    catch (failure: Exception) { error = failure.message ?: "Komga could not be reached" }
+                    finally { testing = false }
                 } }) { Text("Test and save") }
+            }
+            state.sources.filter { it.kind == "komga" }.forEach { config ->
+                Row(Modifier.fillMaxWidth().testTag("manga:komga:${config.id}"), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) { Text(config.name); Text(config.baseUrl, style = MaterialTheme.typography.labelSmall) }
+                    Switch(checked = config.enabled, onCheckedChange = { enabled -> action { repository.store.source(config.copy(enabled = enabled)); repository.invalidateSource(config.id) } },
+                        modifier = Modifier.semantics { contentDescription = "Use ${config.name}" })
+                    TextButton(onClick = { action {
+                        repository.store.update { it.copy(sources = it.sources.filterNot { source -> source.id == config.id }) }
+                        repository.invalidateSource(config.id)
+                    } }) { Text("Remove") }
+                }
             }
             OutlinedTextField(query, { query = it.take(500) }, label = { Text("Find source") }, singleLine = true, modifier = Modifier.testTag("manga:sources:query"))
             OutlinedTextField(language, { language = it.take(32) }, label = { Text("Language code, e.g. en or ja") }, singleLine = true, modifier = Modifier.testTag("manga:sources:language"))

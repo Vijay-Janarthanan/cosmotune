@@ -150,6 +150,50 @@ class MangaInteractionTest {
         compose.onNodeWithText("Finish", substring = false).assertIsDisplayed()
     }
 
+    private fun zoomOf(node: SemanticsNodeInteraction) = node.fetchSemanticsNode().config.getOrElseNullable(SemanticsProperties.StateDescription) { null }
+
+    @Test fun fitWidthScrollsATallPageAndButtonsAndKeysZoomTheCurrentPage() {
+        val (repository, _) = show(pageCount = 3, imageHeight = 2_200, mode = MangaReaderMode.PAGES_LTR)
+        compose.onNodeWithText("Evening story").performClick()
+        compose.onNodeWithText("Read").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Manga page").fetchSemanticsNodes().isNotEmpty() }
+        val reader = compose.onNodeWithTag("manga:reader").getUnclippedBoundsInRoot()
+        val fitted = compose.onAllNodesWithContentDescription("Manga page").onFirst().getUnclippedBoundsInRoot()
+        assertTrue(fitted.bottom - fitted.top <= reader.bottom - reader.top + 1.dp, "fit page keeps the whole page on screen")
+        compose.onNodeWithText("Fit page").performClick()
+        compose.waitUntil(10_000) { repository.store.state.value.readerFit == MangaReaderFit.WIDTH }
+        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Manga page").onFirst().getUnclippedBoundsInRoot().let { it.bottom - it.top > 2_000.dp } }
+        compose.onNodeWithText("Fit width").assertExists()
+
+        val page = compose.onAllNodesWithContentDescription("Manga page").onFirst()
+        assertEquals("Zoom 100%", zoomOf(page))
+        compose.onNodeWithContentDescription("Zoom in").performClick()
+        compose.waitUntil(5_000) { zoomOf(page) == "Zoom 125%" }
+        compose.onNodeWithTag("manga:reader").performKeyInput { pressKey(androidx.compose.ui.input.key.Key.Equals) }
+        compose.waitUntil(5_000) { zoomOf(page) == "Zoom 156%" }
+        compose.onNodeWithContentDescription("Zoom out").performClick()
+        compose.waitUntil(5_000) { zoomOf(page) == "Zoom 125%" }
+        compose.onNodeWithTag("manga:reader").performKeyInput { pressKey(androidx.compose.ui.input.key.Key.Zero) }
+        compose.waitUntil(5_000) { zoomOf(page) == "Zoom 100%" }
+        compose.onNodeWithContentDescription("Zoom out").performClick()
+        compose.waitForIdle()
+        assertEquals("Zoom 100%", zoomOf(page), "zoom never goes below the fitted size")
+        assertEquals(MangaReaderFit.WIDTH, MangaStore(repository.store.root).state.value.readerFit, "the fit survives a restart")
+    }
+
+    @Test fun theNextTwoPagesAreFetchedAheadOfTheReaderAndNoMore() {
+        val (repository, _) = show(pageCount = 5)
+        val cache = File(repository.store.root, "cache/pages")
+        fun cached() = cache.listFiles().orEmpty().count { it.isFile && it.extension != "part" }
+        compose.onNodeWithText("Evening story").performClick()
+        compose.onNodeWithText("Read").performClick()
+        compose.waitUntil(10_000) { cached() == 3 }
+        Thread.sleep(500); compose.waitForIdle()
+        assertTrue(cached() == 3, "the current page and the next two only, not ${cached()}")
+        compose.onNodeWithText("Next", substring = false).performClick()
+        compose.waitUntil(10_000) { cached() == 4 }
+    }
+
     private fun screenshot(name: String) {
         compose.waitForIdle()
         val file = File("build/reports/manga-ui/$name.png").apply { parentFile.mkdirs() }
