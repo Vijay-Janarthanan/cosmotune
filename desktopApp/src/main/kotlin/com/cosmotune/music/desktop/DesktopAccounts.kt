@@ -39,6 +39,20 @@ data class DesktopGoogleAccount(
     val sourceProfile: String? = null,
 )
 
+/**
+ * The picture the account button shows: the selected profile's, then the login's, then its first profile's.
+ * Switching to a Brand profile used to leave the login's picture (and name) on the button.
+ */
+internal fun DesktopGoogleAccount?.shownAvatar(activeProfileId: String?): String? =
+    this?.profiles?.firstOrNull { it.profileId == activeProfileId }?.avatar?.takeIf { it.isNotBlank() }
+        ?: this?.avatar?.takeIf { it.isNotBlank() }
+        ?: this?.profiles?.firstOrNull()?.avatar?.takeIf { it.isNotBlank() }
+
+/** The name beside it: the selected profile's, then the login's. */
+internal fun DesktopGoogleAccount?.shownName(activeProfileId: String?): String? =
+    this?.profiles?.firstOrNull { it.profileId == activeProfileId }?.name?.takeIf(String::isNotBlank)
+        ?: this?.name?.takeIf(String::isNotBlank)
+
 /** Every Google login this app is holding, and which channel it is acting as. */
 internal object DesktopAccounts {
 

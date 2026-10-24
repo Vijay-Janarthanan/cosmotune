@@ -219,17 +219,36 @@ object DesktopScrobbling {
         postLastFm(values)
     }
 
+    /** Listens that could not be sent while offline, beside the listening data; metadata only. */
+    private val queue by lazy {
+        com.cosmotune.listening.ScrobbleQueue(java.io.File(com.cosmotune.desktop.desktopListeningFile().parentFile, "scrobble-queue.json"))
+    }
+
     private suspend fun submitLastFm(song: Song, timestamp: Long) {
         if (!DesktopScrobbleSettings.lastfmScrobble.value) return
+        val listen = com.cosmotune.listening.PendingScrobble("lastfm", song.artist.forLastFm(), song.title, timestamp, song.albumName)
+        // Earlier offline listens first, in order; a network failure keeps this one for later.
+        queue.flush(submit = ::sendQueued)
+        if (sendQueued(listen) == com.cosmotune.listening.ScrobbleOutcome.RETRY_LATER) queue.add(listen)
+    }
+
+    /** Retries any listens kept while offline, for example after signing in again. */
+    fun flushPending() {
+        if (lastFmConfigured) scope.launch { queue.flush(submit = ::sendQueued) }
+    }
+
+    private suspend fun sendQueued(item: com.cosmotune.listening.PendingScrobble): com.cosmotune.listening.ScrobbleOutcome {
+        if (!lastFmConfigured) return com.cosmotune.listening.ScrobbleOutcome.RETRY_LATER
         val values = linkedMapOf(
             "api_key" to apiKey!!,
-            "artist" to song.artist.forLastFm(),
+            "artist" to item.artist,
             "method" to "track.scrobble",
             "sk" to sessionKey()!!,
-            "timestamp" to timestamp.toString(),
-            "track" to song.title,
+            "timestamp" to item.timestampSeconds.toString(),
+            "track" to item.track,
         )
-        postLastFm(values)
+        val error = try { postLastFm(values); null } catch (e: CancellationException) { throw e } catch (e: Exception) { e }
+        return com.cosmotune.listening.ScrobbleQueue.outcomeOf(error)
     }
 
     private fun String.forLastFm(): String =

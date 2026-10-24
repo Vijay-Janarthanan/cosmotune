@@ -12,6 +12,8 @@ import kotlin.math.roundToLong
 
 class ScrobbleManager(
     private val scope: CoroutineScope,
+    /** Listens that could not be sent while offline; null keeps the old send-once behaviour. */
+    private val queue: com.cosmotune.listening.ScrobbleQueue? = null,
     var minSongDuration: Int = 30,
     var scrobbleDelayPercent: Float = 0.5f,
     var scrobbleDelaySeconds: Int = 180,
@@ -116,20 +118,33 @@ class ScrobbleManager(
 
     private fun scrobbleSong(song: Song, durationSeconds: Int) {
         val scrobbleArtist = song.artist.forScrobble()
+        val listen = com.cosmotune.listening.PendingScrobble("lastfm", scrobbleArtist, song.title, songStartedAt, song.albumName, durationSeconds)
         scope.launch {
-            LastFM
-                .scrobble(
-                    artist = scrobbleArtist,
-                    track = song.title,
-                    duration = durationSeconds,
-                    timestamp = songStartedAt,
-                    album = song.albumName,
-                ).onSuccess {
-                    Log.d(TAG, "Scrobbled: ${song.title} by ${song.artist}")
-                }.onFailure { throwable ->
-                    if (throwable is CancellationException) throw throwable
-                    Log.e(TAG, "Failed to scrobble: ${song.title}", throwable)
-                }
+            // Earlier listens first, so the service receives them in order; then this one.
+            queue?.flush(submit = ::submitQueued)
+            val outcome = submitQueued(listen)
+            if (outcome == com.cosmotune.listening.ScrobbleOutcome.SENT) Log.d(TAG, "Scrobbled: ${song.title} by ${song.artist}")
+            else if (outcome == com.cosmotune.listening.ScrobbleOutcome.RETRY_LATER) {
+                queue?.add(listen)
+                Log.d(TAG, "Offline; kept scrobble for later: ${song.title}")
+            }
+        }
+    }
+
+    /** Retries listens saved while offline; called on start and after each successful scrobble. */
+    fun flushPending() {
+        scope.launch { queue?.flush(submit = ::submitQueued) }
+    }
+
+    private suspend fun submitQueued(item: com.cosmotune.listening.PendingScrobble): com.cosmotune.listening.ScrobbleOutcome {
+        val result = LastFM.scrobble(artist = item.artist, track = item.track, duration = item.durationSeconds,
+            timestamp = item.timestampSeconds, album = item.album)
+        val error = result.exceptionOrNull()
+        if (error is CancellationException) throw error
+        if (error != null) Log.e(TAG, "Failed to scrobble: ${item.track}", error)
+        return when {
+            error is LastFM.LastFmException && (error.code == 11 || error.code == 16 || error.code >= 500) -> com.cosmotune.listening.ScrobbleOutcome.RETRY_LATER
+            else -> com.cosmotune.listening.ScrobbleQueue.outcomeOf(error)
         }
     }
 

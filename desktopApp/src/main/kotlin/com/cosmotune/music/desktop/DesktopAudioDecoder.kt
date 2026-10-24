@@ -127,6 +127,10 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
     var measuredFormat: DesktopStreamFormat? = null
         private set
 
+    /** The container's genre tag, for library filters only; never used to judge quality. */
+    var genre: String? = null
+        private set
+
     /** Opens [url] and prepares to decode it as [requested]. */
     fun open(
         url: String,
@@ -206,6 +210,8 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
 
         outputFormat = requested.copy(sampleRate = context.sample_rate())
         measuredFormat = measure(decoder.name()?.string, context, opened)
+        genre = (av_dict_get(opened.metadata(), "genre", null, 0) ?: av_dict_get(stream.metadata(), "genre", null, 0))
+            ?.value()?.string?.trim()?.take(80)?.takeIf { it.isNotEmpty() }
         resampler = buildResampler(context, outputFormat)
         packet = av_packet_alloc()
         frame = av_frame_alloc()

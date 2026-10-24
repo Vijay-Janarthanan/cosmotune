@@ -447,7 +447,7 @@
     <string name="upgrade_length_slack_footer">許容差を大きくするとソースの一致が増え、小さくすると厳しくなります。既定値は3秒です。</string>
     <string name="seconds_short">%1$d秒</string>
     <string name="spdc_token">sp_dcトークン</string>
-    <string name="spotify_canvas_setup">Spotify Canvasの設定</string>
+    <string name="spotify_canvas_setup">Spotify を設定</string>
     <string name="spotify_canvas_setup_description">Spotify Canvasを使うには、Spotifyのsp_dc cookieを入力してください。</string>
     <string name="spotify_canvas_setup_steps">1. ブラウザでopen.spotify.comにログインします。\n2. デベロッパーツールを開き、[Application]と[Cookies]を選択します。\n3. sp_dc cookieの値をコピーします。\n4. 下に貼り付けます。</string>
     <string name="spotify_canvas_auto_hide">操作ボタンを自動で隠す</string>

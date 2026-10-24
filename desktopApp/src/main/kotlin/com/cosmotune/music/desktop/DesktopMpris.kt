@@ -12,6 +12,7 @@ import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder
 import org.freedesktop.dbus.exceptions.DBusExecutionException
 import org.freedesktop.dbus.interfaces.DBusInterface
 import org.freedesktop.dbus.interfaces.Properties
+import org.freedesktop.dbus.messages.DBusSignal
 import org.freedesktop.dbus.types.Variant
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -66,6 +67,135 @@ internal class MprisCapabilityTracker {
 private fun durationMs(song: Song?, knownDurationMs: Long): Long =
     knownDurationMs.takeIf { it > 0L } ?: song?.durationText.durationMillis()
 
+/** The object path MPRIS names [song] by; `SetPosition` is ignored for any other track. */
+internal fun mprisTrackPath(song: Song): String =
+    "$MPRIS_OBJECT_PATH/track/${Integer.toUnsignedString(song.videoId.hashCode(), 16)}"
+
+/**
+ * The `Metadata` of [song]: what the shell's media panel shows. Compared by value when publishing,
+ * so a length or album that becomes known after the track started is sent too, not only a new track.
+ */
+internal fun mprisMetadata(song: Song?, knownDurationMs: Long): Map<String, Variant<*>> = song?.let { current ->
+    // A LinkedHashMap, deliberately: `buildMap` hands back an internal builder class that
+    // dbus-java refuses to marshal.
+    LinkedHashMap<String, Variant<*>>().apply {
+        put("mpris:trackid", Variant(DBusPath(mprisTrackPath(current))))
+        put("xesam:title", Variant(current.title))
+        if (current.artist.isNotBlank()) put("xesam:artist", Variant(listOf(current.artist), "as"))
+        current.albumName?.takeIf(String::isNotBlank)?.let { put("xesam:album", Variant(it)) }
+        durationMs(current, knownDurationMs).takeIf { it > 0L }?.let {
+            put("mpris:length", Variant(it * 1_000L))
+        }
+        current.thumbnailUrl?.takeIf(String::isNotBlank)?.let { put("mpris:artUrl", Variant(it)) }
+        current.localUri?.takeIf(String::isNotBlank)?.let { put("xesam:url", Variant(it)) }
+    }
+} ?: emptyMap()
+
+/**
+ * The playhead in microseconds as MPRIS reports it. `Position` is read on demand (playerctl, the
+ * shell after a resume), so it is carried forward from the engine's last reading by the time
+ * since, at [rate], while audio is actually moving; and never past the end of the track.
+ */
+internal fun mprisPositionUs(playback: DesktopPlaybackState, rate: Double, nowNanos: Long): Long {
+    var ms = playback.positionMs.coerceAtLeast(0L)
+    if (playback.isPlaying && !playback.awaitingAudio && playback.positionSampledAtNanos > 0L) {
+        val elapsedMs = ((nowNanos - playback.positionSampledAtNanos).coerceAtLeast(0L) / 1_000_000.0 * rate).toLong()
+        ms += elapsedMs
+    }
+    val length = durationMs(playback.song, playback.durationMs)
+    if (length > 0L) ms = ms.coerceAtMost(length)
+    return ms * 1_000L
+}
+
+/** What an MPRIS seek request asks the player to do. */
+internal sealed interface MprisSeek {
+    data class To(val positionMs: Long) : MprisSeek
+    /** `Seek` past the end of the track behaves as `Next`, by the specification. */
+    data object Next : MprisSeek
+}
+
+internal object MprisSeeks {
+    /** `Seek(Offset)`: [offsetUs] is relative to the current position, and may be negative. */
+    fun relative(currentUs: Long, offsetUs: Long, durationMs: Long): MprisSeek? {
+        if (offsetUs == 0L) return null
+        val targetUs = currentUs + offsetUs
+        if (durationMs > 0L && targetUs > durationMs * 1_000L) return MprisSeek.Next
+        return MprisSeek.To(targetUs.coerceAtLeast(0L) / 1_000L)
+    }
+
+    /** `SetPosition(TrackId, Position)`: ignored for another track or a position outside the track. */
+    fun absolute(currentTrackPath: String?, requestedTrackPath: String, positionUs: Long, durationMs: Long): MprisSeek? {
+        if (currentTrackPath == null || currentTrackPath != requestedTrackPath) return null
+        if (positionUs < 0L) return null
+        if (durationMs > 0L && positionUs > durationMs * 1_000L) return null
+        return MprisSeek.To(positionUs / 1_000L)
+    }
+}
+
+/** What the player has to tell the bus after a state change: changed properties, and whether it jumped. */
+internal data class MprisChanges(val properties: Map<String, Variant<*>>, val seekedToUs: Long?)
+
+/**
+ * Works out, from the last published state, what has changed. Kept apart from the bus so the rules
+ * can be tested without a Linux session: a property is sent only when it changed (or on `force`,
+ * and on the first publish), and a deliberate jump of the playhead within the same track sends
+ * `Seeked`, which is how a shell's progress bar learns that the position moved.
+ */
+internal class MprisStatePublisher {
+    private var published = false
+    private var metadata: Map<String, String>? = null
+    private var playbackStatus: String? = null
+    private var shuffle = false
+    private var loopStatus = "None"
+    private var rate = 1.0
+    private var volume = 1.0
+    private var songId: String? = null
+    private var seeks = 0
+    private val capabilities = MprisCapabilityTracker()
+
+    fun changes(
+        playback: DesktopPlaybackState,
+        shuffle: Boolean,
+        loopStatus: String,
+        rate: Double,
+        nowNanos: Long,
+        force: Boolean = false,
+    ): MprisChanges {
+        val all = force || !published
+        val changed = linkedMapOf<String, Variant<*>>()
+        val currentMetadata = mprisMetadata(playback.song, playback.durationMs)
+        val metadataValues = currentMetadata.mapValues { it.value.value.toString() }
+        if (all || metadata != metadataValues) changed["Metadata"] = Variant(currentMetadata, "a{sv}")
+        val status = mprisPlaybackStatus(playback)
+        if (all || playbackStatus != status) changed["PlaybackStatus"] = Variant(status)
+        if (all || this.shuffle != shuffle) changed["Shuffle"] = Variant(shuffle)
+        if (all || this.loopStatus != loopStatus) changed["LoopStatus"] = Variant(loopStatus)
+        if (all || this.rate != rate) changed["Rate"] = Variant(rate)
+        val currentVolume = playback.volume.toDouble().coerceIn(0.0, 1.0)
+        if (all || volume != currentVolume) changed["Volume"] = Variant(currentVolume)
+        changed.putAll(capabilities.changed(playback, all))
+        val sameTrack = published && playback.song != null && playback.song.videoId == songId
+        val seeked = if (sameTrack && playback.seeks != seeks) mprisPositionUs(playback, rate, nowNanos) else null
+
+        published = true
+        metadata = metadataValues
+        playbackStatus = status
+        this.shuffle = shuffle
+        this.loopStatus = loopStatus
+        this.rate = rate
+        volume = currentVolume
+        songId = playback.song?.videoId
+        seeks = playback.seeks
+        return MprisChanges(changed, seeked)
+    }
+}
+
+internal fun mprisPlaybackStatus(playback: DesktopPlaybackState): String = when {
+    playback.isPlaying -> "Playing"
+    playback.song != null && playback.error == null -> "Paused"
+    else -> "Stopped"
+}
+
 interface MprisMetadataType : TypeRef<Map<String, Variant<*>>>
 
 @DBusInterfaceName(MPRIS_ROOT_INTERFACE)
@@ -111,6 +241,9 @@ interface MprisPlayer : DBusInterface {
     fun Seek(offsetUs: Long)
     fun SetPosition(trackId: DBusPath, positionUs: Long)
     fun OpenUri(uri: String)
+
+    /** Sent when the playhead jumps (a seek from anywhere), so the shell's progress follows it. */
+    class Seeked(path: String, val position: Long) : DBusSignal(path, position)
 }
 
 /** Publishes the desktop player's state through the standard Linux MPRIS session-bus interfaces. */
@@ -125,6 +258,9 @@ internal class DesktopMprisController(
     private val onRateChanged: (Double) -> Unit,
     private val onVolumeChanged: (Double) -> Unit,
     private val onSeek: (Long) -> Unit,
+    /** The engine's live state, for `Position` reads between updates; the last update when null. */
+    private val livePlayback: (() -> DesktopPlaybackState)? = null,
+    private val nanoTime: () -> Long = System::nanoTime,
 ) {
     private val lock = Any()
     private val worker: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
@@ -136,13 +272,7 @@ internal class DesktopMprisController(
     private var shuffle = false
     private var loopStatus = "None"
     private var rate = 1.0
-    private var publishedSongId: String? = null
-    private var publishedPlaybackStatus: String? = null
-    private var publishedShuffle = false
-    private var publishedLoopStatus = "None"
-    private var publishedRate = 1.0
-    private var publishedVolume = 1.0
-    private val capabilityTracker = MprisCapabilityTracker()
+    private val publisher = MprisStatePublisher()
 
     fun start() {
         if (!isLinux() || synchronized(lock) { started }) return
@@ -194,48 +324,53 @@ internal class DesktopMprisController(
 
     private fun publish(force: Boolean) {
         val currentConnection: DBusConnection
-        val changed: MutableMap<String, Variant<*>>
+        val changes: MprisChanges
         synchronized(lock) {
             currentConnection = connection ?: return
-            val playbackStatus = playbackStatus(state)
-            changed = linkedMapOf()
-            if (force || publishedSongId != state.song?.videoId) {
-                changed["Metadata"] = variant(metadata(state.song), "a{sv}")
-            }
-            if (force || publishedPlaybackStatus != playbackStatus) {
-                changed["PlaybackStatus"] = variant(playbackStatus)
-            }
-            if (force || publishedShuffle != shuffle) {
-                changed["Shuffle"] = variant(shuffle)
-            }
-            if (force || publishedLoopStatus != loopStatus) {
-                changed["LoopStatus"] = variant(loopStatus)
-            }
-            if (force || publishedRate != rate) {
-                changed["Rate"] = variant(rate)
-            }
-            if (force || publishedVolume != state.volume.toDouble()) {
-                changed["Volume"] = variant(state.volume.toDouble().coerceIn(0.0, 1.0))
-            }
-            changed.putAll(capabilityTracker.changed(state, force))
-            publishedSongId = state.song?.videoId
-            publishedPlaybackStatus = playbackStatus
-            publishedShuffle = shuffle
-            publishedLoopStatus = loopStatus
-            publishedRate = rate
-            publishedVolume = state.volume.toDouble()
+            changes = publisher.changes(state, shuffle, loopStatus, rate, nanoTime(), force)
         }
-        if (changed.isEmpty()) return
-        runCatching {
+        if (changes.properties.isNotEmpty()) runCatching {
             currentConnection.sendMessage(
                 Properties.PropertiesChanged(
                     MPRIS_OBJECT_PATH,
                     MPRIS_PLAYER_INTERFACE,
-                    changed,
+                    changes.properties,
                     emptyList(),
                 ),
             )
         }
+        changes.seekedToUs?.let { position ->
+            runCatching { currentConnection.sendMessage(MprisPlayer.Seeked(MPRIS_OBJECT_PATH, position)) }
+        }
+    }
+
+    /** The playback state `Position` and the seek requests are measured against: the live one when there is one. */
+    private fun current(): DesktopPlaybackState = livePlayback?.invoke() ?: synchronized(lock) { state }
+
+    internal fun seekBy(offsetUs: Long) {
+        val playback = current()
+        val rate = synchronized(lock) { rate }
+        val seek = MprisSeeks.relative(
+            mprisPositionUs(playback, rate, nanoTime()),
+            offsetUs,
+            durationMs(playback.song, playback.durationMs),
+        )
+        when (seek) {
+            is MprisSeek.To -> onSeek(seek.positionMs)
+            MprisSeek.Next -> onNext()
+            null -> Unit
+        }
+    }
+
+    internal fun seekTo(trackId: String, positionUs: Long) {
+        val playback = current()
+        val seek = MprisSeeks.absolute(
+            playback.song?.let(::mprisTrackPath),
+            trackId,
+            positionUs,
+            durationMs(playback.song, playback.durationMs),
+        )
+        if (seek is MprisSeek.To) onSeek(seek.positionMs)
     }
 
     /** One property, answered from the same table as [allProperties]. */
@@ -258,13 +393,13 @@ internal class DesktopMprisController(
         MPRIS_PLAYER_INTERFACE -> synchronized(lock) {
             val capabilities = MprisCapabilities.from(state)
             linkedMapOf(
-                "Metadata" to variant(metadata(state.song), "a{sv}"),
-                "PlaybackStatus" to variant(playbackStatus(state)),
+                "Metadata" to variant(mprisMetadata(state.song, state.durationMs), "a{sv}"),
+                "PlaybackStatus" to variant(mprisPlaybackStatus(state)),
                 "LoopStatus" to variant(loopStatus),
                 "Rate" to variant(rate),
                 "Shuffle" to variant(shuffle),
                 "Volume" to variant(state.volume.toDouble().coerceIn(0.0, 1.0)),
-                "Position" to variant(state.positionMs.coerceAtLeast(0L) * 1_000L),
+                "Position" to variant(mprisPositionUs(livePlayback?.invoke() ?: state, rate, nanoTime())),
                 "MinimumRate" to variant(0.25),
                 "MaximumRate" to variant(3.0),
             ).apply {
@@ -291,33 +426,8 @@ internal class DesktopMprisController(
         }
     }
 
-    private fun metadata(song: Song?): Map<String, Variant<*>> = song?.let { current ->
-        // A LinkedHashMap, deliberately: `buildMap` hands back an internal builder class that
-        // dbus-java refuses to marshal.
-        LinkedHashMap<String, Variant<*>>().apply {
-            put("mpris:trackid", variant(DBusPath(trackPath(current))))
-            put("xesam:title", variant(current.title))
-            if (current.artist.isNotBlank()) put("xesam:artist", variant(listOf(current.artist), "as"))
-            current.albumName?.takeIf(String::isNotBlank)?.let { put("xesam:album", variant(it)) }
-            durationMs(current, state.durationMs).takeIf { it > 0L }?.let {
-                put("mpris:length", variant(it * 1_000L))
-            }
-            current.thumbnailUrl?.takeIf(String::isNotBlank)?.let { put("mpris:artUrl", variant(it)) }
-            current.localUri?.takeIf(String::isNotBlank)?.let { put("xesam:url", variant(it)) }
-        }
-    } ?: emptyMap()
-
     private fun unknownProperty(interfaceName: String, propertyName: String): Nothing =
         throw DBusExecutionException("Unknown property $interfaceName.$propertyName")
-
-    private fun playbackStatus(playback: DesktopPlaybackState): String = when {
-        playback.isPlaying -> "Playing"
-        playback.song != null && playback.error == null -> "Paused"
-        else -> "Stopped"
-    }
-
-    private fun trackPath(song: Song): String =
-        "$MPRIS_OBJECT_PATH/track/${Integer.toUnsignedString(song.videoId.hashCode(), 16)}"
 
     private fun variant(value: Any, signature: String? = null): Variant<*> =
         if (signature == null) Variant(value) else Variant(value, signature)
@@ -347,13 +457,11 @@ internal class DesktopMprisController(
 
         override fun PlayPause() = controller.onPlayPause()
 
-        override fun Seek(offsetUs: Long) {
-            controller.onSeek(offsetUs / 1_000L)
-        }
+        // Seek is relative by the specification; it used to be taken as a position, so
+        // "five seconds on" jumped to 0:05.
+        override fun Seek(offsetUs: Long) = controller.seekBy(offsetUs)
 
-        override fun SetPosition(trackId: DBusPath, positionUs: Long) {
-            controller.onSeek(positionUs / 1_000L)
-        }
+        override fun SetPosition(trackId: DBusPath, positionUs: Long) = controller.seekTo(trackId.path, positionUs)
 
         override fun OpenUri(uri: String) = Unit
 

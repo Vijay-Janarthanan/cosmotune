@@ -103,7 +103,8 @@ internal fun NowPlayingWide(
 ) {
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
-    val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+    // The status bar's stable inset is folded in: hiding the bar in the player drops it out of systemBars, and the layout keeps its place.
+    val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout).union(com.cosmotune.music.ui.theme.stableStatusBarInsets())
     val left = with(density) { insets.getLeft(density, direction).toDp() }
     val top = with(density) { insets.getTop(density).toDp() }
     val right = with(density) { insets.getRight(density, direction).toDp() }

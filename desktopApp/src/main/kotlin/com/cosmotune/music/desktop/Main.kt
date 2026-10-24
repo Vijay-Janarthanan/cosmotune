@@ -58,6 +58,9 @@ private fun runDesktop() {
         DesktopTrackLog.log("$tag/$level: $message" + (error?.let { " (${it.message})" } ?: ""))
     }
     LyricsTranslation.cacheDir = DesktopMediaCache.directory.toFile()
+    com.cosmotune.audio.LibraryLoudness.attach(com.cosmotune.audio.LibraryAnalysisStore.beside(com.cosmotune.desktop.desktopListeningFile()))
+    // Listens kept while offline in an earlier session.
+    DesktopScrobbling.flushPending()
     com.cosmotune.music.data.recommendations.LocalRecommendations.configure(
         DesktopMediaCache.directory.resolve("recommendations").toFile(), desktopRecommendationData())
     DesktopDownloadQueue.restore(java.io.File(desktopRecommendationData().parentFile, "downloads/queue.json"))

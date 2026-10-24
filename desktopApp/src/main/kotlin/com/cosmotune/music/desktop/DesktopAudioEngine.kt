@@ -1063,7 +1063,8 @@ class DesktopPlaybackEngine(
         val count = track.decoder.sampleCount
         track.normalizer.process(
             block, count, track.decoder.outputFormat.channels, track.decoder.outputFormat.sampleRate,
-            if (track.stream.sourceId == "youtube") com.cosmotune.music.data.innertube.StreamResolver.loudnessDbFor(track.song.videoId) else null,
+            if (track.stream.sourceId == "youtube") com.cosmotune.music.data.innertube.StreamResolver.loudnessDbFor(track.song.videoId)
+            else com.cosmotune.audio.LibraryLoudness.loudnessDbFor(track.song.videoId),
             loudnessNormalization,
         )
         val from = track.decoder.outputFormat.sampleRate
