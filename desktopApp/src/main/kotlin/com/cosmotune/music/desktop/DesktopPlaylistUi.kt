@@ -25,6 +25,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Public
@@ -326,6 +328,92 @@ internal fun DesktopDeletePlaylistDialog(
             onDismiss = onDismiss,
         )
     }
+}
+
+/**
+ * Putting an owned playlist's rows in a new order (BC-35, upstream `6f30aa27`'s "Edit order", with `94cba2fa`'s fix of reading
+ * the current order on every move). The whole list is fetched first ([load]: a reorder is sent as moves relative to neighbours,
+ * so every entry has to be there to move against), each row moves up or down a place (buttons, so the keyboard can do it too),
+ * and Save hands back the order as it was and as the listener left it.
+ */
+@Composable
+internal fun DesktopReorderPlaylistDialog(
+    browseId: String,
+    busy: Boolean,
+    error: String?,
+    load: suspend (String) -> Result<List<Song>>,
+    onSave: (original: List<Song>, reordered: List<Song>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var original by remember(browseId) { mutableStateOf<List<Song>?>(null) }
+    var loadError by remember(browseId) { mutableStateOf<String?>(null) }
+    var order by remember(browseId) { mutableStateOf<List<Song>>(emptyList()) }
+    LaunchedEffect(browseId) {
+        load(browseId).fold(
+            onSuccess = { original = it; order = it },
+            onFailure = { loadError = it.message ?: "Could not load the playlist" },
+        )
+    }
+    DesktopDialogFrame(onDismiss = onDismiss) {
+        DialogHeading(
+            DesktopStrings["reorder_playlist", "Edit order"],
+            DesktopStrings["d_reorder_subtitle", "Move the rows into the order you want, then save."],
+        )
+        (error ?: loadError)?.let { DialogError(it) }
+        Box(Modifier.fillMaxWidth().height(380.dp)) {
+            when {
+                original == null && loadError == null -> CircularProgressIndicator(
+                    color = DesktopAccent,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(24.dp).align(Alignment.Center),
+                )
+                else -> LazyColumn(Modifier.fillMaxSize()) {
+                    items(order.size, key = { DesktopReorder.keyOf(order[it], it) }) { index ->
+                        val song = order[index]
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 22.dp, end = 10.dp).heightIn(min = 48.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(song.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(song.artist, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            IconButton(onClick = { order = DesktopReorder.move(order, index, index - 1) }, enabled = !busy && index > 0) {
+                                Icon(Icons.Rounded.KeyboardArrowUp, DesktopStrings["d_move_up", "Move up"], tint = Color.White.copy(alpha = if (index > 0) 0.85f else 0.3f))
+                            }
+                            IconButton(onClick = { order = DesktopReorder.move(order, index, index + 1) }, enabled = !busy && index < order.lastIndex) {
+                                Icon(Icons.Rounded.KeyboardArrowDown, DesktopStrings["d_move_down", "Move down"], tint = Color.White.copy(alpha = if (index < order.lastIndex) 0.85f else 0.3f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val before = original
+        DialogButtons(
+            busy = busy,
+            confirmLabel = DesktopStrings["save", "Save"],
+            confirmEnabled = before != null && DesktopReorder.changed(before, order),
+            onConfirm = { if (before != null) onSave(before, order) },
+            onDismiss = onDismiss,
+        )
+    }
+}
+
+/** The order the reorder dialog keeps: moves read the list as it is now, never one captured before an earlier move. */
+internal object DesktopReorder {
+    /** [list] with the row at [from] put at [to]; the same list when either is outside it. */
+    fun <T> move(list: List<T>, from: Int, to: Int): List<T> {
+        if (from !in list.indices || to !in list.indices || from == to) return list
+        return list.toMutableList().apply { add(to, removeAt(from)) }
+    }
+
+    /** Whether saving would send anything: the entries (by playlist slot) are in another order. */
+    fun changed(original: List<Song>, reordered: List<Song>): Boolean =
+        original.map { it.setVideoId } != reordered.map { it.setVideoId }
+
+    /** A row's key in the list: its playlist slot, which tells two copies of one song apart. */
+    fun keyOf(song: Song, index: Int): String = song.setVideoId ?: "${song.videoId}-$index"
 }
 
 /**

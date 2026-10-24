@@ -268,6 +268,21 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
             .also { tracks -> tracks.forEach { remember(it.song()) } }
     }
 
+    /**
+     * The enabled metadata providers as sources of the Search tab's Add-ons source (BC-31). Each is asked through [search], so
+     * the package's reviewed permissions, settings, sessions and network scope apply as to its other requests; a disabled or
+     * revoked package is never asked.
+     */
+    fun addonSearchSources(): List<com.cosmotune.music.data.search.AddonSearchSource> =
+        store.state.value.installed
+            .filter { it.enabled && "metadata_provider" in it.manifest.type && it.manifest.name !in revokedNames }
+            .map { installed ->
+                val name = installed.manifest.name
+                com.cosmotune.music.data.search.AddonSearchSource(installed.manifest.displayName.ifBlank { name }) { query, limit ->
+                    search(name, query, limit).map { it.song() }
+                }
+            }
+
     suspend fun stream(name: String, trackId: String, maxKbps: Int? = null, lossless: Boolean = false, forDownload: Boolean = false): ProviderAudioStream = operation(name) { runtime ->
         require(trackId.isNotBlank() && trackId.length <= 8_192)
         val install = requireNotNull(store.state.value.installed.find { it.manifest.name == name && it.enabled && name !in revokedNames })

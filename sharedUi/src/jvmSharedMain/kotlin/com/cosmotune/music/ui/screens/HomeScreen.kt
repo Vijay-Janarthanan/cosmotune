@@ -73,6 +73,7 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
 import java.util.Locale
 import com.cosmotune.music.data.model.artworkAt
+import com.cosmotune.music.data.model.playingShelfItemMatcher
 import com.cosmotune.music.data.settings.LibraryViewType
 import com.cosmotune.music.ui.components.HERO_CARD_RATIO
 import com.cosmotune.music.ui.components.MessageState
@@ -98,11 +99,6 @@ private val HOME_TITLE_LIFT = 28.dp
 private const val RECENTS_TITLE = "Recents"
 private const val RECENT_TRACKS_PER_COLUMN = 4
 
-private fun ShelfItem.matchesCurrentlyPlaying(song: Song?): Boolean {
-    song ?: return false
-    if (videoId == null) return false
-    return videoId == song.videoId || (title == song.title && subtitle == song.artist)
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -303,6 +299,8 @@ private fun RecentShelf(
             viewType = viewType,
             onViewTypeToggle = onViewTypeToggle,
         )
+        // The card that was played lights, not every namesake: see [playingShelfItemMatcher].
+        val isCurrentItem = playingShelfItemMatcher(shelf.items, currentSong)
         if (viewType == LibraryViewType.LIST) {
             BoxWithConstraints {
                 val columnWidth = trackColumnWidth(maxWidth)
@@ -317,8 +315,8 @@ private fun RecentShelf(
                                     item = item,
                                     onClick = { onItemClick(item) },
                                     onLongPress = onItemLongPress?.let { { it(item) } },
-                                    isCurrent = item.matchesCurrentlyPlaying(currentSong),
-                                    isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
+                                    isCurrent = isCurrentItem(item),
+                                    isPlaying = isCurrentItem(item) && isPlaying,
                                 )
                             }
                         }
@@ -338,8 +336,8 @@ private fun RecentShelf(
                             onClick = { onItemClick(item) },
                             onLongPress = onItemLongPress?.let { { it(item) } },
                             modifier = Modifier.width(cardWidth),
-                            isCurrent = item.matchesCurrentlyPlaying(currentSong),
-                            isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
+                            isCurrent = isCurrentItem(item),
+                            isPlaying = isCurrentItem(item) && isPlaying,
                         )
                     }
                 }
@@ -750,6 +748,7 @@ private fun HeroShelf(
 ) {
     Column(Modifier.padding(bottom = 26.dp)) {
         SectionHeader(shelf.title, shelf.subtitle)
+        val isCurrentItem = playingShelfItemMatcher(shelf.items, currentSong)
         // Measured rather than taken as a share of the parent, because the card
         // has a ceiling as well as a fraction — see [heroCardWidth]. A fixed
         // width is also the only one of the two the aspect ratio below can turn
@@ -767,8 +766,8 @@ private fun HeroShelf(
                         onClick = { onItemClick(item) },
                         onLongPress = onItemLongPress?.let { { it(item) } },
                         modifier = Modifier.width(cardWidth),
-                        isCurrent = item.matchesCurrentlyPlaying(currentSong),
-                        isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
+                        isCurrent = isCurrentItem(item),
+                        isPlaying = isCurrentItem(item) && isPlaying,
                     )
                 }
             }
@@ -854,6 +853,7 @@ internal fun Shelf(
 ) {
     Column(Modifier.padding(bottom = 26.dp)) {
         SectionHeader(shelf.title, shelf.subtitle)
+        val isCurrentItem = playingShelfItemMatcher(shelf.items, currentSong)
         ShelfRow(
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -864,8 +864,8 @@ internal fun Shelf(
                     item = item,
                     onClick = { onItemClick(item) },
                     onLongPress = onItemLongPress?.let { { it(item) } },
-                    isCurrent = item.matchesCurrentlyPlaying(currentSong),
-                    isPlaying = item.matchesCurrentlyPlaying(currentSong) && isPlaying,
+                    isCurrent = isCurrentItem(item),
+                    isPlaying = isCurrentItem(item) && isPlaying,
                 )
             }
         }

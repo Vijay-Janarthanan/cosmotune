@@ -1,5 +1,8 @@
 package com.cosmotune.music.ui.components
 
+import androidx.compose.foundation.gestures.FlingBehavior
+import androidx.compose.foundation.gestures.snapping.SnapPosition
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListScope
@@ -29,7 +32,16 @@ private object NoShelfRowChrome : ShelfRowChrome {
 
 val LocalShelfRowChrome = staticCompositionLocalOf<ShelfRowChrome> { NoShelfRowChrome }
 
-/** A sideways-scrolling shelf, in whatever the platform wraps one in — see [ShelfRowChrome]. */
+/**
+ * How every sideways shelf settles after a fling (upstream #737): on a card, its leading edge against the row's start padding,
+ * never with a card cut in half. One behaviour for the old shelves, the new look's [com.cosmotune.ui.blocks.CosmoShelf], the
+ * artist page's carousels and the desktop's rows (whose drag ends with this fling, see its [ShelfRowChrome]).
+ */
+@Composable
+fun rememberShelfFlingBehavior(state: LazyListState): FlingBehavior =
+    rememberSnapFlingBehavior(lazyListState = state, snapPosition = SnapPosition.Start)
+
+/** A sideways-scrolling shelf, in whatever the platform wraps one in — see [ShelfRowChrome]. It snaps: [rememberShelfFlingBehavior]. */
 @Composable
 fun ShelfRow(
     contentPadding: PaddingValues,
@@ -44,6 +56,7 @@ fun ShelfRow(
             state = state,
             contentPadding = contentPadding,
             horizontalArrangement = horizontalArrangement,
+            flingBehavior = rememberShelfFlingBehavior(state),
             content = content,
         )
     }

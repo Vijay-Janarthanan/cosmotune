@@ -245,9 +245,29 @@ internal object DesktopSourceRegistry {
 
     fun isEnabled(sourceId: String): Boolean = configs().firstOrNull { it.id == sourceId }?.enabled == true
 
-    /** Searching is YouTube Music's job, and only YouTube Music's. */
+    /** The Search page's YouTube Music source; the Add-ons source asks [addonSearchSources] instead. */
     suspend fun search(query: String, filter: SearchFilter): Result<List<SearchResult>> =
         DesktopSearchClient.search(query, filter)
+
+    /**
+     * The Search page's Add-ons source (BC-31): the enabled, complete HTTP add-ons in source order, then the enabled provider
+     * packages, each asked through its own search call (so its settings and credentials go only to it, as for its streams).
+     */
+    fun addonSearchSources(): List<com.cosmotune.music.data.search.AddonSearchSource> =
+        addonSearchSources(configs(), com.cosmotune.providers.ProviderHub.state.value.manager?.addonSearchSources().orEmpty())
+
+    /** [addonSearchSources] over the given [configs], with [search] standing in for the add-on client in a test. */
+    internal fun addonSearchSources(
+        configs: List<DesktopSourceConfig>,
+        providers: List<com.cosmotune.music.data.search.AddonSearchSource>,
+        search: suspend (DesktopSourceConfig, String, Int) -> List<Song> = { config, query, limit ->
+            DesktopAddonSource.search(config, query, limit).getOrThrow().mapNotNull { (it as? SearchResult.Track)?.song }
+        },
+    ): List<com.cosmotune.music.data.search.AddonSearchSource> =
+        configs.inSourceOrder()
+            .filter { it.kind == DesktopSourceKind.ADDON && it.enabled && it.isComplete }
+            .map { config -> com.cosmotune.music.data.search.AddonSearchSource(config.displayName) { query, limit -> search(config, query, limit) } } +
+            providers
 
     suspend fun resolve(
         song: Song,

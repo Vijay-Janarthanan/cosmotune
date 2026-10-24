@@ -35,7 +35,7 @@ class DesktopPagesContractTest {
             listOf(
                 "collection", "loadingMore", "onLoadMore", "onRename", "onDelete", "onShare", "onRemoveFromPlaylist", "likedIds", "onPlaySongs",
                 "onShuffle", "onDownloadAll", "animatedCanvas", "onToggleLike", "onDownload", "onAddToPlaylist", "downloadedIds",
-                "downloadInProgress", "contentPadding",
+                "downloadInProgress", "contentPadding", "onReorder",
             ),
             SourceContract.names(SourceContract.parameters(src, "DesktopCollectionPage")),
         )

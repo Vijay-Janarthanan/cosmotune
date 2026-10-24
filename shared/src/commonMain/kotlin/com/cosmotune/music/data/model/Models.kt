@@ -266,6 +266,21 @@ fun playingRowMatcher(rows: List<Song>, current: Song?): (Song) -> Boolean {
 }
 
 /**
+ * [playingRowMatcher] for the cards of one shelf: the card that was played, when the shelf holds it, and only that one; else
+ * the first song card with the playing track's title and credit. Cards without a video id (albums, playlists, artists) never
+ * light.
+ */
+fun playingShelfItemMatcher(items: List<ShelfItem>, current: Song?): (ShelfItem) -> Boolean {
+    current ?: return { false }
+    if (items.any { it.videoId != null && it.videoId == current.videoId }) {
+        return { it.videoId != null && it.videoId == current.videoId }
+    }
+    val byName = items.firstOrNull { it.videoId != null && it.title == current.title && it.subtitle == current.artist }
+        ?: return { false }
+    return { it == byName }
+}
+
+/**
  * [Song.durationText] in milliseconds, or 0 when the row didn't state one.
  *
  * A row's duration is a display string — YouTube sends `"3:45"`, not a

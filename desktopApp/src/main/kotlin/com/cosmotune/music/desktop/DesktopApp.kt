@@ -17,6 +17,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateListOf
 import com.cosmotune.music.ui.components.PAGE_GUTTER
 import com.cosmotune.music.ui.components.trackColumnWidth
+import com.cosmotune.music.ui.components.SourceQualityBadge
+import com.cosmotune.music.ui.components.sourceQualityBadge
 import com.cosmotune.music.ui.replay.ReplayCreditCard
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -129,6 +131,7 @@ import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Extension
@@ -293,6 +296,7 @@ import com.cosmotune.music.data.model.durationMillis
 import com.cosmotune.music.data.model.isMatchMissing
 import com.cosmotune.music.data.model.isMatchPending
 import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.data.model.isUnresolvedSpotify
 import com.cosmotune.music.data.spotify.SPOTIFY_PAGE_PREFIX
 import com.cosmotune.music.data.spotify.SpotifyLibrary
@@ -317,6 +321,7 @@ import kotlin.system.exitProcess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import com.cosmotune.music.data.search.AddonSearch
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -554,6 +559,11 @@ fun CosmotuneDesktopApp() {
     var searchTyping by remember { mutableStateOf(false) }
     var searchLoading by remember { mutableStateOf(false) }
     var searchError by remember { mutableStateOf<String?>(null) }
+    // The Add-ons source (BC-31): the enabled add-ons and provider packages, asked only when a query is submitted.
+    var searchAddons by remember { mutableStateOf(false) }
+    var addonResults by remember { mutableStateOf<UiState<List<Song>>?>(null) }
+    var addonSearchJob by remember { mutableStateOf<Job?>(null) }
+    val addonHistory by DesktopAddonSearchHistory.recent.collectAsState()
     var homeState by remember { mutableStateOf<UiState<List<HomeShelf>>>(UiState.Loading) }
     // The home feed is paged: `FEmusic_home` answers with a couple of shelves and a token, and
     // everything else arrives by following it.
@@ -1473,6 +1483,7 @@ fun CosmotuneDesktopApp() {
         playlistTarget = null
         overlays.rename = false
         overlays.delete = false
+        overlays.reorder = false
         playlistError = null
         playlistBusy = false
     }
@@ -1760,6 +1771,13 @@ fun CosmotuneDesktopApp() {
                 onNext = ::playNext,
                 onPrevious = ::playPrevious,
                 onStop = ::pauseFromUser,
+                // The shell's scrubber (BC-35): as MPRIS's SetPosition, refused while the party host holds the controls.
+                onSeek = { positionMs ->
+                    if (!DesktopListenTogether.state.value.controlsLocked) {
+                        playbackEngine.seekTo(DesktopWindowsMedia.seekTarget(positionMs, playbackEngine.state.value.durationMs))
+                        partySync.onLocalIntent()
+                    }
+                },
             ),
         )
         onDispose { DesktopWindowsMedia.stop() }
@@ -2232,6 +2250,8 @@ fun CosmotuneDesktopApp() {
             searchCommitted = false
             searchRows = emptyList()
             searchError = null
+            addonSearchJob?.cancel()
+            addonResults = null
         }
     }
 
@@ -2241,6 +2261,22 @@ fun CosmotuneDesktopApp() {
         destination = DesktopDestination.SEARCH
         searchTyping = false
         searchSuggestions = emptyList()
+        if (searchAddons) {
+            // Never YouTube Music for this source: the add-ons' own search calls, on submit only (see AddonSearch).
+            val text = query.trim()
+            if (!AddonSearch.shouldSearch(text, submitted = true)) return
+            DesktopAddonSearchHistory.record(text)
+            searchScrollReset++
+            addonSearchJob?.cancel()
+            val sources = DesktopSourceRegistry.addonSearchSources()
+            if (sources.isEmpty()) {
+                addonResults = UiState.Error(DesktopStrings["search_addons_none", "No addons are enabled. Add one in Settings → Sources."])
+                return
+            }
+            addonResults = UiState.Loading
+            addonSearchJob = scope.launch { addonResults = UiState.Success(AddonSearch.search(text, sources)) }
+            return
+        }
         // Submitting is picking the first track the typeahead offered, as on the phone — or, with
         // none, the first the results bring back.
         val typedHit = searchTypeahead.firstNotNullOfOrNull { row ->
@@ -2284,8 +2320,9 @@ fun CosmotuneDesktopApp() {
     }
 
     /** The typeahead, one request behind the keystrokes rather than one per. */
-    LaunchedEffect(query, searchTyping) {
-        if (!searchTyping || query.isBlank()) {
+    LaunchedEffect(query, searchTyping, searchAddons) {
+        // The Add-ons source sends nothing while typing: no YouTube completion of what is meant for the add-ons.
+        if (!searchTyping || query.isBlank() || searchAddons) {
             searchSuggestions = emptyList()
             return@LaunchedEffect
         }
@@ -2297,8 +2334,8 @@ fun CosmotuneDesktopApp() {
 
     // Its own pass, on its own delay: a search costs far more than a completion, so it waits for a
     // longer pause in the typing rather than riding the same one.
-    LaunchedEffect(query, searchTyping) {
-        if (!searchTyping || query.isBlank()) {
+    LaunchedEffect(query, searchTyping, searchAddons) {
+        if (!searchTyping || query.isBlank() || searchAddons) {
             searchTypeahead = emptyList()
             return@LaunchedEffect
         }
@@ -2846,6 +2883,34 @@ fun CosmotuneDesktopApp() {
                     playlistBusy = false
                     playlistError = it.message ?: "Could not rename the playlist"
                 }
+        }
+    }
+
+    /**
+     * Sends a new order for the playlist being read (BC-35). [original] and [reordered] are the same whole list of entries, as it
+     * was and as the listener left it: a reorder is sent as moves relative to neighbours and needs every entry to move against.
+     */
+    fun reorderOpenPlaylist(original: List<Song>, reordered: List<Song>) {
+        val collection = openedCollection ?: return
+        playlistBusy = true
+        playlistError = null
+        scope.launch {
+            DesktopSearchClient.reorderPlaylist(
+                collection.playlistId,
+                current = original.mapNotNull { it.setVideoId },
+                target = reordered.mapNotNull { it.setVideoId },
+            ).onSuccess {
+                val current = openedCollection
+                if (current != null && current.browseId == collection.browseId) {
+                    // The whole list arrived to be reordered, so the page now shows all of it and has no further page to ask for.
+                    openedCollection = current.copy(songs = reordered, continuation = null)
+                }
+                closePlaylistDialogs()
+                libraryStale = true
+            }.onFailure {
+                playlistBusy = false
+                playlistError = it.message ?: "Could not reorder the playlist"
+            }
         }
     }
 
@@ -3903,6 +3968,17 @@ fun CosmotuneDesktopApp() {
                             onDismiss = ::closePlaylistDialogs,
                         )
                     }
+                    val reorderCollection = openedCollection?.takeIf { overlays.reorder }
+                    if (reorderCollection != null) {
+                        DesktopReorderPlaylistDialog(
+                            browseId = reorderCollection.browseId,
+                            busy = playlistBusy,
+                            error = playlistError,
+                            load = DesktopSearchClient::playlistEntries,
+                            onSave = ::reorderOpenPlaylist,
+                            onDismiss = ::closePlaylistDialogs,
+                        )
+                    }
                     if (overlays.delete) {
                         DesktopDeletePlaylistDialog(
                             title = openedCollection?.title.orEmpty(),
@@ -4329,6 +4405,9 @@ fun CosmotuneDesktopApp() {
                                 ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
                                 ?.let { collection -> { shareCollection(collection) } },
                             onDelete = { overlays.delete = true }.takeIf { openedCollection?.owned == true },
+                            onReorder = { overlays.reorder = true }.takeIf {
+                                openedCollection?.owned == true && openedCollection?.type == BrowseType.PLAYLIST
+                            },
                             onRemoveFromPlaylist = ::removeFromOpenPlaylist
                                 .takeIf { openedCollection?.owned == true },
                             likedIds = likedIds,
@@ -4485,6 +4564,36 @@ fun CosmotuneDesktopApp() {
                             contentPadding = sharedPagePadding,
                             topPadding = 0.dp,
                             showField = false,
+                            // YouTube Music or the add-ons, as on the phone (the desktop's library has its own page and search).
+                            sourceSwitcher = {
+                                com.cosmotune.ui.components.CosmoSegmented(
+                                    options = listOf(
+                                        DesktopStrings["search_source_youtube", "YouTube"],
+                                        DesktopStrings["search_source_addons", "Addons"],
+                                    ),
+                                    selectedIndex = if (searchAddons) 1 else 0,
+                                    onSelect = { index ->
+                                        val addons = index == 1
+                                        if (addons != searchAddons) {
+                                            searchAddons = addons
+                                            searchSuggestions = emptyList()
+                                            searchTypeahead = emptyList()
+                                            searchScrollReset++
+                                            if (query.isNotBlank()) search()
+                                        }
+                                    },
+                                )
+                            },
+                            searchingAddons = searchAddons,
+                            addonResults = addonResults,
+                            addonHistory = addonHistory,
+                            onAddonHistoryClick = ::runSearch,
+                            onAddonHistoryRemove = DesktopAddonSearchHistory::remove,
+                            onAddonHistoryClear = DesktopAddonSearchHistory::clear,
+                            onAddonSongClick = { songs, index ->
+                                // The add-on's own stream for the row, the other results queued behind it.
+                                playSongs(songs, index, source = DesktopQueueSource(DesktopStrings["search_source_addons", "Addons"], PlaybackSourceType.BROWSE, "addons:search"))
+                            },
                             browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { selectDestination(DesktopDestination.EXPLORE); openMoodGenre(it) }, onRetry = { exploreReloads++ }),
                         )
                         destination == DesktopDestination.LIBRARY && libraryShowAll != null -> Column(Modifier.fillMaxSize()) {
@@ -5736,6 +5845,7 @@ private fun DesktopHistoryPage(
     menu: (@Composable (Song) -> Unit)? = null,
 ) {
     DesktopPageScaffold(contentPadding) {
+      PlayingRowScope(history) {
         LazyColumn(
             contentPadding = pagePadding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -5755,6 +5865,7 @@ private fun DesktopHistoryPage(
                 )
             }
         }
+      }
     }
 }
 
@@ -5930,7 +6041,7 @@ private fun DesktopLibrarySongContent(
                 }
             }
         }
-    } else {
+    } else PlayingRowScope(songs) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = pagePadding(bottom = 32.dp),
@@ -7257,12 +7368,15 @@ private fun DesktopCollectionPage(
     downloadedIds: Set<String>,
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
+    /** Opens the reorder dialog; only a playlist the account owns can be rearranged (BC-35). */
+    onReorder: (() -> Unit)? = null,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, nowPlaying = LocalNowPlaying.current)
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, nowPlaying = LocalNowPlaying.current)
     val songs = collection.songs
     // The phone's "search this list": a filter over the rows already loaded.
     var searching by remember(collection.browseId) { mutableStateOf(false) }
     var listQuery by remember(collection.browseId) { mutableStateOf("") }
+    val isCurrentRow = rememberPlayingRowMatcher(songs)
     val shownSongs = remember(songs, listQuery) {
         val needle = listQuery.trim()
         songs.withIndex().filter { (_, song) ->
@@ -7419,6 +7533,16 @@ private fun DesktopCollectionPage(
                                             },
                                         )
                                     }
+                                    onReorder?.let { reorder ->
+                                        DropdownMenuItem(
+                                            text = { Text(DesktopStrings["reorder_playlist", "Edit order"]) },
+                                            leadingIcon = { Icon(Icons.Rounded.DragHandle, null) },
+                                            onClick = {
+                                                moreOpen = false
+                                                reorder()
+                                            },
+                                        )
+                                    }
                                     onDelete?.let { delete ->
                                         DropdownMenuItem(
                                             text = { Text(DesktopStrings["delete", "Delete"]) },
@@ -7452,6 +7576,7 @@ private fun DesktopCollectionPage(
                     // alternates.
                     striped = position % 2 == 1,
                     song = song,
+                    isCurrent = isCurrentRow(song),
                     collectionType = collection.type,
                     liked = song.videoId in likedIds,
                     onClick = { _ -> onPlaySongs(songs, index) },
@@ -7496,6 +7621,8 @@ private fun collectionActionsWidth(hasRemove: Boolean): Dp =
 @Composable
 private fun DesktopCollectionSongRow(
     song: Song,
+    /** From the list's [rememberPlayingRowMatcher]; null falls back to the name rule. */
+    isCurrent: Boolean? = null,
     collectionType: BrowseType,
     liked: Boolean,
     onClick: (Song) -> Unit,
@@ -7523,7 +7650,7 @@ private fun DesktopCollectionSongRow(
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val nowPlaying = song.isNowPlaying()
+        val nowPlaying = isCurrent ?: song.isNowPlaying()
         Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) {
             if (song.isMatchPending) {
                 CircularProgressIndicator(color = DesktopSecondary, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
@@ -7628,7 +7755,27 @@ private val LocalNowPlaying = compositionLocalOf<Song?> { null }
 
 /** Whether this row is the track being played, for the now-playing highlight. */
 @Composable
-private fun Song.isNowPlaying(): Boolean = isSameTrackAs(LocalNowPlaying.current)
+private fun Song.isNowPlaying(): Boolean = LocalPlayingRow.current?.invoke(this) ?: isSameTrackAs(LocalNowPlaying.current)
+
+/**
+ * The answer of the list being drawn to "is this row the one playing?", from [PlayingRowScope]; null outside a list, where a row
+ * falls back to the name rule. A local rather than a parameter, so the rows' parameter lists (pinned by the new look's delegates)
+ * stay as they are.
+ */
+private val LocalPlayingRow = compositionLocalOf<((Song) -> Boolean)?> { null }
+
+/** Which of [rows] is the track being played: the one that was played, not every namesake (see [playingRowMatcher]). */
+@Composable
+private fun rememberPlayingRowMatcher(rows: List<Song>): (Song) -> Boolean {
+    val current = LocalNowPlaying.current
+    return remember(rows, current) { playingRowMatcher(rows, current) }
+}
+
+/** Draws [content], a list of [rows], with only the row that was played lit (see [LocalPlayingRow]). */
+@Composable
+private fun PlayingRowScope(rows: List<Song>, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalPlayingRow provides rememberPlayingRowMatcher(rows), content = content)
+}
 
 /** The frosted pane the floating bars are made of. */
 @Composable
@@ -7814,6 +7961,7 @@ internal fun DesktopScrollableRow(
             state = rowState,
             contentPadding = PaddingValues(horizontal = gutter),
             horizontalArrangement = Arrangement.spacedBy(spacing),
+            flingBehavior = com.cosmotune.music.ui.components.rememberShelfFlingBehavior(rowState),
             content = content,
         )
     }
@@ -7830,12 +7978,18 @@ internal object DesktopShelfRowChrome : ShelfRowChrome {
         val scope = rememberCoroutineScope()
         val interaction = remember { MutableInteractionSource() }
         val hovered by interaction.collectIsHoveredAsState()
+        // A pulled row is let go the way a flung one settles: on a card's leading edge (BC-32).
+        val settle = com.cosmotune.music.ui.components.rememberShelfFlingBehavior(state)
 
         /** One screenful, less a sliver so the card at the edge stays in view. */
         fun page(forward: Boolean) {
             val viewport = state.layoutInfo.let { it.viewportEndOffset - it.viewportStartOffset }
             val distance = (viewport - SHELF_PAGE_OVERLAP_PX).coerceAtLeast(SHELF_PAGE_OVERLAP_PX)
-            scope.launch { state.animateScrollBy(if (forward) distance.toFloat() else -distance.toFloat()) }
+            scope.launch {
+                state.animateScrollBy(if (forward) distance.toFloat() else -distance.toFloat())
+                // And then onto a card's edge, as a fling would have left it.
+                state.scroll { with(settle) { performFling(0f) } }
+            }
         }
 
         // Whichever row the pointer is in takes the horizontal ticks; the page underneath keeps the
@@ -7853,6 +8007,7 @@ internal object DesktopShelfRowChrome : ShelfRowChrome {
                 .draggable(
                     state = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } },
                     orientation = Orientation.Horizontal,
+                    onDragStopped = { velocity -> state.scroll { with(settle) { performFling(-velocity) } } },
                 ),
         ) {
             row()
@@ -7984,19 +8139,14 @@ private fun DesktopSongRow(
             )
             Text(listOfNotNull(song.artist.takeIf(String::isNotBlank), song.durationText).joinToString(" · "), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        song.sourceQuality?.let { quality ->
-            val badge = quality.uppercase().takeIf { value ->
-                value in setOf("LOSSLESS", "FLAC", "HI-RES", "HIRES", "HIGH", "320")
-            }
-            if (badge != null) {
-                Text(
-                    badge,
-                    color = DesktopAccent,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                )
-            }
+        // The tier the row's source offered (an add-on's Lossless, Hi-Res, Atmos; a local file's container), as the player's badge.
+        song.sourceQualityBadge()?.let { quality ->
+            SourceQualityBadge(
+                quality = quality,
+                color = DesktopSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
         }
         if (onToggleLike != null) {
             IconButton(onClick = { onToggleLike(song) }) { Icon(if (liked) CosmotuneIcons.HeartFilled else CosmotuneIcons.Heart, "Favorite", tint = if (liked) DesktopAccent else DesktopSecondary) }

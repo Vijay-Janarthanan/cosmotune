@@ -50,7 +50,9 @@ import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
+import com.cosmotune.music.ui.components.rememberShelfFlingBehavior
+import androidx.compose.foundation.lazy.rememberLazyListState
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.albums
 import com.cosmotune.music.sharedui.resources.artists
@@ -63,6 +65,8 @@ import com.cosmotune.music.sharedui.resources.playlist_action
 import com.cosmotune.music.sharedui.resources.playlists
 import com.cosmotune.music.sharedui.resources.search_library_empty
 import com.cosmotune.music.sharedui.resources.search_library_no_results
+import com.cosmotune.music.sharedui.resources.search_addons_empty
+import com.cosmotune.music.sharedui.resources.search_addons_no_results
 import com.cosmotune.music.ui.components.MessageState
 import com.cosmotune.music.ui.components.contextClick
 import com.cosmotune.music.ui.components.longPressMenuClickable
@@ -216,7 +220,9 @@ private fun LazyListScope.listSection(section: SearchSection, tracks: List<Song>
 /** A song of the results: a tap plays it with the page's songs as the list, a hold opens its menu, a swipe queues it. */
 @Composable
 private fun SearchSongRow(song: Song, tracks: List<Song>, actions: SearchRowActions) {
-    val current = song.isSameTrackAs(actions.currentSong)
+    // The row that was played lights, not every namesake among the page's songs: see [playingRowMatcher].
+    val isCurrentRow = remember(tracks, actions.currentSong) { playingRowMatcher(tracks, actions.currentSong) }
+    val current = isCurrentRow(song)
     CosmoSongRow(
         song = song,
         onClick = { actions.onSongClick(tracks, tracks.indexOf(song).coerceAtLeast(0)) },
@@ -244,7 +250,8 @@ internal fun BrowseListRow(item: BrowseItem, onClick: () -> Unit, onLongPress: (
 
 /**
  * The Library source's page: the Local Music folder's tracks that match, as song rows. An artist or album hit needs no row of its
- * own: every track under that name matches too, so they are already here.
+ * own: every track under that name matches too, so they are already here. With [addons] it is the Add-ons source's page instead:
+ * the enabled add-ons' rows for the submitted query, each leading its artist line with the tier its source offered.
  */
 internal fun LazyListScope.libraryRows(
     query: String,
@@ -254,17 +261,24 @@ internal fun LazyListScope.libraryRows(
     onSongClick: (List<Song>, Int) -> Unit,
     onSongLongPress: (Song) -> Unit,
     onSongSwipe: (Song) -> Unit,
+    addons: Boolean = false,
 ) {
+    val prefix = if (addons) "addon" else "library"
     when (results) {
-        null -> item(key = "library:empty") { MessageState(stringResource(Res.string.search_library_empty)) }
-        UiState.Loading -> songListSkeleton(keyPrefix = "skeleton:search:library")
-        is UiState.Error -> item(key = "library:error") { MessageState(results.message) }
+        null -> item(key = "$prefix:empty") {
+            MessageState(stringResource(if (addons) Res.string.search_addons_empty else Res.string.search_library_empty))
+        }
+        UiState.Loading -> songListSkeleton(keyPrefix = "skeleton:search:$prefix")
+        is UiState.Error -> item(key = "$prefix:error") { MessageState(results.message) }
         is UiState.Success -> if (results.data.isEmpty()) {
-            item(key = "library:no-match") { MessageState(stringResource(Res.string.search_library_no_results, query)) }
+            item(key = "$prefix:no-match") {
+                MessageState(stringResource(if (addons) Res.string.search_addons_no_results else Res.string.search_library_no_results, query))
+            }
         } else {
             val tracks = results.data
-            itemsIndexed(tracks, key = { index, song -> "library_${song.videoId}_$index" }) { index, song ->
-                val current = song.isSameTrackAs(currentSong)
+            val isCurrentRow = playingRowMatcher(tracks, currentSong)
+            itemsIndexed(tracks, key = { index, song -> "${prefix}_${song.videoId}_$index" }) { index, song ->
+                val current = isCurrentRow(song)
                 CosmoSongRow(
                     song = song,
                     onClick = { onSongClick(tracks, index) },
@@ -272,6 +286,8 @@ internal fun LazyListScope.libraryRows(
                     onSwipeToQueue = { onSongSwipe(song) },
                     isCurrent = current,
                     isPlaying = isPlaying && current,
+                    // Rows from several catalogues side by side: each says what its source offered (BC-30).
+                    showSourceQuality = addons,
                 )
             }
         }
@@ -426,9 +442,12 @@ private fun LazyListScope.artistCircles(section: SearchSection, actions: SearchR
     item(key = "search-section:${section.kind}") {
         Column(Modifier.padding(top = 22.dp)) {
             CosmoSectionHeader(stringResource(Res.string.artists))
+            val circles = rememberLazyListState()
             LazyRow(
+                state = circles,
                 contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
+                flingBehavior = rememberShelfFlingBehavior(circles),
                 verticalAlignment = Alignment.Top,
             ) {
                 itemsIndexed(artists, key = { index, artist -> "artist_${artist.browseId}_$index" }) { _, artist ->

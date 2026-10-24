@@ -82,6 +82,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -96,6 +97,7 @@ import com.cosmotune.lyrics.LyricActivity
 import com.cosmotune.lyrics.LyricBacking
 import com.cosmotune.lyrics.LyricDuet
 import com.cosmotune.lyrics.LyricRows
+import com.cosmotune.lyrics.LyricTextDirection
 import com.cosmotune.lyrics.SungFraction
 import com.cosmotune.lyrics.WordFill
 import com.cosmotune.theme.CoverColors
@@ -437,8 +439,16 @@ private fun LyricItem(index: Int, env: LyricEnv) {
     val picking = env.selection.picking
     val onEnd = LyricDuet.onEnd(env.duet, line)
     val laneDp = LyricDuet.laneDp(env.duet)
-    val align = if (onEnd) TextAlign.End else TextAlign.Start
-    val textStyle = remember(env.baseStyle, line.text, align) { env.type.forText(env.baseStyle.copy(textAlign = align), line.text) }
+    // The side a line is written from is the line's own (BC-33): a Hebrew or Arabic line stands on the right in an English app,
+    // an English one on the left in a Hebrew app, and a duet's second voice at the far end of its own reading direction. Physical
+    // alignment and an explicit direction, as the classic view's `voiceStyle`, so placement, wrapping and the sweep agree.
+    val textRtl = remember(line.text) { LyricTextDirection.isRtl(line.text) }
+    val fromRight = LyricTextDirection.fromRight(textRtl, onEnd)
+    val align = if (fromRight) TextAlign.Right else TextAlign.Left
+    val direction = if (textRtl) TextDirection.Rtl else TextDirection.Ltr
+    val textStyle = remember(env.baseStyle, line.text, align, direction) {
+        env.type.forText(env.baseStyle.copy(textAlign = align, textDirection = direction), line.text)
+    }
     val subStyle = remember(env.subStyle, align) { env.subStyle.copy(textAlign = align) }
     val sub = env.subReveal.lines?.getOrNull(index)
     val subText = sub?.text?.takeIf { it.isNotBlank() && it != line.text }
@@ -520,7 +530,7 @@ private fun LyricItem(index: Int, env: LyricEnv) {
                 val k = scale.value * dip.value
                 scaleX = k
                 scaleY = k
-                transformOrigin = TransformOrigin(LyricsMetrics.originFraction(onEnd, env.rtl), 0.5f)
+                transformOrigin = TransformOrigin(LyricsMetrics.originFraction(onEnd, textRtl), 0.5f)
             }
             // Laid out narrow enough that the line still fits the list when it is drawn at its largest scale, and, in a duet,
             // in what is left after the lane kept clear for the other voice; placed against the edge it is written from.
@@ -530,7 +540,8 @@ private fun LyricItem(index: Int, env: LyricEnv) {
                     constraints.copy(minWidth = 0, maxWidth = LyricsMetrics.layoutWidthPx(constraints.maxWidth, lanePx, env.style.currentScale)),
                 )
                 layout(constraints.maxWidth, placeable.height) {
-                    placeable.placeRelative(LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, onEnd), 0)
+                    // Absolute, not relative to the app's layout direction: the side is the line's own.
+                    placeable.place(LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, fromRight), 0)
                 }
             }
             // The wash is drawn a little outside the line, so that its words are not pressed against its edge.
@@ -619,7 +630,7 @@ private fun LyricItem(index: Int, env: LyricEnv) {
             )
         }
         if (backing != null) {
-            BackingVoice(line.background!!, backing, env, remember(state) { derivedStateOf { state.value == LineState.CURRENT } }, onEnd, subBackingText)
+            BackingVoice(line.background!!, backing, env, remember(state) { derivedStateOf { state.value == LineState.CURRENT } }, fromRight, subBackingText)
         }
     }
 }

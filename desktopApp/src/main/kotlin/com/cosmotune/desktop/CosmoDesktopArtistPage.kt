@@ -68,7 +68,7 @@ import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.SubscriptionState
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.desktop.DesktopArtwork
 import com.cosmotune.music.desktop.DesktopStrings
 import com.cosmotune.music.desktop.browseTypeOf
@@ -373,6 +373,8 @@ private fun Popular(
     val type = LocalCosmoType.current
     var showAll by remember(top) { mutableStateOf(false) }
     val shown = if (showAll || top.size <= POPULAR_SHOWN) top else top.take(POPULAR_SHOWN)
+    // The row that was played lights, not every namesake: see [playingRowMatcher].
+    val isCurrentRow = remember(top, nowPlaying) { playingRowMatcher(top, nowPlaying) }
     Column(modifier) {
         Text(
             text = stringResource(SharedRes.string.cosmo_popular),
@@ -383,7 +385,7 @@ private fun Popular(
         Column {
             shown.forEachIndexed { index, song ->
                 key(song.videoId, index) {
-                    PopularRow(song, index, top, nowPlaying, isPlaying, onPlaySongs, onOpenMenu)
+                    PopularRow(song, index, top, isCurrentRow(song), isPlaying, onPlaySongs, onOpenMenu)
                 }
             }
         }
@@ -404,7 +406,7 @@ private fun PopularRow(
     song: Song,
     index: Int,
     top: List<Song>,
-    nowPlaying: Song?,
+    isCurrent: Boolean,
     isPlaying: Boolean,
     onPlaySongs: (List<Song>, Int) -> Unit,
     onOpenMenu: (Song) -> Unit,
@@ -416,7 +418,7 @@ private fun PopularRow(
         onClick = { onPlaySongs(top, index) },
         subtitle = song.albumName?.takeIf(String::isNotBlank) ?: song.artist.takeIf(String::isNotBlank),
         leading = CosmoRowLeading.Number(index + 1),
-        isCurrent = song.isSameTrackAs(nowPlaying),
+        isCurrent = isCurrent,
         isPlaying = isPlaying,
         // Hold or right click: the same menu the dots open.
         onLongPress = { onOpenMenu(song) },

@@ -149,23 +149,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 
-/** Returns true if any character in [text] belongs to a BMP RTL script. */
-private fun isRtl(text: String): Boolean {
-    var rtlCount = 0
-    var ltrCount = 0
-    for (ch in text) {
-        val code = ch.code
-        // Hebrew presentation forms
-        if (code in 0xFB1D..0xFB4F) return true
-        val dir = Character.getDirectionality(ch)
-        when (dir) {
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT,
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> rtlCount++
-            Character.DIRECTIONALITY_LEFT_TO_RIGHT -> ltrCount++
-        }
-    }
-    return rtlCount > ltrCount
-}
+/**
+ * Returns true if any character in [text] belongs to a BMP RTL script. Upstream's rule, moved to the shared
+ * [com.cosmotune.lyrics.LyricTextDirection] so the new look decides the same way (BC-33).
+ */
+private fun isRtl(text: String): Boolean = com.cosmotune.lyrics.LyricTextDirection.isRtl(text)
 
 /** Returns the text direction for [text]: LTR by default, RTL when detected. */
 private fun textDirectionFor(text: String): androidx.compose.ui.text.style.TextDirection {

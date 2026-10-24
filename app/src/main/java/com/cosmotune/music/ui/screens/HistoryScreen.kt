@@ -15,7 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.ui.components.MessageState
 import com.cosmotune.music.ui.components.PlayingAccent
 import com.cosmotune.music.ui.components.ROW_DIVIDER_INSET
@@ -64,6 +64,8 @@ fun HistoryScreen(
 
             is UiState.Success -> {
                 val songs = state.data
+                // The row that was played lights, not every namesake: see [playingRowMatcher].
+                val isCurrentRow = playingRowMatcher(songs, currentSong)
                 // The videoId alone is not a key here: the feed is deduplicated
                 // on it, but a list keyed on something that could repeat is one
                 // bad response away from a crash. The index makes it total.
@@ -73,8 +75,8 @@ fun HistoryScreen(
                         onClick = { onSongClick(songs, index) },
                         onLongPress = { onSongLongPress(song) },
                         onSwipeToQueue = { onSongSwipe(song) },
-                        isCurrent = song.isSameTrackAs(currentSong),
-                        isPlaying = song.isSameTrackAs(currentSong) && isPlaying,
+                        isCurrent = isCurrentRow(song),
+                        isPlaying = isCurrentRow(song) && isPlaying,
                         searchPlayingStyle = true,
                         activeTint = PlayingAccent,
                     )

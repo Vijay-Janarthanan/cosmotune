@@ -319,8 +319,13 @@ fun SongRow(
     searchPlayingStyle: Boolean = false,
     /** True while a Downloads row belongs to the current multi-selection. */
     selected: Boolean = false,
+    /**
+     * Leads the artist line with the tier the row's source offered (Lossless, Hi-Res Lossless, Dolby Atmos, High quality), for
+     * lists where rows from different catalogues sit side by side: the add-on search.
+     */
+    showSourceQuality: Boolean = false,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.blocks.CosmoSongRow(song = song, onClick = onClick, modifier = modifier, onLongPress = onLongPress, onMore = onMore, onSwipeToQueue = onSwipeToQueue, trackNumber = trackNumber, downloadedTint = downloadedTint, isCurrent = isCurrent, isPlaying = isPlaying, selected = selected)
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.blocks.CosmoSongRow(song = song, onClick = onClick, modifier = modifier, onLongPress = onLongPress, onMore = onMore, onSwipeToQueue = onSwipeToQueue, trackNumber = trackNumber, downloadedTint = downloadedTint, isCurrent = isCurrent, isPlaying = isPlaying, selected = selected, showSourceQuality = showSourceQuality)
     val haptics = rememberHaptics()
     val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
     var boxWidth by remember { mutableFloatStateOf(0f) }
@@ -358,6 +363,7 @@ fun SongRow(
             activeTint = activeTint,
             searchPlayingStyle = searchPlayingStyle,
             selected = selected,
+            showSourceQuality = showSourceQuality,
         )
         return
     }
@@ -405,6 +411,7 @@ fun SongRow(
             activeTint = activeTint,
             searchPlayingStyle = searchPlayingStyle,
             selected = selected,
+            showSourceQuality = showSourceQuality,
         )
     }
 }
@@ -472,6 +479,7 @@ private fun SongRowContent(
     activeTint: Color = MaterialTheme.colorScheme.primary,
     searchPlayingStyle: Boolean = false,
     selected: Boolean = false,
+    showSourceQuality: Boolean = false,
 ) {
     val titleColor by animateColorAsState(
         targetValue = if (isCurrent) activeTint else MaterialTheme.colorScheme.onBackground,
@@ -548,16 +556,23 @@ private fun SongRowContent(
                 color = titleColor,
             )
             Spacer(Modifier.height(2.dp))
-            Text(
-                text = listOfNotNull(
-                    song.artist.takeIf { it.isNotBlank() },
-                    song.downloadFormat,
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = subtitleColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            val subtitle = listOfNotNull(
+                song.artist.takeIf { it.isNotBlank() },
+                song.downloadFormat,
+            ).joinToString(" · ")
+            val quality = if (showSourceQuality) song.sourceQualityBadge() else null
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (quality != null) {
+                    SourceQualityBadge(quality = quality, color = subtitleColor, style = MaterialTheme.typography.bodyMedium)
+                }
+                Text(
+                    text = if (quality != null && subtitle.isNotEmpty()) " · $subtitle" else subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = subtitleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (downloadedTint != null) {
             DownloadedBadge(song.videoId, downloadedTint)

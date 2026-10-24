@@ -78,7 +78,7 @@ import com.cosmotune.music.data.model.SearchHistoryEntity
 import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.clear
 import com.cosmotune.music.sharedui.resources.cosmo_search_top_hits
@@ -88,6 +88,7 @@ import com.cosmotune.music.sharedui.resources.recent_searches
 import com.cosmotune.music.sharedui.resources.search_empty
 import com.cosmotune.music.sharedui.resources.search_hint
 import com.cosmotune.music.sharedui.resources.search_library_hint
+import com.cosmotune.music.sharedui.resources.search_addons_hint
 import com.cosmotune.music.ui.components.MessageState
 import com.cosmotune.music.ui.components.songListSkeleton
 import org.jetbrains.compose.resources.stringResource
@@ -140,6 +141,13 @@ fun CosmoSearch(
     libraryResults: UiState<List<Song>>? = null,
     onLibrarySongClick: (List<Song>, Int) -> Unit = onSongClick,
     sourceSwitcher: (@Composable () -> Unit)? = null,
+    searchingAddons: Boolean = false,
+    addonResults: UiState<List<Song>>? = null,
+    addonHistory: List<String> = emptyList(),
+    onAddonHistoryClick: (String) -> Unit = {},
+    onAddonHistoryRemove: (String) -> Unit = {},
+    onAddonHistoryClear: () -> Unit = {},
+    onAddonSongClick: (List<Song>, Int) -> Unit = onSongClick,
     browse: CosmoBrowse? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -166,11 +174,11 @@ fun CosmoSearch(
     }
     // A non-empty suggestion list means the field is mid-edit: nothing below it is worth showing while it is up, the results are
     // for whatever was searched before this edit began, and so are the filter chips above them.
-    val suggesting = suggestions.isNotEmpty() && !searchingLibrary
+    val suggesting = suggestions.isNotEmpty() && !searchingLibrary && !searchingAddons
     // Live media results arrive from the parallel typeahead pipeline; show them only while the user is still typing.
     val showTypeahead = typeaheadResults.isNotEmpty() && suggesting
-    LaunchedEffect(listState, results, loadingMore, searchingLibrary) {
-        if (results !is UiState.Success || searchingLibrary) return@LaunchedEffect
+    LaunchedEffect(listState, results, loadingMore, searchingLibrary, searchingAddons) {
+        if (results !is UiState.Success || searchingLibrary || searchingAddons) return@LaunchedEffect
         snapshotFlow {
             val layout = listState.layoutInfo
             (layout.visibleItemsInfo.lastOrNull()?.index ?: -1) to layout.totalItemsCount
@@ -203,7 +211,13 @@ fun CosmoSearch(
                         query = query,
                         onQueryChange = onQueryChange,
                         onSubmit = onSubmit,
-                        placeholder = stringResource(if (searchingLibrary) Res.string.search_library_hint else Res.string.search_hint),
+                        placeholder = stringResource(
+                            when {
+                                searchingLibrary -> Res.string.search_library_hint
+                                searchingAddons -> Res.string.search_addons_hint
+                                else -> Res.string.search_hint
+                            },
+                        ),
                         modifier = Modifier.padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, bottom = 4.dp),
                         focusRequester = focusRequester,
                     )
@@ -222,7 +236,7 @@ fun CosmoSearch(
                 // The filters only mean something once there is a result set to narrow; they stay up for an empty or failed
                 // search too, or picking a filter that finds nothing would take away the control needed to leave it. They are
                 // YouTube's categories, so the Library source has none.
-                if (results != null && !suggesting && !searchingLibrary) {
+                if (results != null && !suggesting && !searchingLibrary && !searchingAddons) {
                     SearchFilterChips(filter = filter, onFilterChange = onFilterChange)
                 }
             }
@@ -242,6 +256,20 @@ fun CosmoSearch(
                         onSongLongPress = onSongLongPress,
                         onSongSwipe = onSongSwipe,
                     )
+                    searchingAddons -> if (addonResults == null && query.isBlank() && addonHistory.isNotEmpty()) {
+                        addonRecentRows(addonHistory, onAddonHistoryClick, onAddonHistoryRemove, onAddonHistoryClear)
+                    } else {
+                        libraryRows(
+                            query = query.trim(),
+                            results = addonResults,
+                            currentSong = currentSong,
+                            isPlaying = isPlaying,
+                            onSongClick = onAddonSongClick,
+                            onSongLongPress = onSongLongPress,
+                            onSongSwipe = onSongSwipe,
+                            addons = true,
+                        )
+                    }
                     suggesting -> {
                         suggestionRows(
                             query = query,
@@ -380,6 +408,39 @@ private fun LazyListScope.recentRows(
     }
 }
 
+/** The Add-ons source's recents: the words searched before (no entity behind them), each searched again by a tap. */
+private fun LazyListScope.addonRecentRows(
+    history: List<String>,
+    onClick: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    item(key = "addon-recent:header") {
+        CosmoOverline(
+            text = stringResource(Res.string.recent_searches),
+            trailing = {
+                CosmoButton(text = stringResource(Res.string.clear), onClick = onClear, kind = CosmoButtonKind.TEXT, size = CosmoButtonSize.SMALL)
+            },
+        )
+    }
+    items(history, key = { "addon-recent:$it" }) { term ->
+        CosmoListRow(
+            title = term,
+            onClick = { onClick(term) },
+            leading = CosmoRowLeading.Icon(CosmoIcons.Clock),
+            trailing = {
+                CosmoIconButton(
+                    icon = CosmoIcons.Close,
+                    contentDescription = stringResource(Res.string.recent_search_remove, term),
+                    onClick = { onRemove(term) },
+                    style = CosmoIconButtonStyle.PLAIN,
+                    size = 40.dp,
+                )
+            },
+        )
+    }
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------
 // typing
 
@@ -485,6 +546,10 @@ private fun LazyListScope.typeaheadRows(
     onTypeaheadLongPress: ((Song) -> Unit)?,
 ) {
     item(key = "typeahead:title") { CosmoOverline(stringResource(Res.string.cosmo_search_top_hits)) }
+    val isCurrentRow = playingRowMatcher(
+        typeaheadResults.mapNotNull { (it as? SearchResult.Track)?.song ?: (it as? SearchResult.TopTrack)?.song },
+        actions.currentSong,
+    )
     items(typeaheadResults, key = { result ->
         when (result) {
             is SearchResult.Track -> "ta:track:${result.song.videoId}"
@@ -493,16 +558,15 @@ private fun LazyListScope.typeaheadRows(
         }
     }) { result ->
         when (result) {
-            is SearchResult.Track -> TypeaheadSong(result.song, actions, onTypeaheadLongPress)
-            is SearchResult.TopTrack -> TypeaheadSong(result.song, actions, onTypeaheadLongPress)
+            is SearchResult.Track -> TypeaheadSong(result.song, actions, onTypeaheadLongPress, isCurrentRow(result.song))
+            is SearchResult.TopTrack -> TypeaheadSong(result.song, actions, onTypeaheadLongPress, isCurrentRow(result.song))
             is SearchResult.Browse -> BrowseListRow(item = result.item, onClick = { actions.onBrowseClick(result.item) }, onLongPress = null)
         }
     }
 }
 
 @Composable
-private fun TypeaheadSong(song: Song, actions: SearchRowActions, onLongPress: ((Song) -> Unit)?) {
-    val current = song.isSameTrackAs(actions.currentSong)
+private fun TypeaheadSong(song: Song, actions: SearchRowActions, onLongPress: ((Song) -> Unit)?, current: Boolean) {
     CosmoSongRow(
         song = song,
         onClick = { actions.onTopResultPlay(song) },

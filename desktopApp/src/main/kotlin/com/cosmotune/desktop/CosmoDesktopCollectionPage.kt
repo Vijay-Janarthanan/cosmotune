@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -70,7 +71,7 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.durationMillis
 import com.cosmotune.music.data.model.isMatchMissing
 import com.cosmotune.music.data.model.isMatchPending
-import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.data.model.isUnresolvedSpotify
 import com.cosmotune.music.desktop.DesktopArtwork
 import com.cosmotune.music.desktop.DesktopCanvasArtwork
@@ -141,6 +142,7 @@ internal fun CosmoDesktopCollectionPage(
     downloadedIds: Set<String>,
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
+    onReorder: (() -> Unit)? = null,
     nowPlaying: Song? = null,
     isPlaying: Boolean = LocalCosmoPlaying.current,
 ) {
@@ -148,6 +150,8 @@ internal fun CosmoDesktopCollectionPage(
     // "Search this list": a filter over the rows already loaded.
     var searching by remember(collection.browseId) { mutableStateOf(false) }
     var listQuery by remember(collection.browseId) { mutableStateOf("") }
+    // The row that was played lights, not every namesake: see [playingRowMatcher].
+    val isCurrentRow = remember(songs, nowPlaying) { playingRowMatcher(songs, nowPlaying) }
     val shownSongs = remember(songs, listQuery) {
         val needle = listQuery.trim()
         songs.withIndex().filter { (_, song) ->
@@ -188,6 +192,7 @@ internal fun CosmoDesktopCollectionPage(
                     onShare = onShare,
                     onRename = onRename,
                     onDelete = onDelete,
+                    onReorder = onReorder,
                 )
             }
             if (searching) {
@@ -212,7 +217,7 @@ internal fun CosmoDesktopCollectionPage(
                     // Striped by place on screen, not track number, so a filtered list still alternates.
                     striped = position % 2 == 1,
                     showAlbum = showAlbum,
-                    isCurrent = song.isSameTrackAs(nowPlaying),
+                    isCurrent = isCurrentRow(song),
                     isPlaying = isPlaying,
                     liked = song.videoId in likedIds,
                     downloaded = song.videoId in downloadedIds,
@@ -252,6 +257,7 @@ private fun CollectionHero(
     onShare: (() -> Unit)?,
     onRename: (() -> Unit)?,
     onDelete: (() -> Unit)?,
+    onReorder: (() -> Unit)? = null,
 ) {
     val songs = collection.songs
     val colors = LocalCosmoColors.current
@@ -338,6 +344,7 @@ private fun CollectionHero(
                 onShare = onShare,
                 onRename = onRename,
                 onDelete = onDelete,
+                onReorder = onReorder,
                 sourceLibrary = { com.cosmotune.music.desktop.DesktopSourceLibraryButton(collection) },
             )
         }
@@ -355,6 +362,7 @@ private fun HeroActions(
     onShare: (() -> Unit)?,
     onRename: (() -> Unit)?,
     onDelete: (() -> Unit)?,
+    onReorder: (() -> Unit)? = null,
     sourceLibrary: @Composable () -> Unit = {},
 ) {
     var moreOpen by remember { mutableStateOf(false) }
@@ -416,6 +424,16 @@ private fun HeroActions(
                         onClick = {
                             moreOpen = false
                             rename()
+                        },
+                    )
+                }
+                onReorder?.let { reorder ->
+                    DropdownMenuItem(
+                        text = { Text(DesktopStrings["reorder_playlist", "Edit order"]) },
+                        leadingIcon = { Icon(Icons.Rounded.DragHandle, null) },
+                        onClick = {
+                            moreOpen = false
+                            reorder()
                         },
                     )
                 }

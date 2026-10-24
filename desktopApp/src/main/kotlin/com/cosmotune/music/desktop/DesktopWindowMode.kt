@@ -29,6 +29,19 @@ internal object DesktopWindowMode {
     private val fillsScreen: WindowPlacement =
         if (DesktopPlatform.drawsOwnWindowFrame) WindowPlacement.Maximized else WindowPlacement.Fullscreen
 
+    /**
+     * The native borderless fullscreen (BC-35): on Windows the only thing that covers a taskbar told to stay on top is a
+     * frameless window raised above it, which no Compose placement is. True when the native frame took the request; then the
+     * window's placement is left as it was (the Win32 style changes, not the placement). Replaceable for tests.
+     */
+    internal var nativeFullscreen: (Boolean) -> Boolean = { on -> DesktopPlatform.isWindows && DesktopWindowsFrame.setFullscreen(on) }
+
+    /** Puts the chosen window material back over the frame margin the native window resets on its way out. */
+    internal var restoreBackdrop: () -> Unit = { DesktopWindowBackdrop.apply() }
+
+    /** Whether the native borderless fullscreen is what is filling the screen now. */
+    private var nativeActive = false
+
     fun toggle() = setFullScreen(!_fullScreen.value)
 
     /**
@@ -36,6 +49,7 @@ internal object DesktopWindowMode {
      * double-clicking the title bar has always done.
      */
     fun toggleMaximized() {
+        leaveNativeFullscreen()
         _fullScreen.value = false
         set(if (_placement.value == WindowPlacement.Maximized) WindowPlacement.Floating else WindowPlacement.Maximized)
     }
@@ -57,7 +71,30 @@ internal object DesktopWindowMode {
 
     private fun setFullScreen(on: Boolean) {
         _fullScreen.value = on
+        if (on) {
+            if (nativeFullscreen(true)) {
+                nativeActive = true
+                return
+            }
+        } else if (leaveNativeFullscreen()) {
+            return
+        }
         set(if (on) fillsScreen else WindowPlacement.Floating)
+    }
+
+    /** Takes the native fullscreen down if it is up; true when it was (the placement was never changed for it). */
+    private fun leaveNativeFullscreen(): Boolean {
+        if (!nativeActive) return false
+        nativeActive = false
+        if (nativeFullscreen(false)) restoreBackdrop()
+        return true
+    }
+
+    /** Back to a floating, windowed start, for tests. */
+    internal fun resetForTest() {
+        nativeActive = false
+        _fullScreen.value = false
+        set(WindowPlacement.Floating)
     }
 
     private fun set(placement: WindowPlacement) {

@@ -79,12 +79,11 @@ object DesktopScrobbling {
     // (or ran with one in the environment) is the fallback, exactly as on
     // Android where AppSettings.lastfmApiKey falls back to BuildConfig.
     private val apiKey: String?
-        get() = DesktopScrobbleSettings.lastfmApiKey.value.takeIf(String::isNotBlank)
-            ?: property("cosmotune.lastfm.key") ?: env("COSMOTUNE_LASTFM_API_KEY")
+        get() = DesktopLastFmCredentials.pick(DesktopScrobbleSettings.lastfmApiKey.value, property("cosmotune.lastfm.key"), env("COSMOTUNE_LASTFM_API_KEY"))
 
     private val apiSecret: String?
-        get() = DesktopScrobbleSettings.lastfmApiSecret.value.takeIf(String::isNotBlank)
-            ?: property("cosmotune.lastfm.secret") ?: env("COSMOTUNE_LASTFM_API_SECRET")
+        get() = DesktopLastFmCredentials.pick(DesktopScrobbleSettings.lastfmApiSecret.value, property("cosmotune.lastfm.secret"), env("COSMOTUNE_LASTFM_API_SECRET"))
+
 
     private fun sessionKey(): String? =
         DesktopScrobbleSettings.lastfmSessionKey.value.takeIf(String::isNotBlank)
@@ -341,4 +340,22 @@ object DesktopScrobbling {
     private fun property(name: String): String? =
         System.getProperty(name)?.trim()?.takeIf(String::isNotBlank)
 
+}
+
+/** The Last.fm credential rules of BC-35, apart from the settings and the network so a test needs neither. */
+internal object DesktopLastFmCredentials {
+    /**
+     * Which Last.fm app credential signs a request (BC-35): the one the listener entered wins, then the build's (a system
+     * property), then the environment's. Blank counts as absent at every step.
+     */
+    fun pick(entered: String?, built: String?, environment: String?): String? =
+        entered?.trim()?.takeIf(String::isNotBlank) ?: built?.trim()?.takeIf(String::isNotBlank)
+            ?: environment?.trim()?.takeIf(String::isNotBlank)
+
+    /**
+     * Whether the sign-in dialog can send: an account and password always, and the app's key and secret too on a build that
+     * has none of its own (then the dialog asks for them).
+     */
+    fun signInReady(needsAppKey: Boolean, apiKey: String, apiSecret: String, username: String, password: String): Boolean =
+        username.isNotBlank() && password.isNotBlank() && (!needsAppKey || (apiKey.isNotBlank() && apiSecret.isNotBlank()))
 }

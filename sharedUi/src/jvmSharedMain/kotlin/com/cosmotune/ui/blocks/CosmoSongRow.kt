@@ -69,6 +69,8 @@ import com.cosmotune.music.sharedui.resources.selected as selectedString
 import com.cosmotune.music.ui.AppUi
 import com.cosmotune.music.ui.components.DownloadedBadge
 import com.cosmotune.music.ui.components.ExplicitSongTitle
+import com.cosmotune.music.ui.components.SourceQualityBadge
+import com.cosmotune.music.ui.components.sourceQualityBadge
 import com.cosmotune.music.ui.haptics.Haptic
 import com.cosmotune.music.ui.haptics.rememberHaptics
 import com.cosmotune.music.ui.player.rememberRemoteArtworkUrl
@@ -83,7 +85,7 @@ import org.jetbrains.compose.resources.stringResource
  *
  * [downloadedTint] only says whether to mark a downloaded song (null: no mark, the Downloads page); the mark is in the accent
  * of the cover. [selected] is the multi-selection of Downloads: a check disc replaces the cover. [isCurrent] washes the row and
- * [isPlaying] sets the equaliser going.
+ * [isPlaying] sets the equaliser going. [showSourceQuality] leads the artist line with the source's offered tier.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -101,6 +103,8 @@ fun CosmoSongRow(
     selected: Boolean = false,
     height: Dp = 64.dp,
     trailingText: String? = null,
+    /** Leads the artist line with the tier the row's source offered ([SourceQualityBadge]): the add-on search, where catalogues mix. */
+    showSourceQuality: Boolean = false,
 ) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
@@ -116,6 +120,7 @@ fun CosmoSongRow(
     val subtitle = remember(song.artist, song.downloadFormat) {
         listOfNotNull(song.artist.takeIf { it.isNotBlank() }, song.downloadFormat).joinToString(" · ")
     }
+    val quality = if (showSourceQuality) song.sourceQualityBadge() else null
     val cover = rememberRemoteArtworkUrl(song)
     val leading = if (trackNumber != null) CosmoRowLeading.Number(trackNumber) else CosmoRowLeading.Cover(cover)
     val titleStyle = type.forText(type.rowTitleStyle(), song.title)
@@ -173,6 +178,7 @@ fun CosmoSongRow(
                 else RowLeadingContent(leading, isCurrent, isPlaying)
             },
             trailing = trailing,
+            subtitleLeading = quality?.let { tier -> { color, style -> SourceQualityBadge(quality = tier, color = color, style = style) } },
         )
     }
 

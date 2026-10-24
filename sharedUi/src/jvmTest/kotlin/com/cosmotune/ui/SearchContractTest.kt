@@ -40,7 +40,7 @@ class SearchContractTest {
 
     @Test fun searchSwitchTakesSearchScreensListNameForNameAndTypeForTypeAndBrowseLast() {
         val oldList = params(oldSearch, "SearchScreen")
-        assertEquals(37, oldList.size, "the old screen's list was read")
+        assertEquals(44, oldList.size, "the old screen's list was read (37, and the seven of the Add-ons source, BC-31)")
         val switch = params(search("SearchSwitch"), "SearchSwitch")
         assertEquals(oldList + "browse: CosmoBrowse? = null", switch)
     }
@@ -135,10 +135,10 @@ class SearchContractTest {
             "onFocusHandled()",
             "LaunchedEffect(scrollResetTrigger) {",
             "if (scrollResetTrigger > 0) listState.scrollToItem(0)",
-            "val suggesting = suggestions.isNotEmpty() && !searchingLibrary",
+            "val suggesting = suggestions.isNotEmpty() && !searchingLibrary && !searchingAddons",
             "val showTypeahead = typeaheadResults.isNotEmpty() && suggesting",
-            "LaunchedEffect(listState, results, loadingMore, searchingLibrary) {",
-            "if (results !is UiState.Success || searchingLibrary) return@LaunchedEffect",
+            "LaunchedEffect(listState, results, loadingMore, searchingLibrary, searchingAddons) {",
+            "if (results !is UiState.Success || searchingLibrary || searchingAddons) return@LaunchedEffect",
             "(layout.visibleItemsInfo.lastOrNull()?.index ?: -1) to layout.totalItemsCount",
             "if (!loadingMore && total > 0 && lastVisible >= total - 4) onLoadMore()",
         )
@@ -151,7 +151,7 @@ class SearchContractTest {
 
     @Test fun theFilterChipsAreTheOldFiltersAndComeUnderTheOldConditions() {
         val new = SourceContract.code(search("CosmoSearch"))
-        assertTrue("if (results != null && !suggesting && !searchingLibrary) {" in new)
+        assertTrue("if (results != null && !suggesting && !searchingLibrary && !searchingAddons) {" in new)
         assertTrue("SearchFilter.entries.forEach { entry ->" in new)
         // P4-19: the chip that is already chosen does not buzz again
         assertTrue("CosmoChip(label = entry.label, selected = entry == filter, onClick = { onFilterChange(entry) }, haptic = entry != filter)" in new)

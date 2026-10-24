@@ -93,10 +93,10 @@ class LyricsParityContractTest {
     @Test fun aDuetIsLaidOutOnTwoSidesAgainstTheEdgeEachVoiceIsWrittenFrom() {
         assertTrue(view.contains("val duet = remember(lines) { LyricDuet.isDuet(lines) }"), "only a song that names a second voice")
         assertTrue(view.contains("val onEnd = LyricDuet.onEnd(env.duet, line)"))
-        assertTrue(view.contains("val align = if (onEnd) TextAlign.End else TextAlign.Start"), "the words are aligned with the side")
+        assertTrue(view.contains("val fromRight = LyricTextDirection.fromRight(textRtl, onEnd)") && view.contains("val align = if (fromRight) TextAlign.Right else TextAlign.Left"), "the words are aligned with the side, which is the line's own (BC-33)")
         assertTrue(view.contains("LyricsMetrics.layoutWidthPx(constraints.maxWidth, lanePx, env.style.currentScale)"), "the lane is kept clear")
-        assertTrue(view.contains("LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, onEnd)"), "placed against the end edge")
-        assertTrue(view.contains("TransformOrigin(LyricsMetrics.originFraction(onEnd, env.rtl), 0.5f)"), "scaled from the edge it is written from")
+        assertTrue(view.contains("placeable.place(LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, fromRight), 0)"), "placed against the edge it is written from, whatever the app's direction")
+        assertTrue(view.contains("TransformOrigin(LyricsMetrics.originFraction(onEnd, textRtl), 0.5f)"), "scaled from the edge it is written from")
         assertTrue(view.contains("val laneDp = LyricDuet.laneDp(env.duet)"))
     }
 
@@ -121,7 +121,7 @@ class LyricsParityContractTest {
         assertTrue(voices.contains("val fillOn by remember { derivedStateOf { timed && open.value > 0f } }"), "a shut voice has no accent copy and asks the clock for nothing")
         assertTrue(voices.contains("sweepWords(layoutRef.value, shown, env.clock.longValue, feather)"), "filled on its own words")
         assertFalse(voices.contains("WordLifter"), "the lift and the bloom are the lead's")
-        assertTrue(voices.contains("LyricsMetrics.originFraction(onEnd, env.rtl)"), "a duet's second voice grows out of its own margin")
+        assertTrue(voices.contains("revealBacking(open, if (fromRight) 1f else 0f)"), "a duet's second voice grows out of its own margin")
     }
 
     // ---- per-word effects ------------------------------------------------------------------------------------------------------

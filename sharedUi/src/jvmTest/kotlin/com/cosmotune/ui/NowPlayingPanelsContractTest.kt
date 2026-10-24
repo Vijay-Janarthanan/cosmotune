@@ -63,7 +63,7 @@ class NowPlayingPanelsContractTest {
     @Test fun aScaleIsALayerNeverAFontSize() {
         val src = code(nowPlaying("CosmoLyricsView.kt"))
         assertTrue(src.contains("scaleX = k") && src.contains("scaleY = k"), "the scale is drawn by a graphics layer")
-        assertTrue(src.contains("TransformOrigin(LyricsMetrics.originFraction(onEnd, env.rtl), 0.5f)"), "from the edge the line is written from: the start edge, or the end edge of a duet's second voice")
+        assertTrue(src.contains("TransformOrigin(LyricsMetrics.originFraction(onEnd, textRtl), 0.5f)"), "from the edge the line is written from: the start edge, or the end edge of a duet's second voice")
         assertTrue(src.contains("CosmoMotion.slow(reduced)"), "on the slow spring")
         // the one font size set in the file is the romanisation's
         val sizes = Regex("""fontSize\s*=\s*[^,)\n]+""").findAll(src).map { it.value.replace(Regex("\\s+"), " ") }.toList()

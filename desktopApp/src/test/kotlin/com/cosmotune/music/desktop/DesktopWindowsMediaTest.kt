@@ -23,6 +23,7 @@ class DesktopWindowsMediaTest {
                 onNext = { pressed += "next" },
                 onPrevious = { pressed += "previous" },
                 onStop = { pressed += "stop" },
+                onSeek = { pressed += "seek $it" },
             ),
         )
     }
@@ -43,5 +44,26 @@ class DesktopWindowsMediaTest {
         DesktopWindowsMedia.onButton(99)
         DesktopWindowsMedia.onButton(-1)
         assertEquals(emptyList(), pressed)
+    }
+
+    @Test
+    fun aScrubberDragReachesSeekWithItsPosition() {
+        install()
+        DesktopWindowsMedia.onSeek(42_000L)
+        assertEquals(listOf("seek 42000"), pressed)
+    }
+
+    @Test
+    fun withNoPlayerASeekGoesNowhere() {
+        DesktopWindowsMedia.onSeek(1_000L)
+        assertEquals(emptyList(), pressed)
+    }
+
+    @Test
+    fun aSeekLandsInsideTheTrack() {
+        assertEquals(0L, DesktopWindowsMedia.seekTarget(-30L, 200_000L))
+        assertEquals(200_000L, DesktopWindowsMedia.seekTarget(250_000L, 200_000L), "past the end of a track whose length the shell had")
+        assertEquals(90_000L, DesktopWindowsMedia.seekTarget(90_000L, 200_000L))
+        assertEquals(90_000L, DesktopWindowsMedia.seekTarget(90_000L, 0L), "an unknown length does not clamp")
     }
 }

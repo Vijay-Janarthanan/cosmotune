@@ -37,6 +37,8 @@ import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.music.ui.components.LocalShelfRowChrome
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.playingShelfItemMatcher
+import com.cosmotune.music.ui.components.rememberShelfFlingBehavior
 import com.cosmotune.music.ui.components.contextClick
 import com.cosmotune.music.ui.components.longPressMenuClickable
 import com.cosmotune.music.ui.screens.localizeCardSubtitle
@@ -154,12 +156,16 @@ fun CosmoShelf(
         // The row is wrapped in the platform's shelf chrome (the desktop's hover arrows, drag and wheel) exactly as the old
         // `ShelfRow` does; `ShelfRow` itself has no `verticalAlignment`, and the lead card is taller than the others.
         val rowState = rememberLazyListState()
+        // The card that was played, not every namesake: see [playingShelfItemMatcher].
+        val isCurrentItem = playingShelfItemMatcher(items, currentSong)
         LocalShelfRowChrome.current.Wrap(rowState) {
             LazyRow(
                 state = rowState,
                 contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
                 horizontalArrangement = Arrangement.spacedBy(CosmoSpacing.gutter),
                 verticalAlignment = Alignment.Bottom,
+                // A fling settles on a card's leading edge, as every shelf does (BC-32).
+                flingBehavior = rememberShelfFlingBehavior(rowState),
             ) {
                 itemsIndexed(items, key = { index, item -> shelfKey(item, index) }) { index, item ->
                     val width = cardWidth ?: if (leadFirst && index == 0) BlockMetrics.LEAD_CARD_DP.dp else BlockMetrics.SMALL_CARD_DP.dp
@@ -171,7 +177,7 @@ fun CosmoShelf(
                         width = width,
                         circle = circles,
                         onLongPress = onItemLongPress?.let { held -> { held(item) } },
-                        playing = isPlaying && item.isSong(currentSong),
+                        playing = isPlaying && isCurrentItem(item),
                     )
                 }
             }
