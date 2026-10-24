@@ -188,7 +188,7 @@ internal fun AndroidCanvasArtworkPlayer(
     var clipAspect by remember(canvas) { mutableFloatStateOf(0f) }
     var bounds by remember { mutableStateOf(IntSize.Zero) }
     var textureView by remember(canvas) { mutableStateOf<TextureView?>(null) }
-    val automaticFraming = canvas.videoId != null && sync != null
+    val automaticFraming = com.opencanvas.core.OpenCanvas.SUBJECT_FRAMING && canvas.videoId != null && sync != null
     var observedVideoTime by remember(canvas) { mutableStateOf(0.0) }
     var analysis by remember(canvas) { mutableStateOf<com.opencanvas.core.reframer.FrameReframingWorker?>(null) }
     val liveFraming = analysis?.framing?.collectAsState()?.value ?: com.opencanvas.core.filter.FramingDecision()

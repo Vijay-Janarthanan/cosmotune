@@ -57,7 +57,7 @@ import kotlin.math.roundToInt
 @Composable
 internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     val canvas = spec.canvas
-    val automaticFraming = canvas.videoId != null && spec.sync != null
+    val automaticFraming = com.opencanvas.core.OpenCanvas.SUBJECT_FRAMING && canvas.videoId != null && spec.sync != null
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     var sourceAspect by remember(canvas) { mutableFloatStateOf(0f) }
     var frameTime by remember(canvas) { mutableStateOf(0.0) }

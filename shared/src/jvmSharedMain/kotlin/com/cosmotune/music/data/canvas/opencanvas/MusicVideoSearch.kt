@@ -39,8 +39,11 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
             if (ambiguousContext) "\"$title\" video song" else null).distinct()
         val results = ArrayList<VideoCandidate>()
         val titleWords = words.map { word -> word.lowercase().filter { it.isLetterOrDigit() } }.filter { it.length >= 3 }
+        val startedAt = System.nanoTime()
         for (query in queries) {
-            val batch = withTimeoutOrNull(8_000) { search(query) }.orEmpty()
+            // Searches run one after another: a slow network must not hold the song's video for half a minute.
+            if (results.isNotEmpty() && (System.nanoTime() - startedAt) / 1_000_000L > SEARCH_BUDGET_MS) break
+            val batch = withTimeoutOrNull(QUERY_TIMEOUT_MS) { search(query) }.orEmpty()
             results += batch
             val ranked = VideoMatcher.rank(results.distinctBy { it.videoId }
                 .filter { VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
@@ -55,8 +58,11 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
                         Regex("(?i)(\\b[248]k\\b|\\bmv\\b|\\bm/v\\b)").containsMatchIn(candidate.title))
                 }) return@run ranked
         }
-        VideoMatcher.rank(results.distinctBy { it.videoId }
-            .filter { VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
+        val distinct = results.distinctBy { it.videoId }
+        // Publisher evidence puts the right video first, but a song with no verified publisher must still get
+        // its best-ranked video: the audio check in the session rejects a wrong one.
+        VideoMatcher.rank(distinct.filter { VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
+            .ifEmpty { VideoMatcher.rank(distinct, title, artist, durationSec, limit, album) }
     }
 
     private suspend fun search(queryText: String): List<VideoCandidate> {
@@ -78,6 +84,8 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
     }
 
     internal companion object {
+        private const val QUERY_TIMEOUT_MS = 4_000L
+        private const val SEARCH_BUDGET_MS = 6_000L
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
