@@ -326,7 +326,19 @@ data class LibraryAudioAnalysis(
     val cutoffHz: Int? = null,
     val genre: String? = null,
     val analysedAt: Long = 0,
+    /** Album and album artist as the file or library names them; the album-gain grouping key. */
+    val album: String? = null,
+    val albumArtist: String? = null,
+    /** ReplayGain 2.0 album gain (reference -18 LUFS) across the analysed tracks sharing [albumKey]. */
+    val albumGainDb: Double? = null,
+    /** The highest sample peak among those tracks. */
+    val albumPeak: Double? = null,
 ) {
+    /** Album plus album artist, case-folded; null when the file names no album. */
+    val albumKey: String? get() = album?.trim()?.takeIf { it.isNotEmpty() }?.let { name ->
+        (albumArtist?.trim().orEmpty() + "\u0000" + name).lowercase(java.util.Locale.ROOT)
+    }
+
     /** ReplayGain 2.0 track gain (reference -18 LUFS). */
     val replayGainDb: Double? get() = integratedLufs?.let { REPLAYGAIN_REFERENCE_LUFS - it }
 
@@ -353,6 +365,28 @@ data class LibraryAudioAnalysis(
         const val REPLAYGAIN_REFERENCE_LUFS = -18.0
         const val PLAYBACK_REFERENCE_LUFS = -14.0
         private val LOSSLESS_CODECS = listOf("flac", "alac", "pcm", "wavpack", "ape", "tta", "dsd", "truehd", "mlp")
+    }
+}
+
+/**
+ * ReplayGain 2.0 album gain. Each album's loudness is the duration-weighted energy mean of its
+ * tracks' gated integrated loudness: the per-track gated blocks are not kept, so this pools the
+ * tracks' energy rather than re-gating every block together (the two usually agree within a few
+ * tenths of a LU). Tracks without an album or a measurement are left without an album gain.
+ */
+object AlbumGain {
+    fun apply(entries: Collection<LibraryAudioAnalysis>): List<LibraryAudioAnalysis> {
+        val albums = entries.filter { it.albumKey != null && it.integratedLufs != null && it.durationSeconds > 0 }.groupBy { it.albumKey!! }
+        val gains = albums.mapValues { (_, tracks) ->
+            val seconds = tracks.sumOf { it.durationSeconds }
+            val energy = tracks.sumOf { it.durationSeconds * 10.0.pow(it.integratedLufs!! / 10.0) } / seconds
+            val lufs = 10.0 * log10(energy)
+            ((LibraryAudioAnalysis.REPLAYGAIN_REFERENCE_LUFS - lufs) * 100).toLong() / 100.0 to tracks.maxOf { it.samplePeak }
+        }
+        return entries.map { entry ->
+            val gain = entry.albumKey?.takeIf { entry.integratedLufs != null }?.let(gains::get)
+            entry.copy(albumGainDb = gain?.first, albumPeak = gain?.second)
+        }
     }
 }
 
@@ -463,6 +497,9 @@ suspend fun analyseLocalLibrary(
                         bitsPerSample = stream.bitsPerSample, bitrate = stream.bitrate, cutoffHz = spectrum.cutoffHz(),
                         genre = stream.tags.entries.firstOrNull { it.key.equals("genre", true) }?.value?.trim()?.take(80)?.takeIf { it.isNotBlank() },
                         analysedAt = now(),
+                        album = (stream.tags.entries.firstOrNull { it.key.equals("album", true) }?.value ?: song.albumName)?.trim()?.take(500)?.takeIf { it.isNotBlank() },
+                        albumArtist = (stream.tags.entries.firstOrNull { it.key.equals("album_artist", true) || it.key.equals("albumartist", true) || it.key.equals("album artist", true) }?.value
+                            ?: song.artist)?.trim()?.take(500)?.takeIf { it.isNotBlank() },
                     )
                     measured++
                 }
@@ -472,6 +509,8 @@ suspend fun analyseLocalLibrary(
         catch (_: Exception) { failed++ }
         progress(LibraryAnalysisProgress(index + 1, selected.size, measured))
     }
+    val withAlbums = AlbumGain.apply(results.values).associateBy { it.location }
+    results.clear(); results.putAll(withAlbums)
     store.write(results.values)
     LibraryLoudness.publish(results.values)
     val ids = selected.mapTo(HashSet()) { it.videoId }

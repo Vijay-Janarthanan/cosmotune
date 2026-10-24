@@ -100,6 +100,43 @@ internal object DesktopSourceRegistry {
         override suspend fun matches(song: Song): List<Song> = DesktopJioSaavn.matches(song)
     }
 
+    /** The listener's own Subsonic/OpenSubsonic server: its rows play as themselves, and it can stand in for others. */
+    private class SubsonicAdapter(
+        override val config: DesktopSourceConfig,
+        private val catalogue: com.cosmotune.providers.SubsonicCatalogue,
+    ) : SourceAdapter {
+        override val descriptor: DesktopSourceDescriptor
+            get() = config.descriptor()
+
+        override fun owns(song: Song): Boolean = catalogue.owns(song.videoId) != null
+
+        override suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?> = runCatching {
+            val trackId = catalogue.owns(song.videoId) ?: return@runCatching null
+            val stream = catalogue.stream(trackId)
+            // The address carries the credential: it goes to the decoder and nowhere else.
+            DesktopStream(
+                stream.url,
+                DesktopStreamFormat(codec = stream.codec, kbps = stream.kbps, sampleRateHz = stream.sampleRateHz, bitDepth = stream.bitDepth),
+                sourceId = config.id,
+                durationSec = stream.durationSec,
+            )
+        }
+
+        override suspend fun matches(song: Song): List<Song> {
+            if (song.title.isBlank() || song.isVideo) return emptyList()
+            for (query in DesktopTrackMatcher.queries(song)) {
+                val candidates = runCatching { catalogue.searchSongs(query, 25) }.getOrDefault(emptyList())
+                DesktopTrackMatcher.ranked(candidates, song).ifEmpty { null }?.let { return it }
+            }
+            return emptyList()
+        }
+    }
+
+    /** A catalogue for a stored Subsonic source, or null while it lacks an address or credential. */
+    fun subsonic(config: DesktopSourceConfig): com.cosmotune.providers.SubsonicCatalogue? =
+        if (config.kind != DesktopSourceKind.SUBSONIC) null
+        else com.cosmotune.providers.SubsonicCatalogue.forSource(config.id, config.baseUrl, config.userSettings, com.cosmotune.music.data.Http.client)
+
     private class YouTubeAdapter(
         override val config: DesktopSourceConfig,
     ) : SourceAdapter {
@@ -161,10 +198,16 @@ internal object DesktopSourceRegistry {
         configured = isComplete,
         enabled = enabled,
         supportsLossless = kind.supportsLossless,
-        skippedByQuality = enabled && !DesktopPersistence().audioQuality().permits(kind),
+        skippedByQuality = enabled && !qualitySource().permits(kind),
     )
 
-    private fun configs(): List<DesktopSourceConfig> = DesktopPersistence().sourceConfigs()
+    /** Where the stored source list comes from; tests hand in their own list instead of the user's preferences. */
+    internal var configSource: () -> List<DesktopSourceConfig> = { DesktopPersistence().sourceConfigs() }
+
+    /** The stored stream ceiling; replaced by tests for the same reason as [configSource]. */
+    internal var qualitySource: () -> DesktopAudioQuality = { DesktopPersistence().audioQuality() }
+
+    private fun configs(): List<DesktopSourceConfig> = configSource()
 
     /**
      * The sources a *stream* may come from: enabled, complete, and permitted by the ceiling in
@@ -184,9 +227,10 @@ internal object DesktopSourceRegistry {
             .inSourceOrder()
             .filter { it.enabled && it.isComplete }
             .filterNot { forDownload && it.kind == DesktopSourceKind.ADDON && !DesktopAddonSource.allowsDownloads(it) }
-            .map { config ->
+            .mapNotNull { config ->
                 when (config.kind) {
                     DesktopSourceKind.ADDON -> AddonAdapter(config)
+                    DesktopSourceKind.SUBSONIC -> subsonic(config)?.let { SubsonicAdapter(config, it) }
                     DesktopSourceKind.CUSTOM_MODULE,
                     DesktopSourceKind.MODULE,
                     -> ModuleAdapter(config)
@@ -225,6 +269,15 @@ internal object DesktopSourceRegistry {
         val available = playbackAdapters(quality, forDownload)
         val moduleReference = DesktopModuleSource.parseTrack(song.videoId)
         val addonReference = DesktopAddonSource.parseTrack(song.videoId)
+        val subsonicOwner = subsonicOwnerOf(song)
+        if (subsonicOwner != null) {
+            val owner = available.firstOrNull { it.config.id == subsonicOwner.id }
+                ?: error("The source for this track is disabled or no longer configured")
+            check(owner.config.id != excludedSourceId) { "The selected source already failed for this recording" }
+            DesktopTrackLog.log("resolving '${song.title}' — this row belongs to ${subsonicOwner.displayName}")
+            return@runCatching owner.resolveOwned(song, quality).getOrThrow()
+                ?: error("${subsonicOwner.displayName} did not return an audio stream")
+        }
         val owned = when {
             addonReference != null -> available.firstOrNull { it.config.id == addonReference.sourceId }
             moduleReference?.sourceId != null -> available.firstOrNull { it.config.id == moduleReference.sourceId }
@@ -245,7 +298,7 @@ internal object DesktopSourceRegistry {
             // This path has nothing to race.
             DesktopTrackLog.log(
                 "resolving '${song.title}' — this row belongs to ${owned.descriptor.name}" +
-                    ", asking at the ${(quality ?: DesktopPersistence().audioQuality().name).lowercase()} rung",
+                    ", asking at the ${(quality ?: qualitySource().name).lowercase()} rung",
             )
             if (owned.config.id != excludedSourceId) {
                 owned.resolveOwned(song, quality).getOrNull()
@@ -321,7 +374,7 @@ internal object DesktopSourceRegistry {
         excludedSourceId: String? = null,
     ): Result<DesktopLiveResolution> = runCatching {
         val available = playbackAdapters(quality)
-        val owned = song.videoId.startsWith("src:sflx-") || available.any { it.owns(song) } ||
+        val owned = song.videoId.startsWith("src:sflx-") || subsonicOwnerOf(song) != null || available.any { it.owns(song) } ||
             DesktopModuleSource.parseTrack(song.videoId) != null ||
             song.videoId.startsWith("jiosaavn:")
         if (owned) {
@@ -557,8 +610,16 @@ internal object DesktopSourceRegistry {
         return true
     }
 
+    /** The configured Subsonic source a `src:<id>::<track>` row came from, enabled or not. */
+    private fun subsonicOwnerOf(song: Song): DesktopSourceConfig? {
+        val id = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.first ?: return null
+        if (id.startsWith("sflx-")) return null
+        return configs().firstOrNull { it.id == id && it.kind == DesktopSourceKind.SUBSONIC }
+    }
+
     /** Whether this row has a YouTube upload behind it to go back to. */
     fun hasYouTubeOriginal(song: Song): Boolean =
+        subsonicOwnerOf(song) == null &&
         DesktopAddonSource.parseTrack(song.videoId) == null &&
             DesktopModuleSource.parseTrack(song.videoId) == null &&
             !song.videoId.startsWith("jiosaavn:") &&
@@ -604,7 +665,7 @@ internal object DesktopSourceRegistry {
     internal fun ceiling(qualityOverride: String?): DesktopAudioQuality =
         qualityOverride?.let { override ->
             DesktopAudioQuality.entries.firstOrNull { it.name.equals(override, ignoreCase = true) }
-        } ?: DesktopPersistence().audioQuality()
+        } ?: qualitySource()
 
     private fun youtubeCeiling(qualityOverride: String?): Int = ceiling(qualityOverride).maxKbps
 }

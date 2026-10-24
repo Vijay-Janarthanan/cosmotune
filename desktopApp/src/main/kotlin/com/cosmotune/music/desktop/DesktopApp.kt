@@ -131,6 +131,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.Cloud
@@ -4118,10 +4119,15 @@ fun CosmotuneDesktopApp() {
                                     onTestSource = { candidate ->
                                         sourceStatus = sourceStatus + (candidate.id to "Checking source…")
                                         scope.launch {
-                                            val health = if (candidate.kind == DesktopSourceKind.ADDON) {
-                                                DesktopAddonSource.health(candidate)
-                                            } else {
-                                                DesktopModuleSource.health(candidate)
+                                            val health = when (candidate.kind) {
+                                                DesktopSourceKind.ADDON -> DesktopAddonSource.health(candidate)
+                                                DesktopSourceKind.SUBSONIC -> runCatching {
+                                                    val info = requireNotNull(DesktopSourceRegistry.subsonic(candidate)) {
+                                                        "Add the user name and password or API key"
+                                                    }.client.ping()
+                                                    listOfNotNull("Connected", info.type, info.version.takeIf(String::isNotBlank)).joinToString(" · ")
+                                                }
+                                                else -> DesktopModuleSource.health(candidate)
                                             }
                                             health.fold(
                                                 onSuccess = { sourceStatus = sourceStatus + (candidate.id to it) },
@@ -6017,6 +6023,7 @@ private fun DesktopSettingsScreen(
 ) {
     val settingsInset = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 16.dp else 0.dp
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
+    var editingSubsonic by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
     val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
     val sourceProbeKey = sourceConfigs
@@ -6690,10 +6697,10 @@ private fun DesktopSettingsScreen(
                             config = config,
                             status = sourceStatus[config.id],
                             skippedByQuality = config.enabled && !audioQuality.permits(config.kind),
-                            onEdit = if (config.kind.needsServer) {
-                                { editingSource = config }
-                            } else {
-                                null
+                            onEdit = when {
+                                config.kind == DesktopSourceKind.SUBSONIC -> { { editingSubsonic = config } }
+                                config.kind.needsServer -> { { editingSource = config } }
+                                else -> null
                             },
                             onToggle = if (config.kind == DesktopSourceKind.YOUTUBE) {
                                 null
@@ -6707,6 +6714,19 @@ private fun DesktopSettingsScreen(
                                 { onMoveSource(config, 1) }
                             } else null,
                         )
+                        if (config.kind == DesktopSourceKind.SUBSONIC && config.isComplete) androidx.compose.runtime.key(config.id, config.baseUrl, config.userSettings) {
+                            com.cosmotune.ui.providers.HttpAddonCatalogueEntry(
+                                identity = config.id, title = config.displayName, enabled = config.enabled,
+                                revision = config.hashCode().toString(),
+                                load = { resource, identity, _ ->
+                                    withContext(Dispatchers.IO) {
+                                        requireNotNull(DesktopSourceRegistry.subsonic(config)) { "Source is unavailable" }.load(resource, identity)
+                                    }
+                                },
+                                song = { track -> DesktopSourceRegistry.subsonic(config)?.song(track) ?: track.song(config.id) },
+                                onPlay = onPlayProviderSongs,
+                            )
+                        }
                         if (config.kind == DesktopSourceKind.ADDON) androidx.compose.runtime.key(config.id, config.baseUrl) {
                             com.cosmotune.ui.providers.HttpAddonSettingsEntry(config.displayName, config.userSettings,
                                 load = {
@@ -6730,6 +6750,16 @@ private fun DesktopSettingsScreen(
                         editingSource = DesktopSourceConfig(
                             id = UUID.randomUUID().toString(),
                             kind = DesktopSourceKind.ADDON,
+                        )
+                    }
+                    SettingsRow(
+                        CosmotuneIcons.Plus,
+                        "Add a Subsonic server",
+                        "Navidrome, Gonic, Airsonic or any OpenSubsonic server with your own files",
+                    ) {
+                        editingSubsonic = DesktopSourceConfig(
+                            id = UUID.randomUUID().toString(),
+                            kind = DesktopSourceKind.SUBSONIC,
                         )
                     }
                 }
@@ -6776,6 +6806,20 @@ private fun DesktopSettingsScreen(
         }
         }
             }
+    }
+
+    editingSubsonic?.let { config ->
+        val isNew = sourceConfigs.none { it.id == config.id }
+        com.cosmotune.ui.providers.SubsonicServerDialog(
+            isNew = isNew, label = config.label, address = config.baseUrl, settings = config.userSettings,
+            http = com.cosmotune.music.data.Http.client,
+            onSave = { edit ->
+                onSaveSource(config.copy(label = edit.label, baseUrl = edit.address, userSettings = edit.settings))
+                editingSubsonic = null
+            },
+            onRemove = if (isNew) null else ({ onRemoveSource(config); editingSubsonic = null }),
+            onDismiss = { editingSubsonic = null },
+        )
     }
 
     editingSource?.let { config ->
@@ -6917,6 +6961,7 @@ private fun DesktopSourceSettingsRow(
             when (config.kind) {
                 DesktopSourceKind.ADDON -> Icons.Rounded.Extension
                 DesktopSourceKind.CUSTOM_MODULE, DesktopSourceKind.MODULE -> Icons.Rounded.Extension
+                DesktopSourceKind.SUBSONIC -> Icons.Rounded.LibraryMusic
                 DesktopSourceKind.JIOSAAVN -> Icons.Rounded.GraphicEq
                 DesktopSourceKind.YOUTUBE -> Icons.Rounded.PlayCircle
             },

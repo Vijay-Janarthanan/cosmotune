@@ -123,8 +123,8 @@ object DesktopLocalMusic {
                 else -> value.uppercase(Locale.ROOT)
             }
         }
-        // FLAC/MP3 tags first (read locally, headers only); file and folder names fill what is missing.
-        val tags = if (extension.lowercase(Locale.ROOT) in setOf("flac", "mp3")) {
+        // FLAC, MP3, Ogg and MP4 tags first (read locally, headers only); file and folder names fill what is missing.
+        val tags = if (extension.lowercase(Locale.ROOT) in setOf("flac", "mp3", "ogg", "oga", "opus", "m4a", "mp4", "aac")) {
             runCatching { com.cosmotune.listening.LocalTagEditor.read(absolutePath.toFile()) }.getOrDefault(emptyMap())
         } else emptyMap()
         val folders = absolutePath.parent?.let { parent -> (0 until parent.nameCount).map { parent.getName(it).toString() } }.orEmpty()

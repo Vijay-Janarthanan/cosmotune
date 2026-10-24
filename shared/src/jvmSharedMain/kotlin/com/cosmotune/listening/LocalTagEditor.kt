@@ -27,7 +27,8 @@ internal enum class TagField(val vorbis: String, val id3: String) {
 class TagEditUnsupported(message: String) : Exception(message)
 
 /**
- * Self-contained FLAC (Vorbis comment) and MP3 (ID3v2.3/2.4) tag writer. Audio bytes are copied
+ * Self-contained FLAC (Vorbis comment), MP3 (ID3v2.3/2.4), Ogg Vorbis/Opus ([OggTags]) and MP4/M4A
+ * ([Mp4Tags]) tag writer. Audio bytes are copied
  * unchanged after the metadata; every other block or frame is preserved. The result is written
  * beside the original, re-read and checked, then atomically replaces it. A file that changes
  * while it is being edited is left untouched. Layouts this cannot rewrite safely are refused.
@@ -39,7 +40,13 @@ object LocalTagEditor {
         Kind.FLAC -> flacComments(file).groupBy({ it.substringBefore('=').uppercase(java.util.Locale.ROOT) }, { it.substringAfter('=') })
             .mapValues { it.value.first() }.let { all -> TagField.entries.mapNotNull { f -> all[f.vorbis]?.let { f.name to it } }.toMap() }
         Kind.MP3 -> id3(file)?.let { tag -> TagField.entries.mapNotNull { f -> tag.frames.firstOrNull { it.id == f.id3 || (f == TagField.YEAR && it.id == "TYER") }?.let { f.name to tag.text(it) } }.toMap() } ?: emptyMap()
+        Kind.OGG -> vorbisFields(OggTags.read(file))
+        Kind.MP4 -> Mp4Tags.read(file)
     }
+
+    private fun vorbisFields(comments: List<String>): Map<String, String> =
+        comments.groupBy({ it.substringBefore('=').uppercase(java.util.Locale.ROOT) }, { it.substringAfter('=') })
+            .mapValues { it.value.first() }.let { all -> TagField.entries.mapNotNull { f -> all[f.vorbis]?.let { f.name to it } }.toMap() }
 
     fun write(file: File, tags: LocalTags) {
         val edits = tags.edits()
@@ -48,6 +55,7 @@ object LocalTagEditor {
         if (!file.canWrite()) throw SecurityException("Cosmotune cannot write to this file.")
         val length = file.length(); val modified = file.lastModified()
         val kind = kind(file)
+        if (kind == Kind.OGG || kind == Kind.MP4) return rewriteContainer(file, kind, edits, length, modified)
         val temp = Files.createTempFile(file.absoluteFile.parentFile.toPath(), ".cosmotune-tags-", ".tmp").toFile()
         try {
             val audioOffset: Long
@@ -55,6 +63,7 @@ object LocalTagEditor {
             when (kind) {
                 Kind.FLAC -> { val (blocks, offset) = flacBlocks(file); audioOffset = offset; metadata = flacWithComments(blocks, edits) }
                 Kind.MP3 -> { val tag = id3(file); audioOffset = tag?.totalSize ?: 0L; metadata = id3With(tag, edits) }
+                else -> error("unreachable")
             }
             java.io.FileOutputStream(temp).use { out ->
                 out.write(metadata)
@@ -71,16 +80,35 @@ object LocalTagEditor {
         } finally { temp.delete() }
     }
 
-    private enum class Kind { FLAC, MP3 }
+    /** Ogg and MP4 are rebuilt whole: the audio is verified by digest rather than by a byte offset. */
+    private fun rewriteContainer(file: File, kind: Kind, edits: List<Pair<TagField, String>>, length: Long, modified: Long) {
+        val temp = Files.createTempFile(file.absoluteFile.parentFile.toPath(), ".cosmotune-tags-", ".tmp").toFile()
+        try {
+            val before = if (kind == Kind.OGG) OggTags.audioDigest(file) else Mp4Tags.audioDigest(file)
+            if (kind == Kind.OGG) OggTags.rewrite(file, temp, edits) else Mp4Tags.rewrite(file, temp, edits)
+            java.io.RandomAccessFile(temp, "rw").use { it.fd.sync() }
+            val after = if (kind == Kind.OGG) OggTags.audioDigest(temp) else Mp4Tags.audioDigest(temp)
+            require(before.contentEquals(after)) { "The edited file failed verification." }
+            val readBack = read(temp)
+            edits.forEach { (field, value) -> require(readBack[field.name].orEmpty() == value) { "The edited file failed verification." } }
+            if (file.length() != length || file.lastModified() != modified) throw IllegalStateException("The file changed while editing. Try again.")
+            try { Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE) }
+            catch (_: java.nio.file.AtomicMoveNotSupportedException) { Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING) }
+        } finally { temp.delete() }
+    }
+
+    private enum class Kind { FLAC, MP3, OGG, MP4 }
 
     private fun kind(file: File): Kind {
-        val head = ByteArray(4)
+        val head = ByteArray(8)
         val read = file.inputStream().use { it.read(head) }
         return when {
-            read == 4 && String(head, Charsets.ISO_8859_1) == "fLaC" -> Kind.FLAC
+            read >= 4 && String(head, 0, 4, Charsets.ISO_8859_1) == "fLaC" -> Kind.FLAC
+            read >= 4 && String(head, 0, 4, Charsets.ISO_8859_1) == "OggS" -> Kind.OGG
+            read == 8 && String(head, 4, 4, Charsets.ISO_8859_1) == "ftyp" -> Kind.MP4
             read >= 3 && String(head, 0, 3, Charsets.ISO_8859_1) == "ID3" -> Kind.MP3
             read >= 2 && (head[0].toInt() and 0xFF) == 0xFF && (head[1].toInt() and 0xE0) == 0xE0 -> Kind.MP3
-            else -> throw TagEditUnsupported("Tag editing supports FLAC and MP3 files.")
+            else -> throw TagEditUnsupported("Tag editing supports FLAC, MP3, Ogg Vorbis/Opus and MP4/M4A files.")
         }
     }
 

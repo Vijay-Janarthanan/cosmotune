@@ -17,6 +17,7 @@ object SourceCatalogue {
         }
         val config = requireNotNull(SourceRegistry.config(key.provider)) { "This source is no longer configured" }
         check(config.enabled) { "Enable this source first" }
+        (SourceRegistry.instance(key.provider) as? SubsonicSource)?.let { return it.page(key) }
         val source = SourceRegistry.instance(key.provider) as? AddonSource ?: error("This is not an HTTP add-on")
         val response = source.catalogue(key.kind, key.id)
         val raw = response[key.kind] as? JsonObject ?: response

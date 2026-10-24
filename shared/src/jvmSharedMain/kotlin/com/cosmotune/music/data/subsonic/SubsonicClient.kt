@@ -65,8 +65,38 @@ class SubsonicClient(
     suspend fun album(id: String): List<Song> =
         call("getAlbum", "id" to id)["album"]?.jsonObject?.get("song").songs()
 
+    /** Raw `search3` answer (songs, albums and artists), for catalogue browsing. */
+    suspend fun searchAll(query: String, songs: Int = 50, albums: Int = 20, artists: Int = 20): JsonObject {
+        require(query.isNotBlank()) { "Enter something to search for." }
+        return call("search3", "query" to query.trim().take(200), "songCount" to songs.coerceIn(0, 500).toString(),
+            "albumCount" to albums.coerceIn(0, 500).toString(), "artistCount" to artists.coerceIn(0, 500).toString())["searchResult3"]?.jsonObject
+            ?: JsonObject(emptyMap())
+    }
+
+    /** Raw `getAlbum` object (with its `song` list). */
+    suspend fun albumObject(id: String): JsonObject =
+        call("getAlbum", "id" to id)["album"]?.jsonObject ?: throw SubsonicException(70, "The server could not find that item.")
+
+    /** Raw `getArtist` object (with its `album` list). */
+    suspend fun artistObject(id: String): JsonObject =
+        call("getArtist", "id" to id)["artist"]?.jsonObject ?: throw SubsonicException(70, "The server could not find that item.")
+
+    /** Raw `getSong` object: suffix, bit rate, duration and, on OpenSubsonic, sampling rate and bit depth. */
+    suspend fun songObject(id: String): JsonObject =
+        call("getSong", "id" to id)["song"]?.jsonObject ?: throw SubsonicException(70, "The server could not find that item.")
+
+    /** Raw `getAlbumList2` albums, newest first by default. */
+    suspend fun albumList(type: String = "newest", size: Int = 50): List<JsonObject> =
+        call("getAlbumList2", "type" to type, "size" to size.coerceIn(1, 500).toString())["albumList2"]?.jsonObject?.get("album").objects()
+
     /** The address a player opens for [songId]. Contains credentials: hand it to the decoder, never persist it. */
     fun streamUrl(songId: String): String = authenticated("stream", "id" to songId, "format" to "raw").toString()
+
+    private fun JsonElement?.objects(): List<JsonObject> = when (this) {
+        is JsonArray -> mapNotNull { it as? JsonObject }
+        is JsonObject -> listOf(this)
+        else -> emptyList()
+    }.take(5_000)
 
     fun ownsTrack(videoId: String): String? = videoId.takeIf { it.startsWith("subsonic:$serverKey:") }?.substringAfter("subsonic:$serverKey:")
 
