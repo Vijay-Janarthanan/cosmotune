@@ -144,11 +144,12 @@ internal fun BackingVoice(
     shown: LyricLine,
     env: LyricEnv,
     leadActive: State<Boolean>,
-    onEnd: Boolean,
+    /** Written from the right edge: its lead line's side (BC-33), which the backing voice keeps. */
+    fromRight: Boolean,
     sub: String?,
 ) {
     val timed = shown.isWordSynced
-    val align = if (onEnd) TextAlign.End else TextAlign.Start
+    val align = if (fromRight) TextAlign.Right else TextAlign.Left
     val textStyle = remember(env.type, env.style.baseStep, align, shown.text) {
         env.type.forText(env.type.title(LyricsMetrics.backingStep(env.style.baseStep)).copy(textAlign = align), shown.text)
     }
@@ -170,7 +171,7 @@ internal fun BackingVoice(
     val accentInk = remember(env.ink) { ColorProducer { env.ink.accent } }
     val subInk = remember(env.ink) { ColorProducer { env.ink.secondary } }
 
-    Column(Modifier.fillMaxWidth().revealBacking(open, LyricsMetrics.originFraction(onEnd, env.rtl))) {
+    Column(Modifier.fillMaxWidth().revealBacking(open, if (fromRight) 1f else 0f)) {
         Box(Modifier.fillMaxWidth().padding(top = 2.dp)) {
             BasicText(
                 text = shown.text,
