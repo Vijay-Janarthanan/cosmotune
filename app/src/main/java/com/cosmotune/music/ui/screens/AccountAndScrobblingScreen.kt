@@ -57,6 +57,7 @@ fun AccountAndScrobblingScreen(
     val lastfmSessionKey by AppSettings.lastfmSessionKey.collectAsStateWithLifecycle()
     val lastfmScrobbleEnabled by AppSettings.lastfmScrobbleEnabled.collectAsStateWithLifecycle()
     val lastfmNowPlayingEnabled by AppSettings.lastfmNowPlaying.collectAsStateWithLifecycle()
+    val lastfmRecommendations by AppSettings.lastfmRecommendations.collectAsStateWithLifecycle()
     val lastfmPrimaryArtistOnly by AppSettings.lastfmPrimaryArtistOnly.collectAsStateWithLifecycle()
     val scrobbleMinDuration by AppSettings.scrobbleMinDuration.collectAsStateWithLifecycle()
     val scrobbleDelayPercent by AppSettings.scrobbleDelayPercent.collectAsStateWithLifecycle()
@@ -288,6 +289,23 @@ fun AccountAndScrobblingScreen(
                             )
                         },
                         onClick = { AppSettings.setLastfmNowPlaying(!lastfmNowPlayingEnabled) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = Icons.Rounded.GraphicEq,
+                        title = "Radio suggestions from Last.fm",
+                        subtitle = "Radio asks Last.fm for tracks similar to what is playing and favours your top artists. Sends the playing track and your username to Last.fm.",
+                        trailing = {
+                            Switch(
+                                checked = lastfmRecommendations,
+                                onCheckedChange = AppSettings::setLastfmRecommendations,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setLastfmRecommendations(!lastfmRecommendations) },
                     )
                 }
             }

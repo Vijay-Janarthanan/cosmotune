@@ -19,21 +19,26 @@ internal object DesktopScrobbleSettings {
 
     private fun text(key: String) = MutableStateFlow(persistence.string(key, ""))
 
+    /** Credentials go through the protected store, never a plain preference (LK-20). */
+    private val secrets get() = DesktopSecretPreferences.shared
+    private fun secret(key: String) = MutableStateFlow(secrets.read(key))
+
     private val _lastfmEnabled = flag(KEY_LASTFM_ENABLED, false)
     private val _lastfmUsername = text(KEY_LASTFM_USERNAME)
-    private val _lastfmSessionKey = text(KEY_LASTFM_SESSION_KEY)
+    private val _lastfmSessionKey = secret(KEY_LASTFM_SESSION_KEY)
     private val _lastfmScrobble = flag(KEY_LASTFM_SCROBBLE, true)
     private val _lastfmNowPlaying = flag(KEY_LASTFM_NOW_PLAYING, true)
     private val _lastfmPrimaryArtistOnly = flag(KEY_LASTFM_PRIMARY_ARTIST, false)
+    private val _lastfmRecommendations = flag(KEY_LASTFM_RECOMMENDATIONS, false)
     // A build without baked-in credentials can still scrobble: the listener
     // enters their own Last.fm API key and shared secret here, exactly as
     // Android's AppSettings lets them. Signing in and scrobbling use these
     // first, and fall back to the build-time key only where they are left blank.
-    private val _lastfmApiKey = text(KEY_LASTFM_API_KEY)
-    private val _lastfmApiSecret = text(KEY_LASTFM_API_SECRET)
+    private val _lastfmApiKey = secret(KEY_LASTFM_API_KEY)
+    private val _lastfmApiSecret = secret(KEY_LASTFM_API_SECRET)
 
     private val _listenBrainzEnabled = flag(KEY_LISTENBRAINZ_ENABLED, false)
-    private val _listenBrainzToken = text(KEY_LISTENBRAINZ_TOKEN)
+    private val _listenBrainzToken = secret(KEY_LISTENBRAINZ_TOKEN)
     private val _listenBrainzPrimaryArtistOnly = flag(KEY_LISTENBRAINZ_PRIMARY_ARTIST, false)
 
     private val _minDuration = MutableStateFlow(persistence.int(KEY_MIN_DURATION, DEFAULT_MIN_DURATION))
@@ -46,6 +51,8 @@ internal object DesktopScrobbleSettings {
     val lastfmScrobble: StateFlow<Boolean> = _lastfmScrobble
     val lastfmNowPlaying: StateFlow<Boolean> = _lastfmNowPlaying
     val lastfmPrimaryArtistOnly: StateFlow<Boolean> = _lastfmPrimaryArtistOnly
+    /** LK-06: radio may ask Last.fm for similar tracks and the account's top artists; off until opted in. */
+    val lastfmRecommendations: StateFlow<Boolean> = _lastfmRecommendations
     val lastfmApiKey: StateFlow<String> = _lastfmApiKey
     val lastfmApiSecret: StateFlow<String> = _lastfmApiSecret
 
@@ -63,22 +70,24 @@ internal object DesktopScrobbleSettings {
     fun setLastfmPrimaryArtistOnly(value: Boolean) =
         write(_lastfmPrimaryArtistOnly, KEY_LASTFM_PRIMARY_ARTIST, value)
 
+    fun setLastfmRecommendations(value: Boolean) = write(_lastfmRecommendations, KEY_LASTFM_RECOMMENDATIONS, value)
+
     fun setListenBrainzEnabled(value: Boolean) = write(_listenBrainzEnabled, KEY_LISTENBRAINZ_ENABLED, value)
     fun setListenBrainzPrimaryArtistOnly(value: Boolean) =
         write(_listenBrainzPrimaryArtistOnly, KEY_LISTENBRAINZ_PRIMARY_ARTIST, value)
 
     fun setListenBrainzToken(value: String) {
-        persistence.saveString(KEY_LISTENBRAINZ_TOKEN, value)
+        secrets.write(KEY_LISTENBRAINZ_TOKEN, value)
         _listenBrainzToken.value = value
     }
 
     fun setLastfmApiKey(value: String) {
-        persistence.saveString(KEY_LASTFM_API_KEY, value)
+        secrets.write(KEY_LASTFM_API_KEY, value)
         _lastfmApiKey.value = value
     }
 
     fun setLastfmApiSecret(value: String) {
-        persistence.saveString(KEY_LASTFM_API_SECRET, value)
+        secrets.write(KEY_LASTFM_API_SECRET, value)
         _lastfmApiSecret.value = value
     }
 
@@ -100,7 +109,7 @@ internal object DesktopScrobbleSettings {
     /** Records a successful sign-in and turns scrobbling on, as Android does. */
     fun signedInToLastfm(username: String, sessionKey: String) {
         persistence.saveString(KEY_LASTFM_USERNAME, username)
-        persistence.saveString(KEY_LASTFM_SESSION_KEY, sessionKey)
+        secrets.write(KEY_LASTFM_SESSION_KEY, sessionKey)
         _lastfmUsername.value = username
         _lastfmSessionKey.value = sessionKey
         setLastfmEnabled(true)
@@ -109,7 +118,7 @@ internal object DesktopScrobbleSettings {
     /** Clears the session and everything that depended on it. */
     fun signOutOfLastfm() {
         persistence.saveString(KEY_LASTFM_USERNAME, "")
-        persistence.saveString(KEY_LASTFM_SESSION_KEY, "")
+        secrets.write(KEY_LASTFM_SESSION_KEY, "")
         _lastfmUsername.value = ""
         _lastfmSessionKey.value = ""
         setLastfmEnabled(false)
@@ -128,6 +137,7 @@ internal object DesktopScrobbleSettings {
     private const val KEY_LASTFM_SCROBBLE = "lastfm_scrobble_enabled"
     private const val KEY_LASTFM_NOW_PLAYING = "lastfm_now_playing"
     private const val KEY_LASTFM_PRIMARY_ARTIST = "lastfm_primary_artist_only"
+    private const val KEY_LASTFM_RECOMMENDATIONS = "lastfm_recommendations"
     private const val KEY_LASTFM_API_KEY = "lastfm_api_key"
     private const val KEY_LASTFM_API_SECRET = "lastfm_api_secret"
     private const val KEY_LISTENBRAINZ_ENABLED = "listenbrainz_enabled"

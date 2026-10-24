@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.CompositionLocalProvider
 import com.cosmotune.music.ui.player.PlayerPlatform
 import com.cosmotune.music.data.DebugLog
@@ -63,6 +64,13 @@ private fun runDesktop() {
     DesktopScrobbling.flushPending()
     com.cosmotune.music.data.recommendations.LocalRecommendations.configure(
         DesktopMediaCache.directory.resolve("recommendations").toFile(), desktopRecommendationData())
+    // LK-06: the Last.fm radio feed exists only while the listener opted in and is signed in.
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+        kotlinx.coroutines.flow.combine(DesktopScrobbleSettings.lastfmRecommendations, DesktopScrobbleSettings.lastfmSessionKey,
+            DesktopScrobbleSettings.lastfmUsername, DesktopScrobbleSettings.lastfmApiKey) { optedIn, session, user, _ ->
+            com.cosmotune.music.data.recommendations.LastFmDiscovery.configured(optedIn, session, user, DesktopScrobbling.discoveryApiKey)
+        }.collect { com.cosmotune.music.data.recommendations.LocalRecommendations.useLastFm(it) }
+    }
     DesktopDownloadQueue.restore(java.io.File(desktopRecommendationData().parentFile, "downloads/queue.json"))
     com.cosmotune.providers.ProviderHub.configure(java.io.File(desktopRecommendationData().parentFile, "providers"), cache = DesktopMediaCache.directory.resolve("provider-artwork").toFile())
     // The Spotify library both apps share, on the tokens the web player mints in JavaFX.

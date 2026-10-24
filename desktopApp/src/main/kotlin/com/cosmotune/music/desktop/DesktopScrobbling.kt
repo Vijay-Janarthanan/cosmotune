@@ -86,6 +86,9 @@ object DesktopScrobbling {
         get() = DesktopScrobbleSettings.lastfmApiSecret.value.takeIf(String::isNotBlank)
             ?: property("cosmotune.lastfm.secret") ?: env("COSMOTUNE_LASTFM_API_SECRET")
 
+    /** The API key discovery may use (LK-06); never the secret or the session key. */
+    internal val discoveryApiKey: String? get() = apiKey
+
     private fun sessionKey(): String? =
         DesktopScrobbleSettings.lastfmSessionKey.value.takeIf(String::isNotBlank)
             ?: env("COSMOTUNE_LASTFM_SESSION_KEY")

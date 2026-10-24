@@ -29,6 +29,40 @@ object LocalRecommendations {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Song?>) = size > 128
     }
 
+    /**
+     * Account-driven candidates for a radio seed (LK-06), installed by a host only while the listener
+     * has opted in and is signed in ([LastFmDiscovery.configured]); null sends nothing anywhere.
+     * Fetched in the background and used from the next batch for that seed, so radio never waits on it.
+     */
+    @Volatile internal var accountCandidates: (suspend (Song) -> List<RecommendationModel.Candidate>)? = null
+        set(value) { field = value; synchronized(accountResults) { accountResults.clear() } }
+    private val accountResults = object : LinkedHashMap<String, List<RecommendationModel.Candidate>>(64, .75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<RecommendationModel.Candidate>>) = size > 64
+    }
+    private val accountInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /** Installs (or, with null, removes) the Last.fm feed; hosts pass [LastFmDiscovery.configured]. */
+    fun useLastFm(discovery: LastFmDiscovery?) {
+        if (discovery == null) { if (accountCandidates != null) accountCandidates = null; return }
+        accountCandidates = { seed -> discovery.candidates(seed) }
+    }
+
+    /** What the account feed already answered for [seed]; starts the lookup when it has not been asked. */
+    internal fun accountFor(seed: Song): List<RecommendationModel.Candidate> {
+        val feed = accountCandidates ?: return emptyList()
+        val key = RecommendationModel.normalize(seed.artist) + "" + RecommendationModel.titleKey(seed.title)
+        synchronized(accountResults) { accountResults[key] }?.let { return it }
+        if (accountInFlight.add(key)) prefetchScope.launch {
+            try {
+                val found = withTimeoutOrNull(8_000) { feed(seed) }.orEmpty()
+                if (accountCandidates === feed) synchronized(accountResults) { accountResults[key] = found }
+            } catch (cancel: CancellationException) { throw cancel
+            } catch (_: Exception) { /* Provider radio stays authoritative. */
+            } finally { accountInFlight.remove(key) }
+        }
+        return emptyList()
+    }
+
     /** Call once at app startup. Loading and decompression happen on the first radio request's IO dispatcher. */
     fun configure(cacheDirectory: File, preferenceDirectory: File = File(cacheDirectory, "preferences")) {
         directory = cacheDirectory
@@ -48,7 +82,7 @@ object LocalRecommendations {
             song to (.5f / (index + 1) + .5f * local + preferences[index])
         }.sortedByDescending { it.second }.map { it.first }
         val additions = ArrayList<Song>(3)
-        for (candidate in candidates.take(3)) {
+        for (candidate in candidates.take(3) + accountFor(seed).take(3)) {
                 if (remote.any { TrackMatcher.best(listOf(it), candidate.target()) != null }) continue
                 val key = candidate.key
                 val held = synchronized(resolved) { resolved.containsKey(key) to resolved[key] }
