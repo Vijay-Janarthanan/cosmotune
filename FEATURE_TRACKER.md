@@ -8,6 +8,7 @@ Updated 2026-10-24. This is the central local tracker for features from other ap
 
 * **Released**: present in a published Cosmotune release, with a release link.
 * **Existing**: present before the current integration; its exact coverage still needs the relevant tests.
+* **Implemented**: code and automated checks are complete for every platform the row names and are recorded in the row's evidence; it is not released yet, and any physical-device or account check that remains is listed in the row. Use this only when the evidence supports it.
 * **In progress**: implementation exists in the working tree and still has outstanding checks or integration.
 * **Planned**: requested/selected, but no complete implementation is claimed.
 * **Reviewing**: source/behaviour/dependencies are still being audited.
@@ -131,7 +132,7 @@ Android means the phone/tablet app. Desktop means Windows, Linux and both macOS 
 | CT-09 | Target-native packaging and package size audit | All releases | Released | [Package sizes](docs/PACKAGE_SIZE.md). Watch/source runtimes require new measurements. |
 | CT-10 | Listening tools: sessions, rules, releases, connection and transfer | Android + desktop | Existing | [Implementation status](docs/IMPLEMENTATION_STATUS.md). Older feature-audit snapshots do not supersede current implementation evidence. |
 | CT-11 | Branded application, crash/startup/tray fixes and versioning | Android + desktop | Released | [v1.0.1](docs/releases/1.0.1.md), [v1.0.2](docs/releases/1.0.2.md), v1.0.3. Preserve launcher/update identity. |
-| CT-12 | 1.0.4 integration and signed multi-platform release | Android + desktop + Wear/TV + browser | In progress | Not committed/tagged/published. 5,076 native tests and 131 separate browser tests pass. Signed phone/Wear/TV checkpoints and web/helper archives validate; remaining scope and final packages are still outstanding. Full tracker scope remains the release gate. |
+| CT-12 | 1.0.4 integration and signed multi-platform release | Android + desktop + Wear/TV + browser | In progress | Not committed/tagged/published. 5,120 native tests and 131 separate browser tests pass. Signed phone/Wear/TV checkpoints and web/helper archives validate; remaining scope and final packages are still outstanding. Full tracker scope remains the release gate. |
 
 ## Current priorities and unclosed checks
 
