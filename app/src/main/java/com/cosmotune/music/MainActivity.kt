@@ -191,6 +191,7 @@ import com.cosmotune.music.playback.fromAutoplay
 import com.cosmotune.music.playback.hasYouTubeOriginal
 import com.cosmotune.music.playback.loadAutoplayTracks
 import com.cosmotune.music.playback.playSongs
+import com.cosmotune.music.playback.playBoundedContext
 import com.cosmotune.music.playback.toMediaItem
 import com.cosmotune.music.playback.toSong
 import com.cosmotune.music.playback.toDirectYouTubeMediaItem
@@ -1289,10 +1290,18 @@ private fun CosmotuneApp(
         }
     }
 
-    val playFrom: (List<Song>, Int, QueueSource) -> Unit = playFrom@{ allSongs, allIndex, source ->
+    fun playFrom(
+        allSongs: List<Song>,
+        allIndex: Int,
+        source: QueueSource,
+        // An album or playlist page's own rows go to the service's bounded context window
+        // (BC-05); see ReleasePagePlayback.
+        boundedContext: Boolean = false,
+        continuationToken: String? = null,
+    ) {
         // A Spotify page lists songs it has not found on YouTube Music yet (or
         // never will); those can't be queued, so play the rest in their order.
-        if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return@playFrom
+        if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return
         val songs = allSongs.filterNot { it.isUnresolvedSpotify }
         val index = songs.indexOf(allSongs.getOrNull(allIndex)).coerceAtLeast(0)
         playRequestGeneration++
@@ -1304,7 +1313,15 @@ private fun CosmotuneApp(
                 ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
             val currentIndex = c.currentMediaItemIndex
 
-            if (ListenTogether.state.value.inParty) {
+            val route = com.cosmotune.music.playback.ReleasePagePlayback.route(
+                bounded = boundedContext,
+                inParty = ListenTogether.state.value.inParty,
+                // A Cast session still owns the full queue on the phone so the receiver can
+                // follow its existing queue semantics; the service repeats this guard for
+                // commands that race a newly connected receiver.
+                casting = com.cosmotune.music.playback.cast.CastController.state.value.casting,
+            )
+            if (route == com.cosmotune.music.playback.ReleasePagePlayback.Route.PARTY) {
                 val selectedSong = songs.getOrNull(index) ?: return@launch
                 val party = ListenTogether.state.value
                 val partyQueue = party.queue.items
@@ -1320,6 +1337,8 @@ private fun CosmotuneApp(
                     upcomingPartyTracks = upcomingPartyTracks,
                 )
                 c.playSongs(timeline, 0)
+            } else if (route == com.cosmotune.music.playback.ReleasePagePlayback.Route.BOUNDED) {
+                c.playBoundedContext(songs, index, source, continuationToken)
             } else {
                 val result = QueueCoordinator.buildContextQueue(
                     currentTimeline = currentTimeline,
@@ -2961,6 +2980,32 @@ private fun CosmotuneApp(
                                 song
                             }
                         }
+                        // A tap on an album or playlist page: the service's bounded context
+                        // when it is one of the page's own rows, from the newest snapshot of the
+                        // page (one the service may have grown), else the whole list (BC-05).
+                        fun playDetailSongs(songs: List<Song>, index: Int) {
+                            // Do not cancel a page's fill-in merely because a listener tapped
+                            // while the host owns playback.
+                            if (ListenTogether.state.value.controlsLocked) {
+                                refusedByHost()
+                                return
+                            }
+                            val plan = com.cosmotune.music.playback.ReleasePagePlayback.plan(
+                                page = page,
+                                tapped = songs,
+                                index = index,
+                                casting = com.cosmotune.music.playback.cast.CastController.state.value.casting,
+                                latest = viewModel::takePlaybackContext,
+                                prepare = withAlbum,
+                            ) ?: return
+                            playFrom(
+                                plan.songs,
+                                plan.index,
+                                QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
+                                boundedContext = plan.bounded,
+                                continuationToken = plan.continuationToken,
+                            )
+                        }
                         com.cosmotune.ui.pages.DetailSwitch(
                             page = page,
                             currentSong = player.song,
@@ -2968,25 +3013,19 @@ private fun CosmotuneApp(
                             listState = pageDetailListState,
                             activeShelf = detailActiveShelf,
                             onActiveShelfChange = { detailActiveShelf = it },
-                            onSongClick = { songs, index ->
-                                playFrom(
-                                    songs,
-                                    index,
-                                    QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
-                                )
-                            },
+                            // Album/playlist playback hands the page snapshot to the service,
+                            // which then owns continuation loading (BC-05).
+                            onSongClick = ::playDetailSongs,
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
                             onSongSwipe = onSongSwipe,
                             onShuffle = { songs ->
-                                // Shuffle goes on first so the queue is built shuffled
-                                // as it is set â€” the random pick here only decides
-                                // which track leads it.
-                                QueueShuffle.enableForNextQueue()
-                                playFrom(
-                                    songs,
-                                    songs.indices.random(),
-                                    QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
-                                )
+                                if (songs.isNotEmpty()) {
+                                    // Shuffle goes on first so the queue is built shuffled
+                                    // as it is set â€” the random pick here only decides
+                                    // which track leads it.
+                                    QueueShuffle.enableForNextQueue()
+                                    playDetailSongs(songs, songs.indices.random())
+                                }
                             },
                             onSectionItemClick = { item ->
                                 item.browseId?.let { id ->

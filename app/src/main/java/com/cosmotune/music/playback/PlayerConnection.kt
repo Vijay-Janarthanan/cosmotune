@@ -122,15 +122,7 @@ suspend fun MediaController.playBoundedContext(
     continuationToken: String?,
     shuffle: Boolean = QueueShuffle.enabled.value,
 ) {
-    val token = BoundedContextRequests.put(
-        BoundedContextRequests.Request(
-            songs = songs,
-            startIndex = startIndex,
-            source = source,
-            continuationToken = continuationToken,
-            shuffle = shuffle,
-        ),
-    )
+    val token = putBoundedContextRequest(songs, startIndex, source, continuationToken, shuffle)
     try {
         sendCustomCommand(
             SessionCommand(ACTION_START_BOUNDED_CONTEXT, Bundle.EMPTY),
@@ -143,6 +135,26 @@ suspend fun MediaController.playBoundedContext(
         throw error
     }
 }
+
+/**
+ * The process-local half of [playBoundedContext]: the request the service takes (`PlaybackService.startBoundedContext`), kept
+ * here and only its token sent through the session command. Separate so the hand-off from a page tap is tested without a session.
+ */
+internal fun putBoundedContextRequest(
+    songs: List<Song>,
+    startIndex: Int,
+    source: QueueSource,
+    continuationToken: String?,
+    shuffle: Boolean,
+): String = BoundedContextRequests.put(
+    BoundedContextRequests.Request(
+        songs = songs,
+        startIndex = startIndex,
+        source = source,
+        continuationToken = continuationToken,
+        shuffle = shuffle,
+    ),
+)
 
 /** Clears the previous queue's service and restart state before starting radio. */
 suspend fun MediaController.beginRadioQueue() {
