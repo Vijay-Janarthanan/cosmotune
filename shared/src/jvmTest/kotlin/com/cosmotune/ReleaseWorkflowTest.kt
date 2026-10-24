@@ -10,7 +10,8 @@ import kotlin.test.assertTrue
  * workflow actually publishes under that exact name. This reads `.github/workflows/release.yml` the way the jobs build
  * names (the `dist/...` copies, `$abi` from the Android splits, `$arch` from the macOS matrix, and the publish job's
  * rule that drops the version from `Cosmotune-<version>-<platform>-...`) and checks every README link against it. It
- * also keeps the Windows jar checks for both native libraries in both workflows.
+ * also keeps the Windows jar checks for the native libraries in both workflows, the signing-secret check and the
+ * release body taken from `docs/releases/<version>.md`.
  */
 class ReleaseWorkflowTest {
 
@@ -69,6 +70,61 @@ class ReleaseWorkflowTest {
             for (library in listOf("cosmotune_analysis.dll", "cosmotune_smtc.dll", "cosmotune_window.dll")) {
                 assertTrue("grep -q 'native/$library'" in text, "$workflow does not check $library")
             }
+        }
+    }
+
+    /**
+     * The in-app update dialogs show the GitHub release body, so the Publish job must use `docs/releases/<version>.md`
+     * of the tagged commit when it exists (GitHub's generated notes only when it does not), with the notes' relative
+     * links made absolute. The workflow cannot run here, so this pins the wiring and checks that the current version's
+     * notes exist and that every relative link in them is one the rewrite covers and points at a file that exists.
+     */
+    @Test
+    fun thePublishJobUsesTheNotesFileForTheTagAsTheReleaseBody() {
+        val job = release.substringAfter("\n  release:")
+        val checkout = job.indexOf("name: Check out the release notes")
+        val choose = job.indexOf("name: Choose the release body")
+        val stable = job.indexOf("name: Add file names that stay the same from one version to the next")
+        val publish = job.indexOf("name: Publish the release")
+        assertTrue(checkout >= 0 && choose > checkout && stable >= 0 && publish > choose && publish > stable,
+            "the Publish job must check out the notes, choose the body and keep the stable names before publishing")
+
+        val checkoutStep = job.substring(checkout, job.indexOf("\n      - ", checkout))
+        for (line in listOf("uses: actions/checkout@v4", "path: notes", "sparse-checkout: docs/releases", "persist-credentials: false")) {
+            assertTrue(line in checkoutStep, "the notes checkout lost `$line`")
+        }
+        val chooseStep = job.substring(choose, publish)
+        for (line in listOf("id: notes", "TAG: \${{ github.ref_name }}", "notes=\"notes/docs/releases/\${TAG#v}.md\"",
+            "if [ -f \"\$notes\" ]; then", "echo \"path=\$RUNNER_TEMP/release-body.md\" >> \"\$GITHUB_OUTPUT\"",
+            "echo \"generated=false\" >> \"\$GITHUB_OUTPUT\"", "echo \"generated=true\" >> \"\$GITHUB_OUTPUT\"")) {
+            assertTrue(line in chooseStep, "the body step lost `$line`")
+        }
+        val rewrites = listOf("../../" to "", "../" to "docs/")
+        for ((from, to) in rewrites) {
+            val sed = "-e \"s#](${from.replace(".", "\\.")}#](\$base/$to#g\""
+            assertTrue(sed in chooseStep, "the body step no longer rewrites `$from` links: $sed")
+        }
+
+        val publishStep = job.substring(publish)
+        assertTrue("body_path: \${{ steps.notes.outputs.path }}" in publishStep, "the release body is not the notes file")
+        assertTrue("generate_release_notes: \${{ steps.notes.outputs.generated == 'true' }}" in publishStep,
+            "generated notes must only be the fallback")
+        assertTrue("generate_release_notes: true" !in publishStep, "generated notes would be appended to the notes file")
+        assertTrue("files: dist/*" in publishStep, "the release files are no longer published")
+
+        val version = Regex("""cosmotuneVersionName"] = providers\.gradleProperty\("cosmotune\.version"\)\.getOrElse\("([^"]+)"\)""")
+            .find(read("build.gradle.kts"))?.groupValues?.get(1) ?: error("No cosmotuneVersionName default in build.gradle.kts")
+        val notes = File(root, "docs/releases/$version.md")
+        assertTrue(notes.isFile, "docs/releases/$version.md is missing, so the $version release would get generated notes")
+        val targets = Regex("""\]\(([^)\s]+)\)""").findAll(notes.readText()).map { it.groupValues[1] }
+            .filterNot { it.startsWith("http://") || it.startsWith("https://") || it.startsWith("#") }
+            .toList()
+        assertTrue(targets.isNotEmpty(), "expected relative links in the notes")
+        for (target in targets) {
+            val (from, to) = rewrites.firstOrNull { target.startsWith(it.first) }
+                ?: error("`$target` in the notes is relative but not ../ or ../../, so it breaks on the release page")
+            val path = to + target.removePrefix(from).substringBefore('#')
+            assertTrue(File(root, path).isFile, "`$target` in the notes points at $path, which does not exist")
         }
     }
 

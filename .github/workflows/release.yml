@@ -379,11 +379,42 @@ jobs:
     needs: [linux, windows, macos, android, web]
     runs-on: ubuntu-latest
     steps:
+      # Only the notes folder of the tagged commit: the release body (and so the in-app update dialogs, which show it)
+      # is docs/releases/<version>.md when that file exists.
+      - name: Check out the release notes
+        if: github.ref_type == 'tag'
+        uses: actions/checkout@v4
+        with:
+          path: notes
+          sparse-checkout: docs/releases
+          persist-credentials: false
+
       - uses: actions/download-artifact@v4
         with:
           pattern: "*-artifacts"
           merge-multiple: true
           path: dist
+
+      - name: Choose the release body
+        id: notes
+        if: github.ref_type == 'tag'
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          notes="notes/docs/releases/${TAG#v}.md"
+          if [ -f "$notes" ]; then
+            # The notes link relative to docs/releases; the release page and the update dialogs need absolute links.
+            base="https://github.com/$REPO/blob/$TAG"
+            sed -e "s#](\.\./\.\./#]($base/#g" -e "s#](\.\./#]($base/docs/#g" "$notes" > "$RUNNER_TEMP/release-body.md"
+            echo "Release body: $notes"
+            echo "path=$RUNNER_TEMP/release-body.md" >> "$GITHUB_OUTPUT"
+            echo "generated=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::$notes is not in the tagged commit, so the release gets GitHub's generated notes."
+            echo "path=" >> "$GITHUB_OUTPUT"
+            echo "generated=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Add file names that stay the same from one version to the next
         run: |
@@ -403,7 +434,8 @@ jobs:
           name: Cosmotune ${{ github.ref_name }}
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
-          generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: ${{ steps.notes.outputs.generated == 'true' }}
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

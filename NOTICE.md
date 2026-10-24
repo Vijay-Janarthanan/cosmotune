@@ -17,7 +17,10 @@ https://github.com/kushagrasinghx/BitChord/tree/edc1e6f36febf71a118e649411d2fc21
 Original source hashes, file links and adaptations are recorded in `tv/UPSTREAM_IMPORT.json` and
 `web/UPSTREAM_IMPORT.json`. The browser helper has a separate Cosmotune identity; the original extra fonts,
 icons and development extension key were not imported. Browser release archives include their installed
-third-party package notices and licence texts; `tools/package-web.py` produces them with the packages.
+third-party package notices and licence texts; `tools/package-web.py` produces them with the packages. Three of the
+browser player's YouTube playback files (`web/app/src/playback/youtube/botguard.ts`, `shakaHelpers.ts` and
+`ShakaPlayerAdapter.ts`) are ported from LuanRT's googlevideo example and Kira (https://github.com/LuanRT/googlevideo,
+https://github.com/LuanRT/kira, MIT License, copyright LuanRT); each file's header names its source.
 
 ## OpenCanvas
 
@@ -113,6 +116,37 @@ The Android source API also incorporates Mihon source-api at revision
 licence is preserved in `manga/third-party/LICENSE.mihon`; source hashes and changes are recorded
 in `MIHON_SOURCE_API.json`. Tsuki-derived compatibility files retain their GPL-3.0 provenance.
 Source websites and their comics retain their own rights and availability; no comics are bundled.
+
+On Android the Mihon bridge also needs the runtime libraries that Mihon extensions are built against:
+Injekt (`uy.kohesive.injekt:injekt-core:1.16.1`, https://github.com/kohesive/injekt, MIT, by Jayson Minard),
+RxJava (`io.reactivex:rxjava:1.3.8`, https://github.com/ReactiveX/RxJava, Apache-2.0) and RxAndroid
+(`io.reactivex:rxandroid:1.2.1`, https://github.com/ReactiveX/RxAndroid, Apache-2.0), and xmlutil
+(`io.github.pdvrieze.xmlutil:core-android` and `serialization`, version 1.0.2, https://github.com/pdvrieze/xmlutil,
+Apache-2.0, by Paul de Vrieze). MIT and Apache-2.0 code may be combined into a GPLv3 work.
+
+## JSON-java and AndroidSVG
+
+On the desktop, the artist page lookups (Apple Music artwork and artist signatures) and the Manga parsers read JSON with
+JSON-java (`org.json:json:20240303`, https://github.com/stleary/JSON-java), whose POM names its licence as Public Domain.
+It is bundled unmodified; the Android and TV builds use the platform's own `org.json` instead.
+
+Artist signatures in SVG are drawn with Coil's SVG module (`io.coil-kt.coil3:coil-svg:3.0.4`, Apache-2.0), which on Android
+uses AndroidSVG (`com.caverock:androidsvg-aar:1.4`, https://github.com/BigBadaboom/androidsvg, by Paul LeBeau); its POM
+names the Apache License, version 2.0.
+
+## Watch installer
+
+The phone and TV apps install and update the Wear OS app over the watch's wireless debugging with libadb-android
+(`com.github.MuntashirAkon:libadb-android:3.1.1`, https://github.com/MuntashirAkon/libadb-android, by Muntashir
+Al-Islam). Its POM names no licence; its README states that it is dual licensed under GPL-3.0-or-later or Apache-2.0, and
+Cosmotune uses it under either, both being compatible with the GPLv3. It brings spake2-android
+(`com.github.MuntashirAkon.spake2-java:spake2-android:2.2.1`, https://github.com/MuntashirAkon/spake2-java), whose POM
+names the GNU Lesser General Public License, version 3.0, for the pairing code exchange. The apps also bundle Conscrypt
+(`org.conscrypt:conscrypt-android:2.5.3`, https://github.com/google/conscrypt, Apache-2.0), which libadb-android uses for the
+TLS of its pairing and connection, and Bouncy Castle (`org.bouncycastle:bcpkix-jdk18on:1.85` with its `bcprov` and `bcutil` modules,
+https://www.bouncycastle.org, under the Bouncy Castle Licence, an MIT-style licence), with which the phone makes the
+certificate it pairs with. The `bcprov-jdk15to18` that libadb-android asks for is left out, so that only one copy of Bouncy
+Castle is bundled. LGPL-3.0, Apache-2.0 and MIT-style code may be combined into a GPLv3 work.
 
 ## Provider package compatibility
 
