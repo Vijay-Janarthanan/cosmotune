@@ -84,18 +84,19 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
         val chapterIds = old.books.find { it.id == bookId }?.chapters.orEmpty().map { it.id }.toSet()
         old.copy(books = old.books.filterNot { it.id == bookId }, progress = old.progress - bookId,
             downloads = old.downloads.filterKeys { it !in chapterIds }, readChapters = old.readChapters - chapterIds,
+            newChapters = old.newChapters - chapterIds,
             activeBookId = old.activeBookId.takeUnless { it == bookId },
             activeChapterId = old.activeChapterId.takeUnless { it in chapterIds })
     }
 
     suspend fun progress(value: MangaProgress) {
         require(value.pageCount > 0 && value.page in 0 until value.pageCount && value.pageOffsetPx in 0..10_000_000)
-        update { it.copy(progress = it.progress + (value.bookId to value), readerMode = value.mode,
+        update { it.copy(progress = it.progress + (value.bookId to value), readerMode = value.mode, newChapters = it.newChapters - value.chapterId,
             readChapters = if (value.finished) it.readChapters + value.chapterId else it.readChapters) }
     }
 
     suspend fun markRead(chapter: MangaChapter, read: Boolean) = update {
-        it.copy(readChapters = if (read) it.readChapters + chapter.id else it.readChapters - chapter.id,
+        it.copy(readChapters = if (read) it.readChapters + chapter.id else it.readChapters - chapter.id, newChapters = it.newChapters - chapter.id,
             progress = if (!read && it.progress[chapter.bookId]?.chapterId == chapter.id) it.progress - chapter.bookId else it.progress)
     }
 
@@ -104,12 +105,28 @@ class MangaStore(val root: File, internal val protection: MangaFileProtection = 
         update { it.copy(activeBookId = bookId?.takeIf { id -> it.books.any { book -> book.id == id } }, activeChapterId = chapterId) }
     }
 
+    /** A refreshed series replaces its saved copy (keeping when it was added); chapters it did not have before are marked new. */
+    suspend fun refreshed(detail: MangaBook): Int {
+        var found = 0
+        update { old ->
+            val previous = old.books.find { it.id == detail.id } ?: return@update old
+            // A series whose chapters were never loaded has nothing to compare: its first list is not "new".
+            val known = previous.chapters.map { it.id }.toSet()
+            val fresh = if (known.isEmpty()) emptyList() else detail.chapters.map { it.id }.filter { it !in known && it !in old.readChapters }
+            found = fresh.size
+            old.copy(books = old.books.map { if (it.id == detail.id) detail.copy(addedAtMs = previous.addedAtMs) else it },
+                newChapters = (old.newChapters + fresh).let { if (it.size > MAX_NEW_CHAPTERS) it.toList().takeLast(MAX_NEW_CHAPTERS).toSet() else it })
+        }
+        return found
+    }
+
     suspend fun source(config: MangaSourceConfig) = update {
         it.copy(sources = it.sources.filterNot { source -> source.id == config.id } + config)
     }
 
     companion object {
         private const val MAX_STATE_BYTES = 16L * 1024 * 1024
+        private const val MAX_NEW_CHAPTERS = 10_000
         private val diskLocks = java.util.concurrent.ConcurrentHashMap<String, Any>()
     }
 }

@@ -9,6 +9,14 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
@@ -118,6 +126,39 @@ class MangaRepository(val store: MangaStore,
         } }
     }
 
+    /**
+     * Checks every library series on an enabled network source for new chapters, [UPDATE_PARALLELISM] at a time and each within
+     * [UPDATE_TIMEOUT_MS]. A failing source fails only its own series; the report goes to [onProgress] after each series.
+     */
+    suspend fun checkForUpdates(onProgress: (MangaUpdateReport) -> Unit = {}): MangaUpdateReport = coroutineScope {
+        val state = store.state.value
+        val enabled = state.sources.filter { it.enabled }.map { it.id }.toSet()
+        val books = state.books.filter { it.sourceId != "local" && it.sourceId in enabled }
+        val gate = Semaphore(UPDATE_PARALLELISM)
+        val lock = Mutex()
+        var report = MangaUpdateReport(0, books.size, 0, 0, emptyMap())
+        books.map { book -> async {
+            gate.withPermit {
+                val outcome: Result<Int> = try {
+                    Result.success(withTimeout(UPDATE_TIMEOUT_MS) {
+                        val detail = withContext(Dispatchers.IO) { sourceApi { source(book.sourceId).details(book) } }
+                        store.refreshed(detail)
+                    })
+                } catch (timeout: TimeoutCancellationException) { Result.failure(IllegalStateException("The source did not answer in time", timeout)) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { Result.failure(failure) }
+                lock.withLock {
+                    val found = outcome.getOrDefault(0)
+                    report = report.copy(checked = report.checked + 1, newChapters = report.newChapters + found,
+                        updatedSeries = report.updatedSeries + if (found > 0) 1 else 0,
+                        failures = outcome.exceptionOrNull()?.let { report.failures + (book.id to (it.message ?: "Source unavailable")) } ?: report.failures)
+                    onProgress(report)
+                }
+            }
+        } }.awaitAll()
+        report
+    }
+
     /** Files already fetched have stable names, so retrying a cancelled download resumes without refetching them. */
     suspend fun download(chapter: MangaChapter, onProgress: (Int, Int) -> Unit) {
         require(chapter.sourceId != "local") { "Imported comics are already available offline" }
@@ -176,5 +217,10 @@ class MangaRepository(val store: MangaStore,
             if (file.path !in protected) { val length = file.length(); if (file.delete()) used -= length }
         }
         require(used + incoming <= limit) { "Manga storage limit reached. Remove a downloaded chapter or increase the limit." }
+    }
+
+    companion object {
+        const val UPDATE_PARALLELISM = 3
+        const val UPDATE_TIMEOUT_MS = 60_000L
     }
 }

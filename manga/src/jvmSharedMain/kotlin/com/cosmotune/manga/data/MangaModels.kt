@@ -104,7 +104,12 @@ data class MangaLibraryState(
     val activeBookId: String? = null,
     val activeChapterId: String? = null,
     val readerFit: MangaReaderFit = MangaReaderFit.PAGE,
+    /** Chapters found by the last library update checks and not yet opened or read. */
+    val newChapters: Set<String> = emptySet(),
 )
+
+/** The result of a library update check so far: [failures] maps a series id to the reason its source could not be checked. */
+data class MangaUpdateReport(val checked: Int, val total: Int, val newChapters: Int, val updatedSeries: Int, val failures: Map<String, String>)
 
 /** Continue the same edition without jumping to another translation or restarting a missing chapter. */
 fun MangaBook.nextChapter(current: MangaChapter): MangaChapter? {

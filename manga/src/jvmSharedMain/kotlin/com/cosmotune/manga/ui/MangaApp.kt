@@ -61,6 +61,8 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
     var error by remember { mutableStateOf(repository.store.recoveryMessage) }
     var transfer by remember { mutableStateOf<Job?>(null) }
     var downloadProgress by remember { mutableStateOf("") }
+    var updates by remember { mutableStateOf<MangaUpdateReport?>(null) }
+    var updateJob by remember { mutableStateOf<Job?>(null) }
     fun action(block: suspend () -> Unit): Job = scope.launch {
         error = null
         try { block() }
@@ -157,6 +159,19 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                                     style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.CenterVertically))
                             }
                             if (listed.isEmpty()) Text(if (unreadOnly) "Every chapter here is read." else "No chapters in this edition.", modifier = Modifier.padding(vertical = 12.dp))
+                            val pending = if (book.sourceId == "local") emptyList() else listed.filter { it.id !in state.readChapters && !state.downloads.containsKey(it.id) }
+                            if (pending.isNotEmpty()) TextButton(enabled = transfer?.isActive != true, onClick = {
+                                transfer = scope.launch {
+                                    error = null
+                                    try {
+                                        repository.store.save(book)
+                                        pending.forEachIndexed { index, item ->
+                                            repository.download(item) { done, total -> downloadProgress = "Chapter ${index + 1} of ${pending.size} · ${item.title}: $done / $total pages" }
+                                        }
+                                    } catch (cancelled: CancellationException) { throw cancelled }
+                                    catch (failure: Exception) { error = failure.message ?: "Download failed" }
+                                }
+                            }) { Text(if (pending.size == 1) "Download 1 unread chapter" else "Download ${pending.size} unread chapters") }
                         }
                     }
                     items(listed, key = { it.id }) { item ->
@@ -165,7 +180,9 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                         Row(Modifier.fillMaxWidth().clickable { action { repository.store.save(book); chapter = item } }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(item.title, style = MaterialTheme.typography.titleMedium)
-                                Text(if (finished) "Read" else read?.let { "Page ${it.page + 1} of ${it.pageCount}" } ?: item.language, style = MaterialTheme.typography.labelMedium)
+                                val status = if (finished) "Read" else read?.let { "Page ${it.page + 1} of ${it.pageCount}" } ?: item.language
+                                Text(if (item.id in state.newChapters) listOf("New", status).filter(String::isNotBlank).joinToString(" · ") else status,
+                                    style = MaterialTheme.typography.labelMedium)
                             }
                             TextButton(onClick = { action { repository.store.save(book); repository.store.markRead(item, !finished) } }) {
                                 Text(if (finished) "Mark unread" else "Mark read")
@@ -202,6 +219,24 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                         }
                     }
                     OutlinedTextField(query, { query = it }, label = { Text("Search manga") }, singleLine = true, modifier = Modifier.weight(1f))
+                }
+                if (sourceId == "library" && state.books.any { it.sourceId != "local" }) Row(verticalAlignment = Alignment.CenterVertically) {
+                    val running = updateJob?.isActive == true
+                    TextButton(enabled = !running, onClick = {
+                        updateJob = scope.launch {
+                            error = null
+                            try { repository.checkForUpdates { updates = it } }
+                            catch (cancelled: CancellationException) { throw cancelled }
+                            catch (failure: Exception) { error = failure.message ?: "Updates could not be checked" }
+                        }
+                    }) { Text("Check for updates") }
+                    updates?.let { report ->
+                        val found = if (report.newChapters == 1) "1 new chapter" else "${report.newChapters} new chapters"
+                        val text = if (running) "Checking ${report.checked} of ${report.total} series · $found"
+                            else "$found in ${report.updatedSeries} series" + if (report.failures.isEmpty()) "" else " · ${report.failures.size} unavailable"
+                        Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    }
+                    if (running) TextButton(onClick = { updateJob?.cancel() }) { Text("Stop") }
                 }
                 MangaCatalogue(repository, sourceId, query, onBook = { item ->
                     selected = item
@@ -323,8 +358,11 @@ private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: St
                 Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, modifier = Modifier.padding(top = 8.dp))
                 if (sourceId == "all") Text(library.sources.find { it.id == book.sourceId }?.name ?: book.sourceId, style = MaterialTheme.typography.labelSmall)
                 library.progress[book.id]?.let { Text(if (it.finished) "Chapter read" else "Continue · page ${it.page + 1}", style = MaterialTheme.typography.labelSmall) }
-                if (sourceId == "library" && book.chapters.isNotEmpty()) Text("${book.chapters.count { it.id !in library.readChapters }} unread",
-                    style = MaterialTheme.typography.labelSmall)
+                if (sourceId == "library" && book.chapters.isNotEmpty()) {
+                    val fresh = book.chapters.count { it.id in library.newChapters }
+                    Text("${book.chapters.count { it.id !in library.readChapters }} unread" + if (fresh > 0) " · $fresh new" else "",
+                        style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
     }
