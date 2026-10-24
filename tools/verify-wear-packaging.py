@@ -44,9 +44,9 @@ def main():
             if args.allow_unsigned:
                 return None
             raise AssertionError(f'APK signature verification failed: {apk.name}') from None
-        match = re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-fA-F]+)', text)
+        match = re.search(r'Signer (?:#\d+|\([^)]*\)) certificate SHA-256 digest: ([0-9a-fA-F]+)', text)
         if not match:
-            raise AssertionError(f'No signing certificate: {apk.name}')
+            raise AssertionError(f'No signing certificate: {apk.name}: ' + repr(text[:600]))
         return match[1].lower()
 
     watch_bytes = args.wear_apk.read_bytes()

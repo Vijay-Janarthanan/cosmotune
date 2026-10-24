@@ -38,9 +38,9 @@ def main():
 
     def certificate(apk):
         info = command(java, '-jar', signer, 'verify', '--print-certs', apk)
-        match = re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-fA-F]+)', info)
+        match = re.search(r'Signer (?:#\d+|\([^)]*\)) certificate SHA-256 digest: ([0-9a-fA-F]+)', info)
         if not match:
-            raise AssertionError(f'No signing certificate: {apk.name}')
+            raise AssertionError(f'No signing certificate: {apk.name}: ' + repr(info[:600]))
         return match[1].lower()
 
     phone_id, _ = identity(args.phone_apk)

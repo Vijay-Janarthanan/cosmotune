@@ -104,11 +104,28 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
     private data class Request(val method: String, val path: String, val headers: Map<String, String>, val body: ByteArray)
     private class BadRequest : Exception()
 
+    /**
+     * After the answer: stop sending, and read away what the browser may still be sending (a few KiB, for a moment), so the
+     * connection closes in order. Closing with unread data makes some systems (macOS) reset the connection, which can throw the
+     * answer away before the browser has read it.
+     */
+    private fun settle(socket: Socket) {
+        runCatching {
+            socket.shutdownOutput()
+            socket.soTimeout = 200
+            val sink = ByteArray(1024)
+            var left = 16 * 1024
+            val input = socket.getInputStream()
+            while (left > 0) { val n = input.read(sink); if (n < 0) break; left -= n }
+        }
+    }
+
     private fun serve(socket: Socket) {
         var timeout: java.util.concurrent.ScheduledFuture<*>? = null
         try {
             timeout = deadlines.schedule({ runCatching { socket.close() } }, 8, TimeUnit.SECONDS)
             socket.use {
+                try {
                 val request = try { read(socket) } catch (_: Exception) { respond(socket, 400, "text/plain", "Invalid request"); return }
                 if (request.headers["host"]?.lowercase(Locale.ROOT) != expectedAuthority.lowercase(Locale.ROOT)) {
                     respond(socket, 403, "text/plain", "Invalid host"); return
@@ -126,6 +143,7 @@ class LanRemoteServer private constructor(private val host: LanRemoteHost, addre
                     runBlocking(lifetime) { withTimeout(5000) { route(socket, request) } }
                 } catch (_: BadRequest) { respond(socket, 400, "text/plain", "Invalid command") }
                 catch (_: Exception) { respond(socket, 503, "text/plain", "The player is unavailable. Try again.") }
+                } finally { settle(socket) }
             }
         } catch (_: Exception) { /* A closed browser is a completed request. */ }
         finally { timeout?.cancel(false); sockets.remove(socket); runCatching { socket.close() } }

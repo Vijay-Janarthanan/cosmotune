@@ -163,6 +163,29 @@ internal object DesktopListenTogether {
     @Volatile private var effectiveIdleServerBase: String = DEFAULT_SERVER
     @Volatile private var activePartyServerBase: String? = null
 
+    /**
+     * The idle status row's poll, as on the phone: only while the Listen Together page is open, never while the party
+     * socket is live, at most every 10 s, and without flashing "Checking" over the last answer. A desktop has no
+     * metered-network signal, so that rule never applies here.
+     */
+    private val healthMonitor by lazy {
+        com.cosmotune.music.data.listentogether.IdleHealthMonitor(
+            scope = scope,
+            nowMs = { System.nanoTime() / 1_000_000L },
+            state = {
+                val snapshot = _state.value
+                com.cosmotune.music.data.listentogether.IdleHealthMonitor.State(
+                    connectionLive = snapshot.connection == Connection.LIVE,
+                    inParty = snapshot.inParty,
+                    metered = null,
+                )
+            },
+            probe = {
+                if (healthJob?.isActive != true) resolveIdleServer(forceProbe = true)
+            },
+        )
+    }
+
     init {
         // A process cannot resume the old socket safely, and leaving its token around occupies a
         // party slot until the server's grace period expires. Android hands that stale slot back
@@ -238,28 +261,6 @@ internal object DesktopListenTogether {
         healthJob = scope.launch { resolveIdleServer(forceProbe = true) }
     }
 
-    /**
-     * The idle status row's poll, as on the phone: only while the Listen Together page is open, never while the party
-     * socket is live, at most every 10 s, and without flashing "Checking" over the last answer. A desktop has no
-     * metered-network signal, so that rule never applies here.
-     */
-    private val healthMonitor by lazy {
-        com.cosmotune.music.data.listentogether.IdleHealthMonitor(
-            scope = scope,
-            nowMs = { System.nanoTime() / 1_000_000L },
-            state = {
-                val snapshot = _state.value
-                com.cosmotune.music.data.listentogether.IdleHealthMonitor.State(
-                    connectionLive = snapshot.connection == Connection.LIVE,
-                    inParty = snapshot.inParty,
-                    metered = null,
-                )
-            },
-            probe = {
-                if (healthJob?.isActive != true) resolveIdleServer(forceProbe = true)
-            },
-        )
-    }
 
     /** Called by the Listen Together page as it opens and closes. */
     fun setScreenActive(active: Boolean) = healthMonitor.setScreenActive(active)

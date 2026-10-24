@@ -14,10 +14,13 @@ internal class ProviderFiles(directory: File, private val network: ProviderNetwo
         require(!Files.isSymbolicLink(toPath())) { "Provider workspace cannot be a link" }
         check(isDirectory || mkdirs()); ownerOnly()
     }.canonicalFile
+    // The name the workspace was given by (a Mac's temp folder is a link, a Windows runner's has 8.3 names): a path under it is the same place.
+    private val rootAlias = directory.absoluteFile.toPath().normalize()
 
     fun path(raw: String): File {
         require(raw.isNotEmpty() && raw.length <= 4_096 && '\u0000' !in raw)
-        val candidate = File(raw).let { if (it.isAbsolute) it else File(root, raw) }.absoluteFile.toPath().normalize()
+        val given = File(raw).let { if (it.isAbsolute) it else File(root, raw) }.absoluteFile.toPath().normalize()
+        val candidate = if (given.startsWith(rootAlias) && !given.startsWith(root.toPath())) root.toPath().resolve(rootAlias.relativize(given)).normalize() else given
         require(candidate.startsWith(root.toPath()) && candidate != root.toPath()) { "Provider file is outside its workspace" }
         val relative = root.toPath().relativize(candidate)
         require(relative.none { it.toString() in setOf(".", "..") || ':' in it.toString() })
