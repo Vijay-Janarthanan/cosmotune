@@ -168,5 +168,28 @@ internal object DesktopLicenses {
                 ),
             ),
         ),
+        DesktopLicenseGroup(
+            "Manga and web sources",
+            listOf(
+                DesktopLicense(
+                    "Kotatsu parsers (Redo fork)",
+                    "GPL-3.0",
+                    "https://github.com/Kotatsu-Redo/kotatsu-parsers-redo",
+                    "Manga source parsers, pinned to the revision recorded in NOTICE.md. Contacts only the sources you enable.",
+                ),
+                DesktopLicense(
+                    "JSON-java",
+                    "Public Domain",
+                    "https://github.com/stleary/JSON-java",
+                    "JSON handling, bundled unmodified.",
+                ),
+                DesktopLicense(
+                    "jsoup",
+                    "MIT",
+                    "https://jsoup.org/license",
+                    "HTML parsing for web sources.",
+                ),
+            ),
+        ),
     )
 }
