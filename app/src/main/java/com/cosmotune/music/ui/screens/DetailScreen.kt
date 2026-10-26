@@ -164,7 +164,7 @@ private const val SONGS_PER_COLUMN = 4
 private const val ARTIST_ROW_MAX_ITEMS = 5
 
 /** The artist photo, very slightly taller than it is wide. */
-private const val ARTIST_PHOTO_RATIO = 0.95f
+private const val ARTIST_PHOTO_RATIO = 0.8f
 
 /** A release's sleeve, given a little more height than the artist photo. */
 private const val SLEEVE_RATIO = 0.92f

@@ -10,11 +10,11 @@ import kotlin.math.min
  *
  * The board: a header (cover, title over artist, the Lyrics | Queue tabs, close) 20 dp from the top and 32 dp from the sides; the
  * lyrics column 64 dp from the left, 150 dp from the top, 640 dp wide; the video card on the right, 64 dp from the edge, 96 dp
- * from the top, 396 x 704 (nine by sixteen), over the cover as a square of its width; and the player bar, 32 dp from the left,
- * 500 dp from the right, 20 dp from the bottom, 80 dp tall. The card ends 100 dp above the foot, which is where the bar's row
+ * from the top, 563 x 704 (four by five), over the cover as a square of its width; and the player bar, 32 dp from the left,
+ * a responsive width, 20 dp from the bottom, 80 dp tall. The card ends 100 dp above the foot, which is where the bar's row
  * begins: the card and the bar never meet whatever the window.
  *
- * A window shorter than 900 dp shortens the card (and narrows it, to stay nine by sixteen); a window narrower than the board
+ * A window shorter than 900 dp shortens the card (and narrows it, to stay four by five); a window narrower than the board
  * needs narrows the card too, so the lyrics keep [LYRICS_MIN_WIDTH_DP] and the bar keeps [BAR_MIN_WIDTH_DP]. A taller or wider
  * window does not grow the card past the board's size; the lyrics and the bar take the room.
  */
@@ -30,8 +30,8 @@ object WideNowPlayingMetrics {
 
     const val VIDEO_RIGHT_DP = 64f
     const val VIDEO_TOP_DP = 96f
-    const val VIDEO_WIDTH_DP = 396f
     const val VIDEO_HEIGHT_DP = 704f
+    const val VIDEO_WIDTH_DP = VIDEO_HEIGHT_DP * NowPlayingVideoMetrics.ASPECT
     const val VIDEO_RADIUS_DP = 32f
 
     const val BAR_LEFT_DP = 32f
@@ -74,7 +74,7 @@ object WideNowPlayingMetrics {
         val w = max(widthDp, 0f)
         val h = max(heightDp, 0f)
 
-        // The card: as tall as the board's, or as the window leaves above the foot; nine by sixteen.
+        // The card: as tall as the board's, or as the window leaves above the foot; four by five.
         var videoH = min(VIDEO_HEIGHT_DP, h - VIDEO_TOP_DP - FOOT_DP)
         var videoW = videoH * VIDEO_WIDTH_DP / VIDEO_HEIGHT_DP
         // ... and no wider than leaves the lyrics column its least.
@@ -95,7 +95,10 @@ object WideNowPlayingMetrics {
 
         // The bar keeps the board's distance to the card (500 dp from the right in the board's frame) unless that would leave it
         // less than its least; it may then run under the card's column, since the card ends above the bar's row.
-        val barMin = min(BAR_MIN_WIDTH_DP, max(w - 2f * BAR_LEFT_DP, 0f))
+        // The card ends above the bar. Keep the full transport when it fits the window,
+        // instead of hiding shuffle/repeat just because the portrait card became wider.
+        val fullBar = PlayerBarMetrics.requiredDp(PlayerBarMetrics.planFor(PlayerBarMetrics.Tier.FULL))
+        val barMin = min(fullBar, max(w - 2f * BAR_LEFT_DP, 0f))
         val barW = max(w - BAR_LEFT_DP - (VIDEO_RIGHT_DP + videoW + COLUMN_GAP_DP), barMin)
         val bar = Box(BAR_LEFT_DP, max(h - FOOT_DP, 0f), min(barW, max(w - 2f * BAR_LEFT_DP, 0f)), PlayerBarMetrics.HEIGHT_DP)
 

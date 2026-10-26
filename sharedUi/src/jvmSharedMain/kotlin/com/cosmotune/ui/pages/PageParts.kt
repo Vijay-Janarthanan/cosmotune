@@ -113,8 +113,8 @@ internal object PageMetrics {
     /** A stat pill of the About tile: 13 sp text, 12 dp across and 6 dp up and down. */
     const val STAT_SP = 13f
 
-    /** `pageArtist`: the banner is 300 dp tall; the name stands 16 dp from the left and 14 dp from the bottom. */
-    const val BANNER_DP = 300f
+    /** `pageArtist`: the banner is 360 dp tall; the name stands 16 dp from the left and 14 dp from the bottom. */
+    const val BANNER_DP = 360f
     const val BANNER_NAME_START_DP = 16f
     const val BANNER_NAME_BOTTOM_DP = 14f
 

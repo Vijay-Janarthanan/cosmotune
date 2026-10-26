@@ -25,6 +25,11 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -217,7 +222,7 @@ internal fun NowPlayingWidePanels(
 
 /**
  * The right column: the cover (the card's width, square, radius 28, with its own shadow) and, over it, the video card
- * (396 x 704 on the board's frame: radius 32, with a shadow whose key light is the cover's glow at 55 %). [reveal] (0 = the cover
+ * (4:5 on the board's frame: radius 32, with a shadow whose key light is the cover's glow at 55 %). [reveal] (0 = the cover
  * shows, 1 = the video is all the way in) crosses one into the other: the cover fades out as the clip's own alpha comes up
  * (`presentationAlpha`, not a Compose layer: on the phone the clip is a `TextureView`) and the card's shadow comes in with it. The
  * cover's resting rectangle goes to the shell as `playerCoverBounds`, which the open and close morph lands its travelling cover on.
@@ -240,6 +245,7 @@ internal fun NowPlayingWideMedia(
     videoModifier: Modifier,
     coverSide: Dp,
 ) {
+    var videoBounds by remember(canvas) { mutableStateOf(IntSize.Zero) }
     val colors = LocalCosmoColors.current
     val shape = remember { SuperellipseShape(WideNowPlayingMetrics.VIDEO_RADIUS_DP.dp) }
     Box(
@@ -263,8 +269,9 @@ internal fun NowPlayingWideMedia(
                 CanvasArtworkPlayer(
                     canvas = canvas,
                     isPlaying = isPlaying,
-                    modifier = Modifier.fillMaxSize(),
-                    contentMode = CanvasContentMode.CROP,
+                    modifier = Modifier.fillMaxSize().onSizeChanged { videoBounds = it },
+                    contentMode = CanvasContentMode.FIT_PORTRAIT,
+                    portraitRevealBounds = videoBounds,
                     onRenderedChanged = onRenderedChanged,
                     presentationAlpha = { reveal.value.coerceIn(0f, 1f) },
                 )

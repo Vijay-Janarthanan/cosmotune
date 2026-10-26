@@ -1,6 +1,13 @@
 package com.cosmotune.ui.nowplaying
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import com.cosmotune.design.NowPlayingVideoMetrics
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -9,6 +16,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -39,8 +49,8 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
 /**
- * Everything behind the controls (z 0 and 1 of the board): the ambient ground while the video is not all the way in, the
- * looping clip when one is wanted, the scrims over it and the glow at its foot. [hazeState] marks the whole of it as what the
+ * The ambient ground and fixed 4:5 video card above the controls. Lyrics may add a reading scrim;
+ * ordinary playback keeps the foreground fully opaque, without a top/bottom fade. [hazeState] marks the whole of it as what the
  * sheets blur ([hazeSource]); the video is sampled there exactly as the old player's was.
  *
  * [reveal] (0 = the cover shows, 1 = the video is all the way in) is a [State] and is read only in layer and draw lambdas and
@@ -62,24 +72,45 @@ internal fun NowPlayingBackdrop(
     hazeState: HazeState,
     modifier: Modifier = Modifier,
     controls: State<Float>? = null,
+    controlsHeightPx: State<Int>,
 ) {
-    // The spring settles on 1 a little at a time; the clip is opaque long before, so the ground goes at 99.9 %.
-    val groundShown by remember(reveal) { derivedStateOf { reveal.value < 0.999f } }
+    var videoBounds by remember(canvas) { mutableStateOf(IntSize.Zero) }
+    // The fixed portrait card leaves the ambient ground visible around it.
     val scrimsShown by remember(reveal) { derivedStateOf { reveal.value > 0f } }
     Box(modifier.hazeSource(hazeState)) {
-        // Under the video, which covers it from reveal 1: not drawn from then on.
-        if (groundShown) Box(Modifier.fillMaxSize().cosmoAmbientGround())
+        // The colour field stays visible outside the bounded card.
+        Box(Modifier.fillMaxSize().cosmoAmbientGround())
         if (wantVideo && canvas != null) {
-            CanvasArtworkPlayer(
-                canvas = canvas,
-                isPlaying = isPlaying,
-                modifier = Modifier.fillMaxSize(),
-                contentMode = CanvasContentMode.CROP,
-                onRenderedChanged = onRenderedChanged,
-                presentationAlpha = { reveal.value.coerceIn(0f, 1f) },
-            )
+            NowPlayingPortraitVideoFrame(controlsHeightPx) {
+                CanvasArtworkPlayer(
+                    canvas = canvas,
+                    isPlaying = isPlaying,
+                    modifier = Modifier.fillMaxSize().onSizeChanged { videoBounds = it },
+                    contentMode = CanvasContentMode.FIT_PORTRAIT,
+                    portraitRevealBounds = videoBounds,
+                    onRenderedChanged = onRenderedChanged,
+                    presentationAlpha = { reveal.value.coerceIn(0f, 1f) },
+                )
+            }
         }
-        if (scrimsShown) Box(Modifier.fillMaxSize().nowPlayingScrims(reveal, lyricsOpen, controls))
+        if (scrimsShown && lyricsOpen) Box(Modifier.fillMaxSize().nowPlayingScrims(reveal, lyricsOpen, controls))
+    }
+}
+
+/** A fixed 4:5 card above the expanded controls. No detector, playhead or source-frame changes resize it. */
+@Composable
+private fun NowPlayingPortraitVideoFrame(controlsHeightPx: State<Int>, content: @Composable () -> Unit) {
+    val density = LocalDensity.current
+    val topInsets = com.cosmotune.music.ui.theme.stableStatusBarInsets().union(WindowInsets.displayCutout)
+    Layout(content = { Box(Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp))) { content() } }, modifier = Modifier.fillMaxSize()) { measurables, constraints ->
+        val frame = NowPlayingVideoMetrics.portrait(
+            constraints.maxWidth.toDp().value, constraints.maxHeight.toDp().value,
+            controlsHeightPx.value.toDp().value, topInsets.getTop(density).toDp().value,
+        )
+        val placeable = measurables.single().measure(Constraints.fixed(frame.width.dp.roundToPx(), frame.height.dp.roundToPx()))
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            placeable.place(frame.x.dp.roundToPx(), frame.y.dp.roundToPx())
+        }
     }
 }
 

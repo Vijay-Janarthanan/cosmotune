@@ -278,7 +278,7 @@ class PagesContractTest {
         assertEquals("15f", const("ARTIST_NAME_SP"))
         assertEquals("13f", const("META_SP"))
         assertEquals("8f", const("ACTIONS_GAP_DP"))
-        assertEquals("300f", const("BANNER_DP"))
+        assertEquals("360f", const("BANNER_DP"))
         assertEquals("5", const("POPULAR_COUNT"))
         assertEquals("96f", const("LATEST_COVER_DP"))
         assertEquals("12f", const("LATEST_PADDING_DP"))

@@ -176,7 +176,7 @@ class NowPlayingPanelsContractTest {
 
     @Test fun landscapeIsTwoPanesWithTheVideoCroppedAndTheCoverSizedToFit() {
         val src = code(nowPlaying("NowPlayingLandscape.kt"))
-        assertTrue(src.contains("contentMode = CanvasContentMode.CROP"))
+        assertTrue(src.contains("contentMode = CanvasContentMode.FIT_PORTRAIT"))
         assertTrue(src.contains("presentationAlpha = { reveal.value.coerceIn(0f, 1f) }"), "the clip's own alpha, not a layer")
         assertTrue(src.contains("LandscapeMetrics.coverSideDp(maxWidth.value, maxHeight.value)"))
         assertTrue(src.contains("CosmoRadii.coverNowPlaying"), "radius 28")

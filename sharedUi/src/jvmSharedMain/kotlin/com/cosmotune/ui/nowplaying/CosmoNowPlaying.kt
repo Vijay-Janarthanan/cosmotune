@@ -294,7 +294,7 @@ fun CosmoNowPlaying(
         NowPlayingBackdrop(
             canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal, lyricsOpen = panels.lyricsOpen,
             onRenderedChanged = { rendered = it }, hazeState = playerHaze, modifier = Modifier.fillMaxSize(),
-            controls = controlsSheet.progressState,
+            controls = controlsSheet.progressState, controlsHeightPx = stackHeightPx,
         )
         // The stack is measured with its own padding, so the cover and the panels know how much of the window it takes. Over a
         // video it can be minimized to the bar (NP-1); otherwise the sheet is the stack alone, as it always was.

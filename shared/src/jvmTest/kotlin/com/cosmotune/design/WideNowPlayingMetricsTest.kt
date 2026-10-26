@@ -27,12 +27,12 @@ class WideNowPlayingMetricsTest {
         assertBox(32f, 20f, 1376f, 56f, plan.header, "header")
         // .dn-lyrics: left 64, top 150, 640 wide; it ends 8 dp above the bar's top (800)
         assertBox(64f, 150f, 640f, 642f, plan.lyrics, "lyrics")
-        // .dn-video: right 64, top 96, 396 x 704
-        assertBox(980f, 96f, 396f, 704f, plan.video, "video")
-        // .dn-player: left 32, right 500, bottom 20, 80 tall
-        assertBox(32f, 800f, 908f, 80f, plan.bar, "bar")
+        // The wider 4:5 card retains the header and lyrics margins.
+        assertBox(813f, 96f, 563f, 704f, plan.video, "video")
+        // The responsive bar stays clear beneath the card.
+        assertBox(32f, 800f, 886f, 80f, plan.bar, "bar")
         // the cover is a square of the card's width, centred in the card's height
-        assertBox(980f, 250f, 396f, 396f, plan.cover, "cover")
+        assertBox(813f, 166.5f, 563f, 563f, plan.cover, "cover")
     }
 
     @Test
@@ -56,42 +56,52 @@ class WideNowPlayingMetricsTest {
     fun aTallerWindowDoesNotMakeTheCardTallerThanTheBoards() {
         val tall = plan(1440f, 1400f)
         assertEquals(704f, tall.video.height, 0f)
-        assertEquals(396f, tall.video.width, 0f)
+        assertEquals(563f, tall.video.width, 0f)
         // the bar stays at the foot and the lyrics get the height
         assertEquals(1400f - 20f - 80f, tall.bar.y, 0f)
         assertTrue(tall.lyrics.height > plan(1440f, 900f).lyrics.height)
     }
 
     @Test
-    fun aShorterWindowShrinksTheCardKeepingNineBySixteenAndTheBarClearOfIt() {
+    fun aShorterWindowShrinksTheCardKeepingFourByFiveAndTheBarClearOfIt() {
         val p = plan(1280f, 800f)
-        // 800 - 96 - 100 = 604 tall, and as wide as a 9:16 card of that height
+        // 800 - 96 - 100 = 604 tall, and as wide as a 4:5 card of that height
         assertEquals(604f, p.video.height, 0f)
-        assertEquals(339f, p.video.width, 0f)
-        assertEquals(1280f - 64f - 339f, p.video.x, 0f)
+        assertEquals(483f, p.video.width, 0f)
+        assertEquals(1280f - 64f - 483f, p.video.x, 0f)
         assertTrue(p.video.bottom <= p.bar.y, "the card ends where the bar's row begins")
         assertEquals(96f, p.video.y, 0f)
     }
 
     @Test
     fun theBarKeepsTheBoardsMarginToTheCardAndKeepsTheRoomItNeeds() {
-        // 1280 x 800: right margin = 64 + 339 + 40, so the bar is 1280 - 32 - 443 = 805 dp: no volume bar, the scrubber stays
+        // The wider video must not hide controls when a full bar still fits below both columns.
         val p = plan(1280f, 800f)
-        assertEquals(805f, p.bar.width, 0f)
-        assertEquals(PlayerBarMetrics.Tier.MEDIUM, PlayerBarMetrics.plan(p.bar.width).tier)
-        // the board's own frame has the full bar
-        assertEquals(PlayerBarMetrics.Tier.FULL, PlayerBarMetrics.plan(plan(1440f, 900f).bar.width).tier)
+        assertEquals(886f, p.bar.width, 0f)
+        assertEquals(PlayerBarMetrics.Tier.FULL, PlayerBarMetrics.plan(p.bar.width).tier)
+        // the board's own frame still has room for the transport and scrubber
+        assertTrue(plan(1440f, 900f).bar.width >= WideNowPlayingMetrics.BAR_MIN_WIDTH_DP)
         // the least window: the bar still has the scrubber (the compact plan's width)
         assertTrue(plan(900f, 600f).bar.width >= WideNowPlayingMetrics.BAR_MIN_WIDTH_DP)
-        assertEquals(PlayerBarMetrics.Tier.COMPACT, PlayerBarMetrics.plan(plan(900f, 600f).bar.width).tier)
+        assertEquals(PlayerBarMetrics.Tier.MEDIUM, PlayerBarMetrics.plan(plan(900f, 600f).bar.width).tier)
+    }
+
+    @Test
+    fun wideningThePortraitVideoDoesNotRemoveShuffleOrRepeatFromWideWindows() {
+        for ((w, h) in listOf(840f to 600f, 1220f to 780f, 1440f to 900f, 1920f to 1080f)) {
+            val p = plan(w, h)
+            assertTrue(PlayerBarMetrics.plan(p.bar.width).shuffleRepeat, "$w x $h keeps shuffle/repeat")
+            assertTrue(p.bar.right <= w - WideNowPlayingMetrics.BAR_LEFT_DP)
+            assertTrue(p.video.bottom <= p.bar.y)
+        }
     }
 
     @Test
     fun aNarrowWindowGivesTheLyricsTheirLeastAndShrinksTheCard() {
         val p = plan(840f, 900f)
         assertEquals(WideNowPlayingMetrics.LYRICS_MIN_WIDTH_DP, p.lyrics.width, 0f)
-        assertTrue(p.video.width < 396f, "the card gave way: ${p.video}")
-        assertTrue(abs(p.video.height / p.video.width - 704f / 396f) < 0.02f, "still nine by sixteen: ${p.video}")
+        assertTrue(p.video.width < 563f, "the card gave way: ${p.video}")
+        assertTrue(abs(p.video.height / p.video.width - 5f / 4f) < 0.02f, "still four by five: ${p.video}")
     }
 
     @Test

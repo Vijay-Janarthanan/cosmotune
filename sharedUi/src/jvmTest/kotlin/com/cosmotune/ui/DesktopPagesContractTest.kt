@@ -157,9 +157,9 @@ class DesktopPagesContractTest {
 
     @Test fun theArtistPageHasTheBannerTheColumnsAndTheShelves() {
         val page = SourceContract.code(SourceContract.read(artistFile))
-        assertTrue(Regex("""BANNER_HEIGHT = 300\.dp""").containsMatchIn(page), "the banner is 300 dp")
+        assertTrue(Regex("""BANNER_HEIGHT = 400\.dp""").containsMatchIn(page), "the banner is 400 dp")
         assertTrue(Regex("""BANNER_TEXT_START = 32\.dp""").containsMatchIn(page) && Regex("""BANNER_TEXT_BOTTOM = 22\.dp""").containsMatchIn(page), "the words are 32 in and 22 up")
-        assertTrue("blendMode = BlendMode.DstIn" in page && Regex("""BANNER_FADE_FROM = 0\.3f""").containsMatchIn(page), "the picture is clear to 30 % and then fades into the page, by an alpha mask")
+        assertTrue("blendMode = BlendMode.DstIn" in page && Regex("""BANNER_FADE_FROM = 0\.5f""").containsMatchIn(page), "the picture is clear to 50 % and then fades into the page, by an alpha mask")
         assertTrue("type.display(TypeScale.DISPLAY_XL)" in page, "the name is display(DISPLAY_XL)")
         assertTrue(Regex("""PlayMorphButton\(.*?size = 56\.dp""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(page), "Play is the 56 dp morph button")
         assertTrue(Regex("""kind = CosmoButtonKind\.TONAL,\s*size = CosmoButtonSize\.SMALL""").containsMatchIn(page), "Follow is TONAL SMALL")

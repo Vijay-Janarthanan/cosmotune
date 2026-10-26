@@ -80,7 +80,7 @@ class NowPlayingWideContractTest {
         val spot = src.indexOf("spot = {")
         assertEquals(src.lastIndexOf(".live("), src.indexOf(".live(", spot), "the only live colour is inside the shadow's lambda")
         assertTrue(src.contains("presentationAlpha = { reveal.value.coerceIn(0f, 1f) }"), "the clip's own alpha, not a layer: on the phone it is a TextureView")
-        assertTrue(src.contains("contentMode = CanvasContentMode.CROP"))
+        assertTrue(src.contains("contentMode = CanvasContentMode.FIT_PORTRAIT"))
         assertTrue(src.contains("compositingStrategy = CompositingStrategy.ModulateAlpha"), "the cover's shadow is not cut at its bounds while it fades")
     }
 

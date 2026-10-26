@@ -8,6 +8,8 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
+Music videos in Now Playing use a steady 4:5 portrait frame, with playback controls clear of the picture and taller artist motion headers. [1.0.6 changes](docs/releases/1.0.6.md) · [Remaining work](docs/PENDING_WORK.md)
+
 <p>For Android, Windows, Linux and macOS, with a Wear OS watch app, an Android TV app and a browser companion. Free and open source.</p>
 
 <p>

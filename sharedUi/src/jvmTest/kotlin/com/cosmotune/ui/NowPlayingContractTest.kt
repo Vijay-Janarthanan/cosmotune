@@ -110,7 +110,7 @@ class NowPlayingContractTest {
         }
         val media = code(nowPlaying("NowPlayingMedia.kt"))
         assertTrue(media.contains("presentationAlpha = { reveal.value"), "the clip's alpha is its own parameter (a Compose layer over a TextureView is not reliable)")
-        assertFalse(media.substringAfter("CanvasArtworkPlayer(").substringBefore("if (scrimsShown)").contains("graphicsLayer"), "no Compose layer around the clip")
+        assertFalse(media.substringAfter("CanvasArtworkPlayer(").substringBefore("if (scrimsShown").contains("graphicsLayer"), "no Compose layer around the clip")
     }
 
     @Test fun theVideoIsWantedOnlyOnceTheMorphHasSettledAndStartsHiddenUnderReducedMotion() {

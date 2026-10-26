@@ -24,11 +24,17 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
+import com.cosmotune.design.NowPlayingVideoMetrics
 import com.cosmotune.design.LandscapeMetrics
 import com.cosmotune.ui.components.CoverImage
 import com.cosmotune.ui.components.SuperellipseShape
@@ -97,6 +103,7 @@ internal fun NowPlayingLandscapeMedia(
     shell: CosmoShellState?,
     modifier: Modifier = Modifier,
 ) {
+    var videoBounds by remember(canvas) { mutableStateOf(IntSize.Zero) }
     val shape = remember { SuperellipseShape(LandscapeMetrics.MEDIA_RADIUS_DP.dp) }
     BoxWithConstraints(modifier.fillMaxSize().windowInsetsPadding(com.cosmotune.music.ui.theme.stableStatusBarInsets()).padding(LandscapeMetrics.MEDIA_PADDING_DP.dp)) {
         val side = LandscapeMetrics.coverSideDp(maxWidth.value, maxHeight.value).dp
@@ -110,12 +117,14 @@ internal fun NowPlayingLandscapeMedia(
             CoverImage(coverUrl, side, CosmoRadii.coverNowPlaying)
         }
         if (wantVideo && canvas != null) {
-            Box(Modifier.fillMaxSize().clip(shape)) {
+            val frame = NowPlayingVideoMetrics.fit(maxWidth.value, maxHeight.value)
+            Box(Modifier.align(Alignment.Center).size(frame.width.dp, frame.height.dp).clip(shape)) {
                 CanvasArtworkPlayer(
                     canvas = canvas,
                     isPlaying = isPlaying,
-                    modifier = Modifier.fillMaxSize(),
-                    contentMode = CanvasContentMode.CROP,
+                    modifier = Modifier.fillMaxSize().onSizeChanged { videoBounds = it },
+                    contentMode = CanvasContentMode.FIT_PORTRAIT,
+                    portraitRevealBounds = videoBounds,
                     onRenderedChanged = onRenderedChanged,
                     presentationAlpha = { reveal.value.coerceIn(0f, 1f) },
                 )

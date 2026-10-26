@@ -82,7 +82,7 @@ class ProviderRepositories(private val packages: ProviderPackages,
             currentCoroutineContext().ensureActive()
             require(url.isHttps && url.username.isEmpty() && url.password.isEmpty()) { "Provider repository requests require HTTPS" }
             require(visited.add(url.toString())) { "Provider repository redirect loop" }
-            val result = client.newCall(Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.5").build()).withReply { reply ->
+            val result = client.newCall(Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.6").build()).withReply { reply ->
                 currentCoroutineContext().ensureActive()
                 if (reply.code in setOf(301, 302, 303, 307, 308)) {
                     null to (url.resolve(reply.header("Location").orEmpty()) ?: error("Invalid provider repository redirect"))

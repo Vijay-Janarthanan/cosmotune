@@ -88,12 +88,12 @@ import org.jetbrains.compose.resources.stringResource
  */
 
 /** `pageArtistDesktop`: the banner is 300 dp tall, its words 32 dp in from the left and 22 dp up from the foot. */
-private val BANNER_HEIGHT = 300.dp
+private val BANNER_HEIGHT = 400.dp
 private val BANNER_TEXT_START = 32.dp
 private val BANNER_TEXT_BOTTOM = 22.dp
 
 /** The banner's picture is clear down to 30 % of its height, then fades into the page (`transparent 30%`). */
-private const val BANNER_FADE_FROM = 0.3f
+private const val BANNER_FADE_FROM = 0.5f
 
 /**
  * The two columns' padding and gap, and their widths: 1.4 to 1. The padding is the desktop's page margin, the same as Home's and the

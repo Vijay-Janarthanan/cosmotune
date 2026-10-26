@@ -412,7 +412,7 @@ private const val MAX_ARTIST_SONGS = 20
 private const val ARTIST_SONGS_PER_COLUMN = 4
 
 /** The artist photograph's height. */
-private val ARTIST_BANNER_HEIGHT = 340.dp
+private val ARTIST_BANNER_HEIGHT = 420.dp
 
 /** The library shelf the account's own playlists arrive on, and the one edits are spliced into. */
 private const val PLAYLISTS_SHELF = "Playlists"
@@ -7049,7 +7049,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.5" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.6" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )
