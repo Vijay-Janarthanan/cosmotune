@@ -29,12 +29,13 @@ object VideoMatcher {
         if (!candidate.isOfficialMusicVideo && !candidate.isVerifiedChannel) return false
         val name = compact(candidate.title)
         val titleMatches = compact(title).let { it.length >= 3 && name.contains(it) }
-        val filmMatches = album?.let(::compact)?.let { it.length >= 3 && name.contains(it) } == true
-        val artistMatches = creditedArtists(artist).any { it.length >= 3 && compact(candidate.channelTitle).contains(it) }
+        val filmMatches = album?.let(::filmKey)?.let { it.length >= 3 && filmKey(candidate.title).contains(it) } == true
+        val artistMatches = isCreditedArtistChannel(candidate, artist)
         val channel = compact(candidate.channelTitle)
-        if (!candidate.isOfficialMusicVideo && !artistMatches && listOf("dance", "fitness", "choreo", "reaction").any { channel.contains(it) }) return false
+        if (!artistMatches && listOf("dance", "fitness", "choreo", "reaction", "fan", "edits", "status").any { channel.contains(it) }) return false
         val publisherRole = listOf("music", "records", "labels", "films", "movies", "vevo", "entertainment").any { channel.contains(it) }
-        return (titleMatches || filmMatches) && (candidate.isOfficialMusicVideo || artistMatches || filmMatches || publisherRole || saysVideo(candidate.title))
+        return (titleMatches || filmMatches) && (artistMatches || publisherRole ||
+            candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo && filmMatches)
     }
 
     /** A video shorter than this is a clip, never the whole song. */
@@ -47,6 +48,7 @@ object VideoMatcher {
         "behind the scenes", "making of", "teaser", "trailer", "performance", "choreography",
         "dance practice", "interview", "awards", "tour", "tutorial", "b-side", "grammy", "grammys", "talent",
         "tonight", "late late show", "snl", "saturday night live", "unplugged", "acoustic", "mashup", "full album",
+        "full movie", "full film", "complete movie", "full length movie",
         "full song", "jukebox", "audio song", "episode", "sketch", "shoot", "making", "highlight", "recap", "sing along", "with me", "remix", "edit", "slowed", "sped up", "extended",
     ).map { Regex("(^|[^\\p{L}\\p{N}])" + Regex.escape(it) + "($|[^\\p{L}\\p{N}])") } +
         Regex("\\s@\\s") // "Artist 'Song' @ Some Show": a stage performance
@@ -59,6 +61,9 @@ object VideoMatcher {
 
     /** Whether the title itself says it is the music video ("video song", "official video", "MV"). */
     fun saysVideo(title: String): Boolean = title.lowercase().let { t -> POSITIVE_KEYWORDS.any { t.contains(it) } }
+
+    fun advertisesVideo(title: String): Boolean = saysVideo(title) ||
+        Regex("(?i)(\\b[248]k\\b|\\bmv\\b|\\bm/v\\b)").containsMatchIn(title)
 
     /**
      * Scores how likely a candidate video is the true visual music video for a given track.
@@ -82,7 +87,8 @@ object VideoMatcher {
         }
 
         // A clip is not a song: Shorts-length videos never carry the whole audio.
-        if (candidate.durationSec in 1 until MIN_SONG_VIDEO_SEC) score -= 300
+        if (candidate.durationSec in 1 until MIN_SONG_VIDEO_SEC ||
+            candidate.durationSec > maxOf(900L, expectedDurationSec * 2 + 180)) score -= 300
 
         // 2. Channel credibility: a credited artist's own channel is the strongest hint there is
         // ("The Kid LAROI, Justin Bieber" is two artists; either one's channel counts)
@@ -130,6 +136,9 @@ object VideoMatcher {
 
     /** Lower-case letters and digits only, so "The Weeknd", "TheWeeknd" and "the-weeknd" compare equal. */
     private fun compact(text: String): String = text.lowercase().filter { it.isLetterOrDigit() }
+
+    /** Film transliterations vary: "Raaja Paarvai" and "Raja Parvai" name the same release. */
+    private fun filmKey(text: String): String = compact(text).replace(Regex("([aeiou])\\1+"), "$1")
 
     /**
      * Picks the best official music video among candidates.

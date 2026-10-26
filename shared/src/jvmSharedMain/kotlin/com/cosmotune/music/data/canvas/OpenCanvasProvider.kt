@@ -7,6 +7,7 @@ import com.opencanvas.core.models.OpenCanvasMode
 import com.opencanvas.core.models.OpenCanvasResolution
 import com.cosmotune.canvas.resolvedCanvas
 import com.opencanvas.core.models.SyncStage
+import com.opencanvas.core.stream.MusicVideoQuery
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -91,17 +92,18 @@ object OpenCanvasProvider {
     ): CanvasArtwork? = withContext(Dispatchers.IO) {
         if (trackVideoId.isNullOrBlank()) return@withContext null
         if (!configured) configure(null)
+        val query = MusicVideoQuery.from(title, album)
         val resolution = OpenCanvasResolution.fromLabel(resolutionLabel)
         val began = System.currentTimeMillis()
 
         val track = OpenCanvas.resolveFlow(
-            title = title,
+            title = query.title,
             artist = artist,
             durationSec = durationSec,
             mode = OpenCanvasMode.FULL_SYNCED_VIDEO,
             resolution = resolution,
             trackVideoId = trackVideoId,
-            album = album,
+            album = query.album,
         ).resolvedCanvas(LOOKUP_TIMEOUT_MS) ?: return@withContext null
 
         if (track.syncStage != SyncStage.MEASURED) return@withContext null
@@ -109,7 +111,7 @@ object OpenCanvasProvider {
 
         CanvasArtwork(
             url = track.videoStreamUrl,
-            title = title,
+            title = query.title,
             artist = artist,
             album = album,
             source = CanvasSource.OTHER,

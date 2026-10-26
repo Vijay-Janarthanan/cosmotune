@@ -1,9 +1,9 @@
 package com.cosmotune.design
 
-/** Persisted by name so adding a mode never changes an existing installation's selection. */
-enum class AppMode { MUSIC, VIDEO, MANGA, LIBRARY }
+/** Stored ordinals are stable: append new modes after the existing entries. */
+enum class AppMode { MUSIC, VIDEO, MANGA, LIBRARY, PODIO }
 
-/** Library is reserved; Music, Video and Manga have independent working hosts. */
+/** Library is reserved; the other modes have working Android/desktop hosts. */
 object AppModes {
-    fun available(mode: AppMode): Boolean = mode == AppMode.MUSIC || mode == AppMode.VIDEO || mode == AppMode.MANGA
+    fun available(mode: AppMode): Boolean = mode == AppMode.MUSIC || mode == AppMode.VIDEO || mode == AppMode.MANGA || mode == AppMode.PODIO
 }

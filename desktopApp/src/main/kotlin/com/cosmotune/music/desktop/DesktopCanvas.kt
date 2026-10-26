@@ -151,6 +151,7 @@ object DesktopCanvasClient {
      * left downloaded tracks with no canvas.
      */
     suspend fun lookup(song: Song, provisional: ((DesktopCanvasArtwork) -> Unit)? = null): DesktopCanvasArtwork? {
+        if (song.videoId.startsWith("podio:")) return null
         if (song.videoId.isBlank() && (song.localUri != null || song.localPath != null)) return null
         val title = song.title.cleanedForCanvas()
         val artist = song.artist.cleanedForCanvas()
@@ -170,7 +171,7 @@ object DesktopCanvasClient {
             // sources get their turn: it is the last resort, so its answer should already be there when
             // they come up empty, and a lookup queued behind another one must not hold it back.
             val musicVideo = if (openCanvasActive) async(Dispatchers.IO) {
-                DesktopOpenCanvasProvider.search(title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
+                DesktopOpenCanvasProvider.search(song.title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
             } else null
 
             val answer = resolve(key, album != null, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS) {

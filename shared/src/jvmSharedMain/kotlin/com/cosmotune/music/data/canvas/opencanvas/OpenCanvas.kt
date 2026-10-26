@@ -144,7 +144,8 @@ object OpenCanvas {
         album: String?,
     ): CanvasRequest {
         val song = songAudio ?: trackVideoId?.trim()?.takeIf { it.isNotEmpty() }?.let { SongAudio.YouTube(it) }
-        return CanvasRequest(title, artist, durationSec, mode, resolution, song, videoId?.trim()?.takeIf { it.isNotEmpty() }, album?.trim()?.takeIf { it.isNotEmpty() })
+        val query = com.opencanvas.core.stream.MusicVideoQuery.from(title, album)
+        return CanvasRequest(query.title, artist, durationSec, mode, resolution, song, videoId?.trim()?.takeIf { it.isNotEmpty() }, query.album)
     }
 
     /**

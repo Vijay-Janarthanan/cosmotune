@@ -13,7 +13,8 @@ import kotlinx.coroutines.withContext
  *
  * @property videoKbps Average bitrate of the video file's picture in kbit/s (`0.0` when unknown).
  */
-internal class Measurement(val align: AlignResult, val videoKbps: Double, val videoMotion: Double = 1.0)
+internal class Measurement(val align: AlignResult, val videoKbps: Double, val videoMotion: Double = 1.0,
+    val keyIrregularity: Double? = null)
 
 /**
  * Measures how a song lines up with its music video, from the headers of the two files alone.
@@ -38,6 +39,6 @@ internal class SyncMeasurer(private val fetcher: AudioFetcher) {
         val align = withContext(Dispatchers.Default) {
             SyncAligner.align(FrameEnvelope.build(track), FrameEnvelope.build(picture), FrameEnvelope.RATE_HZ)
         }
-        Measurement(align, picture.videoKbps, picture.videoMotion)
+        Measurement(align, picture.videoKbps, picture.videoMotion, picture.keyIrregularity)
     }
 }

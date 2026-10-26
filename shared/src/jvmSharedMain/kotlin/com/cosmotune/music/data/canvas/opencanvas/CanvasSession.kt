@@ -62,7 +62,7 @@ internal class Environment(val config: OpenCanvasConfig) {
     val instantBackend: StreamBackend? = config.instantBackend
     val store = SyncStore(config.cacheDirectory)
     val community = config.communityMapsUrl?.let { CommunityMaps(config.httpClient, it) }
-    val search = MusicVideoSearch(config.httpClient)
+    val search = MusicVideoSearch(config.httpClient, config.log)
     val measurer = SyncMeasurer(AudioFetcher(config.httpClient))
 
     init {
@@ -253,12 +253,25 @@ internal class CanvasSession(
         // Three candidates at a time: the usual case is decided by the first batch, and a song whose
         // official video sits further down the results still gets found.
         var winner: Pair<VideoCandidate, AlignResult>? = null
+        var attemptedCount = ranked.size
         for ((batchIndex, batch) in ranked.chunked(BATCH_SIZE).withIndex()) {
             winner = bestOf(batch, batchIndex * BATCH_SIZE, track)
             if (winner != null) break
         }
+        // A highly ranked remaster can have a different soundtrack (for example a 5.1 remix).
+        // Exhaust the other bounded queries before treating that first publisher hit as a miss.
+        if (winner == null && request.videoId == null) {
+            val tried = ranked.mapTo(HashSet()) { it.videoId }
+            val alternatives = env.search.find(request.title, request.artist, request.durationSec,
+                limit = 10, album = request.album, exhaustive = true, excludedVideoIds = tried)
+            attemptedCount += alternatives.size
+            for ((batchIndex, batch) in alternatives.chunked(BATCH_SIZE).withIndex()) {
+                winner = bestOf(batch, ranked.size + batchIndex * BATCH_SIZE, track)
+                if (winner != null) break
+            }
+        }
         if (winner == null) {
-            log("no map: none of ${ranked.size} candidate video(s) lines up with the song")
+            log("no map: none of $attemptedCount candidate video(s) lines up with the song")
             sync = SyncView(SyncStage.NONE)
             publish()
             return@coroutineScope
@@ -302,7 +315,11 @@ internal class CanvasSession(
             arrived++
             val result = measured?.align
             val still = measured != null &&
-                (measured.videoKbps in 0.01..STILL_PICTURE_KBPS || measured.videoMotion < STILL_PICTURE_MOTION)
+                (measured.videoKbps in 0.01..STILL_PICTURE_KBPS || measured.videoMotion < STILL_PICTURE_MOTION ||
+                    (request.videoId == null && measured.keyIrregularity?.let { it < 0.01 } == true &&
+                        (!VideoMatcher.advertisesVideo(candidate.title) ||
+                            !candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo) &&
+                        !VideoMatcher.isCreditedArtistChannel(candidate, request.artist)))
             log("candidate ${candidate.videoId} \"${candidate.title.take(48)}\" by ${candidate.channelTitle} (${candidate.durationSec}s): " +
                 when {
                     result == null -> "not readable"

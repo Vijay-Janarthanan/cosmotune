@@ -1,0 +1,50 @@
+# Podio source research
+
+Scope: an account-free Radio / Podcasts mode in Cosmotune 1.0.7. Research is separate from integration and live playback evidence; a project's advertised platform coverage is not a playback result.
+
+## Source review, 26 October 2026
+
+| Project | Source inspected | What the code actually provides | Integration decision |
+| --- | --- | --- | --- |
+| [AntennaPod](https://github.com/AntennaPod/AntennaPod) | `d3e41c6cb37c8e1a060b142686f818999de89859`: `net/discovery/.../PodcastSearcherRegistry.java`, iTunes, fyyd and Podcast Index adapters | Multiple podcast directories lead to publisher RSS feeds. iTunes and fyyd search do not need a listener account. Podcast Index signs requests with developer API credentials. | Implement the public-directory/RSS approach in shared Kotlin; do not borrow another application's API secrets. |
+| [Audimo](https://github.com/audaro/audimo) | `076d7d778af8f9039e7a30def136399199a478a3`: `backend/routers/podcasts.py` | RSS subscriptions, enclosure playback, progress/download endpoints and refresh logic. Its podcast route is built into core; the route imports backend user authentication. | Reuse the architectural idea locally, without requiring its server/account. |
+| [Votify](https://github.com/glomatico/votify) | `db14e4d1aa01456e0ec3b55d6f7268787ba2e2c4`: `votify/api/api.py`, `votify/interface/episode.py` | Anonymous show/episode metadata works. The full episode-processing path supplies a decryption key. An opening clear section can decode without establishing full-episode playback. | Adapt metadata only, with bundled MIT notice. Match a Spotify link to a public publisher RSS feed by show/episode identity and duration. Direct Spotify audio, keys and decryption are not integrated. |
+| [Dotify](https://github.com/AsHfIEXE/Dotify) | `ba64f4d7853910fd60b0f1644f2df30ed45982a5`: `dotify/api/api.py`, `dotify/interface/episode.py` | A related Spotify episode path, optional session credentials, stream-quality selection and download tooling. | Evaluate anonymous public episodes separately from authenticated/protected playback; not integrated yet. |
+| [Anypod](https://github.com/thurstonsand/anypod) | `0c86b3a1053dfbb74c4ce1afca7c6b1f229e9a3c`: README/source tree | A self-hosted yt-dlp-to-RSS bridge for YouTube and other sources. Its Patreon section explicitly requires cookies for paywalled content; it is not a universal account-free premium catalogue. | Useful reference for public channel-to-feed support; a hosted downloader is not required for Podio's RSS path. |
+| [gPodder](https://github.com/gpodder/gpodder) | `357161a6136585232fd47ae183ed22a9f342fc97`: `src/gpodder/directory.py` | Directory/RSS subscription management. The inspected source explicitly says its old SoundCloud search no longer works. | Feed/import patterns are useful; do not copy advertised legacy providers as working integrations. |
+| [p-fm-bot](https://github.com/Doctorstra/p-fm-bot) | `b8cd828c4684c9a071ebda6241f70c044b5f37a3`: complete repository tree, README | Outside a decompiled `com.radio.pocketfm` tree, this revision contains only README and licence files. No standalone bot/provider implementation was found. | Not a working Pocket FM adapter to import. |
+| [Spotifeed](https://github.com/timdorr/spotifeed) | `7ad607bc41369af7981023de03f606f96f95cecc`: `spotify.rb`, `spotifeed.rb`, README | Archived in March 2023. Uses server-side Spotify developer client credentials and Redis. Its RSS generator's audio-enclosure assignment is commented out. | Does not establish a working account-free audio source; no hosted dependency or old preview-URL substitution imported. |
+| [Podgrab](https://github.com/akhilrex/podgrab) | `032248091294dbf5b6a439a5afd93788a7cc647f`: README review only | Self-hosted Go podcast manager: iTunes/RSS, archive downloads, OPML, tags and a player. | Useful future download/OPML reference, not a new paid catalogue. Not executed or integrated. |
+| [podpull](https://github.com/xiaoleiy/podpull) | `7ba067437df29f5e6cfdd59afcff8b4e6816f753`: README review only | Publisher RSS via Apple lookup, plus advertised Xiaoyuzhou/Ximalaya links and regional chart browsing. Podcast Index is optional with developer credentials. | Regional public-source/chart ideas remain research candidates; those extra providers have not been source-tested or integrated into Podio. |
+
+## Radio sources
+
+[Radio Browser](https://api.radio-browser.info/) documents a free, open-source station directory with geographic coordinates, languages, country/genre filters and stream URLs. Clients should discover/randomize mirrors, fail over, identify their user agent and report station play clicks. This supports a Radio Garden-inspired geographic interface without relying on Radio Garden's undocumented internal endpoints.
+
+## Coverage rules
+
+- A searchable show is not automatically a playable episode. Playback uses a publisher's actual enclosure or a separately tested source adapter.
+- Public feeds commonly underlie listings in multiple podcast apps; these are deduplicated by feed identity rather than advertised as different audio providers.
+- No listener login is required for the public radio/directory/feed paths. No universal access to paid-only shows has been established.
+- Do not import third-party account cookies, API secrets, decompiled application binaries or DRM tools as a dependency of Podio.
+- Keep catalogue access, stream resolution, playback verification and unimplemented ideas distinct in the feature tracker.
+
+## Implemented in Podio
+
+Android phone/tablet and desktop have the same Radio / Podcasts page. Radio includes a draggable, zoomable globe with Natural Earth public-domain land outlines, country/language/name search, a station list and local favourites. The globe samples up to 1,200 popular geolocated stations; directory search reaches beyond that sample. Each list request returns up to 100 stations.
+
+Podcast discovery combines Apple/iTunes and fyyd, deduplicates feed URLs and tolerates one directory failing. Open a publisher RSS/Atom feed or paste a Spotify show/episode link to find matching public RSS audio. A Spotify link is not itself an audio provider. Following, station favourites and episode positions are stored locally. Episode playback supports resume, seeking, back 15 seconds and speed selection. RSS parsing is bounded to 8 MiB and 1,000 entries; Spotify metadata lookup reads the latest 100 entries. Full archive pagination, OPML, episode downloads, sleep timers and account sync are pending.
+
+Playback uses the existing native desktop engine or Android Media3 service, including background controls. Radio has a live indicator rather than a finite song scrubber. Podcast/radio IDs bypass song-video searches, music recommendations, beat analysis and music scrobbling. Android permits HTTP public radio/feed enclosures because many stations have no HTTPS stream; provider-package transport keeps its separate HTTPS checks.
+
+The Spotify metadata adapter uses its own anonymous, memory-only web session and never imports browser/account cookies. Its web-client operation hashes and bootstrap can change upstream. A match requires the same normalized show name and overlapping episode identity; an episode link also requires the same title and compatible duration. Namesakes or mismatched recordings are rejected. If there is no public feed, the app explains that Spotify-only audio is unsupported. No direct Spotify stream resolver, music endpoint, licence/key request or protected-format decoder is added.
+
+## Verification evidence
+
+- Live Radio Browser, Apple and fyyd requests returned real station/show metadata on 2026-10-26.
+- The inspected Votify revision was executed with `sp_dc=None` for the Lex Fridman show (`2MAi0BvDc6GTFvKFPXnkCL`). Anonymous show/episode metadata and CDN resolution worked. Opening audio bytes decoded, but further checks at 120 and 3,600 seconds failed without a key. Android likewise rejected the protected track. The initial short decode is explicitly **not** evidence of full Spotify playback; the attempted direct resolver and experimental format workaround were removed before release.
+- Radio MP3, direct publisher RSS MP3, and publisher RSS matched from a Spotify link passed Cosmotune's actual native desktop decoder (44,928 samples each). No direct Spotify AAC playback claim remains.
+- `PodioCatalogueTest` covers feed identity/duration, XML and URL rejection, radio failover, directory deduplication/partial failure, saved library data, and Spotify-to-RSS matching with rejection of timing mismatches. `SpotifyPublicPodcastsTest` checks anonymous metadata requests, exact JSON encoding, and absence of audio-resolution/licence calls. `PodioInteractionTest` exercises the actual shared page, playback callbacks, favourites/following and phone link entry.
+- `PodioAndroidTest` passed both tests on the dedicated Android API 36 emulator in 18.275 seconds: RSS parsing/entity rejection, real Media3 publisher playback, Spotify-link-to-RSS playback, and rendered audio after seeking to 60 seconds. This is emulator evidence, not a physical-device listening claim.
+
+The other projects above were reviewed as source; they were not all executed or imported. No working universal account-free source for Spotify-only, paid Spotify, Pocket FM, Patreon or other subscription catalogues was verified. Spotify links work only when matching public publisher RSS audio is found. TV, Wear OS and browser-specific Podio interfaces remain outside this first implementation.

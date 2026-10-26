@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="cosmo_mode_podio">Podio</string>
+    <string name="cosmo_mode_podio_summary">Live radio around the world and podcasts</string>
     <string name="analysis_complete">analysée</string>
     <string name="analysis_in_progress">analyse en cours…</string>
     <string name="analysis_refining">analysée, affinage…</string>

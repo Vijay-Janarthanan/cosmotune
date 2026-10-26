@@ -35,6 +35,7 @@ object DesktopModeHost {
     @Volatile
     var active: Boolean = false
     @Volatile var mangaActive: Boolean = false
+    @Volatile var podioActive: Boolean = false
 
     /**
      * A video waiting to be opened, set by the host when Music asks for one ("Watch the music video", Y-26). It is snapshot state, so a
@@ -70,6 +71,13 @@ fun desktopMangaShown(): Boolean {
     val mode = shell?.settings?.mode?.collectAsState()?.value ?: AppMode.MUSIC
     val shown = shell != null && mode == AppMode.MANGA && AppModes.available(AppMode.MANGA)
     SideEffect { DesktopModeHost.mangaActive = shown }
+    return shown
+}
+
+@Composable fun desktopPodioShown(): Boolean {
+    val mode = LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value
+    val shown = mode == AppMode.PODIO
+    SideEffect { DesktopModeHost.podioActive = shown }
     return shown
 }
 

@@ -103,6 +103,7 @@ object CanvasRepository {
      * ([NowPlayingScreen], which checks [AppSettings.canvasOverCellular]).
      */
     suspend fun canvasFor(song: Song, provisional: ((CanvasArtwork) -> Unit)? = null): CanvasArtwork? {
+        if (song.videoId.startsWith("podio:")) return null
         // Only skip when there is no catalogue identity to search on.
         if (song.videoId.isBlank() && (song.localUri != null || song.localPath != null)) return null
 
@@ -132,7 +133,7 @@ object CanvasRepository {
             // sources get their turn: it is the last resort, so its answer should already be there when
             // they come up empty, and a lookup queued behind another one must not hold it back.
             val musicVideo = if (openCanvasActive) async(Dispatchers.IO) {
-                OpenCanvasProvider.search(title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
+                OpenCanvasProvider.search(song.title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
             } else null
 
             val answer = resolve(key, album != null, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS) {
@@ -183,6 +184,7 @@ object CanvasRepository {
      * on screen instead (see [canvasFor]).
      */
     fun prefetch(song: Song) {
+        if (song.videoId.startsWith("podio:")) return
         val title = song.title.cleaned()
         val artist = song.artist.cleaned()
         if (!prefetchAllowed(
@@ -193,7 +195,7 @@ object CanvasRepository {
             )
         ) return
         OpenCanvasProvider.prefetch(
-            title = title,
+            title = song.title,
             artist = artist,
             trackVideoId = song.videoId,
             resolutionLabel = AppSettings.openCanvasResolution.value,

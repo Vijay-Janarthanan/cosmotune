@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/Vijay-Janarthanan/OpenCanvas",
-  "revision": "b2255f4b6da996a3cf6649ec99e36e65c4d44273",
+  "revision": "a20c7f4c2ba385250678d4863736c00f85aff362",
   "omittedLegacyHelpers": [
     "OnnxSubjectTracker.kt",
     "SmartStreamReframer.kt"
@@ -52,7 +52,7 @@
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/matcher/VideoMatcher.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
-      "sha256": "d26d65e3148d5f898e44c1b77adea2b6d12519c6d42330d4b1bd2c1eb89a5b33"
+      "sha256": "fa909d9dcb87584dc7d5d13dab875f8846b3f13e5f6c7f902f1ce8bf19c51d82"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
@@ -100,13 +100,13 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/CanvasSession.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSession.kt",
       "normalizeLf": true,
-      "sha256": "5250ea8f6c857cf5bf30868de35c58a2bcb3d1ea4cb1d54de8ab6964d78e2784"
+      "sha256": "4f068f3fe903f9e5c1ed2d97ae69c3f3c302a62967f91646cec0851471596af9"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/OpenCanvas.kt",
       "normalizeLf": true,
-      "sha256": "c7c42dc856fc249dc5f049e40281741285ad55f2ce2cd6bcb9742eed4ba5efbc"
+      "sha256": "fa784249f087f20f6fc7d5aeee325fb04ef232e146eef5b6ba157fe8da47f809"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvasConfig.kt",
@@ -166,7 +166,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
       "normalizeLf": true,
-      "sha256": "ca4a476d0d2cb4a1c3c84867402df44b96f7d1aaef061f0b682a0c136422e4f5"
+      "sha256": "79017df009d7157dd8039af0b257204cd53f3813218f10de70c80d28183fe5fc"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
@@ -190,7 +190,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/SyncStore.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SyncStore.kt",
       "normalizeLf": true,
-      "sha256": "229224474897c2be982cdcb47c19b8815f8683c13a9143802a7e33753a4a4d2a"
+      "sha256": "c3b1f1d5c7f6bf072a4f03aa2fa9418e07a6db8572ede2c18049b41ae8aac903"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/YouTubeStreamResolver.kt",
@@ -202,7 +202,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/sync/SyncMeasurer.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SyncMeasurer.kt",
       "normalizeLf": true,
-      "sha256": "92a97588a1ee9d977eafddfb7ab64a4d346199bcf7f66ca18a0dbd80187257ef"
+      "sha256": "d51176b4e1e48c37464c48d8ce4c993c9a511ef5266d0e212dbbbef1db3cd35b"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/resources/models/PROVENANCE.md",
@@ -245,6 +245,12 @@
       "target": "shared/src/jvmSharedMain/resources/models/yunet.onnx",
       "normalizeLf": false,
       "sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoQuery.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoQuery.kt",
+      "normalizeLf": true,
+      "sha256": "0b69604544c97fa6a2d9a4518b2037dc705efd968eb3a2833bbe84f87700401c"
     }
   ],
   "revisionStatus": "published on OpenCanvas main",

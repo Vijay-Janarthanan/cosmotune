@@ -121,11 +121,13 @@ object DesktopScrobbling {
     }
 
     suspend fun updateNowPlaying(song: Song): Result<Unit> = runCatching {
+        if (song.videoId.startsWith("podio:")) return@runCatching
         if (lastFmConfigured) updateLastFm(song)
         if (listenBrainzConfigured) submitListenBrainz(song, "playing_now", 0L, song.durationMillis(), 0L)
     }
 
     suspend fun scrobble(song: Song): Result<Unit> = runCatching {
+        if (song.videoId.startsWith("podio:")) return@runCatching
         val timestamp = System.currentTimeMillis() / 1_000L
         if (lastFmConfigured) submitLastFm(song, timestamp)
         if (listenBrainzConfigured) {

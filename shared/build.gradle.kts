@@ -81,3 +81,12 @@ android {
     namespace = "com.cosmotune.music.shared"
     compileSdk = 36
 }
+
+// ReleaseVersionPinsTest reads these files outside this module's compiled test classpath.
+// Declare them so a version-only change cannot reuse an earlier passing test result.
+tasks.withType<Test>().configureEach {
+    inputs.files(rootProject.file("build.gradle.kts"), rootProject.file("desktopApp/build.gradle.kts"),
+        rootProject.file("web/extension/package.json"), rootProject.file(".github/workflows/check.yml"))
+    inputs.files(rootProject.fileTree("desktopApp/src/main/kotlin") { include("**/*.kt") },
+        rootProject.fileTree("providers/src/jvmSharedMain/kotlin") { include("**/*.kt") })
+}

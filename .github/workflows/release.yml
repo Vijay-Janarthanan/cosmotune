@@ -61,6 +61,15 @@ jobs:
           ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:createDistributable \
             -Pcosmotune.version=${{ steps.version.outputs.value }}
 
+      - name: Upload Linux test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-test-reports
+          path: |
+            **/build/test-results/**/*.xml
+            **/build/reports/tests/
+
       - name: The analyser and models are in the jar
         run: |
           jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/lib/app/desktopApp*.jar)
@@ -156,6 +165,7 @@ jobs:
         with:
           name: windows-release-test-reports
           path: |
+            shared/build/test-results/jvmTest/*.xml
             desktopApp/build/test-results/test/*.xml
             uiTests/build/test-results/test/*.xml
             sharedUi/build/test-results/jvmTest/*.xml
@@ -231,6 +241,7 @@ jobs:
         with:
           name: macos-${{ matrix.arch }}-release-test-reports
           path: |
+            shared/build/test-results/jvmTest/*.xml
             desktopApp/build/test-results/test/*.xml
             uiTests/build/test-results/test/*.xml
             sharedUi/build/test-results/jvmTest/*.xml

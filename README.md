@@ -12,6 +12,8 @@ Music videos in Now Playing use a steady 4:5 portrait frame, with playback contr
 
 Version 1.0.7 adds provider audio preparation and comparisons, tappable audio details, regional discovery and local playlist previews, automatic verification callbacks, and fixes for Windows playback freezing and Now Playing window dragging. Amazon passed actual Windows decoding as 24-bit/44.1 kHz FLAC; Qobuz package availability remains limited by its gateway. [Playback evidence](docs/PROVIDER_MEDIA_PREPARATION.md).
 
+**Podio** brings live radio and podcasts to Android phone/tablet and desktop: explore stations on a globe, search by country/language, save favourites, discover shows and open publisher RSS feeds without an account. Spotify podcast links can find matching public RSS audio; Spotify-only and paid-only audio are unsupported. Following and episode progress stay on your device. [Reviewed projects, playback evidence and limits](docs/PODIO_RESEARCH.md).
+
 <p>For Android, Windows, Linux and macOS, with a Wear OS watch app, an Android TV app and a browser companion. Free and open source.</p>
 
 <p>
@@ -396,6 +398,8 @@ services, including every one that 1.0.4 added; the paragraphs below it say what
 | New releases daily check | YouTube Music | Once a day while the app is open | Off | Listening tools > New releases |
 | Provider packages, repositories, HTTP add-ons, Subsonic | Only the ones you add, and the sites a package declares | When you use them | None added | Sources |
 | Manga sources and Komga | Only the sources and the server you add | When you browse, read or download | None added | Manga > Sources |
+| Podio radio and podcast discovery | Radio Browser mirrors, Apple/iTunes, fyyd; selected station/publisher media hosts | When Podio is opened or used | No account | Podio > Radio / Podcasts |
+| Spotify podcast link lookup | Spotify public web-client endpoints, public bootstrap metadata at `git.gay`, Apple/iTunes and fyyd | When you look up a Spotify podcast link; playback uses matched publisher RSS | Anonymous session in memory | Podio > Podcasts > Add link |
 | Phone remote (desktop, TV) | Nothing outside your local network | While you have it started | Off | Stop |
 | Wear OS watch | The paired phone only | While connected | - | - |
 | Browser companion | YouTube Music, YouTube, and what you connect or allow in the helper | While you use it | - | The helper's own controls |
@@ -457,7 +461,7 @@ own setting, or the device's). Its audio reaches the player through a relay on t
 that a package asks for opens in your browser and comes back to the app once. HTTP add-ons get your searches, the
 requests for streams and pages, and the settings you saved for them. A Subsonic or OpenSubsonic server gets your user
 name with a salted password token, or your API key, on every request; redirects are not followed, so these never reach
-another host. On Android every server you add must use https. Disable or remove any of them under Sources.
+another host. Prefer HTTPS for servers carrying credentials. Android now permits HTTP public radio/feed URLs for Podio; provider packages retain their own HTTPS checks. Disable or remove a configured source under Sources.
 
 **Manga mode** reads files on your device and contacts nothing until you add a source. A catalogue site you add from the
 source list, a website source you define, or a Mihon extension (Android only) is contacted when you browse, search,

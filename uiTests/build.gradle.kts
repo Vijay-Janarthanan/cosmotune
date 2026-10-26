@@ -15,6 +15,7 @@ dependencies {
     testImplementation(compose.material3)
     testImplementation(kotlin("test"))
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.3.2")
     testImplementation("org.jetbrains.compose.ui:ui-test-junit4:$desktopCompose")
     testImplementation(compose.desktop.currentOs)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")

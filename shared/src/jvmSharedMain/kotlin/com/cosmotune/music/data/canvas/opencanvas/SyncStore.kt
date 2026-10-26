@@ -60,7 +60,7 @@ internal class SyncStore(
         try {
             file.parentFile?.mkdirs()
             val encoded = encode(trackVideoId, videoId, offset)
-            temporary.writeText(if (verifiedSelection) encoded.dropLast(1) + ",\"selectionPolicy\":2}" else encoded)
+            temporary.writeText(if (verifiedSelection) encoded.dropLast(1) + ",\"selectionPolicy\":3}" else encoded)
             if (!temporary.renameTo(file)) {
                 file.delete()
                 temporary.renameTo(file)
@@ -93,7 +93,7 @@ internal class SyncStore(
         val prefix = "${trackVideoId}_"
         return directory?.listFiles { _, name -> name.startsWith(prefix) && name.endsWith(".json") }
             ?.firstOrNull { file -> runCatching {
-                Json.parseToJsonElement(file.readText()).jsonObject["selectionPolicy"]?.jsonPrimitive?.intOrNull == 2 && readFile(file) != null
+                Json.parseToJsonElement(file.readText()).jsonObject["selectionPolicy"]?.jsonPrimitive?.intOrNull == 3 && readFile(file) != null
             }.getOrDefault(false) }?.name?.removePrefix(prefix)?.removeSuffix(".json")
     }
 

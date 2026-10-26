@@ -71,6 +71,11 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
             com.cosmotune.manga.ui.MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) })
         }
+        else if (shell != null && mode == AppMode.PODIO) holder.SaveableStateProvider("podio") {
+            val request = MusicLink.pending.collectAsStateWithLifecycle()
+            LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
+            com.cosmotune.podio.PhonePodioPage(onMusic = { shell.settings.setMode(AppMode.MUSIC) })
+        }
         else if (videoShell == null) holder.SaveableStateProvider("music") { music() }
         else holder.SaveableStateProvider("video") { PhoneVideo(videoShell, windowWidth, windowHeight, asked) }
     }

@@ -126,15 +126,17 @@ internal fun CosmoDesktopSidebar(
     onSearchFocused: () -> Unit,
 ) {
     if (com.cosmotune.video.host.desktopVideoShown()) return VideoSidebar(focusSearch = focusSearch, onSearchFocused = onSearchFocused)
-    if (com.cosmotune.video.host.desktopMangaShown()) {
+    if (com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown()) {
         val shell = com.cosmotune.ui.theme.LocalCosmoShell.current
         Column(Modifier.width(ShellMetrics.DESKTOP_SIDEBAR_DP.dp).fillMaxHeight()) {
             val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
             if (DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled) SidebarCaption()
             Column(Modifier.padding(20.dp)) {
-                androidx.compose.material3.Text("Manga", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
+                androidx.compose.material3.Text(if (com.cosmotune.video.host.desktopPodioShown()) "Podio" else "Manga", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
                 androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC) }) { androidx.compose.material3.Text("Music") }
                 androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.VIDEO) }) { androidx.compose.material3.Text("Video") }
+                androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.MANGA) }) { androidx.compose.material3.Text("Manga") }
+                androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO) }) { androidx.compose.material3.Text("Podio") }
             }
         }
         return

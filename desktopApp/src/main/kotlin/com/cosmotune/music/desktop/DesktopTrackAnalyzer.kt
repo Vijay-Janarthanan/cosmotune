@@ -100,6 +100,7 @@ internal class DesktopTrackAnalyzer(
      * playing yet, and one recording's measurements from being stored under another's id.
      */
     fun request(song: Song, stream: DesktopStream?, durationSeconds: Double) {
+        if (song.videoId.startsWith("podio:")) return
         val trackId = song.videoId
         if (trackId.isBlank()) return
         if (durationSeconds <= 0) return

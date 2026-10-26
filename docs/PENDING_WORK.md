@@ -14,6 +14,9 @@ The [operator follow-up](PROVIDER_OPERATORS.md) fixes the missing native verific
 
 ## Unfinished integrations
 
+- Podio: full podcast archive pagination, episode downloads/OPML/sleep timers, directory breadth and more public Spotify shows, physical Android and macOS/Linux listening checks, and TV/Wear/browser-specific interfaces. Public radio/RSS works without a listener account; Spotify links require a matching public publisher feed. Direct Spotify-only and paid-only audio is unsupported. [Implemented scope and evidence](PODIO_RESEARCH.md).
+- OpenCanvas: a reliable film-video sync for the stereo Germaniyin Senthen Malare recording. The animated-artwork upload is rejected; the tested 5.1 remaster fails alignment. Preserve the cover fallback until a matching, publisher-verified clip is established.
+
 - Provider packages: manifest-aware HLS/DASH stream relaying, SDK encoding options beyond stream copy, additional post-processing hooks, and final real-provider Android walkthroughs (MN-04). Native `ffmpeg.mov_key` decryption/remux and SDK file inspection/stream copy are implemented on desktop and Android; see [preparation evidence](PROVIDER_MEDIA_PREPARATION.md). Real macOS/Linux provider execution remains to be checked.
 - Manga: isolated verification browsers and cookie/user-agent handoff on Android and desktop for sites with browser checks (MG-08).
 - Party server: live deployment and server validation; the tracker records Go/native CI checks as outstanding and needs results reconciled against the actual release jobs (BC-36).
@@ -28,4 +31,4 @@ The existing device checklist covers Android/watch pairing and watch audio, TV r
 
 Alternative branded icons/onboarding; Discord integration; desktop exclusive/hog-mode audio and native DSD/DoP; concerts, haptics and desktop widgets; Lite builds; per-video sync offsets; custom Chromecast receiver, desktop casting and TV as a Cast target; Soulseek. Some require product choices, services, artwork or hardware, rather than just additional code. Monthly dataset-refresh scheduling remains deferred at the user's request.
 
-Manga UI translation, more archive formats, broader extension compatibility, local HTTP Komga, password-free Subsonic artwork transport and macOS/Linux system-keychain integration remain limitations documented in the 1.0.4 release notes.
+Manga UI translation, more archive formats, broader extension compatibility, password-free Subsonic artwork transport and macOS/Linux system-keychain integration remain limitations documented in the 1.0.4 release notes. Android's transport now permits HTTP for public Podio media; a real HTTP Komga server still needs a device walkthrough rather than retaining the old claim that Android blocks every remote HTTP address.

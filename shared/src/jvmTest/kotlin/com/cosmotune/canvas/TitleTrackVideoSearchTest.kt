@@ -11,6 +11,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class TitleTrackVideoSearchTest {
+    @Test fun unverifiedUploadsAreNotUsedAsTheFallbackForMissingPublisherEvidence() = runBlocking {
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            response(chain.request(), page("FANVIDEO001", "Song Name Official Video", "Someone Else", false)
+                .replace("BADGE_STYLE_TYPE_VERIFIED", "BADGE_STYLE_TYPE_UNKNOWN"))
+        }.build()
+        assertTrue(MusicVideoSearch(http).find("Song Name", "Artist").isEmpty())
+    }
+
     @Test fun unrelatedVerifiedArtistDoesNotHideThePublisherVideoWithoutAnAlbum() = runBlocking {
         verifyFallback(null, "Life is Beautiful - Deep Music (House) [Official Video]", "Deep Music")
     }

@@ -21,10 +21,11 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Shorts, lyric videos, live takes and covers can be ranked out before anything is downloaded; the
  * caller is expected to confirm the top few against the song's audio (see `CanvasSession`).
  */
-internal class MusicVideoSearch(private val http: OkHttpClient) {
+internal class MusicVideoSearch(private val http: OkHttpClient, private val log: (String) -> Unit = {}) {
 
     /** The most likely music videos for the song, best first (at most [limit]); empty when the search fails. */
-    suspend fun find(title: String, artist: String, durationSec: Long = 0L, limit: Int = 6, album: String? = null): List<VideoCandidate> = run {
+    suspend fun find(title: String, artist: String, durationSec: Long = 0L, limit: Int = 6, album: String? = null,
+        exhaustive: Boolean = false, excludedVideoIds: Set<String> = emptySet()): List<VideoCandidate> = run {
         val words = title.trim().split(Regex("\\s+"))
         val titleKey = title.lowercase().filter { it.isLetterOrDigit() }
         val albumKey = album.orEmpty().lowercase().filter { it.isLetterOrDigit() }
@@ -32,11 +33,16 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
         // Without useful album context, another verified artist's same-title
         // video must not suppress the title-only publisher fallback.
         val ambiguousContext = albumKey.isEmpty() || albumKey == titleKey
-        val queries = listOfNotNull(album?.trim()?.takeIf { it.isNotEmpty() }?.let { "$title $it video song" },
+        val queries = listOfNotNull(
+            if (exhaustive && words.size >= 3) album?.let { "$it ${words.drop(1).joinToString(" ")} video song -\"5.1\" -audio -lyrics" } else null,
+            if (exhaustive) "$title ${album.orEmpty()} video song -\"5.1\" -audio -lyrics -lyrical" else null,
+            if (exhaustive) album?.let { "$it movie songs $title" } else null,
+            album?.trim()?.takeIf { it.isNotEmpty() }?.let { "$title $it video song" },
+            album?.takeIf { it.isNotBlank() && words.size >= 3 }?.let { "\"${words.take(2).joinToString(" ")}\" $it video song" },
             album?.takeIf { it.isNotBlank() && words.size == 2 }?.let { "\"${words.reversed().joinToString(" ")}\" $it" },
+            "\"$title\" video song",
             "$artist $title official music video",
-            "\"$title\" $artist official video",
-            if (ambiguousContext) "\"$title\" video song" else null).distinct()
+            "\"$title\" $artist official video").distinct()
         val results = ArrayList<VideoCandidate>()
         val titleWords = words.map { word -> word.lowercase().filter { it.isLetterOrDigit() } }.filter { it.length >= 3 }
         val startedAt = System.nanoTime()
@@ -46,10 +52,12 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
             val batch = withTimeoutOrNull(QUERY_TIMEOUT_MS) { search(query) }.orEmpty()
             results += batch
             val ranked = VideoMatcher.rank(results.distinctBy { it.videoId }
-                .filter { VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
+                .filter { it.videoId !in excludedVideoIds && VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
+            if (exhaustive) log("expanded video search '$query': ${batch.size} results, eligible ${ranked.joinToString { it.videoId }}")
+            if (exhaustive && ranked.isNotEmpty()) return@run ranked
             // Do not wait for speculative fallbacks when a publisher's matching song was found.
             // An album-only hit is insufficient: another track from the same film must not stop search.
-            if (ranked.any { candidate ->
+            if (!exhaustive && ranked.any { candidate ->
                     val name = candidate.title.lowercase().filter { it.isLetterOrDigit() }
                     val titleMatches = name.contains(title.lowercase().filter { it.isLetterOrDigit() }) ||
                         (titleWords.size >= 2 && titleWords.all { name.contains(it) })
@@ -59,10 +67,9 @@ internal class MusicVideoSearch(private val http: OkHttpClient) {
                 }) return@run ranked
         }
         val distinct = results.distinctBy { it.videoId }
-        // Publisher evidence puts the right video first, but a song with no verified publisher must still get
-        // its best-ranked video: the audio check in the session rejects a wrong one.
-        VideoMatcher.rank(distinct.filter { VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
-            .ifEmpty { VideoMatcher.rank(distinct, title, artist, durationSec, limit, album) }
+        // Matching audio can be attached to unrelated footage. Missing publisher evidence is a miss,
+        // never permission to promote an unverified fan edit into an automatic music video.
+        VideoMatcher.rank(distinct.filter { it.videoId !in excludedVideoIds && VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
     }
 
     private suspend fun search(queryText: String): List<VideoCandidate> {

@@ -34,3 +34,9 @@ plugins {
 extra["cosmotuneVersionCode"] = 12
 extra["cosmotuneVersionName"] = providers.gradleProperty("cosmotune.version").getOrElse("1.0.7")
 extra["cosmotuneBetaSuffix"] = ""
+
+subprojects {
+    tasks.withType<Test>().configureEach {
+        testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}

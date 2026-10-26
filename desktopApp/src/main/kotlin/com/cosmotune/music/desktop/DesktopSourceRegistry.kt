@@ -307,6 +307,14 @@ internal object DesktopSourceRegistry {
         /** A download: addons that said `allowDownloads: 0` are left out, see [adapters]. */
         forDownload: Boolean = false,
     ): Result<DesktopStream> = runCatching {
+        if (song.videoId.startsWith("podio:")) {
+            check(excludedSourceId?.startsWith("podio:") != true) { "This Podio stream could not be played" }
+            val source = when {
+                song.videoId.startsWith("podio:radio:") -> "podio:radio"
+                else -> "podio:publisher"
+            }
+            return@runCatching DesktopStream(requireNotNull(com.cosmotune.podio.PodioCatalogue.httpUrl(song.localUri.orEmpty())), sourceId = source)
+        }
         val providerTrack = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.takeIf { it.first.startsWith("sflx-") }
         if (providerTrack != null) {
             check(excludedSourceId != providerTrack.first) { "The selected provider already failed for this recording" }
@@ -424,6 +432,7 @@ internal object DesktopSourceRegistry {
         quality: String?,
         excludedSourceId: String? = null,
     ): Result<DesktopLiveResolution> = runCatching {
+        if (song.videoId.startsWith("podio:")) return@runCatching DesktopLiveResolution(resolve(song, quality, excludedSourceId).getOrThrow())
         val available = playbackAdapters(quality)
         val owned = song.videoId.startsWith("src:sflx-") || subsonicOwnerOf(song) != null || available.any { it.owns(song) } ||
             DesktopModuleSource.parseTrack(song.videoId) != null ||
@@ -704,7 +713,8 @@ internal object DesktopSourceRegistry {
 
     /** The configured source a stream came from, for a log line. */
     internal fun sourceNameFor(stream: DesktopStream): String =
-        configs().firstOrNull { it.id == stream.sourceId }?.displayName
+        stream.sourceId?.takeIf { it.startsWith("podio:") }?.let { com.cosmotune.podio.podioSourceName(it) }
+            ?: configs().firstOrNull { it.id == stream.sourceId }?.displayName
             ?: com.cosmotune.providers.ProviderHub.sourceName(stream.sourceId) ?: "a configured source"
 
     internal fun providerRequest(quality: String?, forDownload: Boolean): Pair<Int?, Boolean> {

@@ -125,6 +125,12 @@ internal object DesktopLicenses {
                     "Finds a song's music video and lines it up with the song.",
                 ),
                 DesktopLicense(
+                    "Votify",
+                    "MIT",
+                    "https://github.com/glomatico/votify",
+                    "Reference for Podio's anonymous Spotify podcast metadata lookup.",
+                ),
+                DesktopLicense(
                     "Material Color Utilities (MaterialKolor)",
                     "Apache-2.0 AND MIT",
                     "https://github.com/jordond/materialkolor",

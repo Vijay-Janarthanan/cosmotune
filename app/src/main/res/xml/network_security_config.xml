@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false" />
+    <!-- Public radio stations and publisher RSS enclosures can be HTTP-only.
+         Credential-bearing provider SDK requests still enforce HTTPS in ProviderNetwork. -->
+    <base-config cleartextTrafficPermitted="true" />
     <!-- Provider media is relayed by this process on an ephemeral loopback port.
          Remote provider requests retain their own HTTPS/domain/DNS checks. -->
     <domain-config cleartextTrafficPermitted="true">

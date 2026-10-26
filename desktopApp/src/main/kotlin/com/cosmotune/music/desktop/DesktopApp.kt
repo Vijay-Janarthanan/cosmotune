@@ -843,13 +843,13 @@ fun CosmotuneDesktopApp() {
     }
 
     /** Opens whatever the queue is currently pointing at. */
-    fun playCurrent(startPlaying: Boolean = true) {
+    fun playCurrent(startPlaying: Boolean = true, startAtMs: Long = 0) {
         val song = liveQueue.current ?: return
         selectedSong = song
         history = (listOf(song) + history.filterNot { it.videoId == song.videoId }).take(50)
         saveQueue()
         persistence.saveHistory(history)
-        playbackEngine.load(song, startPlaying)
+        playbackEngine.load(song, startPlaying, startAtMs)
         partySyncHolder[0]?.onLocalIntent(song.videoId)
         scope.launch { DesktopScrobbling.updateNowPlaying(song) }
     }
@@ -1285,6 +1285,7 @@ fun CosmotuneDesktopApp() {
 
     fun loadAutoplaySongs(playFirst: Boolean = false) {
         val current = selectedSong ?: return
+        if (current.videoId.startsWith("podio:")) return
         val party = DesktopListenTogether.state.value
         if (!DesktopAutoplay.enabled(party, autoplay) ||
             repeatMode == DesktopRepeatMode.ALL ||
@@ -3394,7 +3395,7 @@ fun CosmotuneDesktopApp() {
                     )
                 },
                 modifier = Modifier.onPreviewKeyEvent { event ->
-                    if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive)) return@onPreviewKeyEvent false
+                    if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive).or(com.cosmotune.video.host.DesktopModeHost.podioActive)) return@onPreviewKeyEvent false
                     if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
                     when {
                         event.key == Key.MediaPlayPause -> {
@@ -3666,7 +3667,7 @@ fun CosmotuneDesktopApp() {
                             )
                         }
                     }
-                    val videoModeShown = com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown()
+                    val videoModeShown = com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown()
                     LaunchedEffect(videoModeShown) {
                         if (videoModeShown) {
                             DesktopWindowMode.exit()
@@ -4023,6 +4024,25 @@ fun CosmotuneDesktopApp() {
             ) { contentPadding ->
                 if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)
                 if (com.cosmotune.video.host.desktopMangaShown()) return@DesktopFrame com.cosmotune.video.host.DesktopMangaPage(contentPadding)
+                if (com.cosmotune.video.host.desktopPodioShown()) {
+                    return@DesktopFrame com.cosmotune.podio.ui.PodioApp(
+                        storage = com.cosmotune.podio.PodioLibrary.desktopFile(),
+                        playback = com.cosmotune.podio.ui.PodioPlayback(playback.song?.videoId, playback.song?.title.orEmpty(), playback.song?.artist.orEmpty(),
+                            playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playback.error),
+                        onPlay = { item, position ->
+                            playbackEngine.setPlaybackSpeed(1f)
+                            if (!partyTrackChangeBlocked()) {
+                                liveQueue = DesktopQueue(listOf(item.song()), index = 0)
+                                preShuffleOrder = emptyList()
+                                playCurrent(startAtMs = position)
+                            }
+                        },
+                        onToggle = ::togglePlayPauseFromUser,
+                        onSeek = playbackEngine::seekTo, onSpeed = playbackEngine::setPlaybackSpeed,
+                        onMusic = { cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC) },
+                        padding = contentPadding,
+                    )
+                }
                 // Desktop pages start at the same top edge as Library. Only preserve space for the
                 // floating player/navigation bar at the bottom in compact windows.
                 val sharedPagePadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
