@@ -86,9 +86,11 @@ class ModeVisualRepairTest {
     }
 
     @Test fun tamilRadioAndExpandedMapStayUsableWithTheNativeTheme() {
-        MockWebServer().use { server ->
-            server.dispatcher = object : Dispatcher() {
+        val requests = java.util.concurrent.CopyOnWriteArrayList<String>()
+        MockWebServer().use { server -> MockWebServer().use { apple -> MockWebServer().use { fyyd ->
+            val dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
+                    requests += request.requestUrl.toString()
                     if (request.path.orEmpty().startsWith("/search")) return MockResponse().setBody("""{"results":[{"collectionName":"A regional show","feedUrl":"https://publisher.example/rss"}]}""")
                     if (request.path.orEmpty().startsWith("/0.2")) return MockResponse().setBody("""{"data":[]}""")
                     val language = request.requestUrl?.queryParameter("language")
@@ -99,11 +101,14 @@ class ModeVisualRepairTest {
                     return MockResponse().setBody(result)
                 }
             }
+            server.dispatcher = dispatcher; apple.dispatcher = dispatcher; fyyd.dispatcher = dispatcher
             val played = mutableListOf<PodioItem>()
             val storage = temporary.newFile("library.json")
+            val catalogue = PodioCatalogue(radioMirrors = listOf(server.url("/").toString()),
+                appleBase = apple.url("/").toString().trimEnd('/'), fyydBase = fyyd.url("/").toString().trimEnd('/'))
             compose.setContent { Theme { Box(Modifier.size(1040.dp, 780.dp)) {
                 PodioApp(storage, PodioPlayback(), { item, _ -> played += item }, {}, {}, {}, {},
-                    directory = remember { val base = server.url("/").toString().trimEnd('/'); PodioCatalogue(radioMirrors = listOf(base), appleBase = base, fyydBase = base) })
+                    directory = catalogue)
             } } }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Tamil Two").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("All languages").performClick()
@@ -124,10 +129,11 @@ class ModeVisualRepairTest {
             try {
                 compose.waitUntil(20_000) { compose.onAllNodesWithText("A regional show").fetchSemanticsNodes().isNotEmpty() }
             } catch (error: Throwable) {
+                println("Mode fixture requests: $requests")
                 println(runCatching { compose.onNodeWithTag("podio:root").printToString() }.getOrNull())
                 throw error
             }
-        }
+        } } }
     }
 
     @Test fun mangaLibraryAndDiscoveryShareTheNativeModeChrome() {

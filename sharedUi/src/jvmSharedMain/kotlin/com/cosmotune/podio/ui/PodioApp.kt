@@ -94,18 +94,24 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         requestedFeed = null; opened = null; feedLoading = false; error = null
     }
     LaunchedEffect(Unit) {
-        try { globe = catalogue.stations(globe = true) } catch(e: CancellationException) { throw e } catch (_: Exception) { }
+        withContext(Dispatchers.Main.immediate) {
+            try { globe = catalogue.stations(globe = true) } catch(e: CancellationException) { throw e } catch (_: Exception) { }
+        }
     }
     LaunchedEffect(tab, language, country, request, savedOnly) {
-        if (savedOnly) return@LaunchedEffect
-        directoryLoading = true
-        if (requestedFeed == null) error = null
-        try {
-            if (tab == "Radio") radio = catalogue.stations(query, country, language)
-            else shows = catalogue.podcasts(listOf(query.trim(), language).filter(String::isNotBlank).joinToString(" ").ifBlank { "popular podcasts" }, country.ifBlank { "IN" })
-        } catch(e: CancellationException) { throw e }
-        catch (_: Exception) { if (requestedFeed == null) error = "Couldn't reach the directory. Check your connection and try again." }
-        finally { directoryLoading = false }
+        // Network continuations can resume on a worker with an immediate effect dispatcher.
+        // Publish page state on the UI dispatcher, including after a modal map is dismissed.
+        withContext(Dispatchers.Main.immediate) {
+            if (savedOnly) return@withContext
+            directoryLoading = true
+            if (requestedFeed == null) error = null
+            try {
+                if (tab == "Radio") radio = catalogue.stations(query, country, language)
+                else shows = catalogue.podcasts(listOf(query.trim(), language).filter(String::isNotBlank).joinToString(" ").ifBlank { "popular podcasts" }, country.ifBlank { "IN" })
+            } catch(e: CancellationException) { throw e }
+            catch (_: Exception) { if (requestedFeed == null) error = "Couldn't reach the directory. Check your connection and try again." }
+            finally { directoryLoading = false }
+        }
     }
     LaunchedEffect(playback.id) {
         if (playback.id?.startsWith("podio:episode:") != true) return@LaunchedEffect

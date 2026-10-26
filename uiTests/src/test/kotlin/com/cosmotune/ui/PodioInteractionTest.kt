@@ -21,20 +21,22 @@ import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.*
 
+@OptIn(ExperimentalTestApi::class)
 class PodioInteractionTest {
     @get:Rule val compose = createComposeRule()
     @get:Rule val temporary = TemporaryFolder()
     private val requests = java.util.concurrent.CopyOnWriteArrayList<String>()
     private fun server(feedFailures: Int = 0, feedDelayMs: Long = 0,
-        feedCalls: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger()) = MockWebServer().apply {
+        feedCalls: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger(),
+        feedAddress: String? = null) = MockWebServer().apply {
         dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
-                requests += request.path.orEmpty()
+                requests += request.requestUrl.toString()
                 val feed = request.path.orEmpty().startsWith("/feed")
                 if (feed && feedCalls.incrementAndGet() <= feedFailures) return MockResponse().setResponseCode(503)
                 val body = when {
                     request.path.orEmpty().startsWith("/json/stations") -> """[{"stationuuid":"station-one","name":"Test Radio","country":"India","language":"Tamil","url_resolved":"https://audio.example/live","geo_lat":13.08,"geo_long":80.27}]"""
-                    request.path.orEmpty().startsWith("/search") -> """{"results":[{"collectionName":"Test podcast","artistName":"A host","feedUrl":"${url("/feed")}"}]}"""
+                    request.path.orEmpty().startsWith("/search") -> """{"results":[{"collectionName":"Test podcast","artistName":"A host","feedUrl":"${feedAddress ?: url("/feed")}"}]}"""
                     request.path.orEmpty().startsWith("/0.2") -> """{"data":[]}"""
                     request.path.orEmpty().startsWith("/feed") -> """<rss><channel><title>Test podcast</title><item><guid>episode-one</guid><title>A real episode</title><enclosure url="https://audio.example/episode.mp3" type="audio/mpeg"/></item></channel></rss>"""
                     else -> "{}"
@@ -43,13 +45,24 @@ class PodioInteractionTest {
             }
         }
     }
+
+    /** Real directories/publishers use different origins; a cancelled radio call must not share their test socket. */
+    private inner class Fixture(feedFailures: Int = 0, feedDelayMs: Long = 0,
+        feedCalls: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger()) : AutoCloseable {
+        private val radio = server()
+        private val publisher = server(feedFailures, feedDelayMs, feedCalls)
+        private val apple = server(feedAddress = publisher.url("/feed").toString())
+        private val fyyd = server()
+        val catalogue = PodioCatalogue(radioMirrors = listOf(radio.url("/").toString()),
+            appleBase = apple.url("/").toString().trimEnd('/'), fyydBase = fyyd.url("/").toString().trimEnd('/'))
+        override fun close() { listOf(radio, publisher, apple, fyyd).forEach { it.close() } }
+    }
     @Test fun radioFavouritesPodcastBrowsingAndEpisodePlayUseTheRealPage() {
-        server().use { server ->
-            val base = server.url("/").toString().trimEnd('/')
+        Fixture().use { fixture ->
             val file = temporary.newFile("library.json")
             val playing = mutableStateOf(PodioPlayback())
             val played = mutableListOf<PodioItem>()
-            val directory = PodioCatalogue(radioMirrors = listOf(base), appleBase = base, fyydBase = base)
+            val directory = fixture.catalogue
             compose.setContent { MaterialTheme(colorScheme = darkColorScheme()) { Box(Modifier.size(1200.dp, 820.dp)) {
                 PodioApp(file, playing.value, onPlay = { item, _ -> played += item; playing.value = PodioPlayback(item.id, item.title, item.author, playing = true, rate = 1.5f) },
                     onToggle = {}, onSeek = {}, onSpeed = {}, onMusic = {},
@@ -86,10 +99,9 @@ class PodioInteractionTest {
         }
     }
     @Test fun thePhoneLayoutKeepsBothSectionsAndTheFeedEntryUsable() {
-        server().use { server ->
-            val base = server.url("/").toString().trimEnd('/')
+        Fixture().use { fixture ->
             val file = temporary.newFile("phone.json")
-            val directory = PodioCatalogue(radioMirrors = listOf(base), appleBase = base, fyydBase = base)
+            val directory = fixture.catalogue
             compose.setContent { MaterialTheme(colorScheme = darkColorScheme()) { Box(Modifier.size(412.dp, 892.dp)) {
                 PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = directory)
             } } }
@@ -104,9 +116,8 @@ class PodioInteractionTest {
 
     @Test fun failedFeedsRetryTheSameAddressAndLeavingCancelsALateRefresh() {
         val calls = java.util.concurrent.atomic.AtomicInteger()
-        server(feedFailures = 1, feedDelayMs = 400, feedCalls = calls).use { server ->
-            val base = server.url("/").toString().trimEnd('/')
-            val directory = PodioCatalogue(radioMirrors = listOf(base), appleBase = base, fyydBase = base)
+        Fixture(feedFailures = 1, feedDelayMs = 400, feedCalls = calls).use { fixture ->
+            val directory = fixture.catalogue
             val file = temporary.newFile("retry.json")
             compose.setContent { MaterialTheme(colorScheme = darkColorScheme()) { Box(Modifier.size(1200.dp, 820.dp)) {
                 PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = directory)
