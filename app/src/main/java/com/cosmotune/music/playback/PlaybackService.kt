@@ -3357,8 +3357,10 @@ class PlaybackService : MediaLibraryService() {
     )
 
     private fun registerCurrentPlay() {
-        player?.currentMediaItem?.mediaId?.let(PlaybackTracker::onPlaying)
+        player?.currentMediaItem?.mediaId?.takeUnless(com.cosmotune.podio.PodioPlaybackPolicy::isPodio)?.let(PlaybackTracker::onPlaying)
     }
+
+    private var speedTrackId: String? = null
 
     /**
      * Everything that has to happen when a different song becomes the one
@@ -3387,6 +3389,9 @@ class PlaybackService : MediaLibraryService() {
         alreadyAudible: Boolean = false,
     ) {
         val exoPlayer = player ?: return
+        com.cosmotune.podio.PodioPlaybackPolicy.speedOnTransition(speedTrackId, mediaItem?.mediaId, AppSettings.playbackSpeed.value)
+            ?.let(exoPlayer::setPlaybackSpeed)
+        speedTrackId = mediaItem?.mediaId
         syncBoundedContextCursor(exoPlayer, mediaItem)
         if (boundedContextWindow != null && !ListenTogether.state.value.inParty) {
             saveBoundedContextSnapshot(exoPlayer)
@@ -4261,6 +4266,7 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun lookForBetterCopy(player: ExoPlayer) {
         val item = player.currentMediaItem ?: return
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(item.mediaId)) return
         val mediaId = item.mediaId
         val uri = item.localConfiguration?.uri
         val alreadyPending = QualityUpgrade.isPending(mediaId)
@@ -6048,7 +6054,7 @@ class PlaybackService : MediaLibraryService() {
                 val player = this@PlaybackService.player
                 if (player != null && player.isPlaying) {
                     lastPositionSeconds = player.currentPosition / 1000
-                    player.currentMediaItem?.mediaId?.let {
+                    player.currentMediaItem?.mediaId?.takeUnless(com.cosmotune.podio.PodioPlaybackPolicy::isPodio)?.let {
                         PlaybackTracker.onProgress(it, lastPositionSeconds)
                     }
                     // The device's own listening record — see [ListeningRecorder],
@@ -6056,7 +6062,7 @@ class PlaybackService : MediaLibraryService() {
                     // reading the position. This loop is the only place in the app
                     // that ticks exactly while audio is coming out, which is what
                     // makes it the right place to count from.
-                    player.currentMediaItem?.toSong()?.let {
+                    player.currentMediaItem?.toSong()?.takeUnless { com.cosmotune.podio.PodioPlaybackPolicy.isPodio(it.videoId) }?.let {
                         ListeningRecorder.onSample(it, player.duration)
                     }
                     // Only two primitive preference values. Queue JSON is
@@ -7144,6 +7150,7 @@ class PlaybackService : MediaLibraryService() {
      * stays a no-op whenever ListenBrainz is switched off.
      */
     private fun submitListenBrainzFinished(song: Song, startMs: Long, durationMs: Long?) {
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(song.videoId)) return
         val lbEnabled = AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
         val lbToken = AppSettings.listenBrainzToken.value
         if (!lbEnabled || lbToken.isBlank()) return
@@ -7162,6 +7169,7 @@ class PlaybackService : MediaLibraryService() {
 
     /** Sends a ListenBrainz "now playing" update for the current track. */
     private fun submitListenBrainzPlayingNow(song: Song, positionMs: Long, durationMs: Long?) {
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(song.videoId)) return
         val lbEnabled = AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
         val lbToken = AppSettings.listenBrainzToken.value
         if (!lbEnabled || lbToken.isBlank()) return
@@ -7298,6 +7306,12 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun loadLyricsForCurrentTrack() {
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(player?.currentMediaItem?.mediaId)) {
+            serviceLyricsJob?.cancel()
+            serviceLyrics = null
+            stopLyricsTicker()
+            return
+        }
         val currentSong = player?.currentMediaItem?.toSong() ?: run {
             serviceLyrics = null
             stopLyricsTicker()

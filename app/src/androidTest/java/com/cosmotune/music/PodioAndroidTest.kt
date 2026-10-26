@@ -20,6 +20,40 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class PodioAndroidTest {
+    @Test fun theRealMediaServiceRestoresMusicSpeedAfterSpokenAudio(): Unit = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val settings = com.cosmotune.music.data.settings.AppSettings
+        val oldSpeed = settings.playbackSpeed.value
+        val oldLyrics = settings.syncedLyrics.value
+        val fixture = java.io.File(context.cacheDir, "podio-speed-fixture").apply { writeBytes(byteArrayOf()) }
+        val future = withContext(Dispatchers.Main) {
+            settings.setPlaybackSpeed(1.25f); settings.setSyncedLyrics(false)
+            androidx.media3.session.MediaController.Builder(context, androidx.media3.session.SessionToken(context,
+                android.content.ComponentName(context, com.cosmotune.music.playback.PlaybackService::class.java))).buildAsync()
+        }
+        val controller = withContext(Dispatchers.IO) { future.get(15, java.util.concurrent.TimeUnit.SECONDS) }
+        val oldVolume = withContext(Dispatchers.Main) { controller.volume }
+        suspend fun awaitSpeed(id: String, speed: Float) = withTimeout(10_000) {
+            while (!withContext(Dispatchers.Main) { controller.currentMediaItem?.mediaId == id && controller.playbackParameters.speed == speed }) delay(50)
+        }
+        fun item(id: String) = MediaItem.Builder().setMediaId(id).setUri(android.net.Uri.fromFile(fixture))
+            .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("Speed fixture").setArtist("Fixture").build()).build()
+        try {
+            withContext(Dispatchers.Main) { controller.stop(); controller.clearMediaItems(); controller.volume = 0f; controller.setMediaItem(item("podio:episode:speed-fixture")) }
+            awaitSpeed("podio:episode:speed-fixture", 1f)
+            withContext(Dispatchers.Main) { controller.playbackParameters = androidx.media3.common.PlaybackParameters(1.5f) }
+            awaitSpeed("podio:episode:speed-fixture", 1.5f)
+            withContext(Dispatchers.Main) { controller.setMediaItem(item("local:speed-fixture")) }
+            awaitSpeed("local:speed-fixture", 1.25f)
+            assertEquals(1.25f, settings.playbackSpeed.value)
+        } finally {
+            withContext(Dispatchers.Main) {
+                controller.stop(); controller.clearMediaItems(); controller.volume = oldVolume; controller.release()
+                settings.setPlaybackSpeed(oldSpeed); settings.setSyncedLyrics(oldLyrics)
+            }
+            fixture.delete()
+        }
+    }
     @Test fun publisherRssUsesTheAndroidXmlParserWithoutExternalEntities() {
         val parsed = PodioCatalogue.parseFeed("""<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel><title>Podcast</title><item><guid>one</guid><title>Episode</title><enclosure url="https://example.com/audio.mp3" type="audio/mpeg"/><itunes:duration>12:34</itunes:duration></item></channel></rss>""", "https://example.com/feed")
         assertEquals(754, parsed.episodes.single().durationSeconds)

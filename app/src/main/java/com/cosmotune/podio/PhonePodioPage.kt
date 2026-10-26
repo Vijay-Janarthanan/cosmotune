@@ -23,7 +23,6 @@ import java.io.File
         val selected = pending ?: return@LaunchedEffect
         val player = controller ?: return@LaunchedEffect
         try {
-            player.playbackParameters = PlaybackParameters(1f)
             player.playSongs(listOf(selected.first.song()), 0)
             if (selected.second > 0) player.seekTo(selected.second)
             pending = null

@@ -60,8 +60,15 @@ class DesktopDownloadQueueTest {
         val failed = DesktopDownloadQueue.active.value.getValue(item.videoId)
         assertEquals(DesktopDownloadState.Failed("The server closed the connection"), failed.state)
         // The saved queue holds the failure, not a running row, so a restart shows it for Retry.
-        withTimeout(5_000) { while (!(file.exists() && file.readText().contains("\"FAILED\""))) delay(20) }
-        com.cosmotune.music.data.downloads.MusicDownloadJournal(file).use { saved ->
+        var persisted: String? = null
+        withTimeout(5_000) { while (persisted == null) {
+            // The live writer can briefly own the file during Windows atomic replacement.
+            persisted = runCatching { file.readText().takeIf { it.contains("\"FAILED\"") } }.getOrNull()
+            if (persisted == null) delay(20)
+        } }
+        // A restart has no concurrent old writer. Restore the exact revision read from disk.
+        val restartFile = file.resolveSibling("restart.json").apply { writeText(requireNotNull(persisted)) }
+        com.cosmotune.music.data.downloads.MusicDownloadJournal(restartFile).use { saved ->
             val entry = saved.entries.value.single()
             assertEquals("HIGH", entry.quality)
             assertEquals("The server closed the connection", entry.error)

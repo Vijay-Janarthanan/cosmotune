@@ -845,6 +845,8 @@ fun CosmotuneDesktopApp() {
     /** Opens whatever the queue is currently pointing at. */
     fun playCurrent(startPlaying: Boolean = true, startAtMs: Long = 0) {
         val song = liveQueue.current ?: return
+        com.cosmotune.podio.PodioPlaybackPolicy.speedOnTransition(playbackEngine.state.value.song?.videoId, song.videoId, playbackSpeed)
+            ?.let(playbackEngine::setPlaybackSpeed)
         selectedSong = song
         history = (listOf(song) + history.filterNot { it.videoId == song.videoId }).take(50)
         saveQueue()
@@ -1784,7 +1786,9 @@ fun CosmotuneDesktopApp() {
         onDispose { DesktopWindowsMedia.stop() }
     }
 
-    LaunchedEffect(playbackSpeed) { playbackEngine.setPlaybackSpeed(playbackSpeed) }
+    LaunchedEffect(playbackSpeed, selectedSong?.videoId) {
+        if (!com.cosmotune.podio.PodioPlaybackPolicy.isPodio(playbackEngine.state.value.song?.videoId)) playbackEngine.setPlaybackSpeed(playbackSpeed)
+    }
     LaunchedEffect(volume) { playbackEngine.setVolume(volume) }
     LaunchedEffect(audioQuality) { playbackEngine.setAudioQuality(audioQuality.name) }
     LaunchedEffect(automixPerformance) {
@@ -1930,7 +1934,7 @@ fun CosmotuneDesktopApp() {
         val current = selectedSong
         lyrics = null
         lyricsError = null
-        if (current == null) {
+        if (current == null || com.cosmotune.podio.PodioPlaybackPolicy.isPodio(current.videoId)) {
             lyricsLoading = false
             return@LaunchedEffect
         }
@@ -2023,6 +2027,7 @@ fun CosmotuneDesktopApp() {
     }
     LaunchedEffect(playback.song?.videoId, playback.isPlaying) {
         val songId = playback.song?.videoId ?: return@LaunchedEffect
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(songId)) return@LaunchedEffect
         if (!playback.isPlaying) return@LaunchedEffect
         DesktopPlaybackTracker.onPlaying(songId)
         while (currentCoroutineContext().isActive) {
@@ -2037,6 +2042,7 @@ fun CosmotuneDesktopApp() {
         if (!playback.isPlaying) return@LaunchedEffect
         var previousPosition = playback.positionMs
         var countedAsPlay = songId in statsCountedSongs
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(songId)) return@LaunchedEffect
         while (currentCoroutineContext().isActive) {
             delay(STATS_SAMPLE_MS)
             val snapshot = playbackEngine.state.value
@@ -4030,7 +4036,6 @@ fun CosmotuneDesktopApp() {
                         playback = com.cosmotune.podio.ui.PodioPlayback(playback.song?.videoId, playback.song?.title.orEmpty(), playback.song?.artist.orEmpty(),
                             playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playback.error),
                         onPlay = { item, position ->
-                            playbackEngine.setPlaybackSpeed(1f)
                             if (!partyTrackChangeBlocked()) {
                                 liveQueue = DesktopQueue(listOf(item.song()), index = 0)
                                 preShuffleOrder = emptyList()

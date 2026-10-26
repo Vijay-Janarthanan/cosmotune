@@ -75,4 +75,17 @@ class OnlinePreferenceModelTest {
         session.sample(skipped, 180_000, 5_001)
         assertTrue(events.isEmpty())
     }
+
+    @Test fun podcastsAndRadioCannotTrainMusicPreferencesOrCountTheirGapAsMusic() {
+        val events = mutableListOf<Pair<String, Boolean>>()
+        val session = PreferencePlaybackSession { _, song, liked -> events += song.videoId to liked }
+        session.sample(favorite, 180_000, 0)
+        session.sample(favorite, 180_000, 5_000)
+        for (kind in listOf("radio", "episode")) repeat(50) {
+            session.sample(favorite.copy(videoId = "podio:$kind:one"), 180_000, 10_000L + it * 8_000)
+        }
+        session.skipped("podio:episode:one")
+        session.sample(favorite, 180_000, 1_000_000)
+        assertTrue(events.isEmpty())
+    }
 }

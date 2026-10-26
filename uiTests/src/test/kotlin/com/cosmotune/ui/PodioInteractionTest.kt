@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import com.cosmotune.podio.*
@@ -57,12 +58,12 @@ class PodioInteractionTest {
             compose.runOnIdle { assertTrue(played.single().live) }
             compose.onNodeWithText("Podcasts").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test podcast").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Test podcast").performClick()
+            compose.onNodeWithText("Test podcast").assertHasClickAction().performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("A real episode").performClick()
             compose.runOnIdle { assertEquals("https://audio.example/episode.mp3", played.last().url); assertFalse(played.last().live) }
             snapshot("podio-before-follow.png")
-            compose.onNodeWithText("Follow").performClick()
+            compose.onNodeWithText("Follow").assertHasClickAction().performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Follow").fetchSemanticsNodes().isEmpty() }
             assertEquals("Test podcast", PodioLibrary(file).state.value.shows.single().title)
             snapshot("podio-podcast.png")

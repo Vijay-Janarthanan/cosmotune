@@ -124,6 +124,10 @@ internal class PreferencePlaybackSession(private val feedback: (Song?, Song, Boo
     private var knownDurationMs = 0L
 
     @Synchronized fun sample(current: Song, durationMs: Long, monotonicMs: Long) {
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(current.videoId)) {
+            sampledAt = null
+            return
+        }
         val length = durationMs.takeIf { it > 0 } ?: current.durationMillis()
         if (song?.videoId != current.videoId) {
             previous = song; song = current; audibleMs = 0; learned = false; sampledAt = null
