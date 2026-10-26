@@ -26,7 +26,7 @@ import java.io.File
 import kotlinx.coroutines.*
 
 data class PodioPlayback(val id: String? = null, val title: String = "", val author: String = "", val playing: Boolean = false,
-    val loading: Boolean = false, val positionMs: Long = 0, val durationMs: Long = 0, val error: String? = null)
+    val loading: Boolean = false, val positionMs: Long = 0, val durationMs: Long = 0, val error: String? = null, val rate: Float = 1f)
 
 /** The same account-free radio/podcast page is used by Android and every desktop target. */
 @Composable
@@ -47,12 +47,15 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     var shows by remember { mutableStateOf(emptyList<PodcastShow>()) }
     var opened by remember { mutableStateOf<PodcastFeed?>(null) }
     var selected by remember { mutableStateOf<RadioStation?>(null) }
-    var loading by remember { mutableStateOf(false) }
+    var directoryLoading by remember { mutableStateOf(false) }
+    var feedLoading by remember { mutableStateOf(false) }
+    var requestedFeed by remember { mutableStateOf<PodcastShow?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var request by remember { mutableIntStateOf(0) }
     var addFeed by remember { mutableStateOf(false) }
     var feedAddress by remember { mutableStateOf("") }
     var openJob by remember { mutableStateOf<Job?>(null) }
+    val loading = feedLoading || requestedFeed == null && directoryLoading
     val latestPlayback by rememberUpdatedState(playback)
     fun save(change: (PodioSaved) -> PodioSaved) { scope.launch {
         try { withContext(Dispatchers.IO) { library.update(change) } }
@@ -65,28 +68,37 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         onPlay(item, resume)
     }
     fun open(show: PodcastShow) {
-        openJob?.cancel()
+        val previous = openJob
+        previous?.cancel()
+        requestedFeed = show
         openJob = scope.launch {
-            loading = true; error = null
+            previous?.join()
+            feedLoading = true; error = null
             try { opened = catalogue.feed(show.feed) }
             catch (e: CancellationException) { throw e }
             catch (_: Exception) { error = if (PodioCatalogue.isSpotifyLink(show.feed))
                 "No matching public feed was available for this Spotify link. Try the publisher's RSS feed; Spotify-only audio isn't supported." else "Couldn't load this podcast feed. Please retry." }
-            finally { loading = false }
+            finally { feedLoading = false }
         }
+    }
+    fun browse() {
+        // Keep the cancelled job so a subsequent open can join its final state update.
+        openJob?.cancel()
+        requestedFeed = null; opened = null; feedLoading = false; error = null
     }
     LaunchedEffect(Unit) {
         try { globe = catalogue.stations(globe = true) } catch(e: CancellationException) { throw e } catch (_: Exception) { }
     }
     LaunchedEffect(tab, language, country, request, savedOnly) {
         if (savedOnly) return@LaunchedEffect
-        loading = true; error = null
+        directoryLoading = true
+        if (requestedFeed == null) error = null
         try {
             if (tab == "Radio") radio = catalogue.stations(query, country, language)
             else shows = catalogue.podcasts(listOf(query.trim(), language).filter(String::isNotBlank).joinToString(" ").ifBlank { "popular podcasts" }, country.ifBlank { "IN" })
         } catch(e: CancellationException) { throw e }
-        catch (_: Exception) { error = "Couldn't reach the directory. Check your connection and try again." }
-        finally { loading = false }
+        catch (_: Exception) { if (requestedFeed == null) error = "Couldn't reach the directory. Check your connection and try again." }
+        finally { directoryLoading = false }
     }
     LaunchedEffect(playback.id) {
         if (playback.id?.startsWith("podio:episode:") != true) return@LaunchedEffect
@@ -115,29 +127,29 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             TextButton(onClick = onMusic) { Text("Music") }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (name in listOf("Radio", "Podcasts")) FilterChip(selected = tab == name, onClick = { tab = name; query = ""; opened = null; savedOnly = false }, label = { Text(name) })
-            FilterChip(selected = savedOnly, onClick = { savedOnly = !savedOnly; opened = null }, label = { Text(if (tab == "Radio") "Favourites" else "Following") })
+            for (name in listOf("Radio", "Podcasts")) FilterChip(selected = tab == name, onClick = { browse(); tab = name; query = ""; savedOnly = false }, label = { Text(name) })
+            FilterChip(selected = savedOnly, onClick = { browse(); savedOnly = !savedOnly }, label = { Text(if (tab == "Radio") "Favourites" else "Following") })
             if (tab == "Podcasts") TextButton(onClick = { addFeed = true }) { Text("Add link") }
         }
         if (opened == null) {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(query, { query = it }, singleLine = true, label = { Text(if (tab == "Radio") "Find a station" else "Find a podcast") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { savedOnly = false; request++ }))
-                IconButton(onClick = { savedOnly = false; request++ }) { Icon(Icons.Outlined.Search, "Search") }
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { browse(); savedOnly = false; request++ }))
+                IconButton(onClick = { browse(); savedOnly = false; request++ }) { Icon(Icons.Outlined.Search, "Search") }
             }
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for ((label, code) in listOf("World" to "", "India" to "IN", "US" to "US", "UK" to "GB", "Australia" to "AU", "Germany" to "DE"))
-                    FilterChip(country == code, { country = code }, label = { Text(label) })
+                    FilterChip(country == code, { browse(); country = code }, label = { Text(label) })
             }
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (name in listOf("", "Tamil", "Telugu", "Hindi", "English", "Malayalam", "Kannada"))
-                    FilterChip(language == name, { language = name }, label = { Text(name.ifBlank { "All languages" }) })
+                    FilterChip(language == name, { browse(); language = name }, label = { Text(name.ifBlank { "All languages" }) })
             }
         }
-        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 6.dp))
+        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("podio:loading"))
         error?.let { message -> Row(verticalAlignment = Alignment.CenterVertically) {
             Text(message, Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
-            TextButton(onClick = { opened?.let { open(it.show) } ?: run { request++ } }) { Text("Retry") }
+            TextButton(onClick = { requestedFeed?.let { open(it) } ?: run { request++ } }) { Text("Retry") }
         } }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             if (tab == "Radio") {
@@ -172,7 +184,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 20.dp)) {
                     if (feed != null) {
                         item {
-                            TextButton(onClick = { opened = null }) { Text("Back to podcasts") }
+                            TextButton(onClick = ::browse) { Text("Back to podcasts") }
                             Text(feed.show.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                             Text(feed.show.author, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(feed.show.source, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -223,7 +235,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
 
 @Composable private fun PodioPlayerBar(playback: PodioPlayback, onToggle: () -> Unit, onSeek: (Long) -> Unit, onSpeed: (Float) -> Unit) {
     val live = playback.id?.startsWith("podio:radio:") == true
-    var speed by remember(playback.id) { mutableFloatStateOf(1f) }
+    var speed by remember(playback.id) { mutableFloatStateOf(playback.rate) }
+    LaunchedEffect(playback.rate) { speed = playback.rate }
     var scrubbing by remember(playback.id) { mutableFloatStateOf(-1f) }
     Surface(tonalElevation = 6.dp, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {

@@ -82,6 +82,7 @@ class DesktopVideoEngine internal constructor(
     @Volatile private var currentToken: String? = null
     @Volatile private var unsupported = false
     @Volatile private var released = false
+    private val lifecycleLock = Any()
     @Volatile private var audioOnly = false
     @Volatile private var subtitleLanguage: String? = null
 
@@ -182,12 +183,14 @@ class DesktopVideoEngine internal constructor(
     }
 
     override fun release() {
-        if (released) return
-        released = true
-        generation.incrementAndGet()
+        synchronized(lifecycleLock) {
+            if (released) return
+            released = true
+            generation.incrementAndGet()
+            snapshotFlow.value = PlayerSnapshot.Idle
+        }
         exchange.clear(freeBuffers = true)
         cueFlow.value = emptyList()
-        snapshotFlow.value = PlayerSnapshot.Idle
         try {
             executor.execute {
                 renderer?.close()
@@ -333,7 +336,9 @@ class DesktopVideoEngine internal constructor(
             unsupported = true
         }
         // The player thread can get here after release(): a released engine stays IDLE.
-        if (!released) snapshotFlow.update { unsupportedSnapshot(it) }
+        synchronized(lifecycleLock) {
+            if (!released) snapshotFlow.update { unsupportedSnapshot(it) }
+        }
         return null
     }
 

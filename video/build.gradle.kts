@@ -133,6 +133,13 @@ kotlin {
 // reaches for AWT fails here on Windows too instead of only in CI.
 tasks.withType<Test>().configureEach {
     systemProperty("java.awt.headless", "true")
+    // Source-contract tests also read host files and maintenance notes outside this module.
+    // Changing a mode hook must invalidate the test result, even if Video itself did not change.
+    inputs.files(rootProject.files("README.md", "NOTICE.md", "FORK.md", "settings.gradle.kts", "build.gradle.kts",
+        "app/build.gradle.kts", "desktopApp/build.gradle.kts", "shared/build.gradle.kts"))
+    for (directory in listOf("app/src/main", "desktopApp/src/main/kotlin", "shared/src", "sharedUi/src", "docs")) {
+        inputs.files(rootProject.fileTree(directory) { include("**/*.kt", "**/*.xml", "**/*.md") })
+    }
 }
 
 android {

@@ -4034,7 +4034,7 @@ fun CosmotuneDesktopApp() {
                     return@DesktopFrame com.cosmotune.podio.ui.PodioApp(
                         storage = com.cosmotune.podio.PodioLibrary.desktopFile(),
                         playback = com.cosmotune.podio.ui.PodioPlayback(playback.song?.videoId, playback.song?.title.orEmpty(), playback.song?.artist.orEmpty(),
-                            playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playback.error),
+                            playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playback.error, rate = playbackEngine.playbackRate),
                         onPlay = { item, position ->
                             if (!partyTrackChangeBlocked()) {
                                 liveQueue = DesktopQueue(listOf(item.song()), index = 0)

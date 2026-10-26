@@ -34,7 +34,7 @@ import java.io.File
     PodioApp(File(context.filesDir, "podio/library.json"),
         PodioPlayback(current?.id ?: state.song?.videoId, current?.title ?: state.song?.title.orEmpty(),
             current?.author ?: state.song?.artist.orEmpty(), state.isPlaying, pending != null || state.isLoading,
-            state.position.positionMs, state.durationMs, if (failed) "Playback failed" else state.error),
+            state.position.positionMs, state.durationMs, if (failed) "Playback failed" else state.error, rate = controller?.playbackParameters?.speed ?: 1f),
         onPlay = { item, position ->
             com.cosmotune.music.data.NerdStats.recordSource(item.id, podioSourceName(item.id))
             failed = false; pending = item to position

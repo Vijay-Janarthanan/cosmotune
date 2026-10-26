@@ -43,6 +43,8 @@ class PodioAndroidTest {
             awaitSpeed("podio:episode:speed-fixture", 1f)
             withContext(Dispatchers.Main) { controller.playbackParameters = androidx.media3.common.PlaybackParameters(1.5f) }
             awaitSpeed("podio:episode:speed-fixture", 1.5f)
+            withContext(Dispatchers.Main) { controller.clearMediaItems() }
+            withTimeout(10_000) { while (!withContext(Dispatchers.Main) { controller.currentMediaItem == null }) delay(50) }
             withContext(Dispatchers.Main) { controller.setMediaItem(item("local:speed-fixture")) }
             awaitSpeed("local:speed-fixture", 1.25f)
             assertEquals(1.25f, settings.playbackSpeed.value)

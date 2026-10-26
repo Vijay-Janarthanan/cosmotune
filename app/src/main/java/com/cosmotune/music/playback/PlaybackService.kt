@@ -3391,7 +3391,7 @@ class PlaybackService : MediaLibraryService() {
         val exoPlayer = player ?: return
         com.cosmotune.podio.PodioPlaybackPolicy.speedOnTransition(speedTrackId, mediaItem?.mediaId, AppSettings.playbackSpeed.value)
             ?.let(exoPlayer::setPlaybackSpeed)
-        speedTrackId = mediaItem?.mediaId
+        mediaItem?.mediaId?.let { speedTrackId = it }
         syncBoundedContextCursor(exoPlayer, mediaItem)
         if (boundedContextWindow != null && !ListenTogether.state.value.inParty) {
             saveBoundedContextSnapshot(exoPlayer)

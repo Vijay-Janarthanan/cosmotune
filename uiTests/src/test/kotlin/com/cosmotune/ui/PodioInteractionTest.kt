@@ -24,9 +24,12 @@ import kotlin.test.*
 class PodioInteractionTest {
     @get:Rule val compose = createComposeRule()
     @get:Rule val temporary = TemporaryFolder()
-    private fun server() = MockWebServer().apply {
+    private fun server(feedFailures: Int = 0, feedDelayMs: Long = 0,
+        feedCalls: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger()) = MockWebServer().apply {
         dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
+                val feed = request.path.orEmpty().startsWith("/feed")
+                if (feed && feedCalls.incrementAndGet() <= feedFailures) return MockResponse().setResponseCode(503)
                 val body = when {
                     request.path.orEmpty().startsWith("/json/stations") -> """[{"stationuuid":"station-one","name":"Test Radio","country":"India","language":"Tamil","url_resolved":"https://audio.example/live","geo_lat":13.08,"geo_long":80.27}]"""
                     request.path.orEmpty().startsWith("/search") -> """{"results":[{"collectionName":"Test podcast","artistName":"A host","feedUrl":"${url("/feed")}"}]}"""
@@ -34,7 +37,7 @@ class PodioInteractionTest {
                     request.path.orEmpty().startsWith("/feed") -> """<rss><channel><title>Test podcast</title><item><guid>episode-one</guid><title>A real episode</title><enclosure url="https://audio.example/episode.mp3" type="audio/mpeg"/></item></channel></rss>"""
                     else -> "{}"
                 }
-                return MockResponse().setBody(body)
+                return MockResponse().setBody(body).apply { if (feed) setBodyDelay(feedDelayMs, java.util.concurrent.TimeUnit.MILLISECONDS) }
             }
         }
     }
@@ -46,7 +49,7 @@ class PodioInteractionTest {
             val played = mutableListOf<PodioItem>()
             val directory = PodioCatalogue(radioMirrors = listOf(base), appleBase = base, fyydBase = base)
             compose.setContent { MaterialTheme(colorScheme = darkColorScheme()) { Box(Modifier.size(1200.dp, 820.dp)) {
-                PodioApp(file, playing.value, onPlay = { item, _ -> played += item; playing.value = PodioPlayback(item.id, item.title, item.author, playing = true) },
+                PodioApp(file, playing.value, onPlay = { item, _ -> played += item; playing.value = PodioPlayback(item.id, item.title, item.author, playing = true, rate = 1.5f) },
                     onToggle = {}, onSeek = {}, onSpeed = {}, onMusic = {},
                     directory = directory)
             } } }
@@ -62,6 +65,7 @@ class PodioInteractionTest {
             compose.waitUntil(10_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("A real episode").performClick()
             compose.runOnIdle { assertEquals("https://audio.example/episode.mp3", played.last().url); assertFalse(played.last().live) }
+            compose.onNodeWithText("1.5×").assertIsDisplayed()
             snapshot("podio-before-follow.png")
             compose.onNodeWithText("Follow").assertHasClickAction().performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Follow").fetchSemanticsNodes().isEmpty() }
@@ -83,6 +87,32 @@ class PodioInteractionTest {
             compose.onNodeWithText("Add link").performClick()
             compose.onNodeWithText("RSS feed or Spotify podcast link").assertExists()
             compose.onNodeWithText("Cancel").performClick()
+        }
+    }
+
+    @Test fun failedFeedsRetryTheSameAddressAndLeavingCancelsALateRefresh() {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        server(feedFailures = 1, feedDelayMs = 400, feedCalls = calls).use { server ->
+            val base = server.url("/").toString().trimEnd('/')
+            val directory = PodioCatalogue(radioMirrors = listOf(base), appleBase = base, fyydBase = base)
+            val file = temporary.newFile("retry.json")
+            compose.setContent { MaterialTheme(colorScheme = darkColorScheme()) { Box(Modifier.size(1200.dp, 820.dp)) {
+                PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = directory)
+            } } }
+            compose.onNodeWithText("Podcasts").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Test podcast").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Test podcast").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Couldn't load this podcast feed. Please retry.").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Retry").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }
+            assertEquals(2, calls.get())
+            compose.onNodeWithText("Refresh").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.waitUntil(5_000) { calls.get() == 3 }
+            compose.onNodeWithText("Radio").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            // Let the delayed response finish: it must not replace the newly selected Radio page.
+            Thread.sleep(500)
+            compose.waitForIdle()
+            compose.onNodeWithText("Find a station").assertIsDisplayed()
         }
     }
     private fun snapshot(name: String) {

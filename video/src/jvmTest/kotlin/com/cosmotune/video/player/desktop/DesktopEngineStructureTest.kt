@@ -332,4 +332,20 @@ class DesktopEngineStructureTest {
         }
         assertEquals(PlayerStatus.IDLE, engine.snapshot.value.status)
     }
+
+    @Test fun releaseDuringNativeDiscoveryCannotPublishALateUnsupportedError() {
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val resume = java.util.concurrent.CountDownLatch(1)
+        val engine = DesktopVideoEngine({ entered.countDown(); resume.await(5, java.util.concurrent.TimeUnit.SECONDS); null }, null, emptyMap())
+        try {
+            engine.load(PlaybackRequest(videoId = "fakevideo01", input = MediaInput.Hls("https://media.cosmotune.invalid/live.m3u8"),
+                subtitles = emptyList(), headers = emptyMap(), startMs = 0, live = false, title = "Sample", channel = null, thumbnailUrl = null))
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            engine.release()
+            resume.countDown()
+            assertTrue(engine.awaitRelease(5_000))
+            assertEquals(PlayerStatus.IDLE, engine.snapshot.value.status)
+            assertNull(engine.snapshot.value.error)
+        } finally { resume.countDown(); engine.release() }
+    }
 }

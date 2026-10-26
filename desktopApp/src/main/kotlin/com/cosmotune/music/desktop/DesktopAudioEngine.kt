@@ -110,6 +110,7 @@ class DesktopPlaybackEngine(
     private var nextResolveJob: Job? = null
 
     @Volatile private var playbackSpeed = 1f
+    val playbackRate: Float get() = playbackSpeed
     @Volatile private var volume = 1f
     @Volatile private var loudnessNormalization = true
 
