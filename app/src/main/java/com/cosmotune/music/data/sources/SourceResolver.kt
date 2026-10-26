@@ -170,7 +170,7 @@ object SourceResolver {
             val manager = com.cosmotune.providers.ProviderHub.state.value.manager ?: return null
             val stream = manager.stream(configId.removePrefix("sflx-"), trackId,
                 maxKbps = (request as? StreamRequest.Capped)?.maxKbps, lossless = request is StreamRequest.Lossless)
-            return SourceStream(stream.url, StreamFormat(codec = stream.codec, kbps = stream.kbps),
+            return SourceStream(stream.url, StreamFormat(stream.codec, stream.kbps, stream.sampleRateHz, stream.bitDepth),
                 sourceConfigId = configId, durationSec = stream.durationMs?.div(1000)?.toInt())
         }
         val active = SourceRegistry.activeForPlayback()
@@ -880,15 +880,36 @@ object SourceResolver {
      *   duration is not a strict search but an empty one.
      */
     private suspend fun matchAndStream(
+        source: MusicSource, target: TrackMatcher.Target, request: StreamRequest,
+        waitForAll: Boolean = false, strictLength: Boolean = false, requireSharedArtist: Boolean = false,
+    ): SourceStream? {
+        val ticket = AudioSourceComparisons.start(target, source.configId, source.displayName)
+        try {
+            var hadMatches = false
+            val result = matchAndStreamUnreported(source, target, request, waitForAll, strictLength, requireSharedArtist, ticket) { hadMatches = true }
+            AudioSourceComparisons.finish(ticket, if (result != null) AudioSourceComparisons.Status.AVAILABLE
+                else if (hadMatches) AudioSourceComparisons.Status.UNAVAILABLE else AudioSourceComparisons.Status.NO_MATCH,
+                listOfNotNull(result?.format))
+            return result
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            AudioSourceComparisons.finish(ticket, if (cancelled is kotlinx.coroutines.TimeoutCancellationException)
+                AudioSourceComparisons.Status.TIMEOUT else AudioSourceComparisons.Status.CANCELLED)
+            throw cancelled
+        }
+    }
+
+    private suspend fun matchAndStreamUnreported(
         source: MusicSource,
         target: TrackMatcher.Target,
         request: StreamRequest,
         waitForAll: Boolean = false,
         strictLength: Boolean = false,
         requireSharedArtist: Boolean = false,
+        ticket: AudioSourceComparisons.Ticket,
+        onMatched: () -> Unit,
     ): SourceStream? {
         for (query in TrackMatcher.queries(target)) {
-            val candidates = attempt(source) {
+            val candidates = attempt(source, ticket) {
                 source.search(
                     query,
                     limit = MATCH_CANDIDATES,
@@ -900,6 +921,10 @@ object SourceResolver {
                 )
             } ?: return null
             var matches = TrackMatcher.ranked(candidates, target)
+            if (source is PackageMusicSource) {
+                matches = matches.filter { TrackMatcher.withinSeconds(it, target, UPGRADE_DRIFT_SEC) &&
+                    TrackMatcher.sharesArtist(target.artist, it.artist) }
+            }
             if (requireSharedArtist) {
                 matches = matches.filter { TrackMatcher.sharesArtist(target.artist, it.artist) }
             }
@@ -937,7 +962,8 @@ object SourceResolver {
                 matches = matches.filter { TrackMatcher.withinSeconds(it, target, UPGRADE_DRIFT_SEC) }
             }
             if (matches.isEmpty()) continue
-            return streamBest(source, matches, target, request)
+            onMatched()
+            return streamBest(source, matches, target, request, ticket)
         }
         return null
     }
@@ -1027,13 +1053,14 @@ object SourceResolver {
         matches: List<Song>,
         target: TrackMatcher.Target,
         request: StreamRequest,
+        ticket: AudioSourceComparisons.Ticket,
     ): SourceStream? {
         val wantsLossless = request is StreamRequest.Lossless
         val ordered = preferred(matches, target, wantsLossless)
         var settleFor: SourceStream? = null
         for (match in ordered.take(STREAM_ATTEMPTS)) {
             val trackId = SourceRegistry.parseTrackKey(match.videoId)?.second ?: match.videoId
-            val opened = attempt(source) { source.stream(trackId, request) } ?: continue
+            val opened = attempt(source, ticket) { source.stream(trackId, request) } ?: continue
             // The row this URL came from knows how long the recording is; the
             // URL itself doesn't. Carried along so a caller swapping this into
             // a track already playing can check it — see [SourceStream.durationSec].
@@ -1082,22 +1109,8 @@ object SourceResolver {
      * better; that one asks whether the difference is worth a break in the
      * audio, which is a much higher bar and only meaningful mid-playback.
      */
-    internal fun isBetter(candidate: StreamFormat, current: StreamFormat?): Boolean {
-        if (current == null) return true
-        // Immersive first, and ahead of lossless rather than behind it. This
-        // used to sit *after* the lossless test, which made it unreachable in
-        // the only comparison it exists for: an Atmos stream is E-AC-3 and so
-        // answers `isLossless == false`, so a FLAC won on the line above and
-        // the Atmos line below never ran. A track offered as both then played
-        // as the FLAC no matter what the Atmos setting said — and worse, a
-        // mid-playback upgrade would cut the FLAC in over an Atmos stream
-        // already playing. Anything immersive that reaches here has already
-        // cleared [ModuleSource.unplayable], so it is a mix this device and
-        // this listener both want.
-        if (candidate.isDolbyAtmos != current.isDolbyAtmos) return candidate.isDolbyAtmos
-        if (candidate.isLossless != current.isLossless) return candidate.isLossless == true
-        return (candidate.kbps ?: 0) > (current.kbps ?: 0)
-    }
+    internal fun isBetter(candidate: StreamFormat, current: StreamFormat?): Boolean =
+        StreamQualityPolicy.better(candidate, current, preferAtmos = AppSettings.dolbyAtmos.value)
 
     /** The higher-quality of two streams — see [isBetter]. */
     private fun betterOf(current: SourceStream?, candidate: SourceStream): SourceStream =
@@ -1123,11 +1136,12 @@ object SourceResolver {
      * swallowing it would keep walking sources for a track nobody is waiting
      * for any more.
      */
-    private suspend fun <T> attempt(source: MusicSource, block: suspend () -> T): T? = try {
+    private suspend fun <T> attempt(source: MusicSource, ticket: AudioSourceComparisons.Ticket? = null, block: suspend () -> T): T? = try {
         block()
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
+        ticket?.let { AudioSourceComparisons.failed(it, e) }
         TrackLog.w(TAG, "${source.displayName} failed: ${e.javaClass.simpleName}: ${e.message}")
         null
     }

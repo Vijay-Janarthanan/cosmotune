@@ -2,6 +2,7 @@ package com.cosmotune.music.data.recommendations
 
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.sources.TrackMatcher
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -111,6 +112,42 @@ object LocalRecommendations {
         val result = ordered.toMutableList()
         additions.forEachIndexed { index, song -> result.add(minOf(2 + index * 5, result.size), song) }
         result.distinctBy { it.videoId }
+    }
+
+    suspend fun playlist(seed: Song, library: List<Song>, limit: Int = 30, discover: Boolean = true,
+        search: suspend (String) -> List<Song>): List<Song> = withContext(Dispatchers.IO) {
+        val count = limit.coerceIn(10, 50)
+        val graph = load()
+        val pool = library.filter { !it.isVideo && it.videoId.isNotBlank() && it.videoId != seed.videoId }
+            .distinctBy { it.videoId }.take(2_000)
+        val scores = graph?.scoreAll(seed, pool) ?: FloatArray(pool.size)
+        val personal = LocalPreferenceLearning.adjustments(seed, pool)
+        val ranked = pool.indices.sortedByDescending { scores[it] + personal[it] }.map { pool[it] }
+        val newSongs = ArrayList<Song>()
+        if (discover && graph != null) {
+            for (candidate in graph.recommend(seed, 8)) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                if (ranked.any { TrackMatcher.best(listOf(it), candidate.target()) != null }) continue
+                try {
+                    val found = withTimeoutOrNull(2_000) {
+                        val query = TrackMatcher.queries(candidate.target()).firstOrNull() ?: return@withTimeoutOrNull null
+                        TrackMatcher.best(search(query), candidate.target())
+                    }
+                    if (found != null) newSongs += found
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { /* Other candidates and known library recordings remain usable. */ }
+            }
+        }
+        val result = ranked.toMutableList()
+        newSongs.distinctBy { it.videoId }.forEachIndexed { index, song -> result.add(minOf(index * 3, result.size), song) }
+        // A soft artist limit protects variety; backfill when the library is small rather than fabricate songs.
+        val artists = mutableMapOf<String, Int>()
+        val diverse = result.filter { song ->
+            val artist = song.artist.lowercase(java.util.Locale.ROOT)
+            val existing = artists.getOrDefault(artist, 0)
+            if (existing >= 3) false else { artists[artist] = existing + 1; true }
+        }
+        (listOf(seed) + diverse + result).distinctBy { it.videoId }.take(count)
     }
 
     private fun load(): TinyRecommendationModel? {

@@ -268,13 +268,13 @@ fun AudioPipelineDialog(
             // depth is not the source's, so it is only shown for lossless.
             val bitDepth = if (nerdStats?.isLossless == true) {
                 nerdStats?.bitDepth?.let { "$it-bit" }
-                    ?: nerdStats?.claimed?.bitDepth?.let { "$it-bit" }
+                    ?: nerdStats?.claimed?.bitDepth?.let { "$it-bit (source offer)" }
                     ?: "—"
             } else {
                 "—"
             }
             val sampleRate = nerdStats?.sampleRateHz?.let(::rateText)
-                ?: nerdStats?.claimed?.sampleRateHz?.let(::rateText)
+                ?: nerdStats?.claimed?.sampleRateHz?.let { "${rateText(it)} (source offer)" }
                 ?: "—"
             val bitrate = nerdStats?.bitrateKbps?.let { "$it kbps" } ?: "—"
             val pcmDataRate = nerdStats?.pcmDataRateKbps?.let { "$it kbps" } ?: "—"

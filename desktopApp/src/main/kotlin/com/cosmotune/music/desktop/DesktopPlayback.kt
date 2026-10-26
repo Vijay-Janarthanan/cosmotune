@@ -46,6 +46,7 @@ data class DesktopPlaybackState(
     val durationMs: Long = 0L,
     val error: String? = null,
     val streamFormat: DesktopStreamFormat? = null,
+    val streamOffer: DesktopStreamFormat? = null,
     /** Which configured source is serving this — null before anything opened. */
     val streamSourceId: String? = null,
     /** Whether a source is still looking for a better copy of this track while it plays. */
@@ -101,7 +102,7 @@ data class DesktopStreamFormat(
 
     /** Dolby Atmos decoded as E-AC-3 JOC; deliberately distinct from lossless. */
     val isDolbyAtmos: Boolean
-        get() = codecName == "eac3" || codecName == "eac3-joc" || codecName == "ec-3"
+        get() = codecName in setOf("eac3-joc", "ec3-joc", "dolby-atmos")
 
     /**
      * Better than CD — the line Tidal, Qobuz and Apple Music all draw it at: past 16-bit or past
@@ -144,7 +145,8 @@ data class DesktopStreamFormat(
             "mp3", "mpeg", "mpeg-4" -> "MP3"
             "flac" -> "FLAC"
             "alac" -> "ALAC"
-            "eac3", "ec-3", "eac3-joc" -> "E-AC-3"
+            "eac3", "ec-3" -> "E-AC-3"
+            "eac3-joc", "ec3-joc" -> "E-AC-3 JOC"
             "ac3" -> "AC-3"
             else -> if (name.startsWith("pcm_")) "PCM" else name.uppercase()
         }

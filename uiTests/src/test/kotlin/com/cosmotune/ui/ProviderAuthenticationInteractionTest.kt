@@ -13,6 +13,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import kotlin.test.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 
 class ProviderAuthenticationInteractionTest {
     @get:Rule val compose = createComposeRule()
@@ -132,6 +134,48 @@ class ProviderAuthenticationInteractionTest {
             assertFailsWith<java.io.IOException> { java.net.Socket("127.0.0.1", port).close() }
             compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password)).assertIsEnabled()
             assertEquals(JsonPrimitive(false), manager.store.state.value.auth["fixture"]?.get("pending")?.jsonObject?.get("completed"))
+        }
+    }
+
+    @Test fun aProviderWithoutASignInButtonCanAcceptAManualGrantAndRetryItsSessionExchange() {
+        val signed = installed.copy(manifest = installed.manifest.copy(signedSession = buildJsonObject {
+            put("namespace", "ui-fixture"); put("baseUrl", "https://auth.example/v2")
+            put("callbackUrl", "cosmotune://provider-auth/session-grant")
+        }))
+        val exchanges = java.util.concurrent.atomic.AtomicInteger()
+        val requests = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val http = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            requests += request.url.encodedPath
+            val exchange = request.url.encodedPath.endsWith("/session/exchange")
+            val failed = exchange && exchanges.incrementAndGet() == 1
+            val body = if (!exchange) """{"challenge_id":"ui-challenge"}""" else if (failed) """{"error":"temporary"}"""
+                else buildJsonObject {
+                    put("session_id", "ui-session"); put("session_secret", "private-ui-secret")
+                    put("expires_at", java.time.Instant.ofEpochMilli(System.currentTimeMillis() + 600_000).toString())
+                }.toString()
+            okhttp3.Response.Builder().request(request).protocol(okhttp3.Protocol.HTTP_1_1).code(if (failed) 503 else 200)
+                .message("Fixture").body(body.toResponseBody("application/json".toMediaType())).build()
+        }.build()
+        ProviderManager(ProviderStore(temporary.newFolder(), protection), httpClient = http).use { manager ->
+            runBlocking { manager.store.update { it.copy(installed = listOf(signed)) } }
+            var address: String? = null
+            compose.setContent { MaterialTheme { Column { ProviderAuthenticationEntry(manager, signed) { address = it } } } }
+            compose.onNodeWithText("Verification service: auth.example").assertExists()
+            compose.onNodeWithText("Verify provider access").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Open sign-in page").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Open sign-in page").performClick()
+            compose.waitUntil(10_000) { address != null }
+            compose.onNodeWithText("Callback URL or grant=…").assertExists()
+            compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password)).performTextInput("grant=ui-grant")
+            compose.onNodeWithText("Continue", substring = false).performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Finish provider verification").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Finish provider verification").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Provider access verified").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("private-ui-secret", substring = true).assertDoesNotExist()
+            compose.onNodeWithText("Callback URL").assertDoesNotExist()
+            assertEquals(listOf("/v2/bootstrap", "/v2/session/exchange", "/v2/session/exchange"), requests.toList())
+            assertNull(manager.store.state.value.auth["fixture"]?.get("pending"))
         }
     }
 }

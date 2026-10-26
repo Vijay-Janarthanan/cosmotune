@@ -89,9 +89,10 @@ object ProviderHub {
         }
         mutable.value = mutable.value.copy(loading = true, error = null)
         scope.launch {
+            com.cosmotune.music.data.recommendations.DiscoveryPreferences.configure(File(root, "discovery.json"))
             val images = runCatching { CatalogueArtwork(cache, ::artworkAccess) }.getOrNull()
             val library = runCatching { SourceLibraryStore(File(root, "library.bin")) }.getOrNull()
-            val result = runCatching { ProviderManager(ProviderStore(root), images, ::remember).also { manager ->
+            val result = runCatching { ProviderManager(ProviderStore(root), images, remember = ::remember).also { manager ->
                 manager.configureNativeAuthentication({ nativeAuthAdmission(it) }, nativeSessionCallback)
             } }
             var oldManager: ProviderManager? = null

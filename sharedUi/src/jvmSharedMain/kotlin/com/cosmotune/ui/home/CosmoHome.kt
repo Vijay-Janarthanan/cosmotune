@@ -105,6 +105,7 @@ fun CosmoHome(
     leadHero: Boolean = true,
     currentSong: Song? = null,
     isPlaying: Boolean = false,
+    discoveryControls: (@Composable () -> Unit)? = null,
     browse: CosmoBrowse? = null,
 ) {
     val reduced = LocalReducedMotion.current
@@ -132,7 +133,7 @@ fun CosmoHome(
                 moods = showMoods,
                 bento = showBento,
                 recentsSkeleton = state is UiState.Success && recentlyPlayedLoading,
-            )
+            ) + if (discoveryControls != null) 1 else 0
             val openShelf: (Int) -> Unit = { shelfIndex ->
                 scope.launch {
                     val target = firstShelfItem + shelfIndex
@@ -155,6 +156,7 @@ fun CosmoHome(
                 },
             ) {
                 item(key = "home:header") { HomeHeader(overline = title, wide = wide, extra = extra) }
+                if (discoveryControls != null) item(key = "home:discovery") { discoveryControls() }
                 if (showBanner) {
                     item(key = "home:sign-in") {
                         SignInBanner(onSignIn = signIn, modifier = Modifier.padding(horizontal = extra).padding(bottom = 8.dp))

@@ -123,28 +123,30 @@ internal fun NowPlayingTopBar(
     modifier: Modifier = Modifier,
 ) {
     val dismiss = LocalCosmoPlayerDismiss.current
-    Column(modifier.fillMaxWidth().windowInsetsPadding(com.cosmotune.music.ui.theme.stableStatusBarInsets()).padding(top = 4.dp)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CosmoIconButton(
-                CosmoIcons.ChevronDown, stringResource(Res.string.cosmo_collapse_player), dismiss,
-                style = CosmoIconButtonStyle.GLASS, size = 40.dp,
-            )
-            PlayingFrom(song, playedBy, onOpenOrigin, Modifier.weight(1f))
-            CosmoIconButton(
-                if (videoOn) CosmoIcons.Canvas else CosmoIcons.CanvasOff,
-                stringResource(if (videoOn) Res.string.cosmo_video_hide else Res.string.cosmo_video_show),
-                onToggleVideo,
-                style = CosmoIconButtonStyle.GLASS, size = 40.dp, on = videoOn, enabled = hasVideo,
-            )
-            CosmoIconButton(CosmoIcons.More, stringResource(Res.string.more), onOpenMenu, style = CosmoIconButtonStyle.GLASS, size = 40.dp)
-        }
-        if (blockedByMobileData) {
-            Box(Modifier.padding(start = 16.dp, top = 8.dp)) {
-                PlayerPlatform.host.CanvasMobileDataHint(Modifier)
+    com.cosmotune.ui.shell.WindowCaptionArea(modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().windowInsetsPadding(com.cosmotune.music.ui.theme.stableStatusBarInsets()).padding(top = 4.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CosmoIconButton(
+                    CosmoIcons.ChevronDown, stringResource(Res.string.cosmo_collapse_player), dismiss,
+                    style = CosmoIconButtonStyle.GLASS, size = 40.dp,
+                )
+                PlayingFrom(song, playedBy, onOpenOrigin, Modifier.weight(1f))
+                CosmoIconButton(
+                    if (videoOn) CosmoIcons.Canvas else CosmoIcons.CanvasOff,
+                    stringResource(if (videoOn) Res.string.cosmo_video_hide else Res.string.cosmo_video_show),
+                    onToggleVideo,
+                    style = CosmoIconButtonStyle.GLASS, size = 40.dp, on = videoOn, enabled = hasVideo,
+                )
+                CosmoIconButton(CosmoIcons.More, stringResource(Res.string.more), onOpenMenu, style = CosmoIconButtonStyle.GLASS, size = 40.dp)
+            }
+            if (blockedByMobileData) {
+                Box(Modifier.padding(start = 16.dp, top = 8.dp)) {
+                    PlayerPlatform.host.CanvasMobileDataHint(Modifier)
+                }
             }
         }
     }

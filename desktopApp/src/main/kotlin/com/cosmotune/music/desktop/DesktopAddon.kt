@@ -263,7 +263,7 @@ internal data class DesktopAddonStream(
 }
 
 /** Every spelling compatible addons use for Dolby Atmos in catalogue and stream metadata. */
-private val ATMOS_HINT = Regex("""atmos|dolby|eac3[_-]?joc|e-?ac-?3|ec-?3""", RegexOption.IGNORE_CASE)
+private val ATMOS_HINT = Regex("""atmos|e-?ac-?3[_ -]?joc|ec-?3[_ -]?joc""", RegexOption.IGNORE_CASE)
 
 /** Process-local setting read by clients without constructing preferences for every request. */
 internal object DesktopAddonSettings {
@@ -530,7 +530,7 @@ internal class DesktopAddonClient(
         private const val MAX_RETRIES = 2
         private const val BACKOFF_BASE_MS = 500L
         private const val BACKOFF_CAP_MS = 8_000L
-        internal val USER_AGENT = "Cosmotune/v${System.getProperty("cosmotune.version") ?: "1.0.6"}"
+        internal val USER_AGENT = "Cosmotune/v${System.getProperty("cosmotune.version") ?: "1.0.7"}"
         private const val PROBE_QUERY = "music"
 
         private val LOSSLESS_WORDS = listOf("lossless", "flac", "hifi", "hi-res", "hires", "max", "best")

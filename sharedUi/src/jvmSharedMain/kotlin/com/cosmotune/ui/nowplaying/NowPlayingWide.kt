@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -123,7 +125,12 @@ internal fun NowPlayingWide(
             Box(Modifier.fillMaxSize().cosmoAmbientGround())
             media(Modifier.placed(plan.cover, left, top), Modifier.placed(plan.video, left, top), plan.cover.width.dp)
         }
-        header(Modifier.placed(plan.header, left, top))
+        // Include the empty margin above/beside the header, where a window's caption lives.
+        com.cosmotune.ui.shell.WindowCaptionArea(
+            Modifier.fillMaxWidth().height(top + (plan.header.y + plan.header.height).dp),
+        ) {
+            header(Modifier.placed(plan.header, left, top))
+        }
         panel(Modifier.placed(plan.lyrics, left, top))
         bar(Modifier.offset(left + plan.bar.x.dp, top + plan.bar.y.dp).width(plan.bar.width.dp))
     }

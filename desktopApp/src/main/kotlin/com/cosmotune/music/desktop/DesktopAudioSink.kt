@@ -55,8 +55,8 @@ internal class DesktopAudioSink {
                 line = null
                 windowsOutput = true
                 windowsBufferBytes = native.getOrThrow()
-                // Read live from the native side instead: it moves the stream itself when the
-                // Windows default changes or a chosen device is unplugged.
+                // The native sink moves with the Windows default or an unplugged device;
+                // its cached label is refreshed on the playback thread, never by the UI.
                 openedOn = null
                 openedForSelection = selectedDevice
                 format = requested
@@ -122,7 +122,7 @@ internal class DesktopAudioSink {
         // failed switch into silent playback on every other device too.
         val previous = line
         line = opened
-        openedOn = mixer?.mixerInfo?.name
+        openedOn = mixer?.mixerInfo?.name ?: runCatching { AudioSystem.getMixer(null).mixerInfo?.name }.getOrNull()
         openedForSelection = selectedDevice
         format = accepted
         diagnosticBlocks = 0
@@ -146,12 +146,12 @@ internal class DesktopAudioSink {
             if (windowsOutput) {
                 DesktopWindowsAudio.deviceName()
             } else {
-                line?.let { openedOn ?: AudioSystem.getMixer(null).mixerInfo?.name?.takeIf(String::isNotBlank) }
+                openedOn
             }
         }.getOrNull()
 
     /** The mixer this line was actually opened on, when it was not the system default. */
-    private var openedOn: String? = null
+    @Volatile private var openedOn: String? = null
 
     /** How much audio the device is holding, in bytes; 0 before the line is open. */
     val bufferBytes: Int

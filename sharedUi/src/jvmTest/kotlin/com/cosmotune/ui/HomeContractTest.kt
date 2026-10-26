@@ -27,8 +27,11 @@ class HomeContractTest {
     @Test fun theSwitchTakesHomeScreensParametersNameForNameAndTypeForTypeAndThenBrowse() {
         val old = oldList
         assertTrue(old.size >= 19, "the old screen's list was read (${old.size})")
-        assertEquals(old + browseParameter, SourceContract.parameters(file("HomeSwitch.kt"), "HomeSwitch"))
-        assertEquals("browse", SourceContract.names(SourceContract.parameters(file("HomeSwitch.kt"), "HomeSwitch")).last())
+        assertEquals(oldList.filterNot { it.startsWith("discoveryControls:") } + browseParameter + listOf(
+            "playlistSongs: List<Song> = emptyList()",
+            "saveGeneratedPlaylist: (suspend (String, List<Song>) -> Unit)? = null",
+        ), SourceContract.parameters(file("HomeSwitch.kt"), "HomeSwitch"))
+        assertEquals("saveGeneratedPlaylist", SourceContract.names(SourceContract.parameters(file("HomeSwitch.kt"), "HomeSwitch")).last())
     }
 
     @Test fun theNewScreenTakesTheSameList() {
@@ -37,8 +40,11 @@ class HomeContractTest {
 
     @Test fun bothBranchesOfTheSwitchPassEveryParameterByNameAndTheOldOneDoesNotPassBrowse() {
         val src = file("HomeSwitch.kt")
-        val names = SourceContract.names(SourceContract.parameters(src, "HomeSwitch"))
-        val statement = SourceContract.firstStatement(SourceContract.functionBody(src, "HomeSwitch"))
+        val names = SourceContract.names(SourceContract.parameters(src, "HomeSwitch")) - setOf("playlistSongs", "saveGeneratedPlaylist")
+        val body = SourceContract.functionBody(src, "HomeSwitch")
+        assertTrue(body.contains("HomeDiscoveryControls(onRetry,"), "changing discovery resets old regional shelves")
+        assertTrue(body.contains("PersonalPlaylistDialog("), "the switch owns the optional playlist preview")
+        val statement = SourceContract.firstStatement(body.substring(body.indexOf("if (LocalCosmoShell.current != null)")))
         assertTrue(statement.startsWith("if (LocalCosmoShell.current != null) {"), "the switch is its one statement: $statement")
         assertTrue(statement.endsWith("}"), "and the whole if/else is read, to its closing brace")
         val newBranch = statement.substringBefore("} else {")
@@ -47,6 +53,8 @@ class HomeContractTest {
         assertTrue(oldBranch.contains("HomeScreen("), "look off: the old screen")
         SourceContract.assertPassesEveryParameter(newBranch, names)
         SourceContract.assertPassesEveryParameter(oldBranch, names - "browse")
+        assertTrue(newBranch.contains("discoveryControls = controls"))
+        assertTrue(oldBranch.contains("discoveryControls = controls"))
         assertFalse(Regex("""\bbrowse\b""").containsMatchIn(oldBranch), "the old screen has no browse")
     }
 

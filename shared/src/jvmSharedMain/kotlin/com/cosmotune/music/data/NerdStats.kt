@@ -59,6 +59,7 @@ object NerdStats {
         val bitrateProvenance: TelemetryProvenance = TelemetryProvenance.UNKNOWN,
         /** True PCM throughput (sampleRate * bitDepth * channels / 1000). Never conflated with encoded bitrate. */
         val pcmDataRateKbps: Int? = null,
+        val sourceId: String? = null,
     ) {
         /**
          * Whether what arrived is measurably worse than what was promised.
@@ -186,7 +187,7 @@ object NerdStats {
         else java.math.BigDecimal(hz).movePointLeft(6).stripTrailingZeros().toPlainString() + " MHz"
 
     fun isDolbyAtmosMime(mimeType: String?): Boolean =
-        mimeType != null && (mimeType.endsWith("eac3-joc") || mimeType.endsWith("eac3"))
+        mimeType != null && (mimeType.endsWith("eac3-joc", true) || mimeType.endsWith("ec3-joc", true))
 
     fun isRawPcm(mimeType: String?): Boolean =
         mimeType != null && (mimeType == "audio/raw" || mimeType.endsWith("wav", ignoreCase = true) || mimeType == "audio/x-wav")

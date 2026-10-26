@@ -247,16 +247,22 @@ internal fun LandscapePlayerLayout(
 
             // The sheet closes from a downward drag anywhere nothing else
             // claims, as it does in portrait; this is only the promise.
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = 8.dp)
-                    .width(38.dp)
-                    .height(5.dp)
-                    .shadow(2.dp, RoundedCornerShape(3.dp), clip = false)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(LocalPlayerTint.current.copy(alpha = 0.70f)),
-            )
+            com.cosmotune.ui.shell.WindowCaptionArea(
+                Modifier.align(Alignment.TopCenter).fillMaxWidth().height(LANDSCAPE_HANDLE_STRIP),
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(y = 8.dp)
+                            .width(38.dp)
+                            .height(5.dp)
+                            .shadow(2.dp, RoundedCornerShape(3.dp), clip = false)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(LocalPlayerTint.current.copy(alpha = 0.70f)),
+                    )
+                }
+            }
         }
     }
 }

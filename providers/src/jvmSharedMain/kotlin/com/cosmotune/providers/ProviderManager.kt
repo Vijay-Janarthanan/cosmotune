@@ -20,6 +20,7 @@ import kotlinx.serialization.json.*
 
 /** Pinned package lifecycle and provider metadata, independent of platform UI and audio decoders. */
 class ProviderManager(val store: ProviderStore, private val artwork: CatalogueArtwork? = null,
+    private val httpClient: okhttp3.OkHttpClient = com.cosmotune.music.data.Http.client,
     private val remember: (com.cosmotune.music.data.model.Song) -> Unit = {}) : AutoCloseable {
     val packages = ProviderPackages(File(store.root, "staging"))
     val repositories = ProviderRepositories(packages)
@@ -171,6 +172,18 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
         return network.address(url).takeIf { it.isHttps }?.toString()
     }
 
+    fun verificationTarget(name: String): ProviderVerificationTarget {
+        val snapshot = store.state.value
+        val installed = requireNotNull(snapshot.installed.find { it.manifest.name == name && it.enabled && name !in revokedNames })
+        val pending = requireNotNull(snapshot.auth[name]?.get("pending") as? JsonObject)
+        require(pending["completed"] != JsonPrimitive(true))
+        val signed = pending["kind"] == JsonPrimitive("signed-grant")
+        val expiry = requireNotNull((pending["createdAt"] as? JsonPrimitive)?.longOrNull) + if (signed) 180_000L else 600_000L
+        require(System.currentTimeMillis() < expiry)
+        return ProviderVerificationTarget(requireNotNull(authenticationUrl(name)), pending.getValue("callback").jsonPrimitive.content,
+            pending.getValue("state").jsonPrimitive.content, installed.manifest.title, installed.manifest.permissions.network, expiry, signed, installed.sha256)
+    }
+
     /** Opened only from a native user action; unsupported/busy redirects retain manual recovery. */
     suspend fun prepareBrowserAuthentication(name: String): ProviderBrowserAuthentication {
         var lease: ProviderBrowserAuthentication? = null
@@ -226,18 +239,41 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
         catch (_: IllegalStateException) { null }
     }
 
-    suspend fun completeAuthentication(name: String, callback: String) = withContext(Dispatchers.IO) {
+    suspend fun completeAuthentication(name: String, callback: String, expected: ProviderVerificationTarget? = null) = withContext(Dispatchers.IO) {
         providerLocks.computeIfAbsent(name) { Mutex() }.withLock {
             check(!closed) { "Provider manager is closed" }
             val installed = requireNotNull(store.state.value.installed.find { it.manifest.name == name && it.enabled && name !in revokedNames }) { "Enable this provider first" }
-            val network = ProviderNetwork(installed.manifest.permissions, installed.allowLocalNetwork)
+            if (expected != null) {
+                val pending = store.state.value.auth[name]?.get("pending") as? JsonObject
+                require(installed.sha256 == expected.packageHash && System.currentTimeMillis() < expected.expiresAt &&
+                    pending?.get("state") == JsonPrimitive(expected.state) && pending["url"] == JsonPrimitive(expected.url) &&
+                    pending["completed"] != JsonPrimitive(true)) { "Provider verification changed" }
+            }
+            val network = ProviderNetwork(installed.manifest.permissions, installed.allowLocalNetwork, httpClient)
             try { providerRuntimeWork(network::cancel) {
-                if ((store.state.value.auth[name]?.get("pending") as? JsonObject)?.get("kind") == JsonPrimitive("signed-grant"))
-                    ProviderSignedSession(installed, store, network).completeCallback(callback)
-                else ProviderAuth(installed, store, network).completeCallback(callback)
+                if (installed.manifest.signedSession != null && callback.trim().startsWith("grant=")) {
+                    ProviderSignedSession(installed, store, network).completeUserGrant(callback)
+                } else if ((store.state.value.auth[name]?.get("pending") as? JsonObject)?.get("kind") == JsonPrimitive("signed-grant")) {
+                    val session = ProviderSignedSession(installed, store, network)
+                    session.completeCallback(callback)
+                    session.call("completeGrant", JsonArray(emptyList()))
+                } else ProviderAuth(installed, store, network).completeCallback(callback)
             } }
-            finally { network.cancel() }
-            retire(name)
+            finally { network.cancel(); retire(name) }
+        }
+    }
+
+    /** User-initiated entry/recovery for signed providers with no extension-specific settings button. */
+    suspend fun verifyProviderAccess(name: String): Boolean = withContext(Dispatchers.IO) {
+        providerLocks.computeIfAbsent(name) { Mutex() }.withLock {
+            check(!closed) { "Provider manager is closed" }
+            val installed = requireNotNull(store.state.value.installed.find { it.manifest.name == name && it.enabled && name !in revokedNames })
+            require(installed.manifest.signedSession != null && installed.manifest.permissions.storage)
+            val network = ProviderNetwork(installed.manifest.permissions, installed.allowLocalNetwork, httpClient)
+            try { providerRuntimeWork(network::cancel) {
+                ProviderSignedSession(installed, store, network).call("beginVerification", JsonArray(emptyList()))
+                    .jsonObject["authenticated"] == JsonPrimitive(true)
+            } } finally { network.cancel(); retire(name) }
         }
     }
     suspend fun clearAuthentication(name: String) = withContext(Dispatchers.IO) {
@@ -259,7 +295,7 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
             }
             val args = buildJsonArray {
                 add(query.take(500))
-                if (method == "customSearch") add(buildJsonObject { put("limit", limit.coerceIn(1, 100)); put("filter", "tracks") })
+                if (method == "customSearch") add(buildJsonObject { put("limit", limit.coerceIn(1, 100)); put("filter", store.state.value.installed.first { it.manifest.name == name }.manifest.trackSearchFilter) })
                 else add(limit.coerceIn(1, 100))
             }
             Json.parseToJsonElement(runtime.session.invoke(method, args))
@@ -283,6 +319,18 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
                 }
             }
 
+    /** Resolve sparse search metadata before an automatic recording substitution. Never trust a different returned ID. */
+    suspend fun track(name: String, id: String): ProviderTrack? {
+        val raw = operation(name) { runtime ->
+            if ("getTrack" !in runtime.session.methods) return@operation null
+            val result = Json.parseToJsonElement(runtime.session.invoke("getTrack", buildJsonArray { add(id) })) as? JsonObject ?: return@operation null
+            requireProviderSuccess(result)
+            (result["track"] as? JsonObject) ?: result
+        } ?: return null
+        val track = ProviderCatalogue.track(name, raw)?.takeIf { it.id == id } ?: return null
+        return (artwork?.decorate("provider:$name", track) ?: track).also { remember(it.song()) }
+    }
+
     suspend fun stream(name: String, trackId: String, maxKbps: Int? = null, lossless: Boolean = false, forDownload: Boolean = false): ProviderAudioStream = operation(name) { runtime ->
         require(trackId.isNotBlank() && trackId.length <= 8_192)
         val install = requireNotNull(store.state.value.installed.find { it.manifest.name == name && it.enabled && name !in revokedNames })
@@ -294,11 +342,21 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
         require("download_provider" in install.manifest.type && "getDownloadUrl" in runtime.session.methods) {
             "This provider does not expose a direct audio stream"
         }
-        val raw = Json.parseToJsonElement(runtime.session.invoke("getDownloadUrl", buildJsonArray {
+        val direct = Json.parseToJsonElement(runtime.session.invoke("getDownloadUrl", buildJsonArray {
             add(trackId); add(quality); addJsonObject { put("purpose", if (forDownload) "download" else "playback") }
-        })) as? JsonObject ?: error("Provider returned no direct audio stream")
-        require(raw["success"] != JsonPrimitive(false)) { "Provider could not resolve this recording" }
-        val url = (raw["url"] as? JsonPrimitive)?.contentOrNull ?: error("Provider returned no direct audio stream")
+        })) as? JsonObject
+        direct?.let(::requireProviderSuccess)
+        val directUrl = (direct?.get("url") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+        // Some real packages advertise a null getDownloadUrl stub and implement only download.
+        if (directUrl == null && "download" in runtime.session.methods && install.manifest.permissions.file) {
+            return@operation preparedStream(name, install, runtime, trackId, quality, maxKbps, lossless, forDownload)
+        }
+        val raw = direct ?: error("Provider returned no direct audio stream")
+        val url = directUrl ?: error("Provider returned no direct audio stream")
+        if (needsAudioProcessing(raw)) {
+            if (!install.manifest.permissions.file || !runtime.host.mediaProcessing.available) throw ProviderResolutionException("native_processing_required", null)
+            return@operation preparedStream(name, install, runtime, trackId, quality, maxKbps, lossless, forDownload, raw)
+        }
         val transport = ((raw["transport"] ?: raw["format"]) as? JsonPrimitive)?.contentOrNull.orEmpty().lowercase(java.util.Locale.ROOT)
         val path = runCatching { java.net.URI(url).path.orEmpty().lowercase(java.util.Locale.ROOT) }.getOrDefault("")
         require(transport !in setOf("hls", "dash", "m3u8", "mpd") && !path.endsWith(".m3u8") && !path.endsWith(".mpd")) {
@@ -320,7 +378,9 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
             media.register(name, url, headers, network)
         } } catch (error: Throwable) { network.cancel(); throw error }
         ProviderAudioStream(local, install.manifest.title, codec, kbps,
-            (raw["track"] as? JsonObject)?.get("duration_ms")?.let { (it as? JsonPrimitive)?.longOrNull?.takeIf { duration -> duration in 1..86_400_000 } }, container)
+            (raw["track"] as? JsonObject)?.get("duration_ms")?.let { (it as? JsonPrimitive)?.longOrNull?.takeIf { duration -> duration in 1..86_400_000 } }, container,
+            ((raw["sample_rate"] ?: raw["sampleRate"]) as? JsonPrimitive)?.intOrNull?.takeIf { it in 8_000..768_000 },
+            ((raw["bit_depth"] ?: raw["bitDepth"]) as? JsonPrimitive)?.intOrNull?.takeIf { it in 1..64 })
     }
 
     /**
@@ -331,23 +391,40 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
      * revoked with the provider, which deletes the copy.
      */
     private suspend fun preparedStream(name: String, install: ProviderInstall, runtime: Runtime, trackId: String, quality: String,
-                               maxKbps: Int?, lossless: Boolean, forDownload: Boolean): ProviderAudioStream {
+                               maxKbps: Int?, lossless: Boolean, forDownload: Boolean, direct: JsonObject? = null): ProviderAudioStream {
         val prepared = ProviderPreparedMedia.create(runtime.host.files)
         try {
+            runtime.host.allowPreparedMedia()
             val requested = prepared.outputPath + if (lossless) ".flac" else ".m4a"
-            val raw = Json.parseToJsonElement(runtime.session.invoke("download", buildJsonArray {
+            val raw = if (direct != null) {
+                val downloaded = runtime.host.files.call("download", buildJsonArray {
+                    add(direct.getValue("url")); add(requested)
+                    addJsonObject { put("headers", direct["headers"] ?: JsonObject(emptyMap())) }
+                }).jsonObject
+                JsonObject(direct + downloaded)
+            } else Json.parseToJsonElement(runtime.session.invoke("download", buildJsonArray {
+                // The compatibility bootstrap inserts the progress callback before these options.
                 add(trackId); add(quality); add(requested)
-                addJsonObject { put("purpose", if (forDownload) "download" else "playback") }
-            })) as? JsonObject ?: error("Provider returned no media file")
-            require(raw["success"] != JsonPrimitive(false)) { "Provider could not resolve this recording" }
+                addJsonObject { put("purpose", if (forDownload) "download" else "playback"); put("resolutionTimeoutMs", 120_000) }
+            }, timeoutMs = 120_000)) as? JsonObject ?: error("Provider returned no media file")
+            try { requireProviderSuccess(raw) } catch (error: ProviderResolutionException) {
+                throw ProviderResolutionException(error.errorType, error.httpStatus, runtime.host.lastFailedApi, runtime.host.lastFailureKind)
+            }
             val returned = ((raw["file_path"] ?: raw["path"]) as? JsonPrimitive)?.contentOrNull ?: requested
-            val file = prepared.accept(returned) { runtime.host.network.isCancelled }
+            val accepted = prepared.accept(returned) { runtime.host.network.isCancelled }
+            val file = runtime.host.mediaProcessing.prepare(raw, accepted.absolutePath, prepared.outputPath)
             // The bytes decide the container; a provider may leave a `.flac` suffix on MP4 audio.
             val container = ProviderPreparedMedia.container(file)
+            val delivered = com.cosmotune.audio.DeliveredAudio.inspect(file)
+            val measured = if (runtime.host.mediaProcessing.available) runtime.host.mediaProcessing.probe(file.absolutePath) else null
+            val expectedDuration = ((raw["track"] as? JsonObject)?.get("duration_ms") ?: raw["duration_ms"])?.let { (it as? JsonPrimitive)?.longOrNull?.takeIf { duration -> duration in 1..86_400_000 } }
+            if (expectedDuration != null && measured != null && measured.durationMs > 0 && kotlin.math.abs(expectedDuration - measured.durationMs) > 12_000)
+                throw ProviderResolutionException("duration_mismatch", null)
             val declared = ((raw["audio_codec"] ?: raw["codec"]) as? JsonPrimitive)?.contentOrNull
                 ?.lowercase(java.util.Locale.ROOT)?.takeIf { it.matches(Regex("[a-z0-9_-]{1,40}")) }
-            val codec = when (container) { "flac" -> "flac"; "mp3" -> "mp3"; "opus" -> "opus"; "wav" -> "pcm"; "aac" -> "aac"; else -> declared }
-            val kbps = (raw["quality"] as? JsonPrimitive)?.contentOrNull?.let(ProviderAudioQuality::bitrate)
+            val codec = measured?.codec ?: when (container) { "flac" -> "flac"; "mp3" -> "mp3"; "opus" -> "opus"; "wav" -> "pcm"; "aac" -> "aac"; else -> declared }
+            val kbps = measured?.bitrate?.takeIf { it in 1..Int.MAX_VALUE }?.let { (it / 1000).toInt() }
+                ?: (raw["quality"] as? JsonPrimitive)?.contentOrNull?.let(ProviderAudioQuality::bitrate)
             require(maxKbps == null || kbps != null && kbps <= maxKbps) { "Provider stream does not confirm the requested bitrate limit" }
             val local = synchronized(cacheLock) {
                 check(!closed && name !in revokedNames && store.state.value.installed.any { it.manifest.name == name && it.enabled && it.sha256 == install.sha256 }) {
@@ -356,9 +433,30 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
                 media.registerFile(name, file, prepared)
             }
             return ProviderAudioStream(local, install.manifest.title, codec, kbps,
-                (raw["track"] as? JsonObject)?.get("duration_ms")?.let { (it as? JsonPrimitive)?.longOrNull?.takeIf { duration -> duration in 1..86_400_000 } },
-                if (container == "mp4") "m4a" else container)
+                measured?.durationMs?.takeIf { it > 0 } ?: expectedDuration,
+                if (container == "mp4") "m4a" else container, measured?.sampleRate?.takeIf { it > 0 } ?: delivered?.sampleRate,
+                measured?.bitDepth?.takeIf { it > 0 } ?: delivered?.bitsPerSample)
         } catch (error: Throwable) { prepared.close(); throw error }
+    }
+
+    private fun requireProviderSuccess(raw: JsonObject) {
+        val type = ((raw["error_type"] ?: raw["errorType"]) as? JsonPrimitive)?.contentOrNull.orEmpty().lowercase(java.util.Locale.ROOT)
+        if (type in setOf("verification_required", "auth_required", "not_authenticated") ||
+            raw["requires_verification"] == JsonPrimitive(true) || raw["verification_required"] == JsonPrimitive(true)) {
+            error("Provider sign-in or verification required")
+        }
+        if (raw["success"] == JsonPrimitive(false)) {
+            val safeType = type.takeIf { it in setOf("api_error", "download_error", "not_found", "timeout", "rate_limited", "invalid_input", "authentication_error", "cancelled", "runtime_error", "duration_mismatch") }
+            val status = Regex("\\bHTTP\\s+([45][0-9]{2})\\b", RegexOption.IGNORE_CASE)
+                .find((raw["error_message"] as? JsonPrimitive)?.contentOrNull.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
+            throw ProviderResolutionException(safeType, status)
+        }
+    }
+
+    private fun needsAudioProcessing(raw: JsonObject): Boolean {
+        val transformation = raw["decryption"]
+        return transformation != null && transformation != JsonNull ||
+            (raw["decryption_key"] as? JsonPrimitive)?.contentOrNull?.isNotBlank() == true
     }
 
     suspend fun settingAction(name: String, key: String) {
@@ -465,7 +563,8 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
             val archive = archive(installed.sha256)
             require(ProviderPackages.digest(archive) == installed.sha256) { "Installed provider package changed" }
             val code = ZipFile(archive).use { zip -> ProviderPackages.utf8(zip.getInputStream(zip.getEntry("index.js")).use { it.readBytes() }) }
-            val host = ProviderMetadataHost(installed, store)
+            val host = ProviderMetadataHost(installed, store, ProviderNetwork(installed.manifest.permissions,
+                installed.allowLocalNetwork, httpClient, cookieJar = ProviderCookieJar.forProvider(installed, store)))
             starting = host
             synchronized(cacheLock) {
                 check(!closed && name !in revokedNames && store.state.value.installed.find { it.manifest.name == name } == installed) { "Provider access changed" }
@@ -549,7 +648,7 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
         const val HOME_TTL_MS = 5 * 60 * 1000L
         // Prepared context is passed between media-resolution methods; it has no metadata host API.
         // Metadata compatibility here does not enable the package's media/download capabilities.
-        private val METADATA_FEATURES = setOf("preparedContext@1", "signedSession@1", "signedSession@2", "signedSession@3", "sessionGrant@1", "patternedFileTransform@1")
+        private val METADATA_FEATURES = setOf("preparedContext@1", "signedSession@1", "signedSession@2", "signedSession@3", "sessionGrant@1", "patternedFileTransform@1", "downloadSegments@1")
         fun compareVersions(left: String, right: String): Int {
             fun core(value: String) = value.substringBefore('+').substringBefore('-').split('.').map { it.toBigIntegerOrNull() ?: java.math.BigInteger.ZERO }
             val a = core(left); val b = core(right)

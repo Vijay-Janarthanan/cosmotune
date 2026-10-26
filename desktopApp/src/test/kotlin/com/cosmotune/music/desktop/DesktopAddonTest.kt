@@ -99,7 +99,8 @@ class DesktopAddonTest {
     fun immersiveMixesAreRecognisedWhereverTheAddonSaysSo() {
         assertTrue(DesktopAddonStream(quality = "Dolby Atmos").isDolbyAtmos)
         assertTrue(DesktopAddonStream(audioModes = listOf("DOLBY_ATMOS")).isDolbyAtmos)
-        assertTrue(DesktopAddonStream(codec = "eac3").isDolbyAtmos)
+        assertFalse(DesktopAddonStream(codec = "eac3").isDolbyAtmos)
+        assertTrue(DesktopAddonStream(codec = "eac3-joc").isDolbyAtmos)
         assertFalse(DesktopAddonStream(quality = "FLAC 24-bit").isDolbyAtmos)
 
         assertTrue(DesktopAddonTrack(audioModes = listOf("DOLBY_ATMOS")).isDolbyAtmos)

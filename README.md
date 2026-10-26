@@ -8,7 +8,9 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-Music videos in Now Playing use a steady 4:5 portrait frame, with playback controls clear of the picture and taller artist motion headers. [1.0.6 changes](docs/releases/1.0.6.md) · [Remaining work](docs/PENDING_WORK.md)
+Music videos in Now Playing use a steady 4:5 portrait frame, with playback controls clear of the picture and taller artist motion headers. [1.0.7 changes](docs/releases/1.0.7.md) · [Remaining work](docs/PENDING_WORK.md)
+
+Version 1.0.7 adds provider audio preparation and comparisons, tappable audio details, regional discovery and local playlist previews, automatic verification callbacks, and fixes for Windows playback freezing and Now Playing window dragging. Amazon passed actual Windows decoding as 24-bit/44.1 kHz FLAC; Qobuz package availability remains limited by its gateway. [Playback evidence](docs/PROVIDER_MEDIA_PREPARATION.md).
 
 <p>For Android, Windows, Linux and macOS, with a Wear OS watch app, an Android TV app and a browser companion. Free and open source.</p>
 
@@ -36,6 +38,10 @@ Music videos in Now Playing use a steady 4:5 portrait frame, with playback contr
 <sub>The pictures on this page are the app's own screens, drawn with made-up songs, artists and videos.</sub>
 
 </div>
+
+The 1.0.7 source adds source-comparison details, country/language discovery controls and locally ranked playlist previews. The 1.0.6 downloads do not include them. See the [provider inventory and validation](docs/PROVIDER_CAPABILITIES.md) and [Amazon resolution findings](docs/AMAZON_RESOLUTION_INVESTIGATION.md).
+
+Current development also adds [dedicated provider verification windows](docs/PROVIDER_VERIFICATION_BROWSER.md): complete the service's check and let Cosmotune handle the grant automatically, with manual recovery when needed. Windows Qobuz verification has live proof; audio preparation and other platform/device checks remain separately documented.
 
 ## Screenshots
 

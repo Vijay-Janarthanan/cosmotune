@@ -1550,7 +1550,8 @@ class DesktopPlaybackEngine(
             durationMs = (track.decoder.durationUs ?: 0L) / 1_000,
             // What the decoder is actually being fed, falling back to what the source promised only
             // until something has been measured.
-            streamFormat = track.decoder.measuredFormat ?: track.stream.format,
+            streamFormat = track.decoder.measuredFormat,
+            streamOffer = track.stream.format,
             streamSourceId = track.stream.sourceId,
             searchingBetter = track.song.videoId.let { it == searchingBetterFor || it == incomingSearchingFor },
             smartAnalysis = analysisStatus(track),

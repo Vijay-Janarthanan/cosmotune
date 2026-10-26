@@ -2,9 +2,19 @@
 
 Reviewed 2026-10-26 against FEATURE_TRACKER.md and the published 1.0.4/1.0.5 notes. A source implementation, a passing automated check, a hardware/account check and publication are separate evidence.
 
+## Version 1.0.7 preparation
+
+Automatic package-source comparison, tappable audio details, discovery country/language controls and local playlist preview/save are included in the 1.0.7 source. See [the provider capability matrix](PROVIDER_CAPABILITIES.md), [the Amazon investigation](AMAZON_RESOLUTION_INVESTIGATION.md) and [release notes](releases/1.0.7.md). They require the 1.0.7 installers; the 1.0.6 downloads do not contain them.
+
+The Windows playback freeze is fixed in source with native WASAPI recovery and UI-safe device readouts ([investigation](WINDOWS_PLAYBACK_FREEZE_2026-10-26.md)). Now Playing also restores desktop header dragging, and settings includes the creator credit. Publication and actual upgrade testing remain separate from local validation.
+
+The supplied Qobuz HTTP add-on has native FLAC decoding proof (24-bit/44.1 kHz and 16-bit/44.1 kHz for the two test songs). The separate Mornye Qobuz package has live session-verification proof through the dedicated window; its audio is a separate check. Amazon search, grant exchange, ticket delivery and [native preparation](PROVIDER_MEDIA_PREPARATION.md) now pass an actual Windows decode as 24-bit/44.1 kHz FLAC. E-AC-3/AC-4 decoding and immersive device output remain separate checks.
+
+The [operator follow-up](PROVIDER_OPERATORS.md) fixes the missing native verification entry, immediate grant exchange, retry and ticket-header preservation for the four signed packages. [Dedicated windows](PROVIDER_VERIFICATION_BROWSER.md) now capture the result automatically; real Windows Qobuz verification passed without pasting. Android service compatibility, macOS/Linux browser execution and downstream audio availability remain separate from protocol/UI checks.
+
 ## Unfinished integrations
 
-- Provider packages: manifest-aware HLS/DASH stream relaying and the SDK FFmpeg API; final real-provider and file-only Android walkthroughs (MN-04).
+- Provider packages: manifest-aware HLS/DASH stream relaying, SDK encoding options beyond stream copy, additional post-processing hooks, and final real-provider Android walkthroughs (MN-04). Native `ffmpeg.mov_key` decryption/remux and SDK file inspection/stream copy are implemented on desktop and Android; see [preparation evidence](PROVIDER_MEDIA_PREPARATION.md). Real macOS/Linux provider execution remains to be checked.
 - Manga: isolated verification browsers and cookie/user-agent handoff on Android and desktop for sites with browser checks (MG-08).
 - Party server: live deployment and server validation; the tracker records Go/native CI checks as outstanding and needs results reconciled against the actual release jobs (BC-36).
 - Android bounded queues: continuation growth, kill/restart restoration and Cast handover on a device (BC-05).

@@ -2365,41 +2365,45 @@ fun NowPlayingScreen(
                 // the top of the strip. As lyrics or the queue replace the
                 // album-cover player, it glides into the now-empty strip's
                 // vertical centre alongside the caption's fade.
-                Box(
-                    Modifier
-                        .align(Alignment.TopCenter)
-                        .offset {
-                            IntOffset(
-                                x = 0,
-                                y = lerp(
-                                    6.dp,
-                                    (topStrip - 5.dp).coerceAtLeast(0.dp) / 2,
-                                    p(),
-                                ).roundToPx(),
-                            )
-                        }
-                        .width(38.dp)
-                        .height(5.dp)
-                        .graphicsLayer { alpha = spotifyChromeAlpha }
-                        .shadow(2.dp, RoundedCornerShape(3.dp), clip = false)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(Color.White.copy(alpha = 0.70f)),
-                )
-                // [p] is the shared album-to-panel transition. Keeping this in
-                // composition until its final frame gives the caption a real
-                // fade on both entry and exit, but removes its click target
-                // entirely once lyrics or the queue owns the player.
-                if (!hideSongStatus) {
-                    WhileShown({ !collapseAlmostDone }) {
-                        PlaybackOriginCaption(
-                            text = playbackOriginText(song, playedBy),
-                            onClick = openPlaybackOrigin,
-                            textAlign = TextAlign.Center,
-                            contentPadding = PaddingValues(start = PLAYER_GUTTER, end = PLAYER_GUTTER, bottom = 1.dp),
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .graphicsLayer { alpha = (1f - p()) * spotifyChromeAlpha },
+                com.cosmotune.ui.shell.WindowCaptionArea(Modifier.matchParentSize()) {
+                    Box(Modifier.fillMaxSize()) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopCenter)
+                                .offset {
+                                    IntOffset(
+                                        x = 0,
+                                        y = lerp(
+                                            6.dp,
+                                            (topStrip - 5.dp).coerceAtLeast(0.dp) / 2,
+                                            p(),
+                                        ).roundToPx(),
+                                    )
+                                }
+                                .width(38.dp)
+                                .height(5.dp)
+                                .graphicsLayer { alpha = spotifyChromeAlpha }
+                                .shadow(2.dp, RoundedCornerShape(3.dp), clip = false)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color.White.copy(alpha = 0.70f)),
                         )
+                        // [p] is the shared album-to-panel transition. Keeping this in
+                        // composition until its final frame gives the caption a real
+                        // fade on both entry and exit, but removes its click target
+                        // entirely once lyrics or the queue owns the player.
+                        if (!hideSongStatus) {
+                            WhileShown({ !collapseAlmostDone }) {
+                                PlaybackOriginCaption(
+                                    text = playbackOriginText(song, playedBy),
+                                    onClick = openPlaybackOrigin,
+                                    textAlign = TextAlign.Center,
+                                    contentPadding = PaddingValues(start = PLAYER_GUTTER, end = PLAYER_GUTTER, bottom = 1.dp),
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .graphicsLayer { alpha = (1f - p()) * spotifyChromeAlpha },
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -44,7 +44,8 @@ class DesktopStreamFormatTest {
 
     @Test
     fun `dolby atmos is distinct from lossless`() {
-        val atmos = DesktopStreamFormat(codec = "eac3", kbps = 768)
+        val atmos = DesktopStreamFormat(codec = "eac3-joc", kbps = 768)
+        assertFalse(DesktopStreamFormat(codec = "eac3", kbps = 768).isDolbyAtmos)
         assertTrue(atmos.isDolbyAtmos)
         assertFalse(atmos.isLossless)
     }

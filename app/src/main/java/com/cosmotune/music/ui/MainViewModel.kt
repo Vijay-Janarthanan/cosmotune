@@ -1731,7 +1731,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         providerHomeJob?.cancel()
         providerHomeJob = viewModelScope.launch {
             try {
-                com.cosmotune.providers.ProviderHome.load(Locale.getDefault().country.ifBlank { "IN" }, Locale.getDefault().language) { shelves ->
+                com.cosmotune.providers.DiscoveryHome.load() { shelves ->
                     if (isCurrentHomeLoad(identity, generation)) publishProviderHomeShelves(shelves)
                 }
             } finally { homeShelfRequestSettled(identity, generation) }
@@ -1855,7 +1855,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val generation = homeLoadGeneration.get()
         providerHomeJob?.cancel()
         providerHomeJob = viewModelScope.launch {
-            com.cosmotune.providers.ProviderHome.load(Locale.getDefault().country.ifBlank { "IN" }, Locale.getDefault().language, force = true) { shelves ->
+            com.cosmotune.providers.DiscoveryHome.load(force = true) { shelves ->
                 if (isCurrentHomeLoad(identity, generation)) publishProviderHomeShelves(shelves)
             }
         }

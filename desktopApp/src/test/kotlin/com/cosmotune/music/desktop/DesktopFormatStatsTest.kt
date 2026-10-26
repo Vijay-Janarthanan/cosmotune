@@ -9,6 +9,18 @@ import kotlin.test.assertTrue
 
 /** The desktop engine's stream format reaches the shared player format line with the phone's bitrate rules. */
 class DesktopFormatStatsTest {
+    @Test fun positiveDecoderJocProfileAndProviderOfferRemainSeparateFromReceivedPcm() {
+        assertEquals("eac3", observedCodecName("eac3", "Dolby Digital Plus"))
+        assertEquals("eac3-joc", observedCodecName("eac3", "Dolby Digital Plus + Dolby Atmos"))
+        val snapshot = desktopNerdSnapshot(DesktopStreamFormat("aac", 128, 48000), "source",
+            DesktopStreamFormat("flac", sampleRateHz = 96000, bitDepth = 24), "Provider")!!
+        assertEquals("Provider", snapshot.sourceName)
+        assertEquals("source", snapshot.sourceId)
+        assertEquals("audio/aac", snapshot.mimeType)
+        assertEquals("flac", snapshot.claimed?.codec)
+        assertTrue(snapshot.downgraded)
+    }
+
     @Test fun anEncodedStreamShowsCodecBitrateAndRate() {
         val stats = desktopNerdSnapshot(DesktopStreamFormat(codec = "opus", kbps = 141, sampleRateHz = 48_000, channels = 2), "youtube")
         assertEquals(TelemetryProvenance.AUTHORITATIVE, stats?.bitrateProvenance)

@@ -522,6 +522,15 @@ object Innertube {
 
     // ---- Public API ---------------------------------------------------------
 
+    /** Music charts have an explicit country form; ZZ means global, independent of app UI locale. */
+    suspend fun discoveryCharts(country: String): JsonObject {
+        require(country == "ZZ" || country in java.util.Locale.getISOCountries())
+        return postMusic("browse") {
+            put("browseId", "FEmusic_charts")
+            putJsonObject("formData") { putJsonArray("selectedValues") { add(country) } }
+        }
+    }
+
     suspend fun browse(browseId: String, params: String? = null): JsonObject =
         postMusic("browse") {
             put("browseId", browseId)

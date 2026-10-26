@@ -3091,6 +3091,10 @@ private fun CosmotuneApp(
                         )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> com.cosmotune.ui.home.HomeSwitch(
+                            playlistSongs = listeningLibraryPage?.likedSongs.orEmpty() + listeningLibraryPage?.librarySongs.orEmpty() + listeningHistory + localPlaylists.flatMap { it.songs } + player.queue,
+                            saveGeneratedPlaylist = { name, songs -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                com.cosmotune.music.data.spotify.LocalPlaylistStore.savePlaylist(name, songs)
+                            }; Unit },
                             state = homeState,
                             listState = homeListState,
                             currentSong = player.song,

@@ -132,10 +132,10 @@ class NowPlayingPanelsContractTest {
         val handlers = Regex("""PlayerBackHandler\(enabled = ([\w.]+)""").findAll(src).map { it.groupValues[1] }.toList()
         // a later call is the one back reaches first: the lyrics, the queue, then the sheets
         assertEquals(
-            listOf("panels.lyricsOpen", "panels.queueOpen", "flags.output", "flags.providers", "flags.members", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
+            listOf("panels.lyricsOpen", "panels.queueOpen", "flags.output", "flags.providers", "flags.members", "flags.details", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
             handlers,
         )
-        assertTrue(src.indexOf("PlayerBackHandler(enabled = panels.queueOpen && !wide)") in 0 until src.indexOf("NowPlayingSheets(\n                flags"), "the panels register before the sheets")
+        assertTrue(src.indexOf("PlayerBackHandler(enabled = panels.queueOpen && !wide)") in 0 until src.indexOf("NowPlayingSheets(\n                song"), "the panels register before the sheets")
         assertTrue(src.contains("PlayerBackHandler(enabled = panels.lyricsOpen && !wide)"), "in a wide window the tabs are not layers back peels off")
     }
 

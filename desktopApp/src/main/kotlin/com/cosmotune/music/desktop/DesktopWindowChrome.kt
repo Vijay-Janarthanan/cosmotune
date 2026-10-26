@@ -237,6 +237,9 @@ private fun Modifier.captionPress(scope: WindowScope, actions: DesktopWindowActi
         var lastPressPosition = Offset.Zero
         awaitEachGesture {
             val down = awaitFirstDown()
+            // The empty caption owns this gesture; the player sheet below must not
+            // also interpret a window move as dismiss/skip or a Canvas tap.
+            down.consume()
             val double = down.uptimeMillis - lastPressAt <= viewConfiguration.doubleTapTimeoutMillis &&
                 (down.position - lastPressPosition).getDistance() <= viewConfiguration.touchSlop
             if (double) {

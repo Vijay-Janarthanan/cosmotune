@@ -216,7 +216,7 @@ private val HI_RES_HINT = Regex("""hi[-_ ]?res|24[-_ ]?bit""", RegexOption.IGNOR
  * the same vocabulary, and a row recognised as Atmos whose stream is not (or
  * the reverse) is the inconsistency that costs a track its immersive mix.
  */
-private val ATMOS_HINT = Regex("""atmos|dolby|eac3[_-]?joc|ec-?3""", RegexOption.IGNORE_CASE)
+private val ATMOS_HINT = Regex("""atmos|e-?ac-?3[_ -]?joc|ec-?3[_ -]?joc""", RegexOption.IGNORE_CASE)
 
 // ── Stream ───────────────────────────────────────────────────────────────
 

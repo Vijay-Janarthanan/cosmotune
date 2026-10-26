@@ -30,7 +30,7 @@ data class StreamFormat(
      * so callers that care have to say what they want done about it.
      */
     val isLossless: Boolean?
-        get() = codec?.let { it in LOSSLESS_CODECS }
+        get() = codec?.substringAfterLast('/')?.lowercase(Locale.ROOT)?.let { it in LOSSLESS_CODECS || it.startsWith("pcm_") }
 
     /** Dolby Atmos carried in E-AC-3 JOC. This is immersive, but not lossless. */
     val isDolbyAtmos: Boolean
@@ -46,7 +46,7 @@ data class StreamFormat(
         ).joinToString(" · ").ifEmpty { "Unknown format" }
 
     private companion object {
-        val LOSSLESS_CODECS = setOf("flac", "alac", "wav", "aiff", "ape", "wv", "dsf", "dff")
+        val LOSSLESS_CODECS = setOf("flac", "alac", "wav", "aiff", "ape", "wv", "dsf", "dff", "raw", "pcm", "wavpack")
         val DOLBY_ATMOS_CODECS = setOf("eac3-joc", "ec3-joc", "dolby-atmos")
     }
 }

@@ -33,7 +33,10 @@ class ProviderSignedSessionTest {
             permissions = ProviderPermissions(listOf("localhost"), storage = true), signedSession = config), "0".repeat(64), allowLocalNetwork = true)
         val store = ProviderStore(temporary.newFolder(), UnsealedProviderFiles)
         val trust = HandshakeCertificates.Builder().addTrustedCertificate(certificate.certificate).build()
-        val network = ProviderNetwork(install.manifest.permissions, true, OkHttpClient.Builder().sslSocketFactory(trust.sslSocketFactory(), trust.trustManager).build())
+        val timeouts = mutableListOf<Pair<String, Int>>()
+        val http = OkHttpClient.Builder().sslSocketFactory(trust.sslSocketFactory(), trust.trustManager)
+            .addInterceptor { chain -> timeouts.add(chain.request().url.encodedPath to chain.readTimeoutMillis()); chain.proceed(chain.request()) }.build()
+        val network = ProviderNetwork(install.manifest.permissions, true, http)
         init { runBlocking { store.update { it.copy(installed = listOf(install)) } } }
         val session = ProviderSignedSession(install, store, network) { clock }
         fun record(id: String = "session-fixture", secret: String = "secret-fixture", lifetime: Long = 7_200_000) = buildJsonObject {
@@ -56,10 +59,23 @@ class ProviderSignedSessionTest {
         assertEquals("uKWKnHEIr-jd-aRrbvlk-sLZ_0Q-4NvnjjqORPgmeqs", headers["X-Test-Signature"])
     }
 
+    @Test fun preparingAudioHasABoundedLongerResponseDeadlineWhileMetadataKeepsItsDeadline() {
+        Fixture().use { f ->
+            f.enqueue(); f.enqueue(buildJsonObject { put("success", true) }); f.enqueue(buildJsonObject { put("success", true) })
+            assertEquals(JsonPrimitive(true), f.fetch("POST", "/dl/qbz", "{}", buildJsonObject { put("X-Test-Ticket", "ticket") })["ok"])
+            assertEquals(JsonPrimitive(true), f.fetch()["ok"])
+            assertEquals(listOf("/v2/bootstrap" to 15_000, "/v2/dl/qbz" to 60_000, "/v2/songs" to 15_000), f.timeouts)
+            f.received(); assertEquals("ticket", f.received().getHeader("X-Test-Ticket")); f.received()
+        }
+    }
+
     @Test fun bootstrapAndSignedRequestsUseRealTlsAndCannotOverrideTheSignature() {
         Fixture().use { f ->
             f.enqueue(); f.enqueue(buildJsonObject { put("songs", true) })
-            val response = f.fetch("POST", "/songs", """{"hello":"world"}""", buildJsonObject { put("x-test-signature", "forged"); put("X-Trace", "trace") })
+            val response = f.fetch("POST", "/songs", """{"hello":"world"}""", buildJsonObject {
+                put("x-test-signature", "forged"); put("X-Trace", "trace"); put("x-test-ticket", "operation-ticket")
+                put("X-Test-Session", "forged-session"); put("CONTENT-TYPE", "text/plain")
+            })
             assertEquals(JsonPrimitive(true), response["ok"])
             val bootstrap = f.received(); val sent = f.received()
             assertEquals("/v2/bootstrap", bootstrap.requestUrl!!.encodedPath)
@@ -68,6 +84,8 @@ class ProviderSignedSessionTest {
             assertNull(bootstrap.getHeader("X-Test-Signature"))
             assertEquals("/v2/songs", sent.path); assertEquals("trace", sent.getHeader("X-Trace"))
             assertEquals("session-fixture", sent.getHeader("X-Test-Session"))
+            assertEquals("operation-ticket", sent.getHeader("X-Test-Ticket"), "The one-use download ticket must survive signing")
+            assertEquals("application/json; charset=utf-8", sent.getHeader("Content-Type"))
             assertNotEquals("forged", sent.getHeader("X-Test-Signature"))
             assertTrue(sent.getHeader("X-Test-Nonce")!!.matches(Regex("[0-9a-f]{32}")))
             assertEquals("93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588", sent.getHeader("X-Test-Body-SHA256"))
@@ -209,12 +227,12 @@ class ProviderSignedSessionTest {
         }
     }
 
-    @Test fun appOwnedGrantCallbackRoutesThroughTheManagerAndCompletesTheSdkExchange() = runBlocking<Unit> {
+    @Test fun appOwnedGrantCallbackAutomaticallyExchangesAndKeepsOlderSdkCallsCompatible() = runBlocking<Unit> {
         Fixture().use { f ->
             f.clock = System.currentTimeMillis()
             val install = f.install.copy(manifest = f.install.manifest.copy(signedSession = JsonObject(f.config - "callbackUrl")))
             f.store.update { it.copy(installed = listOf(install)) }
-            ProviderManager(f.store).use { manager ->
+            ProviderManager(f.store, httpClient = f.http).use { manager ->
                 val route = ProviderNativeAuthRoute("com.cosmotune.tv")
                 manager.configureNativeAuthentication(route::allows, "com.cosmotune.tv://provider-auth/session-grant")
                 val client = ProviderSignedSession(install, f.store, f.network) { f.clock }
@@ -225,13 +243,128 @@ class ProviderSignedSessionTest {
                 assertTrue(nested.startsWith("com.cosmotune.tv://provider-auth/session-grant?"))
                 assertTrue(manager.prepareBrowserAuthentication("fixture").automaticCallback)
                 val callback = nested + "&grant=app-owned-grant"
+                f.enqueue()
                 assertEquals("fixture", manager.completeRoutedAuthentication(callback))
                 assertNull(manager.completeRoutedAuthentication(callback))
-                f.enqueue()
+                assertEquals(JsonPrimitive(true), client.call("status", JsonArray(emptyList())).jsonObject["authenticated"])
+                assertNull(f.store.state.value.auth["fixture"]?.get("pending"))
                 assertEquals(JsonPrimitive(true), client.call("completeGrant", JsonArray(emptyList())).jsonObject["success"])
                 f.received()
                 assertEquals("app-owned-grant", Json.parseToJsonElement(f.received().body.readUtf8()).jsonObject["grant"]?.jsonPrimitive?.content)
                 assertFailsWith<IllegalArgumentException> { manager.prepareBrowserAuthentication("fixture") }
+            }
+        }
+    }
+
+    @Test fun nativeVerificationStartsWithoutAnExtensionButtonAndFailedExchangeCanBeRetried() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.clock = System.currentTimeMillis()
+            ProviderManager(f.store, httpClient = f.http).use { manager ->
+                assertTrue(f.install.manifest.settings.isEmpty())
+                f.enqueue(buildJsonObject { put("challenge_id", "native-entry") })
+                assertFalse(manager.verifyProviderAccess("fixture"))
+                val address = requireNotNull(manager.authenticationUrl("fixture")).toHttpUrl()
+                assertFalse(manager.verifyProviderAccess("fixture"), "Opening settings must reuse the pending challenge")
+                assertEquals(1, f.server.requestCount)
+                val callback = address.queryParameter("cb")!! + "&grant=native-grant"
+                assertFailsWith<IllegalArgumentException> { f.session.call("completeGrant", buildJsonArray { add("unverified-grant") }) }
+                f.enqueue(buildJsonObject { put("error", "temporary") }, 503)
+                assertFailsWith<IllegalArgumentException> { manager.completeAuthentication("fixture", callback) }
+                assertEquals(JsonPrimitive(true), f.store.state.value.auth["fixture"]?.get("pending")?.jsonObject?.get("completed"))
+                f.enqueue()
+                assertTrue(manager.verifyProviderAccess("fixture"))
+                assertNull(f.store.state.value.auth["fixture"]?.get("pending"))
+                assertNull(f.store.state.value.auth["fixture"]?.get("grant"))
+                val requests = (1..3).map { f.received() }
+                assertEquals(listOf("/v2/bootstrap", "/v2/session/exchange", "/v2/session/exchange"), requests.map { it.requestUrl!!.encodedPath })
+                assertTrue(requests.drop(1).all { Json.parseToJsonElement(it.body.readUtf8()).jsonObject["grant"] == JsonPrimitive("native-grant") })
+            }
+        }
+    }
+
+    @Test fun desktopVerificationReturnsOverLoopbackAndWaitsForTheOperatorExchange() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.clock = System.currentTimeMillis()
+            val install = f.install.copy(manifest = f.install.manifest.copy(signedSession = JsonObject(f.config - "callbackUrl")))
+            f.store.update { it.copy(installed = listOf(install)) }
+            ProviderManager(f.store, httpClient = f.http).use { manager ->
+                f.enqueue(buildJsonObject { put("challenge_id", "desktop-entry") })
+                assertFalse(manager.verifyProviderAccess("fixture"))
+                val redirect = requireNotNull(manager.authenticationUrl("fixture")).toHttpUrl().queryParameter("cb")!!
+                assertEquals("127.0.0.1", java.net.URI(redirect).host)
+                manager.prepareBrowserAuthentication("fixture").use { browser ->
+                    assertTrue(browser.automaticCallback)
+                    // The former five-second callback budget could cut off a legitimate exchange.
+                    f.server.enqueue(MockResponse().setBody(f.record().toString()).setBodyDelay(6, TimeUnit.SECONDS))
+                    withContext(Dispatchers.IO) {
+                        val request = java.net.URI("$redirect&grant=desktop-grant").toURL().openConnection(java.net.Proxy.NO_PROXY) as java.net.HttpURLConnection
+                        request.readTimeout = 15_000
+                        try { assertEquals(200, request.responseCode); request.inputStream.close() } finally { request.disconnect() }
+                    }
+                    assertNotNull(f.store.state.value.auth["fixture"]?.get("signedSession")?.jsonObject?.get("session_secret"))
+                    assertNull(f.store.state.value.auth["fixture"]?.get("pending"))
+                    f.received()
+                    assertEquals("/v2/session/exchange", f.received().path)
+                }
+            }
+        }
+    }
+
+    @Test fun restartingAnExpiredVerificationReplacesItsOldGrantAndProof() {
+        Fixture().use { f ->
+            val (callback, _) = challenge(f)
+            f.session.completeCallback(callback)
+            f.clock += 180_001
+            f.enqueue(buildJsonObject { put("challenge_id", "fresh-entry") })
+            assertEquals(JsonPrimitive(false), f.session.call("beginVerification", JsonArray(emptyList())).jsonObject["authenticated"])
+            assertNull(f.store.state.value.auth["fixture"]?.get("grant"))
+            assertFailsWith<IllegalArgumentException> { f.session.completeCallback(callback) }
+            assertEquals(2, f.server.requestCount)
+        }
+    }
+
+    @Test fun anExplicitManualGrantUsesTheSelectedInstallAndTheOperatorsExpiryValidation() = runBlocking<Unit> {
+        Fixture().use { f ->
+            f.clock = System.currentTimeMillis()
+            val (callback, _) = challenge(f)
+            f.clock += 180_001
+            assertFailsWith<IllegalArgumentException> { f.session.completeCallback(callback) }
+            val installId = f.session.call("status", JsonArray(emptyList())).jsonObject["install_id"]
+            ProviderManager(f.store, httpClient = f.http).use { manager ->
+                assertFailsWith<IllegalArgumentException> { manager.completeAuthentication("fixture", "grant=fixture&state=untrusted") }
+                f.enqueue(buildJsonObject { put("code", "GRANT_EXPIRED"); put("secret", "must-not-appear") }, 400)
+                val rejected = assertFailsWith<ProviderVerificationException> { manager.completeAuthentication("fixture", "grant=expired-grant") }
+                assertEquals(400, rejected.httpStatus)
+                assertEquals("GRANT_EXPIRED", rejected.operatorCode)
+                assertFalse(rejected.message.orEmpty().contains("must-not-appear"))
+                f.enqueue()
+                manager.completeAuthentication("fixture", "grant=valid-manual-grant")
+                val requests = (1..2).map { f.received() }
+                val sent = Json.parseToJsonElement(requests.last().body.readUtf8()).jsonObject
+                assertEquals(JsonPrimitive("valid-manual-grant"), sent["grant"])
+                assertEquals(installId, sent["install_id"])
+                assertEquals(3, f.server.requestCount)
+                assertNull(f.store.state.value.auth["fixture"]?.get("pending"))
+                assertNull(f.store.state.value.auth["fixture"]?.get("grant"))
+                assertNotNull(f.store.state.value.auth["fixture"]?.get("signedSession")?.jsonObject?.get("session_secret"))
+            }
+        }
+    }
+
+    @Test fun anEmbeddedBrowserCannotReturnToAChangedPackageOrDisconnectedSession() = runBlocking<Unit> {
+        Fixture().use { f ->
+            ProviderManager(f.store, httpClient = f.http).use { manager ->
+                f.enqueue(buildJsonObject { put("challenge_id", "owned-window") })
+                assertFalse(manager.verifyProviderAccess("fixture"))
+                val target = manager.verificationTarget("fixture")
+                val auth = f.store.state.value.auth
+                f.store.update { old -> old.copy(installed = listOf(f.install.copy(sha256 = "1".repeat(64)))) }
+                assertFailsWith<IllegalArgumentException> { manager.completeAuthentication("fixture", "grant=late-grant", target) }
+                assertEquals(auth, f.store.state.value.auth)
+                f.store.update { old -> old.copy(installed = listOf(f.install)) }
+                manager.clearAuthentication("fixture")
+                assertFailsWith<IllegalArgumentException> { manager.completeAuthentication("fixture", "grant=late-grant", target) }
+                assertEquals(1, f.server.requestCount, "A stale browser must not send its grant to any operator")
             }
         }
     }

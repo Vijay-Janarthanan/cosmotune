@@ -9,7 +9,7 @@ import kotlinx.serialization.json.*
 /** Provider shelves supplement the native Home feed without delaying its other sources. */
 object ProviderHome {
     suspend fun load(region: String, language: String, force: Boolean = false,
-        manager: ProviderManager? = null, publish: (List<HomeShelf>) -> Unit) {
+        manager: ProviderManager? = null, overrideLocale: Boolean = false, publish: (List<HomeShelf>) -> Unit) {
         val ready = manager ?: withTimeoutOrNull(5_000) { ProviderHub.state.first { !it.loading }.manager } ?: return
         val state = ready.store.state.value
         coroutineScope {
@@ -19,8 +19,8 @@ object ProviderHome {
                 val effective = installed.manifest.effectiveSettings(settings.orEmpty())
                 val regionKey = (installed.manifest.capabilities["homeFeedRegionSetting"] as? JsonPrimitive)?.contentOrNull
                 val languageKey = installed.manifest.settings.firstOrNull { it.key in setOf("lang", "language", "locale") }?.key
-                val country = regionKey?.let { (effective[it] as? JsonPrimitive)?.contentOrNull }?.takeIf { it.isNotBlank() } ?: region
-                val locale = languageKey?.let { (effective[it] as? JsonPrimitive)?.contentOrNull }?.takeIf { it.isNotBlank() } ?: language
+                val country = if (overrideLocale) region else regionKey?.let { (effective[it] as? JsonPrimitive)?.contentOrNull }?.takeIf { it.isNotBlank() } ?: region
+                val locale = if (overrideLocale) language else languageKey?.let { (effective[it] as? JsonPrimitive)?.contentOrNull }?.takeIf { it.isNotBlank() } ?: language
                 try {
                     val sections = ready.home(name, country, locale, force)
                     currentCoroutineContext().ensureActive()

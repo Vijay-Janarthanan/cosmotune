@@ -42,7 +42,7 @@ internal actual suspend fun createProviderScriptSession(code: String, config: Js
                 providerRuntimeWork(cancel = { cancelHost(); context.close(true) }) {
                     check(!closed) { "Provider runtime is closed" }
                     context.resetLimits()
-                    val pending = providerDeadlines.schedule({ cancelHost(); context.close(true) }, timeoutMs.coerceIn(1, 30_000), TimeUnit.MILLISECONDS)
+                    val pending = providerDeadlines.schedule({ cancelHost(); context.close(true) }, timeoutMs.coerceIn(1, if (method == "download") 120_000 else 30_000), TimeUnit.MILLISECONDS)
                     try {
                         context.eval("js", ProviderScripts.invoke(method, args))
                         val error = context.eval("js", "__cosmotuneFailure || null")

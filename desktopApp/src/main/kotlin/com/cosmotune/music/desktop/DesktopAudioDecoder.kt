@@ -262,7 +262,7 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
             ?: av_get_bytes_per_sample(context.sample_fmt()).takeIf { it > 0 }?.times(8)
         val bits = context.bit_rate().takeIf { it > 0 } ?: container.bit_rate().takeIf { it > 0 }
         return DesktopStreamFormat(
-            codec = codecName,
+            codec = observedCodecName(codecName, org.bytedeco.ffmpeg.global.avcodec.avcodec_profile_name(context.codec_id(), context.profile())?.string),
             kbps = bits?.let { (it / 1_000).toInt() }?.takeIf { it > 0 },
             sampleRateHz = context.sample_rate().takeIf { it > 0 },
             bitDepth = depth?.takeIf { lossless },

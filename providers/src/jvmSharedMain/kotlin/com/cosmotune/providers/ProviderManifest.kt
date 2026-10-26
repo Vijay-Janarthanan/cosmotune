@@ -17,8 +17,11 @@ import kotlinx.serialization.json.*
     val minAppVersion: String = "0.0.0", val requiredRuntimeFeatures: List<String> = emptyList(),
     val settings: List<ProviderSetting> = emptyList(), val qualityOptions: List<ProviderQuality> = emptyList(),
     val capabilities: JsonObject = JsonObject(emptyMap()), val signedSession: JsonObject? = null,
-    val urlHandler: JsonObject = JsonObject(emptyMap())) {
+    val urlHandler: JsonObject = JsonObject(emptyMap()), val searchBehavior: JsonObject = JsonObject(emptyMap())) {
     val title: String get() = displayName.ifBlank { name }
+    val trackSearchFilter: String get() = (searchBehavior["filters"] as? JsonArray).orEmpty().firstNotNullOfOrNull {
+        ((it as? JsonObject)?.get("id") as? JsonPrimitive)?.contentOrNull?.takeIf { id -> id in setOf("songs", "song", "tracks", "track") }
+    } ?: "tracks"
     val homeFeed: Boolean get() = capabilities["homeFeed"]?.jsonPrimitive?.booleanOrNull == true
 
     fun validate(): ProviderManifest = apply {

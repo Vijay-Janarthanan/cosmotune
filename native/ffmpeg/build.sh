@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds app/src/main/jniLibs/<abi>/libffmpegJNI.so: Media3's FFmpeg audio
 # decoder JNI (ffmpeg_jni.cc, beside this script) statically linked against
-# libavcodec + libavutil from librempeg.
+# libavformat + libavcodec + libavutil from librempeg. The same library also
+# probes and prepares scoped provider audio through provider_media_jni.cc.
 #
 # Why librempeg rather than FFmpeg: it is the only FFmpeg line with an AC-4
 # decoder, and AC-4 is what Dolby music downloads increasingly come as. Phones
@@ -16,8 +17,8 @@
 # --disable-everything it carries no filters.
 #
 # Run from any bash with GNU make, e.g. MSYS2 on Windows:
-#   D:/msys64/usr/bin/bash.exe -lc "/d/AndroidPorjects/Cosmotune/native/ffmpeg/build.sh"
-# Needs: git, make, a host C compiler (HOST_CC, default gcc — configure only
+#   bash native/ffmpeg/build.sh
+# Needs: git, make, nasm (for x86_64), a host C compiler (HOST_CC, default gcc — configure only
 # probes it), and an Android NDK (ANDROID_NDK or the one pinned below).
 set -euo pipefail
 
@@ -54,6 +55,8 @@ build_abi() {
     local prefix="$WORK/prefix/$abi"
     echo "==> $abi"
     cd "$SRC"
+    # For JNI-only edits, retain the already-built static libraries per ABI.
+    if [ "${LINK_ONLY:-0}" != 1 ]; then
     # In-tree on purpose: an out-of-tree build writes absolute source paths
     # into the .d files, and on Windows those carry a drive colon make
     # cannot parse. One tree, cleaned between ABIs.
@@ -70,13 +73,19 @@ build_abi() {
         --enable-gpl --enable-version3 \
         --enable-static --disable-shared --enable-pic \
         --disable-autodetect --disable-programs --disable-doc \
-        --disable-avdevice --disable-avformat --disable-swscale \
+        --disable-avdevice --disable-swscale \
         --enable-avfilter \
         --disable-network --disable-everything \
+        --enable-avformat --enable-protocol=file \
+        --enable-demuxer=mov,flac,mp3,aac,ogg,wav,aiff,matroska,dsf,iff \
+        --enable-muxer=flac,mp4,ogg,opus,mp3,adts,wav \
+        --enable-parser=aac,flac,mpegaudio,opus,vorbis \
+        --enable-bsf=aac_adtstoasc,extract_extradata \
         --enable-decoder="$DECODERS" \
         ${EXTRA_CONFIGURE:-} $6 >/dev/null
-    make -j"$JOBS" >/dev/null
-    make install >/dev/null
+    make V=1 -j"$JOBS" >/dev/null
+    make V=1 install >/dev/null
+    fi
 
     local out="$REPO/app/src/main/jniLibs/$abi"
     mkdir -p "$out"
@@ -86,11 +95,11 @@ build_abi() {
     command -v cygpath >/dev/null && native_prefix="$(cygpath -m "$prefix")"
     # avcodec and avfilter reference each other in librempeg, hence the group.
     "$TC/clang++$EXE" --target="$triple$API" -shared -fPIC -O2 -fvisibility=hidden \
-        -I"$native_prefix/include" "$HERE/ffmpeg_jni.cc" \
+        -I"$native_prefix/include" "$HERE/ffmpeg_jni.cc" "$HERE/provider_media_jni.cc" \
         -L"$native_prefix/lib" \
-        -Wl,--start-group -lavcodec -lavfilter -lavutil -Wl,--end-group -llog -lm \
+        -Wl,--start-group -lavformat -lavcodec -lavfilter -lavutil -Wl,--end-group -llog -lm -lz \
         -static-libstdc++ -Wl,--exclude-libs,ALL -Wl,--gc-sections \
-        -Wl,-z,max-page-size=16384 -Wl,-soname,libffmpegJNI.so \
+        -Wl,--no-undefined -Wl,-z,max-page-size=16384 -Wl,-soname,libffmpegJNI.so \
         -o "$out/libffmpegJNI.so"
     "$TC/llvm-strip$EXE" --strip-unneeded "$out/libffmpegJNI.so"
     echo "    $(wc -c < "$out/libffmpegJNI.so") bytes -> $out/libffmpegJNI.so"
@@ -101,8 +110,7 @@ for abi in $ABIS; do
     case $abi in
         arm64-v8a) build_abi arm64-v8a aarch64-linux-android aarch64 armv8-a "" "" ;;
         armeabi-v7a) build_abi armeabi-v7a armv7a-linux-androideabi arm armv7-a "-mfpu=neon -mfloat-abi=softfp" "--enable-neon" ;;
-        # No nasm on the build machine; x86_64 is the emulator, not a phone.
-        x86_64) build_abi x86_64 x86_64-linux-android x86_64 x86-64 "" "--disable-x86asm" ;;
+        x86_64) build_abi x86_64 x86_64-linux-android x86_64 x86-64 "" "" ;;
         *) echo "unknown ABI $abi" >&2; exit 1 ;;
     esac
 done

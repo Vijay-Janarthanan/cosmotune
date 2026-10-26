@@ -380,7 +380,7 @@ fun CosmoNowPlaying(
         )
     }
 
-    CompositionLocalProvider(LocalCosmoColors provides colors) {
+    CompositionLocalProvider(LocalCosmoColors provides colors, LocalOpenAudioDetails provides { sheets.details = true }) {
         PlayerStatusBarIcons(reveal = if (wide) noReveal else reveal, lightTheme = lightTheme)
         Box(modifier.fillMaxSize()) {
             // The portrait page fits any window; a window wider than tall gets the two panes, and from 840 x 600 dp the wide page.
@@ -390,7 +390,7 @@ fun CosmoNowPlaying(
                 NowPlayingLayout.WIDE -> widePage()
             }
             NowPlayingSheets(
-                flags = sheets, hazeState = playerHaze, accountName = accountName, isPlaying = isPlaying,
+                song = song, flags = sheets, hazeState = playerHaze, accountName = accountName, isPlaying = isPlaying,
                 lyricsSource = lyricsSource, lyricsProviderStates = lyricsProviderStates, onSelectLyricsProvider = onSelectLyricsProvider,
                 lyricsOffsetOpen = lyricsOffsetOpen, onDismissLyricsOffset = onDismissLyricsOffset, onListenTogether = onListenTogether,
             )
@@ -503,6 +503,7 @@ internal class NowPlayingPanels(restored: LastPlayerScreen) {
 internal class NowPlayingSheetFlags {
     var output by mutableStateOf(false)
     var providers by mutableStateOf(false)
+    var details by mutableStateOf(false)
     var pipeline by mutableStateOf(false)
     var cast by mutableStateOf(false)
     var members by mutableStateOf(false)
@@ -517,6 +518,7 @@ internal class NowPlayingSheetFlags {
  */
 @Composable
 private fun NowPlayingSheets(
+    song: Song,
     flags: NowPlayingSheetFlags,
     hazeState: HazeState,
     accountName: String?,
@@ -531,6 +533,7 @@ private fun NowPlayingSheets(
     PlayerBackHandler(enabled = flags.output) { flags.output = false }
     PlayerBackHandler(enabled = flags.providers) { flags.providers = false }
     PlayerBackHandler(enabled = flags.members) { flags.members = false }
+    PlayerBackHandler(enabled = flags.details) { flags.details = false }
     PlayerBackHandler(enabled = flags.pipeline) { flags.pipeline = false }
     PlayerBackHandler(enabled = flags.cast) { flags.cast = false }
     PlayerBackHandler(enabled = lyricsOffsetOpen, onBack = onDismissLyricsOffset)
@@ -551,6 +554,10 @@ private fun NowPlayingSheets(
             onSelect = onSelectLyricsProvider,
             onDismiss = { flags.providers = false },
         )
+    }
+    if (flags.details) {
+        AudioDetailsSheet(song, hazeState, onDismiss = { flags.details = false },
+            onPipeline = { flags.details = false; flags.pipeline = true })
     }
     if (flags.pipeline) {
         AudioPipelineDialog(hazeState = hazeState, isPlaying = isPlaying, onDismiss = { flags.pipeline = false })

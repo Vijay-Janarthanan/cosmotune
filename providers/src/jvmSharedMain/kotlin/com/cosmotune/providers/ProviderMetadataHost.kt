@@ -15,13 +15,19 @@ import kotlinx.serialization.json.*
 /** Metadata host APIs shared by Android and desktop. Media/file APIs have a separate scoped host. */
 class ProviderMetadataHost(private val install: ProviderInstall, private val store: ProviderStore,
     val network: ProviderNetwork = ProviderNetwork(install.manifest.permissions, install.allowLocalNetwork,
-        cookieJar = ProviderCookieJar.forProvider(install, store))) {
+        cookieJar = ProviderCookieJar.forProvider(install, store)),
+    mediaTools: ProviderMediaTools? = ProviderMediaTools.installed) {
     private val work = ProviderHostWork(network::cancel)
     private val mutableProgress = kotlinx.coroutines.flow.MutableStateFlow<ProviderWorkProgress?>(null)
     val progress: kotlinx.coroutines.flow.StateFlow<ProviderWorkProgress?> get() = mutableProgress
     private val progressLock = Any()
     private var lastProgress = 0L
     @Volatile private var status = "Working with provider"
+    @Volatile internal var lastFailedApi: String? = null
+        private set
+    @Volatile internal var lastFailureKind: String? = null
+        private set
+    @Volatile private var workApi: String? = null
     private fun report(value: ProviderWorkProgress, force: Boolean = false) = synchronized(progressLock) {
         val now = System.nanoTime()
         if (force || now - lastProgress >= 100_000_000) { lastProgress = now; mutableProgress.value = value }
@@ -33,11 +39,14 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
     internal val files by lazy { ProviderFiles(java.io.File(store.root, "workspaces/${install.manifest.name}"), network,
         progress = { bytes, total -> fileProgress(bytes, total) },
         segmentProgress = { bytes, total, completed, count -> fileProgress(bytes, total, completed, count) }) }
+    internal val mediaProcessing by lazy { ProviderMediaProcessing(files, mediaTools) { network.isCancelled } }
     fun cancel() { network.cancel(); work.close(); mutableProgress.value = null }
     private val auth by lazy { ProviderAuth(install, store, network) }
     private val session by lazy { ProviderSignedSession(install, store, network) }
     @Volatile private var started = System.nanoTime()
-    fun beginOperation() { check(!network.isCancelled); started = System.nanoTime(); synchronized(progressLock) { lastProgress = 0; mutableProgress.value = null }; status = "Working with provider" }
+    @Volatile private var operationTimeoutMs = 30_000L
+    internal fun allowPreparedMedia() { operationTimeoutMs = 120_000 }
+    fun beginOperation() { check(!network.isCancelled); started = System.nanoTime(); operationTimeoutMs = 30_000; lastFailedApi = null; lastFailureKind = null; workApi = null; synchronized(progressLock) { lastProgress = 0; mutableProgress.value = null }; status = "Working with provider" }
 
     fun bridge(method: String, encoded: String): String {
         return try {
@@ -47,14 +56,15 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
             val response = when {
                 method == "work.poll" -> work.poll(args[0].jsonPrimitive.content)
                 method == "work.cancel" -> { work.cancel(args[0].jsonPrimitive.content); buildJsonObject { put("value", JsonNull) } }
-                method in setOf("file.download", "file.downloadSegments", "file.transformPatternedBlocks") -> {
+                method in setOf("file.download", "file.downloadSegments", "file.transformPatternedBlocks", "ffmpeg.getInfo", "ffmpeg.convert", "gobackend.getAudioQuality") -> {
                     require(install.manifest.permissions.file) { "Provider file permission denied" }
                     val options = args.getOrNull(2) as? JsonObject
                     val explicit = (args.getOrNull(3) as? JsonObject)?.takeIf { it["__callback"] != null }
                     val callback = ((explicit ?: options?.get("onProgress")) as? JsonObject)?.get("__callback")
                         ?.jsonPrimitive?.longOrNull
-                    status = if (method == "file.transformPatternedBlocks") "Processing provider audio" else "Downloading provider audio"
+                    status = if (method == "file.transformPatternedBlocks" || !method.startsWith("file.")) "Processing provider audio" else "Downloading provider audio"
                     report(ProviderWorkProgress(status), force = true)
+                    workApi = method
                     work.start(callback) { call(method, args) }
                 }
                 else -> {
@@ -64,9 +74,11 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
                 }
             }
             response.toString().also {
-                require(it.toByteArray().size <= ProviderScripts.MAX_RESULT_BYTES) { "Provider host result exceeds 2 MB" }
+                require(it.toByteArray().size <= ProviderScripts.MAX_BRIDGE_BYTES) { "Provider host envelope exceeds 8 MB" }
             }
         } catch (error: Exception) {
+            lastFailedApi = (if (method == "work.poll") workApi else method)?.takeIf { it.matches(Regex("[A-Za-z.]{1,80}")) }
+            lastFailureKind = error.javaClass.simpleName.takeIf { it.matches(Regex("[A-Za-z]{1,80}")) }
             // Parser/network exceptions can contain a URL, header or token. They never enter logs or guest errors.
             buildJsonObject { put("failure", safeError(error)) }.toString()
         }
@@ -86,6 +98,10 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
             "storage", "credentials" -> storage(group, action, args)
             "auth" -> auth.call(action, args)
             "session" -> session.call(action, args)
+            "ffmpeg" -> {
+                require(install.manifest.permissions.file) { "Provider file permission denied" }
+                mediaProcessing.call(action, args)
+            }
             "file" -> {
                 require(install.manifest.permissions.file) { "Provider file permission denied" }
                 try { files.call(action, args) }
@@ -102,6 +118,13 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
                 else -> error("Unsupported provider matching API")
             }
             "gobackend" -> when (action) {
+                // This host uses disposable playback files, with no persistent download ISRC index.
+                "checkISRCExists" -> { require(install.manifest.permissions.file); files.path(text(0)); buildJsonObject { put("exists", false) } }
+                "getLyricsLRC" -> buildJsonObject { put("lyrics", ""); put("lrc", "") }
+                "getAudioQuality" -> {
+                    require(install.manifest.permissions.file) { "Provider file permission denied" }
+                    mediaProcessing.probe(text(0)).json()
+                }
                 "sanitizeFilename" -> JsonPrimitive(filename(text(0)))
                 "buildFilename" -> JsonPrimitive(filename(Regex("\\{([^}]+)}").replace(text(0)) { match ->
                     ((args.getOrNull(1) as? JsonObject)?.get(match.groupValues[1]) as? JsonPrimitive)?.contentOrNull.orEmpty()
@@ -198,10 +221,10 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
                 JsonNull
             }
             "isRequestCancelled", "isDownloadCancelled" -> JsonPrimitive(network.isCancelled)
-            "appVersion" -> JsonPrimitive("1.0.6")
-            "appUserAgent" -> JsonPrimitive("Cosmotune/1.0.6")
+            "appVersion" -> JsonPrimitive("1.0.7")
+            "appUserAgent" -> JsonPrimitive("Cosmotune/1.0.7")
             "randomUserAgent" -> JsonPrimitive("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36")
-            "getResolutionRemainingMs" -> JsonPrimitive((30_000 - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(0))
+            "getResolutionRemainingMs" -> JsonPrimitive((operationTimeoutMs - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(0))
             "sleep" -> {
                 val duration = text(0).toDoubleOrNull()?.toLong() ?: 0L
                 require(duration in 0..30_000)

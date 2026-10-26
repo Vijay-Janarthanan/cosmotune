@@ -64,7 +64,7 @@ object ProviderCatalogue {
             ?: raw.text("duration")?.toDoubleOrNull()?.let { (it * 1000).toLong() }
         val qualityText = raw.text("audio_quality", "audioQuality", "quality", "format").orEmpty()
         val quality = when {
-            (raw["atmos"] as? JsonPrimitive)?.booleanOrNull == true || Regex("atmos|eac3-joc|dolby", RegexOption.IGNORE_CASE)
+            (raw["atmos"] as? JsonPrimitive)?.booleanOrNull == true || Regex("atmos|e-?ac-?3[_ -]?joc|ec-?3[_ -]?joc", RegexOption.IGNORE_CASE)
                 .containsMatchIn(qualityText + " " + raw.text("audioMode").orEmpty()) -> "DOLBY"
             Regex("lossless|flac|alac|hi[-_ ]?res", RegexOption.IGNORE_CASE).containsMatchIn(qualityText) -> "LOSSLESS"
             qualityText.isNotBlank() -> "HIGH"

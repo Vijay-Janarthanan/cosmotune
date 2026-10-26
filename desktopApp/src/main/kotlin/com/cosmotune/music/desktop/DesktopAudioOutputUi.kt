@@ -18,6 +18,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +30,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.ui.icons.CosmotuneIcons
 
+/** Device drivers may block; output drawers must remain interactive while enumeration runs. */
+@Composable
+internal fun rememberDesktopAudioDevices(): List<DesktopAudioDevice> {
+    val changes by DesktopAudioDevices.changes.collectAsState()
+    val devices by produceState<List<DesktopAudioDevice>>(emptyList(), changes) {
+        value = withContext(Dispatchers.IO) {
+            try { DesktopAudioDevices.available() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { emptyList() }
+        }
+    }
+    return devices
+}
+
 /**
  * Where playback is sent. Android routes through `AudioManager`; here the choice is a mixer.
  *
@@ -35,8 +52,7 @@ import com.cosmotune.music.ui.icons.CosmotuneIcons
 @Composable
 internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
     val selected by DesktopAudioDevices.selected.collectAsState()
-    val changes by DesktopAudioDevices.changes.collectAsState()
-    val devices = remember(changes) { DesktopAudioDevices.available() }
+    val devices = rememberDesktopAudioDevices()
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 440) {
         Column(Modifier.padding(horizontal = panelInset(22.dp), vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(

@@ -117,6 +117,10 @@ internal class ProviderSignedSession(private val install: ProviderInstall, priva
                 JsonPrimitive(true).let { buildJsonObject { put("success", it) } }
             }
             "completeGrant" -> { completeGrant((args.getOrNull(0) as? JsonPrimitive)?.contentOrNull.orEmpty()); buildJsonObject { put("success", true) } }
+            "beginVerification" -> {
+                if (pending()?.get("completed") == JsonPrimitive(true)) completeGrant("")
+                buildJsonObject { put("authenticated", bootstrap()); put("verification_required", pending() != null) }
+            }
             "signedFetch" -> signedFetch(args)
             else -> error("Unsupported provider signed-session API")
         }
@@ -126,15 +130,34 @@ internal class ProviderSignedSession(private val install: ProviderInstall, priva
     internal fun endpoint(path: String): HttpUrl {
         return network.address(checkedEndpoint(base, path).toString())
     }
-    private fun request(url: HttpUrl, method: String = "GET", body: String = "", headers: Map<String, String> = emptyMap()): JsonObject {
+    private fun request(url: HttpUrl, method: String = "GET", body: String = "", headers: Map<String, String> = emptyMap(), responseTimeoutSeconds: Long? = null): JsonObject {
         check()
         return network.request(url.toString(), buildJsonObject {
             put("method", method); put("body", body)
             putJsonObject("headers") { headers.forEach { (key, value) -> put(key, value) } }
-        }, followRedirects = false).also { check() }
+        }, followRedirects = false, responseTimeoutSeconds = responseTimeoutSeconds).also { check() }
     }
     private fun decoded(response: JsonObject): JsonObject {
-        require(response["ok"] == JsonPrimitive(true)) { "Operator request failed" }
+        if (response["ok"] != JsonPrimitive(true)) {
+            val status = (response["status"] as? JsonPrimitive)?.intOrNull ?: 0
+            val payload = runCatching { Json.parseToJsonElement(response.text("body")).jsonObject }.getOrNull()
+            val code = listOf("code", "error").firstNotNullOfOrNull { key ->
+                (payload?.get(key) as? JsonPrimitive)?.contentOrNull?.uppercase(Locale.ROOT)
+                    ?.takeIf { it.matches(Regex("[A-Z][A-Z0-9_-]{1,79}")) }
+            } ?: run {
+                val detail = listOf("error", "message").mapNotNull { (payload?.get(it) as? JsonPrimitive)?.contentOrNull }.joinToString(" ").lowercase(Locale.ROOT)
+                when {
+                    "grant" in detail && "expir" in detail && "invalid" in detail -> "INVALID_OR_EXPIRED_GRANT"
+                    "grant" in detail && "expir" in detail -> "GRANT_EXPIRED"
+                    "grant" in detail && "already" in detail && "used" in detail -> "GRANT_ALREADY_USED"
+                    "grant" in detail && ("not found" in detail || "unknown" in detail) -> "UNKNOWN_GRANT"
+                    "install" in detail && "mismatch" in detail -> "INSTALL_MISMATCH"
+                    "grant" in detail && "invalid" in detail -> "INVALID_GRANT"
+                    else -> null
+                }
+            }
+            throw ProviderVerificationException(status, code)
+        }
         return Json.parseToJsonElement(response.text("body")).jsonObject
     }
     private fun bootstrap(): Boolean {
@@ -173,7 +196,7 @@ internal class ProviderSignedSession(private val install: ProviderInstall, priva
         state = supplied ?: nestedState ?: state
         require(state.length in 16..512 && !state.any { it <= ' ' })
         val authUrl = if (supplied == null && nestedState == null) challenge.newBuilder().setQueryParameter("state", state).build().toString() else challenge.toString()
-        update(expectedEpoch) { old -> JsonObject(old + ("pending" to buildJsonObject {
+        update(expectedEpoch) { old -> JsonObject(old - "grant" + ("pending" to buildJsonObject {
             put("kind", "signed-grant"); put("scope", scope); put("url", authUrl); put("callback", callback)
             put("state", state); put("createdAt", now()); put("completed", false)
         })) }
@@ -197,9 +220,35 @@ internal class ProviderSignedSession(private val install: ProviderInstall, priva
         }
     }
     private fun completeGrant(input: String) {
+        // Native callbacks finish the exchange immediately. Older packages may still call the SDK action.
+        if (input.isBlank() && pending() == null && usable(signed())) return
         val pending = requireNotNull(pending()) { "No current operator verification" }
+        require(pending["completed"] == JsonPrimitive(true)) { "Complete provider verification first" }
         val grant = input.ifBlank { auth().text("grant") }
         require(grant.length in 1..8_192)
+        exchangeGrant(grant, pending)
+    }
+
+    /** Explicit native paste, matching upstream's grant-only handoff; never an OS/guest callback. */
+    fun completeUserGrant(input: String) = synchronized(gate) {
+        initialize()
+        val grant = input.trim().let {
+            require(it.matches(Regex("grant=[A-Za-z0-9_-]{1,8192}"))) { "Invalid provider grant" }
+            it.removePrefix("grant=")
+        }
+        // The operator validates expiry and binds this user-provided grant to this install/application.
+        // Callback URLs still require the exact local state and three-minute callback lifetime.
+        val expectedEpoch = epoch()
+        update(expectedEpoch) { old ->
+            val previous = (old["pending"] as? JsonObject)?.takeIf { it.text("scope") == scope }
+                ?: buildJsonObject { put("kind", "signed-grant"); put("scope", scope) }
+            JsonObject(old + mapOf("grant" to JsonPrimitive(grant), "pending" to JsonObject(previous + mapOf(
+                "completed" to JsonPrimitive(true), "manual" to JsonPrimitive(true), "createdAt" to JsonPrimitive(now())))))
+        }
+        completeGrant("")
+    }
+
+    private fun exchangeGrant(grant: String, pending: JsonObject?) {
         val expectedEpoch = epoch(); val record = signed()
         val body = buildJsonObject { put("grant", grant); put("install_id", record.text("install_id")); put("app_version", appVersion); put("platform", platform) }
         val response = decoded(request(endpoint(endpointName("exchange")), "POST", body.toString(), mapOf("Content-Type" to "application/json")))
@@ -212,9 +261,13 @@ internal class ProviderSignedSession(private val install: ProviderInstall, priva
         put("auth_url", pending()?.text("url").orEmpty()); put("open_auth_url", pending()?.text("url").orEmpty())
     }
     private fun signedRequest(record: JsonObject, method: String, address: HttpUrl, body: String, headers: Map<String, String>): JsonObject {
-        val safeHeaders = headers.filterKeys { !it.startsWith(prefix, true) && !it.equals("content-type", true) }
+        val signature = headers(label, prefix, window, appVersion, platform, record.text("session_id"), record.text("session_secret"), method, address, body, now(), randomHex(16))
+        // Operation headers such as X-Zarz-Ticket share the prefix but are not signing fields.
+        val protected = signature.keys.map { it.lowercase(Locale.ROOT) }.toSet() + "content-type"
+        val safeHeaders = headers.filterKeys { it.lowercase(Locale.ROOT) !in protected }
+        val preparing = method == "POST" && address.encodedPath.removePrefix(base.encodedPath.trimEnd('/') + "/").startsWith("dl/")
         return request(address, method, body, safeHeaders + mapOf("Content-Type" to "application/json") +
-            headers(label, prefix, window, appVersion, platform, record.text("session_id"), record.text("session_secret"), method, address, body, now(), randomHex(16)))
+            signature, responseTimeoutSeconds = if (preparing) 60 else null)
     }
     private fun signedFetch(args: JsonArray): JsonObject {
         val method = (args.getOrNull(0) as? JsonPrimitive)?.contentOrNull.orEmpty().trim().uppercase(Locale.ROOT)

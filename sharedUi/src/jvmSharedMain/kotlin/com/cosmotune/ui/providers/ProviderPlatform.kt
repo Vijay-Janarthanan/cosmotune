@@ -4,4 +4,5 @@ import androidx.compose.runtime.Composable
 import java.io.InputStream
 
 @Composable internal expect fun rememberProviderPackageImport(onPicked: (String, () -> InputStream) -> Unit): () -> Unit
-@Composable internal expect fun rememberProviderAuthOpen(): (String) -> Unit
+@Composable internal expect fun rememberProviderAuthOpen(manager: com.cosmotune.providers.ProviderManager,
+    installed: com.cosmotune.providers.ProviderInstall, onFailure: () -> Unit): (String) -> Unit

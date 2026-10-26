@@ -45,6 +45,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        if (android.os.Build.VERSION.SDK_INT >= 28 && Application.getProcessName().endsWith(":provider_auth")) return
+        com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
         // First, before any store is opened: copies what was kept under the names before the rename.
         LegacyDataMigration.run(this)
         // The player is drawn by the shared UI module; this is what it reads

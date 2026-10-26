@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.cosmotune.ui.browse.CosmoBrowse
 import com.cosmotune.ui.theme.LocalCosmoShell
@@ -45,7 +45,17 @@ fun HomeSwitch(
     currentSong: Song? = null,
     isPlaying: Boolean = false,
     browse: CosmoBrowse? = null,
+    playlistSongs: List<Song> = emptyList(),
+    saveGeneratedPlaylist: (suspend (String, List<Song>) -> Unit)? = null,
 ) {
+    var playlistOpen by remember { mutableStateOf(false) }
+    val controls: @Composable () -> Unit = {
+        HomeDiscoveryControls(onRetry, if (saveGeneratedPlaylist == null) null else ({ playlistOpen = true }))
+    }
+    if (playlistOpen && saveGeneratedPlaylist != null) {
+        PersonalPlaylistDialog(playlistSongs + (state as? UiState.Success)?.data.orEmpty().flatMap { shelf -> shelf.items.mapNotNull { it.song } },
+            currentSong, { playlistOpen = false }, saveGeneratedPlaylist)
+    }
     if (LocalCosmoShell.current != null) {
         CosmoHome(
             state = state,
@@ -68,9 +78,11 @@ fun HomeSwitch(
             currentSong = currentSong,
             isPlaying = isPlaying,
             browse = browse,
+            discoveryControls = controls,
         )
     } else {
         HomeScreen(
+            discoveryControls = controls,
             state = state,
             listState = listState,
             onItemClick = onItemClick,

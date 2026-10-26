@@ -9,12 +9,38 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ProviderAndroidRuntimeTest {
+    @Test fun aLargeMetadataFetchCrossesQuickJsWithoutRelaxingTheRawNetworkCap() = runBlocking<Unit> {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val root = File(context.filesDir, "large-fetch-fixture-${java.util.UUID.randomUUID()}")
+        val payload = "{\"value\":\"" + "x".repeat(1_550_000) + "\"}"
+        val permissions = ProviderPermissions(network = listOf("localhost"), allowHttp = true)
+        val install = ProviderInstall(ProviderManifest("large-fixture", "1.0.0", type = listOf("metadata_provider"), permissions = permissions),
+            "0".repeat(64), allowLocalNetwork = true)
+        val client = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+            okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK")
+                .body(payload.toResponseBody("application/json".toMediaType())).build()
+        }.build()
+        val store = ProviderStore(root)
+        val network = ProviderNetwork(permissions, allowLocalNetwork = true, baseClient = client)
+        val host = ProviderMetadataHost(install, store, network)
+        val config = buildJsonObject { putJsonObject("permissions") { putJsonArray("network") { add("localhost") } } }
+        try {
+            createProviderScriptSession("""registerExtension({probe:function(){var response=fetch('http://localhost/large');return response.json().value.length;}});""",
+                config, host::bridge, host::cancel).use { runtime ->
+                assertEquals(JsonPrimitive(1_550_000), Json.parseToJsonElement(runtime.invoke("probe", JsonArray(emptyList()))))
+            }
+            assertEquals(2 * 1024 * 1024, ProviderNetwork.MAX_METADATA_BYTES)
+        } finally { host.cancel(); root.deleteRecursively() }
+    }
+
     @Test fun operatorSessionUsesAndroidCryptoAndReopensOnlyFromProtectedProviderStorage() = runBlocking<Unit> {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val root = File(context.filesDir, "signed-session-fixture-${java.util.UUID.randomUUID()}")

@@ -937,8 +937,8 @@ class SourcesTest {
      * only asks which is better.
      */
     @Test
-    fun `ranks a higher-bitrate lossy stream above a lower one`() {
-        assertTrue(
+    fun `different lossy codecs cannot be ranked from bitrate alone`() {
+        assertFalse(
             SourceResolver.isBetter(
                 StreamFormat(codec = "mp4", kbps = 320),
                 StreamFormat(codec = "mp3", kbps = 128),
@@ -1250,7 +1250,7 @@ class SourcesTest {
      */
     @Test
     fun `prefers the better of two answers that arrive together`() = runBlocking {
-        val worse = FakeSource("Ricky's Addon", answerAfterMs = 5, format = StreamFormat("mp3", kbps = 128))
+        val worse = FakeSource("Ricky's Addon", answerAfterMs = 5, format = StreamFormat("aac", kbps = 128))
         val better = FakeSource("JioSaavn", answerAfterMs = 5, format = StreamFormat("mp4", kbps = 320))
         val (source, stream) = SourceResolver.bestAcross(
             listOf(worse, better), raceTarget(), StreamRequest.Lossless,

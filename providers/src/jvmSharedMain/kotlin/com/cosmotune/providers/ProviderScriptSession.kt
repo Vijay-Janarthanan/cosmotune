@@ -17,6 +17,9 @@ internal expect suspend fun createProviderScriptSession(code: String, config: Js
 
 internal object ProviderScripts {
     const val MAX_RESULT_BYTES = 2 * 1024 * 1024
+    // A bounded 2 MiB response can cross as escaped text plus Base64 for fetch.arrayBuffer().
+    // Keep this envelope separate from the raw network cap and guest result/argument caps.
+    const val MAX_BRIDGE_BYTES = 8 * 1024 * 1024
     fun bootstrap(): String = requireNotNull(javaClass.getResourceAsStream("/providers/sflx-bootstrap.js")) {
         "Provider compatibility resource is missing"
     }.bufferedReader().use { it.readText() }

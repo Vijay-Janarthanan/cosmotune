@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name="com.cosmotune.ui.providers.ProviderVerificationActivity"
+            android:exported="false" android:process=":provider_auth" android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+    </application>
+</manifest>

@@ -13,11 +13,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@Composable internal actual fun rememberProviderAuthOpen(): (String) -> Unit = remember { { url ->
-    require(url.startsWith("https://"))
-    check(java.awt.Desktop.isDesktopSupported()) { "No browser is available" }
-    java.awt.Desktop.getDesktop().browse(java.net.URI(url))
-} }
+@Composable internal actual fun rememberProviderAuthOpen(manager: com.cosmotune.providers.ProviderManager,
+    installed: com.cosmotune.providers.ProviderInstall, onFailure: () -> Unit): (String) -> Unit {
+    val latest = rememberUpdatedState(onFailure)
+    val window = remember(manager, installed.manifest.name) { java.util.concurrent.atomic.AtomicReference<AutoCloseable?>() }
+    androidx.compose.runtime.DisposableEffect(manager, installed.manifest.name) { onDispose { window.getAndSet(null)?.close() } }
+    return remember(manager, installed.manifest.name) { { url ->
+        require(url.startsWith("https://"))
+        val embedded = com.cosmotune.providers.ProviderVerificationWindows.launcher
+        if (embedded != null) {
+            val target = manager.verificationTarget(installed.manifest.name)
+            require(target.url == url)
+            window.getAndSet(null)?.close()
+            window.set(embedded(manager, installed.manifest.name, target) { latest.value() })
+        } else {
+            check(java.awt.Desktop.isDesktopSupported()) { "No browser is available" }
+            java.awt.Desktop.getDesktop().browse(java.net.URI(url))
+        }
+    } }
+}
 
 @Composable internal actual fun rememberProviderPackageImport(onPicked: (String, () -> InputStream) -> Unit): () -> Unit {
     val scope = rememberCoroutineScope()

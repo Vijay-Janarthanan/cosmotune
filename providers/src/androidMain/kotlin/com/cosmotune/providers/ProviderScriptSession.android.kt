@@ -36,7 +36,7 @@ internal actual suspend fun createProviderScriptSession(code: String, config: Js
             override suspend fun invoke(method: String, args: JsonArray, timeoutMs: Long): String = lock.withLock {
                 providerRuntimeWork(cancelHost) {
                     check(!closed) { "Provider runtime is closed" }
-                    engine.evaluationTimeoutMillis = timeoutMs.coerceIn(1, 30_000)
+                    engine.evaluationTimeoutMillis = timeoutMs.coerceIn(1, if (method == "download") 120_000 else 30_000)
                     try {
                         engine.evaluate<String>(ProviderScripts.invoke(method, args))
                         val failure = engine.evaluate<String?>("__cosmotuneFailure || null")

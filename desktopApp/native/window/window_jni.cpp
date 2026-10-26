@@ -625,11 +625,13 @@ void remember_played_and_reset_locked() {
  * Moves the stream to wherever the request resolves now. What was queued on the old endpoint is
  * dropped — a fifth of a second at most — and only what was actually heard is counted as played.
  */
-void reroute_locked() {
+void reroute_locked(bool force_reopen = false) {
     g_audio_reroute = false;
     if (g_audio_channels == 0) return;
     IMMDevice* device = resolve_device_locked(g_audio_wanted);
-    if (device != nullptr && g_audio_client != nullptr && endpoint_id(device) == g_audio_endpoint_id) {
+    // Windows can invalidate a client without changing the endpoint id (for example
+    // when its mix format changes). That client must be recreated on the same device.
+    if (!force_reopen && device != nullptr && g_audio_client != nullptr && endpoint_id(device) == g_audio_endpoint_id) {
         device->Release();
         return;
     }
@@ -683,8 +685,19 @@ int write_audio(const float* samples, int sample_count, float gain) {
 
     const UINT32 total_frames = static_cast<UINT32>(sample_count) / g_audio_channels;
     UINT32 frame_at = 0;
+    bool invalidated = false;
+    unsigned recovery_attempts = 0;
+    ULONGLONG last_progress = GetTickCount64();
     while (frame_at < total_frames) {
-        if (g_audio_reroute || g_audio_client == nullptr) reroute_locked();
+        if (!g_audio_started || g_audio_channels == 0) break;
+        if (GetTickCount64() - last_progress >= 1000) {
+            g_audio_error = L"The Windows audio endpoint stopped accepting samples";
+            break;
+        }
+        if (g_audio_reroute || g_audio_client == nullptr || invalidated) {
+            reroute_locked(invalidated);
+            invalidated = false;
+        }
         if (g_audio_client == nullptr) {
             // Nowhere to play. Let the rest of the block pass in real time, counted as played, so
             // the track neither races ahead nor wedges this thread until a device appears.
@@ -700,8 +713,8 @@ int write_audio(const float* samples, int sample_count, float gain) {
         UINT32 padding = 0;
         HRESULT status = g_audio_client->GetCurrentPadding(&padding);
         if (status == AUDCLNT_E_DEVICE_INVALIDATED) {
-            // Unplugged between the notification and this write; move on right away.
-            g_audio_reroute = true;
+            if (++recovery_attempts > 2) { set_audio_error(L"Reopening the invalidated WASAPI client", status); break; }
+            invalidated = true;
             continue;
         }
         if (FAILED(status)) {
@@ -719,7 +732,8 @@ int write_audio(const float* samples, int sample_count, float gain) {
         BYTE* target = nullptr;
         status = g_audio_render->GetBuffer(frames, &target);
         if (status == AUDCLNT_E_DEVICE_INVALIDATED) {
-            g_audio_reroute = true;
+            if (++recovery_attempts > 2) { set_audio_error(L"Reopening the invalidated WASAPI client", status); break; }
+            invalidated = true;
             continue;
         }
         if (FAILED(status) || target == nullptr) {
@@ -747,12 +761,19 @@ int write_audio(const float* samples, int sample_count, float gain) {
             }
         }
         status = g_audio_render->ReleaseBuffer(frames, 0);
+        if (status == AUDCLNT_E_DEVICE_INVALIDATED) {
+            if (++recovery_attempts > 2) { set_audio_error(L"Reopening the invalidated WASAPI client", status); break; }
+            invalidated = true;
+            continue;
+        }
         if (FAILED(status)) {
             set_audio_error(L"Submitting the WASAPI buffer", status);
             break;
         }
         frame_at += frames;
         g_audio_submitted_frames += frames;
+        recovery_attempts = 0;
+        last_progress = GetTickCount64();
     }
     return static_cast<int>(frame_at * g_audio_channels * g_audio_bytes_per_sample);
 }
@@ -915,14 +936,16 @@ Java_com_cosmotune_music_desktop_DesktopWindowsAudio_nativeFlush(JNIEnv*, jclass
 
 JNIEXPORT void JNICALL
 Java_com_cosmotune_music_desktop_DesktopWindowsAudio_nativeDrain(JNIEnv*, jclass) {
+    const ULONGLONG started = GetTickCount64();
     while (true) {
         {
             std::lock_guard<std::mutex> guard(g_audio_mutex);
             ComScope com;
-            if (g_audio_client == nullptr) return;
+            if (g_audio_client == nullptr || !g_audio_started) return;
             UINT32 padding = 0;
             if (FAILED(g_audio_client->GetCurrentPadding(&padding)) || padding == 0) return;
         }
+        if (GetTickCount64() - started >= 1000) return;
         Sleep(2);
     }
 }

@@ -9,6 +9,8 @@ package com.cosmotune.music.desktop
  * the Windows audio engine to convert it to the endpoint's native mix format.
  */
 internal object DesktopWindowsAudio {
+    // UI pipeline snapshots must never wait for the render client's native mutex.
+    @Volatile private var outputName: String? = null
 
     private val available: Boolean by lazy {
         DesktopPlatform.isWindows &&
@@ -27,11 +29,16 @@ internal object DesktopWindowsAudio {
             format.isFloat,
         )
         check(bytes > 0) { nativeLastError().ifBlank { "WASAPI could not open the audio endpoint" } }
+        refreshOutputName()
         bytes
     }
 
-    fun write(samples: FloatArray, count: Int, gain: Float): Int =
-        if (available) nativeWrite(samples, count, gain) else 0
+    fun write(samples: FloatArray, count: Int, gain: Float): Int {
+        if (!available) return 0
+        return nativeWrite(samples, count, gain).also { refreshOutputName() }
+    }
+
+    private fun refreshOutputName() { outputName = nativeDeviceName().takeIf(String::isNotBlank) }
 
     fun framesPlayed(): Long = if (available) nativeFramesPlayed() else 0L
 
@@ -52,11 +59,10 @@ internal object DesktopWindowsAudio {
     }
 
     fun close() {
-        if (available) nativeClose()
+        try { if (available) nativeClose() } finally { outputName = null }
     }
 
-    fun deviceName(): String? =
-        if (available) nativeDeviceName().takeIf(String::isNotBlank) else null
+    fun deviceName(): String? = outputName
 
     /**
      * The active render endpoints, keyed by their endpoint id; null when the native library is

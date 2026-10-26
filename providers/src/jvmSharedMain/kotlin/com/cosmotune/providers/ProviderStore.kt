@@ -28,7 +28,11 @@ import kotlinx.serialization.json.JsonObject
 class ProviderStore(val root: File, internal val protection: ProviderFileProtection = providerFileProtection()) {
     internal val cookieJars = java.util.concurrent.ConcurrentHashMap<String, ProviderCookieJar>()
     internal val signedSessionLocks = java.util.concurrent.ConcurrentHashMap<String, Any>()
-    @Volatile internal var defaultSessionCallback = "cosmotune://provider-auth/session-grant"
+    private val platformSessionCallback by lazy { providerSessionCallback() }
+    @Volatile private var configuredSessionCallback: String? = null
+    internal var defaultSessionCallback: String
+        get() = configuredSessionCallback ?: platformSessionCallback
+        set(value) { configuredSessionCallback = value }
     private val file = File(root.apply { check(isDirectory || mkdirs()); ownerOnly() }, "providers.json")
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val lock = Mutex()

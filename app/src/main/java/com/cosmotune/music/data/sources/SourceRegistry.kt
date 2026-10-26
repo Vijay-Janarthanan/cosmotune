@@ -196,6 +196,7 @@ object SourceRegistry {
             .filterNot { it.awaitsLosslessOutput }
             .sortedBy { it.kind.rank }
             .mapNotNull { instances[it.id] }
+            .plus(PackageMusicSource.enabled()).sortedBy { it.kind.rank }
 
     /**
      * [active], minus the addons whose manifest said `allowDownloads: 0`. A

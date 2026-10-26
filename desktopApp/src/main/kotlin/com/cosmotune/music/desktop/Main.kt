@@ -28,7 +28,8 @@ import java.awt.Toolkit
 import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 
-fun main() {
+fun main(args: Array<String>) {
+    if (args.contentEquals(arrayOf("--provider-auth-browser"))) { ProviderVerificationBrowserMain.run(); return }
     val instance = com.cosmotune.desktop.DesktopSingleInstance.acquire(
         onActivate = DesktopWindowVisibility::show,
     ) ?: return
@@ -42,6 +43,8 @@ fun main() {
 }
 
 private fun runDesktop() {
+    com.cosmotune.providers.ProviderMediaTools.installed = DesktopProviderMediaTools
+    DesktopProviderVerificationBrowser.install()
     com.cosmotune.desktop.TorConnection.install()
     coil3.SingletonImageLoader.setSafe { context ->
         coil3.ImageLoader.Builder(context).components { add(coil3.svg.SvgDecoder.Factory()); add(com.cosmotune.ui.providers.CatalogueArtworkFetcher.Factory()) }.build()
@@ -224,6 +227,11 @@ private fun desktopMain() = application {
         CompositionLocalProvider(
             LocalDesktopWindowActions provides actions,
             LocalDesktopWindowScope provides this,
+            com.cosmotune.ui.shell.LocalWindowCaptionArea provides { modifier, content ->
+                val fullscreen by DesktopWindowMode.fullScreen.collectAsState()
+                if (fullscreen) androidx.compose.foundation.layout.Box(modifier) { content() }
+                else DesktopTitleBarDragArea(modifier, content)
+            },
         ) {
             CosmotuneDesktopApp()
         }

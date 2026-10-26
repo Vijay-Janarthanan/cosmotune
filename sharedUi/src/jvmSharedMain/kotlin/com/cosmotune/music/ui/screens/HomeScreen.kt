@@ -136,6 +136,7 @@ fun HomeScreen(
     leadHero: Boolean = true,
     currentSong: Song? = null,
     isPlaying: Boolean = false,
+    discoveryControls: (@Composable () -> Unit)? = null,
 ) {
     val recentsViewType by AppUi.host.homeRecentsViewType.collectAsStateWithLifecycle()
 
@@ -162,6 +163,7 @@ fun HomeScreen(
             if (title != null) {
                 item { HomeTitle(title) }
             }
+            if (discoveryControls != null) item(key = "home:discovery") { discoveryControls() }
             if (!signedIn && onSignIn != null) {
                 item {
                     SignInBanner(onSignIn = onSignIn, modifier = Modifier.padding(bottom = 8.dp))

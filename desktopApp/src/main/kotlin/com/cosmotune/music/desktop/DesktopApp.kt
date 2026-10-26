@@ -2525,7 +2525,7 @@ fun CosmotuneDesktopApp() {
         homeRecentsLoading = signedIn
         providerHomeJob?.cancel()
         providerHomeJob = scope.launch {
-            com.cosmotune.providers.ProviderHome.load(java.util.Locale.getDefault().country.ifBlank { "IN" }, DesktopStrings.resolvedTag()) { shelves ->
+            com.cosmotune.providers.DiscoveryHome.load() { shelves ->
                 if (generation == homeGeneration) publishProviderHomeShelves(shelves)
             }
         }
@@ -3136,8 +3136,9 @@ fun CosmotuneDesktopApp() {
     }
 
     // The engine's measured stream, as the player's quality badge and stats line read it.
-    LaunchedEffect(playback.streamFormat, playback.streamSourceId) {
-        NerdStats.current.value = desktopNerdSnapshot(playback.streamFormat, playback.streamSourceId)
+    LaunchedEffect(playback.streamFormat, playback.streamSourceId, playback.streamOffer) {
+        NerdStats.current.value = desktopNerdSnapshot(playback.streamFormat, playback.streamSourceId, playback.streamOffer,
+            playback.streamSourceId?.let { DesktopSourceRegistry.sourceNameFor(DesktopStream("", sourceId = it)) } ?: "Local audio")
     }
     LaunchedEffect(playback.searchingBetter, selectedSong?.videoId) {
         NerdStats.racingLossless.value = selectedSong?.videoId
@@ -4428,6 +4429,12 @@ fun CosmotuneDesktopApp() {
                             contentPadding = contentPadding,
                         )
                         destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.home.HomeSwitch(
+                            playlistSongs = downloads + localSongs + listeningLibraryPage?.likedSongs.orEmpty() + listeningLibraryPage?.librarySongs.orEmpty() + history + playlists.flatMap { it.songs },
+                            saveGeneratedPlaylist = { name, songs ->
+                                val next = playlists + DesktopPlaylist(title = name, songs = songs)
+                                withContext(Dispatchers.IO) { persistence.savePlaylists(next) }
+                                playlists = next
+                            },
                             state = homeState,
                             listState = homeListState,
                             onItemClick = { item, shelfTitle -> openShelfItem(item, shelfTitle) },
@@ -7049,12 +7056,13 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.6" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.7" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )
     Text(
         text = buildAnnotatedString {
+            append("Made with love by Vijay\n")
             append("Cosmotune $version  ")
             withLink(LinkAnnotation.Url(com.cosmotune.CosmoConfig.PROJECT_URL, linkStyles)) {
                 append("Source")

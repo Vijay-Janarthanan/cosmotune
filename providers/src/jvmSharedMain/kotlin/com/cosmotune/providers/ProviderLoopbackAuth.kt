@@ -77,7 +77,7 @@ internal class ProviderLoopbackAuth : AutoCloseable {
                         break
                     }
                     val watchdog = scope.launch {
-                        delay(minOf(6_000, ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)))
+                        delay(minOf(30_000, ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)))
                         runCatching { socket.close() }
                     }
                     try {
@@ -86,7 +86,7 @@ internal class ProviderLoopbackAuth : AutoCloseable {
                             val input = readRequest(it)
                             if (input == null || !current() || System.nanoTime() >= deadline) respond(it, false)
                             else {
-                                val accepted = try { withTimeout(5_000) { complete(input) }; true }
+                                val accepted = try { withTimeout(25_000) { complete(input) }; true }
                                     catch (e: CancellationException) { if (!currentCoroutineContext().isActive) throw e; false }
                                     catch (_: Exception) { false }
                                 respond(it, accepted)

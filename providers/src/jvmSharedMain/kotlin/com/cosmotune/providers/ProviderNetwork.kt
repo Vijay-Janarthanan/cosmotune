@@ -53,6 +53,7 @@ class ProviderNetwork(private val permissions: ProviderPermissions, private val 
     internal fun fork(): ProviderNetwork = ProviderNetwork(permissions, allowLocalNetwork, client, cookieJar = cookieJar)
 
     internal fun <T> withResponse(raw: String, options: JsonObject, media: Boolean = false, followRedirects: Boolean = true,
+        responseTimeoutSeconds: Long? = null,
         consume: (okhttp3.Response) -> T): T {
         check(!cancelled) { "Provider request cancelled" }
         var url = address(raw)
@@ -67,14 +68,17 @@ class ProviderNetwork(private val permissions: ProviderPermissions, private val 
         repeat(6) {
             check(!cancelled) { "Provider request cancelled" }
             require(visited.add(url.toString())) { "Provider redirect loop" }
-            val builder = Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.6")
+            val builder = Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.7")
             headers.forEach { (name, value) -> builder.header(name, value) }
             if (media) builder.header("Accept-Encoding", "identity")
             val held = cookieJar.request(url)
             if (held.header != null && headers.keys.none { it.equals("cookie", true) }) builder.header("Cookie", held.header)
             builder.method(method, if (method in setOf("GET", "HEAD")) null else body.toRequestBody(
                 headers.entries.firstOrNull { it.key.equals("content-type", true) }?.value?.toMediaTypeOrNull()))
-            val call = client.newCall(builder.build())
+            require(responseTimeoutSeconds == null || responseTimeoutSeconds in 1..60)
+            val transport = if (responseTimeoutSeconds != null) client.newBuilder()
+                .readTimeout(responseTimeoutSeconds, TimeUnit.SECONDS).callTimeout(responseTimeoutSeconds, TimeUnit.SECONDS).build() else client
+            val call = transport.newCall(builder.build())
             if (media) call.timeout().timeout(5, TimeUnit.MINUTES)
             calls.add(call)
             try {
@@ -98,8 +102,8 @@ class ProviderNetwork(private val permissions: ProviderPermissions, private val 
         error("Provider redirected too many times")
     }
 
-    fun request(raw: String, options: JsonObject, followRedirects: Boolean = true): JsonObject =
-        withResponse(raw, options, followRedirects = followRedirects) { reply ->
+    fun request(raw: String, options: JsonObject, followRedirects: Boolean = true, responseTimeoutSeconds: Long? = null): JsonObject =
+        withResponse(raw, options, followRedirects = followRedirects, responseTimeoutSeconds = responseTimeoutSeconds) { reply ->
         val payload = reply.body
         require(payload.contentLength() <= MAX_METADATA_BYTES) { "Provider metadata exceeds 2 MB" }
         val bytes = payload.byteStream().use { input ->

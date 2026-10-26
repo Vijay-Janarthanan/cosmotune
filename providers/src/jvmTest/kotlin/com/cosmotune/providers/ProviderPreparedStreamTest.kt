@@ -23,17 +23,19 @@ class ProviderPreparedStreamTest {
     /** A small FLAC-signature payload: the container is read from the bytes, not the suffix. */
     private val audio = ByteArray(60_000) { (it % 251).toByte() }.also { "fLaC".toByteArray().copyInto(it) }
 
-    private fun packageBytes(suffix: String, filePermission: Boolean = true): ByteArray = ByteArrayOutputStream().use { output ->
+    private fun packageBytes(suffix: String, filePermission: Boolean = true, directStub: Boolean = false, requiresProcessing: Boolean = false): ByteArray = ByteArrayOutputStream().use { output ->
         val manifest = """{"name":"fileonly","version":"1.0.0","type":["download_provider"],"permissions":{"network":[],"file":$filePermission},
             "qualityOptions":[{"id":"LOSSLESS","label":"FLAC","kind":"lossless"}]}"""
         val encoded = Base64.getEncoder().encodeToString(audio)
         val script = """
             registerExtension({
-              download:function(trackId,quality,outputPath){
+              ${if (directStub && requiresProcessing) "getDownloadUrl:function(){return {url:'https://example.com/audio.flac',decryption_key:'fixture-key'};}," else if (directStub) "getDownloadUrl:function(){return null;}," else ""}
+              download:function(trackId,quality,outputPath,onProgress,options){
+                ${if (directStub) "if(typeof onProgress!=='function' || !options || !options.purpose)return {success:false};" else ""}
                 if(trackId!=='track')return {success:false};
                 var path=outputPath.replace(/\.[^.]+$/,'.$suffix');
                 file.writeBytes(path,'$encoded');
-                return {success:true,file_path:path,quality:'FLAC'};
+                return {success:true,file_path:path,quality:'FLAC'${if (requiresProcessing) ",decryption:{strategy:'ffmpeg.mov_key',key:'fixture-key'}" else ""}};
               }
             });
         """.trimIndent()
@@ -44,6 +46,31 @@ class ProviderPreparedStreamTest {
     }
 
     private val http = OkHttpClient.Builder().callTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
+
+    @Test fun aNullDirectUrlFallsBackToThePreparedFileWithCorrectSdkArguments() = runBlocking<Unit> {
+        ProviderManager(ProviderStore(temporary.newFolder(), UnsealedProviderFiles)).use { manager ->
+            manager.trust(manager.inspect { packageBytes("m4a", directStub = true).inputStream() })
+            val stream = manager.stream("fileonly", "track", lossless = true)
+            assertEquals("flac", stream.codec)
+            http.newCall(Request.Builder().url(stream.url).build()).execute().use { response ->
+                assertTrue(response.isSuccessful)
+                assertContentEquals(audio, response.body.bytes())
+            }
+        }
+    }
+
+    @Test fun anEncryptedPreparedFileIsNotOfferedAsReadyAudioOrLabelledLossless() = runBlocking<Unit> {
+        for (direct in listOf(false, true)) {
+            val root = temporary.newFolder()
+            ProviderManager(ProviderStore(root, UnsealedProviderFiles)).use { manager ->
+                manager.trust(manager.inspect { packageBytes("flac", directStub = direct, requiresProcessing = true).inputStream() })
+                val failure = assertFailsWith<ProviderResolutionException> { manager.stream("fileonly", "track", lossless = true) }
+                assertEquals("native_processing_required", failure.errorType)
+                assertFalse(failure.message.orEmpty().contains("fixture-key"))
+                assertFalse(java.io.File(root, "workspaces/fileonly/.cosmotune-media").walk().any { it.isFile })
+            }
+        }
+    }
 
     @Test fun aFileOnlyProviderIsServedWithRangesAndItsCopyIsReleasedOnDisable() = runBlocking<Unit> {
         val root = temporary.newFolder()
