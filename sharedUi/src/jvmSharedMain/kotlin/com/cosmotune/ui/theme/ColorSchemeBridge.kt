@@ -13,6 +13,10 @@ fun CoverColors.toColorScheme(base: ColorScheme): ColorScheme {
     return base.copy(
         primary = Color(accent), onPrimary = Color(onAccent),
         primaryContainer = Color(accentContainer), onPrimaryContainer = Color(onAccentContainer),
+        secondary = Color(accent), onSecondary = Color(onAccent),
+        secondaryContainer = Color(accentContainer), onSecondaryContainer = Color(onAccentContainer),
+        tertiary = Color(accent), onTertiary = Color(onAccent),
+        tertiaryContainer = Color(accentContainer), onTertiaryContainer = Color(onAccentContainer),
         background = Color(backgroundBottom), onBackground = text,
         surface = Color(surface), onSurface = text,
         surfaceVariant = Color(surfaceVariant), onSurfaceVariant = Color(textSecondary),

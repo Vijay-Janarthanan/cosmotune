@@ -2,7 +2,11 @@
 
 Reviewed 2026-10-26 against FEATURE_TRACKER.md and the published 1.0.4/1.0.5 notes. A source implementation, a passing automated check, a hardware/account check and publication are separate evidence.
 
-## Version 1.0.7 preparation
+## Version 1.0.8 UI and discovery repairs
+
+Version 1.0.7 is published. The next repair pass adds shared Manga/Podio mode chrome, complete tonal palette roles, a persistent artist-photo fallback, lowercase radio language queries, larger radio result sets and an expanded map, and prominent regional discovery with curated language choices. See [1.0.8 notes](releases/1.0.8.md). Automated fixture/native compilation evidence does not replace physical-device interaction and listening checks.
+
+## Version 1.0.7 features
 
 Automatic package-source comparison, tappable audio details, discovery country/language controls and local playlist preview/save are included in the 1.0.7 source. See [the provider capability matrix](PROVIDER_CAPABILITIES.md), [the Amazon investigation](AMAZON_RESOLUTION_INVESTIGATION.md) and [release notes](releases/1.0.7.md). They require the 1.0.7 installers; the 1.0.6 downloads do not contain them.
 

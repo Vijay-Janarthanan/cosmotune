@@ -31,7 +31,7 @@ Scope: an account-free Radio / Podcasts mode in Cosmotune 1.0.7. Research is sep
 
 ## Implemented in Podio
 
-Android phone/tablet and desktop have the same Radio / Podcasts page. Radio includes a draggable, zoomable globe with Natural Earth public-domain land outlines, country/language/name search, a station list and local favourites. The globe samples up to 1,200 popular geolocated stations; directory search reaches beyond that sample. Each list request returns up to 100 stations.
+Android phone/tablet and desktop have the same Radio / Podcasts page. Radio includes a draggable, zoomable globe with Natural Earth public-domain land outlines, country/language/name search, a station list and local favourites. The globe samples up to 1,200 popular geolocated stations; directory search reaches beyond that sample. Since 1.0.8, each list request returns up to 1,000 stations, language values are normalized to lowercase, and the map can expand and zoom up to 8×. Filtering retains the selected country; Clear returns to worldwide browsing. Stations without coordinates remain playable from the list.
 
 Podcast discovery combines Apple/iTunes and fyyd, deduplicates feed URLs and tolerates one directory failing. Open a publisher RSS/Atom feed or paste a Spotify show/episode link to find matching public RSS audio. A Spotify link is not itself an audio provider. Following, station favourites and episode positions are stored locally. Episode playback supports resume, seeking, back 15 seconds and speed selection. RSS parsing is bounded to 8 MiB and 1,000 entries; Spotify metadata lookup reads the latest 100 entries. Full archive pagination, OPML, episode downloads, sleep timers and account sync are pending.
 

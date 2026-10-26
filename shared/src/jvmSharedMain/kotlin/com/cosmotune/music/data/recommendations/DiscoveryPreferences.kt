@@ -22,6 +22,10 @@ data class DiscoveryRegion(val country: String = Locale.getDefault().country.ifB
 
 /** Music discovery preferences are independent of interface language and source credentials. */
 object DiscoveryPreferences {
+    val countries = listOf("IN" to "India", "ZZ" to "Global", "US" to "United States", "GB" to "United Kingdom")
+    val languages = listOf("" to "All languages", "en" to "English", "hi" to "Hindi", "ta" to "Tamil",
+        "te" to "Telugu", "ml" to "Malayalam", "kn" to "Kannada", "mr" to "Marathi", "bn" to "Bengali",
+        "pa" to "Punjabi", "gu" to "Gujarati", "or" to "Odia", "as" to "Assamese")
     private val json = Json { ignoreUnknownKeys = true }
     private val mutable = MutableStateFlow(DiscoveryRegion())
     val state = mutable.asStateFlow()

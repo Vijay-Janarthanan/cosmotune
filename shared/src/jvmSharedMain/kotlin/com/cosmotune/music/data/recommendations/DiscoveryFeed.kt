@@ -10,16 +10,27 @@ import com.cosmotune.music.data.model.ShelfItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Independent, bounded shelves: a missing chart never prevents ordinary Home from loading. */
 object DiscoveryFeed {
+    /** Explicit discovery choices lead Home; core/personal shelves remain available below them. */
+    fun order(shelves: List<HomeShelf>): List<HomeShelf> = shelves.sortedBy {
+        when {
+            it.sourceId?.startsWith("discovery:language:") == true -> 0
+            it.sourceId?.startsWith("discovery:charts:") == true -> 1
+            it.sourceId?.startsWith("sflx-") == true -> 2
+            else -> 3
+        }
+    }
+
     suspend fun load(region: DiscoveryRegion, publish: (List<HomeShelf>) -> Unit) = coroutineScope {
         val charts = async {
             try {
                 withTimeoutOrNull(15_000) {
                     val response = Innertube.discoveryCharts(region.country)
-                    InnertubeParser.parseHome(response).take(8).map { shelf ->
+                    InnertubeParser.parseDiscoveryCharts(response).take(8).map { shelf ->
                         shelf.copy(title = "${region.countryLabel} charts · ${shelf.title}",
                             sourceId = "discovery:charts:${region.country}")
                     }
@@ -41,7 +52,8 @@ object DiscoveryFeed {
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { emptyList() }
         }
-        charts.await().takeIf { it.isNotEmpty() }?.let(publish)
-        language.await().takeIf { it.isNotEmpty() }?.let(publish)
+        // A slow/unavailable chart must not delay the selected language's results.
+        launch { charts.await().takeIf { it.isNotEmpty() }?.let(publish) }
+        launch { language.await().takeIf { it.isNotEmpty() }?.let(publish) }
     }
 }

@@ -47,7 +47,8 @@ class SourceLibraryInteractionTest {
         compose.waitUntil(10_000) { library.state.value.collections.size == 1 }
         compose.onNodeWithText("Saved", substring = false).assertIsDisplayed()
         compose.onNodeWithText("Follow", substring = false).performClick()
-        compose.waitUntil(10_000) { library.state.value.followed.size == 1 }
+        compose.waitUntil(10_000) { library.state.value.followed.size == 1 &&
+            compose.onAllNodesWithText("Following", substring = false).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Following", substring = false).performClick()
         compose.waitUntil(10_000) { library.state.value.followed.isEmpty() }
         compose.onNodeWithText("Saved", substring = false).performClick()

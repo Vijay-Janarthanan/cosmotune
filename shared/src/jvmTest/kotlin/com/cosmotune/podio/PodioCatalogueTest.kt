@@ -7,6 +7,16 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class PodioCatalogueTest {
+    @Test fun languageLabelsAreNormalizedAndFilteredResultsAreNotTruncatedAtOneHundred() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("[]"))
+            PodioCatalogue(radioMirrors = listOf(server.url("/").toString())).stations(countryCode = "in", language = " Tamil ")
+            val url = requireNotNull(server.takeRequest().requestUrl)
+            assertEquals("tamil", url.queryParameter("language"))
+            assertEquals("IN", url.queryParameter("countrycode"))
+            assertEquals("1000", url.queryParameter("limit"))
+        }
+    }
     @Test fun publisherFeedsProducePlayableAudioWithStableIdentitiesAndDurations() {
         val feed = PodioCatalogue.parseFeed("""<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>
             <title>Stories</title><itunes:author>A host</itunes:author><itunes:image href="/cover.jpg"/>

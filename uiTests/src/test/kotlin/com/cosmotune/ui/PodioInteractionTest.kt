@@ -59,7 +59,8 @@ class PodioInteractionTest {
             snapshot("podio-desktop.png")
             compose.onNodeWithText("Test Radio").performClick()
             compose.runOnIdle { assertTrue(played.single().live) }
-            compose.onNodeWithText("Podcasts").performClick()
+            compose.onNodeWithText("Podcasts").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.onNodeWithText("Podcasts").assertIsSelected()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test podcast").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Test podcast").assertHasClickAction().performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }

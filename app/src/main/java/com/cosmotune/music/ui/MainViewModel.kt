@@ -1833,11 +1833,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         removed.forEach { homeSeenTitles.remove(it.title.lowercase(Locale.ROOT)) }
         _home.value = UiState.Success(kept)
         publishHomeShelves(shelves)
+        _home.value = UiState.Success(com.cosmotune.music.data.recommendations.DiscoveryFeed.order((_home.value as? UiState.Success)?.data.orEmpty()))
     }
 
     /** Refreshes the core feed without blanking the current Play page first. */
     private suspend fun refreshHome(identity: String?) = coroutineScope {
-        val retained = (_home.value as? UiState.Success)?.data.orEmpty().filterNot { it.sourceId?.startsWith("sflx-") == true }
+        val retained = (_home.value as? UiState.Success)?.data.orEmpty().filterNot {
+            it.sourceId?.startsWith("sflx-") == true || it.sourceId?.startsWith("discovery:") == true
+        }
         if (_home.value is UiState.Success) _home.value = UiState.Success(retained)
         homeSeenTitles.clear(); homeSeenTitles.addAll(retained.map { it.title.lowercase(Locale.ROOT) })
         val recent = if (_signedIn.value) async { YtMusicRepository.homeRecentlyPlayed() } else null

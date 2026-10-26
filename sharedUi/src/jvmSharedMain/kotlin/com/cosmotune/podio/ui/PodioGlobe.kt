@@ -8,6 +8,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -19,7 +21,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.dpimport androidx.compose.ui.platform.testTag
 import com.cosmotune.podio.PodioCatalogue
 import com.cosmotune.podio.RadioStation
 import kotlinx.coroutines.Dispatchers
@@ -58,17 +60,17 @@ private fun project(point: GlobePoint, latitude: Float, longitude: Float, width:
     val coast = MaterialTheme.colorScheme.onSurfaceVariant
     val ocean = MaterialTheme.colorScheme.surfaceContainerHigh
     val located = remember(stations) { stations.filter { it.latitude != null && it.longitude != null } }
-    Box(modifier) {
-        Canvas(Modifier.fillMaxSize().clipToBounds().onSizeChanged { dimensions = it }
+    Box(modifier.clipToBounds()) {
+        Canvas(Modifier.fillMaxSize().testTag("podio:globe").clipToBounds().onSizeChanged { dimensions = it }
             .pointerInput(located) { detectTapGestures { tap ->
                 located.map { station -> station to project(GlobePoint(station.latitude!!, station.longitude!!), latitude, longitude, dimensions.width, dimensions.height, zoom) }
                     .filter { it.second.depth >= 0 }.minByOrNull { (it.second.point - tap).getDistanceSquared() }
                     ?.takeIf { (it.second.point - tap).getDistance() <= 24.dp.toPx() }?.let { onSelect(it.first) }
             } }
             .pointerInput(Unit) { detectTransformGestures { _, pan, scale, _ ->
-                longitude = ((longitude - pan.x * .35f + 540f) % 360f) - 180f
-                latitude = (latitude + pan.y * .25f).coerceIn(-75f, 75f)
-                zoom = (zoom * scale).coerceIn(.8f, 1.6f)
+                longitude = ((longitude - pan.x * .35f / zoom + 540f) % 360f) - 180f
+                latitude = (latitude + pan.y * .25f / zoom).coerceIn(-75f, 75f)
+                zoom = (zoom * scale).coerceIn(.8f, 8f)
             } }) {
             val radius = min(size.width, size.height) * .42f * zoom
             val center = Offset(size.width / 2, size.height / 2)
@@ -92,14 +94,14 @@ private fun project(point: GlobePoint, latitude: Float, longitude: Float, width:
                 if (p.depth < .02) continue
                 val active = station.id == selected
                 if (active) drawCircle(accent.copy(alpha = .18f), 13.dp.toPx(), p.point)
-                drawCircle(accent.copy(alpha = if (active) 1f else .65f), if (active) 4.dp.toPx() else 2.dp.toPx(), p.point)
+                drawCircle(accent.copy(alpha = if (active) 1f else .65f), if (active) 4.dp.toPx() else 3.dp.toPx(), p.point)
             }
         }
         Text("A world of live radio", Modifier.align(Alignment.TopCenter).padding(8.dp), style = MaterialTheme.typography.labelLarge)
         Row(Modifier.align(Alignment.BottomCenter), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { zoom = (zoom - .15f).coerceAtLeast(.8f) }) { Text("−") }
+            TextButton(onClick = { zoom = (zoom / 1.5f).coerceAtLeast(.8f) }) { Text("−") }
             Text("Drag to explore · tap a station", style = MaterialTheme.typography.labelSmall)
-            TextButton(onClick = { zoom = (zoom + .15f).coerceAtMost(1.6f) }) { Text("+") }
+            TextButton(onClick = { zoom = (zoom * 1.5f).coerceAtMost(8f) }) { Text("+", modifier = Modifier.semantics { contentDescription = "Zoom in" }) }
         }
     }
 }

@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -26,7 +28,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import coil3.compose.AsyncImage
 import com.cosmotune.manga.data.*
-import com.cosmotune.ui.theme.LocalCosmoColors
+import com.cosmotune.ui.blocks.ModePageHeader
+import com.cosmotune.ui.blocks.ModeTabs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -92,22 +95,19 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
             finally { busy = false }
         } }, onFailure = { error = it.message ?: "Folder could not be opened" })
     }
-    val palette = LocalCosmoColors.current.palette
-    Surface(color = Color(palette.backgroundTop), modifier = Modifier.fillMaxSize().testTag("manga:root")) {
+    Surface(color = MaterialTheme.colorScheme.background, contentColor = MaterialTheme.colorScheme.onBackground, modifier = Modifier.fillMaxSize().testTag("manga:root")) {
         if (chapter != null) {
             val current = requireNotNull(chapter)
             val next = selected?.nextChapter(current)
             MangaReader(repository, current, hasNext = next != null, onBack = { chapter = null }, onNext = { chapter = next })
         } else Column(Modifier.fillMaxSize().padding(contentPadding).windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp)) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (selected != null) TextButton(onClick = { selected = null }) { Text("Back") }
-                Text(selected?.title ?: "Manga", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onMusic) { Text("Music") }
-                TextButton(onClick = { sourceDialog = true }) { Text("Sources") }
-                FilledTonalButton(onClick = pick, enabled = !busy) { Text("Import CBZ") }
+            ModePageHeader(selected?.title ?: "Manga", if (selected != null) "Chapters, downloads and reading progress" else "Your library, new discoveries and stories to continue.", onMusic)
+            if (selected != null) TextButton(onClick = { selected = null }) { Text("Back") }
+            else ModeTabs(listOf("Library", "Discover"), if (sourceId == "library") "Library" else "Discover",
+                { sourceId = if (it == "Library") "library" else "all"; query = "" }, Modifier.widthIn(max = 440.dp).fillMaxWidth())
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
+                FilledTonalButton(onClick = { sourceDialog = true }) { Text("Sources") }
+                OutlinedButton(onClick = pick, enabled = !busy) { Text("Import CBZ") }
                 TextButton(onClick = pickFolder, enabled = !busy) { Text("Image folder") }
             }
             error?.let { message ->
@@ -207,7 +207,7 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                 }
             } else {
                 var menu by remember { mutableStateOf(false) }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FlowRow(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
                     Box {
                         FilledTonalButton(onClick = { menu = true }) { Text(when (sourceId) { "library" -> "My library"; "all" -> "All enabled sources"; else -> state.sources.find { it.id == sourceId }?.name ?: "Choose source" }) }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -218,7 +218,7 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                             }
                         }
                     }
-                    OutlinedTextField(query, { query = it }, label = { Text("Search manga") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(query, { query = it }, label = { Text("Search manga") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
                 if (sourceId == "library" && state.books.any { it.sourceId != "local" }) Row(verticalAlignment = Alignment.CenterVertically) {
                     val running = updateJob?.isActive == true
@@ -352,11 +352,13 @@ private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: St
                         cover = repository.pageFile(MangaPage("${book.id}:cover:${book.coverUrl}", book.coverUrl), book.sourceId)
                     } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { cover = null }
                 }
-                Box(Modifier.fillMaxWidth().aspectRatio(0.7f).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                    if (cover == null) Text("Manga", style = MaterialTheme.typography.titleLarge)
-                    else AsyncImage(cover, book.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Box(Modifier.fillMaxWidth().aspectRatio(0.7f).clip(RoundedCornerShape(16.dp))
+                    .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surfaceContainer))), contentAlignment = Alignment.Center) {
+                    Text(book.title.trim().split(Regex("\\s+")).take(2).mapNotNull { it.firstOrNull()?.uppercase() }.joinToString(""),
+                        style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    if (cover != null) AsyncImage(cover, book.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 }
-                Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, modifier = Modifier.padding(top = 8.dp))
+                Text(book.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
                 if (sourceId == "all") Text(library.sources.find { it.id == book.sourceId }?.name ?: book.sourceId, style = MaterialTheme.typography.labelSmall)
                 library.progress[book.id]?.let { Text(if (it.finished) "Chapter read" else "Continue · page ${it.page + 1}", style = MaterialTheme.typography.labelSmall) }
                 if (sourceId == "library" && book.chapters.isNotEmpty()) {

@@ -64,13 +64,13 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         }
         error("The radio directory is unavailable. Please retry.")
     }
-    suspend fun stations(query: String = "", countryCode: String = "", language: String = "", globe: Boolean = false): List<RadioStation> {
-        val params = linkedMapOf("hidebroken" to "true", "order" to "clickcount", "reverse" to "true", "limit" to if (globe) "1200" else "100")
+    suspend fun stations(query: String = "", countryCode: String = "", language: String = "", globe: Boolean = false): List<RadioStation> = withContext(Dispatchers.Default) {
+        val params = linkedMapOf("hidebroken" to "true", "order" to "clickcount", "reverse" to "true", "limit" to if (globe) "1200" else "1000")
         if (query.isNotBlank()) params["name"] = query.trim().take(200)
         if (countryCode.isNotBlank()) params["countrycode"] = countryCode.uppercase(Locale.ROOT).take(2)
-        if (language.isNotBlank()) params["language"] = language.trim().take(60)
+        if (language.isNotBlank()) params["language"] = language.trim().lowercase(Locale.ROOT).take(60)
         if (globe) params["has_geo_info"] = "true"
-        return (radio("/json/stations/search", params) as? JsonArray).orEmpty().mapNotNull { element ->
+        (radio("/json/stations/search", params) as? JsonArray).orEmpty().mapNotNull { element ->
             val o = element as? JsonObject ?: return@mapNotNull null
             val url = httpUrl(o.text("url_resolved").ifBlank { o.text("url") }) ?: return@mapNotNull null
             val id = o.text("stationuuid").takeIf { it.matches(Regex("[a-zA-Z0-9-]{1,64}")) } ?: return@mapNotNull null

@@ -204,6 +204,19 @@ object InnertubeParser {
         }
     }
 
+    /** Charts now bill valid, navigable regional playlists under "Video charts". */
+    fun parseDiscoveryCharts(response: JsonObject): List<HomeShelf> {
+        val charts = collectRenderers(response, "musicCarouselShelfRenderer").mapNotNull { carousel ->
+            val title = carousel.o("header").o("musicCarouselShelfBasicHeaderRenderer").o("title").runs()
+            if (!VIDEO_WORD.containsMatchIn(title)) return@mapNotNull null
+            val items = carousel.a("contents").orEmpty().mapNotNull { parseTwoRowItem(it.o("musicTwoRowItemRenderer")) }
+                .filter { it.browseId?.let { id -> id.startsWith("VL") || id.startsWith("PL") } == true }
+                .distinctBy { it.browseId }
+            items.takeIf { it.isNotEmpty() }?.let { HomeShelf("Trending charts", it) }
+        }
+        return charts + parseHome(response)
+    }
+
     /**
      * The Moods & genres browse page is a set of navigation-button grids, not
      * a normal carousel. Keep the browse params on every button: they select

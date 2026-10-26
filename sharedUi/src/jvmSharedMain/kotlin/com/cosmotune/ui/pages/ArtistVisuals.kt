@@ -83,7 +83,12 @@ fun ArtistMotionArtwork(art: AppleArtistArt?, fallbackUrl: String?, modifier: Mo
     val clip = remember(art?.videoUrl) { art?.videoUrl?.let { CanvasArtwork(it) } }
     var rendered by remember(clip) { mutableStateOf(false) }
     Box(modifier) {
-        AsyncImage(art?.heroUrl ?: fallbackUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // Apple metadata arrives after the original image. Keep that working image mounted:
+        // a missing/expired hero or a failed motion loop must never clear the banner.
+        AsyncImage(fallbackUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        art?.heroUrl?.takeIf { it.isNotBlank() && it != fallbackUrl }?.let { hero ->
+            AsyncImage(hero, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        }
         if (clip != null && artistMotionPlays(animated, reduced, cellular, overCellular)) {
             CanvasArtworkPlayer(clip, isPlaying = true, modifier = Modifier.fillMaxSize(), contentMode = CanvasContentMode.CROP,
                 onRenderedChanged = { rendered = it }, presentationAlpha = { if (rendered) 1f else 0f })

@@ -2510,6 +2510,7 @@ fun CosmotuneDesktopApp() {
         removed.forEach { homeSeenTitles.remove(it.title.lowercase()) }
         homeState = UiState.Success(kept)
         publishHomeShelves(shelves)
+        homeState = UiState.Success(com.cosmotune.music.data.recommendations.DiscoveryFeed.order((homeState as? UiState.Success)?.data.orEmpty()))
     }
 
     /**
@@ -7081,7 +7082,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.7" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.8" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )

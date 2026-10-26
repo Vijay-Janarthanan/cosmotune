@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +24,11 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.cosmotune.podio.*
 import java.io.File
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.cosmotune.ui.blocks.ModePageHeader
+import com.cosmotune.ui.blocks.ModeTabs
 import kotlinx.coroutines.*
 
 data class PodioPlayback(val id: String? = null, val title: String = "", val author: String = "", val playing: Boolean = false,
@@ -52,6 +58,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     var requestedFeed by remember { mutableStateOf<PodcastShow?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var request by remember { mutableIntStateOf(0) }
+    var mapExpanded by rememberSaveable { mutableStateOf(false) }
     var addFeed by remember { mutableStateOf(false) }
     var feedAddress by remember { mutableStateOf("") }
     var openJob by remember { mutableStateOf<Job?>(null) }
@@ -119,17 +126,14 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     Surface(Modifier.fillMaxSize().testTag("podio:root"), color = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground) {
     Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Podio", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                Text("Live radio. Stories worth staying for.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            TextButton(onClick = onMusic) { Text("Music") }
+        ModePageHeader("Podio", "Explore live radio and your next favourite podcast.", onMusic)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ModeTabs(listOf("Radio", "Podcasts"), tab, { browse(); tab = it; query = ""; savedOnly = false }, Modifier.weight(1f, fill = false).widthIn(max = 440.dp))
+            if (tab == "Podcasts") TextButton(onClick = { addFeed = true }) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Text("Add link") }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (name in listOf("Radio", "Podcasts")) FilterChip(selected = tab == name, onClick = { browse(); tab = name; query = ""; savedOnly = false }, label = { Text(name) })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = savedOnly, onClick = { browse(); savedOnly = !savedOnly }, label = { Text(if (tab == "Radio") "Favourites" else "Following") })
-            if (tab == "Podcasts") TextButton(onClick = { addFeed = true }) { Text("Add link") }
+            if (tab == "Radio") TextButton(onClick = { mapExpanded = true }) { Icon(Icons.Outlined.Public, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Expand map") }
         }
         if (opened == null) {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -137,15 +141,14 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { browse(); savedOnly = false; request++ }))
                 IconButton(onClick = { browse(); savedOnly = false; request++ }) { Icon(Icons.Outlined.Search, "Search") }
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for ((label, code) in listOf("World" to "", "India" to "IN", "US" to "US", "UK" to "GB", "Australia" to "AU", "Germany" to "DE"))
-                    FilterChip(country == code, { browse(); country = code }, label = { Text(label) })
-            }
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (name in listOf("", "Tamil", "Telugu", "Hindi", "English", "Malayalam", "Kannada"))
-                    FilterChip(language == name, { browse(); language = name }, label = { Text(name.ifBlank { "All languages" }) })
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                PodioFilter("Region", country, listOf("" to "World", "IN" to "India", "US" to "US", "GB" to "UK", "AU" to "Australia", "DE" to "Germany")) { browse(); country = it }
+                PodioFilter("Language", language, listOf("" to "All languages", "Tamil" to "Tamil", "Telugu" to "Telugu", "Hindi" to "Hindi", "English" to "English", "Malayalam" to "Malayalam", "Kannada" to "Kannada", "Marathi" to "Marathi", "Bengali" to "Bengali", "Punjabi" to "Punjabi")) { browse(); language = it }
+                if (country.isNotBlank() || language.isNotBlank() || query.isNotBlank()) TextButton(onClick = { browse(); country = ""; language = ""; query = ""; request++ }) { Text("Clear") }
             }
         }
+        if (tab == "Radio" && !loading) Text("${(if (savedOnly) saved.stations else radio).size} stations" + if (country.isBlank()) " · Worldwide" else " · $country",
+            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("podio:loading"))
         error?.let { message -> Row(verticalAlignment = Alignment.CenterVertically) {
             Text(message, Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
@@ -176,7 +179,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                     PodioGlobe(mapStations, selected?.id, { selected = it }, Modifier.weight(1f).fillMaxHeight())
                     stationList(Modifier.weight(1f).fillMaxHeight())
                 } else Column(Modifier.fillMaxSize()) {
-                    if (!savedOnly) PodioGlobe(mapStations, selected?.id, { selected = it }, Modifier.fillMaxWidth().height(220.dp))
+                    if (!savedOnly) PodioGlobe(mapStations, selected?.id, { selected = it }, Modifier.fillMaxWidth().height(300.dp))
                     stationList(Modifier.weight(1f).fillMaxWidth())
                 }
             } else {
@@ -216,6 +219,24 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         if (playback.id?.startsWith("podio:") == true) PodioPlayerBar(playback, onToggle, onSeek, onSpeed)
     }
     }
+    if (mapExpanded) Dialog(onDismissRequest = { mapExpanded = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize().testTag("podio:map"), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Radio map", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { mapExpanded = false }) { Text("Close map") }
+                }
+                Text("Zoom in to separate nearby stations. Stations without a location remain in the list.", style = MaterialTheme.typography.bodySmall)
+                val stations = if (savedOnly) saved.stations else if (query.isNotBlank() || country.isNotBlank() || language.isNotBlank()) radio else globe
+                PodioGlobe(stations, selected?.id, { selected = it }, Modifier.weight(1f).fillMaxWidth())
+                selected?.takeIf { station -> stations.any { it.id == station.id } }?.let { station ->
+                    RadioRow(station, saved.stations.any { it.id == station.id }, playback.id == station.item().id,
+                        onPlay = { play(station.item()); scope.launch { catalogue.stationPlayed(station.id) } },
+                        onSave = { save { old -> old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station) } })
+                }
+            }
+        }
+    }
     if (addFeed) AlertDialog(onDismissRequest = { addFeed = false }, title = { Text("Open a podcast") },
         text = { OutlinedTextField(feedAddress, { feedAddress = it }, label = { Text("RSS feed or Spotify podcast link") }, singleLine = true) },
         confirmButton = { TextButton(onClick = {
@@ -228,9 +249,13 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
 @Composable private fun RadioRow(station: RadioStation, saved: Boolean, current: Boolean, onPlay: () -> Unit, onSave: () -> Unit) {
     ListItem(headlineContent = { Text(station.name, fontWeight = if (current) FontWeight.Bold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = { Text(listOf(station.country, station.language, listOf(station.codec, station.bitrate.takeIf { it > 0 }?.let { "$it kbps" }.orEmpty()).filter(String::isNotBlank).joinToString(" · ")).filter(String::isNotBlank).joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis) },
-        leadingContent = { if (station.artwork.isNotBlank()) AsyncImage(station.artwork, null, Modifier.size(42.dp)) else Icon(Icons.Outlined.Radio, null) },
+        leadingContent = { Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Radio, null)
+            if (station.artwork.isNotBlank()) AsyncImage(station.artwork, null, Modifier.fillMaxSize())
+        } },
         trailingContent = { IconButton(onClick = onSave) { Icon(if (saved) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, if (saved) "Remove favourite" else "Save favourite") } },
-        modifier = Modifier.clickable(onClick = onPlay))
+        colors = ListItemDefaults.colors(containerColor = if (current) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onPlay))
 }
 
 @Composable private fun PodioPlayerBar(playback: PodioPlayback, onToggle: () -> Unit, onSeek: (Long) -> Unit, onSpeed: (Float) -> Unit) {
@@ -263,3 +288,19 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     }
 }
 private fun clock(ms: Long): String = "${ms.coerceAtLeast(0) / 60_000}:${(ms.coerceAtLeast(0) / 1000 % 60).toString().padStart(2, '0')}"
+
+@Composable private fun PodioFilter(title: String, value: String, choices: List<Pair<String, String>>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        FilledTonalButton(onClick = { expanded = true }, shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+            Column(horizontalAlignment = Alignment.Start) {
+                Text(title, style = MaterialTheme.typography.labelSmall)
+                Text(choices.find { it.first == value }?.second ?: value, style = MaterialTheme.typography.labelLarge)
+            }
+            Icon(Icons.Outlined.ExpandMore, null, Modifier.padding(start = 6.dp).size(16.dp))
+        }
+        DropdownMenu(expanded, { expanded = false }, modifier = Modifier.heightIn(max = 360.dp)) {
+            choices.forEach { (id, label) -> DropdownMenuItem(text = { Text(label) }, onClick = { expanded = false; onSelect(id) }) }
+        }
+    }
+}

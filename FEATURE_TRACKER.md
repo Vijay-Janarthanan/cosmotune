@@ -174,3 +174,12 @@ The first 1.0.7 Release workflow failed before publication: the provider User-Ag
 4. Keep the documented unfinished integrations and device checks distinct from this incremental release. Fix release regressions before publication, and re-measure package sizes (CT-09, MN-11) from its output.
 
 No scheduling was created; monthly refresh scheduling remains deferred at the user's request. Private add-on URLs, tokens, accounts and signed audio URLs must never enter this tracker.
+
+
+## 1.0.8 UI and discovery repairs
+
+| ID | Feature | Platforms | Status | Evidence and limits |
+| --- | --- | --- | --- | --- |
+| UX-108 | Shared Manga/Podio chrome, palette roles and persistent artist photograph | Android + desktop | Implemented | `ModeVisualRepairTest` exercises real Manga navigation, late/failed artist replacement and themed radio/map screens; `ColorSchemeBridgeTest` covers tonal roles in light/dark palettes. Physical-device walkthroughs remain pending. |
+| PD-04 | Case-safe radio language filtering, larger results and expanded map | Android phone/tablet + desktop | Implemented | `PodioCatalogueTest` asserts lowercase language, explicit country and the 1,000-result limit. `ModeVisualRepairTest` selects Tamil, plays a list-only station, opens/zooms/selects/closes the expanded map. Directory availability/coordinates remain upstream data. |
+| HD-108 | Curated Indian-language discovery and prominent regional charts | Android + desktop | Implemented | `DiscoveryChartsParserTest` preserves navigable playlist charts while leaving normal Home video exclusions; `DiscoveryOrderTest` covers result priority; `AudioDiscoveryInteractionTest` saves independent region/language choices. Opt-in `DiscoveryChartsLiveTest` returned India/global charts and different Tamil/Hindi/English song IDs. Account recommendations remain below discovery shelves. |

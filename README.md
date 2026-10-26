@@ -8,7 +8,9 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-Music videos in Now Playing use a steady 4:5 portrait frame, with playback controls clear of the picture and taller artist motion headers. [1.0.7 changes](docs/releases/1.0.7.md) · [Remaining work](docs/PENDING_WORK.md)
+Music videos in Now Playing use a steady 4:5 portrait frame, with playback controls clear of the picture and taller artist motion headers. [1.0.8 changes](docs/releases/1.0.8.md) · [Remaining work](docs/PENDING_WORK.md)
+
+Version 1.0.8 aligns Manga and Podio with the native theme, keeps artist photographs visible when replacement artwork fails, repairs case-sensitive radio language searches, expands the radio map, and makes regional/language discovery prominent with shorter menus.
 
 Version 1.0.7 adds provider audio preparation and comparisons, tappable audio details, regional discovery and local playlist previews, automatic verification callbacks, and fixes for Windows playback freezing and Now Playing window dragging. Amazon passed actual Windows decoding as 24-bit/44.1 kHz FLAC; Qobuz package availability remains limited by its gateway. [Playback evidence](docs/PROVIDER_MEDIA_PREPARATION.md).
 

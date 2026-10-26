@@ -530,7 +530,7 @@ internal class DesktopAddonClient(
         private const val MAX_RETRIES = 2
         private const val BACKOFF_BASE_MS = 500L
         private const val BACKOFF_CAP_MS = 8_000L
-        internal val USER_AGENT = "Cosmotune/v${System.getProperty("cosmotune.version") ?: "1.0.7"}"
+        internal val USER_AGENT = "Cosmotune/v${System.getProperty("cosmotune.version") ?: "1.0.8"}"
         private const val PROBE_QUERY = "music"
 
         private val LOSSLESS_WORDS = listOf("lossless", "flac", "hifi", "hi-res", "hires", "max", "best")

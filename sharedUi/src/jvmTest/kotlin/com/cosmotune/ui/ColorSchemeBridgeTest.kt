@@ -61,10 +61,17 @@ class ColorSchemeBridgeTest {
     @Test fun keepsWhatTheBridgeDoesNotOwn() {
         val base = lightColorScheme()
         val s = CoverPalette.fromPixels(IntArray(0), 0, 0, dark = false).toColorScheme(base)
-        assertEquals(base.secondary, s.secondary)
-        assertEquals(base.onSecondary, s.onSecondary)
-        assertEquals(base.tertiary, s.tertiary)
         assertEquals(base.inverseSurface, s.inverseSurface)
         assertEquals(base.surfaceBright, s.surfaceBright)
+    }
+
+    @Test fun tonalControlsFollowTheArtworkPaletteInBothThemes() {
+        for (dark in listOf(true, false)) {
+            val palette = CoverPalette.fromPixels(IntArray(64) { 0xff466044.toInt() }, 8, 8, dark = dark)
+            val scheme = palette.toColorScheme(if (dark) darkColorScheme() else lightColorScheme())
+            assertEquals(scheme.primaryContainer, scheme.secondaryContainer)
+            assertEquals(scheme.onPrimaryContainer, scheme.onSecondaryContainer)
+            assertEquals(scheme.primaryContainer, scheme.tertiaryContainer)
+        }
     }
 }
