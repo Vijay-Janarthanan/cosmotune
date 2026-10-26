@@ -24,10 +24,12 @@ import kotlin.test.*
 class PodioInteractionTest {
     @get:Rule val compose = createComposeRule()
     @get:Rule val temporary = TemporaryFolder()
+    private val requests = java.util.concurrent.CopyOnWriteArrayList<String>()
     private fun server(feedFailures: Int = 0, feedDelayMs: Long = 0,
         feedCalls: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger()) = MockWebServer().apply {
         dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
+                requests += request.path.orEmpty()
                 val feed = request.path.orEmpty().startsWith("/feed")
                 if (feed && feedCalls.incrementAndGet() <= feedFailures) return MockResponse().setResponseCode(503)
                 val body = when {
@@ -55,13 +57,22 @@ class PodioInteractionTest {
             } } }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test Radio").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithContentDescription("Save favourite").performClick()
-            compose.waitUntil(5_000) { runCatching { PodioLibrary(file).state.value.stations.size == 1 }.getOrDefault(false) }
+            // The UI publishes the saved state only after the rename commits. Reopening the
+            // destination repeatedly while it is being replaced can itself deny the Windows move.
+            try {
+                compose.waitUntil(20_000) { compose.onAllNodesWithContentDescription("Remove favourite").fetchSemanticsNodes().isNotEmpty() }
+            } catch (error: Throwable) {
+                println("Podio fixture requests: $requests")
+                println(runCatching { compose.onNodeWithTag("podio:root").printToString() }.getOrNull())
+                throw error
+            }
+            assertEquals(1, PodioLibrary(file).state.value.stations.size)
             snapshot("podio-desktop.png")
             compose.onNodeWithText("Test Radio").performClick()
             compose.runOnIdle { assertTrue(played.single().live) }
             compose.onNodeWithText("Podcasts").performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.onNodeWithText("Podcasts").assertIsSelected()
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Test podcast").fetchSemanticsNodes().isNotEmpty() }
+            waitForDirectory()
             compose.onNodeWithText("Test podcast").assertHasClickAction().performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("A real episode").performClick()
@@ -101,7 +112,7 @@ class PodioInteractionTest {
                 PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = directory)
             } } }
             compose.onNodeWithText("Podcasts").performSemanticsAction(SemanticsActions.OnClick) { it() }
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Test podcast").fetchSemanticsNodes().isNotEmpty() }
+            waitForDirectory()
             compose.onNodeWithText("Test podcast").performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Couldn't load this podcast feed. Please retry.").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Retry").performSemanticsAction(SemanticsActions.OnClick) { it() }
@@ -119,5 +130,16 @@ class PodioInteractionTest {
     private fun snapshot(name: String) {
         val path = File("build/podio-previews/$name").apply { parentFile.mkdirs() }
         ImageIO.write(compose.onNodeWithTag("podio:root").captureToImage().toAwtImage(), "png", path)
+    }
+
+    private fun waitForDirectory() {
+        try {
+            // The catalogue's bounded HTTP call is 15 seconds; allow it to settle before the UI deadline.
+            compose.waitUntil(20_000) { compose.onAllNodesWithText("Test podcast").fetchSemanticsNodes().isNotEmpty() }
+        } catch (error: Throwable) {
+            println("Podio fixture requests: $requests")
+            println(runCatching { compose.onNodeWithTag("podio:root").printToString() }.getOrNull())
+            throw error
+        }
     }
 }

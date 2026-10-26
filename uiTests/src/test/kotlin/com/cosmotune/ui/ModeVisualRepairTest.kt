@@ -121,7 +121,12 @@ class ModeVisualRepairTest {
             compose.onNodeWithText("Find a station").assertIsDisplayed()
             compose.onNodeWithText("Podcasts").performClick()
             compose.onNodeWithText("Podcasts").assertIsSelected()
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("A regional show").fetchSemanticsNodes().isNotEmpty() }
+            try {
+                compose.waitUntil(20_000) { compose.onAllNodesWithText("A regional show").fetchSemanticsNodes().isNotEmpty() }
+            } catch (error: Throwable) {
+                println(runCatching { compose.onNodeWithTag("podio:root").printToString() }.getOrNull())
+                throw error
+            }
         }
     }
 
