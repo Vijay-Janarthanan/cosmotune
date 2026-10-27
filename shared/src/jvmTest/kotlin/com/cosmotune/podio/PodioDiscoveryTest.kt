@@ -150,4 +150,18 @@ class PodioDiscoveryTest {
         assertEquals("12:00", PodioPlaces.localTime("IN", 78.0, noon))
         assertEquals("12:30", PodioPlaces.localTime("ZZ", 90.0, noon))
     }
+
+    @Test fun photographsNearbyKeepTheirCreditAndLeaveOutDrawingsAndMaps() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"query":{"pages":[
+                {"title":"File:Map of Arani.svg","index":1,"imageinfo":[{"thumburl":"https://upload.example/map.png","descriptionurl":"https://commons.example/map"}]},
+                {"title":"File:Arani_fort_gate.jpg","index":2,"imageinfo":[{"thumburl":"https://upload.example/gate.jpg","descriptionurl":"https://commons.example/gate",
+                  "extmetadata":{"Artist":{"value":"<a href='x'>A. Photographer</a>"},"LicenseShortName":{"value":"CC BY-SA 4.0"}}}]},
+                {"title":"File:Market.jpg","index":3,"imageinfo":[{"thumburl":"https://upload.example/market.jpg","descriptionurl":"https://commons.example/market"}]}]}}"""))
+            val photos = PodioCatalogue(commonsBase = server.url("/").toString().trimEnd('/')).photos(12.67, 79.28)
+            assertEquals(listOf("Arani fort gate", "Market"), photos.map { it.title }, "an svg map is not a photograph")
+            assertEquals("A. Photographer · CC BY-SA 4.0", photos.first().credit)
+            assertEquals("https://commons.example/gate", photos.first().page)
+        }
+    }
 }

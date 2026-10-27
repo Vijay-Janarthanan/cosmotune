@@ -40,6 +40,9 @@ data class PodioWeather(val temperatureC: Double, val code: Int, val isDay: Bool
     }
 }
 
+/** A photograph taken near a station, from Wikimedia Commons: where its page is, and who took it under which licence. */
+data class PodioPhoto(val title: String, val image: String, val page: String, val credit: String)
+
 /** A well-known place near a station, from Wikipedia (text CC BY-SA 4.0): its name, the first sentences of its article, a picture and the article address. */
 data class PodioHighlight(val title: String, val summary: String, val image: String, val url: String)
 data class PodioItem(val id: String, val title: String, val author: String, val url: String,
@@ -61,7 +64,8 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     private val radioMirrors: List<String>? = null,
     private val appleBase: String = "https://itunes.apple.com", private val fyydBase: String = "https://api.fyyd.de",
     private val spotifyMetadata: (suspend (String) -> PodcastFeed)? = null,
-    private val weatherBase: String = "https://api.open-meteo.com", private val wikipediaBase: String = "https://en.wikipedia.org") {
+    private val weatherBase: String = "https://api.open-meteo.com", private val wikipediaBase: String = "https://en.wikipedia.org",
+    private val commonsBase: String = "https://commons.wikimedia.org") {
     private val json = Json { ignoreUnknownKeys = true }
     private val spotify by lazy { SpotifyPublicPodcasts(::readRequest) }
     private var mirrors: List<String>? = null
@@ -154,6 +158,23 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         try { call.execute().use { reply -> reply.takeIf { it.isSuccessful }?.body?.bytes()?.takeIf { it.size in 1..2_000_000 } } }
         catch (e: CancellationException) { throw e } catch (_: Exception) { null } finally { cancel?.dispose() }
     }
+
+    /** Geotagged photographs within 10 km of a point, nearest first, each with its author and licence (Wikimedia Commons; the licences need the credit shown). */
+    suspend fun photos(latitude: Double, longitude: Double, limit: Int = 12): List<PodioPhoto> = attempt {
+        val root = json.parseToJsonElement(read(address(commonsBase, "/w/api.php", mapOf("action" to "query", "format" to "json", "formatversion" to "2", "generator" to "geosearch",
+            "ggscoord" to "%.5f|%.5f".format(Locale.ROOT, latitude, longitude), "ggsradius" to "10000", "ggsnamespace" to "6", "ggslimit" to "40", "prop" to "imageinfo",
+            "iiprop" to "url|extmetadata", "iiurlwidth" to "640", "iiextmetadatafilter" to "Artist|LicenseShortName")))).jsonObject
+        ((root["query"] as? JsonObject)?.get("pages") as? JsonArray).orEmpty().mapNotNull { element ->
+            val o = element as? JsonObject ?: return@mapNotNull null
+            val file = o.text("title").removePrefix("File:")
+            if (!Regex("(?i)\\.(jpe?g|png|webp)$").containsMatchIn(file)) return@mapNotNull null
+            val info = (o["imageinfo"] as? JsonArray)?.firstOrNull() as? JsonObject ?: return@mapNotNull null
+            val thumb = httpUrl(info.text("thumburl")) ?: return@mapNotNull null
+            fun meta(key: String) = (((info["extmetadata"] as? JsonObject)?.get(key) as? JsonObject)?.text("value")).orEmpty()
+            val credit = listOf(Jsoup.parse(meta("Artist")).text().trim().take(40), meta("LicenseShortName").trim()).filter(String::isNotBlank).joinToString(" · ")
+            (o.number("index") ?: 0.0) to PodioPhoto(file.substringBeforeLast('.').replace('_', ' '), thumb, httpUrl(info.text("descriptionurl")).orEmpty(), credit)
+        }.sortedBy { it.first }.map { it.second }.distinctBy { it.image }.take(limit.coerceIn(1, 30))
+    }.orEmpty()
 
     /** Wikipedia's articles about places within 10 km of a point, nearest first: what the neighbourhood is known for. */
     suspend fun highlights(latitude: Double, longitude: Double, limit: Int = 8): List<PodioHighlight> = attempt {

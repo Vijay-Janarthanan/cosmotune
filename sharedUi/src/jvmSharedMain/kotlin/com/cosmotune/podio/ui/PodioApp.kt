@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.cosmotune.podio.*
 import java.io.File
@@ -97,7 +98,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     var addFeed by remember { mutableStateOf(false) }
     var feedAddress by remember { mutableStateOf("") }
     var openJob by remember { mutableStateOf<Job?>(null) }
-    var panelOpen by rememberSaveable { mutableStateOf(true) }
+    var panelOpen by rememberSaveable { mutableStateOf(false) }
+    var filtersOpen by rememberSaveable { mutableStateOf(false) }
     var panelTab by rememberSaveable { mutableStateOf("Explore") }
     var localDetail by rememberSaveable { mutableStateOf(false) }
     val sidebarDetail by ModeNav.podioDetail.collectAsState()
@@ -207,7 +209,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             }
             if (tab == "Podcasts") TextButton(onClick = { addFeed = true }) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Text("Add link") }
         }
-        if (showNavigation) Row(Modifier.fillMaxWidth().padding(top = if (wide) 0.dp else 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (showNavigation && (wide || tab == "Podcasts")) Row(Modifier.fillMaxWidth().padding(top = if (wide) 0.dp else 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ModeTabs(listOf("Radio", "Podcasts"), tab, { browse(); chooseTab(it); query = "" }, Modifier.weight(1f, fill = false).widthIn(max = 440.dp))
             FilterChip(selected = savedOnly, onClick = { browse(); chooseSaved(!savedOnly) }, label = { Text(if (tab == "Radio") "Favourites" else "Following") })
             if (!wide && tab == "Podcasts") TextButton(onClick = { addFeed = true }) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Text("Add link") }
@@ -238,16 +240,16 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                 val listState = androidx.compose.foundation.lazy.rememberLazyListState()
                 LaunchedEffect(nearby.firstOrNull()?.id, panelTab) { listState.scrollToItem(0) }
                 val countText = "${stations.size} ${if (stations.size == 1) "station" else "stations"}" + if (country.isBlank()) " · Worldwide" else " · " + (REGIONS.firstOrNull { it.first == country }?.second ?: country)
-                val mapBox: @Composable (Modifier) -> Unit = { box ->
+                val mapBox: @Composable (Modifier, Alignment) -> Unit = { box, controls ->
                     Box(box.clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
-                        PodioGlobe(stations, playingStation?.id ?: selected?.id, { nearby = it }, Modifier.fillMaxSize(), focus = selected, tiles = catalogue.tiles)
+                        PodioGlobe(stations, playingStation?.id ?: selected?.id, { nearby = it }, Modifier.fillMaxSize(), focus = selected, tiles = catalogue.tiles, controlsAlignment = controls)
                     }
                 }
                 val panel: @Composable (Modifier) -> Unit = { box ->
                     Column(box, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Surface(Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 2.dp) {
                             Column(Modifier.fillMaxSize()) {
-                                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Row(Modifier.fillMaxWidth().then(if (wide) Modifier else Modifier.clickable { panelOpen = !panelOpen }).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
                                         Text((if (nearby.isNotEmpty() && panelTab == "Explore") nearby.size else stations.size).toString(), color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge, maxLines = 1)
                                     }
@@ -262,9 +264,10 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                                     }
                                     if (panelTab == "Explore" && grouped.size == 1) Text(PodioPlaces.localTime(grouped[0].stations.first().countryCode, grouped[0].longitude),
                                         style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (!wide) Icon(if (panelOpen) Icons.Outlined.ExpandMore else Icons.Outlined.ExpandLess, if (panelOpen) "Hide stations" else "Show stations")
                                 }
                                 HorizontalDivider()
-                                LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                if (wide || panelOpen) LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                       if (panelTab == "Favorites") {
                                         if (saved.stations.isEmpty()) item { Text("Save a station with the heart button.", Modifier.padding(16.dp)) }
                                         items(saved.stations, key = { "fav-" + it.id }) { station -> RadioRow(station, true, playback.id == station.item().id, onPlay = { playStation(station) }, onSave = { toggleFavourite(station) }) }
@@ -285,9 +288,10 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                                 HorizontalDivider()
                                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                                     PanelTab("Explore", Icons.Outlined.Public, panelTab == "Explore") { panelTab = "Explore" }
-                                    PanelTab("Favorites", Icons.Outlined.FavoriteBorder, panelTab == "Favorites") { panelTab = "Favorites" }
-                                    PanelTab("Browse", Icons.Outlined.Map, panelTab == "Browse") { panelTab = "Browse" }
-                                    PanelTab("Search", Icons.Outlined.Search, panelTab == "Search") { panelTab = "Search" }
+                                    PanelTab("Favorites", Icons.Outlined.FavoriteBorder, panelTab == "Favorites") { panelTab = "Favorites"; panelOpen = true }
+                                    PanelTab("Browse", Icons.Outlined.Map, panelTab == "Browse") { panelTab = "Browse"; panelOpen = true }
+                                    PanelTab("Search", Icons.Outlined.Search, panelTab == "Search") { panelTab = "Search"; panelOpen = true }
+                                    if (!wide && showNavigation) PanelTab("Podcasts", Icons.Outlined.Podcasts, false) { browse(); chooseTab("Podcasts"); query = "" }
                                     onSettings?.let { open -> PanelTab("Settings", Icons.Outlined.Settings, false, open) }
                                 }
                             }
@@ -302,21 +306,29 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                         }
                     }
                 }
-                Column(Modifier.fillMaxSize()) {
+                if (!wide) Box(Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp))) {
+                    // The globe fills the page; a search pill floats on top, and one small stack (place, player, tabs) sits at the bottom.
+                    mapBox(Modifier.fillMaxSize().padding(bottom = 205.dp), Alignment.CenterEnd)
+                    Column(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            searchField(Modifier.weight(1f).background(MaterialTheme.colorScheme.surface.copy(alpha = .9f), RoundedCornerShape(16.dp)))
+                            FilledTonalIconButton(onClick = { filtersOpen = !filtersOpen }, modifier = Modifier.size(48.dp).semantics { contentDescription = "Filters" }) { Icon(Icons.Outlined.Tune, null) }
+                        }
+                        if (filtersOpen) Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .94f), tonalElevation = 3.dp) {
+                            Column(Modifier.padding(8.dp)) { filtersBar(Modifier.fillMaxWidth()); Text(countText, Modifier.padding(start = 4.dp, top = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        }
+                    }
+                    panel(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(10.dp).height(if (panelOpen) 420.dp else 212.dp))
+                } else Column(Modifier.fillMaxSize()) {
                     // One row of tools above the map and the panel: nothing floats over anything else.
-                    if (wide) Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         searchField(Modifier.width(380.dp))
                         filtersBar(Modifier.weight(1f, fill = false))
                         Spacer(Modifier.weight(1f))
                         if (!loading) Text(countText, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    } else Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        searchField(Modifier.fillMaxWidth())
-                        filtersBar(Modifier.fillMaxWidth())
                     }
-                    if (wide) Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        panel(Modifier.width(380.dp).fillMaxHeight()); mapBox(Modifier.weight(1f).fillMaxHeight())
-                    } else Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        mapBox(Modifier.fillMaxWidth().weight(1f)); panel(Modifier.fillMaxWidth().weight(1.1f))
+                    Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        panel(Modifier.width(380.dp).fillMaxHeight()); mapBox(Modifier.weight(1f).fillMaxHeight(), Alignment.BottomEnd)
                     }
                 }
             } else {
@@ -391,10 +403,14 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         }) { Text("Open podcast") } }, dismissButton = { TextButton(onClick = { addFeed = false }) { Text("Cancel") } })
 }
 
+/** The station's logo; a station with none (or one that does not load) gets a tile in its own colour with its initials. */
 @Composable internal fun StationLogo(station: RadioStation, size: androidx.compose.ui.unit.Dp) {
-    Box(Modifier.size(size).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.Center) {
-        Icon(Icons.Outlined.Radio, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (station.artwork.isNotBlank()) AsyncImage(station.artwork, null, Modifier.fillMaxSize())
+    var loaded by remember(station.artwork) { mutableStateOf(false) }
+    val hue = (station.name.fold(7) { total, char -> total * 31 + char.code } and 0x7fffffff) % 360
+    val initials = station.name.split(' ', '-', '.', '_').filter(String::isNotBlank).take(2).joinToString("") { it.first().uppercase() }.ifBlank { "FM" }
+    Box(Modifier.size(size).clip(RoundedCornerShape(12.dp)).background(if (loaded) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.hsv(hue.toFloat(), .5f, .5f)), contentAlignment = Alignment.Center) {
+        if (!loaded) Text(initials, color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * .36f).sp, maxLines = 1)
+        if (station.artwork.isNotBlank()) AsyncImage(station.artwork, null, Modifier.fillMaxSize(), onSuccess = { loaded = true })
     }
 }
 

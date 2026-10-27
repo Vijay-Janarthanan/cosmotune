@@ -46,6 +46,7 @@ internal fun RadioDetail(station: RadioStation, playback: PodioPlayback, song: S
     val point = remember(station.id) { station.mapPoint() }
     val weather by produceState<PodioWeather?>(null, point) { value = point?.let { catalogue.weather(it.latitude, it.longitude) } }
     val highlights by produceState(emptyList<PodioHighlight>(), point) { value = point?.let { catalogue.highlights(it.latitude, it.longitude) }.orEmpty() }
+    val photos by produceState(emptyList<PodioPhoto>(), point) { value = point?.let { catalogue.photos(it.latitude, it.longitude) }.orEmpty() }
     // The place's own clock, kept current while the page is open.
     val now by produceState(Instant.now()) { while (true) { value = Instant.now(); delay(15_000) } }
     val zoned = weather?.let { now.atOffset(ZoneOffset.ofTotalSeconds(it.utcOffsetSeconds)) }
@@ -128,27 +129,17 @@ internal fun RadioDetail(station: RadioStation, playback: PodioPlayback, song: S
                     if (station.country.isNotBlank()) InfoChip(Icons.Outlined.Public, station.country)
                 }
             }
-            if (highlights.isNotEmpty()) {
-                Text("Known around here", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (photos.isNotEmpty()) {
+                Text("Around here", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    highlights.forEach { place ->
-                        Surface(Modifier.width(250.dp).clip(RoundedCornerShape(18.dp)).clickable { uri.openUri(place.url) }, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-                            Column {
-                                Box(Modifier.fillMaxWidth().height(if (place.image.isNotBlank()) 120.dp else 48.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.CenterStart) {
-                                    // Wikimedia refuses the default client name, so the picture is fetched by the catalogue, which sends the app's own.
-                                    val picture by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, place.image) {
-                                        value = place.image.takeIf(String::isNotBlank)?.let { address -> catalogue.picture(address)?.let { bytes -> runCatching { bytes.decodeToImageBitmap() }.getOrNull() } }
-                                    }
-                                    picture?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
-                                    if (place.image.isBlank()) Icon(Icons.Outlined.Place, null, Modifier.padding(start = 14.dp), tint = MaterialTheme.colorScheme.primary)
-                                }
-                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(place.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(place.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                                }
-                            }
-                        }
-                    }
+                    photos.forEach { photo -> PhotoCard(photo, catalogue) { uri.openUri(photo.page.ifBlank { photo.image }) } }
+                }
+                Text("Photographs from Wikimedia Commons, each under its author's licence", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (highlights.isNotEmpty()) {
+                Text("About the area", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    highlights.take(6).forEach { place -> ArticleRow(place, catalogue) { uri.openUri(place.url) } }
                 }
                 Text("Articles from Wikipedia (CC BY-SA 4.0), places within 10 km", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -190,4 +181,38 @@ private fun weatherIcon(w: PodioWeather) = when (w.code) {
     in 71..77, 85, 86 -> Icons.Outlined.AcUnit
     in 95..99 -> Icons.Outlined.Thunderstorm
     else -> Icons.Outlined.Cloud
+}
+
+/** A photograph with its credit written on it; the picture is fetched by the catalogue, which sends the app's own client name (Wikimedia refuses the default). */
+@Composable private fun PhotoCard(photo: PodioPhoto, catalogue: PodioCatalogue, onClick: () -> Unit) {
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, photo.image) {
+        value = catalogue.picture(photo.image)?.let { bytes -> runCatching { bytes.decodeToImageBitmap() }.getOrNull() }
+    }
+    Box(Modifier.width(260.dp).height(170.dp).clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable(onClick = onClick)) {
+        bitmap?.let { Image(it, photo.title, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
+        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .72f)))).padding(10.dp)) {
+            Column {
+                Text(photo.title, color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (photo.credit.isNotBlank()) Text(photo.credit, color = Color.White.copy(alpha = .8f), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/** An article as a row: its picture when it has one, else the first letter on a tint (most small places have no picture on Wikipedia). */
+@Composable private fun ArticleRow(place: PodioHighlight, catalogue: PodioCatalogue, onClick: () -> Unit) {
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, place.image) {
+        value = place.image.takeIf(String::isNotBlank)?.let { address -> catalogue.picture(address)?.let { bytes -> runCatching { bytes.decodeToImageBitmap() }.getOrNull() } }
+    }
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainer).clickable(onClick = onClick).padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        Box(Modifier.size(56.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+            Text(place.title.take(1).uppercase(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            bitmap?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(place.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(place.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
+    }
 }

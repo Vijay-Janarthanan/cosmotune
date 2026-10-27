@@ -82,6 +82,8 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
  */
 @Composable internal fun PodioGlobe(stations: List<RadioStation>, selected: String?, onCentre: (List<RadioStation>) -> Unit,
     modifier: Modifier = Modifier, focus: RadioStation? = null, controlsPadding: PaddingValues = PaddingValues(10.dp), tiles: PodioTiles? = null,
+    /** Where the zoom and random-place buttons sit (the phone puts them beside the globe, clear of the cards at the bottom). */
+    controlsAlignment: Alignment = Alignment.BottomEnd,
     /** Held on [focus]: no dragging, zooming, ring or buttons (the station page). */ locked: Boolean = false) {
     var latitude by remember { mutableFloatStateOf(20f) }
     var longitude by remember { mutableFloatStateOf(78f) }
@@ -253,9 +255,9 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
                 drawCircle(if (active) Color.White else tone, base * if (active) 1.15f else 1f, p.point)
             }
         }
-        if (images.isNotEmpty()) Text(PodioTiles.ATTRIBUTION, Modifier.align(Alignment.BottomEnd).padding(end = 62.dp, bottom = 4.dp),
+        if (images.isNotEmpty()) Text(PodioTiles.ATTRIBUTION, Modifier.align(Alignment.BottomEnd).padding(end = if (controlsAlignment == Alignment.BottomEnd) 62.dp else 10.dp, bottom = 4.dp),
             style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .6f))
-        if (!locked) Column(Modifier.align(Alignment.BottomEnd).padding(controlsPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!locked) Column(Modifier.align(controlsAlignment).padding(controlsPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalIconButton(onClick = {
                 places.randomOrNull()?.let { latitude = it.latitude.toFloat().coerceIn(-75f, 75f); longitude = it.longitude.toFloat(); zoomTo(max(zoom, if (it.approximate) 4f else 8f)) }
             }, modifier = Modifier.size(40.dp).semantics { contentDescription = "Random place" }) { Icon(Icons.Outlined.Shuffle, null) }
