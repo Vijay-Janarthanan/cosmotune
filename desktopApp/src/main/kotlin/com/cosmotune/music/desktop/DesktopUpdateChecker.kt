@@ -34,7 +34,7 @@ internal object DesktopUpdateChecker {
 
     private const val LATEST_RELEASE_URL = com.cosmotune.CosmoConfig.LATEST_RELEASE_API
 
-    val currentVersion: String = System.getProperty("cosmotune.version") ?: "1.0.8"
+    val currentVersion: String = System.getProperty("cosmotune.version") ?: "1.0.9"
 
     private val json = Json { ignoreUnknownKeys = true }
 

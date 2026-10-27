@@ -160,7 +160,7 @@ class ModeVisualRepairTest {
     }
 
     private fun snapshot(name: String, tag: String) {
-        val output = File("../build/ui-1.0.8/$name").apply { parentFile.mkdirs() }
+        val output = File("../build/ui-1.0.9/$name").apply { parentFile.mkdirs() }
         ImageIO.write(compose.onNodeWithTag(tag).captureToImage().toAwtImage(), "png", output)
     }
 }
