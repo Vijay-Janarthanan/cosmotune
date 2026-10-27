@@ -85,6 +85,11 @@ object PodioPlaces {
             "trivandrum:8.52,76.94;kozhikode:11.26,75.78;calicut:11.26,75.78;mumbai:19.08,72.88;pune:18.52,73.86;nagpur:21.15,79.09;delhi:28.61,77.21;" +
             "new delhi:28.61,77.21;kolkata:22.57,88.36;ahmedabad:23.02,72.57;surat:21.17,72.83;jaipur:26.91,75.79;lucknow:26.85,80.95;bhopal:23.26,77.41;" +
             "indore:22.72,75.86;patna:25.59,85.14;chandigarh:30.73,76.78;amritsar:31.63,74.87;guwahati:26.14,91.74;bhubaneswar:20.30,85.82;" +
+            "arani:12.67,79.28;arni:12.67,79.28;gudiyatham:12.95,78.87;gudiyattam:12.95,78.87;ranipet:12.93,79.33;ambur:12.79,78.72;vaniyambadi:12.68,78.62;" +
+            "tiruvannamalai:12.23,79.07;katpadi:12.97,79.14;walajapet:12.93,79.37;tirupattur:12.50,78.57;krishnagiri:12.52,78.21;dharmapuri:12.13,78.16;" +
+            "kanchipuram:12.83,79.70;cuddalore:11.75,79.77;karur:10.96,78.08;dindigul:10.37,77.98;nagercoil:8.18,77.43;kanyakumari:8.08,77.54;" +
+            "tuticorin:8.76,78.13;thoothukudi:8.76,78.13;sivakasi:9.45,77.80;hosur:12.74,77.83;ooty:11.41,76.70;kumbakonam:10.96,79.38;namakkal:11.22,78.17;" +
+            "pollachi:10.66,77.00;theni:10.01,77.48;pudukkottai:10.38,78.82;nagapattinam:10.77,79.84;virudhunagar:9.59,77.96;villupuram:11.94,79.49;" +
             "ranchi:23.34,85.31;raipur:21.25,81.63;dehradun:30.32,78.03;srinagar:34.08,74.80;shimla:31.10,77.17;panaji:15.50,73.83"
         val states = "tamil nadu:11.1,78.65;tamilnadu:11.1,78.65;kerala:10.5,76.3;karnataka:14.5,75.7;andhra pradesh:15.9,79.7;telangana:17.9,79.0;" +
             "maharashtra:19.7,75.7;gujarat:22.3,71.7;rajasthan:26.6,73.8;uttar pradesh:26.8,80.9;madhya pradesh:23.5,78.0;west bengal:23.0,87.9;" +

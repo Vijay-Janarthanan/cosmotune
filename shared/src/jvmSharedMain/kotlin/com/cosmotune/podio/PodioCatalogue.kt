@@ -70,7 +70,7 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         if (countryCode.isNotBlank()) params["countrycode"] = countryCode.uppercase(Locale.ROOT).take(2)
         if (language.isNotBlank()) params["language"] = language.trim().lowercase(Locale.ROOT).take(60)
         if (globe) params["has_geo_info"] = "true"
-        (radio("/json/stations/search", params) as? JsonArray).orEmpty().mapNotNull { element ->
+        val directory = (radio("/json/stations/search", params) as? JsonArray).orEmpty().mapNotNull { element ->
             val o = element as? JsonObject ?: return@mapNotNull null
             val url = httpUrl(o.text("url_resolved").ifBlank { o.text("url") }) ?: return@mapNotNull null
             val id = o.text("stationuuid").takeIf { it.matches(Regex("[a-zA-Z0-9-]{1,64}")) } ?: return@mapNotNull null
@@ -79,6 +79,14 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                 o.number("geo_lat")?.takeIf { it in -90.0..90.0 }, o.number("geo_long")?.takeIf { it in -180.0..180.0 },
                 o.text("codec"), o.text("bitrate").toIntOrNull() ?: 0, o.text("state").trim().take(80))
         }.distinctBy { it.id }
+        mergeExtras(directory, extras, query, countryCode, language)
+    }
+    // Stations whose own web page publishes the stream but that the open directory does not list yet. They belong to the real
+    // directory only: a test that points the catalogue at its own server gets exactly what that server returns.
+    private val extras: List<RadioStation> by lazy {
+        if (radioMirrors != null) emptyList() else runCatching {
+            PodioCatalogue::class.java.getResourceAsStream("/podio/extra-stations.json")?.bufferedReader()?.use { json.decodeFromString<List<RadioStation>>(it.readText()) }
+        }.getOrNull().orEmpty()
     }
     suspend fun stationPlayed(id: String) {
         if (!id.matches(Regex("[a-zA-Z0-9-]{1,64}"))) return
@@ -221,6 +229,15 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     }
     companion object {
         private const val MAX_BYTES = 8 * 1024 * 1024
+        /** The directory's answer plus the bundled stations that fit the same query, country and language (one entry per stream address). */
+        fun mergeExtras(directory: List<RadioStation>, extras: List<RadioStation>, query: String, countryCode: String, language: String): List<RadioStation> {
+            val fitting = extras.filter { s ->
+                (query.isBlank() || s.name.contains(query.trim(), ignoreCase = true)) &&
+                    (countryCode.isBlank() || s.countryCode.equals(countryCode.trim(), ignoreCase = true)) &&
+                    (language.isBlank() || s.language.contains(language.trim(), ignoreCase = true))
+            }
+            return (directory + fitting).distinctBy { it.id }.distinctBy { it.url.trimEnd('/') }
+        }
         /** "StreamTitle='Artist - Song';" out of an ICY metadata block. */
         fun streamTitle(block: String): String? = Regex("StreamTitle='(.*?)';", RegexOption.DOT_MATCHES_ALL).find(block)?.groupValues?.get(1)
             ?.trim()?.trim(' ')?.takeIf { it.length in 2..200 }

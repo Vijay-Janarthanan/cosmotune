@@ -88,4 +88,30 @@ class PodioDiscoveryTest {
             assertEquals("https://feeds.example/a", shows.first().feed)
         }
     }
+
+    @Test fun theBundledStationsAreValidAndJoinTheDirectoryOnlyWhereTheyFit() {
+        val bundled = requireNotNull(PodioCatalogue::class.java.getResourceAsStream("/podio/extra-stations.json")).bufferedReader().use {
+            kotlinx.serialization.json.Json.decodeFromString<List<RadioStation>>(it.readText()) }
+        assertTrue(bundled.isNotEmpty())
+        bundled.forEach { s ->
+            assertTrue(s.id.matches(Regex("[a-zA-Z0-9-]{1,64}")), "id ${s.id}")
+            assertNotNull(PodioCatalogue.httpUrl(s.url), "url of ${s.name}")
+            assertTrue(s.latitude != null && s.longitude != null, "${s.name} has no place")
+        }
+        val tamil = PodioCatalogue.mergeExtras(emptyList(), bundled, "", "IN", "tamil")
+        assertEquals(bundled.map { it.id }, tamil.map { it.id })
+        assertTrue(PodioCatalogue.mergeExtras(emptyList(), bundled, "", "LK", "tamil").isEmpty(), "another country")
+        assertTrue(PodioCatalogue.mergeExtras(emptyList(), bundled, "zzz", "", "").isEmpty(), "another name")
+        val listedAlready = bundled.first().copy(id = "from-directory")
+        assertEquals(listOf("from-directory"), PodioCatalogue.mergeExtras(listOf(listedAlready), bundled, "", "", "").map { it.id }, "one entry per stream address")
+    }
+
+    @Test fun theTownsAroundVelloreHavePlaces() {
+        for ((name, lat) in listOf("Arni City FM" to 12.67, "Gudiyatham FM" to 12.95, "Radio Vellore" to 12.92)) {
+            val point = requireNotNull(station("t", name = name).mapPoint()) { name }
+            assertTrue(abs(point.latitude - lat) < .3, "$name at $point")
+        }
+        // Not a town: "arani" inside "Maharani" stays in Haryana, far from Arani.
+        assertTrue(requireNotNull(station("u", name = "Radio Maharani", state = "Haryana").mapPoint()).latitude > 25)
+    }
 }
