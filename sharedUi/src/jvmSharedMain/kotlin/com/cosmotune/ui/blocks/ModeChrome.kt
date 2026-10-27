@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 object ModeNav {
     val podioTab = kotlinx.coroutines.flow.MutableStateFlow("Radio")
     val podioSaved = kotlinx.coroutines.flow.MutableStateFlow(false)
+    /** The open station page of Podio on the desktop; the bottom bar sets it when a radio station is clicked. */
+    val podioDetail = kotlinx.coroutines.flow.MutableStateFlow(false)
     val mangaTab = kotlinx.coroutines.flow.MutableStateFlow("Library")
 }
 

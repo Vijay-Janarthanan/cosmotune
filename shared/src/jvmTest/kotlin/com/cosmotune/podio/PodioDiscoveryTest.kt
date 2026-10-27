@@ -114,4 +114,40 @@ class PodioDiscoveryTest {
         // Not a town: "arani" inside "Maharani" stays in Haryana, far from Arani.
         assertTrue(requireNotNull(station("u", name = "Radio Maharani", state = "Haryana").mapPoint()).latitude > 25)
     }
+
+    @Test fun weatherAndNearbyArticlesAreReadFromTheirServices() = runBlocking {
+        MockWebServer().use { server ->
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse = when {
+                    request.path.orEmpty().startsWith("/v1/forecast") -> MockResponse().setBody("""{"utc_offset_seconds":19800,"current":{"temperature_2m":29.5,"weather_code":2,"is_day":1,"wind_speed_10m":11.2},
+                        "daily":{"sunrise":["2026-10-27T06:10"],"sunset":["2026-10-27T17:52"]}}""")
+                    request.path.orEmpty().startsWith("/w/api.php") -> MockResponse().setBody("""{"query":{"pages":[
+                        {"title":"Second place","index":2,"extract":"A second article that is long enough to keep."},
+                        {"title":"Vellore Fort","index":1,"extract":"Vellore Fort is a large fort in the city of Vellore, Tamil Nadu.","thumbnail":{"source":"https://upload.example/fort.jpg"}},
+                        {"title":"Stub","index":3,"extract":"Short."}]}}""")
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+            val base = server.url("/").toString().trimEnd('/')
+            val catalogue = PodioCatalogue(weatherBase = base, wikipediaBase = base)
+            val weather = requireNotNull(catalogue.weather(12.9, 79.1))
+            assertEquals(29.5, weather.temperatureC); assertEquals("Partly cloudy", weather.summary); assertTrue(weather.isDay)
+            assertEquals(19800, weather.utcOffsetSeconds); assertEquals("06:10", weather.sunrise); assertEquals("17:52", weather.sunset)
+            val highlights = catalogue.highlights(12.9, 79.1)
+            assertEquals(listOf("Vellore Fort", "Second place"), highlights.map { it.title }, "nearest first; a stub with no real text is left out")
+            assertEquals("https://upload.example/fort.jpg", highlights.first().image)
+            assertTrue(highlights.first().url.endsWith("/wiki/Vellore_Fort"))
+        }
+    }
+
+    @Test fun anUnreachableWeatherServiceIsNullAndNotAnError() = runBlocking {
+        assertNull(PodioCatalogue(weatherBase = "http://127.0.0.1:1", wikipediaBase = "http://127.0.0.1:1").weather(1.0, 1.0))
+        assertEquals(emptyList(), PodioCatalogue(weatherBase = "http://127.0.0.1:1", wikipediaBase = "http://127.0.0.1:1").highlights(1.0, 1.0))
+    }
+
+    @Test fun theLocalTimeUsesTheCountrysZoneOrTheLongitude() {
+        val noon = java.time.Instant.parse("2026-10-27T06:30:00Z")
+        assertEquals("12:00", PodioPlaces.localTime("IN", 78.0, noon))
+        assertEquals("12:30", PodioPlaces.localTime("ZZ", 90.0, noon))
+    }
 }

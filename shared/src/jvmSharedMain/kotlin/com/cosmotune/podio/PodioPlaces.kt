@@ -59,6 +59,20 @@ object PodioPlaces {
         return find(state) ?: find(name) ?: home?.let(::find)
     }
 
+    private val zones = mapOf("IN" to "Asia/Kolkata", "LK" to "Asia/Colombo", "PK" to "Asia/Karachi", "BD" to "Asia/Dhaka", "NP" to "Asia/Kathmandu", "AE" to "Asia/Dubai",
+        "SA" to "Asia/Riyadh", "SG" to "Asia/Singapore", "MY" to "Asia/Kuala_Lumpur", "TH" to "Asia/Bangkok", "VN" to "Asia/Ho_Chi_Minh", "PH" to "Asia/Manila",
+        "JP" to "Asia/Tokyo", "KR" to "Asia/Seoul", "CN" to "Asia/Shanghai", "HK" to "Asia/Hong_Kong", "TW" to "Asia/Taipei", "GB" to "Europe/London", "IE" to "Europe/Dublin",
+        "FR" to "Europe/Paris", "DE" to "Europe/Berlin", "ES" to "Europe/Madrid", "IT" to "Europe/Rome", "NL" to "Europe/Amsterdam", "TR" to "Europe/Istanbul",
+        "PL" to "Europe/Warsaw", "GR" to "Europe/Athens", "EG" to "Africa/Cairo", "ZA" to "Africa/Johannesburg", "NG" to "Africa/Lagos", "KE" to "Africa/Nairobi",
+        "IL" to "Asia/Jerusalem", "IR" to "Asia/Tehran", "AR" to "America/Argentina/Buenos_Aires", "CO" to "America/Bogota", "PE" to "America/Lima", "CL" to "America/Santiago")
+
+    /** The place's clock, "HH:mm": its country's zone when it has one, else the zone its longitude falls in (an hour per 15 degrees). */
+    fun localTime(countryCode: String, longitude: Double, now: java.time.Instant = java.time.Instant.now()): String {
+        val zone = zones[countryCode.trim().uppercase(Locale.ROOT)]?.let { runCatching { java.time.ZoneId.of(it) }.getOrNull() }
+            ?: java.time.ZoneOffset.ofHours(Math.round(longitude / 15.0).toInt().coerceIn(-12, 14))
+        return java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(now.atZone(zone))
+    }
+
     fun capital(countryCode: String): Pair<Double, Double>? = capitals[countryCode]
 
     fun spreadDegrees(countryCode: String): Double = when (countryCode) {

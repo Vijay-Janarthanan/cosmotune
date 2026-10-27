@@ -68,6 +68,7 @@ class PodioInteractionTest {
                     onToggle = {}, onSeek = {}, onSpeed = {}, onMusic = {},
                     directory = directory)
             } } }
+            compose.onNodeWithText("Search").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test Radio").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithContentDescription("Save favourite").performClick()
             // The UI publishes the saved state only after the rename commits. Reopening the
@@ -105,6 +106,7 @@ class PodioInteractionTest {
             compose.setContent { MaterialTheme(colorScheme = darkColorScheme()) { Box(Modifier.size(412.dp, 892.dp)) {
                 PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = directory)
             } } }
+            compose.onNodeWithText("Search").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test Radio").fetchSemanticsNodes().isNotEmpty() }
             snapshot("podio-phone.png")
             compose.onNodeWithText("Podcasts").performClick()

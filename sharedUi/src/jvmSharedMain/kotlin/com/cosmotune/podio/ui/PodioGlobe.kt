@@ -31,6 +31,17 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.cosmotune.podio.PodioCatalogue
 import com.cosmotune.podio.PodioPlace
+import com.cosmotune.podio.PodioTiles
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.VertexMode
+import androidx.compose.ui.graphics.Vertices
+import androidx.compose.ui.graphics.drawscope.clipPath
+import org.jetbrains.compose.resources.decodeToImageBitmap
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import com.cosmotune.podio.PodioPlaces
 import com.cosmotune.podio.RadioStation
 import kotlinx.coroutines.Dispatchers
@@ -45,9 +56,12 @@ private data class Projected(val point: Offset, val depth: Double, val x: Double
 
 private const val MIN_ZOOM = .8f
 private const val MAX_ZOOM = 90f
-private const val RING_DP = 26f
+private const val RING_DP = 18f
+/** Dots this close (in dp) to the nearest dot under the ring belong to the same crowd. */
+private const val CROWD_DP = 12f
 
-private fun radius(width: Int, height: Int, zoom: Float) = min(width, height) * .42f * zoom
+// A wide, short view shows a bigger globe, cut at the top and bottom, rather than a small one in the middle.
+private fun radius(width: Int, height: Int, zoom: Float) = min(width.toFloat(), height * 1.5f) * .42f * zoom
 
 private fun project(latitude: Double, longitude: Double, centreLat: Float, centreLon: Float, width: Int, height: Int, zoom: Float): Projected {
     val lat = Math.toRadians(latitude)
@@ -67,7 +81,8 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
  * brings it under the ring (and zooms in on a crowd), the wheel and a pinch zoom, and the buttons jump to a random place.
  */
 @Composable internal fun PodioGlobe(stations: List<RadioStation>, selected: String?, onCentre: (List<RadioStation>) -> Unit,
-    modifier: Modifier = Modifier, focus: RadioStation? = null, controlsPadding: PaddingValues = PaddingValues(10.dp)) {
+    modifier: Modifier = Modifier, focus: RadioStation? = null, controlsPadding: PaddingValues = PaddingValues(10.dp), tiles: PodioTiles? = null,
+    /** Held on [focus]: no dragging, zooming, ring or buttons (the station page). */ locked: Boolean = false) {
     var latitude by remember { mutableFloatStateOf(20f) }
     var longitude by remember { mutableFloatStateOf(78f) }
     var zoom by remember { mutableFloatStateOf(1f) }
@@ -86,18 +101,43 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
     // Bring the chosen station into view when the list (not the map) chose it.
     LaunchedEffect(focus?.id) {
         val place = focus?.let { target -> places.firstOrNull { p -> p.stations.any { it.id == target.id } } } ?: return@LaunchedEffect
-        latitude = place.latitude.toFloat().coerceIn(-75f, 75f); longitude = place.longitude.toFloat(); zoom = max(zoom, if (place.approximate) 4f else 9f)
+        latitude = place.latitude.toFloat().coerceIn(-75f, 75f); longitude = place.longitude.toFloat()
+        zoom = if (locked) (if (place.approximate) 5f else 14f) else max(zoom, if (place.approximate) 4f else 9f)
     }
     // Whatever stands inside the ring is what the panel lists, once the view has stopped for a moment.
     LaunchedEffect(places, dimensions) {
-        if (dimensions.width <= 0) return@LaunchedEffect
+        if (dimensions.width <= 0 || locked) return@LaunchedEffect
         snapshotFlow { Triple(latitude, longitude, zoom) }.collectLatest {
             delay(120)
-            val reach = RING_DP * density
-            val inside = places.map { place -> place to project(place.latitude, place.longitude, latitude, longitude, dimensions.width, dimensions.height, zoom) }
-                .filter { it.second.depth >= 0 && (it.second.point - Offset(dimensions.width / 2f, dimensions.height / 2f)).getDistance() <= reach }
-                .sortedBy { (it.second.point - Offset(dimensions.width / 2f, dimensions.height / 2f)).getDistanceSquared() }
-            onCentre(inside.flatMap { it.first.stations })
+            val middle = Offset(dimensions.width / 2f, dimensions.height / 2f)
+            val shown = places.map { place -> place to project(place.latitude, place.longitude, latitude, longitude, dimensions.width, dimensions.height, zoom) }
+                .filter { it.second.depth >= 0 }
+            // The dot nearest the ring's middle, if it is inside the ring, and the dots crowded round it.
+            val nearest = shown.minByOrNull { (it.second.point - middle).getDistanceSquared() }?.takeIf { (it.second.point - middle).getDistance() <= RING_DP * density }
+            onCentre(if (nearest == null) emptyList() else shown.filter { (it.second.point - nearest.second.point).getDistance() <= CROWD_DP * density }
+                .sortedBy { (it.second.point - nearest.second.point).getDistanceSquared() }.flatMap { it.first.stations })
+        }
+    }
+    // Satellite tiles: the whole world at a coarse zoom first, then the zoom this view needs; a tile is drawn once it has arrived.
+    val images = remember(tiles) { mutableStateMapOf<Long, ImageBitmap>() }
+    LaunchedEffect(tiles, dimensions) {
+        if (tiles == null || dimensions.width <= 0) return@LaunchedEffect
+        snapshotFlow { Triple(latitude, longitude, zoom) }.collectLatest { (lat, lon, zm) ->
+            delay(90)
+            val r = radius(dimensions.width, dimensions.height, zm)
+            val angle = min(hypot(dimensions.width / 2.0, dimensions.height / 2.0) / r, PI / 2)
+            val z = PodioTiles.zoomFor(r)
+            val wanted = (PodioTiles.visible(2, 0.0, 0.0, PI) + if (z > 2) PodioTiles.visible(z, lat.toDouble(), lon.toDouble(), angle) else emptyList()).distinct()
+            coroutineScope {
+                wanted.filter { it !in images }.forEach { key ->
+                    launch {
+                        val bytes = tiles.tile(PodioTiles.zOf(key), PodioTiles.xOf(key), PodioTiles.yOf(key)) ?: return@launch
+                        val image = withContext(Dispatchers.Default) { runCatching { bytes.decodeToImageBitmap() }.getOrNull() } ?: return@launch
+                        images[key] = image
+                    }
+                }
+            }
+            if (images.size > 220) images.keys.filter { PodioTiles.zOf(it) > 2 && it !in wanted }.forEach { images.remove(it) }
         }
     }
     val accent = MaterialTheme.colorScheme.primary
@@ -108,7 +148,7 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
     fun zoomTo(next: Float) { zoom = next.coerceIn(MIN_ZOOM, MAX_ZOOM) }
     Box(modifier.clipToBounds().testTag("podio:globe-box")) {
         Canvas(Modifier.fillMaxSize().testTag("podio:globe").clipToBounds().onSizeChanged { dimensions = it }
-            .pointerInput(places) { detectTapGestures(onDoubleTap = { zoomTo(zoom * 2f) }) { tap ->
+            .pointerInput(places, locked) { if (!locked) detectTapGestures(onDoubleTap = { zoomTo(zoom * 2f) }) { tap ->
                 val reach = 14.dp.toPx()
                 val hits = places.map { place -> place to project(place.latitude, place.longitude, latitude, longitude, dimensions.width, dimensions.height, zoom) }
                     .filter { it.second.depth >= 0 && (it.second.point - tap).getDistance() <= reach }
@@ -119,14 +159,14 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
                 longitude = hits.map { it.first.longitude }.average().toFloat()
                 if (hits.size > 1) zoomTo(zoom * 2.2f) else zoomTo(max(zoom, 3f))
             } }
-            .pointerInput(Unit) { detectTransformGestures { _, pan, scale, _ ->
+            .pointerInput(locked) { if (!locked) detectTransformGestures { _, pan, scale, _ ->
                 val r = radius(dimensions.width.coerceAtLeast(1), dimensions.height.coerceAtLeast(1), zoom).coerceAtLeast(1f)
                 val degreesPerPixel = (180f / PI.toFloat()) / r
                 longitude = ((longitude - pan.x * degreesPerPixel / cos(Math.toRadians(latitude.toDouble())).toFloat().coerceAtLeast(.25f) + 540f) % 360f) - 180f
                 latitude = (latitude + pan.y * degreesPerPixel).coerceIn(-75f, 75f)
                 zoomTo(zoom * scale)
             } }
-            .pointerInput(Unit) { awaitPointerEventScope { while (true) {
+            .pointerInput(locked) { if (!locked) awaitPointerEventScope { while (true) {
                 val event = awaitPointerEvent()
                 if (event.type == PointerEventType.Scroll) {
                     val delta = event.changes.sumOf { it.scrollDelta.y.toDouble() }.toFloat()
@@ -138,6 +178,35 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
             val center = Offset(size.width / 2, size.height / 2)
             // The sea, with a soft rim of light where the globe turns away.
             drawCircle(Brush.radialGradient(listOf(ocean, night), center = center - Offset(r * .25f, r * .3f), radius = r * 1.5f), r, center)
+            fun drawTile(key: Long, image: ImageBitmap) {
+                val z = PodioTiles.zOf(key); val x = PodioTiles.xOf(key); val y = PodioTiles.yOf(key)
+                val steps = if (z <= 3) 12 else 6
+                val columns = steps + 1
+                val positions = ArrayList<Offset>(columns * columns); val textures = ArrayList<Offset>(columns * columns)
+                val front = BooleanArray(columns * columns)
+                for (j in 0..steps) for (i in 0..steps) {
+                    val p = project(PodioTiles.yToLat(y + j / steps.toDouble(), z), PodioTiles.xToLon(x + i / steps.toDouble(), z), latitude, longitude, width, height, zoom)
+                    // A corner round the back is pushed to the rim of the disc, so the picture ends on the rim and not on a ragged edge.
+                    positions += if (p.depth >= 0) p.point else { val len = hypot(p.x, p.y).coerceAtLeast(1e-6); Offset(center.x + (r * p.x / len).toFloat(), center.y - (r * p.y / len).toFloat()) }
+                    textures += Offset(i / steps.toFloat() * image.width, j / steps.toFloat() * image.height)
+                    front[j * columns + i] = p.depth >= 0
+                }
+                val indices = ArrayList<Int>()
+                for (j in 0 until steps) for (i in 0 until steps) {
+                    val a = j * columns + i; val b = a + 1; val c = a + columns; val d = c + 1
+                    if (front[a] || front[b] || front[c] || front[d]) indices += listOf(a, b, c, b, d, c)
+                }
+                if (indices.isEmpty()) return
+                val paint = Paint().apply { shader = ImageShader(image); isAntiAlias = true }
+                drawContext.canvas.drawVertices(Vertices(VertexMode.Triangles, positions, textures, List(positions.size) { Color.White }, indices), BlendMode.Modulate, paint)
+            }
+            val imagery = images.isNotEmpty()
+            if (imagery) clipPath(Path().apply { addOval(androidx.compose.ui.geometry.Rect(center, r)) }) {
+                val z = PodioTiles.zoomFor(r)
+                val angle = min(hypot(width / 2.0, height / 2.0) / r, PI / 2)
+                (PodioTiles.visible(2, 0.0, 0.0, PI) + if (z > 2) PodioTiles.visible(z, latitude.toDouble(), longitude.toDouble(), angle) else emptyList())
+                    .distinct().forEach { key -> images[key]?.let { drawTile(key, it) } }
+            }
             fun ringPath(points: List<GlobePoint>): Path? {
                 val path = Path(); var anyFront = false
                 points.forEachIndexed { index, point ->
@@ -160,30 +229,33 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
                 }
                 drawPath(path, coast.copy(alpha = alpha), style = Stroke(1f))
             }
-            if (zoom < 14f) {
+            if (!imagery && zoom < 14f) {
                 for (lat in -60..60 step 30) graticule((-180..180 step 3).map { GlobePoint(lat.toDouble(), it.toDouble()) }, .08f)
                 for (lon in -180 until 180 step 30) graticule((-90..90 step 3).map { GlobePoint(it.toDouble(), lon.toDouble()) }, .08f)
             }
-            for (ring in land) ringPath(ring)?.let { path ->
+            if (!imagery) for (ring in land) ringPath(ring)?.let { path ->
                 drawPath(path, landFill)
                 drawPath(path, coast.copy(alpha = .55f), style = Stroke(1.1f))
             }
             drawCircle(coast.copy(alpha = .25f), r, center, style = Stroke(1.5f))
             // The ring that picks.
-            drawCircle(Color.White.copy(alpha = .85f), RING_DP.dp.toPx(), center, style = Stroke(2.dp.toPx()))
+            if (!locked) drawCircle(Color.White.copy(alpha = .85f), RING_DP.dp.toPx(), center, style = Stroke(2.dp.toPx()))
             // Dots: a place with several stations is a little larger; the chosen place glows.
             places.forEach { place ->
                 val p = project(place.latitude, place.longitude, latitude, longitude, width, height, zoom)
                 if (p.depth < .02 || p.point.x < -20 || p.point.y < -20 || p.point.x > size.width + 20 || p.point.y > size.height + 20) return@forEach
                 val active = place === selectedPlace
-                val base = (2.6f + ln(place.stations.size.toFloat() + 1f) * .9f).coerceAtMost(7f).dp.toPx()
+                val base = (1.9f + ln(place.stations.size.toFloat() + 1f) * .7f).coerceAtMost(5.5f).dp.toPx()
                 val tone = if (place.approximate) accent.copy(alpha = .55f) else accent
+                if (imagery) drawCircle(Color.Black.copy(alpha = .35f), base * 1.5f, p.point)
                 if (active) drawCircle(accent.copy(alpha = .22f), base * 3.4f, p.point)
                 drawCircle(tone.copy(alpha = tone.alpha * .25f), base * 1.9f, p.point)
                 drawCircle(if (active) Color.White else tone, base * if (active) 1.15f else 1f, p.point)
             }
         }
-        Column(Modifier.align(Alignment.BottomEnd).padding(controlsPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (images.isNotEmpty()) Text(PodioTiles.ATTRIBUTION, Modifier.align(Alignment.BottomEnd).padding(end = 62.dp, bottom = 4.dp),
+            style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .6f))
+        if (!locked) Column(Modifier.align(Alignment.BottomEnd).padding(controlsPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalIconButton(onClick = {
                 places.randomOrNull()?.let { latitude = it.latitude.toFloat().coerceIn(-75f, 75f); longitude = it.longitude.toFloat(); zoomTo(max(zoom, if (it.approximate) 4f else 8f)) }
             }, modifier = Modifier.size(40.dp).semantics { contentDescription = "Random place" }) { Icon(Icons.Outlined.Shuffle, null) }

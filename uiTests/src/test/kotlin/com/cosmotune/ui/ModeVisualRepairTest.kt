@@ -110,6 +110,7 @@ class ModeVisualRepairTest {
                 PodioApp(storage, PodioPlayback(), { item, _ -> played += item }, {}, {}, {}, {},
                     directory = catalogue)
             } } }
+            compose.onNodeWithText("Search").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Tamil Two").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("All languages").performClick()
             compose.onNodeWithText("Tamil", useUnmergedTree = true).performClick()

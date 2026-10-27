@@ -29,6 +29,19 @@ import kotlin.coroutines.resumeWithException
 @Serializable data class PodcastEpisode(val id: String, val title: String, val show: String, val url: String,
     val artwork: String = "", val durationSeconds: Long = 0, val published: String = "", val description: String = "")
 data class PodcastFeed(val show: PodcastShow, val episodes: List<PodcastEpisode>)
+
+/** The weather where a station is, from Open-Meteo (CC BY 4.0). [utcOffsetSeconds] is the place's own clock; [sunrise] and [sunset] are local "HH:mm". */
+data class PodioWeather(val temperatureC: Double, val code: Int, val isDay: Boolean, val windKmh: Double, val utcOffsetSeconds: Int, val sunrise: String, val sunset: String) {
+    /** WMO weather interpretation code, in words. */
+    val summary: String get() = when (code) {
+        0 -> "Clear sky"; 1 -> "Mostly clear"; 2 -> "Partly cloudy"; 3 -> "Overcast"; 45, 48 -> "Fog"
+        in 51..57 -> "Drizzle"; in 61..67 -> "Rain"; in 71..77 -> "Snow"; in 80..82 -> "Rain showers"; 85, 86 -> "Snow showers"; in 95..99 -> "Thunderstorm"
+        else -> "Weather"
+    }
+}
+
+/** A well-known place near a station, from Wikipedia (text CC BY-SA 4.0): its name, the first sentences of its article, a picture and the article address. */
+data class PodioHighlight(val title: String, val summary: String, val image: String, val url: String)
 data class PodioItem(val id: String, val title: String, val author: String, val url: String,
     val artwork: String = "", val live: Boolean = false, val durationSeconds: Long = 0) {
     fun song(): Song = Song(videoId = id, title = title, artist = author, thumbnailUrl = artwork.takeIf { it.isNotBlank() },
@@ -47,7 +60,8 @@ fun podioSourceName(id: String): String = when {
 class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS).cookieJar(AnonymousSpotifyCookies()).build(),
     private val radioMirrors: List<String>? = null,
     private val appleBase: String = "https://itunes.apple.com", private val fyydBase: String = "https://api.fyyd.de",
-    private val spotifyMetadata: (suspend (String) -> PodcastFeed)? = null) {
+    private val spotifyMetadata: (suspend (String) -> PodcastFeed)? = null,
+    private val weatherBase: String = "https://api.open-meteo.com", private val wikipediaBase: String = "https://en.wikipedia.org") {
     private val json = Json { ignoreUnknownKeys = true }
     private val spotify by lazy { SpotifyPublicPodcasts(::readRequest) }
     private var mirrors: List<String>? = null
@@ -83,6 +97,8 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     }
     // Stations whose own web page publishes the stream but that the open directory does not list yet. They belong to the real
     // directory only: a test that points the catalogue at its own server gets exactly what that server returns.
+    /** Satellite tiles for the map; off for a catalogue that points at a test server. */
+    val tiles: PodioTiles by lazy { PodioTiles(enabled = radioMirrors == null) }
     private val extras: List<RadioStation> by lazy {
         if (radioMirrors != null) emptyList() else runCatching {
             PodioCatalogue::class.java.getResourceAsStream("/podio/extra-stations.json")?.bufferedReader()?.use { json.decodeFromString<List<RadioStation>>(it.readText()) }
@@ -120,6 +136,39 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
             }
         } catch (e: CancellationException) { throw e } catch (_: Exception) { null } finally { cancel?.dispose() }
     }
+    /** The weather at a point, or null when the service cannot be reached. */
+    suspend fun weather(latitude: Double, longitude: Double): PodioWeather? = attempt {
+        val root = json.parseToJsonElement(read(address(weatherBase, "/v1/forecast", mapOf("latitude" to "%.3f".format(Locale.ROOT, latitude), "longitude" to "%.3f".format(Locale.ROOT, longitude),
+            "current" to "temperature_2m,weather_code,is_day,wind_speed_10m", "daily" to "sunrise,sunset", "timezone" to "auto", "forecast_days" to "1")))).jsonObject
+        val current = root["current"] as? JsonObject ?: return@attempt null
+        fun daily(name: String) = (((root["daily"] as? JsonObject)?.get(name) as? JsonArray)?.firstOrNull() as? JsonPrimitive)?.contentOrNull.orEmpty().substringAfter('T')
+        PodioWeather(current.number("temperature_2m") ?: return@attempt null, current.number("weather_code")?.toInt() ?: 0, current.number("is_day") == 1.0,
+            current.number("wind_speed_10m") ?: 0.0, root.number("utc_offset_seconds")?.toInt() ?: 0, daily("sunrise"), daily("sunset"))
+    }
+
+    /** A small picture (an article thumbnail) with the app's own client name, which Wikimedia requires; null when it cannot be had. */
+    suspend fun picture(url: String): ByteArray? = withContext(Dispatchers.IO) {
+        val address = httpUrl(url) ?: return@withContext null
+        val call = client.newCall(Request.Builder().url(address).header("User-Agent", "Cosmotune-Podio/1 (+https://github.com/Vijay-Janarthanan/cosmotune)").build())
+        val cancel = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
+        try { call.execute().use { reply -> reply.takeIf { it.isSuccessful }?.body?.bytes()?.takeIf { it.size in 1..2_000_000 } } }
+        catch (e: CancellationException) { throw e } catch (_: Exception) { null } finally { cancel?.dispose() }
+    }
+
+    /** Wikipedia's articles about places within 10 km of a point, nearest first: what the neighbourhood is known for. */
+    suspend fun highlights(latitude: Double, longitude: Double, limit: Int = 8): List<PodioHighlight> = attempt {
+        val root = json.parseToJsonElement(read(address(wikipediaBase, "/w/api.php", mapOf("action" to "query", "format" to "json", "formatversion" to "2", "generator" to "geosearch",
+            "ggscoord" to "%.5f|%.5f".format(Locale.ROOT, latitude, longitude), "ggsradius" to "10000", "ggslimit" to limit.coerceIn(1, 20).toString(),
+            "prop" to "extracts|pageimages", "exintro" to "1", "explaintext" to "1", "exsentences" to "2", "exlimit" to "max", "piprop" to "thumbnail", "pithumbsize" to "480")))).jsonObject
+        ((root["query"] as? JsonObject)?.get("pages") as? JsonArray).orEmpty().mapNotNull { element ->
+            val o = element as? JsonObject ?: return@mapNotNull null
+            val title = o.text("title").takeIf(String::isNotBlank) ?: return@mapNotNull null
+            val summary = o.text("extract").trim().takeIf { it.length >= 20 } ?: return@mapNotNull null
+            (o.number("index") ?: 0.0) to PodioHighlight(title, summary.take(400), httpUrl((o["thumbnail"] as? JsonObject)?.text("source").orEmpty()).orEmpty(),
+                wikipediaBase.trimEnd('/') + "/wiki/" + java.net.URLEncoder.encode(title.replace(' ', '_'), "UTF-8").replace("+", "%20"))
+        }.sortedBy { it.first }.map { it.second }
+    }.orEmpty()
+
     /** Chart position order, with the feed addresses Apple's lookup supplies: the shows people are listening to in [country]. */
     suspend fun topPodcasts(country: String = "US", genre: String? = null, limit: Int = 30): List<PodcastShow> {
         val code = country.take(2).lowercase(Locale.ROOT).ifBlank { "us" }

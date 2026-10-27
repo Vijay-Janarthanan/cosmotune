@@ -3578,7 +3578,14 @@ fun CosmotuneDesktopApp() {
                         durationMs = playback.durationMs,
                         onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
                         onNext = ::playNext,
-                        onExpand = { overlays.nowPlaying = true },
+                        onExpand = {
+                            // A live station opens its own page (the map held on its place) in Podio, not the music player.
+                            if (selectedSong?.videoId?.startsWith("podio:radio:") == true) {
+                                com.cosmotune.ui.blocks.ModeNav.podioTab.value = "Radio"; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = false
+                                com.cosmotune.ui.blocks.ModeNav.podioDetail.value = true
+                                cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO)
+                            } else overlays.nowPlaying = true
+                        },
                         controlsLocked = partyState.controlsLocked,
                         onBlockedControl = {},
                         hazeState = LocalDesktopHaze.current,
@@ -3591,7 +3598,14 @@ fun CosmotuneDesktopApp() {
                         song = selectedSong,
                         isPlaying = playback.isPlaying,
                         onDestinationSelected = ::selectDestination,
-                        onExpand = { overlays.nowPlaying = true },
+                        onExpand = {
+                            // A live station opens its own page (the map held on its place) in Podio, not the music player.
+                            if (selectedSong?.videoId?.startsWith("podio:radio:") == true) {
+                                com.cosmotune.ui.blocks.ModeNav.podioTab.value = "Radio"; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = false
+                                com.cosmotune.ui.blocks.ModeNav.podioDetail.value = true
+                                cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO)
+                            } else overlays.nowPlaying = true
+                        },
                         onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
                         onNext = ::playNext,
                     )
@@ -3666,7 +3680,14 @@ fun CosmotuneDesktopApp() {
                                 onLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
                                 onQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
                                 onOutput = { overlays.audioOutput = true },
-                                onExpand = { overlays.nowPlaying = true },
+                                onExpand = {
+                            // A live station opens its own page (the map held on its place) in Podio, not the music player.
+                            if (selectedSong?.videoId?.startsWith("podio:radio:") == true) {
+                                com.cosmotune.ui.blocks.ModeNav.podioTab.value = "Radio"; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = false
+                                com.cosmotune.ui.blocks.ModeNav.podioDetail.value = true
+                                cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO)
+                            } else overlays.nowPlaying = true
+                        },
                                 onBlockedControl = {},
                                 hazeState = LocalDesktopHaze.current,
                                 modifier = m,
@@ -4047,6 +4068,8 @@ fun CosmotuneDesktopApp() {
                         onSeek = playbackEngine::seekTo, onSpeed = playbackEngine::setPlaybackSpeed,
                         padding = contentPadding,
                         showNavigation = false,
+                        volume = volume, onVolume = { volume = it },
+                        onSettings = ::openSettings,
                     )
                 }
                 // Desktop pages start at the same top edge as Library. Only preserve space for the

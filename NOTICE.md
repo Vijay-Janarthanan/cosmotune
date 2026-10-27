@@ -170,3 +170,11 @@ Google's MIT-licensed Java Brotli decoder, and Apache-2.0 Square zstd-kmp 0.4.0 
 Their upstream projects are https://github.com/square/okhttp, https://github.com/google/brotli,
 https://github.com/square/zstd-kmp and https://github.com/facebook/zstd.
 The Zstandard source provides the BSD-3-Clause licence option. No external manga extension APK is redistributed.
+
+## Podio map and station page data
+
+- Satellite imagery on the radio map: NASA Global Imagery Browse Services (GIBS), Blue Marble. NASA imagery is public domain; the service needs no account.
+- Weather and local time on a station page: Open-Meteo.com, licensed CC BY 4.0.
+- "Known around here": article titles, opening sentences and pictures from Wikipedia and Wikimedia Commons, text licensed CC BY-SA 4.0; each card opens the article, which names its authors.
+- Stations: Radio Browser (community directory). A few stations that publish their own stream address are bundled in `shared/src/jvmSharedMain/resources/podio/extra-stations.json`, each taken from the station's own website.
+

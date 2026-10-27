@@ -400,7 +400,7 @@ services, including every one that 1.0.4 added; the paragraphs below it say what
 | New releases daily check | YouTube Music | Once a day while the app is open | Off | Listening tools > New releases |
 | Provider packages, repositories, HTTP add-ons, Subsonic | Only the ones you add, and the sites a package declares | When you use them | None added | Sources |
 | Manga sources and Komga | Only the sources and the server you add | When you browse, read or download | None added | Manga > Sources |
-| Podio radio and podcast discovery | Radio Browser mirrors, Apple/iTunes, fyyd; selected station/publisher media hosts | When Podio is opened or used | No account | Podio > Radio / Podcasts |
+| Podio radio and podcast discovery | Radio Browser mirrors, Apple/iTunes, fyyd; selected station/publisher media hosts; NASA GIBS (map imagery tiles), Open-Meteo (weather at a station) and Wikipedia (nearby articles and pictures), asked for when a station page or the map is open | When Podio is opened or used | No account | Podio > Radio / Podcasts |
 | Spotify podcast link lookup | Spotify public web-client endpoints, public bootstrap metadata at `git.gay`, Apple/iTunes and fyyd | When you look up a Spotify podcast link; playback uses matched publisher RSS | Anonymous session in memory | Podio > Podcasts > Add link |
 | Phone remote (desktop, TV) | Nothing outside your local network | While you have it started | Off | Stop |
 | Wear OS watch | The paired phone only | While connected | - | - |
