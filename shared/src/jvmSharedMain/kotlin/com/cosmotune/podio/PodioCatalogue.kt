@@ -23,7 +23,7 @@ import kotlin.coroutines.resumeWithException
 @Serializable data class RadioStation(val id: String, val name: String, val url: String,
     val country: String = "", val countryCode: String = "", val language: String = "", val tags: String = "",
     val artwork: String = "", val latitude: Double? = null, val longitude: Double? = null,
-    val codec: String = "", val bitrate: Int = 0)
+    val codec: String = "", val bitrate: Int = 0, val state: String = "")
 @Serializable data class PodcastShow(val id: String, val title: String, val author: String,
     val feed: String, val artwork: String = "", val website: String = "", val source: String = "Publisher feed")
 @Serializable data class PodcastEpisode(val id: String, val title: String, val show: String, val url: String,
@@ -65,7 +65,7 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         error("The radio directory is unavailable. Please retry.")
     }
     suspend fun stations(query: String = "", countryCode: String = "", language: String = "", globe: Boolean = false): List<RadioStation> = withContext(Dispatchers.Default) {
-        val params = linkedMapOf("hidebroken" to "true", "order" to "clickcount", "reverse" to "true", "limit" to if (globe) "1200" else "1000")
+        val params = linkedMapOf("hidebroken" to "true", "order" to "clickcount", "reverse" to "true", "limit" to if (globe) "1200" else "3000")
         if (query.isNotBlank()) params["name"] = query.trim().take(200)
         if (countryCode.isNotBlank()) params["countrycode"] = countryCode.uppercase(Locale.ROOT).take(2)
         if (language.isNotBlank()) params["language"] = language.trim().lowercase(Locale.ROOT).take(60)
@@ -77,12 +77,57 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
             RadioStation(id, o.text("name").trim().take(300), url, o.text("country"), o.text("countrycode"),
                 o.text("language"), o.text("tags"), httpUrl(o.text("favicon")).orEmpty(),
                 o.number("geo_lat")?.takeIf { it in -90.0..90.0 }, o.number("geo_long")?.takeIf { it in -180.0..180.0 },
-                o.text("codec"), o.text("bitrate").toIntOrNull() ?: 0)
+                o.text("codec"), o.text("bitrate").toIntOrNull() ?: 0, o.text("state").trim().take(80))
         }.distinctBy { it.id }
     }
     suspend fun stationPlayed(id: String) {
         if (!id.matches(Regex("[a-zA-Z0-9-]{1,64}"))) return
         try { radio("/json/url/$id", emptyMap()) } catch(e: CancellationException) { throw e } catch (_: Exception) { }
+    }
+    /**
+     * The song the station is playing now, from the stream's own ICY metadata ("StreamTitle"), or null when the station sends none.
+     * It opens the stream, reads up to three metadata blocks (about one second of audio each) and closes it again.
+     */
+    suspend fun nowPlaying(streamUrl: String): String? = withContext(Dispatchers.IO) {
+        val address = httpUrl(streamUrl) ?: return@withContext null
+        val call = client.newBuilder().callTimeout(12, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).build().newCall(
+            Request.Builder().url(address).header("Icy-MetaData", "1").header("User-Agent", "Cosmotune-Podio/1 (+https://github.com/Vijay-Janarthanan/cosmotune)").build())
+        val cancel = currentCoroutineContext()[Job]?.invokeOnCompletion { call.cancel() }
+        try {
+            call.execute().use { reply ->
+                val interval = reply.header("icy-metaint")?.trim()?.toIntOrNull()?.takeIf { it in 1..65_536 } ?: return@use null
+                val input = reply.body?.byteStream() ?: return@use null
+                repeat(3) {
+                    var skipped = 0
+                    while (skipped < interval) { val count = input.skip((interval - skipped).toLong()).toInt(); if (count <= 0) { if (input.read() < 0) return@use null else skipped++ } else skipped += count }
+                    val blocks = input.read()
+                    if (blocks < 0) return@use null
+                    if (blocks == 0) return@repeat
+                    val bytes = ByteArray(blocks * 16)
+                    var read = 0
+                    while (read < bytes.size) { val count = input.read(bytes, read, bytes.size - read); if (count < 0) return@use null; read += count }
+                    streamTitle(bytes.toString(Charsets.UTF_8))?.let { return@use it }
+                }
+                null
+            }
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { null } finally { cancel?.dispose() }
+    }
+    /** Chart position order, with the feed addresses Apple's lookup supplies: the shows people are listening to in [country]. */
+    suspend fun topPodcasts(country: String = "US", genre: String? = null, limit: Int = 30): List<PodcastShow> {
+        val code = country.take(2).lowercase(Locale.ROOT).ifBlank { "us" }
+        val chart = json.parseToJsonElement(read(address(appleBase, "/$code/rss/toppodcasts/limit=${limit.coerceIn(1, 100)}/" + (genre?.let { "genre=$it/" }.orEmpty()) + "json", emptyMap())))
+        val ids = ((chart.jsonObject["feed"] as? JsonObject)?.get("entry") as? JsonArray).orEmpty().mapNotNull { entry ->
+            (((entry as? JsonObject)?.get("id") as? JsonObject)?.get("attributes") as? JsonObject)?.text("im:id")?.takeIf { it.all(Char::isDigit) }
+        }
+        if (ids.isEmpty()) return emptyList()
+        val lookup = json.parseToJsonElement(read(address(appleBase, "/lookup", mapOf("id" to ids.joinToString(","), "entity" to "podcast", "country" to code))))
+        val byId = (lookup.jsonObject["results"] as? JsonArray).orEmpty().mapNotNull { element ->
+            val o = element as? JsonObject ?: return@mapNotNull null
+            val feed = httpUrl(o.text("feedUrl")) ?: return@mapNotNull null
+            o.text("collectionId") to PodcastShow(identity(feed), o.text("collectionName"), o.text("artistName"), feed,
+                httpUrl(o.text("artworkUrl600").ifBlank { o.text("artworkUrl100") }).orEmpty(), httpUrl(o.text("collectionViewUrl")).orEmpty(), "Apple Podcasts chart")
+        }.toMap()
+        return ids.mapNotNull { byId[it] }.distinctBy { it.feed.trimEnd('/') }
     }
     suspend fun podcasts(query: String, country: String = "IN"): List<PodcastShow> = supervisorScope {
         if (SpotifyPublicPodcasts.link(query.trim()) != null) return@supervisorScope listOf(feed(query.trim()).show)
@@ -176,6 +221,9 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     }
     companion object {
         private const val MAX_BYTES = 8 * 1024 * 1024
+        /** "StreamTitle='Artist - Song';" out of an ICY metadata block. */
+        fun streamTitle(block: String): String? = Regex("StreamTitle='(.*?)';", RegexOption.DOT_MATCHES_ALL).find(block)?.groupValues?.get(1)
+            ?.trim()?.trim(' ')?.takeIf { it.length in 2..200 }
         fun isSpotifyLink(value: String): Boolean = SpotifyPublicPodcasts.link(value) != null
         private fun titleKey(value: String): String = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFKC)
             .lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()

@@ -16,9 +16,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-/** Shared native mode chrome: inherits Music's Material bridge, fonts and artwork palette. */
+/**
+ * What the desktop sidebar of Podio and Manga selects: the sidebar rows write it and the page reads it, so the two never disagree.
+ * Which mode is open is chosen from the profile menu, as in Music and Video, not from a row here.
+ */
+object ModeNav {
+    val podioTab = kotlinx.coroutines.flow.MutableStateFlow("Radio")
+    val podioSaved = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val mangaTab = kotlinx.coroutines.flow.MutableStateFlow("Library")
+}
+
+/** Shared native mode chrome: inherits Music's Material bridge, fonts and artwork palette. Modes are switched from the profile menu. */
 @Composable
-fun ModePageHeader(title: String, subtitle: String, onMusic: () -> Unit) {
+fun ModePageHeader(title: String, subtitle: String) {
     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f)) {
@@ -27,7 +37,6 @@ fun ModePageHeader(title: String, subtitle: String, onMusic: () -> Unit) {
             Text(subtitle, style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
         }
-        FilledTonalButton(onClick = onMusic) { Text("Music") }
     }
 }
 

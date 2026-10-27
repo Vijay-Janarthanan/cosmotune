@@ -4,6 +4,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.KeyboardActions
@@ -27,41 +34,63 @@ import java.io.File
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.cosmotune.ui.blocks.ModePageHeader
+import com.cosmotune.ui.blocks.ModeNav
 import com.cosmotune.ui.blocks.ModeTabs
 import kotlinx.coroutines.*
 
 data class PodioPlayback(val id: String? = null, val title: String = "", val author: String = "", val playing: Boolean = false,
     val loading: Boolean = false, val positionMs: Long = 0, val durationMs: Long = 0, val error: String? = null, val rate: Float = 1f)
 
+/** Genres of Apple's podcast chart (id, name). */
+private val PODCAST_GENRES = listOf("1489" to "News", "1303" to "Comedy", "1318" to "Technology", "1321" to "Business", "1324" to "Society & culture",
+    "1304" to "Education", "1512" to "Health & fitness", "1545" to "Sports", "1488" to "True crime", "1487" to "History", "1533" to "Science",
+    "1310" to "Music", "1301" to "Arts", "1305" to "Kids & family", "1309" to "TV & film", "1483" to "Fiction")
+private val REGIONS = listOf("" to "World", "IN" to "India", "LK" to "Sri Lanka", "US" to "US", "GB" to "UK", "CA" to "Canada", "AU" to "Australia", "DE" to "Germany",
+    "FR" to "France", "ES" to "Spain", "IT" to "Italy", "BR" to "Brazil", "MX" to "Mexico", "JP" to "Japan", "KR" to "South Korea", "AE" to "UAE", "SG" to "Singapore",
+    "MY" to "Malaysia", "PK" to "Pakistan", "BD" to "Bangladesh", "NP" to "Nepal", "NG" to "Nigeria", "ZA" to "South Africa", "ID" to "Indonesia", "TR" to "Türkiye", "RU" to "Russia", "NL" to "Netherlands")
+private val LANGUAGES = listOf("" to "All languages", "Tamil" to "Tamil", "Telugu" to "Telugu", "Hindi" to "Hindi", "English" to "English", "Malayalam" to "Malayalam",
+    "Kannada" to "Kannada", "Marathi" to "Marathi", "Bengali" to "Bengali", "Punjabi" to "Punjabi", "Gujarati" to "Gujarati", "Urdu" to "Urdu", "Sinhala" to "Sinhala",
+    "Arabic" to "Arabic", "Spanish" to "Spanish", "French" to "French", "German" to "German", "Portuguese" to "Portuguese", "Italian" to "Italian", "Russian" to "Russian",
+    "Japanese" to "Japanese", "Korean" to "Korean", "Chinese" to "Chinese", "Turkish" to "Turkish", "Indonesian" to "Indonesian")
+
 /** The same account-free radio/podcast page is used by Android and every desktop target. */
 @Composable
 fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -> Unit,
-    onToggle: () -> Unit, onSeek: (Long) -> Unit, onSpeed: (Float) -> Unit, onMusic: () -> Unit,
-    padding: PaddingValues = PaddingValues(), directory: PodioCatalogue? = null) {
+    onToggle: () -> Unit, onSeek: (Long) -> Unit, onSpeed: (Float) -> Unit, onMusic: () -> Unit = {},
+    padding: PaddingValues = PaddingValues(), directory: PodioCatalogue? = null,
+    /** False on the desktop, where the sidebar chooses Radio, Podcasts, Favourites and Following (see [ModeNav]). */
+    showNavigation: Boolean = true) {
     val catalogue = remember(directory) { directory ?: PodioCatalogue() }
     val library = remember(storage) { PodioLibrary(storage) }
     val saved by library.state.collectAsState()
     val scope = rememberCoroutineScope()
-    var tab by rememberSaveable { mutableStateOf("Radio") }
+    var localTab by rememberSaveable { mutableStateOf("Radio") }
+    var localSaved by rememberSaveable { mutableStateOf(false) }
+    val sidebarTab by ModeNav.podioTab.collectAsState()
+    val sidebarSaved by ModeNav.podioSaved.collectAsState()
+    val tab = if (showNavigation) localTab else sidebarTab
+    val savedOnly = if (showNavigation) localSaved else sidebarSaved
+    fun chooseTab(next: String) { if (showNavigation) { localTab = next; localSaved = false } else { ModeNav.podioTab.value = next; ModeNav.podioSaved.value = false } }
+    fun chooseSaved(next: Boolean) { if (showNavigation) localSaved = next else ModeNav.podioSaved.value = next }
     var query by rememberSaveable { mutableStateOf("") }
     var language by rememberSaveable { mutableStateOf("") }
     var country by rememberSaveable { mutableStateOf("") }
-    var savedOnly by rememberSaveable { mutableStateOf(false) }
+    var genre by rememberSaveable { mutableStateOf("") }
     var radio by remember { mutableStateOf(emptyList<RadioStation>()) }
-    var globe by remember { mutableStateOf(emptyList<RadioStation>()) }
     var shows by remember { mutableStateOf(emptyList<PodcastShow>()) }
+    var showsTitle by remember { mutableStateOf("") }
     var opened by remember { mutableStateOf<PodcastFeed?>(null) }
     var selected by remember { mutableStateOf<RadioStation?>(null) }
+    var nearby by remember { mutableStateOf(emptyList<RadioStation>()) }
     var directoryLoading by remember { mutableStateOf(false) }
     var feedLoading by remember { mutableStateOf(false) }
     var requestedFeed by remember { mutableStateOf<PodcastShow?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var request by remember { mutableIntStateOf(0) }
-    var mapExpanded by rememberSaveable { mutableStateOf(false) }
     var addFeed by remember { mutableStateOf(false) }
     var feedAddress by remember { mutableStateOf("") }
     var openJob by remember { mutableStateOf<Job?>(null) }
+    var panelOpen by rememberSaveable { mutableStateOf(true) }
     val loading = feedLoading || requestedFeed == null && directoryLoading
     val latestPlayback by rememberUpdatedState(playback)
     fun save(change: (PodioSaved) -> PodioSaved) { scope.launch {
@@ -69,11 +98,13 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         catch(e: CancellationException) { throw e }
         catch (_: Exception) { error = "Couldn't save your Podio library. Check available storage and retry." }
     } }
+    fun toggleFavourite(station: RadioStation) = save { old -> old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station) }
     fun play(item: PodioItem) {
         val old = saved.progress[item.id] ?: 0
         val resume = old.takeIf { !item.live && (item.durationSeconds <= 0 || it < item.durationSeconds * 1000 - 10_000) } ?: 0
         onPlay(item, resume)
     }
+    fun playStation(station: RadioStation) { selected = station; play(station.item()); scope.launch { catalogue.stationPlayed(station.id) } }
     fun open(show: PodcastShow) {
         val previous = openJob
         previous?.cancel()
@@ -93,21 +124,31 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         openJob?.cancel()
         requestedFeed = null; opened = null; feedLoading = false; error = null
     }
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.Main.immediate) {
-            try { globe = catalogue.stations(globe = true) } catch(e: CancellationException) { throw e } catch (_: Exception) { }
-        }
-    }
-    LaunchedEffect(tab, language, country, request, savedOnly) {
+    // A change of section (from the tabs, or the desktop sidebar) leaves an open feed and starts the new section clean.
+    LaunchedEffect(tab, savedOnly) { browse(); query = ""; genre = "" }
+    LaunchedEffect(tab, language, country, genre, request, savedOnly) {
         // Network continuations can resume on a worker with an immediate effect dispatcher.
-        // Publish page state on the UI dispatcher, including after a modal map is dismissed.
+        // Publish page state on the UI dispatcher.
         withContext(Dispatchers.Main.immediate) {
             if (savedOnly) return@withContext
             directoryLoading = true
             if (requestedFeed == null) error = null
             try {
                 if (tab == "Radio") radio = catalogue.stations(query, country, language)
-                else shows = catalogue.podcasts(listOf(query.trim(), language).filter(String::isNotBlank).joinToString(" ").ifBlank { "popular podcasts" }, country.ifBlank { "IN" })
+                else {
+                    val storefront = country.ifBlank { java.util.Locale.getDefault().country.ifBlank { "US" } }
+                    val genreName = PODCAST_GENRES.firstOrNull { it.first == genre }?.second
+                    val typed = query.trim()
+                    if (typed.isNotBlank()) { shows = catalogue.podcasts(listOf(typed, language).filter(String::isNotBlank).joinToString(" "), storefront); showsTitle = "Results for \"$typed\"" }
+                    else if (language.isBlank()) {
+                        val chart = runCatching { catalogue.topPodcasts(storefront, genre.ifBlank { null }) }.getOrDefault(emptyList())
+                        shows = chart.ifEmpty { catalogue.podcasts(genreName ?: "popular podcasts", storefront) }
+                        showsTitle = (genreName ?: "Popular") + " · " + REGIONS.firstOrNull { it.first == country }?.second.orEmpty().ifBlank { "top charts" }
+                    } else {
+                        shows = catalogue.podcasts("$language ${genreName ?: "podcasts"}", storefront)
+                        showsTitle = "$language ${genreName ?: "podcasts"}"
+                    }
+                }
             } catch(e: CancellationException) { throw e }
             catch (_: Exception) { if (requestedFeed == null) error = "Couldn't reach the directory. Check your connection and try again." }
             finally { directoryLoading = false }
@@ -129,78 +170,130 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             }
         }
     }
+    val live = playback.id?.startsWith("podio:radio:") == true
+    val stations = if (savedOnly) saved.stations else radio
+    val playingStation = if (live) (stations + saved.stations + listOfNotNull(selected)).firstOrNull { it.item().id == playback.id } else null
+    // What the station is playing now, from its own stream; asked again every half minute while it plays.
+    var song by remember(playback.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(playback.id, playingStation?.url) {
+        val url = playingStation?.url ?: return@LaunchedEffect
+        while (isActive) { song = catalogue.nowPlaying(url)?.takeIf { it != playingStation.name }; delay(30_000) }
+    }
     Surface(Modifier.fillMaxSize().testTag("podio:root"), color = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground) {
-    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
-        ModePageHeader("Podio", "Explore live radio and your next favourite podcast.", onMusic)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ModeTabs(listOf("Radio", "Podcasts"), tab, { browse(); tab = it; query = ""; savedOnly = false }, Modifier.weight(1f, fill = false).widthIn(max = 440.dp))
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val wide = maxWidth > 760.dp
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = if (wide) 24.dp else 12.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)) {
+                val title = if (showNavigation) "Podio" else when { tab == "Radio" && savedOnly -> "Favourite stations"; tab == "Radio" -> "Radio"; savedOnly -> "Following"; else -> "Podcasts" }
+                Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (showNavigation) Text("Explore live radio and your next favourite podcast.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             if (tab == "Podcasts") TextButton(onClick = { addFeed = true }) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Text("Add link") }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = savedOnly, onClick = { browse(); savedOnly = !savedOnly }, label = { Text(if (tab == "Radio") "Favourites" else "Following") })
-            if (tab == "Radio") TextButton(onClick = { mapExpanded = true }) { Icon(Icons.Outlined.Public, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Expand map") }
+        if (showNavigation) Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ModeTabs(listOf("Radio", "Podcasts"), tab, { browse(); chooseTab(it); query = "" }, Modifier.weight(1f, fill = false).widthIn(max = 440.dp))
+            FilterChip(selected = savedOnly, onClick = { browse(); chooseSaved(!savedOnly) }, label = { Text(if (tab == "Radio") "Favourites" else "Following") })
         }
-        if (opened == null) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(query, { query = it }, singleLine = true, label = { Text(if (tab == "Radio") "Find a station" else "Find a podcast") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { browse(); savedOnly = false; request++ }))
-                IconButton(onClick = { browse(); savedOnly = false; request++ }) { Icon(Icons.Outlined.Search, "Search") }
-            }
-            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                PodioFilter("Region", country, listOf("" to "World", "IN" to "India", "US" to "US", "GB" to "UK", "AU" to "Australia", "DE" to "Germany")) { browse(); country = it }
-                PodioFilter("Language", language, listOf("" to "All languages", "Tamil" to "Tamil", "Telugu" to "Telugu", "Hindi" to "Hindi", "English" to "English", "Malayalam" to "Malayalam", "Kannada" to "Kannada", "Marathi" to "Marathi", "Bengali" to "Bengali", "Punjabi" to "Punjabi")) { browse(); language = it }
-                if (country.isNotBlank() || language.isNotBlank() || query.isNotBlank()) TextButton(onClick = { browse(); country = ""; language = ""; query = ""; request++ }) { Text("Clear") }
+        val filtersBar: @Composable () -> Unit = {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                PodioFilter("Region", country, REGIONS) { browse(); country = it }
+                PodioFilter("Language", language, LANGUAGES) { browse(); language = it }
+                if (country.isNotBlank() || language.isNotBlank() || query.isNotBlank() || genre.isNotBlank()) TextButton(onClick = { browse(); country = ""; language = ""; query = ""; genre = ""; request++ }) { Text("Clear") }
             }
         }
-        if (tab == "Radio" && !loading) Text("${(if (savedOnly) saved.stations else radio).size} stations" + if (country.isBlank()) " · Worldwide" else " · $country",
-            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("podio:loading"))
+        val searchField: @Composable (Modifier) -> Unit = { modifier ->
+            OutlinedTextField(query, { query = it }, singleLine = true, label = { Text(if (tab == "Radio") "Find a station" else "Find a podcast") }, modifier = modifier,
+                shape = RoundedCornerShape(16.dp),
+                trailingIcon = { IconButton(onClick = { browse(); chooseSaved(false); request++ }) { Icon(Icons.Outlined.Search, "Search") } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { browse(); chooseSaved(false); request++ }))
+        }
+        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 2.dp).testTag("podio:loading"))
         error?.let { message -> Row(verticalAlignment = Alignment.CenterVertically) {
             Text(message, Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
             TextButton(onClick = { requestedFeed?.let { open(it) } ?: run { request++ } }) { Text("Retry") }
         } }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
             if (tab == "Radio") {
-                val stations = if (savedOnly) saved.stations else radio
-                val displayedSelection = selected?.takeIf { !savedOnly || saved.stations.any { savedStation -> savedStation.id == it.id } }
-                val mapStations = if (savedOnly || query.isNotBlank() || country.isNotBlank() || language.isNotBlank()) stations else globe
-                @Composable fun stationList(modifier: Modifier) {
-                    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
-                        displayedSelection?.let { station -> item(key = "selected") {
-                            RadioRow(station, station.id.let { id -> saved.stations.any { it.id == id } }, playback.id == station.item().id,
-                                onPlay = { play(station.item()); scope.launch { catalogue.stationPlayed(station.id) } },
-                                onSave = { save { old -> old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station) } })
-                        } }
-                        if (stations.isEmpty() && !loading) item { Text(if (savedOnly) "Save a station with the heart button." else "No stations found. Try another name, country or language.", Modifier.padding(16.dp)) }
-                        items(stations.filterNot { it.id == displayedSelection?.id }, key = { it.id }) { station ->
-                            RadioRow(station, saved.stations.any { it.id == station.id }, playback.id == station.item().id,
-                                onPlay = { selected = station; play(station.item()); scope.launch { catalogue.stationPlayed(station.id) } },
-                                onSave = { save { old -> old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station) } })
+                val ordered = remember(nearby, stations) { (nearby + stations.filter { s -> nearby.none { it.id == s.id } }).take(400) }
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
+                    PodioGlobe(stations, playingStation?.id ?: selected?.id, { nearby = it }, Modifier.fillMaxSize(), focus = selected,
+                        controlsPadding = PaddingValues(end = 12.dp, bottom = if (wide) 12.dp else 12.dp))
+                    // Search and filters float over the top of the map.
+                    Column(Modifier.align(Alignment.TopStart).fillMaxWidth(if (wide) .62f else 1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        searchField(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface.copy(alpha = .86f), RoundedCornerShape(16.dp)))
+                        filtersBar()
+                        if (!loading) Text("${stations.size} ${if (stations.size == 1) "station" else "stations"}" + if (country.isBlank()) " · Worldwide" else " · " + (REGIONS.firstOrNull { it.first == country }?.second ?: country),
+                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = .8f), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
+                    }
+                    // The panel in the corner: what stands under the ring, then every other station; the player card sits under it.
+                    val grouped = remember(nearby) { PodioPlaces.group(nearby) }
+                    Column(Modifier.align(Alignment.BottomStart).then(if (wide) Modifier.width(400.dp) else Modifier.fillMaxWidth()).padding(12.dp).padding(end = if (wide) 0.dp else 56.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .93f), tonalElevation = 3.dp, shadowElevation = 6.dp) {
+                            Column {
+                                Row(Modifier.fillMaxWidth().clickable { panelOpen = !panelOpen }.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Box(Modifier.size(38.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                                        Text((if (nearby.isNotEmpty()) nearby.size else stations.size).toString(), color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(when { grouped.size == 1 -> grouped[0].name; grouped.size > 1 -> "Stations nearby"; else -> "Stations" },
+                                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(when { grouped.isNotEmpty() && grouped.all { it.approximate } -> "Approximate place · the directory has no coordinates"
+                                            grouped.size > 1 -> "${grouped.size} places under the ring"; else -> "Drag the globe to put a place under the ring" },
+                                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    Icon(if (panelOpen) Icons.Outlined.ExpandMore else Icons.Outlined.ExpandLess, if (panelOpen) "Hide stations" else "Show stations")
+                                }
+                                if (panelOpen) {
+                                    HorizontalDivider()
+                                    LazyColumn(Modifier.heightIn(max = if (wide) 300.dp else 190.dp), contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        if (ordered.isEmpty() && !loading) item { Text(if (savedOnly) "Save a station with the heart button." else "No stations found. Try another name, country or language.", Modifier.padding(16.dp)) }
+                                        itemsIndexed(ordered, key = { _, it -> it.id }) { index, station ->
+                                            if (nearby.isNotEmpty() && index == nearby.size) Text("More stations", Modifier.padding(start = 10.dp, top = 10.dp, bottom = 4.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            RadioRow(station, saved.stations.any { it.id == station.id }, playback.id == station.item().id, onPlay = { playStation(station) }, onSave = { toggleFavourite(station) })
+                                        }
+                                        item { Text("Stations: Radio Browser · Map: Natural Earth", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(10.dp)) }
+                                    }
+                                }
+                            }
                         }
-                        item { Text("Stations: Radio Browser · Map: Natural Earth", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(12.dp)) }
+                        playingStation?.let { station ->
+                            val index = ordered.indexOfFirst { it.id == station.id }
+                            LiveCard(station, playback, song, saved.stations.any { it.id == station.id }, onToggle = onToggle, onSave = { toggleFavourite(station) },
+                                onPrevious = ordered.getOrNull(index - 1)?.takeIf { index > 0 }?.let { { playStation(it) } },
+                                onNext = ordered.getOrNull(index + 1)?.takeIf { index >= 0 }?.let { { playStation(it) } })
+                        }
                     }
                 }
-                if (maxWidth > 720.dp) Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    PodioGlobe(mapStations, selected?.id, { selected = it }, Modifier.weight(1f).fillMaxHeight())
-                    stationList(Modifier.weight(1f).fillMaxHeight())
-                } else Column(Modifier.fillMaxSize()) {
-                    if (!savedOnly) PodioGlobe(mapStations, selected?.id, { selected = it }, Modifier.fillMaxWidth().height(300.dp))
-                    stationList(Modifier.weight(1f).fillMaxWidth())
-                }
             } else {
-                val feed = opened
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 20.dp)) {
-                    if (feed != null) {
+                Column(Modifier.fillMaxSize()) {
+                    if (opened == null) {
+                        searchField(Modifier.fillMaxWidth().padding(bottom = 8.dp))
+                        filtersBar()
+                        if (language.isBlank() && query.isBlank()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(selected = genre.isBlank(), onClick = { browse(); genre = "" }, label = { Text("Popular") })
+                            PODCAST_GENRES.forEach { (id, name) -> FilterChip(selected = genre == id, onClick = { browse(); genre = id }, label = { Text(name) }) }
+                        }
+                    }
+                    val feed = opened
+                    if (feed != null) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 20.dp)) {
                         item {
                             TextButton(onClick = ::browse) { Text("Back to podcasts") }
-                            Text(feed.show.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Text(feed.show.author, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(feed.show.source, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row {
-                                val following = saved.shows.any { it.id == feed.show.id }
-                                FilledTonalButton(onClick = { save { old -> old.copy(shows = if (following) old.shows.filterNot { it.id == feed.show.id } else old.shows + feed.show) } }) { Text(if (following) "Following" else "Follow") }
-                                TextButton(onClick = { open(feed.show) }) { Text("Refresh") }
+                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+                                if (feed.show.artwork.isNotBlank()) AsyncImage(feed.show.artwork, null, Modifier.size(if (wide) 140.dp else 96.dp).clip(RoundedCornerShape(18.dp)))
+                                Column(Modifier.weight(1f)) {
+                                    Text(feed.show.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                    Text(feed.show.author, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(feed.show.source, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Row {
+                                        val following = saved.shows.any { it.id == feed.show.id }
+                                        FilledTonalButton(onClick = { save { old -> old.copy(shows = if (following) old.shows.filterNot { it.id == feed.show.id } else old.shows + feed.show) } }) { Text(if (following) "Following" else "Follow") }
+                                        TextButton(onClick = { open(feed.show) }) { Text("Refresh") }
+                                    }
+                                }
                             }
                             if (feed.episodes.isEmpty()) Text("This feed contains no playable audio episodes.", Modifier.padding(vertical = 20.dp))
                         }
@@ -211,57 +304,97 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                         }
                     } else {
                         val list = if (savedOnly) saved.shows else shows
-                        if (list.isEmpty() && !loading) item { Text(if (savedOnly) "Follow a podcast to keep it here." else "Search a show, host or topic—or add its RSS feed.", Modifier.padding(16.dp)) }
-                        items(list, key = { it.id }) { show ->
-                            ListItem(headlineContent = { Text(show.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                                supportingContent = { Text(show.author, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                leadingContent = { AsyncImage(show.artwork, null, Modifier.size(54.dp)) }, modifier = Modifier.clickable { open(show) })
+                        if (list.isEmpty() && !loading) Text(if (savedOnly) "Follow a podcast to keep it here." else "Nothing found. Try another search, language or topic—or add a show's RSS feed.", Modifier.padding(16.dp))
+                        LazyVerticalGrid(GridCells.Adaptive(if (wide) 168.dp else 150.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            if (!savedOnly && showsTitle.isNotBlank() && list.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                                Text(showsTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                            }
+                            items(list, key = { it.id }) { show -> ShowCard(show) { open(show) } }
+                            item(span = { GridItemSpan(maxLineSpan) }) { Text("Discovery: Apple Podcasts and fyyd · Audio: publisher feeds", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(12.dp)) }
                         }
-                        item { Text("Discovery: Apple Podcasts and fyyd · Audio: publisher feeds", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(12.dp)) }
                     }
                 }
             }
         }
-        if (playback.id?.startsWith("podio:") == true) PodioPlayerBar(playback, onToggle, onSeek, onSpeed)
+        if (playback.id?.startsWith("podio:") == true && !(live && tab == "Radio")) PodioPlayerBar(playback, onToggle, onSeek, onSpeed)
     }
     }
-    if (mapExpanded) Dialog(onDismissRequest = { mapExpanded = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize().testTag("podio:map"), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Radio map", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { mapExpanded = false }) { Text("Close map") }
-                }
-                Text("Zoom in to separate nearby stations. Stations without a location remain in the list.", style = MaterialTheme.typography.bodySmall)
-                val stations = if (savedOnly) saved.stations else if (query.isNotBlank() || country.isNotBlank() || language.isNotBlank()) radio else globe
-                PodioGlobe(stations, selected?.id, { selected = it }, Modifier.weight(1f).fillMaxWidth())
-                selected?.takeIf { station -> stations.any { it.id == station.id } }?.let { station ->
-                    RadioRow(station, saved.stations.any { it.id == station.id }, playback.id == station.item().id,
-                        onPlay = { play(station.item()); scope.launch { catalogue.stationPlayed(station.id) } },
-                        onSave = { save { old -> old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station) } })
-                }
-            }
-        }
     }
     if (addFeed) AlertDialog(onDismissRequest = { addFeed = false }, title = { Text("Open a podcast") },
         text = { OutlinedTextField(feedAddress, { feedAddress = it }, label = { Text("RSS feed or Spotify podcast link") }, singleLine = true) },
         confirmButton = { TextButton(onClick = {
             val url = PodioCatalogue.httpUrl(feedAddress)
             if (url == null) { error = "Enter an HTTP or HTTPS feed URL."; addFeed = false }
-            else { addFeed = false; tab = "Podcasts"; open(PodcastShow(PodioCatalogue.identity(url), "", "", url)) }
+            else { addFeed = false; chooseTab("Podcasts"); open(PodcastShow(PodioCatalogue.identity(url), "", "", url)) }
         }) { Text("Open podcast") } }, dismissButton = { TextButton(onClick = { addFeed = false }) { Text("Cancel") } })
 }
 
+@Composable private fun StationLogo(station: RadioStation, size: androidx.compose.ui.unit.Dp) {
+    Box(Modifier.size(size).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.Center) {
+        Icon(Icons.Outlined.Radio, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (station.artwork.isNotBlank()) AsyncImage(station.artwork, null, Modifier.fillMaxSize())
+    }
+}
+
+private fun RadioStation.placeLine(): String = listOf(state, country).filter(String::isNotBlank).distinct().joinToString(", ")
+
 @Composable private fun RadioRow(station: RadioStation, saved: Boolean, current: Boolean, onPlay: () -> Unit, onSave: () -> Unit) {
-    ListItem(headlineContent = { Text(station.name, fontWeight = if (current) FontWeight.Bold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text(listOf(station.country, station.language, listOf(station.codec, station.bitrate.takeIf { it > 0 }?.let { "$it kbps" }.orEmpty()).filter(String::isNotBlank).joinToString(" · ")).filter(String::isNotBlank).joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis) },
-        leadingContent = { Box(Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.Radio, null)
-            if (station.artwork.isNotBlank()) AsyncImage(station.artwork, null, Modifier.fillMaxSize())
-        } },
-        trailingContent = { IconButton(onClick = onSave) { Icon(if (saved) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, if (saved) "Remove favourite" else "Save favourite") } },
-        colors = ListItemDefaults.colors(containerColor = if (current) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow),
-        modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onPlay))
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+        .background(if (current) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+        .clickable(onClick = onPlay).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        StationLogo(station, 42.dp)
+        Column(Modifier.weight(1f)) {
+            Text(station.name, fontWeight = if (current) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(listOf(station.placeLine(), station.language, listOf(station.codec, station.bitrate.takeIf { it > 0 }?.let { "$it kbps" }.orEmpty()).filter(String::isNotBlank).joinToString(" ")).filter(String::isNotBlank).joinToString(" · "),
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        IconButton(onClick = onSave) { Icon(if (saved) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, if (saved) "Remove favourite" else "Save favourite") }
+    }
+}
+
+/** The station that is on: its name, its place, the song it is playing, and the few controls a live stream has. */
+@Composable private fun LiveCard(station: RadioStation, playback: PodioPlayback, song: String?, saved: Boolean, onToggle: () -> Unit, onSave: () -> Unit,
+    onPrevious: (() -> Unit)?, onNext: (() -> Unit)?) {
+    Surface(shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = .95f), tonalElevation = 4.dp, shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth().testTag("podio:live")) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                StationLogo(station, 56.dp)
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color(0xFFE5484D)))
+                        Text("LIVE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Text(station.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(station.placeLine().ifBlank { station.language }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                IconButton(onClick = onSave) { Icon(if (saved) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, if (saved) "Remove favourite" else "Save favourite") }
+            }
+            if (song != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.GraphicEq, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(song, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            } else if (station.tags.isNotBlank()) Text(station.tags.split(',').map(String::trim).filter(String::isNotBlank).take(4).joinToString(" · "),
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onPrevious?.invoke() }, enabled = onPrevious != null) { Icon(Icons.Outlined.SkipPrevious, "Previous station") }
+                if (playback.loading) CircularProgressIndicator(Modifier.padding(12.dp).size(32.dp))
+                else FilledIconButton(onClick = onToggle, modifier = Modifier.size(52.dp)) { Icon(if (playback.playing) Icons.Outlined.Stop else Icons.Outlined.PlayArrow, if (playback.playing) "Stop" else "Play", Modifier.size(28.dp)) }
+                IconButton(onClick = { onNext?.invoke() }, enabled = onNext != null) { Icon(Icons.Outlined.SkipNext, "Next station") }
+            }
+            if (playback.error != null) Text("Playback failed. Try another station.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable private fun ShowCard(show: PodcastShow, onClick: () -> Unit) {
+    Column(Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Podcasts, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (show.artwork.isNotBlank()) AsyncImage(show.artwork, null, Modifier.fillMaxSize())
+        }
+        Text(show.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+        Text(show.author, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 @Composable private fun PodioPlayerBar(playback: PodioPlayback, onToggle: () -> Unit, onSeek: (Long) -> Unit, onSpeed: (Float) -> Unit) {

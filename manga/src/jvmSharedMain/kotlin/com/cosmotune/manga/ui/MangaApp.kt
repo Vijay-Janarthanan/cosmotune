@@ -59,6 +59,15 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
     var chapter by remember { mutableStateOf(selected?.chapters?.find { it.id == state.activeChapterId }) }
     var sourceId by rememberSaveable { mutableStateOf("library") }
     var query by rememberSaveable { mutableStateOf("") }
+    // The desktop sidebar's Library and Discover rows and this page's tabs are one choice.
+    LaunchedEffect(Unit) {
+        // The page states where it starts before it listens, so a row chosen in an earlier visit cannot flip it.
+        com.cosmotune.ui.blocks.ModeNav.mangaTab.value = if (sourceId == "library") "Library" else "Discover"
+        com.cosmotune.ui.blocks.ModeNav.mangaTab.collect { tab ->
+            if ((sourceId == "library") != (tab == "Library")) { sourceId = if (tab == "Library") "library" else "all"; query = "" }
+        }
+    }
+    LaunchedEffect(sourceId) { com.cosmotune.ui.blocks.ModeNav.mangaTab.value = if (sourceId == "library") "Library" else "Discover" }
     var sourceDialog by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(repository.store.recoveryMessage) }
@@ -101,10 +110,10 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
             val next = selected?.nextChapter(current)
             MangaReader(repository, current, hasNext = next != null, onBack = { chapter = null }, onNext = { chapter = next })
         } else Column(Modifier.fillMaxSize().padding(contentPadding).windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp)) {
-            ModePageHeader(selected?.title ?: "Manga", if (selected != null) "Chapters, downloads and reading progress" else "Your library, new discoveries and stories to continue.", onMusic)
+            ModePageHeader(selected?.title ?: "Manga", if (selected != null) "Chapters, downloads and reading progress" else "Your library, new discoveries and stories to continue.")
             if (selected != null) TextButton(onClick = { selected = null }) { Text("Back") }
             else ModeTabs(listOf("Library", "Discover"), if (sourceId == "library") "Library" else "Discover",
-                { sourceId = if (it == "Library") "library" else "all"; query = "" }, Modifier.widthIn(max = 440.dp).fillMaxWidth())
+                { sourceId = if (it == "Library") "library" else "all"; query = ""; com.cosmotune.ui.blocks.ModeNav.mangaTab.value = it }, Modifier.widthIn(max = 440.dp).fillMaxWidth())
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
                 FilledTonalButton(onClick = { sourceDialog = true }) { Text("Sources") }
                 OutlinedButton(onClick = pick, enabled = !busy) { Text("Import CBZ") }

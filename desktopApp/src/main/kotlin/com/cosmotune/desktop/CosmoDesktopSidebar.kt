@@ -3,6 +3,12 @@ package com.cosmotune.desktop
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.CollectionsBookmark
+import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Podcasts
+import androidx.compose.material.icons.outlined.Radio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -127,16 +133,35 @@ internal fun CosmoDesktopSidebar(
 ) {
     if (com.cosmotune.video.host.desktopVideoShown()) return VideoSidebar(focusSearch = focusSearch, onSearchFocused = onSearchFocused)
     if (com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown()) {
-        val shell = com.cosmotune.ui.theme.LocalCosmoShell.current
+        // Podio and Manga keep the shape of Music's and Video's sidebar: the window caption, then rows. Which mode is open is chosen from the
+        // profile menu, as everywhere else, so no row here switches mode.
+        val podio = com.cosmotune.video.host.desktopPodioShown()
+        val podioTab by com.cosmotune.ui.blocks.ModeNav.podioTab.collectAsState()
+        val podioSaved by com.cosmotune.ui.blocks.ModeNav.podioSaved.collectAsState()
+        val mangaTab by com.cosmotune.ui.blocks.ModeNav.mangaTab.collectAsState()
+        val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
+        val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
         Column(Modifier.width(ShellMetrics.DESKTOP_SIDEBAR_DP.dp).fillMaxHeight()) {
-            val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
-            if (DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled) SidebarCaption()
-            Column(Modifier.padding(20.dp)) {
-                androidx.compose.material3.Text(if (com.cosmotune.video.host.desktopPodioShown()) "Podio" else "Manga", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
-                androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC) }) { androidx.compose.material3.Text("Music") }
-                androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.VIDEO) }) { androidx.compose.material3.Text("Video") }
-                androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.MANGA) }) { androidx.compose.material3.Text("Manga") }
-                androidx.compose.material3.TextButton(onClick = { shell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO) }) { androidx.compose.material3.Text("Podio") }
+            if (inlineCaption) SidebarCaption()
+            Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp, bottom = ShellMetrics.DESKTOP_BAR_MARGIN_DP.dp)) {
+                Text(
+                    text = if (podio) "Podio" else "Manga",
+                    style = LocalCosmoType.current.label.copy(fontSize = LIBRARY_SP.sp, fontWeight = FontWeight(LIBRARY_WEIGHT)),
+                    color = Color(LocalCosmoColors.current.palette.textPrimary),
+                    modifier = Modifier.padding(start = 14.dp, end = 2.dp, top = 8.dp, bottom = 8.dp),
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(NAV_LIST_GAP)) {
+                    if (podio) {
+                        fun go(tab: String, saved: Boolean) { com.cosmotune.ui.blocks.ModeNav.podioTab.value = tab; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = saved }
+                        SidebarNavRow(androidx.compose.material.icons.Icons.Outlined.Radio, "Radio", null, podioTab == "Radio" && !podioSaved) { go("Radio", false) }
+                        SidebarNavRow(androidx.compose.material.icons.Icons.Outlined.Podcasts, "Podcasts", null, podioTab == "Podcasts" && !podioSaved) { go("Podcasts", false) }
+                        SidebarNavRow(androidx.compose.material.icons.Icons.Outlined.FavoriteBorder, "Favourite stations", null, podioTab == "Radio" && podioSaved) { go("Radio", true) }
+                        SidebarNavRow(androidx.compose.material.icons.Icons.Outlined.BookmarkBorder, "Following", null, podioTab == "Podcasts" && podioSaved) { go("Podcasts", true) }
+                    } else {
+                        SidebarNavRow(androidx.compose.material.icons.Icons.Outlined.CollectionsBookmark, "Library", null, mangaTab == "Library") { com.cosmotune.ui.blocks.ModeNav.mangaTab.value = "Library" }
+                        SidebarNavRow(androidx.compose.material.icons.Icons.Outlined.Explore, "Discover", null, mangaTab != "Library") { com.cosmotune.ui.blocks.ModeNav.mangaTab.value = "Discover" }
+                    }
+                }
             }
         }
         return

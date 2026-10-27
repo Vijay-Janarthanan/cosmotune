@@ -14,7 +14,7 @@ class PodioCatalogueTest {
             val url = requireNotNull(server.takeRequest().requestUrl)
             assertEquals("tamil", url.queryParameter("language"))
             assertEquals("IN", url.queryParameter("countrycode"))
-            assertEquals("1000", url.queryParameter("limit"))
+            assertEquals("3000", url.queryParameter("limit"))
         }
     }
     @Test fun publisherFeedsProducePlayableAudioWithStableIdentitiesAndDurations() {

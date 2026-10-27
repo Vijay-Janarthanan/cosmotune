@@ -1,6 +1,10 @@
 package com.cosmotune.ui.shell
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -148,6 +152,8 @@ fun CosmoPlayerBar(
     val coverUrl = PlayerPlatform.host.rememberRemoteArtworkUrl(song)
     val scrub = rememberPlayerScrub(song.videoId, position, durationMs)
     val type = LocalCosmoType.current
+    // A live radio station has no previous, next, shuffle, repeat, length or lyrics: the bar keeps play, the name, the heart and LIVE.
+    val live = song.videoId.startsWith("podio:radio:")
 
     BoxWithConstraints(
         modifier
@@ -189,7 +195,15 @@ fun CosmoPlayerBar(
                     style = CosmoIconButtonStyle.TONAL, size = PlayerBarMetrics.BUTTON_DP.dp, on = liked, accentWhenOn = true, floating = true,
                 )
             }
-            if (plan.scrubber) {
+            if (live) {
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    PlayMorphButton(isPlaying, isLoading, onPlayPause, size = PlayerBarMetrics.PLAY_DP.dp, floating = true)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFE5484D)))
+                        Text("LIVE", style = type.label, color = Color(LocalCosmoColors.current.palette.textSecondary))
+                    }
+                }
+            } else if (plan.scrubber) {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Transport(
                         plan.shuffleRepeat, isPlaying, isLoading, shuffle, repeatMode, controlsLocked,
@@ -202,14 +216,16 @@ fun CosmoPlayerBar(
                 PlayMorphButton(isPlaying, isLoading, onPlayPause, size = PlayerBarMetrics.PLAY_DP.dp, floating = true)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CosmoIconButton(
-                    CosmoIcons.Lyrics, stringResource(Res.string.open_lyrics), onLyrics,
-                    style = CosmoIconButtonStyle.PLAIN, size = PlayerBarMetrics.BUTTON_DP.dp, on = lyricsOn, floating = true,
-                )
-                CosmoIconButton(
-                    CosmoIcons.Queue, stringResource(Res.string.queue), onQueue,
-                    style = CosmoIconButtonStyle.PLAIN, size = PlayerBarMetrics.BUTTON_DP.dp, on = queueOn, floating = true,
-                )
+                if (!live) {
+                    CosmoIconButton(
+                        CosmoIcons.Lyrics, stringResource(Res.string.open_lyrics), onLyrics,
+                        style = CosmoIconButtonStyle.PLAIN, size = PlayerBarMetrics.BUTTON_DP.dp, on = lyricsOn, floating = true,
+                    )
+                    CosmoIconButton(
+                        CosmoIcons.Queue, stringResource(Res.string.queue), onQueue,
+                        style = CosmoIconButtonStyle.PLAIN, size = PlayerBarMetrics.BUTTON_DP.dp, on = queueOn, floating = true,
+                    )
+                }
                 if (plan.output) {
                     CosmoIconButton(
                         CosmoIcons.Devices, stringResource(Res.string.audio_output), onOutput,
@@ -222,7 +238,7 @@ fun CosmoPlayerBar(
                 }
             }
         }
-        if (!plan.scrubber) ProgressLine(position, durationMs, Modifier.matchParentSize())
+        if (!plan.scrubber && !live) ProgressLine(position, durationMs, Modifier.matchParentSize())
     }
 }
 

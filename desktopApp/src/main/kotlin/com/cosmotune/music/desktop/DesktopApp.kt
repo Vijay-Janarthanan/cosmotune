@@ -4045,8 +4045,8 @@ fun CosmotuneDesktopApp() {
                         },
                         onToggle = ::togglePlayPauseFromUser,
                         onSeek = playbackEngine::seekTo, onSpeed = playbackEngine::setPlaybackSpeed,
-                        onMusic = { cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC) },
                         padding = contentPadding,
+                        showNavigation = false,
                     )
                 }
                 // Desktop pages start at the same top edge as Library. Only preserve space for the

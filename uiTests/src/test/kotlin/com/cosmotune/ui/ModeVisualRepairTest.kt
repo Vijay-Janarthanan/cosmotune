@@ -117,12 +117,9 @@ class ModeVisualRepairTest {
             compose.onNodeWithText("Tamil Two").performClick()
             compose.runOnIdle { assertEquals("Tamil Two", played.single().title) }
             snapshot("podio-desktop.png", "podio:root")
-            compose.onNodeWithText("Expand map").performClick()
-            compose.onNodeWithText("Radio map").assertIsDisplayed()
-            compose.onAllNodesWithTag("podio:globe").onLast().performTouchInput { click(center) }
-            compose.onAllNodesWithContentDescription("Zoom in").onLast().performClick()
-            snapshot("podio-map.png", "podio:map")
-            compose.onNodeWithText("Close map").performClick()
+            compose.onNodeWithTag("podio:globe").performTouchInput { click(center) }
+            compose.onNodeWithContentDescription("Zoom in").performClick()
+            snapshot("podio-map.png", "podio:root")
             compose.onNodeWithText("Find a station").assertIsDisplayed()
             compose.onNodeWithText("Podcasts").performClick()
             compose.onNodeWithText("Podcasts").assertIsSelected()
