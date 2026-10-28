@@ -1,6 +1,8 @@
 package com.cosmotune.music.desktop
 
 import androidx.compose.ui.graphics.toAwtImage
+import com.sun.jna.NativeLibrary
+import com.sun.jna.Pointer
 import cosmotune.desktopapp.generated.resources.Res
 import kotlinx.coroutines.runBlocking
 import java.awt.Color
@@ -17,7 +19,8 @@ import kotlin.math.max
 /**
  * The Dock on macOS. While a song is loaded the Dock icon is its cover, in the rounded square a Mac
  * icon is, and the Dock menu has what is playing with Play or Pause, Next and Previous, so the player
- * can be driven without bringing the window forward. With nothing playing the app's logo is back.
+ * can be driven without bringing the window forward. With nothing playing the app's own icon is back:
+ * the very one the Dock showed before, kept aside before the first cover replaces it.
  */
 internal object DesktopMacDock {
     private var last: Pair<String, Boolean>? = null
@@ -69,13 +72,20 @@ internal object DesktopMacDock {
                 if (!Taskbar.isTaskbarSupported()) return@runCatching
                 val dock = Taskbar.getTaskbar()
                 if (!dock.isSupported(Taskbar.Feature.ICON_IMAGE)) return@runCatching
-                val icon = if (wanted != null) {
-                    runBlocking { DesktopArtworkCache.load(wanted) }?.toAwtImage()?.let { DesktopDockIcon.render(it) }
-                } else {
-                    runBlocking { Res.readBytes("drawable/logo.svg") }.let { renderLogo(it) }
+                if (wanted == null) {
+                    // The icon the Dock had. Only if that could not be kept is the logo drawn instead.
+                    if (!MacAppIcon.restore()) {
+                        val logo = runBlocking { Res.readBytes("drawable/logo.svg") }.let { renderLogo(it) }
+                        if (logo != null) EventQueue.invokeLater { runCatching { dock.iconImage = logo } }
+                    }
+                    return@runCatching
                 }
+                val icon = runBlocking { DesktopArtworkCache.load(wanted) }?.toAwtImage()?.let { DesktopDockIcon.render(it) }
                 // A cover that would not load leaves the icon as it was.
-                if (icon != null) EventQueue.invokeLater { runCatching { dock.iconImage = icon } }
+                if (icon != null) {
+                    MacAppIcon.keep()
+                    EventQueue.invokeLater { runCatching { dock.iconImage = icon } }
+                }
             }.onFailure { DesktopTrackLog.log("dock icon unavailable: ${it.message}") }
         }
     }
@@ -113,4 +123,39 @@ internal object DesktopDockIcon {
         }
         return image
     }
+}
+
+/**
+ * The application's own icon, as AppKit holds it. Java can set the Dock icon but has no way back to
+ * the one the bundle supplies, so the original is kept (retained) before the first cover replaces it,
+ * and handed back to AppKit on its main thread.
+ */
+private object MacAppIcon {
+    private val runtime by lazy { NativeLibrary.getInstance("objc") }
+    private var original: Pointer? = null
+
+    private fun selector(name: String): Pointer = runtime.getFunction("sel_registerName").invokePointer(arrayOf(name))
+    private fun send(receiver: Pointer, name: String, vararg arguments: Any?): Pointer? =
+        runtime.getFunction("objc_msgSend").invokePointer(arrayOf(receiver, selector(name), *arguments))
+    private fun application(): Pointer? =
+        runtime.getFunction("objc_getClass").invokePointer(arrayOf("NSApplication"))?.let { send(it, "sharedApplication") }
+
+    /** Keeps the icon the Dock has now, once. */
+    fun keep() {
+        if (original != null) return
+        runCatching {
+            val app = application() ?: return
+            val image = send(app, "applicationIconImage") ?: return
+            original = send(image, "retain")
+        }
+    }
+
+    /** Puts the kept icon back; false when there is none to put back. */
+    fun restore(): Boolean = runCatching {
+        val image = original ?: return false
+        val app = application() ?: return false
+        // AppKit is for its main thread.
+        send(app, "performSelectorOnMainThread:withObject:waitUntilDone:", selector("setApplicationIconImage:"), image, 1)
+        true
+    }.getOrDefault(false)
 }
