@@ -7,6 +7,27 @@ import org.junit.rules.TemporaryFolder
 import kotlin.test.*
 
 class DesktopProviderMediaToolsTest {
+    @Test fun nativeFlacEncodingPreservesVerifiedLosslessAudioAndRejectsLossyUpscaling() {
+        val input = fixture("clear.flac"); val output = temporary.newFile("encoded.flac")
+        DesktopProviderMediaTools.convertFlac(input, output, 2_000_000) { false }
+        val info = DesktopProviderMediaTools.probe(output) { false }
+        assertEquals("flac", info.codec); assertEquals(24, info.bitDepth); assertEquals(44_100, info.sampleRate)
+        assertContentEquals(samples(input), samples(output))
+        assertFails { DesktopProviderMediaTools.convertFlac(fixture("clear.m4a"), temporary.newFile("lossy.flac"), 2_000_000) { false } }
+        assertFalse(output.parentFile.listFiles().orEmpty().any { it.name.startsWith("encoding-") })
+    }
+    @Test fun typedPcmConversionPreservesRateChannelsAndPlayableAudioAt16And24Bits() {
+        val input = fixture("clear.flac")
+        for (bits in listOf(16, 24)) {
+            val output = temporary.newFile("converted-$bits.wav")
+            DesktopProviderMediaTools.convertPcm(input, output, bits, 1_000_000) { false }
+            val info = DesktopProviderMediaTools.probe(output) { false }
+            assertEquals("pcm_s${bits}le", info.codec); assertEquals(bits, info.bitDepth)
+            assertEquals(44_100, info.sampleRate); assertTrue(samples(output).isNotEmpty())
+        }
+        assertFails { DesktopProviderMediaTools.convertPcm(input, temporary.newFile("quota.wav"), 24, 256) { false } }
+        assertFails { DesktopProviderMediaTools.convertPcm(input, temporary.newFile("cancel.wav"), 24, 1_000_000) { true } }
+    }
     @get:Rule val temporary = TemporaryFolder()
     private fun fixture(name: String) = temporary.newFile(name).also { output ->
         requireNotNull(javaClass.getResourceAsStream("/provider-media/$name")).use { input -> output.outputStream().use(input::copyTo) }

@@ -39,7 +39,7 @@ esac
 TC="$NDK/toolchains/llvm/prebuilt/$HOST/bin"
 JOBS="${JOBS:-$(nproc 2>/dev/null || echo 8)}"
 
-DECODERS=ac4,alac,ac3,eac3,truehd,mlp,dca,flac,mp3,aac,vorbis,opus,pcm_alaw,pcm_mulaw
+DECODERS=ac4,alac,ac3,eac3,truehd,mlp,dca,flac,mp3,aac,vorbis,opus,pcm_alaw,pcm_mulaw,pcm_s16le,pcm_s24le,pcm_s32le,pcm_f32le,pcm_f64le,pcm_s16be,pcm_s24be,pcm_s32be
 
 SRC="$WORK/librempeg"
 if [ ! -d "$SRC/.git" ]; then
@@ -77,10 +77,11 @@ build_abi() {
         --enable-avfilter \
         --disable-network --disable-everything \
         --enable-avformat --enable-protocol=file \
-        --enable-demuxer=mov,flac,mp3,aac,ogg,wav,aiff,matroska,dsf,iff \
+        --enable-demuxer=mov,flac,mp3,aac,ogg,wav,aiff,matroska,dsf,iff,mpegts \
         --enable-muxer=flac,mp4,ogg,opus,mp3,adts,wav \
         --enable-parser=aac,flac,mpegaudio,opus,vorbis \
         --enable-bsf=aac_adtstoasc,extract_extradata \
+        --enable-encoder=flac \
         --enable-decoder="$DECODERS" \
         ${EXTRA_CONFIGURE:-} $6 >/dev/null
     make V=1 -j"$JOBS" >/dev/null

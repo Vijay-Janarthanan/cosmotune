@@ -171,6 +171,19 @@ Their upstream projects are https://github.com/square/okhttp, https://github.com
 https://github.com/square/zstd-kmp and https://github.com/facebook/zstd.
 The Zstandard source provides the BSD-3-Clause licence option. No external manga extension APK is redistributed.
 
+## Optional browser Automix
+
+The separate browser companion ports AutoMix by David Finnegan (AGPL-3.0-only), via
+https://github.com/kushagrasinghx/BitChord/tree/04a4a83889bb8fa5bd6ee6f6097f0c6608671d68/web/app/src/playback/automix.
+Original copyright lines, AGPL text and notices are retained under `licenses/automix-web/` and in the subsystem.
+The AGPL engine is combined with the GPLv3 application under AGPLv3 section 13; the Settings explanation links
+Cosmotune's complete modified engine source. Source delivery must retain that link and the corresponding source.
+The optional Beat This! and Open-Unmix UMXHQ weights are MIT licensed; exact hashes, delivery sizes and
+licence texts are recorded in `licenses/automix-web/models.json`. UMXHQ is used, not UMXL.
+The browser also uses essentia.js 0.1.3 (AGPL-3.0), idb 8.0.4 (ISC), onnxruntime-web 1.30.0 (MIT), and
+signalsmith-stretch 1.3.2 (MIT), retaining the packages' notices. This feature adds no browser engine or analysis
+weights to the native installers. See `web/docs/automix.md` for storage and validation limits.
+
 ## Podio map and station page data
 
 - Satellite imagery on the radio map: NASA Global Imagery Browse Services (GIBS), Blue Marble. NASA imagery is public domain; the service needs no account.

@@ -2,6 +2,8 @@
 
 This review checks 20 external repositories plus the owned OpenCanvas engine. Default-branch heads and published releases were queried separately. The review used pinned commit comparisons, repository trees, release/changelog material and 56 selected source/licence files. It is a feature and integration review, not execution of every upstream app or a claim of complete feature parity. Historical import pins remain unchanged until a corresponding integration is verified.
 
+The [implementation follow-up](UPSTREAM_IMPLEMENTATION_2026-10-28.md) records the subsequent recording-based matcher, Gilli fix and compatible feature/bug-fix integrations. Its work supersedes the original one-singer alias approach for JioSaavn; this review's tables preserve the findings at the time they were inspected.
+
 ## Playback investigations completed first
 
 | Reported issue | Finding | Action and evidence |

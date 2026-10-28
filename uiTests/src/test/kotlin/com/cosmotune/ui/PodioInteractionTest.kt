@@ -111,7 +111,7 @@ class PodioInteractionTest {
             snapshot("podio-phone.png")
             compose.onNodeWithText("Podcasts").performClick()
             compose.onNodeWithText("Add link").performClick()
-            compose.onNodeWithText("RSS feed or Spotify podcast link").assertExists()
+            compose.onNodeWithText("Podcast feed or show link").assertExists()
             compose.onNodeWithText("Cancel").performClick()
         }
     }

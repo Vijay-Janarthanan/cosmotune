@@ -106,7 +106,22 @@ data class MangaLibraryState(
     val readerFit: MangaReaderFit = MangaReaderFit.PAGE,
     /** Chapters found by the last library update checks and not yet opened or read. */
     val newChapters: Set<String> = emptySet(),
+    val collections: List<MangaCollection> = emptyList(),
+    /** Zero disables automatic updates; supported choices are daily or weekly. */
+    val updateIntervalHours: Int = 0,
+    val lastUpdateAttemptMs: Long = 0,
+    val lastUpdateCompletedMs: Long = 0,
+    val lastUpdateNewChapters: Int = 0,
+    val lastUpdateFailures: Int = 0,
 )
+
+@Serializable data class MangaCollection(val id: String, val name: String, val bookIds: Set<String> = emptySet())
+
+fun MangaLibraryState.collectionBooks(selection: String): List<MangaBook> = when (selection) {
+    "" -> books
+    "unassigned" -> books.filter { book -> collections.none { book.id in it.bookIds } }
+    else -> books.filter { it.id in collections.find { collection -> collection.id == selection }?.bookIds.orEmpty() }
+}
 
 /** The result of a library update check so far: [failures] maps a series id to the reason its source could not be checked. */
 data class MangaUpdateReport(val checked: Int, val total: Int, val newChapters: Int, val updatedSeries: Int, val failures: Map<String, String>)
@@ -128,6 +143,7 @@ data class MangaBrowsePage(val books: List<MangaBook>, val nextOffset: Int?)
 
 interface MangaSource {
     val config: MangaSourceConfig
+    val verificationWebsite: String? get() = config.baseUrl.takeIf { it.isNotBlank() }
     suspend fun browse(query: String = "", offset: Int = 0): MangaBrowsePage
     suspend fun details(book: MangaBook): MangaBook
     suspend fun pages(chapter: MangaChapter): List<MangaPage>

@@ -260,6 +260,21 @@ internal class ProviderSignedSession(private val install: ProviderInstall, priva
         put("ok", false); put("needsVerification", true); put("error", "VERIFY_REQUIRED")
         put("auth_url", pending()?.text("url").orEmpty()); put("open_auth_url", pending()?.text("url").orEmpty())
     }
+    /** A failed challenge mint still means access is required. Cancellation and revocation must
+     * keep failing the operation, rather than being disguised as a request to verify again. */
+    private fun bootstrapForRequest(): Boolean {
+        val expectedEpoch = epoch()
+        return try { bootstrap() }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (interrupted: InterruptedException) { Thread.currentThread().interrupt(); throw interrupted }
+        catch (_: Exception) {
+            check()
+            check(epoch() == expectedEpoch) { "Provider authorization changed" }
+            update(expectedEpoch) { old -> JsonObject(old + ("signedSession" to
+                JsonObject(signed(old) + ("blocked" to JsonPrimitive(true))))) }
+            false
+        }
+    }
     private fun signedRequest(record: JsonObject, method: String, address: HttpUrl, body: String, headers: Map<String, String>): JsonObject {
         val signature = headers(label, prefix, window, appVersion, platform, record.text("session_id"), record.text("session_secret"), method, address, body, now(), randomHex(16))
         // Operation headers such as X-Zarz-Ticket share the prefix but are not signing fields.
@@ -276,7 +291,7 @@ internal class ProviderSignedSession(private val install: ProviderInstall, priva
         val body = (args.getOrNull(2) as? JsonPrimitive)?.contentOrNull.orEmpty()
         require(body.toByteArray().size <= ProviderNetwork.MAX_METADATA_BYTES && (method !in setOf("GET", "HEAD") || body.isEmpty()))
         val headers = (args.getOrNull(3) as? JsonObject).orEmpty().mapValues { it.value.jsonPrimitive.content }
-        if (!bootstrap()) return verification()
+        if (!bootstrapForRequest()) return verification()
         var record = signed(); val expectedEpoch = epoch()
         val refresh = (config["endpoints"] as? JsonObject)?.text("refresh").orEmpty()
         if (refresh.isNotBlank() && expiry(record.text("expires_at")) - now() <= 3_600_000) {
@@ -291,7 +306,7 @@ internal class ProviderSignedSession(private val install: ProviderInstall, priva
         var providerRetries = 0; var sessionRetries = 0
         while (true) {
             check(); check(epoch() == expectedEpoch)
-            if (!usable(record)) { if (!bootstrap()) return verification(); record = signed() }
+            if (!usable(record)) { if (!bootstrapForRequest()) return verification(); record = signed() }
             val response = signedRequest(record, method, address, body, headers)
             val contract = runCatching { Json.parseToJsonElement(response.text("body")).jsonObject }.getOrDefault(JsonObject(emptyMap()))
             val status = (response["status"] as? JsonPrimitive)?.intOrNull ?: 0
@@ -316,7 +331,7 @@ internal class ProviderSignedSession(private val install: ProviderInstall, priva
                     JsonObject(old + ("signedSession" to if (reset) JsonObject(value - setOf("session_id", "session_secret", "expires_at", "blocked"))
                         else JsonObject(value + ("blocked" to JsonPrimitive(true)))))
                 }
-                if (!bootstrap()) return verification()
+                if (!bootstrapForRequest()) return verification()
                 record = signed(); continue
             }
             return JsonObject(response + if (code.isBlank()) emptyMap() else mapOf(

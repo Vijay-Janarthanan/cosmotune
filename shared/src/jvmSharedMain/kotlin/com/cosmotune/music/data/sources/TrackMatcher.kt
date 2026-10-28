@@ -52,6 +52,8 @@ object TrackMatcher {
         val isExplicit: Boolean? = null,
         /** Music-video timing includes visual intros/outros that catalogue audio omits. */
         val isVideo: Boolean = false,
+        /** Original YouTube ID, used only to fill missing recording metadata, never to search another catalogue. */
+        val videoId: String? = null,
     )
 
     fun targetOf(song: Song) = Target(
@@ -61,6 +63,7 @@ object TrackMatcher {
         song.albumName,
         song.isExplicit,
         song.isVideo,
+        song.videoId.takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) },
     )
 
     // ── Asking ──────────────────────────────────────────────────────────────
@@ -845,7 +848,7 @@ object TrackMatcher {
      * ASCII-only (`[^a-z0-9]`) is what emptied every CJK/Devanagari title to
      * `""` — and an empty core matches nothing and asks for nothing.
      */
-    private val NON_ALNUM = Regex("""[^\p{L}\p{N}]""")
+    private val NON_ALNUM = Regex("""[^\p{L}\p{M}\p{N}]""")
     private val LATIN = Regex("[a-z0-9]")
     private const val LATIN_QUERY_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789 "
     private val KANA_ROMAJI: Map<Char, String> = run {

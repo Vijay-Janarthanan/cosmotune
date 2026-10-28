@@ -7,13 +7,13 @@ import (
 
 // Server -> Client frame types
 const (
-	FrameWelcome = "welcome"
-	FrameState   = "state"
-	FrameQueue   = "queue"
-	FrameMembers = "members"
-	FramePong    = "pong"
-	FrameError   = "error"
-	FrameBye     = "bye"
+	FrameWelcome  = "welcome"
+	FrameState    = "state"
+	FrameQueue    = "queue"
+	FrameMembers  = "members"
+	FramePong     = "pong"
+	FrameError    = "error"
+	FrameBye      = "bye"
 	FrameActivity = "activity"
 )
 
@@ -28,20 +28,20 @@ const (
 
 // Control actions
 const (
-	ActionPlay        = "play"
-	ActionPause       = "pause"
-	ActionSeek        = "seek"
-	ActionSetTrack    = "setTrack"
-	ActionSetQueue    = "setQueue"
-	ActionQueueAdd    = "queueAdd"
-	ActionQueueRemove = "queueRemove"
-	ActionQueueClear  = "queueClear"
-	ActionQueueMove   = "queueMove"
-	ActionNext        = "next"
-	ActionPrevious    = "previous"
-	ActionKick        = "kick"
-	ActionSetMaxMembers = "setMaxMembers"
-	ActionSetAutoplay = "setAutoplay"
+	ActionPlay               = "play"
+	ActionPause              = "pause"
+	ActionSeek               = "seek"
+	ActionSetTrack           = "setTrack"
+	ActionSetQueue           = "setQueue"
+	ActionQueueAdd           = "queueAdd"
+	ActionQueueRemove        = "queueRemove"
+	ActionQueueClear         = "queueClear"
+	ActionQueueMove          = "queueMove"
+	ActionNext               = "next"
+	ActionPrevious           = "previous"
+	ActionKick               = "kick"
+	ActionSetMaxMembers      = "setMaxMembers"
+	ActionSetAutoplay        = "setAutoplay"
 	ActionSetHostOnlyControl = "setHostOnlyControl"
 )
 
@@ -66,12 +66,12 @@ var ControlActions = map[string]bool{
 
 // JoinRequest is the identity submitted when creating or joining a party.
 type JoinRequest struct {
-	UserId      string  `json:"userId"`
-	DeviceId    string  `json:"deviceId"`
-	DisplayName string  `json:"displayName"`
-	AvatarUrl   *string `json:"avatarUrl,omitempty"`
-	MaxMembers  *int    `json:"maxMembers,omitempty"`
-	AutoplayEnabled *bool `json:"autoplayEnabled,omitempty"`
+	UserId          string  `json:"userId"`
+	DeviceId        string  `json:"deviceId"`
+	DisplayName     string  `json:"displayName"`
+	AvatarUrl       *string `json:"avatarUrl,omitempty"`
+	MaxMembers      *int    `json:"maxMembers,omitempty"`
+	AutoplayEnabled *bool   `json:"autoplayEnabled,omitempty"`
 }
 
 // Validate ensures all required identity fields are present and safe.

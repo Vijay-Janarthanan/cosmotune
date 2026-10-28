@@ -10,7 +10,7 @@ import com.cosmotune.music.data.model.durationMillis
  * lines in parentheses. Untimed lyrics are written as plain lines.
  */
 object LrcExport {
-    fun render(song: Song, lines: List<LyricLine>): String {
+    fun render(song: Song, lines: List<LyricLine>, subLines: List<LyricLine>? = null): String {
         require(lines.any { it.text.isNotBlank() }) { "There are no lyrics to save." }
         val timed = lines.any { it.timeMs > 0 }
         val out = StringBuilder()
@@ -21,9 +21,20 @@ object LrcExport {
         song.durationMillis().takeIf { it > 0 }?.let { header("length", stamp(it).substringBefore('.')) }
         header("by", "Cosmotune")
         out.append('\n')
-        val entries = lines.flatMap { line -> listOfNotNull(line, line.background?.let { bg ->
-            bg.copy(text = bg.text.trim().let { if (it.startsWith("(")) it else "($it)" }, words = emptyList())
-        }) }.let { all -> if (timed) all.sortedBy { it.timeMs } else all }
+        // Portable bilingual LRC uses the original timestamp again for its translation. Only
+        // index-aligned, equally timed sublines can be paired; stale/partial translations are omitted.
+        val aligned = subLines?.takeIf { it.size == lines.size }
+        fun translation(original: LyricLine, sub: LyricLine?): LyricLine? = sub?.takeIf {
+            original.text.isNotBlank() && it.text.isNotBlank() && it.text.trim() != original.text.trim() &&
+                it.timeMs == original.timeMs
+        }?.copy(timeMs = original.timeMs, words = emptyList(), background = null, timingSource = null)
+        val entries = lines.flatMapIndexed { index, line ->
+            val background = line.background?.let { bg ->
+                bg.copy(text = bg.text.trim().let { if (it.startsWith("(")) it else "($it)" }, words = emptyList())
+            }
+            listOfNotNull(line, translation(line, aligned?.get(index)), background,
+                line.background?.let { translation(it, aligned?.get(index)?.background) })
+        }.let { all -> if (timed) all.sortedBy { it.timeMs } else all }
         entries.forEach { line ->
             val text = line.text.replace('\n', ' ').replace('\r', ' ')
             if (!timed) { if (text.isNotBlank()) out.append(text).append('\n'); return@forEach }

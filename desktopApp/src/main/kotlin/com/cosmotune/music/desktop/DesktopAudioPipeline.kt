@@ -25,6 +25,8 @@ internal data class DesktopAudioPipeline(
     val skipSilence: Boolean = false,
     /** The output path: "WASAPI shared" on Windows, otherwise "Java Sound"; null before it opens. */
     val outputApi: String? = null,
+    val directOutput: Boolean = false,
+    val processingStage: String? = null,
     /** Loudness normalization is applying a gain to this track. */
     val loudnessActive: Boolean = false,
     /** The player volume is below full, which scales every sample. */
@@ -43,10 +45,8 @@ internal data class DesktopAudioPipeline(
 }
 
 /**
- * Whether the samples leave Cosmotune unchanged, and never "bit-perfect": every desktop output
- * today is a shared one (WASAPI shared mode, or Java Sound over the system mixer), so the system
- * may resample, mix or apply its own volume afterwards. Exclusive WASAPI, ALSA `hw:` and CoreAudio
- * hog mode are not implemented; see FEATURE_TRACKER MN-05.
+ * Direct device ownership is reported separately from confirmed bit-perfect output.
+ * The float decoder and any active DSP still constrain sample fidelity on every backend.
  */
 internal fun DesktopAudioPipeline.fidelityFacts(): OutputFidelityFacts {
     val sourceBits = sourceFormat?.bitDepth
@@ -54,18 +54,20 @@ internal fun DesktopAudioPipeline.fidelityFacts(): OutputFidelityFacts {
     // Float output carries any source up to 24 bits intact; an integer output narrower than the
     // source drops bits, which a 16-bit Java Sound fallback does to a 24-bit file.
     val narrowed = outputIsFloat != true && sourceBits != null && outputBits != null && outputBits < sourceBits
+    val floatPrecisionLost = sourceBits != null && sourceBits > 24
     return OutputFidelityFacts(
         dsdConvertedToPcm = sourceFormat?.codec?.substringAfterLast('/')?.substringBefore(';')?.trim()?.lowercase() in DSD_CODECS,
         alteringStage = when {
             loudnessActive -> "loudness normalization"
             equalizerEnabled -> "equalizer"
             volumeBelowFull -> "volume below 100%"
+            processingStage != null -> processingStage
             else -> null
         },
         resampledByApp = resampling,
-        encodingExact = !narrowed,
-        encodingDetail = if (narrowed) "$sourceBits-bit source written as $outputBits-bit" else null,
-        mixing = OutputMixing.SYSTEM_MIXER,
+        encodingExact = !narrowed && !floatPrecisionLost,
+        encodingDetail = when { narrowed -> "$sourceBits-bit source written as $outputBits-bit"; floatPrecisionLost -> "$sourceBits-bit source decoded through float32"; else -> null },
+        mixing = if (directOutput) OutputMixing.DIRECT_UNCONFIRMED else OutputMixing.SYSTEM_MIXER,
         systemName = systemName,
     )
 }

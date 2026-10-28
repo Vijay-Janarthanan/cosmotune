@@ -323,6 +323,8 @@ int g_audio_rate = 0;
 UINT32 g_audio_channels = 0;
 UINT32 g_audio_bytes_per_sample = 0;
 bool g_audio_float = false;
+bool g_audio_exclusive_wanted = false;
+bool g_audio_exclusive_active = false;
 // Whether playback wants the stream running — independent of there being a client right now.
 bool g_audio_started = false;
 uint64_t g_audio_submitted_frames = 0;
@@ -558,7 +560,7 @@ IMMDevice* resolve_device_locked(const std::wstring& wanted) {
 }
 
 /** Builds the render stream on [device] in the stored format; starts it if playback is running. */
-bool start_client_locked(IMMDevice* device) {
+bool start_client_locked(IMMDevice* device, bool shared_fallback = false) {
     HRESULT status = device->Activate(
         __uuidof(IAudioClient), CLSCTX_ALL, nullptr,
         reinterpret_cast<void**>(&g_audio_client));
@@ -585,10 +587,41 @@ bool start_client_locked(IMMDevice* device) {
 #endif
     const DWORD flags = AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
     // 200 ms keeps network/decoder jitter away from the device without making controls sluggish.
-    status = g_audio_client->Initialize(
+    g_audio_exclusive_active = false;
+    if (g_audio_exclusive_wanted) {
+        status = g_audio_client->IsFormatSupported(AUDCLNT_SHAREMODE_EXCLUSIVE, &format, nullptr);
+        if (status == S_OK) {
+            REFERENCE_TIME period = 0, minimum = 0;
+            status = g_audio_client->GetDevicePeriod(&period, &minimum);
+            if (SUCCEEDED(status)) {
+                period = std::max<REFERENCE_TIME>(period, minimum);
+                status = g_audio_client->Initialize(AUDCLNT_SHAREMODE_EXCLUSIVE, 0, period * 4, period, &format, nullptr);
+                if (status == AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED) {
+                    UINT32 aligned = 0;
+                    if (SUCCEEDED(g_audio_client->GetBufferSize(&aligned))) {
+                        const REFERENCE_TIME duration = static_cast<REFERENCE_TIME>(10000000.0 * aligned / g_audio_rate + 0.5);
+                        release_client_locked();
+                        status = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&g_audio_client));
+                        if (SUCCEEDED(status)) status = g_audio_client->Initialize(AUDCLNT_SHAREMODE_EXCLUSIVE, 0, duration, duration, &format, nullptr);
+                    }
+                }
+            }
+        }
+        if (SUCCEEDED(status)) g_audio_exclusive_active = true;
+        else if (!shared_fallback) {
+            set_audio_error(L"Negotiating WASAPI exclusive format", status);
+            release_client_locked();
+            return false;
+        } else {
+            release_client_locked();
+            status = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&g_audio_client));
+            if (FAILED(status)) return false;
+        }
+    }
+    if (!g_audio_exclusive_active) status = g_audio_client->Initialize(
         AUDCLNT_SHAREMODE_SHARED, flags, 2'000'000, 0, &format, nullptr);
     if (FAILED(status)) {
-        set_audio_error(L"Starting WASAPI shared mode", status);
+        set_audio_error(L"Starting WASAPI output", status);
         release_client_locked();
         return false;
     }
@@ -641,11 +674,11 @@ void reroute_locked(bool force_reopen = false) {
         g_audio_error = L"Windows has no audio endpoint to play on";
         return;
     }
-    start_client_locked(device);
+    start_client_locked(device, true);
     device->Release();
 }
 
-int open_audio(const std::wstring& wanted, int sample_rate, int channels, int bytes_per_sample, bool floating) {
+int open_audio(const std::wstring& wanted, int sample_rate, int channels, int bytes_per_sample, bool floating, bool exclusive) {
     std::lock_guard<std::mutex> guard(g_audio_mutex);
     release_audio_locked();
     g_audio_error.clear();
@@ -666,6 +699,7 @@ int open_audio(const std::wstring& wanted, int sample_rate, int channels, int by
     g_audio_channels = static_cast<UINT32>(channels);
     g_audio_bytes_per_sample = static_cast<UINT32>(bytes_per_sample);
     g_audio_float = floating;
+    g_audio_exclusive_wanted = exclusive;
     g_audio_started = true;
     const bool opened = start_client_locked(device);
     device->Release();
@@ -751,13 +785,21 @@ int write_audio(const float* samples, int sample_count, float gain) {
             auto* output = reinterpret_cast<int16_t*>(target);
             for (size_t index = 0; index < values; ++index) {
                 const float value = std::clamp(samples[first + index] * gain, -1.0f, 1.0f);
-                output[index] = static_cast<int16_t>(value * 32767.0f);
+                output[index] = static_cast<int16_t>(std::clamp<long long>(std::llround(value * 32768.0), -32768, 32767));
+            }
+        } else if (g_audio_bytes_per_sample == 3) {
+            for (size_t index = 0; index < values; ++index) {
+                const double value = std::clamp(static_cast<double>(samples[first + index] * gain), -1.0, 1.0);
+                const int32_t pcm = static_cast<int32_t>(std::clamp<long long>(std::llround(value * 8388608.0), -8388608, 8388607));
+                target[index * 3] = static_cast<BYTE>(pcm);
+                target[index * 3 + 1] = static_cast<BYTE>(pcm >> 8);
+                target[index * 3 + 2] = static_cast<BYTE>(pcm >> 16);
             }
         } else {
             auto* output = reinterpret_cast<int32_t*>(target);
             for (size_t index = 0; index < values; ++index) {
                 const double value = std::clamp(static_cast<double>(samples[first + index] * gain), -1.0, 1.0);
-                output[index] = static_cast<int32_t>(value * 2147483647.0);
+                output[index] = static_cast<int32_t>(std::clamp<long long>(std::llround(value * 2147483648.0), -2147483648LL, 2147483647LL));
             }
         }
         status = g_audio_render->ReleaseBuffer(frames, 0);
@@ -860,7 +902,8 @@ Java_com_cosmotune_music_desktop_DesktopWindowsAudio_nativeOpen(
     jint sample_rate,
     jint channels,
     jint bytes_per_sample,
-    jboolean floating) {
+    jboolean floating,
+    jboolean exclusive) {
     if (g_vm == nullptr) env->GetJavaVM(&g_vm);
     const jchar* chars = env->GetStringChars(device, nullptr);
     const jsize length = env->GetStringLength(device);
@@ -871,7 +914,14 @@ Java_com_cosmotune_music_desktop_DesktopWindowsAudio_nativeOpen(
         static_cast<int>(sample_rate),
         static_cast<int>(channels),
         static_cast<int>(bytes_per_sample),
-        floating == JNI_TRUE));
+        floating == JNI_TRUE,
+        exclusive == JNI_TRUE));
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_cosmotune_music_desktop_DesktopWindowsAudio_nativeIsExclusive(JNIEnv*, jclass) {
+    std::lock_guard<std::mutex> guard(g_audio_mutex);
+    return g_audio_client != nullptr && g_audio_exclusive_active ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jobjectArray JNICALL

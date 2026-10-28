@@ -1400,4 +1400,5 @@
     <string name="wear_os_code_hint">Kod parowania</string>
     <string name="wear_os_done">Gotowe</string>
     <string name="signed_by">Podpisano przez %1$s</string>
+    <string name="cached_song_partial">Częściowo · wymaga połączenia</string>
 </resources>

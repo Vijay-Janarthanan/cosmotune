@@ -211,6 +211,44 @@ class ProviderSignedSessionTest {
         }
     }
 
+    @Test fun failedChallengeMintRetainsVerificationForMissingExpiredAndBlockedSessions() {
+        for (state in listOf("missing", "expired", "blocked")) Fixture().use { f ->
+            if (state == "expired") {
+                f.enqueue(); f.enqueue(buildJsonObject { put("songs", true) }); f.fetch()
+                f.clock += 7_200_001
+            }
+            if (state == "blocked") {
+                f.enqueue()
+                f.enqueue(buildJsonObject { put("origin", "gateway"); put("code", "VERIFY_REQUIRED"); put("action", "verify") }, 428)
+            }
+            f.enqueue(buildJsonObject { put("error", "CHALLENGE_UNAVAILABLE") }, 503)
+            val response = f.fetch()
+            assertEquals(JsonPrimitive(true), response["needsVerification"], state)
+            assertEquals(JsonPrimitive(false), response["ok"], state)
+            assertEquals(JsonPrimitive("VERIFY_REQUIRED"), response["error"], state)
+            assertEquals(JsonPrimitive(""), response["open_auth_url"], state)
+            val status = f.session.call("status", JsonArray(emptyList())).jsonObject
+            assertEquals(JsonPrimitive(false), status["authenticated"], state)
+            assertEquals(JsonPrimitive(true), status["verification_required"], state)
+            assertFalse(response.toString().contains("secret-fixture"))
+            // A later operator recovery can create the actual human-verification challenge.
+            f.enqueue(buildJsonObject { put("challenge_id", "recovered") })
+            assertTrue(f.fetch().getValue("open_auth_url").jsonPrimitive.content.isNotBlank())
+        }
+    }
+
+    @Test fun cancellationDuringChallengeMintDoesNotBecomeVerificationRequired() {
+        Fixture().use { f ->
+            f.server.enqueue(MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.NO_RESPONSE))
+            val pending = java.util.concurrent.CompletableFuture.supplyAsync { runCatching { f.fetch() } }
+            f.received()
+            f.network.cancel()
+            val result = pending.get(3, TimeUnit.SECONDS)
+            assertTrue(result.isFailure)
+            assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("cancelled", true))
+        }
+    }
+
     @Test fun providerRetriesPreserveTheOperationAndUseFreshNonces() {
         Fixture().use { f ->
             f.enqueue()

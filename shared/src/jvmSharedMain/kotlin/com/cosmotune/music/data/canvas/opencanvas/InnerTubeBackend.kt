@@ -204,7 +204,12 @@ class InnerTubeBackend(
         val request = inflight.computeIfAbsent(videoId) {
             scope.async {
                 try {
-                    fetchFormats(videoId)?.also { answers[videoId] = clock() + CACHE_TTL_MS to it }
+                    fetchFormats(videoId)?.also { formats ->
+                        val declaredExpiry = formats.mapNotNull { mediaStreamExpiryMs(it.url) }.minOrNull()
+                        val expires = minOf(clock() + CACHE_TTL_MS,
+                            declaredExpiry?.minus(STREAM_EXPIRY_MARGIN_MS) ?: Long.MAX_VALUE)
+                        answers[videoId] = expires to formats
+                    }
                 } finally {
                     inflight.remove(videoId)
                 }

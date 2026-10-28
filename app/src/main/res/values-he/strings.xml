@@ -1365,4 +1365,5 @@
     <string name="wear_os_code_hint">קוד צימוד</string>
     <string name="wear_os_done">סיום</string>
     <string name="signed_by">נחתם על ידי %1$s</string>
+    <string name="cached_song_partial">חלקי · נדרש חיבור</string>
 </resources>

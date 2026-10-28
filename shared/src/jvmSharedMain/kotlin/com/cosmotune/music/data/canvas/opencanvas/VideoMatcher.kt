@@ -13,9 +13,31 @@ data class VideoCandidate(
     val durationSec: Long,
     val isOfficialMusicVideo: Boolean = false,
     val isVerifiedChannel: Boolean = false,
+    val channelId: String? = null,
+    val linkedVerifiedPublisher: Boolean = false,
 )
 
 object VideoMatcher {
+    private val recordingVersion = Regex("(?i)\\b(?:live|remix|mix|remaster(?:ed)?|acoustic|instrumental|karaoke|cover|version|edit|demo|reprise|duet|solo|male|female|mono|stereo|tamil|telugu|hindi|kannada|malayalam|bengali|punjabi|marathi|english|slowed|sped)\\b|\\d")
+
+    /** Search-only subtitles; never change the recording identity or discard edition/language markers. */
+    fun searchTitleVariants(title: String): List<String> {
+        val base = title.replace(Regex("\\(([^)]*)\\)")) { match ->
+            val subtitle = match.groupValues[1].trim()
+            val words = Regex("\\p{L}+").findAll(subtitle).count()
+            if (words >= 3 && !recordingVersion.containsMatchIn(subtitle)) " " else match.value
+        }.replace(Regex("\\s+"), " ").trim()
+        return listOf(title, base).filter(String::isNotBlank).distinct()
+    }
+
+    /** Single-number film names require an entire token, never a digit inside a year or resolution. */
+    fun hasFilmContext(candidateTitle: String, album: String): Boolean {
+        val film = filmKey(album)
+        if (film.isNotEmpty() && film.all(Char::isDigit)) {
+            return Regex("(^|[^\\p{L}\\p{N}])${Regex.escape(film)}($|[^\\p{L}\\p{N}])").containsMatchIn(candidateTitle.lowercase())
+        }
+        return film.length >= 3 && filmKey(candidateTitle).contains(film)
+    }
 
     /** A different verified artist is not evidence for the requested singer. */
     fun isCreditedArtistChannel(candidate: VideoCandidate, artist: String): Boolean {
@@ -26,10 +48,10 @@ object VideoMatcher {
 
     /** Audio correlation also matches fan dances; independent publisher evidence is required. */
     fun hasPublisherEvidence(candidate: VideoCandidate, title: String, artist: String, album: String? = null): Boolean {
-        if (!candidate.isOfficialMusicVideo && !candidate.isVerifiedChannel) return false
+        if (!candidate.isOfficialMusicVideo && !candidate.isVerifiedChannel && !candidate.linkedVerifiedPublisher) return false
         val name = compact(candidate.title)
-        val titleMatches = compact(title).let { it.length >= 3 && name.contains(it) }
-        val filmMatches = album?.let(::filmKey)?.let { it.length >= 3 && filmKey(candidate.title).contains(it) } == true
+        val titleMatches = searchTitleVariants(title).any { variant -> compact(variant).let { it.length >= 3 && name.contains(it) } }
+        val filmMatches = album?.let { hasFilmContext(candidate.title, it) } == true
         val artistMatches = isCreditedArtistChannel(candidate, artist)
         val channel = compact(candidate.channelTitle)
         if (!artistMatches && listOf("dance", "fitness", "choreo", "reaction", "fan", "edits", "status").any { channel.contains(it) }) return false
@@ -37,6 +59,13 @@ object VideoMatcher {
         return (titleMatches || filmMatches) && (artistMatches || publisherRole ||
             candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo && filmMatches)
     }
+
+    /** Network corroboration is reserved for plausible publisher videos, not arbitrary fan uploads. */
+    fun needsPublisherCorroboration(candidate: VideoCandidate, title: String, artist: String, album: String?): Boolean =
+        !candidate.isOfficialMusicVideo && !candidate.isVerifiedChannel && !candidate.linkedVerifiedPublisher &&
+            candidate.channelId?.matches(Regex("UC[A-Za-z0-9_-]{22}")) == true && candidate.durationSec >= MIN_SONG_VIDEO_SEC &&
+            advertisesVideo(candidate.title) && scoreCandidate(candidate, title, artist) > 0 &&
+            hasPublisherEvidence(candidate.copy(linkedVerifiedPublisher = true), title, artist, album)
 
     /** A video shorter than this is a clip, never the whole song. */
     private const val MIN_SONG_VIDEO_SEC = 90L
@@ -63,7 +92,7 @@ object VideoMatcher {
     fun saysVideo(title: String): Boolean = title.lowercase().let { t -> POSITIVE_KEYWORDS.any { t.contains(it) } }
 
     fun advertisesVideo(title: String): Boolean = saysVideo(title) ||
-        Regex("(?i)(\\b[248]k\\b|\\bmv\\b|\\bm/v\\b)").containsMatchIn(title)
+        Regex("(?i)(\\bvideo\\b|\\b[248]k\\b|\\bmv\\b|\\bm/v\\b)").containsMatchIn(title)
 
     /**
      * Scores how likely a candidate video is the true visual music video for a given track.
@@ -105,8 +134,8 @@ object VideoMatcher {
 
         // 3. Positive title cues
         if (POSITIVE_KEYWORDS.any { titleNorm.contains(it) }) score += 70
-        if (compact(candidate.title).contains(compact(expectedTitle)) || expectedTitle.lowercase().split(Regex("\\s+"))
-                .filter { it.length >= 3 }.takeIf { it.size >= 2 }?.all { compact(candidate.title).contains(compact(it)) } == true) score += 30
+        if (searchTitleVariants(expectedTitle).any { variant -> compact(candidate.title).contains(compact(variant)) || variant.lowercase().split(Regex("\\s+"))
+                .filter { it.length >= 3 }.takeIf { it.size >= 2 }?.all { compact(candidate.title).contains(compact(it)) } == true }) score += 30
 
         // 4. Negative title penalties (not for a word the song's own title or artist contains)
         for (neg in NEGATIVE_KEYWORDS) {
@@ -167,7 +196,7 @@ object VideoMatcher {
         album: String? = null,
     ): List<VideoCandidate> = candidates
         .map { it to (scoreCandidate(it, expectedTitle, expectedArtist, expectedDurationSec) +
-            if (!album.isNullOrBlank() && compact(it.title).contains(compact(album))) 80 else 0) }
+            if (!album.isNullOrBlank() && hasFilmContext(it.title, album)) 80 else 0) }
         .filter { it.second > 0 }
         .sortedByDescending { it.second }
         .take(limit)

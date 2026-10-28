@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -67,19 +69,26 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     /** The desktop's volume (0..1) and a way to set it; null on the phone, where the volume keys do it. */
     volume: Float = 1f, onVolume: ((Float) -> Unit)? = null,
     /** Opens the application's settings; null hides the Settings tab. */
-    onSettings: (() -> Unit)? = null) {
-    val catalogue = remember(directory) { directory ?: PodioCatalogue() }
+    onSettings: (() -> Unit)? = null,
+    sleepTimerMinutes: Int? = null, sleepAfterEpisode: Boolean = false,
+    onSleepTimer: ((Int?) -> Unit)? = null, onSleepAfterEpisode: (() -> Unit)? = null,
+    onDownloadEpisode: ((PodioItem) -> Unit)? = null, downloadedEpisodes: List<PodioItem> = emptyList(),
+    episodeDownloadStatus: Map<String, String> = emptyMap(), episodeDownloadsRunning: Set<String> = emptySet(),
+    onImportOpmlFile: (suspend () -> String?)? = null, onExportOpmlFile: (suspend (String) -> Boolean)? = null,
+    onShareOpmlFile: (suspend (String) -> Unit)? = null) {
+    val catalogue = remember(directory) { directory ?: PodioCatalogue(youtubePodcasts = YouTubePodcasts()) }
     val library = remember(storage) { PodioLibrary(storage) }
     val saved by library.state.collectAsState()
     val scope = rememberCoroutineScope()
     var localTab by rememberSaveable { mutableStateOf("Radio") }
     var localSaved by rememberSaveable { mutableStateOf(false) }
+    var downloadedOnly by rememberSaveable { mutableStateOf(false) }
     val sidebarTab by ModeNav.podioTab.collectAsState()
     val sidebarSaved by ModeNav.podioSaved.collectAsState()
     val tab = if (showNavigation) localTab else sidebarTab
     val savedOnly = if (showNavigation) localSaved else sidebarSaved
-    fun chooseTab(next: String) { if (showNavigation) { localTab = next; localSaved = false } else { ModeNav.podioTab.value = next; ModeNav.podioSaved.value = false } }
-    fun chooseSaved(next: Boolean) { if (showNavigation) localSaved = next else ModeNav.podioSaved.value = next }
+    fun chooseTab(next: String) { downloadedOnly = false; if (showNavigation) { localTab = next; localSaved = false } else { ModeNav.podioTab.value = next; ModeNav.podioSaved.value = false } }
+    fun chooseSaved(next: Boolean) { downloadedOnly = false; if (showNavigation) localSaved = next else ModeNav.podioSaved.value = next }
     var query by rememberSaveable { mutableStateOf("") }
     var language by rememberSaveable { mutableStateOf("") }
     var country by rememberSaveable { mutableStateOf("") }
@@ -88,6 +97,9 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     var shows by remember { mutableStateOf(emptyList<PodcastShow>()) }
     var showsTitle by remember { mutableStateOf("") }
     var opened by remember { mutableStateOf<PodcastFeed?>(null) }
+    var archiveLoading by remember { mutableStateOf(false) }
+    var archiveError by remember { mutableStateOf<String?>(null) }
+    var archiveJob by remember { mutableStateOf<Job?>(null) }
     var selected by remember { mutableStateOf<RadioStation?>(null) }
     var nearby by remember { mutableStateOf(emptyList<RadioStation>()) }
     var directoryLoading by remember { mutableStateOf(false) }
@@ -97,6 +109,12 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     var request by remember { mutableIntStateOf(0) }
     var addFeed by remember { mutableStateOf(false) }
     var feedAddress by remember { mutableStateOf("") }
+    var importingOpml by remember { mutableStateOf(false) }
+    var pickingFile by remember { mutableStateOf(false) }
+    var opmlText by remember { mutableStateOf("") }
+    var opmlError by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    val clipboard = LocalClipboardManager.current
     var openJob by remember { mutableStateOf<Job?>(null) }
     var panelOpen by rememberSaveable { mutableStateOf(false) }
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
@@ -108,7 +126,6 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(panelTab) { if (panelTab == "Search") runCatching { searchFocus.requestFocus() } }
     val loading = feedLoading || requestedFeed == null && directoryLoading
-    val latestPlayback by rememberUpdatedState(playback)
     fun save(change: (PodioSaved) -> PodioSaved) { scope.launch {
         try { withContext(Dispatchers.IO) { library.update(change) } }
         catch(e: CancellationException) { throw e }
@@ -116,12 +133,12 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     } }
     fun toggleFavourite(station: RadioStation) = save { old -> old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station) }
     fun play(item: PodioItem) {
-        val old = saved.progress[item.id] ?: 0
-        val resume = old.takeIf { !item.live && (item.durationSeconds <= 0 || it < item.durationSeconds * 1000 - 10_000) } ?: 0
+        val resume = if (item.live) 0 else library.resumePosition(item.id, item.durationSeconds * 1000)
         onPlay(item, resume)
     }
     fun playStation(station: RadioStation) { selected = station; play(station.item()); scope.launch { catalogue.stationPlayed(station.id) } }
     fun open(show: PodcastShow) {
+        archiveJob?.cancel(); archiveLoading = false; archiveError = null
         val previous = openJob
         previous?.cancel()
         requestedFeed = show
@@ -130,23 +147,49 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             feedLoading = true; error = null
             try { opened = catalogue.feed(show.feed) }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) { error = if (PodioCatalogue.isSpotifyLink(show.feed))
-                "No matching public feed was available for this Spotify link. Try the publisher's RSS feed; Spotify-only audio isn't supported." else "Couldn't load this podcast feed. Please retry." }
+            catch (failure: Exception) { error = when {
+                PodioCatalogue.isSpotifyLink(show.feed) -> "No matching public feed was available for this Spotify link. Try the publisher's RSS feed; Spotify-only audio isn't supported."
+                YouTubePodcasts.showId(show.feed) != null && failure is IllegalArgumentException && failure.message.orEmpty().contains("not identified as a podcast") -> "This YouTube playlist isn't identified as a podcast show."
+                YouTubePodcasts.showId(show.feed) != null -> "Couldn't load this public YouTube Music podcast. Please retry."
+                else -> "Couldn't load this podcast feed. Please retry."
+            } }
             finally { feedLoading = false }
         }
     }
     fun browse() {
+        archiveJob?.cancel(); archiveLoading = false; archiveError = null
         // Keep the cancelled job so a subsequent open can join its final state update.
         openJob?.cancel()
         requestedFeed = null; opened = null; feedLoading = false; error = null
     }
+    fun moreEpisodes() {
+        val feed = opened ?: return
+        if (archiveLoading || feedLoading || feed.nextPage == null) return
+        archiveLoading = true; archiveError = null
+        archiveJob = scope.launch {
+            try { opened = catalogue.moreEpisodes(feed) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { archiveError = "Couldn't load older episodes. Your current list is still available." }
+            finally { archiveLoading = false }
+        }
+    }
+    fun importSubscriptions(text: String) { scope.launch {
+        try {
+            val added = withContext(Dispatchers.IO) { library.importOpml(text) }
+            notice = "Imported $added new podcast subscriptions."; importingOpml = false; downloadedOnly = false; chooseSaved(true)
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            val message = e.message?.take(180) ?: "Couldn't import this OPML document."
+            if (importingOpml) opmlError = message else error = message
+        }
+    } }
     // A change of section (from the tabs, or the desktop sidebar) leaves an open feed and starts the new section clean.
     LaunchedEffect(tab, savedOnly) { browse(); query = ""; genre = "" }
-    LaunchedEffect(tab, language, country, genre, request, savedOnly) {
+    LaunchedEffect(tab, language, country, genre, request, savedOnly, downloadedOnly) {
         // Network continuations can resume on a worker with an immediate effect dispatcher.
         // Publish page state on the UI dispatcher.
         withContext(Dispatchers.Main.immediate) {
-            if (savedOnly) return@withContext
+            if (savedOnly || downloadedOnly) return@withContext
             directoryLoading = true
             if (requestedFeed == null) error = null
             try {
@@ -168,22 +211,6 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             } catch(e: CancellationException) { throw e }
             catch (_: Exception) { if (requestedFeed == null) error = "Couldn't reach the directory. Check your connection and try again." }
             finally { directoryLoading = false }
-        }
-    }
-    LaunchedEffect(playback.id) {
-        if (playback.id?.startsWith("podio:episode:") != true) return@LaunchedEffect
-        try {
-            while (isActive) {
-                delay(5_000)
-                val current = latestPlayback
-                if (current.id != playback.id) break
-                withContext(Dispatchers.IO) { runCatching { library.update { it.copy(progress = it.progress + (requireNotNull(current.id) to current.positionMs)) } } }
-            }
-        } finally {
-            val current = latestPlayback
-            if (current.id == playback.id) withContext(NonCancellable + Dispatchers.IO) {
-                runCatching { library.update { it.copy(progress = it.progress + (requireNotNull(current.id) to current.positionMs)) } }
-            }
         }
     }
     val live = playback.id?.startsWith("podio:radio:") == true
@@ -228,6 +255,63 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { browse(); chooseSaved(false); request++ }))
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 2.dp).testTag("podio:loading"))
+        if (tab == "Podcasts" || playback.id?.startsWith("podio:") == true && onSleepTimer != null) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (tab == "Podcasts") {
+                    TextButton(onClick = {
+                        if (onImportOpmlFile == null) { opmlText = ""; opmlError = null; importingOpml = true }
+                        else scope.launch {
+                            pickingFile = true
+                            try { onImportOpmlFile()?.let(::importSubscriptions) }
+                            catch (e: CancellationException) { throw e }
+                            catch (_: Exception) { error = "Couldn't read that OPML file. Please retry." }
+                            finally { pickingFile = false }
+                        }
+                    }, enabled = !pickingFile) { Text("Import OPML") }
+                    if (onImportOpmlFile != null) TextButton(onClick = { opmlText = ""; opmlError = null; importingOpml = true }) { Text("Paste OPML") }
+                    TextButton(onClick = {
+                        val text = PodioOpml.encode(saved.shows)
+                        if (onExportOpmlFile == null) {
+                            clipboard.setText(AnnotatedString(text)); notice = "Copied ${saved.shows.size} podcast subscriptions as OPML."
+                        } else scope.launch {
+                            pickingFile = true
+                            try { if (onExportOpmlFile(text)) notice = "Saved podcast subscriptions as OPML." }
+                            catch (e: CancellationException) { throw e }
+                            catch (_: Exception) { error = "Couldn't save the OPML file. Please retry." }
+                            finally { pickingFile = false }
+                        }
+                    }, enabled = saved.shows.isNotEmpty() && !pickingFile) { Text("Export OPML") }
+                    if (onShareOpmlFile != null) TextButton(onClick = { scope.launch {
+                        try { onShareOpmlFile(PodioOpml.encode(saved.shows)) }
+                        catch (e: CancellationException) { throw e }
+                        catch (_: Exception) { error = "Couldn't share the OPML file. Please retry." }
+                    } }, enabled = saved.shows.isNotEmpty()) { Text("Share OPML") }
+                    if (onDownloadEpisode != null) FilterChip(downloadedOnly, onClick = {
+                        val selected = !downloadedOnly; browse(); chooseSaved(false); downloadedOnly = selected
+                    }, label = { Text("Downloaded") })
+                }
+                if (playback.id?.startsWith("podio:") == true && onSleepTimer != null) {
+                    var timerMenu by remember { mutableStateOf(false) }
+                    Box {
+                        TextButton(onClick = { timerMenu = true }) {
+                            Icon(Icons.Outlined.Bedtime, null, Modifier.size(18.dp))
+                            Text(when { sleepAfterEpisode -> "After episode"; sleepTimerMinutes != null -> "$sleepTimerMinutes min"; else -> "Sleep timer" }, Modifier.padding(start = 6.dp))
+                        }
+                        DropdownMenu(timerMenu, onDismissRequest = { timerMenu = false }) {
+                            listOf(15, 30, 45, 60).forEach { minutes -> DropdownMenuItem(text = { Text("$minutes minutes") },
+                                onClick = { timerMenu = false; onSleepTimer(minutes) }) }
+                            if (playback.id?.startsWith("podio:episode:") == true && onSleepAfterEpisode != null) DropdownMenuItem(text = { Text("End of episode") },
+                                onClick = { timerMenu = false; onSleepAfterEpisode() })
+                            DropdownMenuItem(text = { Text("Turn off timer") }, onClick = { timerMenu = false; onSleepTimer(null) })
+                        }
+                    }
+                }
+            }
+        }
+        notice?.let { message -> Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(message, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { notice = null }) { Text("Dismiss") }
+        } }
         error?.let { message -> Row(verticalAlignment = Alignment.CenterVertically) {
             Text(message, Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
             TextButton(onClick = { requestedFeed?.let { open(it) } ?: run { request++ } }) { Text("Retry") }
@@ -333,7 +417,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
-                    if (opened == null) {
+                    if (opened == null && !downloadedOnly) {
                         searchField(Modifier.fillMaxWidth().padding(bottom = 8.dp))
                         filtersBar(Modifier.fillMaxWidth())
                         if (language.isBlank() && query.isBlank()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -342,7 +426,16 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                         }
                     }
                     val feed = opened
-                    if (feed != null) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 20.dp)) {
+                    if (downloadedOnly) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 20.dp)) {
+                        item { Text("Downloaded episodes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 12.dp))
+                            if (downloadedEpisodes.isEmpty()) Text("Download an episode to listen here without a connection.", Modifier.padding(vertical = 16.dp)) }
+                        items(downloadedEpisodes, key = { it.id }) { episode ->
+                            val resume = saved.progress[episode.id] ?: 0
+                            ListItem(headlineContent = { Text(episode.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                                supportingContent = { Text(episode.author + when { episode.id in saved.completedEpisodes -> " · Played"; resume > 0 -> " · Resume at ${clock(resume)}"; else -> " · Downloaded" }) },
+                                leadingContent = { Icon(Icons.Outlined.DownloadDone, null) }, modifier = Modifier.clickable { play(episode) })
+                        }
+                    } else if (feed != null) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 20.dp)) {
                         item {
                             TextButton(onClick = ::browse) { Text("Back to podcasts") }
                             Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
@@ -359,11 +452,34 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                                 }
                             }
                             if (feed.episodes.isEmpty()) Text("This feed contains no playable audio episodes.", Modifier.padding(vertical = 20.dp))
+                            else Text("${feed.episodes.size} episodes", Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
                         }
                         items(feed.episodes, key = { it.id }) { episode ->
+                            val item = episode.item()
+                            val progress = saved.progress[item.id] ?: 0
+                            val downloaded = downloadedEpisodes.any { it.id == item.id }
+                            val running = item.id in episodeDownloadsRunning
+                            val progressLabel = when {
+                                item.id in saved.completedEpisodes -> "Played"
+                                progress <= 0 -> ""
+                                PodioPlaybackPolicy.isFinished(progress, episode.durationSeconds * 1000) -> "Played"
+                                else -> "Resume at ${clock(progress)}"
+                            }
                             ListItem(headlineContent = { Text(episode.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                                supportingContent = { Text(listOf(episode.published.take(25), episode.durationSeconds.takeIf { it > 0 }?.let { "${it / 60} min" }.orEmpty()).filter(String::isNotBlank).joinToString(" · ")) },
-                                leadingContent = { Icon(Icons.Outlined.PlayArrow, null) }, modifier = Modifier.clickable { play(episode.item()) })
+                                supportingContent = { Text(listOf(episode.published.take(25), episode.durationSeconds.takeIf { it > 0 }?.let { "${it / 60} min" }.orEmpty(), progressLabel,
+                                    if (downloaded) "Downloaded" else episodeDownloadStatus[item.id].orEmpty()).filter(String::isNotBlank).joinToString(" · ")) },
+                                leadingContent = { Icon(Icons.Outlined.PlayArrow, null) },
+                                trailingContent = { if (onDownloadEpisode != null) IconButton(onClick = { onDownloadEpisode(item) }, enabled = !downloaded) {
+                                    Icon(if (downloaded) Icons.Outlined.DownloadDone else if (running) Icons.Outlined.Close else Icons.Outlined.Download,
+                                        if (downloaded) "Episode downloaded" else if (running) "Cancel episode download" else "Download episode")
+                                } }, modifier = Modifier.clickable { play(item) })
+                        }
+                        if (feed.nextPage != null) item {
+                            archiveError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                            TextButton(onClick = ::moreEpisodes, enabled = !archiveLoading, modifier = Modifier.testTag("podio:older-episodes")) {
+                                if (archiveLoading) CircularProgressIndicator(Modifier.size(18.dp).padding(end = 4.dp))
+                                Text(if (archiveLoading) "Loading older episodes…" else if (archiveError != null) "Retry older episodes" else "Load older episodes")
+                            }
                         }
                     } else {
                         val list = if (savedOnly) saved.shows else shows
@@ -374,7 +490,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
                                 Text(showsTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
                             }
                             items(list, key = { it.id }) { show -> ShowCard(show) { open(show) } }
-                            item(span = { GridItemSpan(maxLineSpan) }) { Text("Discovery: Apple Podcasts and fyyd · Audio: publisher feeds", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(12.dp)) }
+                            item(span = { GridItemSpan(maxLineSpan) }) { Text("Discovery: Apple Podcasts, fyyd and YouTube Music · Audio: publisher feeds or public YouTube episodes", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(12.dp)) }
                         }
                     }
                 }
@@ -395,12 +511,20 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     }
     }
     if (addFeed) AlertDialog(onDismissRequest = { addFeed = false }, title = { Text("Open a podcast") },
-        text = { OutlinedTextField(feedAddress, { feedAddress = it }, label = { Text("RSS feed or Spotify podcast link") }, singleLine = true) },
+        text = { OutlinedTextField(feedAddress, { feedAddress = it }, label = { Text("Podcast feed or show link") }, supportingText = { Text("RSS, Spotify or YouTube Music") }, singleLine = true) },
         confirmButton = { TextButton(onClick = {
             val url = PodioCatalogue.httpUrl(feedAddress)
             if (url == null) { error = "Enter an HTTP or HTTPS feed URL."; addFeed = false }
             else { addFeed = false; chooseTab("Podcasts"); open(PodcastShow(PodioCatalogue.identity(url), "", "", url)) }
         }) { Text("Open podcast") } }, dismissButton = { TextButton(onClick = { addFeed = false }) { Text("Cancel") } })
+    if (importingOpml) AlertDialog(onDismissRequest = { importingOpml = false }, title = { Text("Import podcast subscriptions") },
+        text = { Column {
+            Text("Paste an OPML export from your podcast player. Existing follows and listening positions are kept.", style = MaterialTheme.typography.bodyMedium)
+            OutlinedTextField(opmlText, { opmlText = it; opmlError = null }, label = { Text("OPML document") }, minLines = 5, maxLines = 10,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+            opmlError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        } }, confirmButton = { TextButton(onClick = { importSubscriptions(opmlText) }, enabled = opmlText.isNotBlank()) { Text("Import subscriptions") } },
+        dismissButton = { TextButton(onClick = { importingOpml = false }) { Text("Cancel") } })
 }
 
 /** The station's logo; a station with none (or one that does not load) gets a tile in its own colour with its initials. */

@@ -116,7 +116,7 @@
   globalThis.btoa=v=>utils.base64Encode(String(v)); globalThis.atob=v=>utils.base64Decode(String(v));
   globalThis.TextEncoder=function(){this.encoding='utf-8';this.encode=v=>call('encode',[String(v ?? '')]);this.encodeInto=(value,destination)=>{let read=0,written=0;for(const character of String(value ?? '')){const bytes=this.encode(character);if(written+bytes.length>destination.length)break;destination.set(bytes,written);written+=bytes.length;read+=character.length;}return {read,written};};};
   globalThis.TextDecoder=function(encoding='utf-8'){if(!/^utf-?8$/i.test(encoding))throw Error('Unsupported text encoding');this.encoding='utf-8';this.decode=v=>typeof v==='string'?v:call('decode',[Array.from(v instanceof ArrayBuffer?new Uint8Array(v):ArrayBuffer.isView(v)?new Uint8Array(v.buffer,v.byteOffset,v.byteLength):v || [])]);};
-  globalThis.URL=function(input,base){const parsed=call('url.parse',[String(input),base == null ? null : String(base)]);Object.assign(this,parsed);this.searchParams=new URLSearchParams(parsed.search,encoded=>{const before=parsed.href.split('?')[0],hash=parsed.hash || '';parsed.search=encoded?'?'+encoded:'';parsed.href=before+parsed.search+hash;this.search=parsed.search;this.href=parsed.href;});this.toString=this.toJSON=()=>parsed.href;};
+  globalThis.URL=function(input,base){const parsed=call('url.parse',[String(input),base == null ? null : String(base)]);Object.assign(this,parsed);this.searchParams=new URLSearchParams(parsed.search,encoded=>{const before=parsed.href.replace(/[?#].*$/,''),hash=parsed.hash || '';parsed.search=encoded?'?'+encoded:'';parsed.href=before+parsed.search+hash;this.search=parsed.search;this.href=parsed.href;});this.toString=this.toJSON=()=>parsed.href;};
   globalThis.URLSearchParams=function(init='',onChange){
     const entries=call('url.query',[init]);
     const changed=()=>onChange?.(call('url.encode',[entries]));
@@ -124,7 +124,7 @@
     this.getAll=k=>entries.filter(e=>e[0]===String(k)).map(e=>e[1]);this.has=k=>entries.some(e=>e[0]===String(k));
     this.append=(k,v)=>{entries.push([String(k),String(v)]);changed();};
     this.delete=k=>{for(let i=entries.length-1;i>=0;i--)if(entries[i][0]===String(k))entries.splice(i,1);changed();};
-    this.set=(k,v)=>{for(let i=entries.length-1;i>=0;i--)if(entries[i][0]===String(k))entries.splice(i,1);entries.push([String(k),String(v)]);changed();};this.toString=()=>call('url.encode',[entries]);
+    this.set=(k,v)=>{k=String(k);v=String(v);const first=entries.findIndex(e=>e[0]===k);if(first<0)entries.push([k,v]);else {entries[first][1]=v;for(let i=entries.length-1;i>first;i--)if(entries[i][0]===k)entries.splice(i,1);}changed();};this.toString=()=>call('url.encode',[entries]);
   };
   return {
     registered:()=>!!extension && typeof extension==='object',

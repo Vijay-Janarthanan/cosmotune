@@ -49,6 +49,7 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, has
         MangaBackHandler(true, onBack)
         var pages by remember { mutableStateOf(emptyList<MangaPage>()) }
         var error by remember { mutableStateOf<String?>(null) }
+        var verificationAddress by remember { mutableStateOf<String?>(null) }
         var retry by remember { mutableIntStateOf(0) }
         var loading by remember { mutableStateOf(true) }
         var controls by rememberSaveable { mutableStateOf(true) }
@@ -66,16 +67,18 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, has
             current?.let { id -> zoom[id] = ((zoom[id] ?: 1f) * factor).coerceIn(1f, 5f) }
             runCatching { focus.requestFocus() }
         }
-        LaunchedEffect(retry) {
+        val revision by repository.sourceChanges.collectAsState()
+        LaunchedEffect(retry, revision) {
             loading = true; error = null
-            try { pages = repository.pages(chapter); check(pages.isNotEmpty()) { "No pages are available for this chapter" } }
+            verificationAddress = null
+            try { pages = repository.pages(chapter, refresh = retry > 0); check(pages.isNotEmpty()) { "No pages are available for this chapter" } }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { error = failure.message ?: "Chapter could not be loaded" }
+            catch (failure: Exception) { error = failure.message ?: "Chapter could not be loaded"; verificationAddress = (failure as? MangaBrowserRequired)?.address }
             finally { loading = false }
         }
         Column(Modifier.fillMaxSize().background(Color.Black).windowInsetsPadding(WindowInsets.safeDrawing)) {
             if (controls) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onBack) { Text("Back") }
+                TextButton(onClick = onBack) { Text(mangaText("Back")) }
                 Text(chapter.title, color = Color.White, style = MaterialTheme.typography.titleMedium, maxLines = 1, modifier = Modifier.weight(1f))
                 var menu by remember { mutableStateOf(false) }
                 Box {
@@ -92,14 +95,15 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, has
                     catch (failure: Exception) { error = failure.message ?: "Reader setting could not be saved" }
                     runCatching { focus.requestFocus() }
                 } }) { Text(if (fit == MangaReaderFit.PAGE) "Fit page" else "Fit width") }
-                TextButton(onClick = { zoomBy(0.8f) }, modifier = Modifier.semantics { contentDescription = "Zoom out" }) { Text("−") }
-                TextButton(onClick = { zoomBy(1.25f) }, modifier = Modifier.semantics { contentDescription = "Zoom in" }) { Text("+") }
+                TextButton(onClick = { zoomBy(0.8f) }, modifier = Modifier.semantics { contentDescription = "Zoom out" }) { Text(mangaText("−")) }
+                TextButton(onClick = { zoomBy(1.25f) }, modifier = Modifier.semantics { contentDescription = "Zoom in" }) { Text(mangaText("+")) }
             }
             when {
                 loading -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 error != null -> Column(Modifier.padding(24.dp)) {
                     Text(error.orEmpty(), color = Color.White)
-                    TextButton(onClick = { retry++ }) { Text("Retry") }
+                    TextButton(onClick = { retry++ }) { Text(mangaText("Retry")) }
+                    if (chapter.sourceId != "local") MangaVerificationControls(repository, chapter.sourceId, verificationAddress)
                 }
                 else -> ReaderPages(repository, chapter, pages, saved?.page ?: 0, saved?.pageOffsetPx ?: 0, mode, fit, zoom, { current = it }, ::zoomBy, focus,
                     controls, hasNext, { controls = !controls }, onBack, onNext)
@@ -237,11 +241,11 @@ private fun ColumnScope.ReaderPages(repository: MangaRepository, chapter: MangaC
     LaunchedEffect(Unit) { focus.requestFocus() }
     if (progressError) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Reading progress could not be saved.", color = Color.White, modifier = Modifier.weight(1f))
-        TextButton(onClick = { progressRetry++ }) { Text("Retry save") }
+        TextButton(onClick = { progressRetry++ }) { Text(mangaText("Retry save")) }
     }
     if (controls) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = { if (mode == MangaReaderMode.WEBTOON) scrollScreen(-1) else go(page - 1) },
-            enabled = if (mode == MangaReaderMode.WEBTOON) scroll.canScrollBackward else page > 0) { Text("Previous") }
+            enabled = if (mode == MangaReaderMode.WEBTOON) scroll.canScrollBackward else page > 0) { Text(mangaText("Previous")) }
         Slider(value = page.toFloat(), onValueChange = { go(it.toInt()) }, enabled = pages.size > 1,
             valueRange = 0f..(pages.size - 1).coerceAtLeast(1).toFloat(), modifier = Modifier.weight(1f))
         Text("${page + 1} / ${pages.size}", color = Color.White, style = MaterialTheme.typography.labelMedium)
@@ -294,7 +298,7 @@ private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: S
         )
         else if (failure == null) CircularProgressIndicator()
         failure?.let { message -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-            Text(message, color = Color.White); TextButton(onClick = { latestReady.value(false); file = null; retry++ }) { Text("Retry page") }
+            Text(message, color = Color.White); TextButton(onClick = { latestReady.value(false); file = null; retry++ }) { Text(mangaText("Retry page")) }
         } }
     }
 }

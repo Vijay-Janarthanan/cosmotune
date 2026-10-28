@@ -31,6 +31,7 @@ interface NavItem {
 }
 
 const PRIMARY: NavItem[] = [
+  { to: '/podio', label: 'Podio', Icon: NewIcon },
   { to: '/search', label: 'Search', Icon: SearchIcon },
   { to: '/home', label: 'Home', Icon: HomeIcon },
   { to: '/new', label: 'New', Icon: NewIcon },

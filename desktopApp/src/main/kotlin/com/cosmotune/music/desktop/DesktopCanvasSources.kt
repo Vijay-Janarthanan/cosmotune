@@ -598,11 +598,16 @@ internal object DesktopOpenCanvasProvider {
             resolutionLabel = resolutionLabel,
             durationSec = durationSec,
         ) ?: return null
-        return DesktopCanvasArtwork(
+        return artwork(clip)
+    }
+
+    /** Preserve the normalized identity that the shared provider verified. */
+    internal fun artwork(clip: com.cosmotune.music.data.canvas.CanvasArtwork): DesktopCanvasArtwork =
+        DesktopCanvasArtwork(
             url = clip.url,
-            title = title,
-            artist = artist,
-            album = album,
+            title = clip.title,
+            artist = clip.artist,
+            album = clip.album,
             source = DesktopCanvasSource.OTHER,
             syncMap = clip.syncMap,
             videoDurationMs = clip.videoDurationMs,
@@ -610,7 +615,6 @@ internal object DesktopOpenCanvasProvider {
             videoId = clip.videoId,
             trajectory = clip.trajectory,
         )
-    }
 }
 
 

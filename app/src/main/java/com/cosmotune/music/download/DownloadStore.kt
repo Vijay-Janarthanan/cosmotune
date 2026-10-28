@@ -92,7 +92,8 @@ object DownloadStore {
             title.isEmpty() -> artist
             else -> "$artist - $title"
         }.ifEmpty { song.videoId }
-        return "${stem.take(MAX_STEM_CHARS).trimEnd()}.$extension"
+        val episode = if (song.videoId.startsWith("podio:episode:")) " [${com.cosmotune.podio.PodioCatalogue.identity(song.videoId).take(12)}]" else ""
+        return "${stem.take(MAX_STEM_CHARS - episode.length).trimEnd()}$episode.$extension"
     }
 
     /**
@@ -148,13 +149,13 @@ object DownloadStore {
      * taps download twice gets two copies rather than being told they already
      * have one.
      */
-    fun existing(context: Context, name: String): Uri? =
+    fun existing(context: Context, name: String, podcast: Boolean = false): Uri? =
         if (!AppSettings.exportDownloads.value) {
             privateFile(context, name).takeIf { it.exists() }?.let(Uri::fromFile)
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             mediaStoreEntry(context, name)
         } else {
-            legacyFile(name).takeIf { it.exists() }?.let(Uri::fromFile)
+            legacyFile(name, podcast).takeIf { it.exists() }?.let(Uri::fromFile)
         }
 
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -263,7 +264,7 @@ object DownloadStore {
      *   made — a failure worth surfacing, since every one of them means the
      *   download cannot start rather than that it might not finish.
      */
-    fun begin(context: Context, name: String, mimeType: String): Pending {
+    fun begin(context: Context, name: String, mimeType: String, podcast: Boolean = false): Pending {
         if (!AppSettings.exportDownloads.value) {
             val target = privateFile(context, name)
             val folder = target.parentFile ?: error("No download folder")
@@ -276,7 +277,11 @@ object DownloadStore {
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
                 put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, if (podcast) "${Environment.DIRECTORY_PODCASTS}/$FOLDER" else relativePath)
+                if (podcast) {
+                    put(MediaStore.Audio.Media.IS_PODCAST, 1)
+                    put(MediaStore.Audio.Media.IS_MUSIC, 0)
+                }
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
             // A MIME type the audio collection doesn't recognise is not a null
@@ -290,12 +295,12 @@ object DownloadStore {
                 context.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
             }.getOrElse { cause ->
                 Log.w(TAG, "the media store refused $mimeType for $name: ${cause.message}")
-                error("Android won't store ${name.substringAfterLast('.', mimeType)} files in Music")
-            } ?: error("Could not create $name in Music")
+                error("Android won't store ${name.substringAfterLast('.', mimeType)} files in ${if (podcast) "Podcasts" else "Music"}")
+            } ?: error("Could not create $name in ${if (podcast) "Podcasts" else "Music"}")
             return Pending(context, uri, name, part = null, target = null)
         }
 
-        val target = legacyFile(name)
+        val target = legacyFile(name, podcast)
         val folder = target.parentFile ?: error("No Music folder on this device")
         if (!folder.exists() && !folder.mkdirs()) error("Could not create ${folder.path}")
         val part = File(folder, "$name.part")
@@ -304,8 +309,8 @@ object DownloadStore {
     }
 
     @Suppress("DEPRECATION")
-    private fun legacyFile(name: String) = File(
-        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), FOLDER),
+    private fun legacyFile(name: String, podcast: Boolean = false) = File(
+        File(Environment.getExternalStoragePublicDirectory(if (podcast) Environment.DIRECTORY_PODCASTS else Environment.DIRECTORY_MUSIC), FOLDER),
         name,
     )
 

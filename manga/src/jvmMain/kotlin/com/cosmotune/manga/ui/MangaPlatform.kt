@@ -20,14 +20,7 @@ import com.cosmotune.manga.data.MangaFolderImport
 import com.cosmotune.manga.data.MangaImageImport
 
 @Composable internal actual fun rememberMangaRepository(): Result<MangaRepository> = remember { runCatching {
-    val home = System.getProperty("user.home")
-    val os = System.getProperty("os.name").lowercase()
-    val root = when {
-        "win" in os -> File(System.getenv("APPDATA") ?: home, "Cosmotune/manga")
-        "mac" in os -> File(home, "Library/Application Support/Cosmotune/manga")
-        else -> File(System.getenv("XDG_DATA_HOME") ?: File(home, ".local/share").path, "Cosmotune/manga")
-    }
-    MangaRepository(MangaStore(root, platformMangaFileProtection()))
+    DesktopMangaLibrary.repository
 } }
 @Composable internal actual fun rememberMangaImport(onPicked: (String, () -> InputStream) -> Unit): () -> Unit {
     val scope = rememberCoroutineScope()
@@ -38,7 +31,7 @@ import com.cosmotune.manga.data.MangaImageImport
             SwingUtilities.invokeAndWait {
                 val dialog = FileDialog(null as Frame?, "Import comic archive", FileDialog.LOAD)
                 try {
-                    dialog.setFilenameFilter { _, name -> name.endsWith(".cbz", true) || name.endsWith(".zip", true) }
+                    dialog.setFilenameFilter { _, name -> com.cosmotune.manga.data.MangaArchive.supports(name) }
                     dialog.isVisible = true
                     dialog.file?.let { selected = File(dialog.directory, it) }
                 } finally { dialog.dispose() }

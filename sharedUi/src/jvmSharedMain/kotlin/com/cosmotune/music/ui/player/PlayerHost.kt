@@ -238,6 +238,7 @@ interface SystemVolume {
 }
 
 enum class AudioOutputKind { PHONE, WIRED, USB, BLUETOOTH, HDMI, OTHER }
+enum class AudioOutputForm { UNKNOWN, BUDS, HEADPHONES, SPEAKER, CAR }
 
 data class AudioOutputDevice(
     val id: Int,
@@ -245,6 +246,8 @@ data class AudioOutputDevice(
     val name: String,
     val kind: AudioOutputKind,
     val isActive: Boolean = false,
+    /** Optional shape for the output icon; no format capability is inferred from it. */
+    val form: AudioOutputForm = AudioOutputForm.UNKNOWN,
 )
 
 data class OutputFormatUi(

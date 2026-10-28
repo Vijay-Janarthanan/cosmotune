@@ -25,11 +25,14 @@ import javax.crypto.spec.SecretKeySpec
 data class RawArtistMapItem(
     val id: String = "",
     val name: String = "",
+    val role: String = "",
 )
 
 @Serializable
 data class RawArtistMap(
     @SerialName("primary_artists") val primaryArtists: List<RawArtistMapItem> = emptyList(),
+    @SerialName("featured_artists") val featuredArtists: List<RawArtistMapItem> = emptyList(),
+    val artists: List<RawArtistMapItem> = emptyList(),
 )
 
 @Serializable

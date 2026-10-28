@@ -34,6 +34,12 @@ import org.junit.Test
  * asked for, and nothing about it looks wrong from outside.
  */
 class DownloadStoreTest {
+    @Test fun `different podcast episodes with the same title have different offline filenames`() {
+        val first = song("Trailer", "Show", "podio:episode:first")
+        val second = first.copy(videoId = "podio:episode:second")
+        assertTrue(DownloadStore.fileNameFor(first, "mp3") != DownloadStore.fileNameFor(second, "mp3"))
+        assertEquals(DownloadStore.fileNameFor(first, "mp3"), DownloadStore.fileNameFor(first.copy(thumbnailUrl = "https://example.com/art"), "mp3"))
+    }
 
     private fun song(title: String, artist: String, videoId: String = "abc123") =
         Song(videoId = videoId, title = title, artist = artist, thumbnailUrl = null)

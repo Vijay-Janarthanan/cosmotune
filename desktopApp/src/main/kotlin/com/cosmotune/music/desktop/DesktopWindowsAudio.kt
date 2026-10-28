@@ -19,7 +19,10 @@ internal object DesktopWindowsAudio {
                 .isSuccess
     }
 
-    fun open(device: String, format: DesktopPcmFormat): Result<Int> = runCatching {
+    @Volatile var exclusiveActive: Boolean = false
+        private set
+
+    fun open(device: String, format: DesktopPcmFormat, exclusive: Boolean = false): Result<Int> = runCatching {
         check(available) { "native Windows audio is unavailable" }
         val bytes = nativeOpen(
             device,
@@ -27,6 +30,7 @@ internal object DesktopWindowsAudio {
             format.channels,
             format.bytesPerSample,
             format.isFloat,
+            exclusive,
         )
         check(bytes > 0) { nativeLastError().ifBlank { "WASAPI could not open the audio endpoint" } }
         refreshOutputName()
@@ -35,10 +39,17 @@ internal object DesktopWindowsAudio {
 
     fun write(samples: FloatArray, count: Int, gain: Float): Int {
         if (!available) return 0
-        return nativeWrite(samples, count, gain).also { refreshOutputName() }
+        val wasExclusive = exclusiveActive
+        return nativeWrite(samples, count, gain).also {
+            refreshOutputName()
+            if (wasExclusive && !exclusiveActive) DesktopOutputMode.status.value = "WASAPI shared fallback · endpoint changed or exclusive access was lost"
+        }
     }
 
-    private fun refreshOutputName() { outputName = nativeDeviceName().takeIf(String::isNotBlank) }
+    private fun refreshOutputName() {
+        outputName = nativeDeviceName().takeIf(String::isNotBlank)
+        exclusiveActive = nativeIsExclusive()
+    }
 
     fun framesPlayed(): Long = if (available) nativeFramesPlayed() else 0L
 
@@ -59,7 +70,7 @@ internal object DesktopWindowsAudio {
     }
 
     fun close() {
-        try { if (available) nativeClose() } finally { outputName = null }
+        try { if (available) nativeClose() } finally { outputName = null; exclusiveActive = false }
     }
 
     fun deviceName(): String? = outputName
@@ -85,6 +96,7 @@ internal object DesktopWindowsAudio {
         channels: Int,
         bytesPerSample: Int,
         floatingPoint: Boolean,
+        exclusive: Boolean,
     ): Int
 
     @JvmStatic private external fun nativeDevices(): Array<String>
@@ -97,6 +109,7 @@ internal object DesktopWindowsAudio {
     @JvmStatic private external fun nativeClose()
     @JvmStatic private external fun nativeDeviceName(): String
     @JvmStatic private external fun nativeLastError(): String
+    @JvmStatic private external fun nativeIsExclusive(): Boolean
 
     private const val LIBRARY = "cosmotune_window"
 }

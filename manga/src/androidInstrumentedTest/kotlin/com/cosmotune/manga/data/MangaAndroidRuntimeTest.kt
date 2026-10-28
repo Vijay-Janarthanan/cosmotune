@@ -74,6 +74,24 @@ class MangaAndroidRuntimeTest {
         catch (expected: IllegalArgumentException) { assertTrue(expected.message.orEmpty().contains("reviewed APK")) }
         assertTrue(store.state.value.sources.isEmpty())
     }
+    @Test fun aReplacementThatCannotLoadKeepsTheInstalledApkAndSources() = runBlocking<Unit> {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = MangaStore(java.io.File(context.cacheDir, "replacement-${java.util.UUID.randomUUID()}"), platformMangaFileProtection())
+        val parser = ParserContext(store.root, store.protection) { store.state.value.sources }
+        val installed = MangaExtensions(context, store, parser)
+        val configs = installed.trust(installed.inspect { context.assets.open("source-api-fixture.apk") })
+        store.source(configs.first().copy(enabled = false))
+        val previous = store.state.value.sources
+        // A fresh loader cannot satisfy the replacement from the existing class cache.
+        val replacement = MangaExtensions(context, store, parser)
+        val review = replacement.inspect { context.assets.open("source-api-fixture.apk") }
+        try { replacement.trust(review.copy(classes = listOf("java.lang.String"))); fail("Invalid replacement loaded") }
+        catch (expected: IllegalArgumentException) { assertTrue(expected.message.orEmpty().contains("reviewed APK")) }
+        assertEquals(previous, store.state.value.sources)
+        assertEquals(previous, MangaStore(store.root, platformMangaFileProtection()).state.value.sources)
+        val enabled = previous.first { it.enabled }
+        assertEquals(1, installed.source(enabled).browse("", 0).books.size)
+    }
     @Test fun bundledRankerMapsUnderFiveMegabytesAndRanksOnAndroid() = runBlocking<Unit> {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val folder = java.io.File(context.cacheDir, "ranker-benchmark").apply { mkdirs() }

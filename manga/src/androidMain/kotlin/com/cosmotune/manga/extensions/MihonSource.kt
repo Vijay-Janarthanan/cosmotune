@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 
 class MihonSource(override val config: MangaSourceConfig, private val source: Source, fallbackClient: OkHttpClient) : MangaSource, MangaImageTransport {
+    override val verificationWebsite: String? get() = (source as? HttpSource)?.baseUrl
     override val imageClient: OkHttpClient = (source as? HttpSource)?.client ?: fallbackClient
     private val imageRequests = LinkedHashMap<String, okhttp3.Request>()
     override fun imageRequest(page: MangaPage): okhttp3.Request = synchronized(imageRequests) {

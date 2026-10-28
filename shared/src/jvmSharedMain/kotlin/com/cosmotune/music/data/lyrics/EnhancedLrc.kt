@@ -83,8 +83,8 @@ object EnhancedLrc {
     fun decodeEntities(text: String): String {
         if ('&' !in text) return text
         return text
-            .replace(Regex("&#x([0-9a-fA-F]+);")) { it.groupValues[1].toInt(16).toChar().toString() }
-            .replace(Regex("&#(\\d+);")) { it.groupValues[1].toInt().toChar().toString() }
+            .replace(Regex("&#x([0-9a-fA-F]+);")) { decodeCodePoint(it, 16) }
+            .replace(Regex("&#(\\d+);")) { decodeCodePoint(it, 10) }
             .replace("&apos;", "'")
             .replace("&quot;", "\"")
             .replace("&nbsp;", " ")
@@ -92,6 +92,12 @@ object EnhancedLrc {
             .replace("&gt;", ">")
             // Last, so "&amp;#x27;" doesn't decode twice into an apostrophe.
             .replace("&amp;", "&")
+    }
+
+    private fun decodeCodePoint(entity: MatchResult, radix: Int): String {
+        val point = entity.groupValues[1].toIntOrNull(radix) ?: return entity.value
+        if (!Character.isValidCodePoint(point) || point in 0xD800..0xDFFF) return entity.value
+        return String(Character.toChars(point))
     }
 
     private const val TAIL_MS = 800L

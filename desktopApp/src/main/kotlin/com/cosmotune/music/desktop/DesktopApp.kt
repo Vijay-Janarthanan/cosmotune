@@ -288,6 +288,7 @@ import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.PlaybackSourceType
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.podio.offlinePodioItem
 import com.cosmotune.music.data.model.SubscriptionState
 import com.cosmotune.music.data.model.UiState
 import com.cosmotune.music.data.model.UserPlaylist
@@ -3333,6 +3334,7 @@ fun CosmotuneDesktopApp() {
         val windowActions = LocalDesktopWindowActions.current
         CompositionLocalProvider(
             LocalContentColor provides Color.White,
+            LocalDesktopSongContextMenu provides rememberDesktopSongAction(::openMenu),
             LocalNowPlaying provides selectedSong,
             com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,
             com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),
@@ -3714,6 +3716,7 @@ fun CosmotuneDesktopApp() {
                     }
                     if (!videoModeShown) DesktopPlayerSheet(
                         visible = overlays.nowPlaying && selectedSong != null,
+                        visualSong = selectedSong,
                         onDismiss = {
                             DesktopWindowMode.exit()
                             overlays.nowPlaying = false
@@ -4067,7 +4070,9 @@ fun CosmotuneDesktopApp() {
                             playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playback.error, rate = playbackEngine.playbackRate),
                         onPlay = { item, position ->
                             if (!partyTrackChangeBlocked()) {
-                                liveQueue = DesktopQueue(listOf(item.song()), index = 0)
+                                val requested = item.song()
+                                val offline = downloads.firstOrNull { it.videoId == item.id }
+                                liveQueue = DesktopQueue(listOf(com.cosmotune.podio.PodioDownloads.withOfflinePath(requested, offline)), index = 0)
                                 preShuffleOrder = emptyList()
                                 playCurrent(startAtMs = position)
                             }
@@ -4078,6 +4083,31 @@ fun CosmotuneDesktopApp() {
                         showNavigation = false,
                         volume = volume, onVolume = { volume = it },
                         onSettings = ::openSettings,
+                        sleepTimerMinutes = sleepTimerMinutes, sleepAfterEpisode = sleepAfterTrack,
+                        onSleepTimer = { minutes -> if (minutes == null) DesktopSleepTimer.cancel() else DesktopSleepTimer.start(minutes) },
+                        onSleepAfterEpisode = { DesktopSleepTimer.startAfterTrack() },
+                        onDownloadEpisode = { item ->
+                            when (downloadQueue[item.id]?.state) {
+                                DesktopDownloadState.Queued, is DesktopDownloadState.Running -> DesktopDownloadQueue.cancel(item.id)
+                                else -> DesktopDownloadQueue.enqueue(item.song())
+                            }
+                        },
+                        downloadedEpisodes = downloads.mapNotNull { it.offlinePodioItem() },
+                        episodeDownloadStatus = downloadQueue.mapValues { (_, item) -> when (val status = item.state) {
+                            DesktopDownloadState.Queued -> "Queued"
+                            is DesktopDownloadState.Running -> "Downloading ${(status.fraction.coerceIn(0f, 1f) * 100).toInt()}%"
+                            is DesktopDownloadState.Failed -> "Download failed: ${status.reason} · tap to retry"
+                        } },
+                        episodeDownloadsRunning = downloadQueue.filterValues { it.state !is DesktopDownloadState.Failed }.keys,
+                        onImportOpmlFile = {
+                            com.cosmotune.desktop.chooseCosmotuneFile("", false, "Import podcast subscriptions")?.let { file ->
+                                withContext(Dispatchers.IO) { file.inputStream().use(com.cosmotune.podio.PodioOpml::read) }
+                            }
+                        },
+                        onExportOpmlFile = { text ->
+                            val selected = com.cosmotune.desktop.chooseCosmotuneFile("Cosmotune-podcasts.opml", true, "Export podcast subscriptions")
+                            if (selected == null) false else withContext(Dispatchers.IO) { selected.writeText(text, Charsets.UTF_8); true }
+                        },
                     )
                 }
                 // Desktop pages start at the same top edge as Library. Only preserve space for the
@@ -7113,7 +7143,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.10" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.11" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )
@@ -7710,6 +7740,7 @@ private fun DesktopCollectionSongRow(
             .alpha(if (song.isMatchMissing) 0.45f else 1f)
             .clip(RoundedCornerShape(6.dp))
             .background(if (striped) Color.White.copy(alpha = 0.04f) else Color.Transparent)
+            .desktopSongContextMenu(song, enabled = !unresolved)
             .clickable(enabled = !unresolved) { onClick(song) }
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -8173,6 +8204,7 @@ private fun DesktopSongRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(DesktopGlass.copy(alpha = 0.38f))
+            .desktopSongContextMenu(song)
             .clickable { onClick(song) }
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,

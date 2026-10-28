@@ -3,6 +3,10 @@ package com.cosmotune.music.desktop
 import com.cosmotune.music.data.model.SearchFilter
 import com.cosmotune.music.data.model.SearchResult
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.ArtistRef
+import com.cosmotune.music.data.sources.JioSaavnMatcher
+import com.cosmotune.music.data.sources.TrackMatcher
+import com.cosmotune.music.data.sources.RecordingMetadata
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -51,10 +55,12 @@ private data class DesktopSaavnMoreInfo(
 @Serializable
 private data class DesktopSaavnArtistMap(
     @SerialName("primary_artists") val primaryArtists: List<DesktopSaavnArtist> = emptyList(),
+    @SerialName("featured_artists") val featuredArtists: List<DesktopSaavnArtist> = emptyList(),
+    val artists: List<DesktopSaavnArtist> = emptyList(),
 )
 
 @Serializable
-private data class DesktopSaavnArtist(val name: String = "")
+private data class DesktopSaavnArtist(val name: String = "", val role: String = "")
 
 /** JioSaavn catalogue and CDN adapter for desktop source-aware playback. */
 internal object DesktopJioSaavn {
@@ -139,10 +145,11 @@ internal object DesktopJioSaavn {
     /** Every copy this catalogue holds of [song], most confident first. */
     suspend fun matches(song: Song): List<Song> {
         if (song.title.isBlank() || song.isVideo) return emptyList()
-        for (query in DesktopTrackMatcher.queries(song)) {
+        val target = RecordingMetadata.enrich(TrackMatcher.targetOf(song))
+        for (query in JioSaavnMatcher.queries(target)) {
             val candidates = search(query, 25).getOrDefault(emptyList())
                 .mapNotNull { (it as? SearchResult.Track)?.song }
-            DesktopTrackMatcher.ranked(candidates, song).ifEmpty { null }?.let { return it }
+            JioSaavnMatcher.ranked(candidates, target).ifEmpty { null }?.let { return it }
         }
         return emptyList()
     }
@@ -152,6 +159,10 @@ internal object DesktopJioSaavn {
         title = title,
         artist = moreInfo.artistMap.primaryArtists.joinToString(", ") { it.name }
             .ifBlank { "Unknown Artist" },
+        artists = moreInfo.artistMap.let { credits -> JioSaavnMatcher.creditNames(
+            credits.primaryArtists.map { it.name }, credits.featuredArtists.map { it.name },
+            credits.artists.map { it.name to it.role },
+        ).map { ArtistRef(it) } },
         albumName = moreInfo.album.ifBlank { null },
         thumbnailUrl = image
             .replace(Regex("150x150|50x50"), "500x500")

@@ -20,6 +20,15 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class PodioAndroidTest {
+    @Test fun publicYouTubeEpisodesKeepTheirPodioIdAndUseTheDedicatedResolverUri() {
+        val song = PodcastEpisode("youtube:abcdefghijk", "A public conversation", "Show", "https://music.youtube.com/watch?v=abcdefghijk").item().song()
+        val media = song.toMediaItem()
+        assertEquals("podio:episode:youtube:abcdefghijk", media.mediaId)
+        assertEquals("cosmotune://podio-youtube?v=abcdefghijk", media.localConfiguration?.uri.toString())
+        assertEquals(media.mediaId, com.cosmotune.music.playback.mediaIdIn(requireNotNull(media.localConfiguration).uri))
+        assertTrue(com.cosmotune.podio.PodioPlaybackPolicy.isPodio(media.mediaId))
+        assertEquals(androidx.media3.common.MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE, media.mediaMetadata.mediaType)
+    }
     @Test fun theRealMediaServiceRestoresMusicSpeedAfterSpokenAudio(): Unit = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val settings = com.cosmotune.music.data.settings.AppSettings

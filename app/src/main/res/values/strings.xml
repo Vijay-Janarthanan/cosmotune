@@ -1209,4 +1209,5 @@
     <string name="wear_os_code_hint">Pairing code</string>
     <string name="wear_os_done">Done</string>
     <string name="signed_by">Signed by %1$s</string>
+    <string name="cached_song_partial">Partial · needs a connection</string>
 </resources>

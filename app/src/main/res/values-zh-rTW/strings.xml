@@ -1340,4 +1340,5 @@
     <string name="artist_signatures_unconfigured">尚未設定，點選以設定 API 網址</string>
     <string name="artist_signatures_test_failed">無法連線到該網址的 API</string>
     <string name="signed_by">%1$s 的簽名</string>
+    <string name="cached_song_partial">部分暫存 · 需要連線</string>
 </resources>

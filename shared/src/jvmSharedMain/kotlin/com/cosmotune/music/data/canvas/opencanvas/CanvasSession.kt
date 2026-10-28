@@ -12,6 +12,7 @@ import com.opencanvas.core.stream.CommunityMaps
 import com.opencanvas.core.stream.MusicVideoSearch
 import com.opencanvas.core.stream.StreamBackend
 import com.opencanvas.core.stream.StreamInfo
+import com.opencanvas.core.stream.isMediaStreamExpired
 import com.opencanvas.core.stream.SyncOffset
 import com.opencanvas.core.stream.SyncStore
 import com.opencanvas.core.stream.YouTubeStreamResolver
@@ -132,13 +133,18 @@ internal class CanvasSession(
         }
     }
 
-    /** True when this session is over without a usable result, so a new request should start afresh. */
-    fun isStale(): Boolean {
+    /** Retry failed results or refresh completed streams whose signed address no longer stands. */
+    fun isStale(nowMs: Long = System.currentTimeMillis()): Boolean {
         val current = state.value
         return job.isCancelled ||
             (current.done && current.track == null) ||
+            (current.done && current.track?.videoStreamUrl?.let { url ->
+                isMediaStreamExpired(url, nowMs) ||
+                    (url.startsWith("https://") || url.startsWith("http://")) &&
+                    nowMs - startedAtMs >= MAX_STREAM_AGE_MS
+            } == true) ||
             (current.done && request.song != null && current.track?.syncStage == SyncStage.NONE &&
-                System.currentTimeMillis() - startedAtMs > RETRY_AFTER_MS)
+                nowMs - startedAtMs > RETRY_AFTER_MS)
     }
 
     /** The session's tracks: the latest immediately, then every change, ending when the session is done. */
@@ -322,7 +328,7 @@ internal class CanvasSession(
                 (measured.videoKbps in 0.01..STILL_PICTURE_KBPS || measured.videoMotion < STILL_PICTURE_MOTION ||
                     (request.videoId == null && measured.keyIrregularity?.let { it < 0.01 } == true &&
                         (!VideoMatcher.advertisesVideo(candidate.title) ||
-                            !candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo) &&
+                            !candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo && !candidate.linkedVerifiedPublisher) &&
                         !VideoMatcher.isCreditedArtistChannel(candidate, request.artist)))
             log("candidate ${candidate.videoId} \"${candidate.title.take(48)}\" by ${candidate.channelTitle} (${candidate.durationSec}s): " +
                 when {
@@ -351,22 +357,35 @@ internal class CanvasSession(
     private suspend fun measureOne(track: AudioStream?, video: String, songVideoId: String?): Measurement? {
         val picture = env.syncSource(video)
         if (track == null || picture == null) return null
-        measure(track, picture, video)?.let { return it }
-        // A file whose tables cannot be read (one song's came back as junk) usually has a readable twin from the
-        // other client. Song and video are measured through the same client, so their frame sizes compare.
-        if (songVideoId == null) return null
+        val first = measure(track, picture, video)
+        var best = first
+        fun Measurement.isAligned() = align.error == null &&
+            align.confidence >= YouTubeStreamResolver.MIN_SYNC_CONFIDENCE && align.segments.isNotEmpty()
+        if (best?.isAligned() == true) return best
+        // Frame sizes depend on the encoder as well as the recording. A readable but weak match
+        // deserves the same bounded second-client check as an unreadable header. Keep the existing
+        // confidence threshold; never turn a weak match into a verified map by lowering it.
+        if (songVideoId == null) return best
         val songs = env.syncSourcesByBackend(songVideoId)
         val pictures = env.syncSourcesByBackend(video)
         for (index in songs.indices) {
             val song = songs[index] ?: continue
             val other = pictures.getOrNull(index) ?: continue
             if (song.url == track.url && other.url == picture.url) continue // the pair already tried
-            measure(song, other, video)?.let {
-                log("measuring $video: the first file could not be read, the other client's could")
-                return it
+            measure(song, other, video)?.let { alternative ->
+                // An audio-only alternative supplies timing, not evidence that the picture moves.
+                // Retain the original muxed stream's picture measurements when it has them.
+                val measured = if (alternative.videoKbps <= 0.0 && first != null && first.videoKbps > 0.0)
+                    Measurement(alternative.align, first.videoKbps, first.videoMotion, first.keyIrregularity)
+                else alternative
+                if (measured.isAligned()) {
+                    log("measuring $video: the other client's encoding produced a verified map")
+                    return measured
+                }
+                if (best == null || measured.align.confidence > best!!.align.confidence) best = measured
             }
         }
-        return null
+        return best
     }
 
     private suspend fun measure(song: AudioStream, picture: AudioStream, video: String): Measurement? = try {
@@ -466,6 +485,7 @@ internal class CanvasSession(
 
     private companion object {
         const val RETRY_AFTER_MS = 60_000L
+        const val MAX_STREAM_AGE_MS = 20 * 60 * 1_000L
         const val ABANDON_GRACE_MS = 4_000L
         const val WARM_HOLD_MS = 30_000L
         const val RANK_PENALTY = 0.03

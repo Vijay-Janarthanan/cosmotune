@@ -22,12 +22,14 @@ import kotlinx.coroutines.withTimeoutOrNull
  * caller is expected to confirm the top few against the song's audio (see `CanvasSession`).
  */
 internal class MusicVideoSearch(private val http: OkHttpClient, private val log: (String) -> Unit = {}) {
+    private val publishers = PublisherChannelProof(http)
 
     /** The most likely music videos for the song, best first (at most [limit]); empty when the search fails. */
     suspend fun find(title: String, artist: String, durationSec: Long = 0L, limit: Int = 6, album: String? = null,
         exhaustive: Boolean = false, excludedVideoIds: Set<String> = emptySet()): List<VideoCandidate> = run {
-        val words = title.trim().split(Regex("\\s+"))
-        val titleKey = title.lowercase().filter { it.isLetterOrDigit() }
+        val lookupTitle = VideoMatcher.searchTitleVariants(title).last()
+        val words = lookupTitle.trim().split(Regex("\\s+"))
+        val titleKey = lookupTitle.lowercase().filter { it.isLetterOrDigit() }
         val albumKey = album.orEmpty().lowercase().filter { it.isLetterOrDigit() }
         // A title track shares its name with every result from the same film.
         // Without useful album context, another verified artist's same-title
@@ -35,13 +37,13 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
         val ambiguousContext = albumKey.isEmpty() || albumKey == titleKey
         val queries = listOfNotNull(
             if (exhaustive && words.size >= 3) album?.let { "$it ${words.drop(1).joinToString(" ")} video song -\"5.1\" -audio -lyrics" } else null,
-            if (exhaustive) "$title ${album.orEmpty()} video song -\"5.1\" -audio -lyrics -lyrical" else null,
-            if (exhaustive) album?.let { "$it movie songs $title" } else null,
-            album?.trim()?.takeIf { it.isNotEmpty() }?.let { "$title $it video song" },
+            if (exhaustive) "$lookupTitle ${album.orEmpty()} video song -\"5.1\" -audio -lyrics -lyrical" else null,
+            if (exhaustive) album?.let { "$it movie songs $lookupTitle" } else null,
+            album?.trim()?.takeIf { it.isNotEmpty() }?.let { "$lookupTitle $it video song" },
             album?.takeIf { it.isNotBlank() && words.size >= 3 }?.let { "\"${words.take(2).joinToString(" ")}\" $it video song" },
             album?.takeIf { it.isNotBlank() && words.size == 2 }?.let { "\"${words.reversed().joinToString(" ")}\" $it" },
-            "\"$title\" video song",
-            "$artist $title official music video",
+            "\"$lookupTitle\" video song",
+            "$artist $lookupTitle official music video",
             "\"$title\" $artist official video").distinct()
         val results = ArrayList<VideoCandidate>()
         val titleWords = words.map { word -> word.lowercase().filter { it.isLetterOrDigit() } }.filter { it.length >= 3 }
@@ -51,7 +53,15 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
             if (results.isNotEmpty() && (System.nanoTime() - startedAt) / 1_000_000L > SEARCH_BUDGET_MS) break
             val queryStarted = System.nanoTime()
             val answer = withTimeoutOrNull(QUERY_TIMEOUT_MS) { search(query) }
-            val batch = answer.orEmpty()
+            val raw = answer.orEmpty()
+            val toCorroborate = raw.firstOrNull { it.videoId !in excludedVideoIds && VideoMatcher.needsPublisherCorroboration(it, title, artist, album) }
+            val batch = raw.map { candidate ->
+                if (candidate === toCorroborate &&
+                    publishers.proves(candidate.channelId!!)) {
+                    log("publisher channel corroborated by verified parent: ${candidate.channelId}")
+                    candidate.copy(linkedVerifiedPublisher = true)
+                } else candidate
+            }
             val tookMs = (System.nanoTime() - queryStarted) / 1_000_000L
             // A search that does not answer in time is a miss for the song, so it is worth a line even when nothing else is logged.
             if (answer == null) log("video search '$query': no answer within $QUERY_TIMEOUT_MS ms")
@@ -65,11 +75,10 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
             // An album-only hit is insufficient: another track from the same film must not stop search.
             if (!exhaustive && ranked.any { candidate ->
                     val name = candidate.title.lowercase().filter { it.isLetterOrDigit() }
-                    val titleMatches = name.contains(title.lowercase().filter { it.isLetterOrDigit() }) ||
+                    val titleMatches = name.contains(lookupTitle.lowercase().filter { it.isLetterOrDigit() }) ||
                         (titleWords.size >= 2 && titleWords.all { name.contains(it) })
                     val contextMatches = !ambiguousContext || VideoMatcher.isCreditedArtistChannel(candidate, artist)
-                    titleMatches && contextMatches && (VideoMatcher.saysVideo(candidate.title) ||
-                        Regex("(?i)(\\b[248]k\\b|\\bmv\\b|\\bm/v\\b)").containsMatchIn(candidate.title))
+                    titleMatches && contextMatches && VideoMatcher.advertisesVideo(candidate.title)
                 }) return@run ranked
         }
         val distinct = results.distinctBy { it.videoId }
@@ -145,6 +154,9 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
                 durationSec = text(renderer.path("lengthText", "simpleText"))?.let(::parseClock) ?: 0L,
                 isOfficialMusicVideo = verifiedArtist,
                 isVerifiedChannel = verified,
+                channelId = (renderer["ownerText"] as? JsonObject)?.get("runs")
+                    ?.let { it as? JsonArray }?.firstOrNull()?.let { it as? JsonObject }
+                    ?.path("navigationEndpoint", "browseEndpoint", "browseId")?.let(::text),
             )
         }
 

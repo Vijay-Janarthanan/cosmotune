@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import com.cosmotune.music.desktop.desktopSongContextMenu
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -155,6 +156,7 @@ internal fun CosmoDesktopSongRow(
         Modifier
             .fillMaxWidth()
             .heightIn(min = DESKTOP_ROW_HEIGHT)
+            .desktopSongContextMenu(song)
             .cosmoDesktopRow(chrome, colors, striped = false, enabled = true, onClick = { onClick(song) })
             .padding(horizontal = DESKTOP_ROW_PADDING),
         verticalAlignment = Alignment.CenterVertically,

@@ -75,9 +75,11 @@ data class LyricsShareRequest(
     val lines: List<LyricsShareLine>,
     /** The whole song's lyrics, for "Save as .lrc"; empty when there is nothing to keep. */
     val lrcLines: List<com.cosmotune.music.data.lyrics.LyricLine> = emptyList(),
+    /** Currently displayed translations/romanization, aligned with [lrcLines]. */
+    val lrcSubLines: List<com.cosmotune.music.data.lyrics.LyricLine>? = null,
 ) {
     /** The song's lyrics as an `.lrc` file, or null when none are loaded. */
-    val lrcText: String? get() = runCatching { com.cosmotune.music.data.lyrics.LrcExport.render(song, lrcLines) }.getOrNull()
+    val lrcText: String? get() = runCatching { com.cosmotune.music.data.lyrics.LrcExport.render(song, lrcLines, lrcSubLines) }.getOrNull()
     val lrcFileName: String get() = com.cosmotune.music.data.lyrics.LrcExport.fileName(song)
 }
 
@@ -270,7 +272,8 @@ internal fun rememberLyricsPicker(
         // An empty pick draws nothing worth sending, so it is simply left alone
         // rather than putting an empty card on screen to be dismissed.
         if (picked.isNotEmpty()) {
-            onCard(LyricsShareRequest(song = song, artworkUrl = artworkUrl, lines = picked, lrcLines = source))
+            onCard(LyricsShareRequest(song = song, artworkUrl = artworkUrl, lines = picked,
+                lrcLines = source, lrcSubLines = subLines))
         }
         cancel()
     }

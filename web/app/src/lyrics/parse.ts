@@ -20,11 +20,16 @@ import {
 // ---- EnhancedLrc.decodeEntities -------------------------------------------------------------
 
 /** SimpMusic and friends serve HTML-escaped text; "&#x27;" would otherwise be sung literally. */
+const codePoint = (entity: string, value: number) =>
+  Number.isInteger(value) && value >= 0 && value <= 0x10ffff && !(value >= 0xd800 && value <= 0xdfff)
+    ? String.fromCodePoint(value)
+    : entity;
+
 export function decodeEntities(text: string): string {
   if (!text.includes('&')) return text;
   return text
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (entity, hex: string) => codePoint(entity, Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (entity, dec: string) => codePoint(entity, Number(dec)))
     .replace(/&apos;/g, "'")
     .replace(/&quot;/g, '"')
     .replace(/&nbsp;/g, ' ')
@@ -187,6 +192,11 @@ function stamp(minutes: string, seconds: string, fraction: string): number {
 
 /** Empty when the LRC carries no word stamps, so the caller can fall back to plain LRC. */
 export function parseEnhancedLrc(lrc: string): LyricLine[] {
+  // Repeated line stamps also occur in word-synced files. The plain reader expands them and
+  // moves each repeat's word timings; otherwise this first-choice reader silently loses repeats.
+  if (/^\s*\[\d{1,2}:\d{2}[.:]\d{2,3}\]\s*\[\d{1,2}:\d{2}[.:]\d{2,3}\]/m.test(lrc)) {
+    return parseLrc(decodeEntities(lrc));
+  }
   const rows = lrc
     .split(/\r?\n/)
     .map((l) => A2_LINE.exec(l.trim()))
@@ -229,7 +239,14 @@ export function parseLrc(lrc: string): LyricLine[] {
   for (const raw of lrc.split(/\r?\n/)) {
     const match = LRC_STAMP.exec(raw);
     if (!match) continue;
-    let body = raw.slice((match.index ?? 0) + match[0].length);
+    const stamps = [match];
+    let end = match.index + match[0].length;
+    for (let next = LRC_STAMP.exec(raw.slice(end)); next && !raw.slice(end, end + next.index).trim();
+      next = LRC_STAMP.exec(raw.slice(end))) {
+      stamps.push(next);
+      end += next.index + next[0].length;
+    }
+    let body = raw.slice(end);
     let alignment: LyricLine['alignment'] = 'start';
     if (body.startsWith(ALIGNMENT_MARKER)) {
       body = body.slice(ALIGNMENT_MARKER.length);
@@ -246,12 +263,17 @@ export function parseLrc(lrc: string): LyricLine[] {
         raw: body.slice((mark.index ?? 0) + mark[0].length, until),
       };
     });
-    all.push(
-      line(stamp(match[1]!, match[2]!, match[3]!), body.replace(WORD_STAMP, '').trim(), {
-        words: marks.length ? wordsFromRuns(runs) : [],
+    const originalTime = stamp(match[1]!, match[2]!, match[3]!);
+    for (const at of stamps) {
+      const timeMs = stamp(at[1]!, at[2]!, at[3]!);
+      const delta = timeMs - originalTime;
+      all.push(line(timeMs, body.replace(WORD_STAMP, '').trim(), {
+        words: marks.length ? wordsFromRuns(runs.map((run) => ({
+          ...run, startMs: run.startMs + delta, endMs: run.endMs + delta,
+        }))) : [],
         alignment,
-      }),
-    );
+      }));
+    }
   }
   all.sort((a, b) => a.timeMs - b.timeMs);
   const kept = all.filter((l, index) => {

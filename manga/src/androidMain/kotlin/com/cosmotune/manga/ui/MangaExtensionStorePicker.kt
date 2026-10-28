@@ -64,7 +64,7 @@ import kotlinx.coroutines.launch
                         items(state.extensionStores, key = { it.indexUrl }) { saved -> Row(verticalAlignment = Alignment.CenterVertically) {
                             TextButton(enabled = !loading, onClick = { address = saved.indexUrl; fetch(saved.indexUrl, saved.signingKey) }, modifier = Modifier.weight(1f)) { Text(saved.name) }
                             TextButton(enabled = !loading, onClick = { scope.launch {
-                                try { repository.store.update { it.copy(extensionStores = it.extensionStores.filterNot { item -> item.indexUrl == saved.indexUrl }) } }
+                                try { repository.store.removeExtensionStore(saved.indexUrl) }
                                 catch (cancelled: CancellationException) { throw cancelled }
                                 catch (failure: Exception) { error = failure.message }
                             } }) { Text("Remove") }
@@ -75,12 +75,7 @@ import kotlinx.coroutines.launch
                     Text("Publisher SHA-256: ${current.store.signingKey}", style = MaterialTheme.typography.labelSmall)
                     val saved = state.extensionStores.any { it.indexUrl == current.store.indexUrl && it.signingKey == current.store.signingKey }
                     TextButton(enabled = !saved, onClick = { scope.launch {
-                        try { repository.store.update { old ->
-                            require(old.extensionStores.none { it.indexUrl == current.store.indexUrl && it.signingKey != current.store.signingKey }) {
-                                "Remove the saved store before changing its publisher key."
-                            }
-                            old.copy(extensionStores = old.extensionStores.filterNot { item -> item.indexUrl == current.store.indexUrl } + current.store)
-                        } }
+                        try { repository.store.saveExtensionStore(current.store) }
                         catch (cancelled: CancellationException) { throw cancelled }
                         catch (failure: Exception) { error = failure.message }
                     } }) { Text(if (saved) "Store saved" else "Save store") }

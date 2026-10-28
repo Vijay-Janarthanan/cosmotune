@@ -106,9 +106,8 @@ class MangaExtensions(private val application: Context, private val store: Manga
         require(prototypes.isNotEmpty()) { "The extension contains no supported catalogue sources" }
         val configs = prototypes.map { raw -> MangaSourceConfig("mihon:${review.packageName}:${raw.id}", "mihon", raw.name, raw.lang,
             settings = settings + mapOf("sourceId" to raw.id.toString(), "configurable" to (raw is ConfigurableSource).toString())) }
-        val installed = configs.map { config -> config.copy(enabled = store.state.value.sources.find { it.id == config.id }?.enabled ?: true) }
-        store.update { old -> old.copy(sources = old.sources.filterNot { it.kind == "mihon" && it.settings["package"] == review.packageName } + installed) }
-        installed
+        store.installExtension(review.packageName, configs)
+        store.state.value.sources.filter { it.kind == "mihon" && it.settings["package"] == review.packageName }
     } }
 
     suspend fun inspectDownload(listing: MangaExtensionListing, publisher: MangaExtensionStore): MangaExtensionReview = withContext(Dispatchers.IO) {

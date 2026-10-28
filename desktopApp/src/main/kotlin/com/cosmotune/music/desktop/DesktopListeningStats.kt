@@ -63,6 +63,7 @@ data class DesktopReplaySummary(
     val distinctAlbums: Int = 0,
     /** The earliest month with anything in it, `YYYY-MM`. */
     val since: String? = null,
+    val dailyMs: Map<String, Long> = emptyMap(),
 ) {
     /** One track is enough: a small Replay is a small Replay, and it grows. */
     val isEmpty: Boolean get() = songs.isEmpty()
@@ -170,6 +171,7 @@ object DesktopListeningStats {
                 ?: leadArtist(entry.song).lowercase(Locale.ROOT) }.distinct().size,
             distinctAlbums = entries.mapNotNull { it.song.albumName?.takeIf(String::isNotBlank) }.distinct().size,
             since = buckets.map(Bucket::month).filter { it != LEGACY_MONTH }.minOrNull(),
+            dailyMs = days.toMap(),
         )
     }
 

@@ -534,6 +534,9 @@ private fun Habits(summary: ReplaySummary, dark: Boolean) {
                 dark,
             )
         }
+        Spacer(Modifier.height(20.dp))
+        com.cosmotune.ui.listening.ListeningActivityPanel(summary.dailyMs, summary.hourOfDay,
+            textColor = if (dark) Color.White else Color.Black)
     }
 }
 

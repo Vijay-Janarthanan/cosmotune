@@ -1360,4 +1360,5 @@
     <string name="wear_os_code_hint">पेयरिंग कोड</string>
     <string name="wear_os_done">हो गया</string>
     <string name="signed_by">%1$s द्वारा हस्ताक्षरित</string>
+    <string name="cached_song_partial">आंशिक · कनेक्शन ज़रूरी है</string>
 </resources>

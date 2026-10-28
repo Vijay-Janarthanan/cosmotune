@@ -47,6 +47,9 @@ internal object DesktopAudioDevices {
      * entries such as "Primary Sound Driver" that no endpoint answers to.
      */
     fun available(): List<DesktopAudioDevice> {
+        if (DesktopOutputMode.direct.value && !DesktopPlatform.isWindows) {
+            DesktopUnixAudio.devices().takeIf { it.isNotEmpty() }?.let { return it }
+        }
         if (DesktopPlatform.isWindows) {
             DesktopWindowsAudio.devices()?.let { endpoints ->
                 adoptLegacyChoice(endpoints)

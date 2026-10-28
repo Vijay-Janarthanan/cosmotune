@@ -47,6 +47,30 @@ describe('LRC', () => {
   });
   it('decodes HTML entities', () => {
     expect(decodeEntities('don&#x27;t &amp; won&#39;t')).toBe("don't & won't");
+    expect(decodeEntities('&#x1f3b5; &#127925;')).toBe('🎵 🎵');
+  });
+  it('keeps invalid numeric entities without aborting the lyrics lookup', () => {
+    const invalid = '&#x110000; &#99999999999999999999999999999; &#xD800;';
+    expect(decodeEntities(invalid)).toBe(invalid);
+    expect(parseEnhancedLrc(`[00:01.00]<00:01.00>${invalid}`)[0]?.text).toBe(invalid);
+  });
+  it('expands compressed chorus timestamps and preserves the answering side', () => {
+    const lines = parseLrc('[00:12.00][00:45.00]<R>Chorus\n[00:20.00]Verse').filter((l) => l.text);
+    expect(lines.map((l) => [l.timeMs, l.text, l.alignment])).toEqual([
+      [12000, 'Chorus', 'end'], [20000, 'Verse', 'start'], [45000, 'Chorus', 'end'],
+    ]);
+  });
+  it('moves repeated word stamps with each occurrence through provider parsing', () => {
+    const source = '[00:12.00][00:45.00]<00:12.00>Hel<00:12.50>lo <00:13.00>again<00:14.00>';
+    const lines = parseProvider(source)!.lines.filter((l) => l.text);
+    expect(lines.map((l) => [l.timeMs, l.text])).toEqual([[12000, 'Hello again'], [45000, 'Hello again']]);
+    expect(lines[1]!.words[0]).toMatchObject({ startMs: 45000, endMs: 46000 });
+    expect(lines[1]!.words[0]!.syllables[1]).toMatchObject({ startMs: 45500, endMs: 46000 });
+    expect(lines[1]!.words[1]).toMatchObject({ startMs: 46000, endMs: 47000 });
+  });
+  it('does not remove a timestamp appearing within sung text', () => {
+    expect(parseLrc('[00:12.00]sing [00:45.00] literally').filter((l) => l.text))
+      .toMatchObject([{ timeMs: 12000, text: 'sing [00:45.00] literally' }]);
   });
 });
 

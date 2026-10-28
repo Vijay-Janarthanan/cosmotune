@@ -27,6 +27,7 @@ kotlin {
         api("com.github.clquwu:kotatsu-parsers-redo:dc223c3d80")
     }
     sourceSets.androidMain.dependencies {
+        implementation("androidx.work:work-runtime-ktx:2.11.2")
         implementation("com.squareup.okhttp3:okhttp-brotli:5.3.2")
         implementation("com.squareup.okhttp3:okhttp-zstd:5.3.2")
         implementation("io.github.dokar3:quickjs-kt-android:1.0.14")

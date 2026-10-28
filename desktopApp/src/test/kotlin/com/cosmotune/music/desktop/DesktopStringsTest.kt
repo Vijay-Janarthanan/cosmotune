@@ -25,12 +25,24 @@ class DesktopStringsTest {
         val english = keysIn("/strings/desktop-en.xml")
         assertTrue(english.size > 50, "the desktop catalogue looks empty")
         DesktopStrings.available
-            .filter { it.tag.isNotBlank() && it.tag != "en" }
+            .filter { it.tag.isNotBlank() && it.tag != "en" && !it.mangaOnlyTranslation }
             .forEach { language ->
                 val theirs = keysIn("/strings/desktop-${language.tag}.xml")
                 val missing = english - theirs
                 assertTrue(missing.isEmpty(), "${language.tag} is missing ${missing.size}: ${missing.take(3)}")
             }
+    }
+
+    @Test
+    fun `partial Manga translations are explicit and contain their scoped catalogue`() {
+        val english = keysIn("/strings/en.xml").filter { it.startsWith("manga_") }.toSet()
+        assertTrue(english.size >= 45)
+        val partial = DesktopStrings.available.filter { it.mangaOnlyTranslation }
+        assertEquals(9, partial.size)
+        partial.forEach { language ->
+            assertTrue(language.label.endsWith(" · Manga"))
+            assertTrue(keysIn("/strings/${language.tag}.xml").containsAll(english))
+        }
     }
 
     @Test

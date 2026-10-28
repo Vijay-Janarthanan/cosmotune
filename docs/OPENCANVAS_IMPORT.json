@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/Vijay-Janarthanan/OpenCanvas",
-  "revision": "d0cdf101451ba3ac42adc42d2bdffa1f7e11067e",
+  "revision": "1d5c7b0cb6d5a16b1e8d2904256aa6eef56862e2",
   "omittedLegacyHelpers": [
     "OnnxSubjectTracker.kt",
     "SmartStreamReframer.kt"
@@ -52,7 +52,7 @@
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/matcher/VideoMatcher.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
-      "sha256": "51c9aeb0dadd81ad6bb138687f7cf122f57527b1d0fbe8abebbe38b73088bbaa"
+      "sha256": "affc8aa28787ac8cbdf0604198afc9d502760ffd6193833302abaec9eeae5afb"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
@@ -100,7 +100,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/CanvasSession.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSession.kt",
       "normalizeLf": true,
-      "sha256": "0185c87e06798eb893ec81ea0ede5ffa46c8a0609457b3b70b604599645fe6f0"
+      "sha256": "e190eeeceba1bb9c86efeeb4bdf323386e90b9a3a9da6637d37d1abf0d8aace5"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",
@@ -160,13 +160,13 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/InnerTubeBackend.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/InnerTubeBackend.kt",
       "normalizeLf": true,
-      "sha256": "2d9c3cd461c4ca00927216a9f68b6874fc78b8a0e1e6115593f4c943ba615d58"
+      "sha256": "e19e748e64fb26588182f6fd65f2ec25cee5f622c26b5ea3730766286f9df260"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
       "normalizeLf": true,
-      "sha256": "d2d682be8dbfd99194999565a8821606fdf8801870d8ac83e361eb9a6c4d3164"
+      "sha256": "a6f8e070d21e33a6ca4eac956432e93212667a7746c99aa961c8de3763d066f2"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
@@ -184,7 +184,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/StreamBackend.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/StreamBackend.kt",
       "normalizeLf": true,
-      "sha256": "79b009adaad7fd216aba65e022c562e4eebdeab8e78f926b55bf56256d6e07f2"
+      "sha256": "36776ed337285badae5ab76b7e4b5858865ef0613b3943d0fad568dd83be9120"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/SyncStore.kt",
@@ -251,8 +251,14 @@
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoQuery.kt",
       "normalizeLf": true,
       "sha256": "7270eb6c3595be0caa187af7b1356df24f1bbf89b6d9fb8149864d602658d82a"
+    },
+    {
+      "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/PublisherChannelProof.kt",
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/PublisherChannelProof.kt",
+      "normalizeLf": true,
+      "sha256": "2dfe4adb5073cfafd5a2098204af35b2e590602e2a80d14968715bcd6a8332d4"
     }
   ],
-  "revisionStatus": "published on OpenCanvas main",
-  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing and film abbreviation matching are now published in standalone OpenCanvas at the recorded revision. The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module."
+  "revisionStatus": "Published base revision; generic subtitle discovery and reciprocal publisher-channel proof staged in standalone checkout pending validation/publication",
+  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing, film abbreviation matching and signed-stream expiry handling are published in standalone OpenCanvas at the recorded revision. The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module."
 }

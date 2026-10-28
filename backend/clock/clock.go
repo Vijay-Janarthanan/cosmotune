@@ -3,7 +3,7 @@ package clock
 import "time"
 
 var (
-	epochWallMs   = time.Now().UnixMilli()
+	epochWallMs    = time.Now().UnixMilli()
 	epochMonotonic = time.Now()
 )
 

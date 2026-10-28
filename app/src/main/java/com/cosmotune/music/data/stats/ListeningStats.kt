@@ -764,6 +764,7 @@ object ListeningStats {
                 distinctArtists = rankedArtists.size,
                 distinctAlbums = rankedAlbums.size,
                 since = earliest,
+                dailyMs = days.toMap(),
             )
         }
     }
@@ -1073,6 +1074,7 @@ data class ReplaySummary(
     val distinctAlbums: Int,
     /** The earliest month with anything in it, `YYYY-MM`. */
     val since: String?,
+    val dailyMs: Map<String, Long> = emptyMap(),
 ) {
     val minutes: Long get() = totalMs / 60_000
     val hours: Long get() = totalMs / 3_600_000

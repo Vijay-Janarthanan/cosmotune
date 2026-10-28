@@ -26,6 +26,15 @@ object DesktopStrings {
         DesktopLanguage("fr", "Français"),
         DesktopLanguage("he", "עברית"),
         DesktopLanguage("hi", "हिन्दी"),
+        DesktopLanguage("ta", "தமிழ் · Manga", mangaOnlyTranslation = true),
+        DesktopLanguage("te", "తెలుగు · Manga", mangaOnlyTranslation = true),
+        DesktopLanguage("kn", "ಕನ್ನಡ · Manga", mangaOnlyTranslation = true),
+        DesktopLanguage("ml", "മലയാളം · Manga", mangaOnlyTranslation = true),
+        DesktopLanguage("bn", "বাংলা · Manga", mangaOnlyTranslation = true),
+        DesktopLanguage("mr", "मराठी · Manga", mangaOnlyTranslation = true),
+        DesktopLanguage("gu", "ગુજરાતી · Manga", mangaOnlyTranslation = true),
+        DesktopLanguage("pa", "ਪੰਜਾਬੀ · Manga", mangaOnlyTranslation = true),
+        DesktopLanguage("or", "ଓଡ଼ିଆ · Manga", mangaOnlyTranslation = true),
         DesktopLanguage("id", "Bahasa Indonesia"),
         DesktopLanguage("it", "Italiano"),
         DesktopLanguage("ja", "日本語"),
@@ -146,4 +155,4 @@ object DesktopStrings {
 }
 
 /** One entry in the language picker. */
-data class DesktopLanguage(val tag: String, val label: String)
+data class DesktopLanguage(val tag: String, val label: String, val mangaOnlyTranslation: Boolean = false)

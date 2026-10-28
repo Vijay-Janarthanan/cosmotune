@@ -24,8 +24,7 @@ import kotlinx.coroutines.withContext
 @Composable internal actual fun rememberMangaRepository(): Result<MangaRepository> {
     val context = LocalContext.current.applicationContext
     return remember(context) { runCatching {
-        val store = MangaStore(File(context.filesDir, "manga"), platformMangaFileProtection())
-        MangaRepository(store) { config, parser -> com.cosmotune.manga.extensions.MangaExtensions(context, store, parser).source(config) }
+        AndroidMangaLibrary.repository(context)
     } }
 }
 @Composable internal actual fun rememberMangaImport(onPicked: (String, () -> InputStream) -> Unit): () -> Unit {
@@ -39,7 +38,7 @@ import kotlinx.coroutines.withContext
             latest.value(name) { requireNotNull(context.contentResolver.openInputStream(uri)) { "Cannot open this document" } }
         }
     }
-    return remember(launcher) { { launcher.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.comicbook+zip", "application/octet-stream")) } }
+    return remember(launcher) { { launcher.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.comicbook+zip", "application/x-tar", "application/gzip", "application/x-gzip", "application/octet-stream")) } }
 }
 @Composable internal actual fun MangaBackHandler(enabled: Boolean, onBack: () -> Unit) = BackHandler(enabled, onBack)
 

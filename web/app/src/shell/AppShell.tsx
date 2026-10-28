@@ -15,6 +15,7 @@ import { MobileTopBar } from './MobileTopBar';
 import { PlayerBar } from './PlayerBar';
 import { SidePanel } from './SidePanel';
 import { Sidebar } from './Sidebar';
+import { PodioBar } from '@/podio/PodioBar';
 
 const mobile = isMobileBrowser();
 
@@ -85,6 +86,7 @@ export function AppShell() {
           </div>
         </main>
         <PlayerBar />
+        <PodioBar />
         <SidePanel />
       </div>
       {banner}

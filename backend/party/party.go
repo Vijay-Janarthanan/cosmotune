@@ -88,19 +88,19 @@ func TrackFromWire(raw map[string]interface{}) *Track {
 
 // PlaybackState tracks playhead, playback mode, anchor timestamps, and queue sequencing.
 type PlaybackState struct {
-	Track         *Track   `json:"track"`
-	Queue         []*Track `json:"-"`
-	QueueIndex    int      `json:"queueIndex"`
-	IsPlaying     bool     `json:"isPlaying"`
-	PositionMs    int64    `json:"positionMs"`
-	AnchorMs      int64    `json:"anchorMs"`
-	Seq           int      `json:"seq"`
-	QueueSeq      int      `json:"queueSeq"`
-	UpdatedBy     *string  `json:"updatedBy"`
-	UpdatedAtMs   int64    `json:"updatedAtMs"`
-	StartedBy     *string  `json:"startedBy"`
-	StartedByName *string  `json:"startedByName"`
-	AutoplayEnabled bool   `json:"autoplayEnabled"`
+	Track           *Track   `json:"track"`
+	Queue           []*Track `json:"-"`
+	QueueIndex      int      `json:"queueIndex"`
+	IsPlaying       bool     `json:"isPlaying"`
+	PositionMs      int64    `json:"positionMs"`
+	AnchorMs        int64    `json:"anchorMs"`
+	Seq             int      `json:"seq"`
+	QueueSeq        int      `json:"queueSeq"`
+	UpdatedBy       *string  `json:"updatedBy"`
+	UpdatedAtMs     int64    `json:"updatedAtMs"`
+	StartedBy       *string  `json:"startedBy"`
+	StartedByName   *string  `json:"startedByName"`
+	AutoplayEnabled bool     `json:"autoplayEnabled"`
 }
 
 func NewPlaybackState() *PlaybackState {
@@ -490,20 +490,20 @@ func (p *PlaybackState) QueueToWire() map[string]interface{} {
 
 // Member represents a joined device.
 type Member struct {
-	MemberId           string  `json:"memberId"`
-	UserId             string  `json:"userId"`
-	DeviceId           string  `json:"-"`
-	DisplayName        string  `json:"displayName"`
-	AvatarUrl          *string `json:"avatarUrl,omitempty"`
-	Token              string  `json:"-"`
-	IsHost             bool    `json:"isHost"`
-	Connected          bool    `json:"connected"`
-	JoinedAtMs         int64   `json:"joinedAtMs"`
-	LastSeenMs         int64   `json:"lastSeenMs"`
-	ControlBudget      float64 `json:"-"`
-	ControlBudgetAtMs  int64   `json:"-"`
-	FrameBudget        float64 `json:"-"`
-	FrameBudgetAtMs    int64   `json:"-"`
+	MemberId          string  `json:"memberId"`
+	UserId            string  `json:"userId"`
+	DeviceId          string  `json:"-"`
+	DisplayName       string  `json:"displayName"`
+	AvatarUrl         *string `json:"avatarUrl,omitempty"`
+	Token             string  `json:"-"`
+	IsHost            bool    `json:"isHost"`
+	Connected         bool    `json:"connected"`
+	JoinedAtMs        int64   `json:"joinedAtMs"`
+	LastSeenMs        int64   `json:"lastSeenMs"`
+	ControlBudget     float64 `json:"-"`
+	ControlBudgetAtMs int64   `json:"-"`
+	FrameBudget       float64 `json:"-"`
+	FrameBudgetAtMs   int64   `json:"-"`
 }
 
 func (m *Member) ToWire() map[string]interface{} {
@@ -845,7 +845,7 @@ func (s *PartyStore) CreateWithLimits(maxParties, maxMembers int) (*Party, error
 	for i := 0; i < 12; i++ {
 		code := codes.NewCode()
 		if _, exists := s.parties[code]; !exists {
-		p := NewPartyWithMaxMembers(code, maxMembers)
+			p := NewPartyWithMaxMembers(code, maxMembers)
 			s.parties[code] = p
 			return p, nil
 		}

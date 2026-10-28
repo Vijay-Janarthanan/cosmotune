@@ -8,6 +8,25 @@ import org.junit.rules.TemporaryFolder
 import kotlin.test.*
 
 class ProviderMediaProcessingTest {
+    @Test fun typedPcmEncodingIsScopedAndUnknownCodecOrOptionsNeverReachNativeCode() {
+        val root = temporary.newFolder(); File(root, "input").writeText("audio")
+        var calls = 0
+        val tools = object : ProviderMediaTools {
+            override fun probe(input: File, cancelled: () -> Boolean) = error("unused")
+            override fun remux(input: File, output: File, key: String?, maximumBytes: Long, cancelled: () -> Boolean) = error("unused")
+            override fun convertPcm(input: File, output: File, bits: Int, maximumBytes: Long, cancelled: () -> Boolean) {
+                calls++; assertEquals(24, bits); output.writeText("RIFF fixture")
+            }
+        }
+        val processing = ProviderMediaProcessing(ProviderFiles(root, ProviderNetwork(ProviderPermissions())), tools) { false }
+        processing.call("convert", buildJsonArray { add("input"); add("out.wav"); addJsonObject { put("codec", "pcm_s24le") } })
+        assertEquals(1, calls)
+        for (options in listOf("{\"codec\":\"shell\"}", "{\"codec\":\"pcm_s24le\",\"arguments\":\"-i https://host\"}")) {
+            assertFails { processing.call("convert", buildJsonArray { add("input"); add("out.wav"); add(Json.parseToJsonElement(options)) }) }
+        }
+        assertFails { processing.call("convert", buildJsonArray { add("input"); add("out.mp3"); addJsonObject { put("codec", "pcm_s24le") } }) }
+        assertEquals(1, calls)
+    }
     @get:Rule val temporary = TemporaryFolder()
     private fun descriptor(key: String = "00112233445566778899aabbccddeeff", extension: String = "") = buildJsonObject {
         put("output_extension", extension)

@@ -1,6 +1,16 @@
 # Provider audio preparation
 
-Version 1.0.7 source. Provider verification, file delivery, native preparation and actual decoding are separate steps.
+The original 1.0.7 preparation baseline and the 1.0.11 source additions are recorded separately below. Provider verification, file delivery, native preparation and actual decoding are separate steps.
+
+## 1.0.11 source additions
+
+Finite provider HLS and static, single-period DASH offers now enter complete-file preparation. HLS selects a declared audio rendition when a master provides one; it supports clear MPEG-TS/ADTS segments and fixed initialization plus fragmented MP4. DASH supports an audio representation with direct BaseURL, SegmentList (including validated byte ranges), or a finite Number/Time SegmentTemplate. Each manifest and segment passes through the package's existing declared-host, DNS, redirect and cookie boundary. Explicit headers are retained only for the original origin; child origins do not inherit explicit credentials, and HTTPS cannot downgrade. Native FFmpeg receives only joined local audio, never a network manifest or arbitrary resource address.
+
+Manifest work is bounded to 1,000 media resources, 512 MiB, four minutes and the remaining private workspace quota. Only completed local output gets a playback lease; cancellation interrupts the forked HTTP transport and local native work, while a disabled provider revokes its lease. Live playlists, multi-period/changing/discontinuous layouts, unsupported template shapes, XML DTDs, HLS key acquisition and unprovided DASH encryption keys fail explicitly. DASH encryption can use only the existing provider-supplied supported MOV-key descriptor; no licence request, key acquisition or DRM workaround is added. This is finite download-then-play, rather than progressive manifest playback.
+
+The permission-scoped `ffmpeg.convert(input, output, {codec})` contract now accepts `copy`, `pcm_s16le`, `pcm_s24le` and `flac`. PCM produces WAV through the existing native decoder without changing sample rate or channel count. FLAC encoding accepts a verified lossless/PCM source with a confirmed depth of at most 24 bits; ordinary 16-/24-bit inputs retain that depth. Lossy-to-FLAC requests are rejected so a new container cannot masquerade as a quality upgrade. Unknown encoders, resampling/layout options and raw FFmpeg command lines remain unsupported. Encoding is explicit package processing, not automatic processing of ordinary app playback. Staging and temporary PCM files are private, quota-limited and removed on failure/cancellation.
+
+`ProviderManifestMediaTest` covers rendition/segment order, DASH expansion, cross-origin headers, undeclared destinations, unsafe/live/encrypted manifests, cancellation, quotas and incomplete byte ranges. `ProviderManifestStreamTest` exercises the actual package-to-local-lease route and revocation with a host fixture. `ProviderMediaProcessingTest` verifies the typed asynchronous conversion boundary and option/path rejection. Desktop and Android native-media tests add actual PCM and FLAC conversion fixtures; Android NDK syntax checking passed. Final native rebuild, test and physical-platform results must be recorded separately from these source changes.
 
 ## Why Lokal could play a file that Cosmotune refused
 
@@ -13,14 +23,14 @@ Desktop uses the JavaCPP FFmpeg libraries already included in the app, shared by
 ## SDK compatibility and boundaries
 
 - `ffmpeg.getInfo` and `gobackend.getAudioQuality` inspect the actual local audio, including codec, duration, sample rate, depth, channels and bitrate.
-- `ffmpeg.convert` supports stream copy into the allowed audio containers. Arbitrary commands, encoders and conversion options remain unavailable.
+- The 1.0.7 `ffmpeg.convert` baseline supports stream copy; the bounded PCM/FLAC additions above require the new build. Arbitrary commands and other encoder/conversion options remain unavailable.
 - The disposable playback workspace has no permanent download ISRC index; `checkISRCExists` correctly returns no existing library download. Optional embedded-lyrics lookup returns an empty result; the app's separate lyrics pipeline remains responsible for playback lyrics.
 - `ffmpeg.mov_key` and its upstream aliases accept a provider-supplied 16-byte hex key. An empty output-extension field defaults to FLAC, as the real Amazon FLAC package requires. Unknown strategies, custom IVs and other output containers are rejected.
 - Explicit FLAC container conversion uses stream copy. Other requested codec conversions require additional implementation.
 - Paths stay inside the provider workspace. Output is staged privately, bounded by the remaining workspace quota and 512 MiB file limit, and published only after successful preparation. Cancellation, invalid input and failure delete staging output. Disabling a provider revokes the playback lease and deletes prepared media.
 - A package `download` call has a bounded 120-second budget on both script runtimes. Metadata retains its 30-second script budget. Signed `POST .../dl/...` preparation requests may wait up to 60 seconds for a response; ordinary metadata keeps the existing 15-second read/20-second call limits. A guest cannot request arbitrary longer timeouts.
 
-The complete-file route waits for delivery and preparation before playback. It is not progressive playback while downloading. HLS/DASH manifests and immersive output-device routing are separate work.
+The complete-file route waits for delivery and preparation before playback. It is not progressive playback while downloading. The finite HLS/DASH additions above require the new build; live/unsupported manifest layouts and immersive output-device routing remain separate work.
 
 ## Evidence
 

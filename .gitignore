@@ -46,3 +46,6 @@ keystore.properties
 # AI agent configuration
 AGENTS.md
 /output/
+
+# Local pnpm content store
+.pnpm-store/

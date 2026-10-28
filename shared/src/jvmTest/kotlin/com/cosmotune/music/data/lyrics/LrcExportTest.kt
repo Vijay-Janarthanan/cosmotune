@@ -9,6 +9,29 @@ import kotlin.test.assertTrue
 class LrcExportTest {
     private val song = Song("v", "Kannalane", "A. R. Rahman, K. S. Chithra", null, albumName = "Bombay [OST]", durationText = "5:35")
 
+    @Test fun bilingualExportKeepsOriginalWordsAndRepeatsTheTimestampForTheTranslation() {
+        val original = LyricLine(1_000, "Hello", words = listOf(LyricWord(1_000, 2_000, "Hello")))
+        val translated = LyricLine(1_000, "வணக்கம்", timingSource = original)
+        val lrc = LrcExport.render(song, listOf(original), listOf(translated))
+        assertTrue("[00:01.00]<00:01.00>Hello<00:02.00>\n[00:01.00]வணக்கம்\n" in lrc, lrc)
+        val parsed = LrcLib.parseLrc(lrc).filterNot { it.isGap }
+        assertEquals(listOf(1_000L, 1_000L), parsed.map { it.timeMs })
+        assertEquals(listOf("Hello", "வணக்கம்"), parsed.map { it.text })
+        assertEquals(2_000L, parsed.first().words.single().endMs)
+    }
+
+    @Test fun staleOrIdenticalSublinesAreNotExportedUnderTheWrongVerse() {
+        val lines = listOf(LyricLine(1_000, "First"), LyricLine(2_000, "Second"))
+        assertEquals(LrcExport.render(song, lines), LrcExport.render(song, lines, listOf(LyricLine(1_000, "Uno"))))
+        assertEquals(LrcExport.render(song, lines), LrcExport.render(song, lines,
+            listOf(LyricLine(2_000, "Wrong position"), LyricLine(2_000, "Second"))))
+    }
+
+    @Test fun untimedBilingualLyricsRemainReadableWithoutInventedTimestamps() {
+        val lrc = LrcExport.render(song, listOf(LyricLine(0, "Hello")), listOf(LyricLine(0, "வணக்கம்")))
+        assertTrue(lrc.endsWith("\nHello\nவணக்கம்\n"))
+    }
+
     @Test fun timedLyricsRoundTripThroughTheLrcReaders() {
         val lines = listOf(
             LyricLine(12_340, "Kannalane enadhu", background = LyricLine(13_000, "ooh")),

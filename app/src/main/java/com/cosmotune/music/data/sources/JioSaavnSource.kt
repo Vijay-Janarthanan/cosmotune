@@ -4,6 +4,7 @@ import com.cosmotune.music.data.TrackLog
 import com.cosmotune.music.data.jiosaavn.JioSaavnService
 import com.cosmotune.music.data.jiosaavn.prioritizeExplicit
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.ArtistRef
 
 private const val TAG = "Cosmotune"
 
@@ -45,6 +46,10 @@ class JioSaavnSource(
                 videoId = SourceRegistry.trackKey(config.id, raw.id),
                 title = raw.title,
                 artist = artistName,
+                artists = raw.moreInfo.artistMap.let { credits -> JioSaavnMatcher.creditNames(
+                    credits.primaryArtists.map { it.name }, credits.featuredArtists.map { it.name },
+                    credits.artists.map { it.name to it.role },
+                ).map { ArtistRef(it) } },
                 // Keep the release identity JioSaavn already gave us. Its
                 // catalogue contains different recordings under the same
                 // title and artist (notably the two "Brown Rang" rows), so

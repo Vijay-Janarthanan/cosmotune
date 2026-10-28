@@ -3,8 +3,11 @@ package com.cosmotune.music.playback
 import android.content.Context
 import android.media.MediaDataSource
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.SystemClock
 import com.cosmotune.music.data.TrackLog
+import com.cosmotune.music.R
 import com.cosmotune.music.playback.smart.AutomixAnalysisSource
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
@@ -192,19 +195,24 @@ object AudioCache {
     const val QUEUE_DEPTH = QUEUE_LOOKAHEAD + 1
 
     private lateinit var cache: SimpleCache
+    private lateinit var appContext: Context
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /**
-     * Kept in the app's cache directory: this is disposable by definition, and
-     * that is where the system and the "clear cache" button expect to reclaim
-     * it from. [SimpleCache] copes with files disappearing underneath it by
-     * dropping the spans that named them.
+     * Cached songs are used offline, so keep them in no-backup storage where Android's cache
+     * maintenance cannot silently empty the folder. The app's cache limit and Clear cache still
+     * apply. Move the old directory with its UID/index intact; a failed move retains the old copy.
      */
     fun init(context: Context) {
+        appContext = context.applicationContext
         evictor.maxBytes = AppSettings.audioCacheLimitBytes.value
+        val legacy = File(context.cacheDir, "audio")
+        val persistent = File(context.noBackupFilesDir, "audio")
+        val directory = CachedAudioPolicy.directory(legacy, persistent)
+        if (directory == legacy) TrackLog.d(TAG, "audio cache migration deferred; existing songs retained")
         cache = SimpleCache(
-            File(context.cacheDir, "audio"),
+            directory,
             evictor,
             StandaloneDatabaseProvider(context),
         )
@@ -217,7 +225,7 @@ object AudioCache {
         // ordinary YouTube cache entries remain warm.
         val state = context.getSharedPreferences(CACHE_STATE_PREFS, Context.MODE_PRIVATE)
         if (state.getInt(KEY_MATCHING_SCHEMA, 0) < MATCHING_SCHEMA) {
-            val stale = cache.keys.filter { it.endsWith(ALT_SUFFIX) }
+            val stale = cache.keys.filter(CachedAudioPolicy::isSubstitutionKey)
             stale.forEach { runCatching { cache.removeResource(it) } }
             state.edit().putInt(KEY_MATCHING_SCHEMA, MATCHING_SCHEMA).apply()
             TrackLog.d(TAG, "invalidated ${stale.size} source cache entries after matcher upgrade")
@@ -276,13 +284,18 @@ object AudioCache {
      * about to re-open the track can be sure the old bytes are gone first.
      * Call it off the main thread.
      */
-    fun discard(uri: Uri) {
+    fun discard(uri: Uri, keepComplete: Boolean = false) {
+        if (!::cache.isInitialized) return
         val exact = keyFactory.buildCacheKey(DataSpec(uri))
         val about = mediaIdIn(uri)
         val family = uri.getQueryParameter("v")?.let { videoId ->
             cache.keys.filter { it == videoId || it.startsWith("$videoId#") }
         } ?: emptyList()
         (family + exact).distinct().forEach { key ->
+            if (keepComplete && isComplete(key)) {
+                TrackLog.d(TAG, "kept complete cache entry $key through a network failure", about = about)
+                return@forEach
+            }
             runCatching { cache.removeResource(key) }
                 .onSuccess { TrackLog.d(TAG, "discarded cache entry $key", about = about) }
                 .onFailure { TrackLog.d(TAG, "cache entry $key still in use: ${it.message}", about = about) }
@@ -403,8 +416,9 @@ object AudioCache {
                 val rendition = QualityUpgrade.cacheTag(spec.uri)
                 when {
                     rendition != null -> "$videoId#$rendition"
-                    SourceResolver.canSubstituteForYouTube() -> "$videoId#alt${atmosKeySuffix()}"
-                    else -> videoId
+                    SourceResolver.canSubstituteForYouTube() ->
+                        "$videoId#alt${atmosKeySuffix()}".let { completeSibling(videoId, it) ?: it }
+                    else -> completeSibling(videoId, videoId) ?: videoId
                 }
             }
             // A source-backed track keys on the source and its track id alone.
@@ -428,6 +442,32 @@ object AudioCache {
             }
             ?: spec.key
             ?: spec.uri.toString()
+
+    private fun completeSibling(videoId: String, preferred: String): String? {
+        if (!::cache.isInitialized || cache.getCachedSpans(preferred).isNotEmpty()) return null
+        val copies = listOf(videoId, "$videoId$ALT_SUFFIX", "$videoId$ALT_SUFFIX-noatmos")
+            .filter { it != preferred }.map { key ->
+                val origin = cache.getContentMetadata(key).get(META_ORIGIN, null as String?)
+                CachedAudioPolicy.Copy(key, isComplete(key), origin == Origin.YOUTUBE.name || origin == Origin.JIOSAAVN.name)
+            }
+        if (copies.none { it.complete && it.keptOrigin }) return null
+        return CachedAudioPolicy.sibling(preferred, preferredHasBytes = false, offline = isOffline(), copies)
+    }
+
+    private fun isComplete(key: String): Boolean = runCatching {
+        val length = ContentMetadata.getContentLength(cache.getContentMetadata(key))
+        val spans = cache.getCachedSpans(key)
+        length > 0 && spans.isNotEmpty() && spans.all { it.file?.isFile == true } && cache.isCached(key, 0, length)
+    }.getOrDefault(false)
+
+    fun isOffline(): Boolean {
+        if (!::appContext.isInitialized) return false
+        return runCatching {
+            val connectivity = appContext.getSystemService(ConnectivityManager::class.java) ?: return false
+            connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+                ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) != true
+        }.getOrDefault(false)
+    }
 
     /**
      * Splits the `#alt` bucket in two along whatever this process currently
@@ -478,6 +518,7 @@ object AudioCache {
         val bytes: Long,
         /** When any of those bytes were last read or written, epoch millis. */
         val lastUsedMs: Long,
+        val complete: Boolean = false,
     )
 
     private val _contentsChanged = MutableStateFlow(0)
@@ -670,7 +711,7 @@ object AudioCache {
      */
     suspend fun cachedSongs(): List<CachedSong> = withContext(Dispatchers.IO) {
         if (!::cache.isInitialized) return@withContext emptyList()
-        class Entry(val origin: Origin, val meta: ContentMetadata, val bytes: Long, val touched: Long)
+        class Entry(val origin: Origin, val meta: ContentMetadata, val bytes: Long, val touched: Long, val complete: Boolean)
         val byTrack = LinkedHashMap<String, MutableList<Entry>>()
         for (key in cache.keys) {
             val meta = runCatching { cache.getContentMetadata(key) }.getOrNull() ?: continue
@@ -684,7 +725,7 @@ object AudioCache {
             val bytes = spans.sumOf { it.length }
             if (bytes <= 0L) continue
             val touched = spans.maxOf { it.lastTouchTimestamp }
-            byTrack.getOrPut(mediaId) { mutableListOf() } += Entry(origin, meta, bytes, touched)
+            byTrack.getOrPut(mediaId) { mutableListOf() } += Entry(origin, meta, bytes, touched, isComplete(key))
         }
         byTrack.map { (mediaId, entries) ->
             fun field(name: String): String? =
@@ -692,6 +733,7 @@ object AudioCache {
             val bytes = entries.sumOf { it.bytes }
             val lastUsed = entries.maxOf { it.touched }
             val origin = entries.maxBy { it.bytes }.origin
+            val complete = entries.any { it.complete }
             val noted = notedSongs[mediaId]
             val art = field(META_ART) ?: noted?.thumbnailUrl
                 ?: mediaId.takeIf { SourceRegistry.parseTrackKey(it) == null }
@@ -706,12 +748,14 @@ object AudioCache {
                     albumName = field(META_ALBUM) ?: noted?.albumName,
                     // The row's second line: where the copy came from and
                     // what it costs on disk.
-                    downloadFormat = "${origin.label} · ${formatBytes(bytes)}",
+                    downloadFormat = listOfNotNull(origin.label, formatBytes(bytes),
+                        appContext.getString(R.string.cached_song_partial).takeUnless { complete }).joinToString(" · "),
                     localDateAddedSeconds = lastUsed / 1000,
                 ),
                 origin = origin,
                 bytes = bytes,
                 lastUsedMs = lastUsed,
+                complete = complete,
             )
         }.sortedByDescending { it.lastUsedMs }
     }
@@ -792,7 +836,7 @@ object AudioCache {
 
     private const val CACHE_STATE_PREFS = "audio_cache_state"
     private const val KEY_MATCHING_SCHEMA = "matching_schema"
-    private const val MATCHING_SCHEMA = 2
+    private const val MATCHING_SCHEMA = 3
     private const val ALT_SUFFIX = "#alt"
 
     /**

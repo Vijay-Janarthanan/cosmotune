@@ -42,6 +42,12 @@ describe('extendStation (QueueBuilder)', () => {
   it('still plays a mix of nothing but videos', () => {
     expect(ids(extendStation([], [video('aaa', 'One', 'A'), video('bbb', 'Two', 'B')], 10))).toEqual(['aaa', 'bbb']);
   });
+  it('keeps a music-video station on the video cuts', () => {
+    expect(ids(extendStation([], [song('a', 'One', 'A'), video('b', 'One', 'A'), video('c', 'Two', 'B')], 10, true))).toEqual(['b', 'c']);
+  });
+  it('allows catalogue cuts when a video station has no video choices', () => {
+    expect(ids(extendStation([], [song('a', 'One', 'A')], 10, true))).toEqual(['a']);
+  });
   it('treats the video cut as the same recording as its audio', () => {
     expect(isSameRecording(track('aaa', 'Kesariya'), track('bbb', 'Kesariya (Official Video)'))).toBe(true);
   });

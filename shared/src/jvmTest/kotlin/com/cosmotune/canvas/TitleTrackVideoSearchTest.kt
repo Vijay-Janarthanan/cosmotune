@@ -11,6 +11,17 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class TitleTrackVideoSearchTest {
+    @Test fun anEnglishCatalogueSubtitleUsesTheBaseTitleForDiscovery() = runBlocking {
+        val queries = mutableListOf<String>()
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            queries += chain.request().url.queryParameter("search_query").orEmpty()
+            response(chain.request(), page("lZORMUufA_Y", "3 - Idhazhin Oram Video | Dhanush, Shruti | Anirudh", "SonyMusicSouthVEVO", false))
+        }.build()
+        val found = MusicVideoSearch(http).find("Idhazhin Oram (The Innocence of Love)", "Anirudh Ravichander", 204, album = "3")
+        assertEquals("lZORMUufA_Y", found.first().videoId)
+        assertEquals("Idhazhin Oram 3 video song", queries.first())
+        assertEquals(1, queries.size)
+    }
     @Test fun theAbbreviatedFilmFindsItsVerifiedThinkTapesRelease() = runBlocking {
         val query = com.opencanvas.core.stream.MusicVideoQuery.from("Ayyo Ayyo", "M. Kumaran S O Mahalakshmi")
         assertEquals("M. Kumaran Son of Mahalakshmi", query.album)

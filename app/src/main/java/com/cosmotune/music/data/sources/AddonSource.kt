@@ -427,6 +427,7 @@ class AddonSource(
             },
             sampleRateHz = answer.sampleRateHz,
             bitDepth = answer.bits,
+            kbpsInferred = answer.kbps == null && tier in setOf(AddonClient.TIER_HIGH, AddonClient.TIER_LOW),
         )
     }
 

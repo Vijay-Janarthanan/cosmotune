@@ -1337,4 +1337,5 @@
     <string name="artist_signatures_unconfigured">尚未配置，点按设置 API 地址</string>
     <string name="artist_signatures_test_failed">无法连接到该地址的 API</string>
     <string name="signed_by">%1$s 的签名</string>
+    <string name="cached_song_partial">部分缓存 · 需要连接</string>
 </resources>

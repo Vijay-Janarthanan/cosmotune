@@ -12,6 +12,7 @@
     <!-- Device keys, packages and offline media use explicit portable export instead. -->
     <exclude domain="file" path="providers/" />
     <exclude domain="file" path="manga/" />
+    <exclude domain="root" path="app_webview_cosmotune_manga_verification/" />
     <exclude domain="sharedpref" path="cosmotune_auth.xml" />
     <exclude domain="sharedpref" path="cosmotune_auth_plain.xml" />
     <exclude domain="sharedpref" path="cosmotune_sources.xml" />

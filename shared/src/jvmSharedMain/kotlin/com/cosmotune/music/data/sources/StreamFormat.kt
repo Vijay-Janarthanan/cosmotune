@@ -8,8 +8,8 @@ import java.util.Locale
  * Every field is nullable because most of them are genuinely unknown until the
  * bytes arrive: a server that reports "flac" rarely reports the bit depth with
  * it, and one that reports a bitrate is usually describing a transcode it has
- * not performed yet. Nothing here is inferred — a null means "not stated", and
- * the player reports the decoder's own numbers over these once it has them.
+ * not performed yet. An unstated field stays null; a quality-tier bitrate estimate
+ * is explicitly marked [kbpsInferred]. The player reports the decoder's own numbers.
  * The two are worth comparing rather than merging, because a source claiming
  * 24/192 and a sink running at 16/48 is exactly the failure this feature is
  * most likely to hide.
@@ -20,6 +20,8 @@ data class StreamFormat(
     val kbps: Int? = null,
     val sampleRateHz: Int? = null,
     val bitDepth: Int? = null,
+    /** A requested quality tier supplied this estimate; it is not a measured source bitrate. */
+    val kbpsInferred: Boolean = false,
 ) {
     /**
      * Whether this is a bit-exact copy of the master the source holds.
@@ -42,7 +44,7 @@ data class StreamFormat(
             codec?.uppercase(Locale.ROOT),
             bitDepth?.let { "$it-bit" },
             sampleRateHz?.let { "${"%.1f".format(Locale.ROOT, it / 1000f).removeSuffix(".0")} kHz" },
-            kbps?.takeIf { isLossless != true }?.let { "$it kbps" },
+            kbps?.takeIf { isLossless != true }?.let { "${if (kbpsInferred) "~" else ""}$it kbps" },
         ).joinToString(" · ").ifEmpty { "Unknown format" }
 
     private companion object {

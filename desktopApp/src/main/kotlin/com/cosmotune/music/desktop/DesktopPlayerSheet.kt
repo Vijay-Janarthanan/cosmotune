@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +46,7 @@ import kotlinx.coroutines.launch
 internal fun DesktopPlayerSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
+    visualSong: com.cosmotune.music.data.model.Song? = null,
     content: @Composable BoxScope.(windowWidth: Dp, windowHeight: Dp) -> Unit,
 ) {
     // The new look: the player is the shared overlay that grows out of the player bar, not this sheet. The wide Now Playing has the
@@ -52,6 +54,7 @@ internal fun DesktopPlayerSheet(
     com.cosmotune.ui.theme.LocalCosmoShell.current?.let { shell ->
         com.cosmotune.ui.shell.CosmoPlayerOverlay(visible, onDismiss, shell) { w, h ->
             androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.shell.LocalPlayerVolumeLabel provides DesktopStrings["d_volume", "Volume"]) { content(w, h) }
+            DesktopVisualsLauncher(visualSong, Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 100.dp))
         }
         return
     }
@@ -96,6 +99,7 @@ internal fun DesktopPlayerSheet(
                 ),
         ) {
             content(windowWidth, windowHeight)
+            DesktopVisualsLauncher(visualSong, Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 100.dp))
             // The handle the landscape player draws at its top edge, made to do
             // on a click what it promises for a drag.
             Box(

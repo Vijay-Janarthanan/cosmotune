@@ -979,7 +979,7 @@ object Downloads {
         // for lossless with a transcode.
         if (quality.keepsLossless) {
             LOSSLESS_EXTENSIONS.firstNotNullOfOrNull { extension ->
-                DownloadStore.existing(context, DownloadStore.fileNameFor(track, extension))
+                DownloadStore.existing(context, DownloadStore.fileNameFor(track, extension), podcast = com.cosmotune.podio.PodioDownloads.isEpisode(track.videoId))
             }?.let { uri ->
                 return@withContext Prepared(song.videoId, track, route = null, alreadyAt = uri)
             }
@@ -1054,7 +1054,7 @@ object Downloads {
                 }
 
                 val name = DownloadStore.fileNameFor(track, route.extension)
-                val alreadyThere = DownloadStore.existing(context, name)
+                val alreadyThere = DownloadStore.existing(context, name, podcast = com.cosmotune.podio.PodioDownloads.isEpisode(track.videoId))
                 if (alreadyThere != null) {
                     Log.d(TAG, "$name is already in Music; adopting it")
                     remember(song, track, alreadyThere)
@@ -1095,7 +1095,7 @@ object Downloads {
                     return@coroutineScope
                 }
 
-                val destination = DownloadStore.begin(context, name, route.mimeType)
+                val destination = DownloadStore.begin(context, name, route.mimeType, podcast = com.cosmotune.podio.PodioDownloads.isEpisode(track.videoId))
                 pending = destination
                 destination.openStream().use { sink ->
                     route.write(sink) { written, total ->
@@ -1179,6 +1179,20 @@ object Downloads {
      *   a mid-download refusal and has to ask for the same rung it started on.
      */
     private suspend fun routeFor(context: Context, track: Song, quality: DownloadQuality): Route {
+        if (track.videoId.startsWith("podio:")) {
+            require(com.cosmotune.podio.PodioDownloads.isEpisode(track.videoId)) { "Live radio cannot be downloaded as an episode." }
+            com.cosmotune.podio.YouTubePodcasts.videoId(track.videoId)?.let { rawVideoId ->
+                val requireM4a = AppSettings.exportDownloads.value
+                val stream = StreamResolver.resolveForDownload(rawVideoId, quality.maxKbps, requireM4a)
+                return Route(stream.downloadExtension, stream.downloadMimeType, "YouTube Music podcast", taggable = false, providerKey = "podio:youtube",
+                    write = { sink, progress -> Downloader.fetch(rawVideoId, stream, quality.maxKbps, requireM4a, sink, progress) })
+            }
+            val url = requireNotNull(com.cosmotune.podio.PodioCatalogue.httpUrl(track.localUri.orEmpty())) { "This episode has no publisher audio URL." }
+            val format = com.cosmotune.podio.PodioDownloads.inspect(url)
+            require(!AppSettings.exportDownloads.value || format.extension != "webm") { "This podcast container can be saved with in-app downloads. Turn off export downloads and retry." }
+            return Route(format.extension, format.mimeType, "Podcast publisher", taggable = false, providerKey = "podio:publisher",
+                write = { sink, progress -> Downloader.fetchDirect(url, emptyMap(), sink, progress) })
+        }
         fromSources(track, quality)?.let { (stream, storable) ->
             // A manifest is an index, not audio. Whichever kind it is, fetching
             // it as a file writes the index into something named `.flac` —

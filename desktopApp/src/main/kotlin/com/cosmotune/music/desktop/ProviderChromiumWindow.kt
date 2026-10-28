@@ -174,7 +174,7 @@ internal object ProviderChromiumWindow {
     }
 
     /** Native-only CDP channel to this generated profile; no broad remote origin allowance or JS bridge. */
-    private class Rpc(address: URI, private val event: (JsonObject) -> Unit) : AutoCloseable {
+    internal class Rpc(address: URI, private val event: (JsonObject) -> Unit) : AutoCloseable {
         private val sequence = AtomicInteger()
         private val pending = ConcurrentHashMap<Int, CompletableFuture<JsonObject>>()
         private val events = Executors.newSingleThreadExecutor { task -> Thread(task, "Provider browser events").apply { isDaemon = true } }

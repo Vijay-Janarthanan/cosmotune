@@ -43,9 +43,9 @@ fun MangaApp(contentPadding: PaddingValues = PaddingValues(), onMusic: () -> Uni
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(Modifier.padding(contentPadding).windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp)) {
                 Text("Manga storage is unavailable", style = MaterialTheme.typography.titleLarge)
-                Text("Check available disk space and file access, then retry.")
-                TextButton(onClick = { retry++ }) { Text("Retry") }
-                TextButton(onClick = onMusic) { Text("Music") }
+                Text(mangaText("Check available disk space and file access, then retry."))
+                TextButton(onClick = { retry++ }) { Text(mangaText("Retry")) }
+                TextButton(onClick = onMusic) { Text(mangaText("Music")) }
             }
         }
     } else MangaContent(contentPadding, onMusic, ready)
@@ -53,11 +53,13 @@ fun MangaApp(contentPadding: PaddingValues = PaddingValues(), onMusic: () -> Uni
 
 @Composable
 private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, repository: MangaRepository) {
+    MangaBackgroundUpdates(repository)
     val state by repository.store.state.collectAsState()
     val scope = rememberCoroutineScope()
     var selected by remember { mutableStateOf(state.books.find { it.id == state.activeBookId }) }
     var chapter by remember { mutableStateOf(selected?.chapters?.find { it.id == state.activeChapterId }) }
     var sourceId by rememberSaveable { mutableStateOf("library") }
+    var collection by rememberSaveable { mutableStateOf("") }
     var query by rememberSaveable { mutableStateOf("") }
     // The desktop sidebar's Library and Discover rows and this page's tabs are one choice.
     LaunchedEffect(Unit) {
@@ -111,40 +113,44 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
             MangaReader(repository, current, hasNext = next != null, onBack = { chapter = null }, onNext = { chapter = next })
         } else Column(Modifier.fillMaxSize().padding(contentPadding).windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp)) {
             ModePageHeader(selected?.title ?: "Manga", if (selected != null) "Chapters, downloads and reading progress" else "Your library, new discoveries and stories to continue.")
-            if (selected != null) TextButton(onClick = { selected = null }) { Text("Back") }
-            else ModeTabs(listOf("Library", "Discover"), if (sourceId == "library") "Library" else "Discover",
-                { sourceId = if (it == "Library") "library" else "all"; query = ""; com.cosmotune.ui.blocks.ModeNav.mangaTab.value = it }, Modifier.widthIn(max = 440.dp).fillMaxWidth())
+            if (selected != null) TextButton(onClick = { selected = null }) { Text(mangaText("Back")) }
+            else {
+                val libraryLabel = mangaText("Library"); val discoverLabel = mangaText("Discover")
+                ModeTabs(listOf(libraryLabel, discoverLabel), if (sourceId == "library") libraryLabel else discoverLabel,
+                    { val library = it == libraryLabel; sourceId = if (library) "library" else "all"; query = ""; com.cosmotune.ui.blocks.ModeNav.mangaTab.value = if (library) "Library" else "Discover" }, Modifier.widthIn(max = 440.dp).fillMaxWidth())
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                FilledTonalButton(onClick = { sourceDialog = true }) { Text("Sources") }
-                OutlinedButton(onClick = pick, enabled = !busy) { Text("Import CBZ") }
-                TextButton(onClick = pickFolder, enabled = !busy) { Text("Image folder") }
+                FilledTonalButton(onClick = { sourceDialog = true }) { Text(mangaText("Sources")) }
+                OutlinedButton(onClick = pick, enabled = !busy) { Text(mangaText("Import comic")) }
+                TextButton(onClick = pickFolder, enabled = !busy) { Text(mangaText("Image folder")) }
             }
             error?.let { message ->
                 Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp)) {
                     Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(message, modifier = Modifier.weight(1f)); TextButton(onClick = { error = null }) { Text("Dismiss") }
+                        Text(message, modifier = Modifier.weight(1f)); TextButton(onClick = { error = null }) { Text(mangaText("Dismiss")) }
                     }
                 }
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (transfer?.isActive == true) Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(downloadProgress, modifier = Modifier.weight(1f)); TextButton(onClick = { transfer?.cancel() }) { Text("Cancel download") }
+                Text(downloadProgress, modifier = Modifier.weight(1f)); TextButton(onClick = { transfer?.cancel() }) { Text(mangaText("Cancel download")) }
             }
             val book = selected
             if (book != null) {
                 MangaBackHandler(true) { selected = null }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val saved = state.books.any { it.id == book.id }
-                    Button(onClick = { action { repository.store.save(book) } }, enabled = !saved) { Text(if (saved) "In library" else "Add to library") }
+                    Button(onClick = { action { repository.store.save(book) } }, enabled = !saved) { Text(mangaText(if (saved) "In library" else "Add to library")) }
                     TextButton(onClick = { scope.launch {
                         busy = true; error = null
                         try { selected = repository.chapters(book) }
                         catch (cancelled: CancellationException) { throw cancelled }
                         catch (failure: Exception) { error = failure.message }
                         finally { busy = false }
-                    } }) { Text("Refresh chapters") }
-                    if (saved) TextButton(enabled = transfer?.isActive != true, onClick = { action { repository.removeBook(book.id); selected = null } }) { Text("Remove from library") }
+                    } }) { Text(mangaText("Refresh chapters")) }
+                    if (saved) TextButton(enabled = transfer?.isActive != true, onClick = { action { repository.removeBook(book.id); selected = null } }) { Text(mangaText("Remove from library")) }
                 }
+                if (state.books.any { it.id == book.id }) MangaCollectionAssignment(repository, book.id)
                 val editions = book.editions()
                 var edition by rememberSaveable(book.id) { mutableStateOf("") }
                 var newestFirst by rememberSaveable(book.id) { mutableStateOf(false) }
@@ -155,15 +161,15 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                     item(key = "series:header") {
                         Text(book.authors.joinToString(" · "), style = MaterialTheme.typography.labelLarge)
                         if (book.description.isNotBlank()) Text(org.jsoup.Jsoup.parse(book.description).text(), modifier = Modifier.padding(vertical = 12.dp))
-                        if (book.chapters.isEmpty()) Text("Refresh chapters to load this series.")
+                        if (book.chapters.isEmpty()) Text(mangaText("Refresh chapters to load this series."))
                         else {
                             if (editions.size > 1) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("manga:editions")) {
-                                FilterChip(selected = edition.isBlank(), onClick = { edition = "" }, label = { Text("All editions") })
+                                FilterChip(selected = edition.isBlank(), onClick = { edition = "" }, label = { Text(mangaText("All editions")) })
                                 editions.forEach { item -> FilterChip(selected = edition == item, onClick = { edition = item }, label = { Text(item) }) }
                             }
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
-                                TextButton(onClick = { newestFirst = !newestFirst }) { Text(if (newestFirst) "Newest first" else "Oldest first") }
-                                FilterChip(selected = unreadOnly, onClick = { unreadOnly = !unreadOnly }, label = { Text("Unread only") })
+                                TextButton(onClick = { newestFirst = !newestFirst }) { Text(mangaText(if (newestFirst) "Newest first" else "Oldest first")) }
+                                FilterChip(selected = unreadOnly, onClick = { unreadOnly = !unreadOnly }, label = { Text(mangaText("Unread only")) })
                                 Text("${listed.size} of ${book.chapters.size} chapters · ${book.chapters.count { it.id !in state.readChapters }} unread",
                                     style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.CenterVertically))
                             }
@@ -194,7 +200,7 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                                     style = MaterialTheme.typography.labelMedium)
                             }
                             TextButton(onClick = { action { repository.store.save(book); repository.store.markRead(item, !finished) } }) {
-                                Text(if (finished) "Mark unread" else "Mark read")
+                                Text(mangaText(if (finished) "Mark unread" else "Mark read"))
                             }
                             if (item.sourceId != "local") {
                                 val downloaded = state.downloads.containsKey(item.id)
@@ -208,7 +214,7 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                                         } catch (cancelled: CancellationException) { throw cancelled }
                                         catch (failure: Exception) { error = failure.message ?: "Download failed" }
                                     }
-                                }) { Text(if (downloaded) "Remove download" else "Download") }
+                                }) { Text(mangaText(if (downloaded) "Remove download" else "Download")) }
                             }
                         }
                         HorizontalDivider()
@@ -218,17 +224,18 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                 var menu by remember { mutableStateOf(false) }
                 FlowRow(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
                     Box {
-                        FilledTonalButton(onClick = { menu = true }) { Text(when (sourceId) { "library" -> "My library"; "all" -> "All enabled sources"; else -> state.sources.find { it.id == sourceId }?.name ?: "Choose source" }) }
+                        FilledTonalButton(onClick = { menu = true }) { Text(when (sourceId) { "library" -> mangaText("My library"); "all" -> mangaText("All enabled sources"); else -> state.sources.find { it.id == sourceId }?.name ?: mangaText("Choose source") }) }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(text = { Text("My library") }, onClick = { sourceId = "library"; menu = false })
-                            DropdownMenuItem(text = { Text("All enabled sources") }, onClick = { sourceId = "all"; menu = false })
+                            DropdownMenuItem(text = { Text(mangaText("My library")) }, onClick = { sourceId = "library"; menu = false })
+                            DropdownMenuItem(text = { Text(mangaText("All enabled sources")) }, onClick = { sourceId = "all"; menu = false })
                             state.sources.filter { it.enabled }.forEach { source ->
                                 DropdownMenuItem(text = { Text("${source.name} · ${source.language}") }, onClick = { sourceId = source.id; menu = false })
                             }
                         }
                     }
-                    OutlinedTextField(query, { query = it }, label = { Text("Search manga") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(query, { query = it }, label = { Text(mangaText("Search manga")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
+                if (sourceId == "library") MangaCollections(repository, collection) { collection = it }
                 if (sourceId == "library" && state.books.any { it.sourceId != "local" }) Row(verticalAlignment = Alignment.CenterVertically) {
                     val running = updateJob?.isActive == true
                     TextButton(enabled = !running, onClick = {
@@ -238,16 +245,16 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
                             catch (cancelled: CancellationException) { throw cancelled }
                             catch (failure: Exception) { error = failure.message ?: "Updates could not be checked" }
                         }
-                    }) { Text("Check for updates") }
+                    }) { Text(mangaText("Check for updates")) }
                     updates?.let { report ->
                         val found = if (report.newChapters == 1) "1 new chapter" else "${report.newChapters} new chapters"
                         val text = if (running) "Checking ${report.checked} of ${report.total} series · $found"
                             else "$found in ${report.updatedSeries} series" + if (report.failures.isEmpty()) "" else " · ${report.failures.size} unavailable"
                         Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                     }
-                    if (running) TextButton(onClick = { updateJob?.cancel() }) { Text("Stop") }
+                    if (running) TextButton(onClick = { updateJob?.cancel() }) { Text(mangaText("Stop")) }
                 }
-                MangaCatalogue(repository, sourceId, query, onBook = { item ->
+                MangaCatalogue(repository, sourceId, query, collection, onBook = { item ->
                     selected = item
                     scope.launch {
                         busy = true; error = null
@@ -264,7 +271,8 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
 }
 
 @Composable
-private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: String, query: String, onBook: (MangaBook) -> Unit) {
+private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: String, query: String, collection: String, onBook: (MangaBook) -> Unit) {
+    var verificationAddress by remember(sourceId, query) { mutableStateOf<String?>(null) }
     val library by repository.store.state.collectAsState()
     val configuration: Any? = if (sourceId == "all") library.sources else library.sources.find { it.id == sourceId }
     // A changed source configuration (another catalogue language) starts its catalogue again from the first page.
@@ -306,6 +314,7 @@ private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: St
     LaunchedEffect(sourceId, query, requested, configuration, revision) {
         val generation = ++loadGeneration
         error = null
+        verificationAddress = null
         aggregate = null
         if (sourceId == "all") {
             next = null; results = emptyList()
@@ -330,22 +339,23 @@ private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: St
                 results = (if (requested == 0) response.books else results + response.books).distinctBy { it.id }
                 next = response.nextOffset
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (failure: Exception) { error = failure.message ?: "Source could not be loaded" }
+            catch (failure: Exception) { error = failure.message ?: "Source could not be loaded"; verificationAddress = (failure as? com.cosmotune.manga.data.MangaBrowserRequired)?.address }
             finally { if (generation == loadGeneration) loading = false }
         }
     }
-    val books = if (sourceId == "library") library.books.filter { it.title.contains(query, true) }.sortedByDescending { library.progress[it.id]?.updatedAtMs ?: it.addedAtMs } else results
+    val books = if (sourceId == "library") library.collectionBooks(collection).filter { it.title.contains(query, true) }.sortedByDescending { library.progress[it.id]?.updatedAtMs ?: it.addedAtMs } else results
     if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
     if (sourceId == "all") aggregate?.let { current ->
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${current.completed} / ${current.total} sources · ${current.books.size} series", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-            if (loading) TextButton(onClick = { searchJob?.cancel() }) { Text("Stop search") }
+            if (loading) TextButton(onClick = { searchJob?.cancel() }) { Text(mangaText("Stop search")) }
         }
         if (current.errors.isNotEmpty()) Text("${current.errors.size} sources unavailable. Choose an individual source to retry or check its settings.", style = MaterialTheme.typography.bodySmall)
         Text("Searches the first catalogue page, up to 25 series per source. Choose a source to see more.", style = MaterialTheme.typography.bodySmall)
         if (current.truncated) Text("Showing up to 2,000 results. Choose a source for its full catalogue.", style = MaterialTheme.typography.bodySmall)
     }
     error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp)) }
+    if (sourceId != "library" && sourceId != "all" && !loading && error != null) MangaVerificationControls(repository, sourceId, verificationAddress)
     if (books.isEmpty() && !loading) Text(if (sourceId == "library") "Import a CBZ comic or enable a source to start your library." else "No manga found. Try another search or source.", modifier = Modifier.padding(vertical = 24.dp))
     LazyVerticalGrid(columns = GridCells.Adaptive(140.dp), modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -378,7 +388,7 @@ private fun ColumnScope.MangaCatalogue(repository: MangaRepository, sourceId: St
             }
         }
     }
-    if (sourceId != "library" && next != null && !loading && results.isNotEmpty()) TextButton(onClick = { requested = requireNotNull(next) }) { Text("Load more") }
+    if (sourceId != "library" && next != null && !loading && results.isNotEmpty()) TextButton(onClick = { requested = requireNotNull(next) }) { Text(mangaText("Load more")) }
 }
 
 @Composable
@@ -401,27 +411,29 @@ private fun MangaSources(repository: MangaRepository, onDismiss: () -> Unit) {
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) { error = failure.message ?: "Source settings could not be saved" }
     }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Manga sources") }, confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }, text = {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(mangaText("Manga sources")) }, confirmButton = { TextButton(onClick = onDismiss) { Text(mangaText("Done")) } }, text = {
         LazyColumn(Modifier.heightIn(max = 560.dp).fillMaxWidth().testTag("manga:sources:list"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item(key = "management") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${state.cacheLimitBytes / (1024 * 1024)} MB page storage", modifier = Modifier.weight(1f))
-                TextButton(onClick = { action { repository.clearCache() } }) { Text("Clear cache") }
+                TextButton(onClick = { action { repository.clearCache() } }) { Text(mangaText("Clear cache")) }
             }
             FlowRow {
                 listOf(128L, 256L, 512L, 1024L).forEach { mb -> TextButton(onClick = { action { repository.store.update { it.copy(cacheLimitBytes = mb * 1024 * 1024) } } }) { Text("$mb") } }
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            TextButton(onClick = { komga = !komga }) { Text("Connect Komga library") }
+            TextButton(onClick = { komga = !komga }) { Text(mangaText("Connect Komga library")) }
             MangaExtensionControls(repository, onError = { error = it })
             MangaTemplateControls(repository)
+            MangaVerificationSourcePicker(repository)
+            MangaLibraryTools(repository)
             if (komga) {
-                OutlinedTextField(server, { server = it.take(2_048) }, label = { Text("Server URL") }, singleLine = true, modifier = Modifier.testTag("manga:komga:server"))
-                OutlinedTextField(key, { key = it.take(512) }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                OutlinedTextField(server, { server = it.take(2_048) }, label = { Text(mangaText("Server URL")) }, singleLine = true, modifier = Modifier.testTag("manga:komga:server"))
+                OutlinedTextField(key, { key = it.take(512) }, label = { Text(mangaText("API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.testTag("manga:komga:key"))
                 Text("Or sign in with a Komga user name and password instead of an API key.", style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(user, { user = it.take(256) }, label = { Text("User name") }, singleLine = true)
-                OutlinedTextField(password, { password = it.take(512) }, label = { Text("Password") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                OutlinedTextField(user, { user = it.take(256) }, label = { Text(mangaText("User name")) }, singleLine = true)
+                OutlinedTextField(password, { password = it.take(512) }, label = { Text(mangaText("Password")) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
                 TextButton(enabled = !testing, onClick = { scope.launch {
                     testing = true
                     try {
@@ -434,7 +446,7 @@ private fun MangaSources(repository: MangaRepository, onDismiss: () -> Unit) {
                     } catch (cancelled: CancellationException) { throw cancelled }
                     catch (failure: Exception) { error = failure.message ?: "Komga could not be reached" }
                     finally { testing = false }
-                } }) { Text("Test and save") }
+                } }) { Text(mangaText("Test and save")) }
             }
             state.sources.filter { it.kind == "komga" }.forEach { config ->
                 Row(Modifier.fillMaxWidth().testTag("manga:komga:${config.id}"), verticalAlignment = Alignment.CenterVertically) {
@@ -444,11 +456,11 @@ private fun MangaSources(repository: MangaRepository, onDismiss: () -> Unit) {
                     TextButton(onClick = { action {
                         repository.store.update { it.copy(sources = it.sources.filterNot { source -> source.id == config.id }) }
                         repository.invalidateSource(config.id)
-                    } }) { Text("Remove") }
+                    } }) { Text(mangaText("Remove")) }
                 }
             }
-            OutlinedTextField(query, { query = it.take(500) }, label = { Text("Find source") }, singleLine = true, modifier = Modifier.testTag("manga:sources:query"))
-            OutlinedTextField(language, { language = it.take(32) }, label = { Text("Language code, e.g. en or ja") }, singleLine = true, modifier = Modifier.testTag("manga:sources:language"))
+            OutlinedTextField(query, { query = it.take(500) }, label = { Text(mangaText("Find source")) }, singleLine = true, modifier = Modifier.testTag("manga:sources:query"))
+            OutlinedTextField(language, { language = it.take(32) }, label = { Text(mangaText("Language code, e.g. en or ja")) }, singleLine = true, modifier = Modifier.testTag("manga:sources:language"))
             } }
                 items(catalogue.filter { it.title.contains(query, true) && it.language.contains(language, true) }, key = { it.id }) { source ->
                     val enabled = state.sources.any { it.id == source.id && it.enabled }

@@ -309,11 +309,21 @@ internal object DesktopSourceRegistry {
     ): Result<DesktopStream> = runCatching {
         if (song.videoId.startsWith("podio:")) {
             check(excludedSourceId?.startsWith("podio:") != true) { "This Podio stream could not be played" }
+            com.cosmotune.podio.YouTubePodcasts.videoId(song.videoId)?.let { videoId ->
+                return@runCatching DesktopStreamClient.resolve(song.copy(videoId = videoId), youtubeCeiling(quality))
+                    .getOrThrow().copy(sourceId = "podio:youtube")
+            }
             val source = when {
                 song.videoId.startsWith("podio:radio:") -> "podio:radio"
                 else -> "podio:publisher"
             }
-            return@runCatching DesktopStream(requireNotNull(com.cosmotune.podio.PodioCatalogue.httpUrl(song.localUri.orEmpty())), sourceId = source)
+            val url = requireNotNull(com.cosmotune.podio.PodioCatalogue.httpUrl(song.localUri.orEmpty()))
+            if (forDownload) {
+                require(com.cosmotune.podio.PodioDownloads.isEpisode(song.videoId)) { "Live radio cannot be downloaded as an episode." }
+                val format = com.cosmotune.podio.PodioDownloads.inspect(url)
+                return@runCatching DesktopStream(url, DesktopStreamFormat(codec = format.extension), sourceId = source)
+            }
+            return@runCatching DesktopStream(url, sourceId = source)
         }
         val providerTrack = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.takeIf { it.first.startsWith("sflx-") }
         if (providerTrack != null) {

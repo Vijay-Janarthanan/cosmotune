@@ -8,6 +8,8 @@ This companion is a separate browser app. It includes music browsing/search, alb
 
 The native Android/desktop interfaces keep their existing design. The browser port uses Cosmotune's existing mark and warm accent, system fonts, separate browser storage and its own extension identity. Discord stays disabled. It does not bundle Node, the web app or an extension into the native installers.
 
+Browser Automix is now available under Settings → Playback and remains off by default. It adds phrase-aligned blends, pitch-preserving loops, audio stats, wheel volume and track menus. Its first-use analysis download is about 32 MB, verified and cached separately from the app archive. See [Automix](docs/automix.md) for data/storage details, licences and the synthetic browser checks. This update is staged for the next release; the published 1.0.10 archives do not contain it.
+
 ## Local development
 
 Use Node 22.12 or newer and the `pnpm` version recorded in package.json:

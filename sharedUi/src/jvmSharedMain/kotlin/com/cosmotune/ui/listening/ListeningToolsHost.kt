@@ -55,7 +55,25 @@ data class ListeningToolsHost(
         require(source == "youtube") { "This playlist source is not available." }
         fetchYouTubePlaylist(id)
     },
+    /** Separate document metadata preserves relative local paths without opening imported paths. */
+    val importPlaylistFile: suspend () -> com.cosmotune.listening.MusicPlaylistFile? = {
+        importFile()?.let { com.cosmotune.listening.MusicPlaylistFile("Imported playlist", it) }
+    },
+    /** Called only when the listener chooses catalogue matching in the import preview. */
+    val matchPlaylistTrack: suspend (com.cosmotune.listening.MusicPlaylistImportRow) -> Song? = ::findPlaylistRecording,
 )
+
+private suspend fun findPlaylistRecording(row: com.cosmotune.listening.MusicPlaylistImportRow): Song? =
+    kotlinx.coroutines.withTimeoutOrNull(15_000) {
+        val target = com.cosmotune.music.data.sources.TrackMatcher.Target(row.title, row.artist, album = row.album)
+        for (query in com.cosmotune.music.data.sources.TrackMatcher.queries(target).take(2)) {
+            val candidates = com.cosmotune.music.data.YtMusicRepository.search(query, com.cosmotune.music.data.model.SearchFilter.SONGS)
+                .getOrDefault(emptyList()).mapNotNull { (it as? com.cosmotune.music.data.model.SearchResult.Track)?.song }
+                .filter { com.cosmotune.music.data.sources.TrackMatcher.sharesArtist(row.artist, it.artist) }
+            com.cosmotune.music.data.sources.TrackMatcher.best(candidates, target)?.let { return@withTimeoutOrNull it }
+        }
+        null
+    }
 
 /** Android provider grants cannot be used by a desktop receiving its backup. */
 internal fun desktopTrackAvailable(track: com.cosmotune.listening.ListeningTrack): Boolean =

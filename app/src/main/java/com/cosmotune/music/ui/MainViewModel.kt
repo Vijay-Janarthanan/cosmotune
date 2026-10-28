@@ -2497,6 +2497,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         album = audio.albumName,
                         isExplicit = audio.isExplicit,
                         isVideo = audio.isVideo,
+                        videoId = audio.videoId,
                     ),
                 )
                 if (warmed != null) {

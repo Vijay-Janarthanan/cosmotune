@@ -45,6 +45,11 @@ fun main(args: Array<String>) {
 private fun runDesktop() {
     com.cosmotune.providers.ProviderMediaTools.installed = DesktopProviderMediaTools
     DesktopProviderVerificationBrowser.install()
+    DesktopMangaVerificationBrowser.install()
+    com.cosmotune.manga.ui.MangaTextPlatform.language = DesktopStrings.language
+    com.cosmotune.manga.ui.MangaTextPlatform.lookup = { key, fallback -> DesktopStrings[key, fallback] }
+    com.cosmotune.manga.ui.DesktopMangaLibrary.startUpdates()
+    Runtime.getRuntime().addShutdownHook(Thread({ com.cosmotune.manga.ui.DesktopMangaLibrary.stopUpdates() }, "Manga updates shutdown"))
     com.cosmotune.desktop.TorConnection.install()
     coil3.SingletonImageLoader.setSafe { context ->
         coil3.ImageLoader.Builder(context).components { add(coil3.svg.SvgDecoder.Factory()); add(com.cosmotune.ui.providers.CatalogueArtworkFetcher.Factory()) }.build()

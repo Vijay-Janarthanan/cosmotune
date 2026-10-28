@@ -30,6 +30,8 @@ class OldNameScanTest {
         Allowed("FORK.md", null, "the ledger of upstream files; it names the old names to explain the rename"),
         Allowed("FEATURE_TRACKER.md", null, "feature provenance and the explicit upstream integration status"),
         Allowed("docs/BASELINE.md", null, "facts about upstream's unchanged code, recorded before the fork changed it"),
+        Allowed("docs/UPSTREAM_REVIEW_2026-10-28.md", null, "the requested pinned upstream feature audit, not product branding"),
+        Allowed("docs/UPSTREAM_IMPLEMENTATION_2026-10-28.md", null, "the requested per-project implementation and remaining-work checklist"),
         Allowed("tools/upstream-digest.sh", null, "reads the upstream repository by name"),
         Allowed("licenses/", null, "licence texts as their authors wrote them"),
         Allowed("*", "kushagrasinghx/BitChord", "the upstream repository's address (github.com/...)"),

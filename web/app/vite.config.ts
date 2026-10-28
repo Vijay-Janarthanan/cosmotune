@@ -22,6 +22,8 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  optimizeDeps: { exclude: ['essentia.js'] },
+  worker: { format: 'es' },
   server: {
     // The extension's externally_connectable and DNR rules name this origin
     // exactly, so the port must not drift to 5174 when 5173 is busy.

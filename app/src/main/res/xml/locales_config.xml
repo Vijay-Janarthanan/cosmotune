@@ -8,6 +8,15 @@
     <locale android:name="pt" />
     <locale android:name="id" />
     <locale android:name="hi" />
+    <locale android:name="ta" />
+    <locale android:name="te" />
+    <locale android:name="kn" />
+    <locale android:name="ml" />
+    <locale android:name="bn" />
+    <locale android:name="mr" />
+    <locale android:name="gu" />
+    <locale android:name="pa" />
+    <locale android:name="or" />
     <locale android:name="ja" />
     <locale android:name="ru" />
     <locale android:name="zh-CN" />

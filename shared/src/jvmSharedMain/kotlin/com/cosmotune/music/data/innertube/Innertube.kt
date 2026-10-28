@@ -537,6 +537,14 @@ object Innertube {
             params?.let { put("params", it) }
         }
 
+    /** Public podcast discovery never imports the listener's account cookies or adds account history. */
+    suspend fun browseAnonymous(browseId: String? = null, continuation: String? = null): JsonObject =
+        postMusicAnonymous("browse") {
+            require((browseId == null) != (continuation == null))
+            browseId?.let { put("browseId", it) }
+            continuation?.let { put("continuation", it) }
+        }
+
     /**
      * The next page of a paged browse response — playlists and library feeds
      * come back roughly 100 rows at a time. YouTube Music takes the token as

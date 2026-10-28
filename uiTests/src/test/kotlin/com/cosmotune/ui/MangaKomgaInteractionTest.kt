@@ -56,14 +56,14 @@ class MangaKomgaInteractionTest {
         }
         compose.onNodeWithText("Sources").performClick()
         compose.onNodeWithText("Connect Komga library").performClick()
-        compose.onNodeWithTag("manga:komga:server").performTextInput("http://127.0.0.1:${server.address.port}")
-        compose.onNodeWithTag("manga:komga:key").performTextInput("wrong-key")
-        compose.onNodeWithText("Test and save").performClick()
+        compose.onNodeWithTag("manga:komga:server").performScrollTo().performTextInput("http://127.0.0.1:${server.address.port}")
+        compose.onNodeWithTag("manga:komga:key").performScrollTo().performTextInput("wrong-key")
+        compose.onNodeWithText("Test and save").performScrollTo().assertIsDisplayed().performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("rejected the API key", substring = true).fetchSemanticsNodes().isNotEmpty() }
         assertTrue(store.state.value.sources.none { it.kind == "komga" }, "a rejected key is not saved")
 
-        compose.onNodeWithTag("manga:komga:key").performTextReplacement("good-key")
-        compose.onNodeWithText("Test and save").performClick()
+        compose.onNodeWithTag("manga:komga:key").performScrollTo().performTextReplacement("good-key")
+        compose.onNodeWithText("Test and save").performScrollTo().assertIsDisplayed().performClick()
         compose.waitUntil(10_000) { store.state.value.sources.any { it.kind == "komga" } }
         val saved = store.state.value.sources.single { it.kind == "komga" }
         assertEquals("good-key", saved.settings["apiKey"])
@@ -71,9 +71,9 @@ class MangaKomgaInteractionTest {
         compose.onNodeWithText("Connect Komga library").assertExists()
         compose.onNodeWithTag("manga:komga:server").assertDoesNotExist()
 
-        compose.onNodeWithContentDescription("Use ${saved.name}").performClick()
+        compose.onNodeWithContentDescription("Use ${saved.name}").performScrollTo().performClick()
         compose.waitUntil(5_000) { store.state.value.sources.single { it.kind == "komga" }.enabled.not() }
-        compose.onNode(hasText("Remove") and hasAnyAncestor(hasTestTag("manga:komga:${saved.id}"))).performClick()
+        compose.onNode(hasText("Remove") and hasAnyAncestor(hasTestTag("manga:komga:${saved.id}"))).performScrollTo().performClick()
         compose.waitUntil(5_000) { store.state.value.sources.none { it.kind == "komga" } }
         assertFalse(MangaStore(store.root).state.value.sources.any { it.kind == "komga" }, "removal is saved")
     }

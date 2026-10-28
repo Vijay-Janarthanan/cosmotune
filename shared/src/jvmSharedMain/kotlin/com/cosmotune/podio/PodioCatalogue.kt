@@ -1,6 +1,7 @@
 package com.cosmotune.podio
 
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.model.durationMillis
 import java.io.File
 import java.net.InetAddress
 import java.net.URI
@@ -28,7 +29,9 @@ import kotlin.coroutines.resumeWithException
     val feed: String, val artwork: String = "", val website: String = "", val source: String = "Publisher feed")
 @Serializable data class PodcastEpisode(val id: String, val title: String, val show: String, val url: String,
     val artwork: String = "", val durationSeconds: Long = 0, val published: String = "", val description: String = "")
-data class PodcastFeed(val show: PodcastShow, val episodes: List<PodcastEpisode>)
+data class PodcastFeed(val show: PodcastShow, val episodes: List<PodcastEpisode>,
+    /** Publisher-provided RSS/Atom archive link, rather than a guessed page number. */
+    val nextPage: String? = null, val visitedPages: List<String> = emptyList())
 
 /** The weather where a station is, from Open-Meteo (CC BY 4.0). [utcOffsetSeconds] is the place's own clock; [sunrise] and [sunset] are local "HH:mm". */
 data class PodioWeather(val temperatureC: Double, val code: Int, val isDay: Boolean, val windKmh: Double, val utcOffsetSeconds: Int, val sunrise: String, val sunset: String) {
@@ -46,16 +49,27 @@ data class PodioPhoto(val title: String, val image: String, val page: String, va
 /** A well-known place near a station, from Wikipedia (text CC BY-SA 4.0): its name, the first sentences of its article, a picture and the article address. */
 data class PodioHighlight(val title: String, val summary: String, val image: String, val url: String)
 data class PodioItem(val id: String, val title: String, val author: String, val url: String,
-    val artwork: String = "", val live: Boolean = false, val durationSeconds: Long = 0) {
+    val artwork: String = "", val live: Boolean = false, val durationSeconds: Long = 0,
+    val downloadedUri: String? = null, val downloadedPath: String? = null) {
     fun song(): Song = Song(videoId = id, title = title, artist = author, thumbnailUrl = artwork.takeIf { it.isNotBlank() },
         durationText = durationSeconds.takeIf { it > 0 }?.let { "${it / 60}:${(it % 60).toString().padStart(2, '0')}" },
-        localUri = requireNotNull(PodioCatalogue.httpUrl(url)), albumName = if (live) "Podio · Live radio" else "Podio · Podcast")
+        localUri = downloadedUri?.takeIf { runCatching { URI(it).scheme in setOf("file", "content") }.getOrDefault(false) }
+            ?: if (YouTubePodcasts.videoId(id) != null) null else requireNotNull(PodioCatalogue.httpUrl(url)),
+        localPath = downloadedPath, albumName = if (live) "Podio · Live radio" else "Podio · Podcast")
 }
 fun RadioStation.item() = PodioItem("podio:radio:$id", name, listOf(country, language).filter(String::isNotBlank).joinToString(" · "), url, artwork, live = true)
 fun PodcastEpisode.item() = PodioItem("podio:episode:$id", title, show, url, artwork, durationSeconds = durationSeconds)
+/** Only download records supplied by the platform host can create a local episode row. */
+fun Song.offlinePodioItem(): PodioItem? {
+    val uri = localUri?.takeIf { runCatching { URI(it).scheme in setOf("file", "content") }.getOrDefault(false) } ?: return null
+    if (!videoId.startsWith("podio:episode:")) return null
+    return PodioItem(videoId, title, artist, uri, thumbnailUrl.orEmpty(), durationSeconds = durationMillis() / 1000,
+        downloadedUri = uri, downloadedPath = localPath)
+}
 val Song.isPodio: Boolean get() = videoId.startsWith("podio:radio:") || videoId.startsWith("podio:episode:")
 fun podioSourceName(id: String): String = when {
     id.startsWith("podio:radio") -> "Radio Browser"
+    id.startsWith("podio:youtube") || YouTubePodcasts.videoId(id) != null -> "YouTube Music podcast"
     else -> "Podcast publisher"
 }
 
@@ -65,7 +79,8 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     private val appleBase: String = "https://itunes.apple.com", private val fyydBase: String = "https://api.fyyd.de",
     private val spotifyMetadata: (suspend (String) -> PodcastFeed)? = null,
     private val weatherBase: String = "https://api.open-meteo.com", private val wikipediaBase: String = "https://en.wikipedia.org",
-    private val commonsBase: String = "https://commons.wikimedia.org") {
+    private val commonsBase: String = "https://commons.wikimedia.org",
+    private val youtubePodcasts: YouTubePodcasts? = null) {
     private val json = Json { ignoreUnknownKeys = true }
     private val spotify by lazy { SpotifyPublicPodcasts(::readRequest) }
     private var mirrors: List<String>? = null
@@ -191,7 +206,15 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     }.orEmpty()
 
     /** Chart position order, with the feed addresses Apple's lookup supplies: the shows people are listening to in [country]. */
-    suspend fun topPodcasts(country: String = "US", genre: String? = null, limit: Int = 30): List<PodcastShow> {
+    suspend fun topPodcasts(country: String = "US", genre: String? = null, limit: Int = 30): List<PodcastShow> = supervisorScope {
+        if (youtubePodcasts == null || genre != null) return@supervisorScope appleTopPodcasts(country, genre, limit)
+        val apple = async { attempt { appleTopPodcasts(country, genre, limit) } }
+        val youtube = async { attempt { youtubePodcasts.home() } }
+        val chart = apple.await(); val publicShows = youtube.await()
+        if (chart == null && publicShows == null) error("Podcast discovery is unavailable. Please retry.")
+        (chart.orEmpty() + publicShows.orEmpty()).distinctBy { it.feed.trimEnd('/') }
+    }
+    private suspend fun appleTopPodcasts(country: String, genre: String?, limit: Int): List<PodcastShow> {
         val code = country.take(2).lowercase(Locale.ROOT).ifBlank { "us" }
         val chart = json.parseToJsonElement(read(address(appleBase, "/$code/rss/toppodcasts/limit=${limit.coerceIn(1, 100)}/" + (genre?.let { "genre=$it/" }.orEmpty()) + "json", emptyMap())))
         val ids = ((chart.jsonObject["feed"] as? JsonObject)?.get("entry") as? JsonArray).orEmpty().mapNotNull { entry ->
@@ -209,12 +232,14 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     }
     suspend fun podcasts(query: String, country: String = "IN"): List<PodcastShow> = supervisorScope {
         if (SpotifyPublicPodcasts.link(query.trim()) != null) return@supervisorScope listOf(feed(query.trim()).show)
+        if (YouTubePodcasts.showId(query.trim()) != null) return@supervisorScope listOf(feed(query.trim()).show)
         val term = query.trim().take(200).ifBlank { "podcast" }
         val apple = async { attempt { appleSearch(term, country) } }
         val fyyd = async { attempt { fyydSearch(term) } }
-        val a = apple.await(); val f = fyyd.await()
-        if (a == null && f == null) error("Podcast search is unavailable. Please retry.")
-        (a.orEmpty() + f.orEmpty()).distinctBy { it.feed.trimEnd('/') }
+        val youtube = async { youtubePodcasts?.let { attempt { it.search(term) } } }
+        val a = apple.await(); val f = fyyd.await(); val y = youtube.await()
+        if (a == null && f == null && y == null) error("Podcast search is unavailable. Please retry.")
+        (a.orEmpty() + f.orEmpty() + y.orEmpty()).distinctBy { it.feed.trimEnd('/') }
     }
     private suspend fun appleSearch(query: String, country: String): List<PodcastShow> {
         val root = json.parseToJsonElement(read(address(appleBase, "/search", mapOf("term" to query, "media" to "podcast", "entity" to "podcast", "limit" to "40", "country" to country.take(2)))))
@@ -238,12 +263,27 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     suspend fun feed(url: String): PodcastFeed {
         val address = requireNotNull(httpUrl(url)) { "Enter an HTTP or HTTPS podcast feed URL." }
         if (SpotifyPublicPodcasts.link(address) != null) return spotifyPublisherFeed(address)
+        if (YouTubePodcasts.showId(address) != null) return (youtubePodcasts ?: YouTubePodcasts()).feed(address)
         return withContext(Dispatchers.Default) { parseFeed(read(address), address) }
+    }
+    /** Append one publisher archive page, retaining root-feed episode identities and resume data. */
+    suspend fun moreEpisodes(feed: PodcastFeed): PodcastFeed {
+        val next = feed.nextPage ?: return feed
+        require(feed.visitedPages.size < 100) { "This archive reached the 100-page limit." }
+        require(next !in feed.visitedPages) { "This archive repeats an earlier page." }
+        val page = if (YouTubePodcasts.showId(feed.show.feed) != null) (youtubePodcasts ?: YouTubePodcasts()).feed(next, feed.show)
+            else withContext(Dispatchers.Default) { parseFeed(read(next), next, feed.show.feed) }
+        require(titleKey(page.show.title) == titleKey(feed.show.title)) { "The archive link opened a different podcast." }
+        val visited = (feed.visitedPages + next).distinct()
+        return feed.copy(episodes = (feed.episodes + page.episodes).distinctBy { it.id },
+            nextPage = page.nextPage?.takeUnless { it in visited }, visitedPages = visited)
     }
     private suspend fun spotifyPublisherFeed(address: String): PodcastFeed {
         val metadata = spotifyMetadata?.invoke(address) ?: spotify.feed(address)
         val expected = metadata.episodes.singleOrNull().takeIf { SpotifyPublicPodcasts.link(address)?.first == "episode" }
-        val candidates = podcasts(metadata.show.title).filter { titleKey(it.title) == titleKey(metadata.show.title) }.take(3)
+        val candidates = podcasts(metadata.show.title).filter {
+            YouTubePodcasts.showId(it.feed) == null && titleKey(it.title) == titleKey(metadata.show.title)
+        }.take(3)
         for (candidate in candidates) {
             val publisher = attempt { feed(candidate.feed) } ?: continue
             if (titleKey(publisher.show.title) != titleKey(metadata.show.title)) continue
@@ -323,7 +363,7 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
             ?.map { it.toLongOrNull()?.takeIf { it >= 0 && it <= 604800 } ?: -1 }
             ?.takeIf { values -> values.all { it >= 0 } }
             ?.fold(0L) { total, part -> total * 60 + part }?.coerceAtMost(604800) ?: 0
-        fun parseFeed(xml: String, url: String): PodcastFeed {
+        fun parseFeed(xml: String, url: String, identityUrl: String = url): PodcastFeed {
             require(xml.toByteArray().size <= MAX_BYTES)
             require(!xml.contains("<!DOCTYPE", ignoreCase = true)) { "External XML declarations are not supported" }
             val factory = DocumentBuilderFactory.newInstance().apply {
@@ -336,7 +376,7 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                 runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
             }
             val builder = factory.newDocumentBuilder().apply { setEntityResolver { _, _ -> InputSource(java.io.StringReader("")) } }
-            val document = builder.parse(InputSource(java.io.StringReader(xml)))
+            val document = builder.parse(InputSource(java.io.StringReader(xml.removePrefix("\uFEFF"))))
             val root = document.documentElement
             val channel = root.children().firstOrNull { it.local() == "channel" } ?: root.takeIf { it.local() == "feed" }
                 ?: error("This address is not a podcast RSS or Atom feed")
@@ -345,7 +385,7 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
             val title = channel.field("title").takeIf { it.isNotBlank() } ?: error("The feed has no title")
             val image = channel.children().firstOrNull { it.local() == "image" }
             val artwork = image?.getAttribute("href")?.takeIf(String::isNotBlank) ?: image?.field("url").orEmpty()
-            val show = PodcastShow(identity(url), title, channel.field("author"), url, resolve(artwork), resolve(channel.field("link")))
+            val show = PodcastShow(identity(identityUrl), title, channel.field("author"), identityUrl, resolve(artwork), resolve(channel.field("link")))
             val episodes = channel.children().asSequence().filter { it.local() in setOf("item", "entry") }.take(1000).mapNotNull { entry ->
                 val enclosure = entry.children().firstOrNull { it.local() == "enclosure" || it.local() == "link" && it.getAttribute("rel") == "enclosure" }
                     ?: return@mapNotNull null
@@ -355,10 +395,12 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                 val name = entry.field("title").takeIf(String::isNotBlank) ?: return@mapNotNull null
                 val guid = entry.field("guid").ifBlank { entry.field("id") }.ifBlank { audio }
                 val art = entry.children().firstOrNull { it.local() == "image" }?.getAttribute("href")?.let(::resolve).orEmpty()
-                PodcastEpisode(identity(url + "|" + guid), name, title, audio, art.ifBlank { show.artwork }, duration(entry.field("duration")),
+                PodcastEpisode(identity(identityUrl + "|" + guid), name, title, audio, art.ifBlank { show.artwork }, duration(entry.field("duration")),
                     entry.field("pubDate").ifBlank { entry.field("published") }, Jsoup.parse(entry.field("description").ifBlank { entry.field("summary") }).text().take(4000))
             }.distinctBy { it.id }.toList()
-            return PodcastFeed(show, episodes)
+            val next = channel.children().firstOrNull { it.local() == "link" && it.getAttribute("rel").equals("next", true) }
+                ?.getAttribute("href")?.takeIf(String::isNotBlank)?.let(::resolve)?.takeIf { it.isNotBlank() && it != url }
+            return PodcastFeed(show, episodes, next, listOf(url))
         }
         private fun Element.local(): String = localName ?: tagName.substringAfter(':')
         private fun Element.children(): List<Element> = (0 until childNodes.length).mapNotNull { childNodes.item(it) as? Element }
@@ -384,9 +426,23 @@ private class AnonymousSpotifyCookies : CookieJar {
 }
 
 @Serializable data class PodioSaved(val stations: List<RadioStation> = emptyList(), val shows: List<PodcastShow> = emptyList(),
-    val progress: Map<String, Long> = emptyMap())
+    val progress: Map<String, Long> = emptyMap(), val completedEpisodes: Set<String> = emptySet())
 class PodioLibrary(private val file: File) {
     companion object {
+        private class Store(file: File) {
+            val lock = Any()
+            val state = kotlinx.coroutines.flow.MutableStateFlow(runCatching {
+                Json { ignoreUnknownKeys = true }.decodeFromString<PodioSaved>(file.readText())
+            }.getOrDefault(PodioSaved()))
+        }
+        private val stores = java.util.concurrent.ConcurrentHashMap<String, java.lang.ref.WeakReference<Store>>()
+        private fun sharedStore(file: File): Store = synchronized(stores) {
+            val key = file.canonicalPath
+            stores[key]?.get() ?: Store(file).also { store ->
+                stores.entries.removeIf { it.value.get() == null }
+                stores[key] = java.lang.ref.WeakReference(store)
+            }
+        }
         fun desktopFile(): File {
             val home = System.getProperty("user.home")
             val os = System.getProperty("os.name").lowercase(Locale.ROOT)
@@ -399,13 +455,45 @@ class PodioLibrary(private val file: File) {
         }
     }
     private val json = Json { ignoreUnknownKeys = true }
-    val state = kotlinx.coroutines.flow.MutableStateFlow(runCatching { json.decodeFromString<PodioSaved>(file.readText()) }.getOrDefault(PodioSaved()))
-    @Synchronized fun update(change: (PodioSaved) -> PodioSaved) {
-        val next = change(state.value).let { it.copy(stations = it.stations.take(500), shows = it.shows.take(500), progress = it.progress.entries.toList().takeLast(1000).associate { e -> e.toPair() }) }
+    private val store = sharedStore(file)
+    val state = store.state
+    fun update(change: (PodioSaved) -> PodioSaved) = synchronized(store.lock) {
+        val next = change(state.value).let {
+            val progress = it.progress.entries.toList().takeLast(1000).associate { e -> e.toPair() }
+            it.copy(stations = it.stations.take(500), shows = it.shows.take(500), progress = progress, completedEpisodes = it.completedEpisodes.intersect(progress.keys))
+        }
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, file.name + ".tmp")
         temp.writeText(json.encodeToString(next))
         java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         state.value = next
+    }
+
+    fun importOpml(xml: String): Int {
+        val shows = PodioOpml.decode(xml)
+        var added = 0
+        update { old ->
+            val combined = (old.shows + shows).distinctBy { it.feed.trimEnd('/') }
+            require(combined.size <= 500) { "The library supports up to 500 followed podcasts." }
+            added = combined.size - old.shows.size
+            old.copy(shows = combined)
+        }
+        return added
+    }
+
+    fun resumePosition(id: String, durationMs: Long): Long {
+        if (id in state.value.completedEpisodes) return 0
+        return state.value.progress[id]?.coerceAtLeast(0)
+            ?.takeUnless { PodioPlaybackPolicy.isFinished(it, durationMs) } ?: 0
+    }
+
+    fun recordProgress(id: String, positionMs: Long, durationMs: Long = 0) {
+        if (!id.startsWith("podio:episode:")) return
+        update { old -> old.copy(progress = (old.progress - id) + (id to positionMs.coerceAtLeast(0)),
+            completedEpisodes = when {
+                durationMs > 0 -> if (PodioPlaybackPolicy.isFinished(positionMs, durationMs)) old.completedEpisodes + id else old.completedEpisodes - id
+                positionMs <= 0 -> old.completedEpisodes - id
+                else -> old.completedEpisodes
+            }) }
     }
 }

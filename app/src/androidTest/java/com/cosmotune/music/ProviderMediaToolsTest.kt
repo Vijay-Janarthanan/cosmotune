@@ -10,6 +10,33 @@ import org.junit.Assert.*
 
 @RunWith(AndroidJUnit4::class)
 class ProviderMediaToolsTest {
+    @Test fun nativeFlacEncoderPreserves24BitLosslessSource() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val root = File(context.cacheDir, "provider-flac-test").apply { mkdirs() }
+        try {
+            val input = File(root, "clear.flac"); val output = File(root, "encoded.flac")
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().context.assets.open("provider-media/clear.flac").use { source -> input.outputStream().use(source::copyTo) }
+            AndroidProviderMediaTools.convertFlac(input, output, 2_000_000) { false }
+            val info = AndroidProviderMediaTools.probe(output) { false }
+            assertEquals("flac", info.codec); assertEquals(24, info.bitDepth); assertEquals(44_100, info.sampleRate)
+            assertTrue(packets(output).isNotEmpty())
+        } finally { root.deleteRecursively() }
+    }
+    @Test fun typedPcmConversionUsesTheShippedDecoderAndWrites16And24BitWave() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val root = File(context.cacheDir, "provider-pcm-test").apply { mkdirs() }
+        try {
+            val input = File(root, "clear.flac")
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().context.assets.open("provider-media/clear.flac").use { source -> input.outputStream().use(source::copyTo) }
+            for (bits in listOf(16, 24)) {
+                val output = File(root, "converted-$bits.wav")
+                AndroidProviderMediaTools.convertPcm(input, output, bits, 1_000_000) { false }
+                val info = AndroidProviderMediaTools.probe(output) { false }
+                assertEquals("pcm_s${bits}le", info.codec); assertEquals(bits, info.bitDepth); assertEquals(44_100, info.sampleRate)
+                assertTrue(packets(output).isNotEmpty())
+            }
+        } finally { root.deleteRecursively() }
+    }
     @Test fun losslessMovAudioKeepsIts24BitFormatAndOriginalPackets() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val root = File(context.cacheDir, "provider-lossless-test").apply { mkdirs() }

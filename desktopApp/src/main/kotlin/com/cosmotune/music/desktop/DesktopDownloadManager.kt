@@ -20,6 +20,8 @@ object DesktopDownloadManager {
         song: Song,
         quality: String = DesktopPersistence().string("download_quality", "LOSSLESS"),
         onProgress: (downloaded: Long, total: Long?) -> Unit = { _, _ -> },
+        /** Test/export callers may choose an explicit folder; ordinary requests use Music. */
+        directoryOverride: Path? = null,
     ): Result<Song> {
         val job = currentCoroutineContext()[Job]
         if (job != null) activeJobs[song.videoId] = job
@@ -28,7 +30,8 @@ object DesktopDownloadManager {
             val stream = DesktopMusicSources.resolve(song, quality, forDownload = true).getOrThrow()
             com.cosmotune.music.data.sources.ProviderDownloadTransfers.transfer(
                 stream.sourceId ?: URI.create(stream.url).host.orEmpty().ifBlank { "catalogue" }) {
-            val directory = Path.of(System.getProperty("user.home"), "Music", com.cosmotune.CosmoConfig.APP_NAME)
+            val directory = directoryOverride ?: Path.of(System.getProperty("user.home"),
+                if (com.cosmotune.podio.PodioDownloads.isEpisode(song.videoId)) "Podcasts" else "Music", com.cosmotune.CosmoConfig.APP_NAME)
             Files.createDirectories(directory)
             val safeName = buildString {
                 append(song.artist)
@@ -150,6 +153,7 @@ object DesktopDownloadManager {
             "alac" -> "m4a"
             "aac" -> "m4a"
             "mp3" -> "mp3"
+            "aac" -> "aac"
             "ogg", "opus" -> "ogg"
             "webm" -> "webm"
             else -> "m4a"

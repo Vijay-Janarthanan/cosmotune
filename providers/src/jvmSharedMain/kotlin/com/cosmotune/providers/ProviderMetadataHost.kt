@@ -221,8 +221,8 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
                 JsonNull
             }
             "isRequestCancelled", "isDownloadCancelled" -> JsonPrimitive(network.isCancelled)
-            "appVersion" -> JsonPrimitive("1.0.10")
-            "appUserAgent" -> JsonPrimitive("Cosmotune/1.0.10")
+            "appVersion" -> JsonPrimitive("1.0.11")
+            "appUserAgent" -> JsonPrimitive("Cosmotune/1.0.11")
             "randomUserAgent" -> JsonPrimitive("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36")
             "getResolutionRemainingMs" -> JsonPrimitive((operationTimeoutMs - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(0))
             "sleep" -> {

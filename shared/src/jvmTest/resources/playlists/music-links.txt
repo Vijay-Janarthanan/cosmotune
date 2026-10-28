@@ -1,0 +1,5 @@
+https://youtu.be/dQw4w9WgXcQ
+https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=ignored
+https://example.invalid/private-playlist.m3u8?token=fixture
+https://attacker@youtube.com/watch?v=dQw4w9WgXcQ
+https://www.youtube.com/watch?v=dQw4w9WgXcQ&v=AAAAAAAAAAA

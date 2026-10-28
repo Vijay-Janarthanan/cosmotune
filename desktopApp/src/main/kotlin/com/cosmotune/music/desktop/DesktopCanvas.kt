@@ -124,7 +124,8 @@ object DesktopCanvasClient {
         private val lifetimeMs: Long = ENTRY_TTL_MS,
     ) {
         /** A stream URL is minted for a few hours; an older answer is looked up again rather than served dead. */
-        val fresh: Boolean get() = System.currentTimeMillis() - at < lifetimeMs
+        val fresh: Boolean get() = System.currentTimeMillis() - at < lifetimeMs &&
+            artwork?.url?.let { !com.opencanvas.core.stream.isMediaStreamExpired(it) } != false
 
         /** A hit is a hit — the album could only have confirmed it. A miss stands too, unless it
          * was reached blind and there is now an album name to try. */

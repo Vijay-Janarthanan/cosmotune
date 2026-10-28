@@ -50,7 +50,7 @@ def main():
     packages = list(modules.glob('*/node_modules/*/package.json')) + list(modules.glob('*/node_modules/@*/*/package.json'))
     notices = ['Cosmotune browser companion third-party notices',
                'Source: https://github.com/Vijay-Janarthanan/cosmotune',
-               'Native project and imported browser source: GNU GPLv3; see LICENSE and NOTICE.md.', '']
+               'Native project: GNU GPLv3; browser Automix includes AGPLv3 code. See LICENSE, NOTICE.md and licenses/automix-web/.', '']
     seen = set()
     for metadata in sorted(packages):
         info = json.loads(metadata.read_text(encoding='utf-8'))
@@ -95,6 +95,16 @@ def main():
         bundle.write(root / 'NOTICE.md', 'NOTICE.md')
         bundle.write(root / 'FORK.md', 'FORK.md')
         bundle.write(web / 'UPSTREAM_IMPORT.json', 'SOURCE_PROVENANCE.json')
+        if (web / 'UPSTREAM_DELTAS.json').is_file():
+            bundle.write(web / 'UPSTREAM_DELTAS.json', 'web/UPSTREAM_DELTAS.json')
+        if (web / 'docs/automix.md').is_file():
+            bundle.write(web / 'docs/automix.md', 'web/docs/automix.md')
+            bundle.write(web / 'docs/automix.md', 'docs/automix.md')
+        # The optional engine and downloadable weights have notices beyond npm's package metadata.
+        for path in sorted((root / 'licenses/automix-web').rglob('*')):
+            if path.is_file():
+                assert not path.is_symlink(), 'Unexpected symbolic link in audio analysis notices'
+                bundle.write(path, path.relative_to(root).as_posix())
     for browser, original in helpers:
         output = args.output / f'Cosmotune-{args.version}-helper-{browser}.zip'
         # This copy matches the site's download, including the retained licence notices.

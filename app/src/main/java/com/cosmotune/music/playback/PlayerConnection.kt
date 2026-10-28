@@ -682,9 +682,10 @@ fun Song.toMediaItem(): MediaItem {
     // [MediaItem.toSong], so an item waiting in the live queue can carry a URI
     // that has become stale since it was created. Checking only the lookup
     // leaves that path unguarded.
-    val offlineUri = localUri?.takeUnless(Downloads::isMissingLocalFile)
-        ?: Downloads.verifiedSavedUri(videoId)
+    val offlineUri = (if (videoId.startsWith("podio:episode:")) Downloads.verifiedSavedUri(videoId) else null)
+        ?: localUri?.takeUnless(Downloads::isMissingLocalFile) ?: Downloads.verifiedSavedUri(videoId)
     val uriString = offlineUri ?: when {
+        com.cosmotune.podio.YouTubePodcasts.videoId(videoId) != null -> requireNotNull(com.cosmotune.podio.YouTubePodcasts.playbackUri(videoId))
         videoId.startsWith("content://") || videoId.startsWith("file://") -> videoId
         // Title, artist and runtime ride along in the URI because they are what
         // a cross-source match is made on, and the resolver runs on ExoPlayer's
@@ -732,7 +733,11 @@ fun Song.toMediaItem(): MediaItem {
             // System media surfaces (One UI's Now Bar, Android Auto, Assistant)
             // classify a session by its media type; untyped sessions get treated
             // as generic audio and lose the music-specific card.
-            .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+            .setMediaType(when {
+                videoId.startsWith("podio:radio:") -> MediaMetadata.MEDIA_TYPE_RADIO_STATION
+                videoId.startsWith("podio:episode:") -> MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE
+                else -> MediaMetadata.MEDIA_TYPE_MUSIC
+            })
             .setIsPlayable(true)
             .setIsBrowsable(false)
             // What a queue entry has to carry about itself: which section of
@@ -857,7 +862,9 @@ const val DIRECT_YOUTUBE_PARAMETER = "direct_youtube"
  * source-backed track differently again, so filing lines under it would scatter
  * one song's story across several names.
  */
-fun mediaIdIn(uri: Uri): String? = if (uri.authority == "source") {
+fun mediaIdIn(uri: Uri): String? = if (uri.authority == "podio-youtube") {
+    uri.getQueryParameter("v")?.let(com.cosmotune.podio.YouTubePodcasts::episodeId)
+} else if (uri.authority == "source") {
     val configId = uri.getQueryParameter("s")
     val trackId = uri.getQueryParameter("t")
     if (configId != null && trackId != null) SourceRegistry.trackKey(configId, trackId) else null

@@ -24,6 +24,8 @@ import androidx.compose.material.icons.rounded.CastConnected
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Earbuds
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material.icons.rounded.Tv
@@ -380,7 +382,7 @@ private fun OutputRow(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = iconFor(device.kind),
+                imageVector = audioOutputIcon(device),
                 contentDescription = null,
                 tint = Color.White.copy(alpha = if (active) 1f else 0.7f),
                 modifier = Modifier.size(21.dp),
@@ -482,11 +484,17 @@ private fun VolumeRow(routeKey: Any) {
     }
 }
 
-private fun iconFor(kind: AudioOutputKind): ImageVector = when (kind) {
+internal fun audioOutputIcon(device: AudioOutputDevice): ImageVector = when (device.kind) {
     AudioOutputKind.PHONE -> Icons.Rounded.PhoneAndroid
     AudioOutputKind.WIRED -> Icons.Rounded.Headphones
     AudioOutputKind.USB -> Icons.Rounded.Usb
-    AudioOutputKind.BLUETOOTH -> Icons.Rounded.Bluetooth
+    AudioOutputKind.BLUETOOTH -> when (device.form) {
+        AudioOutputForm.BUDS -> Icons.Rounded.Earbuds
+        AudioOutputForm.HEADPHONES -> Icons.Rounded.Headphones
+        AudioOutputForm.SPEAKER -> Icons.Rounded.Speaker
+        AudioOutputForm.CAR -> Icons.Rounded.DirectionsCar
+        AudioOutputForm.UNKNOWN -> Icons.Rounded.Bluetooth
+    }
     AudioOutputKind.HDMI -> Icons.Rounded.Tv
     AudioOutputKind.OTHER -> Icons.Rounded.Speaker
 }

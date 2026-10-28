@@ -51,7 +51,7 @@ import java.util.Locale
  * script tag shows Traditional in Settings and Simplified on the player.
  * [LocaleTags.normalizeAppTag] maps both forms to the same script downstream.
  */
-data class AppLanguage(val tag: String, val nameRes: Int)
+data class AppLanguage(val tag: String, val nameRes: Int, val mangaOnlyTranslation: Boolean = false)
 
 val SUPPORTED_LANGUAGES = listOf(
     AppLanguage("en", R.string.english),
@@ -62,6 +62,15 @@ val SUPPORTED_LANGUAGES = listOf(
     AppLanguage("pt", R.string.portuguese),
     AppLanguage("id", R.string.indonesian),
     AppLanguage("hi", R.string.hindi),
+    AppLanguage("ta", R.string.manga_language_ta, mangaOnlyTranslation = true),
+    AppLanguage("te", R.string.manga_language_te, mangaOnlyTranslation = true),
+    AppLanguage("kn", R.string.manga_language_kn, mangaOnlyTranslation = true),
+    AppLanguage("ml", R.string.manga_language_ml, mangaOnlyTranslation = true),
+    AppLanguage("bn", R.string.manga_language_bn, mangaOnlyTranslation = true),
+    AppLanguage("mr", R.string.manga_language_mr, mangaOnlyTranslation = true),
+    AppLanguage("gu", R.string.manga_language_gu, mangaOnlyTranslation = true),
+    AppLanguage("pa", R.string.manga_language_pa, mangaOnlyTranslation = true),
+    AppLanguage("or", R.string.manga_language_or, mangaOnlyTranslation = true),
     AppLanguage("ja", R.string.japanese),
     AppLanguage("ru", R.string.russian),
     AppLanguage("zh-CN", R.string.chinese_simplified),
@@ -207,7 +216,7 @@ private fun LanguageRow(language: AppLanguage, selected: Boolean, onClick: () ->
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = stringResource(language.nameRes),
+            text = stringResource(language.nameRes) + if (language.mangaOnlyTranslation) " · Manga" else "",
             style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),

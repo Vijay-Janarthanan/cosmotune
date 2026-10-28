@@ -82,7 +82,9 @@ internal fun DesktopReplayPage(
     contentPadding: PaddingValues,
 ) {
     var sharing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var detail by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<DesktopReplayHeroCard?>(null) }
     if (sharing) DesktopReplayShareDialog(summary, holder, onDismiss = { sharing = false })
+    detail?.let { card -> ReplayDetails(summary, card, { detail = null }, onPlaySong, onOpenArtist) }
     // The mesh behind this page is painted by the frame, so the chrome is tinted by it too.
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
@@ -134,7 +136,7 @@ internal fun DesktopReplayPage(
                             artworkUrl = card.artworkUrl,
                             holder = holder,
                             memberSince = summary.memberSince(),
-                            onClick = {},
+                            onClick = { detail = card },
                             modifier = Modifier.width(300.dp),
                         )
                     }
@@ -158,7 +160,10 @@ internal fun DesktopReplayPage(
                 key = "albums",
                 title = DesktopStrings["top_albums", "Top Albums"],
                 rows = summary.albumRows(CHART_LENGTH),
-                onClick = {},
+                onClick = { index -> summary.albums.getOrNull(index)?.let {
+                    detail = DesktopReplayHeroCard("Album", it.title, "${formatListening(it.ms)} · ${plays(it.plays)}",
+                        it.artworkUrl, DesktopReplayDetail.ALBUMS)
+                } },
             )
 
             item("habits") { Habits(summary) }
@@ -326,6 +331,8 @@ private fun Habits(summary: DesktopReplaySummary) {
             Spacer(Modifier.height(6.dp))
             Note("Your biggest day was ${formatDay(it)} — ${formatListening(summary.busiestDayMs)}.")
         }
+        Spacer(Modifier.height(20.dp))
+        com.cosmotune.ui.listening.ListeningActivityPanel(summary.dailyMs, summary.hourOfDay, textColor = Color.White)
     }
 }
 
@@ -439,7 +446,54 @@ data class DesktopReplayHeroCard(
     val value: String,
     val detail: String?,
     val artworkUrl: String?,
+    val kind: DesktopReplayDetail = DesktopReplayDetail.MINUTES,
 )
+
+enum class DesktopReplayDetail { MINUTES, ARTISTS, SONGS, ALBUMS }
+
+@Composable
+private fun ReplayDetails(summary: DesktopReplaySummary, card: DesktopReplayHeroCard, close: () -> Unit,
+    playSong: (Song) -> Unit, openArtist: (String) -> Unit) {
+    androidx.compose.material3.AlertDialog(onDismissRequest = close,
+        title = { Text(card.label) },
+        text = {
+            LazyColumn(Modifier.fillMaxWidth().height(440.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item {
+                    Text(card.value, style = MaterialTheme.typography.headlineSmall)
+                    card.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                    Text(summary.label.ifBlank { summary.period.chip }, style = MaterialTheme.typography.labelMedium)
+                }
+                when (card.kind) {
+                    DesktopReplayDetail.MINUTES -> item {
+                        com.cosmotune.ui.listening.ListeningActivityPanel(summary.dailyMs, summary.hourOfDay)
+                    }
+                    DesktopReplayDetail.SONGS -> items(summary.songs.take(30), key = { it.song.videoId }) { entry ->
+                        Column(Modifier.fillMaxWidth().clickable { close(); playSong(entry.song) }.padding(vertical = 8.dp)) {
+                            Text(entry.song.title, style = MaterialTheme.typography.titleMedium)
+                            Text("${entry.song.artist} · ${formatListening(entry.listenedMs)} · ${plays(entry.plays)}")
+                        }
+                    }
+                    DesktopReplayDetail.ARTISTS -> items(summary.artists.take(30)) { artist ->
+                        Column(Modifier.fillMaxWidth().clickable { close(); openArtist(artist.title) }.padding(vertical = 8.dp)) {
+                            Text(artist.title, style = MaterialTheme.typography.titleMedium)
+                            Text("${formatListening(artist.ms)} · ${plays(artist.plays)}")
+                        }
+                    }
+                    DesktopReplayDetail.ALBUMS -> {
+                        val tracks = summary.songs.filter { it.song.albumName == card.value }
+                        if (tracks.isNotEmpty()) items(tracks, key = { it.song.videoId }) { entry ->
+                            Column(Modifier.fillMaxWidth().clickable { close(); playSong(entry.song) }.padding(vertical = 8.dp)) {
+                                Text(entry.song.title, style = MaterialTheme.typography.titleMedium)
+                                Text("${formatListening(entry.listenedMs)} · ${plays(entry.plays)}")
+                            }
+                        } else items(summary.albums.take(30)) { album ->
+                            Column { Text(album.title); Text("${formatListening(album.ms)} · ${plays(album.plays)}") }
+                        }
+                    }
+                }
+            }
+        }, confirmButton = { androidx.compose.material3.TextButton(onClick = close) { Text("Close") } })
+}
 
 internal fun DesktopReplaySummary.songRows(limit: Int): List<DesktopReplayRow> =
     songs.take(limit).mapIndexed { index, entry ->
@@ -492,6 +546,7 @@ internal fun DesktopReplaySummary.heroCards(): List<DesktopReplayHeroCard> = bui
                 value = it.title,
                 detail = "${formatListening(it.ms)} · ${plays(it.plays)}",
                 artworkUrl = it.artworkUrl,
+                kind = DesktopReplayDetail.ARTISTS,
             ),
         )
     }
@@ -502,6 +557,7 @@ internal fun DesktopReplaySummary.heroCards(): List<DesktopReplayHeroCard> = bui
                 value = it.song.title,
                 detail = "${it.song.artist} · ${plays(it.plays)}",
                 artworkUrl = it.song.thumbnailUrl,
+                kind = DesktopReplayDetail.SONGS,
             ),
         )
     }
@@ -512,6 +568,7 @@ internal fun DesktopReplaySummary.heroCards(): List<DesktopReplayHeroCard> = bui
                 value = it.title,
                 detail = listOfNotNull(it.subtitle, formatListening(it.ms)).joinToString(" · "),
                 artworkUrl = it.artworkUrl,
+                kind = DesktopReplayDetail.ALBUMS,
             ),
         )
     }

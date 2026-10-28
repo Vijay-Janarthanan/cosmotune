@@ -2,9 +2,15 @@
 
 Updated 2026-10-28. This is the central local tracker for features from other apps and original Cosmotune work. A reviewed feature is not automatically implemented; compiled code is not automatically device-tested or released.
 
+Implementation follow-up: [28 October feature/fix checklist](docs/UPSTREAM_IMPLEMENTATION_2026-10-28.md) maps every reviewed project to actual Cosmotune changes, existing capabilities and outstanding requirements. This source pass is after the published 1.0.10 installers.
+
 Latest review: [28 October upstream and playback audit](docs/UPSTREAM_REVIEW_2026-10-28.md) checks 20 external repositories, including LastWave Desktop/Native and Lokal Mobile. New upstream changes are review candidates; the older integration pins below are retained. BitChord's current main has removed its desktop app in favor of its web player, so a blanket merge would discard Cosmotune's native desktop work.
 
 **Release status:** releases through [1.0.10](https://github.com/Vijay-Janarthanan/cosmotune/releases/tag/v1.0.10) are published. The [1.0.10 source tag](https://github.com/Vijay-Janarthanan/cosmotune/tree/v1.0.10) adds video recovery/forward-only footage, provider fallback and artist matching, decoder quality labels, film captions and tray/taskbar/Dock controls; its release build completed successfully with 49 assets. [1.0.8](docs/releases/1.0.8.md) shipped native Manga/Podio chrome, artwork fallbacks and discovery repairs; [1.0.9](docs/releases/1.0.9.md) shipped the satellite globe, station pages and regional podcast charts. Historical row evidence below retains its original scope and does not certify every device/account check. See [pending work](docs/PENDING_WORK.md) and the [live website inventory](docs/LIVE_WEBSITES.md).
+
+## 1.0.11 integration checkpoint
+
+The following older row descriptions are historical; the [1.0.11 release notes](docs/releases/1.0.11.md) and [remaining-work ledger](docs/PENDING_WORK.md) give the current scope. BC-35 now includes native-owned row secondary-click menus and compiled Windows shell bridges. BC-36 local Go tests/vet/portable builds pass; public deployment remains separate. MN-04 includes supported finite HLS/DASH preparation and typed PCM/verified-lossless FLAC conversion. MN-05 includes opt-in desktop exclusive/CoreAudio/ALSA output, pending hardware validation; native DSD/DoP remains unsupported. MG-08 includes isolated verification browsers and temporary cookie/user-agent handoff. Manga collections/backups/update checks/TAR-family imports and partial control translations, public podcast archives/downloads/OPML, TV/browser Podio, playlist import/activity views and browser Automix are implemented. Watch Podio and bidirectional file synchronization remain for later releases. No physical-device or operator availability claim follows from source/test status.
 
 ## Status and evidence rules
 

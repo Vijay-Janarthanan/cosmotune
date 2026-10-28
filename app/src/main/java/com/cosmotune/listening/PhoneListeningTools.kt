@@ -135,6 +135,32 @@ fun PhoneListeningTools(
                 }
             } }
         },
+        importPlaylistFile = {
+            check(pending == null) { "Finish the open file chooser first." }
+            val answer = CompletableDeferred<Uri?>().also { pending = it }
+            picker.launch(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/*", "audio/x-mpegurl", "application/x-mpegurl",
+                    "application/vnd.apple.mpegurl", "application/octet-stream"))
+            })
+            answer.await()?.let { uri -> withContext(Dispatchers.IO) {
+                val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: "Imported playlist"
+                val bytes = checkNotNull(context.contentResolver.openInputStream(uri)) { "The selected file could not be opened." }.use { input ->
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        require(output.size() + count <= MusicPlaylistFile.MAX_BYTES) { "Choose a music playlist smaller than 4 MB." }
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                }
+                MusicPlaylistFile.decode(name, bytes)
+            } }
+        },
         mediaCheck = { song -> ListeningNetwork.timed("Media stream") {
             withTimeout(30_000) {
                 val owned = SourceRegistry.parseTrackKey(song.videoId)

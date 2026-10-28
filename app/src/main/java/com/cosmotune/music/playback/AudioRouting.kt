@@ -2,6 +2,10 @@ package com.cosmotune.music.playback
 
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothClass
+import android.os.Build
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,6 +58,8 @@ object AudioRouting {
 
     /** Output kinds worth telling apart on screen, in the order they are listed. */
     enum class Kind { PHONE, WIRED, USB, BLUETOOTH, HDMI, OTHER }
+    /** A presentation hint for Bluetooth outputs, never a codec or quality capability. */
+    enum class Form { UNKNOWN, BUDS, HEADPHONES, SPEAKER, CAR }
 
     data class Device(
         val id: Int,
@@ -73,6 +79,7 @@ object AudioRouting {
         val kind: Kind,
         /** Where the audio is going right now — see [activeOf]. */
         val isActive: Boolean = false,
+        val form: Form = Form.UNKNOWN,
     )
 
     private val _selectedId = MutableStateFlow<Int?>(null)
@@ -107,12 +114,14 @@ object AudioRouting {
         return infos
             .mapNotNull { info -> kindOf(info.type)?.let { info to it } }
             .map { (info, kind) ->
+                val name = nameOf(info, kind)
                 Device(
                     id = info.id,
                     type = info.type,
-                    name = nameOf(info, kind),
+                    name = name,
                     kind = kind,
                     isActive = info.id == active?.id,
+                    form = if (kind == Kind.BLUETOOTH) bluetoothForm(info.type, name) { bluetoothClass(info) } else Form.UNKNOWN,
                 )
             }
             // One row per physical device. Several entries under one name is
@@ -200,4 +209,52 @@ object AudioRouting {
         Kind.PHONE, Kind.WIRED -> ""
         else -> info.productName?.toString()?.trim().orEmpty()
     }
+
+    /** LE's declared speaker type wins. Recognizable names remain usable when the optional
+     * paired-device class is unavailable or permission is denied; unknown devices stay generic. */
+    internal fun bluetoothForm(type: Int, name: String, deviceClass: () -> Int? = { null }): Form {
+        if (type == AudioDeviceInfo.TYPE_BLE_SPEAKER) return Form.SPEAKER
+        if (type == AudioDeviceInfo.TYPE_HEARING_AID) return Form.BUDS
+        return formFromName(name) ?: runCatching(deviceClass).getOrNull()?.let(::formFromClass) ?: Form.UNKNOWN
+    }
+
+    @Suppress("DEPRECATION", "MissingPermission")
+    private fun bluetoothClass(info: AudioDeviceInfo): Int? {
+        if (Build.VERSION.SDK_INT < 28) return null
+        val address = info.address.takeIf(BluetoothAdapter::checkBluetoothAddress) ?: return null
+        // BLUETOOTH_CONNECT is optional here. bluetoothForm catches permission/security failures;
+        // output enumeration must not start a permission prompt or alter the selected media sink.
+        return BluetoothAdapter.getDefaultAdapter()?.getRemoteDevice(address)?.bluetoothClass?.deviceClass
+    }
+
+    internal fun formFromClass(deviceClass: Int): Form? = when (deviceClass) {
+        BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET, BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE -> Form.BUDS
+        BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES -> Form.HEADPHONES
+        BluetoothClass.Device.AUDIO_VIDEO_LOUDSPEAKER, BluetoothClass.Device.AUDIO_VIDEO_PORTABLE_AUDIO,
+        BluetoothClass.Device.AUDIO_VIDEO_HIFI_AUDIO, BluetoothClass.Device.AUDIO_VIDEO_VIDEO_DISPLAY_AND_LOUDSPEAKER -> Form.SPEAKER
+        BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO -> Form.CAR
+        else -> null
+    }
+
+    internal fun formFromName(name: String): Form? {
+        val lower = name.lowercase(Locale.ROOT)
+        return when {
+            HEADPHONE_NAMES.any { it in lower } -> Form.HEADPHONES
+            BUDS_NAMES.any { it in lower } -> Form.BUDS
+            SPEAKER_NAMES.any { it in lower } -> Form.SPEAKER
+            else -> null
+        }
+    }
+
+    // Output-form hints: upstream revision 04a4a838, with provenance recorded in UPSTREAM.md.
+    // This is only an icon hint. Keep models specific: generic "solo" or "pods" is ambiguous.
+    private val HEADPHONE_NAMES = listOf("headphone", "airpods max", "wh-", "qc35", "qc45",
+        "quietcomfort ultra headphones", "momentum 4", "beats studio pro", "beats solo", "major iv", "major v", "monitor ii")
+    private val BUDS_NAMES = listOf("buds", "airpods", "earbud", "earphone", "wf-", "tws",
+        "soundcore liberty", "freebuds", "nothing ear", "jabra elite", "motif", "minor iv", "earfun")
+    private val SPEAKER_NAMES = listOf("speaker", "soundbar", "sound bar", "emberton", "kilburn", "stanmore", "acton",
+        "woburn", "middleton", "willen", "tufton", "stockwell", "uxbridge", "jbl flip", "jbl charge", "jbl go",
+        "jbl clip", "jbl xtreme", "jbl boombox", "jbl pulse", "partybox", "wonderboom", "megaboom", "boom 3",
+        "everboom", "hyperboom", "soundlink", "srs-", "ult field", "soundcore motion", "soundcore flare",
+        "soundcore boom", "stormbox", "beats pill", "sonos", "homepod", "echo", "nest audio", "bose home", "beosound", "beoplay a", "boombox")
 }

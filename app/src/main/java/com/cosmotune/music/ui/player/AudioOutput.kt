@@ -143,6 +143,13 @@ private fun AudioRouting.Device.toOutputDevice() = AudioOutputDevice(
         AudioRouting.Kind.OTHER -> AudioOutputKind.OTHER
     },
     isActive = isActive,
+    form = when (form) {
+        AudioRouting.Form.UNKNOWN -> AudioOutputForm.UNKNOWN
+        AudioRouting.Form.BUDS -> AudioOutputForm.BUDS
+        AudioRouting.Form.HEADPHONES -> AudioOutputForm.HEADPHONES
+        AudioRouting.Form.SPEAKER -> AudioOutputForm.SPEAKER
+        AudioRouting.Form.CAR -> AudioOutputForm.CAR
+    },
 )
 
 /**

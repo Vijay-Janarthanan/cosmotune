@@ -52,6 +52,8 @@ internal fun rememberDesktopAudioDevices(): List<DesktopAudioDevice> {
 @Composable
 internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
     val selected by DesktopAudioDevices.selected.collectAsState()
+    val direct by DesktopOutputMode.direct.collectAsState()
+    val status by DesktopOutputMode.status.collectAsState()
     val devices = rememberDesktopAudioDevices()
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 440) {
         Column(Modifier.padding(horizontal = panelInset(22.dp), vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -65,6 +67,11 @@ internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
                 color = DesktopSecondary,
                 style = MaterialTheme.typography.bodySmall,
             )
+            Spacer(Modifier.height(10.dp))
+            OutputRow("System output", "Recommended · shares audio with other apps", chosen = !direct) { DesktopOutputMode.select(false) }
+            OutputRow("Prefer direct device output", "Exact format negotiation; may take control of the device. Falls back when unavailable.", chosen = direct) { DesktopOutputMode.select(true) }
+            Text(status, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+            Text("DSD is decoded to PCM. Native DSD and DoP passthrough are not enabled.", color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(10.dp))
             OutputRow(
                 name = DesktopStrings["d_system_default", "System default"],

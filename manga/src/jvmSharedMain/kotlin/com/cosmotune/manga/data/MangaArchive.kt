@@ -54,8 +54,9 @@ class MangaArchive(private val root: File) {
     }
 
     suspend fun import(name: String, open: () -> InputStream): MangaBook = withContext(Dispatchers.IO) {
-        require(name.endsWith(".cbz", true) || name.endsWith(".zip", true)) { "Choose a CBZ or ZIP comic archive" }
+        require(supports(name)) { "Choose CBZ, ZIP, CBT, TAR, TAR.GZ or TGZ. RAR, 7z and PDF need conversion to CBZ." }
         val temporary = File.createTempFile("import-", ".part", books)
+        var converted: File? = null
         try {
             val digest = MessageDigest.getInstance("SHA-256")
             open().use { input -> temporary.outputStream().use { output ->
@@ -73,9 +74,15 @@ class MangaArchive(private val root: File) {
             } }
             val hash = digest.digest().joinToString("") { "%02x".format(it) }
             val target = File(books, "$hash.cbz")
-            val contents = inspect(temporary)
+            val archive = if (name.endsWith(".cbz", true) || name.endsWith(".zip", true)) temporary else {
+                File.createTempFile("converted-", ".part", books).also { file ->
+                    converted = file
+                    MangaTar.convert(temporary, file, name.endsWith(".gz", true) || name.endsWith(".tgz", true))
+                }
+            }
+            val contents = inspect(archive)
             require(contents.pages.isNotEmpty()) { "This archive contains no supported page images" }
-            move(temporary, target)
+            move(archive, target)
             val bookId = "local:$hash"
             val info = contents.info
             val folders = chapterFolders(contents.pages)
@@ -91,7 +98,7 @@ class MangaArchive(private val root: File) {
                 authors = info?.authors.orEmpty(), description = info?.summary.orEmpty(), tags = info?.genres.orEmpty(),
                 language = info?.language.orEmpty(), chapters = chapters,
             )
-        } finally { temporary.delete() }
+        } finally { temporary.delete(); converted?.delete() }
     }
 
     suspend fun chapterPages(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
@@ -160,6 +167,7 @@ class MangaArchive(private val root: File) {
     }
 
     companion object {
+        fun supports(name: String): Boolean = listOf(".cbz", ".zip", ".cbt", ".tar", ".tar.gz", ".tgz").any { name.endsWith(it, true) }
         const val MAX_ARCHIVE_BYTES = 512L * 1024 * 1024
         const val MAX_PAGE_BYTES = 32L * 1024 * 1024
         private const val MAX_ENTRIES = 10_000

@@ -28,18 +28,49 @@ class MangaRepository(val store: MangaStore,
     private val platformSource: ((MangaSourceConfig, ParserContext) -> MangaSource)? = null) {
     val context = ParserContext(store.root, store.protection) { store.state.value.sources }
     private val sources = LinkedHashMap<String, Pair<MangaSourceConfig, MangaSource>>()
+    private val verificationConfigs = HashMap<String, MangaSourceConfig>()
     private val transfers = Mutex()
+    private val updates = Mutex()
     // Guarded by transfers, including the instant a fetched file becomes visible to cache eviction.
     private val inFlightPins = HashMap<String, MutableSet<String>>()
     private val pageCache = File(store.root, "cache/network").apply { mkdirs() }
     private val changes = MutableStateFlow(0L)
     val sourceChanges = changes.asStateFlow()
+    internal var cacheClock: () -> Long = System::currentTimeMillis
+    private data class BrowseKey(val source: MangaSourceConfig, val query: String, val offset: Int, val revision: Long)
+    private data class PagesKey(val source: MangaSourceConfig, val chapter: MangaChapter, val revision: Long)
+    private val catalogues = MangaRequestCache<BrowseKey, MangaBrowsePage>(32, CATALOGUE_TTL_MS) { cacheClock() }
+    private val pageLists = MangaRequestCache<PagesKey, List<MangaPage>>(16, PAGE_LIST_TTL_MS) { cacheClock() }
 
-    @Synchronized fun invalidateSource(id: String) { sources.remove(id); changes.value++ }
+    private fun enabledConfig(id: String) = store.state.value.sources.find { it.id == id && it.enabled }
+        ?: error("Enable this source in Manga sources")
+
+    @Synchronized fun invalidateSource(id: String) {
+        context.verification.reset(id); verificationConfigs.remove(id); sources.remove(id); changes.value++
+    }
+
+    @Synchronized fun beginVerification(id: String, address: String? = null): MangaVerificationRequest {
+        val config = enabledConfig(id)
+        val website = source(id).verificationWebsite
+        val chosen = MangaVerificationSessions.checked(address ?: website ?: error("This source does not provide a verification website."))
+        website?.let { require(MangaVerificationSessions.origin(chosen) == MangaVerificationSessions.origin(MangaVerificationSessions.checked(it))) {
+            "Verify the source website itself, rather than a different website."
+        } }
+        verificationConfigs[id] = config
+        return context.verification.begin(id, chosen.toString())
+    }
+
+    @Synchronized fun completeVerification(request: MangaVerificationRequest, proof: MangaBrowserProof) {
+        require(enabledConfig(request.sourceId) == verificationConfigs[request.sourceId]) { "The source settings changed. Verify it again." }
+        context.verification.accept(request, proof)
+        verificationConfigs.remove(request.sourceId)
+        sources.remove(request.sourceId); changes.value++
+    }
 
     @Synchronized fun source(id: String): MangaSource {
-        val config = store.state.value.sources.find { it.id == id && it.enabled } ?: error("Enable this source in Manga sources")
+        val config = enabledConfig(id)
         sources[id]?.takeIf { it.first == config }?.let { return it.second }
+        if (sources[id] != null) { context.verification.reset(id); verificationConfigs.remove(id) }
         val source = sourceApi { when (config.kind) {
             "kotatsu" -> KotatsuSource(config, context, kotatsuParser?.invoke(config, context))
             "komga" -> KomgaSource(config, context.httpClient)
@@ -58,14 +89,25 @@ class MangaRepository(val store: MangaStore,
         detail
     }
 
-    suspend fun pages(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
+    suspend fun pages(chapter: MangaChapter, refresh: Boolean = false): List<MangaPage> = withContext(Dispatchers.IO) {
         store.state.value.downloads[chapter.id]?.takeIf { pages -> pages.isNotEmpty() && pages.all { it.localFile?.let(::File)?.isFile == true } }
             ?.let { return@withContext it }
-        sourceApi { if (chapter.sourceId == "local") store.archives.chapterPages(chapter) else source(chapter.sourceId).pages(chapter) }
+        if (chapter.sourceId == "local") return@withContext store.archives.chapterPages(chapter)
+        val config = enabledConfig(chapter.sourceId)
+        pageLists.get(PagesKey(config, chapter, sourceChanges.value), refresh) {
+            val result = sourceApi { source(chapter.sourceId).pages(chapter) }
+            check(enabledConfig(chapter.sourceId) == config) { "The source settings changed. Reload the chapter." }
+            result
+        }
     }
 
     suspend fun browse(sourceId: String, query: String, offset: Int): MangaBrowsePage = withContext(Dispatchers.IO) {
-        sourceApi { source(sourceId).browse(query, offset) }
+        val config = enabledConfig(sourceId)
+        catalogues.get(BrowseKey(config, query, offset, sourceChanges.value)) {
+            val result = sourceApi { source(sourceId).browse(query, offset) }
+            check(enabledConfig(sourceId) == config) { "The source settings changed. Reload the catalogue." }
+            result
+        }
     }
 
     /** The catalogue languages of a multi-language source; empty when the source has one language. */
@@ -97,8 +139,10 @@ class MangaRepository(val store: MangaStore,
             val hash = MessageDigest.getInstance("SHA-256").digest((sourceId + "\n" + page.id).toByteArray())
                 .joinToString("") { "%02x".format(it) }
             val output = File(pageCache, "$hash.image")
-            if (output.isFile && output.length() > 0) {
-                output.setLastModified(System.currentTimeMillis())
+            val protected = store.state.value.downloads.values.flatten().any { it.localFile == output.path } ||
+                inFlightPins.values.any { output.path in it }
+            val age = cacheClock() - output.lastModified()
+            if (output.isFile && output.length() > 0 && (protected || age in 0 until IMAGE_TTL_MS)) {
                 pinChapter?.let { inFlightPins.getValue(it).add(output.path) }
                 return@withContext output
             }
@@ -118,8 +162,9 @@ class MangaRepository(val store: MangaStore,
             val temporary = File.createTempFile("download-", ".part", pageCache)
             try {
                 MangaImageFetch.fetch(client, request, temporary)
-                trimCache(temporary.length(), setOf(output.path))
+                trimCache((temporary.length() - output.length()).coerceAtLeast(0), setOf(output.path))
                 MangaArchive.move(temporary, output)
+                output.setLastModified(cacheClock())
                 pinChapter?.let { inFlightPins.getValue(it).add(output.path) }
                 output
             } finally { temporary.delete() }
@@ -130,7 +175,25 @@ class MangaRepository(val store: MangaStore,
      * Checks every library series on an enabled network source for new chapters, [UPDATE_PARALLELISM] at a time and each within
      * [UPDATE_TIMEOUT_MS]. A failing source fails only its own series; the report goes to [onProgress] after each series.
      */
-    suspend fun checkForUpdates(onProgress: (MangaUpdateReport) -> Unit = {}): MangaUpdateReport = coroutineScope {
+    suspend fun checkForUpdates(onProgress: (MangaUpdateReport) -> Unit = {}): MangaUpdateReport = updates.withLock {
+        performUpdate(onProgress)
+    }
+
+    suspend fun scheduledUpdate(now: Long = System.currentTimeMillis()): MangaUpdateReport? = updates.withLock {
+        val state = store.state.value
+        if (state.updateIntervalHours == 0 || (state.lastUpdateAttemptMs > 0 && now >= state.lastUpdateAttemptMs &&
+                now - state.lastUpdateAttemptMs < state.updateIntervalHours * 3_600_000L)) return@withLock null
+        performUpdate({}, now)
+    }
+
+    private suspend fun performUpdate(onProgress: (MangaUpdateReport) -> Unit, now: Long = System.currentTimeMillis()): MangaUpdateReport {
+        store.update { it.copy(lastUpdateAttemptMs = now) }
+        val report = withTimeout(8 * 60_000L) { scanForUpdates(onProgress) }
+        store.update { it.copy(lastUpdateCompletedMs = now, lastUpdateNewChapters = report.newChapters, lastUpdateFailures = report.failures.size) }
+        return report
+    }
+
+    private suspend fun scanForUpdates(onProgress: (MangaUpdateReport) -> Unit): MangaUpdateReport = coroutineScope {
         val state = store.state.value
         val enabled = state.sources.filter { it.enabled }.map { it.id }.toSet()
         val books = state.books.filter { it.sourceId != "local" && it.sourceId in enabled }
@@ -199,12 +262,16 @@ class MangaRepository(val store: MangaStore,
         }
     }
 
-    suspend fun clearCache() = transfers.withLock { withContext(Dispatchers.IO) {
-        val protected = store.state.value.downloads.values.flatten().mapNotNull { it.localFile }.toSet() + inFlightPins.values.flatten()
-        pageCache.listFiles().orEmpty().filter { it.isFile && it.path !in protected }.forEach { it.delete() }
-        val archivePages = File(store.root, "cache/pages")
-        archivePages.listFiles().orEmpty().filter { it.isFile }.forEach { it.delete() }
-    } }
+    suspend fun clearCache() {
+        catalogues.clear()
+        pageLists.clear()
+        transfers.withLock { withContext(Dispatchers.IO) {
+            val protected = store.state.value.downloads.values.flatten().mapNotNull { it.localFile }.toSet() + inFlightPins.values.flatten()
+            pageCache.listFiles().orEmpty().filter { it.isFile && it.path !in protected }.forEach { it.delete() }
+            val archivePages = File(store.root, "cache/pages")
+            archivePages.listFiles().orEmpty().filter { it.isFile }.forEach { it.delete() }
+        } }
+    }
 
     private fun trimCache(incoming: Long, keep: Set<String>) {
         val protected = store.state.value.downloads.values.flatten().mapNotNull { it.localFile }.toSet() + keep + inFlightPins.values.flatten()
@@ -222,5 +289,8 @@ class MangaRepository(val store: MangaStore,
     companion object {
         const val UPDATE_PARALLELISM = 3
         const val UPDATE_TIMEOUT_MS = 60_000L
+        internal const val CATALOGUE_TTL_MS = 60_000L
+        internal const val PAGE_LIST_TTL_MS = 60L * 60 * 1000
+        internal const val IMAGE_TTL_MS = 24L * 60 * 60 * 1000
     }
 }

@@ -55,6 +55,23 @@ class DesktopPlaybackEngine(
     private val _state = MutableStateFlow(DesktopPlaybackState())
     val state: StateFlow<DesktopPlaybackState> = _state.asStateFlow()
 
+    // Episode progress belongs to playback, not to whichever page is currently visible.
+    private val podioProgressJob = scope.launch {
+        var tracker: com.cosmotune.podio.PodioProgressTracker? = null
+        try {
+            state.collect { snapshot ->
+                if (snapshot.song?.videoId?.startsWith("podio:episode:") == true && tracker == null) {
+                    tracker = runCatching { com.cosmotune.podio.PodioProgressTracker(com.cosmotune.podio.PodioLibrary(com.cosmotune.podio.PodioLibrary.desktopFile())) }.getOrNull()
+                }
+                tracker?.observe(snapshot.song?.videoId, snapshot.positionMs, snapshot.isPlaying, snapshot.isLoading, snapshot.durationMs)
+            }
+        } finally {
+            val snapshot = state.value
+            tracker?.observe(snapshot.song?.videoId, snapshot.positionMs, snapshot.isPlaying, snapshot.isLoading, snapshot.durationMs)
+            tracker?.close()
+        }
+    }
+
     private val sink = DesktopAudioSink()
 
     /** Automix's evidence. */
@@ -79,6 +96,12 @@ class DesktopPlaybackEngine(
             }
         }
     }
+    private val outputModeJob = scope.launch {
+        var previous = DesktopOutputMode.direct.value
+        DesktopOutputMode.direct.collect { selected ->
+            if (selected != previous) { previous = selected; commands += Command.Reconfigure }
+        }
+    }
 
     init {
         // Windows' endpoint watcher bumps the same signal from the OS's own push; Linux asks the
@@ -91,7 +114,7 @@ class DesktopPlaybackEngine(
             DesktopAudioDevices.changes.collect {
                 if (DesktopPlatform.isWindows) return@collect // its native side moves the stream itself
                 observedOutputDevice.let { chosen ->
-                    if (chosen != DesktopAudioDevices.SYSTEM_DEFAULT &&
+                    if (chosen != DesktopAudioDevices.SYSTEM_DEFAULT && !chosen.startsWith("alsa:") && !chosen.startsWith("coreaudio:") &&
                         DesktopAudioDevices.mixerFor(chosen) == null
                     ) {
                         // The stored device is gone: fall back to the system default rather than
@@ -1909,6 +1932,13 @@ class DesktopPlaybackEngine(
             equalizerEnabled = equalizerEnabled,
             skipSilence = skipSilenceEnabled,
             outputApi = sink.outputApi,
+            directOutput = sink.isDirect,
+            processingStage = when {
+                fadeRemaining > 0 -> "crossfade or Automix"
+                playbackSpeed != 1f || (track?.tempo != null && !track.tempoDrained) -> "time stretching"
+                spatialEnabled && track?.stream?.isDolbyAtmos != true -> "spatial processing"
+                else -> null
+            },
             loudnessActive = track != null && loudnessNormalization && (
                 if (track.stream.sourceId == "youtube") com.cosmotune.music.data.innertube.StreamResolver.loudnessDbFor(track.song.videoId)
                 else com.cosmotune.audio.LibraryLoudness.loudnessDbFor(track.song.videoId)

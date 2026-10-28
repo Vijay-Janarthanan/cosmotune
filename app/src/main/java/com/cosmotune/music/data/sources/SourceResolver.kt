@@ -900,7 +900,7 @@ object SourceResolver {
 
     private suspend fun matchAndStreamUnreported(
         source: MusicSource,
-        target: TrackMatcher.Target,
+        requestedTarget: TrackMatcher.Target,
         request: StreamRequest,
         waitForAll: Boolean = false,
         strictLength: Boolean = false,
@@ -908,7 +908,10 @@ object SourceResolver {
         ticket: AudioSourceComparisons.Ticket,
         onMatched: () -> Unit,
     ): SourceStream? {
-        for (query in TrackMatcher.queries(target)) {
+        val isJioSaavn = source.kind == SourceKind.JIOSAAVN
+        val target = if (isJioSaavn) RecordingMetadata.enrich(requestedTarget) else requestedTarget
+        val queries = if (isJioSaavn) JioSaavnMatcher.queries(target) else TrackMatcher.queries(target)
+        for (query in queries) {
             val candidates = attempt(source, ticket) {
                 source.search(
                     query,
@@ -920,13 +923,14 @@ object SourceResolver {
                     request = request,
                 )
             } ?: return null
-            var matches = TrackMatcher.ranked(candidates, target)
+            var matches = if (isJioSaavn) JioSaavnMatcher.ranked(candidates, target) else TrackMatcher.ranked(candidates, target)
             if (source is PackageMusicSource) {
                 matches = matches.filter { TrackMatcher.withinSeconds(it, target, UPGRADE_DRIFT_SEC) &&
                     TrackMatcher.sharesArtist(target.artist, it.artist) }
             }
             if (requireSharedArtist) {
-                matches = matches.filter { TrackMatcher.sharesArtist(target.artist, it.artist) }
+                matches = matches.filter { if (isJioSaavn) JioSaavnMatcher.sameRecording(target, it)
+                    else TrackMatcher.sharesArtist(target.artist, it.artist) }
             }
             // JioSaavn can return different audio under the same title and
             // artist on different releases. With no album on the requested

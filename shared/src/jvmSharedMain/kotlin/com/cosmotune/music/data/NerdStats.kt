@@ -60,6 +60,7 @@ object NerdStats {
         /** True PCM throughput (sampleRate * bitDepth * channels / 1000). Never conflated with encoded bitrate. */
         val pcmDataRateKbps: Int? = null,
         val sourceId: String? = null,
+        val mediaId: String? = null,
     ) {
         /**
          * Whether what arrived is measurably worse than what was promised.
@@ -138,20 +139,20 @@ object NerdStats {
          * exotic one.
          */
         val isHiQuality: Boolean
-            get() = !isLossless && (bitrateKbps ?: 0) >= HI_QUALITY_KBPS
+            get() = !isLossless && bitrateProvenance != TelemetryProvenance.DERIVED && (bitrateKbps ?: 0) >= HI_QUALITY_KBPS
 
         /**
          * Whether this is a medium quality stream (e.g. YouTube Opus ~160kbps, AAC 128-192kbps).
          * Sits strictly between low-quality (<= 80kbps) and high-quality (>= 256kbps).
          */
         val isMediumQuality: Boolean
-            get() = !isLossless && (bitrateKbps ?: 0) in (LOW_QUALITY_MAX_KBPS + 1) until HI_QUALITY_KBPS
+            get() = !isLossless && bitrateProvenance != TelemetryProvenance.DERIVED && (bitrateKbps ?: 0) in (LOW_QUALITY_MAX_KBPS + 1) until HI_QUALITY_KBPS
 
         /**
          * Whether this is a low quality stream (e.g. YouTube Opus 50-70kbps).
          */
         val isLowQuality: Boolean
-            get() = !isLossless && (bitrateKbps ?: 0) in 1..LOW_QUALITY_MAX_KBPS
+            get() = !isLossless && bitrateProvenance != TelemetryProvenance.DERIVED && (bitrateKbps ?: 0) in 1..LOW_QUALITY_MAX_KBPS
     }
 
     /**
@@ -225,6 +226,17 @@ object NerdStats {
     }
 
     val current = MutableStateFlow<Snapshot?>(null)
+    private val publicationLock = Any()
+    private var generation = 1L
+    private var activeMediaId: String? = null
+    val currentGeneration: Long get() = synchronized(publicationLock) { generation }
+
+    /** A late read or standby-deck callback cannot overwrite the new track's cleared statistics. */
+    fun publish(snapshot: Snapshot, expectedGeneration: Long): Boolean = synchronized(publicationLock) {
+        if (expectedGeneration != generation || (activeMediaId != null && snapshot.mediaId != activeMediaId)) return false
+        current.value = snapshot
+        true
+    }
 
     /**
      * YouTube video ids with a module lookup racing YouTube's own resolve
@@ -309,6 +321,20 @@ object NerdStats {
 
     fun pickedBitrateKbps(videoId: String?): Int? = videoId?.let { picked[it] }
 
+    /** An upgraded stream never borrows the old YouTube rendition's bitrate. */
+    fun sourceBitrate(mediaId: String?, measuredKbps: () -> Int?): Pair<Int, TelemetryProvenance>? {
+        val format = declaredFormat(mediaId)
+        if (format != null) {
+            format.kbps?.takeIf { it > 0 && !format.kbpsInferred }
+                ?.let { return it to TelemetryProvenance.AUTHORITATIVE }
+            if (format.isLossless == true) return null
+            measuredKbps()?.takeIf { it > 0 }?.let { return it to TelemetryProvenance.MEASURED }
+            return format.kbps?.takeIf { it > 0 }?.let { it to TelemetryProvenance.DERIVED }
+        }
+        pickedBitrateKbps(mediaId)?.takeIf { it > 0 }?.let { return it to TelemetryProvenance.AUTHORITATIVE }
+        return measuredKbps()?.takeIf { it > 0 }?.let { it to TelemetryProvenance.MEASURED }
+    }
+
     /**
      * Undoes [onSourceStream] for [trackId].
      *
@@ -337,7 +363,9 @@ object NerdStats {
             ?: SourceTrackKeys.parse(key)?.second?.let { declared[it] }
     }
 
-    fun onTrackTransition() {
+    fun onTrackTransition(mediaId: String? = null) = synchronized(publicationLock) {
+        generation++
+        activeMediaId = mediaId
         current.value = null
     }
 
@@ -373,7 +401,7 @@ object NerdStats {
      *   rather than merely how it is labelled.
      */
     fun forgetLastSession() {
-        current.value = null
+        onTrackTransition()
         racingLossless.value = emptySet()
         picked.clear()
         declared.clear()

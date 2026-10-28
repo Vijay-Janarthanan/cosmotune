@@ -419,7 +419,8 @@ private fun ColumnScope.BackupPage(host: ListeningToolsHost, store: ListeningSto
                 withContext(Dispatchers.IO) { store.import(data) }
                 "Backup merged. Existing local entries were kept. Missing local files are skipped when you open a session."
             } })
-            Text("Imports add missing entries by identity; importing the same file again does not duplicate them. Local edits take precedence. Use your platform’s existing library import for music playlists and media.", style = MaterialTheme.typography.bodySmall)
+            Text("Listening backups add missing entries by identity; importing the same backup again does not duplicate them. Local edits take precedence.", style = MaterialTheme.typography.bodySmall)
+            MusicPlaylistImportPanel(host, busy, run)
             Heading("Local playlists", "Export local audio files as a UTF-8 M3U8 playlist. File order and repeated tracks are preserved. Online-only songs, missing files and device-only content links are skipped; no stream addresses or account credentials are exported.")
             ToolButton("Export local queue to M3U8", enabled = !busy, tag = "listening:m3u8:queue", onClick = { run {
                 val songs = host.queue().songs

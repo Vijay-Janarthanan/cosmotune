@@ -9,6 +9,26 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class FilmVideoMatchingTest {
+    @Test fun descriptiveSubtitleDoesNotHideThePublisherVideoOrChangeTheRecordingIdentity() {
+        val title = "Idhazhin Oram (The Innocence of Love)"
+        assertEquals(listOf(title, "Idhazhin Oram"), VideoMatcher.searchTitleVariants(title))
+        assertEquals(title, MusicVideoQuery.from(title, "3").title)
+        val video = VideoCandidate("lZORMUufA_Y", "3 - Idhazhin Oram Video | Dhanush, Shruti | Anirudh", "SonyMusicSouthVEVO", 196, false, true)
+        assertTrue(VideoMatcher.hasPublisherEvidence(video, title, "Anirudh Ravichander", "3"))
+        assertFalse(VideoMatcher.hasPublisherEvidence(video.copy(isVerifiedChannel = false, channelTitle = "Fan Music"), title, "Anirudh Ravichander", "3"))
+        for (edition in listOf("The Live Acoustic Session", "The Tamil Film Version", "The 2024 New Recording")) {
+            val name = "Song ($edition)"
+            assertEquals(listOf(name), VideoMatcher.searchTitleVariants(name))
+        }
+    }
+
+    @Test fun shortNumericMovieNamesMatchOnlyAnEntireToken() {
+        assertTrue(VideoMatcher.hasFilmContext("3 - Song Video", "3"))
+        assertFalse(VideoMatcher.hasFilmContext("Song 2023 Video", "3"))
+        assertFalse(VideoMatcher.hasFilmContext("Song 3D Video", "3"))
+        assertFalse(VideoMatcher.hasFilmContext("Song 13 Video", "3"))
+        assertFalse(VideoMatcher.hasFilmContext("A Different Film", "A"))
+    }
     @Test fun filmCreditSurvivesCatalogueCleanupAndOverridesACompilationAlbum() {
         val query = MusicVideoQuery.from("Nilaave Vaa (From \"Mouna Ragam\")", "Presenting S. P. Balasubrahmanyam (Tamil)")
         assertEquals("Nilaave Vaa", query.title)

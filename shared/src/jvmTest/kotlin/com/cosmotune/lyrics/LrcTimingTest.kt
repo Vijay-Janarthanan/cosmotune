@@ -8,6 +8,20 @@ import com.cosmotune.music.data.lyrics.LyricSyllable
 import kotlin.test.*
 
 class LrcTimingTest {
+    @Test fun supplementaryUnicodeEntitiesStayIntactInNativeLyrics() {
+        assertEquals("🎵 🎵 don't", EnhancedLrc.decodeEntities("&#x1F3B5; &#127925; don&#39;t"))
+        val sung = EnhancedLrc.parse("[00:01.00]<00:01.00>&#x1F3B5; <00:02.00>music")
+            .single { !it.isGap }
+        assertEquals("🎵 music", sung.text)
+    }
+
+    @Test fun invalidEntitiesCannotAbortTheWholeLyricsLookup() {
+        val invalid = "&#x110000; &#9999999999999999999999999; &#xD800;"
+        assertEquals(invalid, EnhancedLrc.decodeEntities(invalid))
+        assertEquals("&#x27;", EnhancedLrc.decodeEntities("&amp;#x27;"), "only decode one layer")
+        assertEquals(invalid, EnhancedLrc.parse("[00:01.00]<00:01.00>$invalid").single { !it.isGap }.text)
+    }
+
     @Test fun positiveOffsetAdvancesLinesAndWordTiming() {
         val line = LrcLib.parseLrc("[offset:+500]\n[00:10.00]<00:10.00>Hello <00:11.00>there<00:12.00>")
             .single { !it.isGap }

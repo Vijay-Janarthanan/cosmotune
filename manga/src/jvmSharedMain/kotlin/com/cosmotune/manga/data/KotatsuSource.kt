@@ -27,6 +27,7 @@ class MangaSourceFailure(message: String, cause: Throwable? = null) : IllegalSta
 class KotatsuSource(override val config: MangaSourceConfig, context: ParserContext, parserOverride: MangaParser? = null) : MangaSource {
     private val source = MangaParserSource.valueOf(config.id.removePrefix("kotatsu:"))
     val parser = parserOverride ?: context.newParserInstance(source)
+    override val verificationWebsite: String get() = parser.domain.let { if ("://" in it) it else "https://$it" }
 
     /** The language chosen for a multi-language source, as a BCP 47 tag in the source settings; blank for the source's default. */
     private val locale: Locale? get() = config.settings[LOCALE]?.takeIf { it.isNotBlank() }?.let(Locale::forLanguageTag)
@@ -66,7 +67,7 @@ class KotatsuSource(override val config: MangaSourceConfig, context: ParserConte
         try { block() }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: AuthRequiredException) {
-            throw MangaSourceFailure("${config.name} requires signing in on its website, which Cosmotune cannot do for this source. Choose another source.", failure)
+            throw MangaSourceFailure("${config.name} requires signing in on its website. You can try Website verification in Manga sources; browser sessions and account-specific source APIs are not supported by every website.", failure)
         }
         catch (failure: TooManyRequestExceptions) { throw MangaSourceFailure("${config.name} is limiting requests. Wait a minute, then retry.", failure) }
         catch (failure: NotFoundException) { throw MangaSourceFailure("${config.name} no longer has this page. Refresh the series or search again.", failure) }

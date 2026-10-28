@@ -42,6 +42,13 @@ fun DesktopListeningTools(
                 file.readText(Charsets.UTF_8)
             } }
         },
+        importPlaylistFile = {
+            chooseCosmotuneFile("", saving = false, title = "Import music playlist")?.let { selected -> withContext(Dispatchers.IO) {
+                val file = selected.canonicalFile
+                require(file.length() <= MusicPlaylistFile.MAX_BYTES) { "Choose a music playlist smaller than 4 MB." }
+                MusicPlaylistFile.decode(file.name, file.readBytes(), file.parent)
+            } }
+        },
         mediaCheck = { song -> ListeningNetwork.timed("Media stream") {
             withTimeout(30_000) {
                 val stream = DesktopSourceRegistry.resolve(song, null).getOrThrow()
@@ -63,10 +70,10 @@ fun desktopListeningFile(): File {
     return File(base, "cosmotune/listening.json")
 }
 
-internal suspend fun chooseCosmotuneFile(name: String, saving: Boolean): File? = withContext(Dispatchers.IO) {
+internal suspend fun chooseCosmotuneFile(name: String, saving: Boolean, title: String? = null): File? = withContext(Dispatchers.IO) {
     var selected: File? = null
     SwingUtilities.invokeAndWait {
-        val dialog = FileDialog(null as Frame?, if (saving) "Save Cosmotune file" else "Import listening backup", if (saving) FileDialog.SAVE else FileDialog.LOAD)
+        val dialog = FileDialog(null as Frame?, title ?: if (saving) "Save Cosmotune file" else "Import listening backup", if (saving) FileDialog.SAVE else FileDialog.LOAD)
         try {
             if (name.isNotBlank()) dialog.file = name
             dialog.isVisible = true

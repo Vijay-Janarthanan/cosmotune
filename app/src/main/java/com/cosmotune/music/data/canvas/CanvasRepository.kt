@@ -76,7 +76,8 @@ object CanvasRepository {
         private val lifetimeMs: Long = ENTRY_TTL_MS,
     ) {
         /** A stream URL is minted for a few hours; an older answer is looked up again rather than served dead. */
-        val fresh: Boolean get() = System.currentTimeMillis() - at < lifetimeMs
+        val fresh: Boolean get() = System.currentTimeMillis() - at < lifetimeMs &&
+            artwork?.url?.let { !com.opencanvas.core.stream.isMediaStreamExpired(it) } != false
     }
 
     private val cache = object : LinkedHashMap<String, Entry>(CACHE_SIZE, 0.75f, true) {

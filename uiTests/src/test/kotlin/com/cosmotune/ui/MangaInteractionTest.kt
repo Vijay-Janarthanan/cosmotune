@@ -115,7 +115,7 @@ class MangaInteractionTest {
 
     @Test fun narrowLargeTextLibraryKeepsImportAndSourceControlsReachable() {
         show(1.5f)
-        compose.onNodeWithText("Import CBZ").assertIsDisplayed()
+        compose.onNodeWithText("Import comic").assertIsDisplayed()
         compose.onNodeWithText("Image folder").assertIsDisplayed()
         compose.onNodeWithText("Sources").assertIsDisplayed()
         compose.onNodeWithText("Evening story").assertIsDisplayed()

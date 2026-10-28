@@ -53,4 +53,27 @@ class ProviderMetadataHostTest {
             assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", result.getValue("hash").jsonPrimitive.content)
         }
     }
+
+    @Test fun signedQueryUpdatesPreserveEscapesDuplicateValuesOrderAndFragmentsInTheGuest() = runBlocking<Unit> {
+        val installed = ProviderInstall(manifest("fixture"), "a".repeat(64))
+        val host = ProviderMetadataHost(installed, ProviderStore(temporary.newFolder(), UnsealedProviderFiles))
+        val config = buildJsonObject { putJsonObject("permissions") { putJsonArray("network") {} } }
+        val code = """
+            registerExtension({probe:function(){
+              const first=new URL('https://media.example/audio#player');
+              first.searchParams.set('token','a+b/c =');
+              const signed=new URL('https://media.example/audio?keep=one&sig=old&keep=two&sig=stale#player');
+              signed.searchParams.set('sig','new+/=');
+              return {first:first.toString(),second:signed.toString(),signature:signed.searchParams.get('sig'),
+                repeated:signed.searchParams.getAll('keep'),query:signed.search};
+            }});
+        """.trimIndent()
+        createProviderScriptSession(code, config, host::bridge, host.network::cancel).use { runtime ->
+            val result = Json.parseToJsonElement(runtime.invoke("probe", JsonArray(emptyList()))).jsonObject
+            assertEquals("https://media.example/audio?token=a%2Bb%2Fc+%3D#player", result.getValue("first").jsonPrimitive.content)
+            assertEquals("https://media.example/audio?keep=one&sig=new%2B%2F%3D&keep=two#player", result.getValue("second").jsonPrimitive.content)
+            assertEquals("new+/=", result.getValue("signature").jsonPrimitive.content)
+            assertEquals(listOf("one", "two"), result.getValue("repeated").jsonArray.map { it.jsonPrimitive.content })
+        }
+    }
 }

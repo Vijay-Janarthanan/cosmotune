@@ -1365,4 +1365,5 @@
     <string name="wear_os_code_hint">Código de pareamento</string>
     <string name="wear_os_done">Concluir</string>
     <string name="signed_by">Assinado por %1$s</string>
+    <string name="cached_song_partial">Parcial · requer conexão</string>
 </resources>

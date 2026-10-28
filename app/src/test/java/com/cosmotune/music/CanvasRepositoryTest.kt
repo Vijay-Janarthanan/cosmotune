@@ -7,6 +7,7 @@ import com.cosmotune.music.data.settings.AppSettings
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
@@ -14,6 +15,18 @@ import org.junit.Test
  * under the old setting is not served under the new one.
  */
 class CanvasRepositoryTest {
+    @Test fun `a signed video expiry invalidates the Android canvas entry`() = runBlocking {
+        var lookups = 0
+        val key = "expired-film-${System.nanoTime()}"
+        repeat(2) {
+            CanvasRepository.resolve(key, withAlbum = true) {
+                lookups++
+                CanvasArtwork("https://example.invalid/video?expire=1")
+            }
+        }
+        assertEquals(2, lookups)
+    }
+
 
     private fun song(videoId: String) = Song(videoId, "Song", "Artist", null)
 

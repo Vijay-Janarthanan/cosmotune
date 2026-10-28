@@ -92,6 +92,7 @@ enum class TvDestination(val label: String) {
     HOME("Home"),
     EXPLORE("Explore"),
     LIBRARY("Library"),
+    PODIO("Podio"),
     SEARCH("Search"),
     SETTINGS("Settings"),
 }
@@ -418,6 +419,7 @@ private fun TvMainShell(
                 ) {
                     stateHolder.SaveableStateProvider(destination.name) {
                         when (destination) {
+                            TvDestination.PODIO -> com.cosmotune.music.ui.tv.screens.TvPodioScreen(mediaController, openNowPlaying)
                             TvDestination.HOME -> TvHomeScreen(
                                 viewModel = viewModel,
                                 mediaController = mediaController,
@@ -566,7 +568,7 @@ private fun TvTopBar(
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            listOf(TvDestination.HOME, TvDestination.EXPLORE, TvDestination.LIBRARY).forEach { tab ->
+            listOf(TvDestination.HOME, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.PODIO).forEach { tab ->
                 val interaction = remember { MutableInteractionSource() }
                 val focused by interaction.collectIsFocusedAsState()
                 LaunchedEffect(focused) {

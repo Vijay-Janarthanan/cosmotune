@@ -1,6 +1,17 @@
 package com.opencanvas.core.stream
 
 import com.opencanvas.core.models.OpenCanvasResolution
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+
+/** An explicit Unix-seconds expiry, when a signed media address declares one. */
+fun mediaStreamExpiryMs(url: String): Long? = url.toHttpUrlOrNull()?.queryParameter("expire")
+    ?.toLongOrNull()?.takeIf { it in 0L..Long.MAX_VALUE / 1_000L }?.times(1_000L)
+
+/** Leave enough time to open the decoder before a signed address stops working. */
+fun isMediaStreamExpired(url: String, nowMs: Long = System.currentTimeMillis()): Boolean =
+    mediaStreamExpiryMs(url)?.let { it - STREAM_EXPIRY_MARGIN_MS <= nowMs } ?: false
+
+internal const val STREAM_EXPIRY_MARGIN_MS = 60_000L
 
 /**
  * A resolved, directly playable video stream.

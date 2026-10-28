@@ -1,5 +1,7 @@
 package com.cosmotune.desktop
 
+import com.cosmotune.music.desktop.desktopSongContextMenu
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -542,6 +544,7 @@ private fun CollectionTrackRow(
             .fillMaxWidth()
             .heightIn(min = DESKTOP_ROW_HEIGHT)
             .alpha(if (song.isMatchMissing) MISSING_ALPHA else 1f)
+            .desktopSongContextMenu(song, enabled = !unresolved)
             .cosmoDesktopRow(chrome, colors, striped = striped, enabled = !unresolved, onClick = onClick)
             .padding(horizontal = DESKTOP_ROW_PADDING),
         verticalAlignment = Alignment.CenterVertically,

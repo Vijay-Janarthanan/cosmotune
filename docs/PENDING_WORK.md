@@ -2,6 +2,12 @@
 
 Reviewed 2026-10-28 against FEATURE_TRACKER.md, published releases through 1.0.10. A source implementation, a passing automated check, a hardware/account check and publication are separate evidence.
 
+## Version 1.0.11 release candidate
+
+The 1.0.11 source adds recording-based JioSaavn matching, measured video discovery/expiry recovery, truthful audio telemetry, opt-in direct desktop output, playlist import/activity views, public podcast archives/downloads/OPML and TV/browser Podio, Manga collections/backups/scheduling/archive imports/verification, provider manifest preparation and browser Automix. See [release notes](releases/1.0.11.md). The complete local release gate passed; [validation details](releases/1.0.11-validation.md). GitHub platform packaging and publication must complete before describing installers as available.
+
+Watch Podio, bidirectional library/file synchronization and native DSD/DoP remain unimplemented. Public party-server deployment needs a selected hosting target. Physical-device/account validation and unsupported media/source layouts remain separate limitations, described below and in the release notes.
+
 ## Version 1.0.10 release and integration checks
 
 After 1.0.10: the wide Now Playing header now reserves space for the audio-quality row and grows with the text scale. Quality pills use an explicit line height so inherited typography cannot clip their labels. This source repair requires a new app build; the published 1.0.10 installers do not contain it.
@@ -32,14 +38,14 @@ The [operator follow-up](PROVIDER_OPERATORS.md) fixes the missing native verific
 
 ## Unfinished integrations
 
-- Podio: full podcast archive pagination, episode downloads/OPML/sleep timers, directory breadth and more public Spotify shows, physical Android and macOS/Linux listening checks, and TV/Wear/browser-specific interfaces. Public radio/RSS works without a listener account; Spotify links require a matching public publisher feed. Direct Spotify-only and paid-only audio is unsupported. [Implemented scope and evidence](PODIO_RESEARCH.md).
+- Podio: archive pagination, finite downloads, OPML, resume/played progress, sleep controls and TV/browser pages are implemented. Watch Podio, physical Android/macOS/Linux listening and wider catalogue coverage remain separate checks. Public radio/RSS works without a listener account; Spotify links require a matching public publisher feed. Direct Spotify-only and paid-only audio is unsupported. [Implemented scope and evidence](PODIO_RESEARCH.md).
 - OpenCanvas: a reliable film-video sync for the stereo Germaniyin Senthen Malare recording. The animated-artwork upload is rejected; the tested 5.1 remaster fails alignment. Preserve the cover fallback until a matching, publisher-verified clip is established.
 
-- Provider packages: manifest-aware HLS/DASH stream relaying, SDK encoding options beyond stream copy, additional post-processing hooks, and final real-provider Android walkthroughs (MN-04). Native `ffmpeg.mov_key` decryption/remux and SDK file inspection/stream copy are implemented on desktop and Android; see [preparation evidence](PROVIDER_MEDIA_PREPARATION.md). Real macOS/Linux provider execution remains to be checked.
-- Manga: isolated verification browsers and cookie/user-agent handoff on Android and desktop for sites with browser checks (MG-08).
-- Party server: live deployment and server validation; the tracker records Go/native CI checks as outstanding and needs results reconciled against the actual release jobs (BC-36).
+- Provider packages: supported finite HLS/DASH preparation, stream copy, PCM16/24 WAV and verified-lossless FLAC encoding are implemented. Live/changing layouts, arbitrary processing hooks and final real-provider Android walkthroughs remain limited (MN-04). Native `ffmpeg.mov_key` decryption/remux and SDK file inspection/stream copy are implemented on desktop and Android; see [preparation evidence](PROVIDER_MEDIA_PREPARATION.md). Real macOS/Linux provider execution remains to be checked.
+- Manga: isolated verification browsers and temporary cookie/user-agent handoff, collections/backups, optional update checks and additional TAR-family archives are implemented. Real extension/device compatibility and unsupported heavy archive decoders remain separate checks (MG-08).
+- Party server: local Go formatting/vet, 44 top-level tests (47 cases), browser loopback handshakes and Windows/Linux amd64/Linux arm64 builds pass. Public deployment and real two-client/hardware checks still need a selected hosting target; the latest CI result must be reconciled with the released commit (BC-36). [Validation and deployment prerequisites](BACKEND_VALIDATION_2026-10-28.md).
 - Android bounded queues: continuation growth, kill/restart restoration and Cast handover on a device (BC-05).
-- Windows: media-card seeking, fullscreen/taskbar restoration, own-playlist ordering and own-key Last.fm with real OS/account state; desktop-owned rows still lack the upstream right-click menu (BC-35).
+- Windows: media-card seeking, fullscreen/taskbar restoration, own-playlist ordering and own-key Last.fm with real OS/account state; desktop-owned rows now support secondary-click actions; physical shell/account checks remain (BC-35).
 
 ## Device/account validation
 
@@ -47,6 +53,6 @@ The existing device checklist covers Android/watch pairing and watch audio, TV r
 
 ## Deliberately deferred or not adopted
 
-Alternative branded icons/onboarding; Discord integration; desktop exclusive/hog-mode audio and native DSD/DoP; concerts, haptics and desktop widgets; Lite builds; per-video sync offsets; custom Chromecast receiver, desktop casting and TV as a Cast target; Soulseek. Some require product choices, services, artwork or hardware, rather than just additional code. Monthly dataset-refresh scheduling remains deferred at the user's request.
+Alternative branded icons/onboarding; Discord integration; native DSD/DoP (exclusive/hog-mode desktop output is implemented as an opt-in path, pending hardware validation); concerts, haptics and desktop widgets; Lite builds; per-video sync offsets; custom Chromecast receiver, desktop casting and TV as a Cast target; Soulseek. Some require product choices, services, artwork or hardware, rather than just additional code. Monthly dataset-refresh scheduling remains deferred at the user's request.
 
-Manga UI translation, more archive formats, broader extension compatibility, password-free Subsonic artwork transport and macOS/Linux system-keychain integration remain limitations documented in the 1.0.4 release notes. Android's transport now permits HTTP for public Podio media; a real HTTP Komga server still needs a device walkthrough rather than retaining the old claim that Android blocks every remote HTTP address.
+Manga technical-text translation, RAR/7z/PDF decoding, broader extension compatibility, password-free Subsonic artwork transport and macOS/Linux system-keychain integration remain limitations documented in the 1.0.4 release notes. Android's transport now permits HTTP for public Podio media; a real HTTP Komga server still needs a device walkthrough rather than retaining the old claim that Android blocks every remote HTTP address.

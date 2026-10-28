@@ -19,9 +19,11 @@ import org.koitharu.kotatsu.parsers.config.MangaSourceConfig as ParserConfig
 class MangaBrowserRequired(val address: String) : Exception("Open the source website to complete its verification, then retry")
 
 class ParserContext(root: File, protection: MangaFileProtection = UnsealedMangaFiles, private val configurations: () -> List<MangaSourceConfig>) : MangaLoaderContext() {
-    override val cookieJar: CookieJar = MangaCookies(File(root, "cookies.txt"), protection)
+    val verification = MangaVerificationSessions()
+    override val cookieJar: CookieJar = verification.cookieJar(MangaCookies(File(root, "cookies.txt"), protection))
     override val httpClient: OkHttpClient = OkHttpClient.Builder().cookieJar(cookieJar)
         .addInterceptor(MangaResponseLimit())
+        .addNetworkInterceptor(verification.userAgentInterceptor())
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(45, TimeUnit.SECONDS).build()
     override fun getDefaultUserAgent(): String = USER_AGENT

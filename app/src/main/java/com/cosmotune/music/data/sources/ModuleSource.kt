@@ -265,13 +265,16 @@ class ModuleSource(
             }
 
             val trackMeta = streamResponse.track
+            val statedKbps = trackMeta?.bitrate?.takeIf { it > 0 }
+            val estimatedKbps = if (statedKbps == null) kbpsFor(trackMeta?.audioQuality, url) else null
             val format = StreamFormat(
                 codec = codecOf(trackMeta?.mimeType, trackMeta?.audioQuality, url),
-                kbps = trackMeta?.bitrate ?: kbpsFor(trackMeta?.audioQuality, url),
+                kbps = statedKbps ?: estimatedKbps,
                 sampleRateHz = trackMeta?.sampleRate?.let {
                     if (it < 1000) (it * 1000).toInt() else it.toInt()
                 }?.takeIf { it > 0 },
                 bitDepth = trackMeta?.bitDepth?.takeIf { it > 0 },
+                kbpsInferred = statedKbps == null && estimatedKbps != null,
             )
             val playsAtmos = DeviceCodecs.playsDolbyAtmos
             if (unplayable(format, atmosAllowed = playsAtmos && AppSettings.dolbyAtmos.value)) {

@@ -712,6 +712,30 @@ class PlaybackService : MediaLibraryService() {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    private data class PodioPosition(val id: String?, val positionMs: Long, val playing: Boolean, val loading: Boolean = false, val durationMs: Long = 0)
+    private val podioPositions = kotlinx.coroutines.channels.Channel<PodioPosition>(kotlinx.coroutines.channels.Channel.BUFFERED)
+    private val podioProgressScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    /** Player properties stay on Main; the IO worker serializes disk updates and final flush. */
+    private fun watchPodioProgress() {
+        podioProgressScope.launch {
+            var tracker: com.cosmotune.podio.PodioProgressTracker? = null
+            try {
+                for (position in podioPositions) {
+                    if (position.id?.startsWith("podio:episode:") == true && tracker == null) tracker =
+                        runCatching { com.cosmotune.podio.PodioProgressTracker(com.cosmotune.podio.PodioLibrary(java.io.File(filesDir, "podio/library.json"))) }.getOrNull()
+                    tracker?.observe(position.id, position.positionMs, position.playing, position.loading, position.durationMs)
+                }
+            } finally { tracker?.close(); podioProgressScope.cancel() }
+        }
+        scope.launch {
+            while (isActive) {
+                player?.let { podioPositions.trySend(PodioPosition(it.currentMediaItem?.mediaId, it.currentPosition, it.isPlaying, it.playbackState == Player.STATE_BUFFERING, it.duration)) }
+                delay(1_000)
+            }
+        }
+    }
+
     /** Canonical context owner for the active local bounded album/playlist. */
     private val boundedContextRegistry = ContextRegistry { snapshot ->
         scope.launch {
@@ -734,6 +758,8 @@ class PlaybackService : MediaLibraryService() {
     private var boundedEditState = BoundedQueueEditState()
 
     private val localBitrateCache = ConcurrentHashMap<String, Int>()
+    private val measuredBitrateCache = ConcurrentHashMap<String, Int>()
+    private val measuringBitrate = ConcurrentHashMap.newKeySet<String>()
 
     /**
      * The stream resolver the player's own data source runs, kept so a Cast
@@ -971,6 +997,9 @@ class PlaybackService : MediaLibraryService() {
             newPosition: Player.PositionInfo,
             reason: Int,
         ) {
+            if (oldPosition.mediaItem?.mediaId != newPosition.mediaItem?.mediaId) {
+                podioPositions.trySend(PodioPosition(oldPosition.mediaItem?.mediaId, oldPosition.positionMs, false))
+            }
             val exoPlayer = player ?: return
             if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                 if (exoPlayer.isPlaying) pushDiscordPresence(exoPlayer)
@@ -1420,6 +1449,16 @@ class PlaybackService : MediaLibraryService() {
                     )
                     .build()
             }
+            if (dataSpec.uri.authority == "podio-youtube") {
+                val episodeId = requireNotNull(mediaIdIn(dataSpec.uri)) { "Invalid YouTube podcast episode" }
+                val rawVideoId = requireNotNull(com.cosmotune.podio.YouTubePodcasts.videoId(episodeId))
+                val streamUrl = runBlocking(about) {
+                    withTimeout(RESOLVE_TIMEOUT_MS) { StreamResolver.resolve(rawVideoId) }
+                }
+                NerdStats.recordSource(episodeId, "YouTube Music podcast")
+                return@Resolver dataSpec.buildUpon().setUri(Uri.parse(streamUrl))
+                    .setHttpRequestHeaders(StreamResolver.mediaHeadersFor(streamUrl)).build()
+            }
             val videoId = dataSpec.uri.getQueryParameter("v")
                 ?: return@Resolver dataSpec
             // An explicit rollback is not a preference for a different
@@ -1712,6 +1751,7 @@ class PlaybackService : MediaLibraryService() {
         observeScrobbling()
         observeDiscord()
         watchSleepTimer()
+        watchPodioProgress()
         val restored = if (PartyPersonalQueueStash.hasStash()) {
             val stashed = PartyPersonalQueueStash.load()
             PartyPersonalQueueStash.clear()
@@ -3397,7 +3437,7 @@ class PlaybackService : MediaLibraryService() {
             saveBoundedContextSnapshot(exoPlayer)
         }
         currentAudioInputFormat = null
-        NerdStats.onTrackTransition()
+        NerdStats.onTrackTransition(mediaItem?.mediaId)
         AudioOutputStatus.onTrackTransition()
         // The entry this track is read from now counts as played — the only
         // kind the Cached songs folder lists. See [AudioCache.Origin].
@@ -3554,7 +3594,7 @@ class PlaybackService : MediaLibraryService() {
         // too, otherwise a new lossy track briefly inherits the previous
         // track's Lossless/Atmos line and that stale network push can win the
         // race against the decoder's correction.
-        NerdStats.current.value = null
+        NerdStats.onTrackTransition(exoPlayer.currentMediaItem?.mediaId)
 
         // Discord: the whole of "live updating" for a card whose bar Discord
         // draws itself. Only a track change needs a new presence; the countdown
@@ -3772,7 +3812,7 @@ class PlaybackService : MediaLibraryService() {
         // again. Rebuild it as an explicit YouTube request instead. This also
         // clears a DASH/HLS MIME left on an upgraded item, which otherwise makes
         // Media3 parse YouTube's WebM bytes as a manifest forever.
-        if (fallbackFailedAlternativeToYouTube(item, uri, position)) return
+        if (fallbackFailedAlternativeToYouTube(item, uri, position, error)) return
         // Giving up on the *retry*, not on everything below it.
         //
         // A track that has exhausted its attempts is not finished with.
@@ -3870,11 +3910,12 @@ class PlaybackService : MediaLibraryService() {
                 QualityUpgrade.refuseUpgrades(videoId)
             }
         uri?.getQueryParameter("v")?.let(StreamChoice::forget)
+        val keepCompleteCache = CachedAudioPolicy.keepComplete(error.errorCode, AudioCache.isOffline())
         scope.launch(TrackLog.about(mediaId)) {
             // Long enough for the released source to let go of the cache keys
             // about to be removed, short enough to read as a stutter.
             delay(RECOVERY_DELAY_MS)
-            uri?.let { withContext(Dispatchers.IO) { AudioCache.discard(it) } }
+            uri?.let { withContext(Dispatchers.IO) { AudioCache.discard(it, keepComplete = keepCompleteCache) } }
             // The bytes go even when nothing is going to be prepared after
             // them. A half-filled entry whose owner has just been forgotten is
             // the seam this file's [StreamChoice] note is about: the next play
@@ -3916,6 +3957,7 @@ class PlaybackService : MediaLibraryService() {
         item: MediaItem,
         uri: Uri?,
         position: Long,
+        error: PlaybackException,
     ): Boolean {
         val playbackUri = uri ?: return false
         // A track the listener picked from an addon is that addon's or nothing:
@@ -3942,9 +3984,10 @@ class PlaybackService : MediaLibraryService() {
             about = mediaId,
         )
 
+        val keepCompleteCache = CachedAudioPolicy.keepComplete(error.errorCode, AudioCache.isOffline())
         scope.launch(TrackLog.about(mediaId)) {
             delay(RECOVERY_DELAY_MS)
-            withContext(Dispatchers.IO) { AudioCache.discard(playbackUri) }
+            withContext(Dispatchers.IO) { AudioCache.discard(playbackUri, keepComplete = keepCompleteCache) }
             withContext(Dispatchers.Main) {
                 val live = this@PlaybackService.player ?: return@withContext
                 if (live.currentMediaItem?.mediaId != mediaId) return@withContext
@@ -4387,6 +4430,7 @@ class PlaybackService : MediaLibraryService() {
     private fun upgradeQualityNow() {
         val player = player ?: return
         val mediaId = player.currentMediaItem?.mediaId ?: return
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(mediaId)) return
         // Do not charge the manual cooldown for a command that merely arrived
         // while this track's automatic or manual upgrade was already running.
         // The UI disables the row too, but the service is the authoritative
@@ -5221,7 +5265,7 @@ class PlaybackService : MediaLibraryService() {
         // log from a scope that knows nothing, which is most of what a resolve
         // has to say about itself.
         val lookup = scope.async(Dispatchers.IO + TrackLog.about(videoId)) {
-            withTimeoutOrNull(SUBSTITUTE_TIMEOUT_MS) { SourceResolver.substituteForYouTube(target) }
+            withTimeoutOrNull(SUBSTITUTE_TIMEOUT_MS) { SourceResolver.substituteForYouTube(target.copy(videoId = videoId)) }
         }
         // Started now rather than after the modules have had their say, and
         // wrapped rather than thrown from: it is awaited only on the paths
@@ -5641,6 +5685,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun publishNerdStats() {
+        val generation = NerdStats.currentGeneration
         val player = player ?: return
         val format = player.audioFormat
         val mediaId = player.currentMediaItem?.mediaId
@@ -5657,23 +5702,20 @@ class PlaybackService : MediaLibraryService() {
         val pcmDataRate = measured?.pcmBitrateKbps
 
         val (bitrate, provenance) = when {
+            dsd == null && isRawPcm && pcmDataRate != null ->
+                Pair(pcmDataRate, TelemetryProvenance.DERIVED)
             format?.averageBitrate != null && format.averageBitrate > 0 ->
                 Pair((format.averageBitrate + 500) / 1000, TelemetryProvenance.AUTHORITATIVE)
             format?.bitrate != null && format.bitrate > 0 ->
                 Pair((format.bitrate + 500) / 1000, TelemetryProvenance.AUTHORITATIVE)
             mediaId != null && localBitrateCache.containsKey(mediaId) ->
                 Pair(localBitrateCache[mediaId], TelemetryProvenance.AUTHORITATIVE)
-            NerdStats.declaredFormat(mediaId)?.kbps != null ->
-                Pair(NerdStats.declaredFormat(mediaId)?.kbps, TelemetryProvenance.AUTHORITATIVE)
-            NerdStats.pickedBitrateKbps(mediaId) != null ->
-                Pair(NerdStats.pickedBitrateKbps(mediaId), TelemetryProvenance.AUTHORITATIVE)
-            dsd == null && isRawPcm && pcmDataRate != null ->
-                Pair(pcmDataRate, TelemetryProvenance.DERIVED)
             else ->
-                Pair(null, TelemetryProvenance.UNKNOWN)
+                NerdStats.sourceBitrate(mediaId) { measuredStreamKbps(player) }
+                    ?: Pair(null, TelemetryProvenance.UNKNOWN)
         }
 
-        NerdStats.current.value = NerdStats.Snapshot(
+        NerdStats.publish(NerdStats.Snapshot(
             mimeType = dsd?.let { "audio/$it" } ?: format?.sampleMimeType,
             bitrateKbps = bitrate,
             bitrateProvenance = provenance,
@@ -5682,13 +5724,36 @@ class PlaybackService : MediaLibraryService() {
             channels = measured?.channels,
             bitDepth = if (dsd != null) 1 else if (isLossless) measured?.bitDepth else null,
             claimed = NerdStats.declaredFormat(mediaId),
+            mediaId = mediaId,
             sourceName = currentSourceName(mediaId, player.currentMediaItem),
             container = when (format?.containerMimeType) {
                 "audio/x-dsf" -> "DSF"
                 "audio/x-dff" -> "DFF"
                 else -> null
             },
-        )
+        ), expectedGeneration = generation)
+    }
+
+    /** Container size / duration, read off the UI thread; never PCM rate or a guessed quality tier. */
+    private fun measuredStreamKbps(player: Player): Int? {
+        val uri = player.currentMediaItem?.localConfiguration?.uri ?: return null
+        val key = uri.toString()
+        measuredBitrateCache[key]?.let { return it }
+        val durationMs = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return null
+        if (measuringBitrate.add(key)) scope.launch(Dispatchers.IO) {
+            try {
+                val bytes = runCatching { AudioCache.contentLengthOf(uri) }.getOrDefault(0)
+                val kbps = (bytes.toDouble() * 8 / durationMs).takeIf { it in 1.0..100_000.0 }?.toInt()
+                if (kbps != null) {
+                    if (measuredBitrateCache.size >= 128) measuredBitrateCache.clear()
+                    measuredBitrateCache[key] = kbps
+                    withContext(Dispatchers.Main) {
+                        if (this@PlaybackService.player?.currentMediaItem?.localConfiguration?.uri == uri) publishNerdStats()
+                    }
+                }
+            } finally { measuringBitrate.remove(key) }
+        }
+        return null
     }
 
     /** Serialize only the bounded window needed for a future cold-start resume. */
@@ -7206,6 +7271,8 @@ class PlaybackService : MediaLibraryService() {
 
 
     override fun onDestroy() {
+        player?.let { podioPositions.trySend(PodioPosition(it.currentMediaItem?.mediaId, it.currentPosition, false, durationMs = it.duration)) }
+        podioPositions.close()
         WearBridge.attachStreams(null)
         WearBridge.releaseSpeaker()
         // Let go of the receiver's player but leave its session alone: a

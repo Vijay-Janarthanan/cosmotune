@@ -4,13 +4,17 @@ The party server behind **Listen together**: create a six-character code, share
 it, and up to five signed-in devices listen to the same thing at the same time.
 Anyone in the party can control the music.
 
-Go + a WebSocket per device, no database, deployed as a single Render web
-service.
+Go + a WebSocket per device, no database, designed for a single server instance.
+The repository includes Render and Ubuntu/Caddy deployment templates; their presence does not establish a live Cosmotune service.
 
 ```bash
 go run .
 go test -v ./...
 ```
+
+The module requires **Go 1.27.0 or newer**. Local validation on 2026-10-28 used the official portable Go **1.27.3** toolchain: `gofmt`, `go vet ./...`, all **44 top-level tests (47 passing test cases including subtests)**, and static builds for Windows amd64, Linux amd64 and Linux arm64 passed. The browser smoke uses an ephemeral loopback listener and checks allowed/denied origins, CORS preflight, token subprotocol selection and the initial party snapshot. Native REST/WebSocket, rate-limit, queue, identity and lifecycle regressions also pass. This is local validation; it does not claim that a CI job or a public deployment ran.
+
+The portable compiler, caches, test JSON and binaries are under ignored `build/tooling/go` and `build/backend-validation/`. No global Go installation, service, firewall or persistent PATH setting is changed. See [deployment validation](../docs/BACKEND_VALIDATION_2026-10-28.md) for reproducible checks and remaining operator decisions.
 
 ---
 

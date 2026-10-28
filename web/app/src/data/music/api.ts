@@ -312,10 +312,21 @@ function isMusicVideo(item: YTNodes.PlaylistPanelVideo): boolean {
  * station. Music videos are flagged so the station builder can prefer the
  * catalogue cut (QueueBuilder).
  */
-export async function fetchRadio(videoId: string): Promise<Candidate[]> {
+export interface Radio {
+  candidates: Candidate[];
+  seedIsVideo: boolean;
+}
+
+export async function fetchRadio(videoId: string): Promise<Radio> {
   const yt = await getMusicClient();
   const panel = await yt.music.getUpNext(videoId, true);
-  return (panel.contents as unknown as Raw[]).map(panelCandidate).filter((c): c is Candidate => c !== null);
+  const rows = panel.contents as unknown as Raw[];
+  const seedCut = rows.flatMap(panelCuts).find((cut) => cut.video_id === videoId);
+  const seedIsVideo = seedCut ? isMusicVideo(seedCut) : false;
+  return {
+    candidates: rows.map((raw) => panelCandidate(raw, seedIsVideo)).filter((c): c is Candidate => c !== null),
+    seedIsVideo,
+  };
 }
 
 /**
@@ -330,9 +341,9 @@ function panelCuts(raw: Raw): YTNodes.PlaylistPanelVideo[] {
 }
 
 /** One watch-queue row as a track: the catalogue song (the cut with an album). */
-function panelCandidate(raw: Raw): Candidate | null {
+function panelCandidate(raw: Raw, wantVideo = false): Candidate | null {
   const panelVideos = panelCuts(raw);
-  const item = panelVideos.find((c) => !isMusicVideo(c)) ?? panelVideos[0];
+  const item = panelVideos.find((c) => isMusicVideo(c) === wantVideo) ?? panelVideos[0];
   if (!item?.video_id) return null;
   const thumbs = [...(item.thumbnail ?? [])].sort((a, b) => b.width - a.width);
   return {

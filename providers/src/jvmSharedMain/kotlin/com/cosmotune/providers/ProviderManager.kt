@@ -298,7 +298,9 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
                 if (method == "customSearch") add(buildJsonObject { put("limit", limit.coerceIn(1, 100)); put("filter", store.state.value.installed.first { it.manifest.name == name }.manifest.trackSearchFilter) })
                 else add(limit.coerceIn(1, 100))
             }
-            Json.parseToJsonElement(runtime.session.invoke(method, args))
+            Json.parseToJsonElement(runtime.session.invoke(method, args)).also { result ->
+                (result as? JsonObject)?.let(::requireProviderSuccess)
+            }
         }
         return ProviderCatalogue.tracks(name, result).take(limit.coerceIn(1, 100)).map { artwork?.decorate("provider:$name", it) ?: it }
             .also { tracks -> tracks.forEach { remember(it.song()) } }
@@ -353,14 +355,9 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
         }
         val raw = direct ?: error("Provider returned no direct audio stream")
         val url = directUrl ?: error("Provider returned no direct audio stream")
-        if (needsAudioProcessing(raw)) {
+        if (needsAudioProcessing(raw) || ProviderManifestMedia.isManifest(raw)) {
             if (!install.manifest.permissions.file || !runtime.host.mediaProcessing.available) throw ProviderResolutionException("native_processing_required", null)
             return@operation preparedStream(name, install, runtime, trackId, quality, maxKbps, lossless, forDownload, raw)
-        }
-        val transport = ((raw["transport"] ?: raw["format"]) as? JsonPrimitive)?.contentOrNull.orEmpty().lowercase(java.util.Locale.ROOT)
-        val path = runCatching { java.net.URI(url).path.orEmpty().lowercase(java.util.Locale.ROOT) }.getOrDefault("")
-        require(transport !in setOf("hls", "dash", "m3u8", "mpd") && !path.endsWith(".m3u8") && !path.endsWith(".mpd")) {
-            "This provider requires a manifest-aware media transport"
         }
         val headers = raw["headers"] as? JsonObject ?: JsonObject(emptyMap())
         require(headers.size <= 100 && headers.values.all { it is JsonPrimitive && it.isString && it.content.length <= 8_192 })
@@ -397,7 +394,20 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
             runtime.host.allowPreparedMedia()
             val requested = prepared.outputPath + if (lossless) ".flac" else ".m4a"
             val raw = if (direct != null) {
-                val downloaded = runtime.host.files.call("download", buildJsonArray {
+                val downloaded = if (ProviderManifestMedia.isManifest(direct)) {
+                    val file = kotlinx.coroutines.coroutineScope {
+                        val network = runtime.host.network.fork()
+                        val cancellation = launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                            try { kotlinx.coroutines.awaitCancellation() } finally { network.cancel() }
+                        }
+                        try { kotlinx.coroutines.runInterruptible {
+                            ProviderManifestMedia(network, minOf(512L * 1024 * 1024, runtime.host.files.remainingBytes())).download(
+                                direct.getValue("url").jsonPrimitive.content, java.io.File(prepared.outputPath),
+                                direct["headers"] as? JsonObject ?: JsonObject(emptyMap()), needsAudioProcessing(direct))
+                        } } finally { cancellation.cancel(); cancellation.join() }
+                    }
+                    buildJsonObject { put("success", true); put("file_path", file.absolutePath) }
+                } else runtime.host.files.call("download", buildJsonArray {
                     add(direct.getValue("url")); add(requested)
                     addJsonObject { put("headers", direct["headers"] ?: JsonObject(emptyMap())) }
                 }).jsonObject
@@ -412,11 +422,15 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
             }
             val returned = ((raw["file_path"] ?: raw["path"]) as? JsonPrimitive)?.contentOrNull ?: requested
             val accepted = prepared.accept(returned) { runtime.host.network.isCancelled }
-            val file = runtime.host.mediaProcessing.prepare(raw, accepted.absolutePath, prepared.outputPath)
+            val preparation = if (direct != null && ProviderManifestMedia.isManifest(direct)) {
+                val extension = raw["output_extension"] ?: JsonPrimitive(if ((raw["audio_codec"] ?: raw["codec"]) == JsonPrimitive("flac")) ".flac" else ".m4a")
+                JsonObject(raw + ("requires_container_conversion" to JsonPrimitive(true)) + ("output_extension" to extension))
+            } else raw
+            val file = kotlinx.coroutines.runInterruptible { runtime.host.mediaProcessing.prepare(preparation, accepted.absolutePath, prepared.outputPath) }
             // The bytes decide the container; a provider may leave a `.flac` suffix on MP4 audio.
             val container = ProviderPreparedMedia.container(file)
             val delivered = com.cosmotune.audio.DeliveredAudio.inspect(file)
-            val measured = if (runtime.host.mediaProcessing.available) runtime.host.mediaProcessing.probe(file.absolutePath) else null
+            val measured = if (runtime.host.mediaProcessing.available) kotlinx.coroutines.runInterruptible { runtime.host.mediaProcessing.probe(file.absolutePath) } else null
             val expectedDuration = ((raw["track"] as? JsonObject)?.get("duration_ms") ?: raw["duration_ms"])?.let { (it as? JsonPrimitive)?.longOrNull?.takeIf { duration -> duration in 1..86_400_000 } }
             if (expectedDuration != null && measured != null && measured.durationMs > 0 && kotlin.math.abs(expectedDuration - measured.durationMs) > 12_000)
                 throw ProviderResolutionException("duration_mismatch", null)
@@ -441,9 +455,11 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
 
     private fun requireProviderSuccess(raw: JsonObject) {
         val type = ((raw["error_type"] ?: raw["errorType"]) as? JsonPrimitive)?.contentOrNull.orEmpty().lowercase(java.util.Locale.ROOT)
-        if (type in setOf("verification_required", "auth_required", "not_authenticated") ||
+        val code = ((raw["error_code"] ?: raw["error"] ?: raw["code"]) as? JsonPrimitive)?.contentOrNull.orEmpty().lowercase(java.util.Locale.ROOT)
+        val access = setOf("verification_required", "verify_required", "auth_required", "not_authenticated", "access_required", "authentication_error")
+        if (type in access || code in access || raw["needsVerification"] == JsonPrimitive(true) ||
             raw["requires_verification"] == JsonPrimitive(true) || raw["verification_required"] == JsonPrimitive(true)) {
-            error("Provider sign-in or verification required")
+            throw ProviderAccessRequiredException()
         }
         if (raw["success"] == JsonPrimitive(false)) {
             val safeType = type.takeIf { it in setOf("api_error", "download_error", "not_found", "timeout", "rate_limited", "invalid_input", "authentication_error", "cancelled", "runtime_error", "duration_mismatch") }
@@ -529,7 +545,9 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
                         block(runtime).also { mutableErrors.update { it - name } }
                     } catch (cancelled: CancellationException) { retire(name, clearHome = false); throw cancelled }
                     catch (error: Exception) {
-                        mutableErrors.update { if (name in revokedNames) it - name else it + (name to "Provider request failed (${error.javaClass.simpleName})") }
+                        val message = if (error is ProviderAccessRequiredException) "Provider sign-in or verification required"
+                            else "Provider request failed (${error.javaClass.simpleName})"
+                        mutableErrors.update { if (name in revokedNames) it - name else it + (name to message) }
                         retire(name, clearHome = false); throw error
                     } finally {
                         kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { observer?.cancel(); observer?.join() }

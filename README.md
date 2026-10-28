@@ -8,9 +8,9 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-Version 1.0.10 adds music-video recovery without replaying footage, film/album labels, decoder-reported quality pills, provider fallback and desktop tray/taskbar/Dock controls. It is published with 49 release assets; [downloads](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest) always point to the latest published installers. [1.0.10 changes and validation limits](docs/releases/1.0.10.md) Â· [Remaining work](docs/PENDING_WORK.md)
+Version 1.0.11 improves recording-based source matching, automatic music-video recovery, source-quality details, Podio podcasts/offline listening, Manga collections and verification, desktop output options and browser Automix. [1.0.11 changes and validation limits](docs/releases/1.0.11.md) · [Remaining work](docs/PENDING_WORK.md)
 
-After 1.0.10, current source repairs clipped quality badges, provider upgrades lost behind stalled lookups, ambiguous Playing labels, a JioSaavn singer-credit mismatch and S/O versus Son of film-video discovery. These repairs require a new app build. [Live playback findings and upstream review](docs/UPSTREAM_REVIEW_2026-10-28.md).
+[Downloads](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest) point to the latest published installers. New source changes require an updated app build; release assets are published after the platform build workflow succeeds. [Playback findings and upstream integration evidence](docs/UPSTREAM_IMPLEMENTATION_2026-10-28.md).
 
 Version 1.0.9 rebuilds Podio around a satellite radio globe with city-level zoom, nearby-station selection, on-air metadata and station pages with local time, weather, credited photos and articles. Podcasts gain regional charts and genre filters. [1.0.9 changes](docs/releases/1.0.9.md)
 
