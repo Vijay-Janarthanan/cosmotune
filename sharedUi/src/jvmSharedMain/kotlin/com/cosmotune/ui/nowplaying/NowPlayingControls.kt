@@ -381,9 +381,12 @@ private fun ArtistRow(
     val type = LocalCosmoType.current
     val palette = LocalCosmoColors.current.palette
     val style = remember(type) { TextStyle(fontFamily = type.textFamily, fontSize = 16.sp, fontWeight = FontWeight(650)) }
+    val movieStyle = remember(type) { TextStyle(fontFamily = type.textFamily, fontSize = 13.sp, fontWeight = FontWeight(500)) }
+    // The film or album the song is from, under the artist: a film song is known by its film.
+    val movie = song.albumName?.trim()?.takeIf { it.isNotEmpty() && !it.equals(song.title, ignoreCase = true) && !it.equals(song.artist, ignoreCase = true) }
     Row(Modifier.fillMaxWidth().padding(vertical = verticalPadding), verticalAlignment = Alignment.CenterVertically) {
         ChipSlot(coverUrl, hasVideo, reveal, onChipPlaced)
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             Text(
                 text = song.artist,
                 style = style,
@@ -392,9 +395,12 @@ private fun ArtistRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .clickable(role = Role.Button) { onOpenArtist(song.artistId, song.artist) }
-                    .heightIn(min = 48.dp)
+                    .heightIn(min = if (movie != null) 28.dp else 48.dp)
                     .wrapContentHeight(Alignment.CenterVertically),
             )
+            if (movie != null) {
+                Text(movie, style = movieStyle, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 6.dp))
+            }
         }
         CosmoIconButton(
             if (liked) CosmoIcons.HeartFill else CosmoIcons.Heart,

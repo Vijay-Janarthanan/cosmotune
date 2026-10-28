@@ -170,7 +170,8 @@ internal fun NowPlayingWideHeader(
     val whole: String? = playedBy?.let { stringResource(Res.string.played_by, it) }
         ?: song.radioName?.let { stringResource(Res.string.playing_radio, it) }
     val source = whole ?: stringResource(Res.string.playing_from, song.playbackSource ?: song.albumName ?: stringResource(Res.string.queue))
-    val caption = listOf(song.artist, source).filter { it.isNotBlank() }.joinToString(" · ")
+    val movie = song.albumName?.trim()?.takeIf { it.isNotEmpty() && !it.equals(song.title, ignoreCase = true) && !source.contains(it, ignoreCase = true) }
+    val caption = listOf(song.artist, movie.orEmpty(), source).filter { it.isNotBlank() }.joinToString(" · ")
     val title = remember(type, song.title) { type.forText(TextStyle(fontFamily = type.textFamily, fontSize = 17.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold), song.title) }
     val line = remember(type, caption) { type.forText(TextStyle(fontFamily = type.textFamily, fontSize = 13.5.sp, lineHeight = 17.sp), caption) }
     Row(

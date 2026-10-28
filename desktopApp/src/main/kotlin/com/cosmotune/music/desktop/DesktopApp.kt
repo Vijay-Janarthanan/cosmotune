@@ -1968,7 +1968,15 @@ fun CosmotuneDesktopApp() {
         // Paint what is already known before waiting on anything: re-opening the player on a track
         // resolved a minute ago should not go dark on its way back to the same clip.
         canvas = DesktopCanvasClient.cached(current)
-        canvas = withContext(Dispatchers.IO) { DesktopCanvasClient.lookup(current) }
+        // The film a song is from is what makes the video search find it, and it only comes with the track's
+        // links, which are otherwise fetched once the player is open. Asked here as well, for a moment at most,
+        // so a song played from the bar is searched for with its film too.
+        val film = if (current.albumName.isNullOrBlank() && DesktopMusicSources.hasYouTubeOriginal(current)) {
+            kotlinx.coroutines.withTimeoutOrNull(2_500L) { DesktopSearchClient.trackLinks(current.videoId).getOrNull() }
+                ?.albumName?.takeIf { it.isNotBlank() }
+        } else null
+        val asked = if (film != null) current.copy(albumName = film) else current
+        canvas = withContext(Dispatchers.IO) { DesktopCanvasClient.lookup(asked) }
     }
 
     LaunchedEffect(
