@@ -2,6 +2,12 @@ package com.cosmotune.music.data.model
 
 /** Structured credits are authoritative; punctuation in a known artist name is not a collaboration. */
 object ArtistIdentity {
+    /** A documented catalogue spelling of the same singer, not a general prefix/fuzzy match. */
+    fun knownCatalogueAlias(first: List<String>, second: List<String>): Boolean {
+        val pair = setOf(first.joinToString(""), second.joinToString(""))
+        return pair == setOf("uditnarayan", "uditnarayanan")
+    }
+
     val protectedNames = setOf(
         "AC/DC", "Tyler, the Creator", "Earth, Wind & Fire", "Simon & Garfunkel", "Hall & Oates",
         "Florence + the Machine", "Of Monsters and Men", "Crosby, Stills, Nash & Young",

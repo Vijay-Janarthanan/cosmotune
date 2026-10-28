@@ -138,7 +138,8 @@ object VideoMatcher {
     private fun compact(text: String): String = text.lowercase().filter { it.isLetterOrDigit() }
 
     /** Film transliterations vary: "Raaja Paarvai" and "Raja Parvai" name the same release. */
-    private fun filmKey(text: String): String = compact(text).replace(Regex("([aeiou])\\1+"), "$1")
+    private fun filmKey(text: String): String = compact(text.replace(Regex("\\bson\\s+of\\b", RegexOption.IGNORE_CASE), "s/o"))
+        .replace(Regex("([aeiou])\\1+"), "$1")
 
     /**
      * Picks the best official music video among candidates.

@@ -39,7 +39,7 @@ fun AudioDetailsSheet(song: Song, hazeState: HazeState, onDismiss: () -> Unit, o
     val installed = hub.manager?.store?.state?.collectAsStateWithLifecycle()?.value?.installed.orEmpty()
     val report = reports[AudioSourceComparisons.key(TrackMatcher.targetOf(song))]
     val source = stats?.sourceName
-    val current = report?.offers?.firstOrNull { it.id == stats?.sourceId || it.id == source || it.name == source }
+    val current = AudioSourceComparisons.playingOffer(report, stats?.sourceId, source)
     val name = current?.name ?: ProviderHub.sourceName(source) ?: source ?: "Not reported yet"
     PlayerDrawer(hazeState, "Audio details", onDismiss) {
         CompositionLocalProvider(LocalContentColor provides Color.White) {
@@ -65,7 +65,7 @@ fun AudioDetailsSheet(song: Song, hazeState: HazeState, onDismiss: () -> Unit, o
             report?.offers.orEmpty().forEach { offer ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(offer.name + if (offer == current) " · Playing" else "", fontWeight = FontWeight.SemiBold)
-                    Text(offer.status.label, style = MaterialTheme.typography.bodySmall)
+                    Text(offer.status.label + (offer.httpStatus?.let { " (HTTP $it)" } ?: ""), style = MaterialTheme.typography.bodySmall)
                     offer.formats.forEach { Text("Offered: ${it.summary}", style = MaterialTheme.typography.bodySmall) }
                     if (offer.status == AudioSourceComparisons.Status.AVAILABLE && offer != current) {
                         Text("Alternative found; the playing stream is shown above. An offer does not confirm successful decoding or justify an audible switch. Compare its values with the decoder input above.", style = MaterialTheme.typography.bodySmall)

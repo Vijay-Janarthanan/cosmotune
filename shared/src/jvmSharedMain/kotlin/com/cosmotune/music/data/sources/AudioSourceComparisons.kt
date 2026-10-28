@@ -12,7 +12,7 @@ object AudioSourceComparisons {
         UNSUPPORTED("Required provider feature is not available"), QUALITY_LIMIT("No stream within the requested quality limit"),
         REQUEST_FAILED("Provider request failed"), UNAVAILABLE("Could not obtain a playable stream"), TIMEOUT("Lookup timed out"), CANCELLED("Lookup stopped"),
     }
-    data class Offer(val id: String, val name: String, val status: Status, val formats: List<StreamFormat> = emptyList())
+    data class Offer(val id: String, val name: String, val status: Status, val formats: List<StreamFormat> = emptyList(), val httpStatus: Int? = null)
     data class Report(val offers: List<Offer> = emptyList())
     class Ticket internal constructor(val key: String, val sourceId: String, val generation: Long)
     private val lock = Any()
@@ -20,6 +20,13 @@ object AudioSourceComparisons {
     private val tickets = mutableMapOf<Pair<String, String>, Long>()
     private val reports = MutableStateFlow<Map<String, Report>>(emptyMap())
     val state = reports.asStateFlow()
+
+    /** Native YouTube and a YouTube provider package can share a display name but are different sources. */
+    fun playingOffer(report: Report?, sourceId: String?, sourceName: String?): Offer? {
+        val offers = report?.offers.orEmpty()
+        if (!sourceId.isNullOrBlank()) return offers.firstOrNull { it.id == sourceId }
+        return offers.filter { it.id == sourceName || it.name == sourceName }.singleOrNull()
+    }
 
     fun key(target: TrackMatcher.Target): String = listOf(target.title, target.artist, target.album.orEmpty(),
         target.isExplicit?.toString().orEmpty(), target.isVideo.toString()).joinToString("\u001f") {
@@ -46,15 +53,18 @@ object AudioSourceComparisons {
             Regex("bitrate limit|requested bitrate|quality within|capped audio").containsMatchIn(message) -> Status.QUALITY_LIMIT
             else -> Status.REQUEST_FAILED
         }
-        finish(ticket, status)
+        val httpStatus = Regex("\\bhttp\\s+(\\d{3})\\b").find(message)?.groupValues?.get(1)?.toIntOrNull()
+            ?.takeIf { it in 400..599 }
+        finish(ticket, status, httpStatus = httpStatus)
     }
 
-    fun finish(ticket: Ticket, status: Status, formats: List<StreamFormat> = emptyList()) = synchronized(lock) {
+    fun finish(ticket: Ticket, status: Status, formats: List<StreamFormat> = emptyList(), httpStatus: Int? = null) = synchronized(lock) {
         if (tickets[ticket.key to ticket.sourceId] != ticket.generation) return@synchronized
         val report = reports.value[ticket.key] ?: return@synchronized
         reports.value = reports.value + (ticket.key to report.copy(offers = report.offers.map {
             if (it.id != ticket.sourceId) it else it.copy(
                 status = if (status in setOf(Status.UNAVAILABLE, Status.NO_MATCH) && it.status in setOf(Status.ACCESS_REQUIRED, Status.UNSUPPORTED, Status.QUALITY_LIMIT, Status.REQUEST_FAILED)) it.status else status,
+                httpStatus = if (status == Status.AVAILABLE) null else httpStatus ?: it.httpStatus,
                 formats = formats.distinct().take(4).map { format -> format.copy(
                     codec = format.codec?.takeIf { name -> name.matches(Regex("[A-Za-z0-9_./-]{1,60}")) },
                     kbps = format.kbps?.takeIf { rate -> rate in 1..100_000 },

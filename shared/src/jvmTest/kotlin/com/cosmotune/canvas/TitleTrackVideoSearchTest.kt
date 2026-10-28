@@ -11,6 +11,22 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class TitleTrackVideoSearchTest {
+    @Test fun theAbbreviatedFilmFindsItsVerifiedThinkTapesRelease() = runBlocking {
+        val query = com.opencanvas.core.stream.MusicVideoQuery.from("Ayyo Ayyo", "M. Kumaran S O Mahalakshmi")
+        assertEquals("M. Kumaran Son of Mahalakshmi", query.album)
+        assertEquals(query.album, com.opencanvas.core.stream.MusicVideoQuery.from("Ayyo Ayyo", "M. Kumaran S/O Mahalakshmi").album)
+        val http = OkHttpClient.Builder().addInterceptor { chain ->
+            val q = chain.request().url.queryParameter("search_query").orEmpty()
+            response(chain.request(), if (q.contains("Son of Mahalakshmi"))
+                page("9SV5acMQlzg", "Ayyo Ayyo - 4K/8K Video song | M. Kumaran Son of Mahalakshmi | Srikanth Deva", "Think Tapes", false)
+            else page("WRONGVIDEO1", "Ayyo Ayyo Full Video Song HD Nagarjuna Karthi", "Junglee Music Telugu", false))
+        }.build()
+        val found = MusicVideoSearch(http).find(query.title, "Srikanth Deva, Udit Narayanan & Shalini Singh", 347, album = query.album)
+        assertEquals("9SV5acMQlzg", found.first().videoId)
+        assertTrue(com.opencanvas.core.matcher.VideoMatcher.hasPublisherEvidence(found.first(), query.title,
+            "Srikanth Deva", "M. Kumaran S/O Mahalakshmi"))
+    }
+
     @Test fun unverifiedUploadsAreNotUsedAsTheFallbackForMissingPublisherEvidence() = runBlocking {
         val http = OkHttpClient.Builder().addInterceptor { chain ->
             response(chain.request(), page("FANVIDEO001", "Song Name Official Video", "Someone Else", false)

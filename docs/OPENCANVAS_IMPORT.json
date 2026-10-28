@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/Vijay-Janarthanan/OpenCanvas",
-  "revision": "a20c7f4c2ba385250678d4863736c00f85aff362",
+  "revision": "d0cdf101451ba3ac42adc42d2bdffa1f7e11067e",
   "omittedLegacyHelpers": [
     "OnnxSubjectTracker.kt",
     "SmartStreamReframer.kt"
@@ -52,7 +52,7 @@
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/matcher/VideoMatcher.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
-      "sha256": "fa909d9dcb87584dc7d5d13dab875f8846b3f13e5f6c7f902f1ce8bf19c51d82"
+      "sha256": "51c9aeb0dadd81ad6bb138687f7cf122f57527b1d0fbe8abebbe38b73088bbaa"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
@@ -250,9 +250,9 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoQuery.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoQuery.kt",
       "normalizeLf": true,
-      "sha256": "0b69604544c97fa6a2d9a4518b2037dc705efd968eb3a2833bbe84f87700401c"
+      "sha256": "7270eb6c3595be0caa187af7b1356df24f1bbf89b6d9fb8149864d602658d82a"
     }
   ],
   "revisionStatus": "published on OpenCanvas main",
-  "localChanges": "Cosmotune 1.0.5 changed OpenCanvas.kt (SUBJECT_FRAMING switch, off) and MusicVideoSearch.kt (4 s per search, 6 s budget, unfiltered ranking when no publisher evidence). After 1.0.9 Cosmotune changed MusicVideoSearch.kt again (8 s per search, a log line for a search that gets no answer), Mp4FrameSizes.kt (a table of numbers that cannot be audio frame sizes is unreadable instead of silent) and CanvasSession.kt (a song and video whose files cannot be read are measured again through the other client). Apply the same changes in the OpenCanvas repository"
+  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing and film abbreviation matching are now published in standalone OpenCanvas at the recorded revision. The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module."
 }

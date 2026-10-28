@@ -485,7 +485,7 @@ internal object DesktopSourceRegistry {
             )
         }
         val lookup = scope.async {
-            withTimeoutOrNull(SUBSTITUTE_TIMEOUT_MS) { firstSubstitute(higher, song, quality) }
+            firstSubstitute(higher, song, quality)
         }
         val fallback = scope.async { youtube.resolve(song, quality).getOrNull() }
 
@@ -535,7 +535,7 @@ internal object DesktopSourceRegistry {
         )
         // The registry's own scope, like both legs of the race above: this outlives the call that
         // started it by design.
-        return scope.async { withTimeoutOrNull(UPGRADE_TIMEOUT_MS) { firstSubstitute(better, song, quality, waitForAll = true) } }
+        return scope.async { firstSubstitute(better, song, quality, playing.format, UPGRADE_TIMEOUT_MS) }
     }
 
     /** The first usable stream from any of [sources], each asked in parallel. */
@@ -543,28 +543,17 @@ internal object DesktopSourceRegistry {
         sources: List<SourceAdapter>,
         song: Song,
         quality: String?,
-        waitForAll: Boolean = false,
-    ): DesktopStream? = coroutineScope {
-        val running = sources
-            .map { source ->
-                async { openBest(source, song, quality) }
-            }
-            .toMutableList()
-        var best: DesktopStream? = null
-        try {
-            while (running.isNotEmpty()) {
-                val done = select<Deferred<DesktopStream?>> {
-                    running.forEach { candidate -> candidate.onAwait { candidate } }
-                }
-                running -= done
-                done.await()?.let { best = betterOf(best, it) }
-                if (best != null && !waitForAll) return@coroutineScope best
-            }
-            best
-        } finally {
-            running.forEach { it.cancel() }
-        }
-    }
+        playing: DesktopStreamFormat? = null,
+        timeoutMs: Long = SUBSTITUTE_TIMEOUT_MS,
+    ): DesktopStream? = awaitSourceOffer(
+        requests = sources.map { source -> suspend { openBest(source, song, quality) } },
+        timeoutMs = timeoutMs,
+        better = { previous, next -> betterOf(previous, next) },
+        ready = { offer ->
+            if (playing != null) worthSwapping(offer.format, playing)
+            else true // The initial race starts playback; the patient retry requires an actual upgrade.
+        },
+    )
 
     /** Whether a copy found after the fact is worth interrupting playback for. */
     internal fun worthSwapping(candidate: DesktopStreamFormat, playing: DesktopStreamFormat?): Boolean {
@@ -599,7 +588,7 @@ internal object DesktopSourceRegistry {
             "asking ${better.joinToString { it.descriptor.name }} again for a better copy of " +
                 "'${song.title}'",
         )
-        return withTimeoutOrNull(UPGRADE_TIMEOUT_MS) { firstSubstitute(better, song, quality, waitForAll = true) }
+        return firstSubstitute(better, song, quality, playing?.format, UPGRADE_TIMEOUT_MS)
     }
 
     /** Whether a stream a source handed back can actually be played here. */
@@ -651,7 +640,13 @@ internal object DesktopSourceRegistry {
         val wantsLossless = ceiling(quality) == DesktopAudioQuality.LOSSLESS
         var settleFor: DesktopStream? = null
         for (match in preferred(matches, song, wantsLossless).take(STREAM_ATTEMPTS)) {
-            val stream = source.resolve(match, quality).onFailure { com.cosmotune.music.data.sources.AudioSourceComparisons.failed(ticket, it) }.getOrNull() ?: continue
+            val stream = source.resolve(match, quality).onFailure { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                com.cosmotune.music.data.sources.AudioSourceComparisons.failed(ticket, error)
+                val status = Regex("(?i)\\bHTTP\\s+(\\d{3})\\b").find(error.message.orEmpty())?.groupValues?.get(1)
+                DesktopTrackLog.log("${source.descriptor.name} stream failed for '${match.title}': ${error.javaClass.simpleName}" +
+                    (status?.let { " · HTTP $it" } ?: ""))
+            }.getOrNull() ?: continue
             if (!playableHere(source, stream)) continue
             val served = stream.format
             if (!wantsLossless || served.isLossless || served.isDolbyAtmos) {

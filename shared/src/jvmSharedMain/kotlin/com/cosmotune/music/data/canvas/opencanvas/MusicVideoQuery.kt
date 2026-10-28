@@ -5,6 +5,10 @@ import org.jsoup.parser.Parser
 /** Keep a film's identity before removing catalogue packaging from a song title. */
 internal data class MusicVideoQuery(val title: String, val album: String?) {
     companion object {
+        /** Catalogue abbreviations otherwise hide releases indexed as "Son of" by their publisher. */
+        fun filmName(value: String): String = value.replace(
+            Regex("""\bs(?:\s*[/\.]\s*|\s+)o\b""", RegexOption.IGNORE_CASE), "Son of",
+        )
         private val from = Regex("""[\(\[]\s*from\s+([^\)\]]+)[\)\]]""", RegexOption.IGNORE_CASE)
         private val noise = Regex(
             """\((?:from|official|lyrical|video|audio)[^)]*\)|\[[^]]*]|""" +
@@ -22,7 +26,7 @@ internal data class MusicVideoQuery(val title: String, val album: String?) {
                 }
             val clean = decoded.replace(noise, " ").substringBefore(" | ")
                 .replace(Regex("\\s+"), " ").trim().ifBlank { decoded }
-            return MusicVideoQuery(clean, film ?: album?.trim()?.takeIf(String::isNotEmpty))
+            return MusicVideoQuery(clean, (film ?: album?.trim()?.takeIf(String::isNotEmpty))?.let(::filmName))
         }
     }
 }

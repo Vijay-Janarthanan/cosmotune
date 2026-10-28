@@ -8,6 +8,16 @@ import kotlin.test.assertNull
 
 /** The case that made addons useless outside search. */
 class DesktopMatcherTest {
+    @Test fun theAyyoAyyoJioSaavnCreditMatchesTheSameSingerSpelling() {
+        val target = Song("youtube", "Ayyo Ayyo", "Srikanth Deva, Udit Narayanan & Shalini Singh", null,
+            albumName = "M. Kumaran S O Mahalakshmi", durationText = "5:47")
+        val saavn = Song("jiosaavn:SQCYn6AH", "Ayyo Ayyo", "Udit Narayan, Pop Shalini, Sri", null,
+            albumName = "M. Kumaran S/O Mahalakshmi", durationText = "5:47")
+        assertEquals(saavn, DesktopTrackMatcher.best(listOf(saavn), target))
+        assertNull(DesktopTrackMatcher.best(listOf(saavn.copy(artist = "Karthik, Usha")), target))
+        assertNull(DesktopTrackMatcher.best(listOf(saavn.copy(title = "Ayyo Ayyo (Remix)")), target))
+    }
+
 
     private val youtubeRow = Song(
         videoId = "kb_6Vz-k7Wc",

@@ -10,6 +10,8 @@
 
 Version 1.0.10 adds music-video recovery without replaying footage, film/album labels, decoder-reported quality pills, provider fallback and desktop tray/taskbar/Dock controls. It is published with 49 release assets; [downloads](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest) always point to the latest published installers. [1.0.10 changes and validation limits](docs/releases/1.0.10.md) · [Remaining work](docs/PENDING_WORK.md)
 
+After 1.0.10, current source repairs clipped quality badges, provider upgrades lost behind stalled lookups, ambiguous Playing labels, a JioSaavn singer-credit mismatch and S/O versus Son of film-video discovery. These repairs require a new app build. [Live playback findings and upstream review](docs/UPSTREAM_REVIEW_2026-10-28.md).
+
 Version 1.0.9 rebuilds Podio around a satellite radio globe with city-level zoom, nearby-station selection, on-air metadata and station pages with local time, weather, credited photos and articles. Podcasts gain regional charts and genre filters. [1.0.9 changes](docs/releases/1.0.9.md)
 
 Music videos in Now Playing use a steady 4:5 portrait frame, with playback controls clear of the picture and taller artist motion headers.

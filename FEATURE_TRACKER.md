@@ -2,6 +2,8 @@
 
 Updated 2026-10-28. This is the central local tracker for features from other apps and original Cosmotune work. A reviewed feature is not automatically implemented; compiled code is not automatically device-tested or released.
 
+Latest review: [28 October upstream and playback audit](docs/UPSTREAM_REVIEW_2026-10-28.md) checks 20 external repositories, including LastWave Desktop/Native and Lokal Mobile. New upstream changes are review candidates; the older integration pins below are retained. BitChord's current main has removed its desktop app in favor of its web player, so a blanket merge would discard Cosmotune's native desktop work.
+
 **Release status:** releases through [1.0.10](https://github.com/Vijay-Janarthanan/cosmotune/releases/tag/v1.0.10) are published. The [1.0.10 source tag](https://github.com/Vijay-Janarthanan/cosmotune/tree/v1.0.10) adds video recovery/forward-only footage, provider fallback and artist matching, decoder quality labels, film captions and tray/taskbar/Dock controls; its release build completed successfully with 49 assets. [1.0.8](docs/releases/1.0.8.md) shipped native Manga/Podio chrome, artwork fallbacks and discovery repairs; [1.0.9](docs/releases/1.0.9.md) shipped the satellite globe, station pages and regional podcast charts. Historical row evidence below retains its original scope and does not certify every device/account check. See [pending work](docs/PENDING_WORK.md) and the [live website inventory](docs/LIVE_WEBSITES.md).
 
 ## Status and evidence rules
@@ -28,7 +30,10 @@ For each named app, inspect source, configuration/settings, tests, packaging and
 | [Lokal](https://github.com/sipbuu/lokal) | `3199796ef90743a5abbac6ffc96495beec855a4e` | [Detailed review](docs/LOKAL_REVIEW.md) | Provider, runtime, download, quality and discovery source inspected. Full feature audit ongoing. |
 | [Tsuki](https://github.com/TsukiAndroid/Tsuki) | `89b8d9cf6bb53303f340505f46c2ad2c1c8ac5b7` | [Manga plan](docs/MANGA_PLAN.md) | Android source loader, built-in/custom parsers, build and licence inspected. User confirmed this is the intended project. |
 | [Kotatsu parser fork](https://github.com/Kotatsu-Redo/kotatsu-parsers-redo) | `dc223c3d8098415b29cf1acfedc401a88d01c9fe` | [Manga platform constraints](docs/MANGA_PLAN.md) | JVM context/API and build inspected; Manga Plus English catalogue/chapter/page/image check passed. |
-| OpenCanvas | `a20c7f4c2ba385250678d4863736c00f85aff362` | [Import manifest](docs/OPENCANVAS_IMPORT.json) | Separate published engine; preserve its import boundary. |
+| OpenCanvas | `d0cdf101451ba3ac42adc42d2bdffa1f7e11067e` | [Import manifest](docs/OPENCANVAS_IMPORT.json) | Separate published engine; preserve its import boundary. |
+| LastWave Desktop | `bc87414be2de92af89d0df4bc6f657e71a63c07a` | [28 October review](docs/UPSTREAM_REVIEW_2026-10-28.md) | First source review: Windows exclusive-output negotiation and statistics. No licence file found in the pinned tree; no code imported. No runtime/hardware execution claimed. |
+| LastWave Native | `bc8f586b96adf91c5c28958f3a8db4bf2d127590` | [28 October review](docs/UPSTREAM_REVIEW_2026-10-28.md) | First source review: public YouTube Music podcasts, USB/output state, volume/ANR and AutoDJ changes. New main changes and published 4.3.1 kept separate. |
+| Lokal Mobile | `8912272516480b481497ebaf3eeff798c6492ea3` | [28 October review](docs/UPSTREAM_REVIEW_2026-10-28.md) | Separate Flutter/Rust Android app; queue identity, portable lyrics, desktop-library/file sync and audio routes reviewed. These are not automatically covered by the existing Lokal desktop rows. |
 
 ## BitChord integration
 

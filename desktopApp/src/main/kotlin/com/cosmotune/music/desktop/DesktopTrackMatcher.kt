@@ -165,7 +165,8 @@ internal object DesktopTrackMatcher {
         this in setOf("unknown", "unknown artist", "unknown artist(s)")
 
     private fun sameArtist(first: List<String>, second: List<String>): Boolean =
-        containsWords(first, second) || containsWords(second, first) || runTogether(first, second)
+        containsWords(first, second) || containsWords(second, first) || runTogether(first, second) ||
+            com.cosmotune.music.data.model.ArtistIdentity.knownCatalogueAlias(first, second)
 
     /**
      * The same name with its words broken differently: YouTube Music files "Yuvanshankar Raja" where

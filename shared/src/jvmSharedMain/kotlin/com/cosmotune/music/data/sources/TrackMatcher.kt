@@ -678,7 +678,8 @@ object TrackMatcher {
             .also { atomicCache = users to it }
     }
     private fun sameArtist(a: List<String>, b: List<String>) =
-        if (a in atomicArtistNames || b in atomicArtistNames) a == b else runOf(a, b) || runOf(b, a) || runTogether(a, b)
+        if (a in atomicArtistNames || b in atomicArtistNames) a == b else runOf(a, b) || runOf(b, a) || runTogether(a, b) ||
+            com.cosmotune.music.data.model.ArtistIdentity.knownCatalogueAlias(a, b)
 
     /**
      * The same name with its words broken differently: YouTube Music files "Yuvanshankar Raja" where

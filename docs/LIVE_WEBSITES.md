@@ -33,7 +33,7 @@ Version 1.0.10 is published. Its release workflow completed successfully and all
 
 Coverage includes Music/Video, Manga/Podio, radio globe and station pages, regional podcast charts, discovery choices, the 3.19 MB local ranker, source comparisons and decoder quality, 4:5 video, artist fallback/motion headers, library tools, companion apps and the new desktop controls. Retain stated limits: public RSS rather than paid-only podcast access, service/session-dependent providers, platform-dependent companions, outstanding physical-device checks and unverified immersive output.
 
-The 1.0.10 MP4/forward-only/search repairs are currently in Cosmotune's vendored OpenCanvas code; porting them to standalone OpenCanvas remains tracked work. The published OpenCanvas 1.0.0 artifact and historical integration-demo installers must not be described as containing the newest source features.
+MP4 recovery, alternate-stream retry, the search budget and film-abbreviation fixes have now been ported to standalone OpenCanvas source. Cosmotune retains host integration choices such as steady framing and its forward-only map guard. The published OpenCanvas 1.0.0 artifact and historical integration-demo installers must not be described as containing the newest source features. [Current audit and playback evidence](UPSTREAM_REVIEW_2026-10-28.md).
 
 ## Publication verification
 
