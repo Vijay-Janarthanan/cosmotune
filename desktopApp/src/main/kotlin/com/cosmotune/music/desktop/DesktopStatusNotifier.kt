@@ -284,6 +284,9 @@ private fun TrayPixmap.toImage(): java.awt.image.BufferedImage {
     return image
 }
 
+/** The logo as an image at [size], for the places that want pixels rather than a protocol's packing. */
+internal fun renderLogo(svg: ByteArray, size: Int = 512): java.awt.image.BufferedImage? = renderSvg(svg, size)?.toImage()
+
 private fun renderSvg(svg: ByteArray, size: Int): TrayPixmap? = runCatching {
     val dom = SVGDOM(Data.makeFromBytes(svg))
     dom.setContainerSize(size.toFloat(), size.toFloat())

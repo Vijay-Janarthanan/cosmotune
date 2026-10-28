@@ -15,6 +15,7 @@ import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class DesktopTrayFlyoutTest {
@@ -141,6 +142,23 @@ class DesktopTrayFlyoutTest {
             val painted = (0 until 16).sumOf { x -> (0 until 16).count { y -> (image.getRGB(x, y) ushr 24) > 0 } }
             assertTrue(painted in 20..200, "$glyph painted $painted pixels")
         }
+    }
+
+    @Test fun theDockIconIsTheCoverInARoundedSquare() {
+        val icon = DesktopDockIcon.render(ImageIO.read(cover()))
+        File("build/tray-preview").mkdirs()
+        ImageIO.write(icon, "png", File("build/tray-preview/dock-icon.png"))
+        assertEquals(512, icon.width)
+        assertTrue((icon.getRGB(2, 2) ushr 24) == 0, "the corner is clear")
+        assertTrue((icon.getRGB(256, 240) ushr 24) == 255, "the cover is opaque in the middle")
+        assertTrue((icon.getRGB(60, 60) ushr 24) < 255, "the rounded corner of the square is clear")
+    }
+
+    @Test fun theLogoIsRenderedForTheDockWhenNothingIsPlaying() {
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="30" fill="#e55b2d"/></svg>"""
+        val logo = assertNotNull(renderLogo(svg.toByteArray(), 128))
+        assertEquals(128, logo.width)
+        assertTrue((logo.getRGB(64, 64) ushr 24) == 255)
     }
 
     @Test fun aSizeThatIsZeroStillGivesAPicture() {
