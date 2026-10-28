@@ -51,7 +51,7 @@ internal object DesktopProviderMediaTools : ProviderMediaTools {
                 fun packets() {
                     while (true) {
                         checkpoint(cancelled); val status = avcodec_receive_packet(context, packet)
-                        if (status == AVERROR_EOF || status == -11) return
+                        if (status == AVERROR_EOF || status == AVERROR_EAGAIN()) return
                         check(status >= 0)
                         try { av_packet_rescale_ts(packet, context.time_base(), stream.time_base()); packet.stream_index(0); check(av_interleaved_write_frame(target, packet) >= 0); check(avio_tell(io) <= maximumBytes) }
                         finally { av_packet_unref(packet) }
@@ -94,7 +94,7 @@ internal object DesktopProviderMediaTools : ProviderMediaTools {
                         while (true) {
                             checkpoint(cancelled)
                             val received = avcodec_receive_frame(context, frame)
-                            if (received == AVERROR_EOF || received == -11) return
+                            if (received == AVERROR_EOF || received == AVERROR_EAGAIN()) return
                             check(received >= 0 && frame.sample_rate() == rate && frame.ch_layout().nb_channels() == channels)
                             val format = frame.format(); val packed = av_get_packed_sample_fmt(format)
                             val width = av_get_bytes_per_sample(format); val planar = av_sample_fmt_is_planar(format) != 0
