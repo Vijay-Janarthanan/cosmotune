@@ -1,10 +1,10 @@
 # Remaining work
 
-Reviewed 2026-10-28 against FEATURE_TRACKER.md, published releases through 1.0.10. A source implementation, a passing automated check, a hardware/account check and publication are separate evidence.
+Reviewed 2026-10-28 against FEATURE_TRACKER.md, published releases through 1.0.11. A source implementation, a passing automated check, a hardware/account check and publication are separate evidence.
 
-## Version 1.0.11 release candidate
+## Version 1.0.11 release and validation
 
-The 1.0.11 source adds recording-based JioSaavn matching, measured video discovery/expiry recovery, truthful audio telemetry, opt-in direct desktop output, playlist import/activity views, public podcast archives/downloads/OPML and TV/browser Podio, Manga collections/backups/scheduling/archive imports/verification, provider manifest preparation and browser Automix. See [release notes](releases/1.0.11.md). The complete local release gate passed; [validation details](releases/1.0.11-validation.md). GitHub platform packaging and publication must complete before describing installers as available.
+The 1.0.11 source adds recording-based JioSaavn matching, measured video discovery/expiry recovery, truthful audio telemetry, opt-in direct desktop output, playlist import/activity views, public podcast archives/downloads/OPML and TV/browser Podio, Manga collections/backups/scheduling/archive imports/verification, provider manifest preparation and browser Automix. See [release notes](releases/1.0.11.md). The complete local release gate and [repaired GitHub release workflow](https://github.com/Vijay-Janarthanan/cosmotune/actions/runs/40701883631) passed. [Version 1.0.11](https://github.com/Vijay-Janarthanan/cosmotune/releases/tag/v1.0.11) is published with 49 non-empty assets. [Validation details](releases/1.0.11-validation.md).
 
 Watch Podio, bidirectional library/file synchronization and native DSD/DoP remain unimplemented. Public party-server deployment needs a selected hosting target. Physical-device/account validation and unsupported media/source layouts remain separate limitations, described below and in the release notes.
 
