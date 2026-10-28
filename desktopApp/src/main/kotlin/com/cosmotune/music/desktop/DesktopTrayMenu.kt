@@ -23,7 +23,7 @@ internal object DesktopTrayMenu {
     private const val ID_NEXT = 4
     private const val ID_PREVIOUS = 5
     private const val ID_SEPARATOR_MIDDLE = 6
-    private const val ID_OPEN_PLAYER = 7
+    internal const val ID_OPEN_PLAYER = 7
     private const val ID_SETTINGS = 8
     private const val ID_SEPARATOR_BOTTOM = 9
     private const val ID_QUIT = 10
@@ -77,7 +77,7 @@ internal object DesktopTrayMenu {
     fun revision(): Int = synchronized(lock) { revision }
 
     /** The menu as it stands. */
-    private fun entries(): List<Entry> = synchronized(lock) {
+    internal fun entries(): List<Entry> = synchronized(lock) {
         buildList {
             nowPlaying?.let { playing ->
                 add(Entry(ID_NOW_PLAYING, label = playing, enabled = false))
@@ -125,7 +125,7 @@ internal object DesktopTrayMenu {
         EventQueue.invokeLater(action)
     }
 
-    private data class Entry(
+    internal data class Entry(
         val id: Int,
         val label: String = "",
         val separator: Boolean = false,

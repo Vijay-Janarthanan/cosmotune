@@ -17,6 +17,12 @@ internal object DesktopAwtTray {
     private var image: BufferedImage? = null
     private var tooltip: String = APP_NAME
 
+    /**
+     * Windows and macOS draw the menu and the player card themselves (see [DesktopTrayFlyout]): the
+     * native popup is a plain grey list with no room for the song. Elsewhere AWT's own menu stays.
+     */
+    private val flyout: Boolean get() = DesktopPlatform.isWindows || DesktopPlatform.isMac
+
     /** Whether this platform has a tray AWT can reach. */
     fun isSupported(): Boolean = runCatching { SystemTray.isSupported() }.getOrDefault(false)
 
@@ -36,14 +42,23 @@ internal object DesktopAwtTray {
                 if (icon != null) return@invokeLater
                 val tray = runCatching { SystemTray.getSystemTray() }.getOrNull() ?: return@invokeLater
                 val art = image ?: blank(tray.trayIconSize.width.coerceAtLeast(16))
-                val created = TrayIcon(art, tooltip, DesktopTrayMenu.awtPopup()).apply {
+                val created = (if (flyout) TrayIcon(art, tooltip) else TrayIcon(art, tooltip, DesktopTrayMenu.awtPopup())).apply {
                     isImageAutoSize = true
-                    // Windows opens the menu on right-click itself; the left click is the shortcut
-                    // back to the window, which is what every media player there does.
-                    addActionListener { EventQueue.invokeLater(onActivate) }
+                    // A double click is the shortcut back to the window.
+                    addActionListener { EventQueue.invokeLater { DesktopTrayFlyout.close(); onActivate() } }
                     addMouseListener(object : MouseAdapter() {
+                        // The popup trigger comes on release on Windows and on press on macOS and
+                        // Linux; the right button is the same thing on all of them.
+                        override fun mouseReleased(event: MouseEvent) {
+                            if (flyout && (event.isPopupTrigger || event.button == MouseEvent.BUTTON3)) {
+                                DesktopTrayFlyout.toggle(DesktopTrayFlyout.Mode.MENU)
+                            }
+                        }
+
                         override fun mouseClicked(event: MouseEvent) {
-                            if (event.button == MouseEvent.BUTTON1 && event.clickCount == 1) onActivate()
+                            if (event.button != MouseEvent.BUTTON1 || event.clickCount != 1) return
+                            // One click shows what is playing, with the controls; the window itself is a double click.
+                            if (flyout) DesktopTrayFlyout.toggle(DesktopTrayFlyout.Mode.PLAYER) else onActivate()
                         }
                     })
                 }
@@ -76,7 +91,7 @@ internal object DesktopAwtTray {
                 tooltip = text
                 val current = icon ?: return@invokeLater
                 current.toolTip = text
-                current.popupMenu = DesktopTrayMenu.awtPopup()
+                if (!flyout) current.popupMenu = DesktopTrayMenu.awtPopup()
             }
         }
     }

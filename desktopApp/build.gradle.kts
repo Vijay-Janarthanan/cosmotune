@@ -260,7 +260,8 @@ dependencies {
 }
 
 tasks.withType<Test> {
-    systemProperty("java.awt.headless", "true")
+    // The one live check that hooks a real window (DesktopWindowsTaskbarLiveTest) needs a display.
+    systemProperty("java.awt.headless", if (System.getenv("COSMOTUNE_TASKBAR_LIVE") == "1") "false" else "true")
     // Native aborts bypass JUnit's failure report; retain the last executing test in CI logs.
     testLogging.events("started", "failed")
     testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

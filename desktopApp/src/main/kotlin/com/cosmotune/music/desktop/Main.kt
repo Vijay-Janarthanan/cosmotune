@@ -159,6 +159,8 @@ private fun desktopMain() = application {
         val openingSize = remember { state.size }
         LaunchedEffect(composeWindow) {
             DesktopWindowVisibility.attachWindow(composeWindow)
+            // The buttons and the cover under the taskbar's hover preview; Windows only.
+            DesktopWindowsTaskbar.install(composeWindow)
             // AWT's default is white, and it is what shows for the frame or two a moved or resized
             // window takes to repaint: a white band along its edges.
             // Not over a transparent window, whose clear background is what the material shows
@@ -238,6 +240,15 @@ private fun desktopMain() = application {
     }
     // The compact always-on-top mini player, beside the main window.
     DesktopMiniPlayerWindow()
+    // What a click on the tray icon opens.
+    DesktopTrayFlyoutWindow()
+    // The taskbar's buttons and cover, and the Dock menu, follow what is playing.
+    LaunchedEffect(Unit) {
+        DesktopMiniPlayer.state.collect { now ->
+            DesktopWindowsTaskbar.update(now)
+            DesktopMacDock.update(now)
+        }
+    }
 }
 
 private const val MIN_WINDOW_WIDTH_DP = 900.0
