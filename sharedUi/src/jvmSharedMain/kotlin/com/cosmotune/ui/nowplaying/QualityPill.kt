@@ -54,6 +54,7 @@ fun QualityPill(quality: SourceQuality, modifier: Modifier = Modifier) {
             .padding(horizontal = 8.dp, vertical = 2.dp),
         color = ink,
         fontSize = 10.sp,
+        lineHeight = 12.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.4.sp,
         maxLines = 1,

@@ -23,8 +23,8 @@ class WideNowPlayingMetricsTest {
     @Test
     fun theBoardsFrameGivesTheBoardsNumbers() {
         val plan = WideNowPlayingMetrics.plan(1440f, 900f)
-        // .dn-head: top 20, left and right 32; the cover is 56
-        assertBox(32f, 20f, 1376f, 56f, plan.header, "header")
+        // The cover stays 56; the three text rows need 70 dp plus pixel-rounding clearance.
+        assertBox(32f, 20f, 1376f, 72f, plan.header, "header")
         // .dn-lyrics: left 64, top 150, 640 wide; it ends 8 dp above the bar's top (800)
         assertBox(64f, 150f, 640f, 642f, plan.lyrics, "lyrics")
         // The wider 4:5 card retains the header and lyrics margins.
@@ -49,6 +49,18 @@ class WideNowPlayingMetricsTest {
     }
 
     private fun plan(w: Float, h: Float) = WideNowPlayingMetrics.plan(w, h)
+
+    @Test
+    fun theQualityRowFitsBelowTheTitleAndCaptionAtLargerTextSizes() {
+        for (scale in listOf(1f, 1.3f, 1.5f, 2f)) {
+            val p = WideNowPlayingMetrics.plan(1280f, 800f, scale)
+            val spaceBelowCaption = p.header.height - (21f + 17f) * scale
+            assertTrue(spaceBelowCaption >= 32f, "the audio details retain their touch target at $scale")
+            assertTrue(spaceBelowCaption >= 12f * scale + 4f, "the badge line and padding fit at $scale")
+            assertTrue(p.header.bottom < p.video.y && p.header.bottom < p.lyrics.y)
+            assertTrue(p.video.bottom <= p.bar.y && p.lyrics.bottom <= p.bar.y)
+        }
+    }
 
     // ---- a window that is not the board's --------------------------------------------------------------------------------
 

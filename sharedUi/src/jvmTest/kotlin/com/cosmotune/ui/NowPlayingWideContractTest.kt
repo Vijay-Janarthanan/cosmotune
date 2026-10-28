@@ -29,7 +29,7 @@ class NowPlayingWideContractTest {
 
     @Test fun thePiecesAreWhereThePlanSaysAndKeepClearOfTheSystemBars() {
         val src = wide
-        assertTrue(src.contains("WideNowPlayingMetrics.plan(windowWidth.value - (left + right).value, windowHeight.value - (top + bottom).value)"), "the plan is made for the room the insets leave")
+        assertTrue(src.contains("WideNowPlayingMetrics.plan(windowWidth.value - (left + right).value, windowHeight.value - (top + bottom).value, fontScale)"), "the plan accounts for insets and the user's text size")
         assertFalse(src.contains("BoxWithConstraints"), "nothing is composed during layout: the lyrics' follow effect scrolls a list, which must not happen in a measure pass")
         assertTrue(src.contains("WindowInsets.systemBars.union(WindowInsets.displayCutout)"), "clear of the cutout and the bars on all four sides")
         for (piece in listOf("plan.cover", "plan.video", "plan.header", "plan.lyrics")) assertTrue(src.contains("placed($piece, left, top)"), "$piece is placed")

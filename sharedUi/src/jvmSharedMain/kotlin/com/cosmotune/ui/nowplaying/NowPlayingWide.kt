@@ -118,8 +118,9 @@ internal fun NowPlayingWide(
     val bottom = with(density) { insets.getBottom(density).toDp() }
     // The window's size comes from the caller (the overlay measured it), so nothing here is composed during layout.
     Box(modifier.fillMaxSize()) {
-        val plan = remember(windowWidth, windowHeight, left, top, right, bottom) {
-            WideNowPlayingMetrics.plan(windowWidth.value - (left + right).value, windowHeight.value - (top + bottom).value)
+        val fontScale = density.fontScale
+        val plan = remember(windowWidth, windowHeight, left, top, right, bottom, fontScale) {
+            WideNowPlayingMetrics.plan(windowWidth.value - (left + right).value, windowHeight.value - (top + bottom).value, fontScale)
         }
         Box(Modifier.fillMaxSize().hazeSource(hazeState)) {
             Box(Modifier.fillMaxSize().cosmoAmbientGround())

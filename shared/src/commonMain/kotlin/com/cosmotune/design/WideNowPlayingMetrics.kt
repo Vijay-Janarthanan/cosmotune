@@ -1,5 +1,6 @@
 package com.cosmotune.design
 
+import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
@@ -70,12 +71,17 @@ object WideNowPlayingMetrics {
     data class Plan(val header: Box, val lyrics: Box, val video: Box, val cover: Box, val bar: Box)
 
     /** The plan for a window of [widthDp] by [heightDp]. Total: a window too small for the layout gets empty boxes, never negative ones. */
-    fun plan(widthDp: Float, heightDp: Float): Plan {
+    fun plan(widthDp: Float, heightDp: Float, fontScale: Float = 1f): Plan {
         val w = max(widthDp, 0f)
         val h = max(heightDp, 0f)
+        // Title (21 sp), caption (17 sp), then the audio row's 32 dp touch target.
+        // Its badge has a 12 sp line and 4 dp padding. Leave clearance for each line's pixel rounding.
+        val headerH = ceil(max(HEADER_COVER_DP, 38f * fontScale + max(32f, 12f * fontScale + 4f))) + 2f
+        val videoTop = max(VIDEO_TOP_DP, HEADER_TOP_DP + headerH + 4f)
+        val lyricsTop = max(LYRICS_TOP_DP, HEADER_TOP_DP + headerH + 24f)
 
         // The card: as tall as the board's, or as the window leaves above the foot; four by five.
-        var videoH = min(VIDEO_HEIGHT_DP, h - VIDEO_TOP_DP - FOOT_DP)
+        var videoH = min(VIDEO_HEIGHT_DP, h - videoTop - FOOT_DP)
         var videoW = videoH * VIDEO_WIDTH_DP / VIDEO_HEIGHT_DP
         // ... and no wider than leaves the lyrics column its least.
         val widest = w - VIDEO_RIGHT_DP - COLUMN_GAP_DP - LYRICS_MIN_WIDTH_DP - LYRICS_LEFT_DP
@@ -86,12 +92,12 @@ object WideNowPlayingMetrics {
         videoW = floor(max(videoW, 0f))
         videoH = floor(max(videoH, 0f))
         val videoX = max(w - VIDEO_RIGHT_DP - videoW, 0f)
-        val video = Box(videoX, VIDEO_TOP_DP, videoW, videoH)
-        val cover = Box(videoX, VIDEO_TOP_DP + (videoH - videoW) / 2f, videoW, videoW)
+        val video = Box(videoX, videoTop, videoW, videoH)
+        val cover = Box(videoX, videoTop + (videoH - videoW) / 2f, videoW, videoW)
 
         val lyricsW = max(min(LYRICS_WIDTH_DP, videoX - COLUMN_GAP_DP - LYRICS_LEFT_DP), 0f)
-        val lyricsH = max(h - FOOT_DP - LYRICS_BAR_AIR_DP - LYRICS_TOP_DP, 0f)
-        val lyrics = Box(LYRICS_LEFT_DP, LYRICS_TOP_DP, lyricsW, lyricsH)
+        val lyricsH = max(h - FOOT_DP - LYRICS_BAR_AIR_DP - lyricsTop, 0f)
+        val lyrics = Box(LYRICS_LEFT_DP, lyricsTop, lyricsW, lyricsH)
 
         // The bar keeps the board's distance to the card (500 dp from the right in the board's frame) unless that would leave it
         // less than its least; it may then run under the card's column, since the card ends above the bar's row.
@@ -102,7 +108,7 @@ object WideNowPlayingMetrics {
         val barW = max(w - BAR_LEFT_DP - (VIDEO_RIGHT_DP + videoW + COLUMN_GAP_DP), barMin)
         val bar = Box(BAR_LEFT_DP, max(h - FOOT_DP, 0f), min(barW, max(w - 2f * BAR_LEFT_DP, 0f)), PlayerBarMetrics.HEIGHT_DP)
 
-        val header = Box(HEADER_SIDE_DP, HEADER_TOP_DP, max(w - 2f * HEADER_SIDE_DP, 0f), HEADER_COVER_DP)
+        val header = Box(HEADER_SIDE_DP, HEADER_TOP_DP, max(w - 2f * HEADER_SIDE_DP, 0f), headerH)
         return Plan(header, lyrics, video, cover, bar)
     }
 }

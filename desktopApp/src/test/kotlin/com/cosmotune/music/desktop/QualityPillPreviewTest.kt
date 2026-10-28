@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
 class QualityPillPreviewTest {
     @OptIn(ExperimentalComposeUiApi::class)
     @Test fun thePillsDrawOnADarkPlayer() {
-        val scene = ImageComposeScene(560, 150, Density(2f)) {
+        val scene = ImageComposeScene(560, 300, Density(2f)) {
             Column(Modifier.background(Color(0xFF15151C)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 for ((tier, label) in listOf(
                     SourceQuality.HI_RES_LOSSLESS to "FLAC · 24-bit · 96.0 kHz",
