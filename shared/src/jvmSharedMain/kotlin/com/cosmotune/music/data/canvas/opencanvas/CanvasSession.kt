@@ -73,6 +73,10 @@ internal class Environment(val config: OpenCanvasConfig) {
     /** The small progressive MP4 to read audio frame sizes from: the fast backend's first, then the full one's. */
     suspend fun syncSource(videoId: String): AudioStream? =
         listOfNotNull(instantBackend, backend).firstNotNullOfOrNull { tryOrNull { it.resolveAudio(videoId) } }
+
+    /** The same file through each backend on its own, in the order tried: one can hand out a file whose tables are unreadable where the other's is fine. */
+    suspend fun syncSourcesByBackend(videoId: String): List<AudioStream?> =
+        listOfNotNull(instantBackend, backend).map { tryOrNull { it.resolveAudio(videoId) } }
 }
 
 /** A session's latest track; [done] once nothing more will change. */
@@ -236,7 +240,7 @@ internal class CanvasSession(
             log("map from cache after ${System.currentTimeMillis() - started} ms")
             return@coroutineScope
         }
-        verify(id, ranked, songSource!!, started)
+        verify(id, ranked, songSource!!, started, (song as? SongAudio.YouTube)?.videoId)
     }
 
     /**
@@ -248,14 +252,14 @@ internal class CanvasSession(
      * the first usable map opens a short grace period in which better-ranked candidates may still
      * overtake it, then the rest are dropped.
      */
-    private suspend fun verify(id: String, ranked: List<VideoCandidate>, songSource: Deferred<AudioStream?>, started: Long) = coroutineScope {
+    private suspend fun verify(id: String, ranked: List<VideoCandidate>, songSource: Deferred<AudioStream?>, started: Long, songVideoId: String?) = coroutineScope {
         val track = songSource.await()
         // Three candidates at a time: the usual case is decided by the first batch, and a song whose
         // official video sits further down the results still gets found.
         var winner: Pair<VideoCandidate, AlignResult>? = null
         var attemptedCount = ranked.size
         for ((batchIndex, batch) in ranked.chunked(BATCH_SIZE).withIndex()) {
-            winner = bestOf(batch, batchIndex * BATCH_SIZE, track)
+            winner = bestOf(batch, batchIndex * BATCH_SIZE, track, songVideoId)
             if (winner != null) break
         }
         // A highly ranked remaster can have a different soundtrack (for example a 5.1 remix).
@@ -266,7 +270,7 @@ internal class CanvasSession(
                 limit = 10, album = request.album, exhaustive = true, excludedVideoIds = tried)
             attemptedCount += alternatives.size
             for ((batchIndex, batch) in alternatives.chunked(BATCH_SIZE).withIndex()) {
-                winner = bestOf(batch, ranked.size + batchIndex * BATCH_SIZE, track)
+                winner = bestOf(batch, ranked.size + batchIndex * BATCH_SIZE, track, songVideoId)
                 if (winner != null) break
             }
         }
@@ -299,9 +303,9 @@ internal class CanvasSession(
      * the first usable map opens a short grace period in which better-ranked candidates may still
      * overtake it, then the rest are dropped.
      */
-    private suspend fun bestOf(batch: List<VideoCandidate>, rankBase: Int, track: AudioStream?): Pair<VideoCandidate, AlignResult>? = coroutineScope {
+    private suspend fun bestOf(batch: List<VideoCandidate>, rankBase: Int, track: AudioStream?, songVideoId: String?): Pair<VideoCandidate, AlignResult>? = coroutineScope {
         val arrivals = Channel<Triple<Int, VideoCandidate, Measurement?>>(batch.size)
-        batch.forEachIndexed { index, candidate -> launch { arrivals.send(Triple(rankBase + index, candidate, measureOne(track, candidate.videoId))) } }
+        batch.forEachIndexed { index, candidate -> launch { arrivals.send(Triple(rankBase + index, candidate, measureOne(track, candidate.videoId, songVideoId))) } }
 
         var winner: Pair<VideoCandidate, AlignResult>? = null
         var winnerScore = Double.NEGATIVE_INFINITY
@@ -344,16 +348,33 @@ internal class CanvasSession(
         winner
     }
 
-    private suspend fun measureOne(track: AudioStream?, video: String): Measurement? {
+    private suspend fun measureOne(track: AudioStream?, video: String, songVideoId: String?): Measurement? {
         val picture = env.syncSource(video)
         if (track == null || picture == null) return null
-        return try {
-            env.measurer.measure(track, picture)
-        } catch (failure: Exception) {
-            if (failure is CancellationException) throw failure
-            log("measuring $video failed: ${failure.javaClass.simpleName}: ${failure.message}")
-            null
+        measure(track, picture, video)?.let { return it }
+        // A file whose tables cannot be read (one song's came back as junk) usually has a readable twin from the
+        // other client. Song and video are measured through the same client, so their frame sizes compare.
+        if (songVideoId == null) return null
+        val songs = env.syncSourcesByBackend(songVideoId)
+        val pictures = env.syncSourcesByBackend(video)
+        for (index in songs.indices) {
+            val song = songs[index] ?: continue
+            val other = pictures.getOrNull(index) ?: continue
+            if (song.url == track.url && other.url == picture.url) continue // the pair already tried
+            measure(song, other, video)?.let {
+                log("measuring $video: the first file could not be read, the other client's could")
+                return it
+            }
         }
+        return null
+    }
+
+    private suspend fun measure(song: AudioStream, picture: AudioStream, video: String): Measurement? = try {
+        env.measurer.measure(song, picture)
+    } catch (failure: Exception) {
+        if (failure is CancellationException) throw failure
+        log("measuring $video failed: ${failure.javaClass.simpleName}: ${failure.message}")
+        null
     }
 
     private suspend fun songSource(song: SongAudio): AudioStream? = when (song) {

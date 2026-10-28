@@ -115,7 +115,7 @@ object OpenCanvasProvider {
             artist = artist,
             album = album,
             source = CanvasSource.OTHER,
-            syncMap = track.syncMap(),
+            syncMap = ForwardOnlySyncMap.of(track.syncMap()),
             videoDurationMs = track.videoDurationMs,
             headers = track.videoHeaders,
             videoId = track.videoId,

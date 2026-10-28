@@ -48,6 +48,9 @@ object Mp4FrameSizes {
     private const val MAX_MOOV_BYTES = 16 * 1024 * 1024L
     private const val MAX_FILE_BYTES = 64 * 1024 * 1024L
 
+    /** No coded audio frame is this large. */
+    private const val MAX_AUDIO_FRAME_BYTES = 262_144
+
     /** The audio frames of the first audio track, or null when there is none or the layout is unsupported. */
     suspend fun read(reader: RangeReader): AudioFrames? = try {
         readHeaders(reader)
@@ -211,7 +214,21 @@ object Mp4FrameSizes {
         val fixed = u32(data, start + 4)
         val count = u32(data, start + 8).toInt()
         if (fixed != 0L || count <= 0) return null // a fixed sample size is raw audio, not a coded stream
-        return IntArray(count) { u32(data, start + 12 + 4 * it).toInt() }
+        return IntArray(count) { u32(data, start + 12 + 4 * it).toInt() }.takeIf(::plausibleAudio)
+    }
+
+    /**
+     * Coded audio frames are a few bytes to a few kilobytes and none is empty. A file can be served with
+     * a table full of other numbers (one song's came back that way, and FFmpeg refuses it too); read as
+     * sizes they turn the envelope into NaN, which the aligner reports as a silent song.
+     */
+    private fun plausibleAudio(sizes: IntArray): Boolean {
+        var empty = 0
+        for (size in sizes) {
+            if (size < 0 || size > MAX_AUDIO_FRAME_BYTES) return false
+            if (size == 0) empty++
+        }
+        return empty * 100 <= sizes.size
     }
 
     private suspend fun readFragments(reader: RangeReader, track: Track, defaults: Defaults): AudioFrames? {

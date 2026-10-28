@@ -49,11 +49,17 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
         for (query in queries) {
             // Searches run one after another: a slow network must not hold the song's video for half a minute.
             if (results.isNotEmpty() && (System.nanoTime() - startedAt) / 1_000_000L > SEARCH_BUDGET_MS) break
-            val batch = withTimeoutOrNull(QUERY_TIMEOUT_MS) { search(query) }.orEmpty()
+            val queryStarted = System.nanoTime()
+            val answer = withTimeoutOrNull(QUERY_TIMEOUT_MS) { search(query) }
+            val batch = answer.orEmpty()
+            val tookMs = (System.nanoTime() - queryStarted) / 1_000_000L
+            // A search that does not answer in time is a miss for the song, so it is worth a line even when nothing else is logged.
+            if (answer == null) log("video search '$query': no answer within $QUERY_TIMEOUT_MS ms")
+            else if (batch.isEmpty() && !exhaustive) log("video search '$query': no results after $tookMs ms")
             results += batch
             val ranked = VideoMatcher.rank(results.distinctBy { it.videoId }
                 .filter { it.videoId !in excludedVideoIds && VideoMatcher.hasPublisherEvidence(it, title, artist, album) }, title, artist, durationSec, limit, album)
-            if (exhaustive) log("expanded video search '$query': ${batch.size} results, eligible ${ranked.joinToString { it.videoId }}")
+            if (exhaustive) log("expanded video search '$query': ${batch.size} results in $tookMs ms, eligible ${ranked.joinToString { it.videoId }}")
             if (exhaustive && ranked.isNotEmpty()) return@run ranked
             // Do not wait for speculative fallbacks when a publisher's matching song was found.
             // An album-only hit is insufficient: another track from the same film must not stop search.
@@ -91,7 +97,7 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
     }
 
     internal companion object {
-        private const val QUERY_TIMEOUT_MS = 4_000L
+        private const val QUERY_TIMEOUT_MS = 8_000L
         private const val SEARCH_BUDGET_MS = 6_000L
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"

@@ -82,7 +82,7 @@
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/sync/Mp4FrameSizes.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/Mp4FrameSizes.kt",
       "normalizeLf": true,
-      "sha256": "72a8762132c87b5bba3214f4f83411a70a3a9cd6df0abc5ab4949f2a0ac94364"
+      "sha256": "9e526374c6c568053001b06453febed948b4346f73859454c8e5b8438a53c7b9"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/sync/SyncAligner.kt",
@@ -100,7 +100,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/CanvasSession.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSession.kt",
       "normalizeLf": true,
-      "sha256": "4f068f3fe903f9e5c1ed2d97ae69c3f3c302a62967f91646cec0851471596af9"
+      "sha256": "0185c87e06798eb893ec81ea0ede5ffa46c8a0609457b3b70b604599645fe6f0"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",
@@ -166,7 +166,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
       "normalizeLf": true,
-      "sha256": "79017df009d7157dd8039af0b257204cd53f3813218f10de70c80d28183fe5fc"
+      "sha256": "d2d682be8dbfd99194999565a8821606fdf8801870d8ac83e361eb9a6c4d3164"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
@@ -254,5 +254,5 @@
     }
   ],
   "revisionStatus": "published on OpenCanvas main",
-  "localChanges": "Cosmotune 1.0.5 changed OpenCanvas.kt (SUBJECT_FRAMING switch, off) and MusicVideoSearch.kt (4 s per search, 6 s budget, unfiltered ranking when no publisher evidence); apply the same two changes in the OpenCanvas repository"
+  "localChanges": "Cosmotune 1.0.5 changed OpenCanvas.kt (SUBJECT_FRAMING switch, off) and MusicVideoSearch.kt (4 s per search, 6 s budget, unfiltered ranking when no publisher evidence). After 1.0.9 Cosmotune changed MusicVideoSearch.kt again (8 s per search, a log line for a search that gets no answer), Mp4FrameSizes.kt (a table of numbers that cannot be audio frame sizes is unreadable instead of silent) and CanvasSession.kt (a song and video whose files cannot be read are measured again through the other client). Apply the same changes in the OpenCanvas repository"
 }
