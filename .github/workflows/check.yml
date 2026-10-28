@@ -225,7 +225,7 @@ jobs:
       - run: pnpm --dir web typecheck
       - run: pnpm --dir web test
       - run: pnpm --dir web build:site
-      - run: python3 tools/package-web.py --version 1.0.9 --output build/web-check
+      - run: python3 tools/package-web.py --version 1.0.10 --output build/web-check
       - uses: actions/upload-artifact@v4
         with:
           name: cosmotune-web-check

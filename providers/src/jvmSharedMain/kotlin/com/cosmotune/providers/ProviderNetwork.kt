@@ -68,7 +68,7 @@ class ProviderNetwork(private val permissions: ProviderPermissions, private val 
         repeat(6) {
             check(!cancelled) { "Provider request cancelled" }
             require(visited.add(url.toString())) { "Provider redirect loop" }
-            val builder = Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.9")
+            val builder = Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.10")
             headers.forEach { (name, value) -> builder.header(name, value) }
             if (media) builder.header("Accept-Encoding", "identity")
             val held = cookieJar.request(url)
