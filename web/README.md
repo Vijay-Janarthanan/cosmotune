@@ -1,6 +1,6 @@
 # Cosmotune browser companion
 
-The companion and Chromium/Firefox helpers ship as separate archives in [Cosmotune releases](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest). Native development is at [1.0.10](../docs/releases/1.0.10.md); the release build is in progress. Native Manga, Podio, station pages and desktop shell features are not browser-companion features.
+The companion and Chromium/Firefox helpers ship as separate archives in [Cosmotune releases](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest). Version [1.0.10](../docs/releases/1.0.10.md) is published; its release build completed successfully. Native Manga, Podio, station pages and desktop shell features are not browser-companion features.
 
 The live [Cosmotune website](https://cosmotune.shutterisland.in/) is the product/download page hosted under Shutter Island. It does not host this player. See the [website inventory](../docs/LIVE_WEBSITES.md) before changing hosting or helper origins.
 

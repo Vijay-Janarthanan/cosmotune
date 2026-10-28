@@ -1,10 +1,10 @@
 # Remaining work
 
-Reviewed 2026-10-28 against FEATURE_TRACKER.md, published releases through 1.0.9 and the 1.0.10 source tag. A source implementation, a passing automated check, a hardware/account check and publication are separate evidence.
+Reviewed 2026-10-28 against FEATURE_TRACKER.md, published releases through 1.0.10. A source implementation, a passing automated check, a hardware/account check and publication are separate evidence.
 
 ## Version 1.0.10 release and integration checks
 
-The [1.0.10 release build](https://github.com/Vijay-Janarthanan/cosmotune/actions/runs/40649671899) is in progress. Its [notes](releases/1.0.10.md) cover unreadable MP4 recovery, avoidance of replayed footage, an eight-second search budget, film/album captions, provider artist matching and fallback, decoder quality pills and desktop shell controls. Keep download links on the latest published release until installers are available. Do not move the existing tag for documentation changes.
+The [1.0.10 release build](https://github.com/Vijay-Janarthanan/cosmotune/actions/runs/40649671899) completed successfully. The [release](https://github.com/Vijay-Janarthanan/cosmotune/releases/tag/v1.0.10) is published with 49 non-empty assets. Its [notes](releases/1.0.10.md) cover unreadable MP4 recovery, avoidance of replayed footage, an eight-second search budget, film/album captions, provider artist matching and fallback, decoder quality pills and desktop shell controls. Download links now resolve to published 1.0.10 installers. Do not move the existing tag for documentation changes.
 
 The three vendored OpenCanvas repairs still need porting to its standalone repository; the host's import record tracks them. The website documents this distinction rather than advertising them in the published 1.0.0 library artifact. Windows shell API checks and rendered tray cards do not replace interactive taskbar/tray testing. macOS tray/Dock execution, the new Amazon match's audio request with a verified session, and actual immersive output remain separate checks.
 

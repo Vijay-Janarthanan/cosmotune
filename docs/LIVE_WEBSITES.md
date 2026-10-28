@@ -29,7 +29,7 @@ OpenCanvas's editorial introduction is separate from its technical documentation
 
 ## Current documentation baseline
 
-Document the 1.0.10 source, the published 1.0.8/1.0.9 features and the current release-build state separately. At this review the 1.0.10 build is running and the latest public installers are 1.0.9. Downloads use `/releases/latest` so visitors get a published build. Update release-status copy after publication; do not move an app tag for website-only changes.
+Version 1.0.10 is published. Its release workflow completed successfully and all 49 uploaded assets are non-empty. Downloads use `/releases/latest`, which now resolves to 1.0.10. The product and portfolio pages describe it as available rather than a release preview. Publication does not replace the physical-device/account checks documented in the release notes; do not move an app tag for website-only changes.
 
 Coverage includes Music/Video, Manga/Podio, radio globe and station pages, regional podcast charts, discovery choices, the 3.19 MB local ranker, source comparisons and decoder quality, 4:5 video, artist fallback/motion headers, library tools, companion apps and the new desktop controls. Retain stated limits: public RSS rather than paid-only podcast access, service/session-dependent providers, platform-dependent companions, outstanding physical-device checks and unverified immersive output.
 
