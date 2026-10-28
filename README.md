@@ -8,7 +8,7 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-Version 1.0.11 improves recording-based source matching, automatic music-video recovery, source-quality details, Podio podcasts/offline listening, Manga collections and verification, desktop output options and browser Automix. [1.0.11 changes and validation limits](docs/releases/1.0.11.md) · [Remaining work](docs/PENDING_WORK.md)
+Version 1.0.11 is published with 49 release files and improves recording-based source matching, automatic music-video recovery, source-quality details, Podio podcasts/offline listening, Manga collections and verification, desktop output options and browser Automix. [1.0.11 changes and validation limits](docs/releases/1.0.11.md) Â· [Remaining work](docs/PENDING_WORK.md)
 
 [Downloads](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest) point to the latest published installers. New source changes require an updated app build; release assets are published after the platform build workflow succeeds. [Playback findings and upstream integration evidence](docs/UPSTREAM_IMPLEMENTATION_2026-10-28.md).
 
