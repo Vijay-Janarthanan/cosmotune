@@ -2,6 +2,8 @@
 
 Inventory checked on 2026-10-26. A catalogue integration, an advertised audio tier, successful resolution, actual decoder input and actual device output are different facts. A provider's presence in this list does not establish working account access in Cosmotune.
 
+Current source update, 1.0.10: artist matching accepts equivalent names with different word breaks, a provider-package row that cannot resolve is looked up by title/artist on other sources with the failed package excluded, and playback/page failures write their reasons to the log. The player adds a decoder-reported Hi-Res Lossless/Lossless/High quality/Dolby Atmos pill. This does not establish Atmos speaker output or successful audio from every advertised provider. [Release notes and live-test limits](releases/1.0.10.md). The 1.0.10 release build is in progress.
+
 ## Providers we can target
 
 | Service | Role exposed by the inspected integration | Advertised audio | Dependencies / limits |

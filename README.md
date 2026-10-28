@@ -8,7 +8,11 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-Music videos in Now Playing use a steady 4:5 portrait frame, with playback controls clear of the picture and taller artist motion headers. [1.0.8 changes](docs/releases/1.0.8.md) · [Remaining work](docs/PENDING_WORK.md)
+The 1.0.10 source adds music-video recovery without replaying footage, film/album labels, decoder-reported quality pills, provider fallback and desktop tray/taskbar/Dock controls. Its release build is in progress; [downloads](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest) always point to the latest published installers. [1.0.10 changes and validation limits](docs/releases/1.0.10.md) · [Remaining work](docs/PENDING_WORK.md)
+
+Version 1.0.9 rebuilds Podio around a satellite radio globe with city-level zoom, nearby-station selection, on-air metadata and station pages with local time, weather, credited photos and articles. Podcasts gain regional charts and genre filters. [1.0.9 changes](docs/releases/1.0.9.md)
+
+Music videos in Now Playing use a steady 4:5 portrait frame, with playback controls clear of the picture and taller artist motion headers.
 
 Version 1.0.8 aligns Manga and Podio with the native theme, keeps artist photographs visible when replacement artwork fails, repairs case-sensitive radio language searches, expands the radio map, and makes regional/language discovery prominent with shorter menus.
 
@@ -43,9 +47,11 @@ Version 1.0.7 adds provider audio preparation and comparisons, tappable audio de
 
 </div>
 
-The 1.0.7 source adds source-comparison details, country/language discovery controls and locally ranked playlist previews. The 1.0.6 downloads do not include them. See the [provider inventory and validation](docs/PROVIDER_CAPABILITIES.md) and [Amazon resolution findings](docs/AMAZON_RESOLUTION_INVESTIGATION.md).
+Source-comparison details, country/language discovery controls and locally ranked playlist previews have shipped since 1.0.7. See the [provider inventory and validation](docs/PROVIDER_CAPABILITIES.md) and [Amazon resolution findings](docs/AMAZON_RESOLUTION_INVESTIGATION.md).
 
-Current development also adds [dedicated provider verification windows](docs/PROVIDER_VERIFICATION_BROWSER.md): complete the service's check and let Cosmotune handle the grant automatically, with manual recovery when needed. Windows Qobuz verification has live proof; audio preparation and other platform/device checks remain separately documented.
+[Dedicated provider verification windows](docs/PROVIDER_VERIFICATION_BROWSER.md) handle a service's grant automatically after its check, with manual recovery when needed. Windows Qobuz verification has live proof; audio preparation and other platform/device checks remain separately documented.
+
+Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas website](https://opencanvas.shutterisland.in/) and [Shutter Island project portfolio](https://www.shutterisland.in/). [Hosting and website maintenance](docs/LIVE_WEBSITES.md).
 
 ## Screenshots
 
@@ -95,8 +101,8 @@ Current development also adds [dedicated provider verification windows](docs/PRO
       <h3>The music video, behind the song</h3>
       <p>With <a href="https://github.com/Vijay-Janarthanan/OpenCanvas">OpenCanvas</a>, Cosmotune finds the song's music video and
       lines it up with the song, so the picture follows the music. Version 1.0.2 adds film/album-aware discovery and publisher
-      checks to reject matching fan dances, plus local face/person framing that follows actors and keeps groups in view.
-      Physical Android framing validation is pending.
+      checks to reject matching fan dances. The current app keeps subject tracking disabled and uses the approved steady 4:5
+      portrait frame; the separate library's face/person policy remains available for integration and validation.
       <a href="https://vijay-janarthanan.github.io/OpenCanvas/#smart-framing">Try the framing-policy comparison</a>.
       You choose the video quality, or switch the video off. Over a
       video the controls fold down into a slim bar and the picture has the screen; a tap or a drag up brings them back. On Android
@@ -155,7 +161,7 @@ Android phones and tablets, Wear OS watches, Android TV, Windows, Linux and macO
 ## Download
 
 Version 1.0.4. The links below always fetch the newest release.
-[1.0.4 release notes](docs/releases/1.0.4.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
+[1.0.10 release notes](docs/releases/1.0.10.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 ### Android
 
@@ -223,7 +229,8 @@ the phone app: it has its own settings, profiles and sign-in, and it updates its
 <details>
 <summary>Installing the browser companion</summary>
 
-There is no public Cosmotune site: the player is a static site you host yourself (serve the unzipped folder, sending unknown
+The public [Cosmotune product site](https://cosmotune.shutterisland.in/) describes the native app and links downloads. The browser
+player is a separate static app you host yourself (serve the unzipped folder, sending unknown
 paths to `index.html`). The helper only answers the site addresses the release was built for; with none configured it answers
 only a local copy at `http://localhost:5173`. [Hosting and build notes](web/README.md).
 

@@ -1,16 +1,26 @@
 # Remaining work
 
-Reviewed 2026-10-26 against FEATURE_TRACKER.md and the published 1.0.4/1.0.5 notes. A source implementation, a passing automated check, a hardware/account check and publication are separate evidence.
+Reviewed 2026-10-28 against FEATURE_TRACKER.md, published releases through 1.0.9 and the 1.0.10 source tag. A source implementation, a passing automated check, a hardware/account check and publication are separate evidence.
+
+## Version 1.0.10 release and integration checks
+
+The [1.0.10 release build](https://github.com/Vijay-Janarthanan/cosmotune/actions/runs/40649671899) is in progress. Its [notes](releases/1.0.10.md) cover unreadable MP4 recovery, avoidance of replayed footage, an eight-second search budget, film/album captions, provider artist matching and fallback, decoder quality pills and desktop shell controls. Keep download links on the latest published release until installers are available. Do not move the existing tag for documentation changes.
+
+The three vendored OpenCanvas repairs still need porting to its standalone repository; the host's import record tracks them. The website documents this distinction rather than advertising them in the published 1.0.0 library artifact. Windows shell API checks and rendered tray cards do not replace interactive taskbar/tray testing. macOS tray/Dock execution, the new Amazon match's audio request with a verified session, and actual immersive output remain separate checks.
+
+## Version 1.0.9 radio and station pages
+
+[1.0.9](releases/1.0.9.md) is published: satellite imagery, city-level zoom and ring selection, up to 3,000 directory rows, approximate locations, a curated extra-station list, station pages with weather/photos/articles, native sidebars and podcast charts/genres. Physical phone and desktop interaction checks remain outstanding. Directory coverage varies; approximate coordinates are disclosed. [Live product pages and deployment sources](LIVE_WEBSITES.md).
 
 ## Version 1.0.8 UI and discovery repairs
 
-Version 1.0.7 is published. The next repair pass adds shared Manga/Podio mode chrome, complete tonal palette roles, a persistent artist-photo fallback, lowercase radio language queries, larger radio result sets and an expanded map, and prominent regional discovery with curated language choices. See [1.0.8 notes](releases/1.0.8.md). Automated fixture/native compilation evidence does not replace physical-device interaction and listening checks.
+Version 1.0.8 is published. It adds shared Manga/Podio mode chrome, complete tonal palette roles, a persistent artist-photo fallback, lowercase radio language queries, larger radio result sets and an expanded map, and prominent regional discovery with curated language choices. See [1.0.8 notes](releases/1.0.8.md). Automated fixture/native compilation evidence does not replace physical-device interaction and listening checks.
 
 ## Version 1.0.7 features
 
 Automatic package-source comparison, tappable audio details, discovery country/language controls and local playlist preview/save are included in the 1.0.7 source. See [the provider capability matrix](PROVIDER_CAPABILITIES.md), [the Amazon investigation](AMAZON_RESOLUTION_INVESTIGATION.md) and [release notes](releases/1.0.7.md). They require the 1.0.7 installers; the 1.0.6 downloads do not contain them.
 
-The Windows playback freeze is fixed in source with native WASAPI recovery and UI-safe device readouts ([investigation](WINDOWS_PLAYBACK_FREEZE_2026-10-26.md)). Now Playing also restores desktop header dragging, and settings includes the creator credit. Publication and actual upgrade testing remain separate from local validation.
+The 1.0.7 Windows playback freeze repair shipped with native WASAPI recovery and UI-safe device readouts ([investigation](WINDOWS_PLAYBACK_FREEZE_2026-10-26.md)). Now Playing also restores desktop header dragging, and settings includes the creator credit. Actual upgrade and listening checks remain separate from automated validation.
 
 The supplied Qobuz HTTP add-on has native FLAC decoding proof (24-bit/44.1 kHz and 16-bit/44.1 kHz for the two test songs). The separate Mornye Qobuz package has live session-verification proof through the dedicated window; its audio is a separate check. Amazon search, grant exchange, ticket delivery and [native preparation](PROVIDER_MEDIA_PREPARATION.md) now pass an actual Windows decode as 24-bit/44.1 kHz FLAC. E-AC-3/AC-4 decoding and immersive device output remain separate checks.
 

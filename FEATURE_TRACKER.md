@@ -1,8 +1,8 @@
 # Cosmotune feature tracker
 
-Updated 2026-10-26. This is the central local tracker for features from other apps and original Cosmotune work. A reviewed feature is not automatically implemented; compiled code is not automatically device-tested or released.
+Updated 2026-10-28. This is the central local tracker for features from other apps and original Cosmotune work. A reviewed feature is not automatically implemented; compiled code is not automatically device-tested or released.
 
-**Release status:** 1.0.4 and 1.0.5 have published release tags. Their documented unfinished integrations and device checks remain outstanding; see [pending work](docs/PENDING_WORK.md). The current 1.0.6 patch applies the approved 4:5 Music framing and taller artist headers; it does not claim that every deferred or hardware-dependent row is complete.
+**Release status:** releases through [1.0.9](https://github.com/Vijay-Janarthanan/cosmotune/releases/tag/v1.0.9) are published. The [1.0.10 source tag](https://github.com/Vijay-Janarthanan/cosmotune/tree/v1.0.10) adds video recovery/forward-only footage, provider fallback and artist matching, decoder quality labels, film captions and tray/taskbar/Dock controls; its release build is in progress. [1.0.8](docs/releases/1.0.8.md) shipped native Manga/Podio chrome, artwork fallbacks and discovery repairs; [1.0.9](docs/releases/1.0.9.md) shipped the satellite globe, station pages and regional podcast charts. Historical row evidence below retains its original scope and does not certify every device/account check. See [pending work](docs/PENDING_WORK.md) and the [live website inventory](docs/LIVE_WEBSITES.md).
 
 ## Status and evidence rules
 

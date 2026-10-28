@@ -2,6 +2,12 @@
 
 Scope: an account-free Radio / Podcasts mode in Cosmotune 1.0.7. Research is separate from integration and live playback evidence; a project's advertised platform coverage is not a playback result.
 
+## Current coverage, 1.0.9 / 1.0.10
+
+The research below records the original source review. Published [1.0.9](releases/1.0.9.md) now adds NASA GIBS satellite tiles, city-level zoom and ring selection, up to 3,000 directory results, disclosed approximate station locations and bundled extra public stations. Station pages show local time, Open-Meteo weather, credited Wikimedia photographs and nearby Wikipedia articles. Podcasts open on regional charts with genre chips and language search. Native phone/desktop layouts, mode sidebars and the live-station bar were rebuilt; dedicated TV/Wear/browser Podio UI remains pending.
+
+[1.0.10](releases/1.0.10.md) is the current source tag; its release build is in progress. It retains public radio/RSS coverage and adds no protected podcast source. Episode downloads, OPML, sleep timers and full archive pagination remain pending. See [remaining work](PENDING_WORK.md) and [live websites](LIVE_WEBSITES.md).
+
 ## Source review, 26 October 2026
 
 | Project | Source inspected | What the code actually provides | Integration decision |
