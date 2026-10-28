@@ -165,7 +165,18 @@ internal object DesktopTrackMatcher {
         this in setOf("unknown", "unknown artist", "unknown artist(s)")
 
     private fun sameArtist(first: List<String>, second: List<String>): Boolean =
-        containsWords(first, second) || containsWords(second, first)
+        containsWords(first, second) || containsWords(second, first) || runTogether(first, second)
+
+    /**
+     * The same name with its words broken differently: YouTube Music files "Yuvanshankar Raja" where
+     * Amazon says "Yuvan Shankar Raja", and as whole words neither is a run of the other. A name of
+     * one word on each side is only equal when it is equal, and a short run of letters proves nothing.
+     */
+    private fun runTogether(first: List<String>, second: List<String>): Boolean {
+        if (first.size == 1 && second.size == 1) return false
+        val joined = first.joinToString("")
+        return joined.length >= MIN_RUN_TOGETHER_CHARS && joined == second.joinToString("")
+    }
 
     private fun containsWords(outer: List<String>, inner: List<String>): Boolean =
         inner.isNotEmpty() && inner.size <= outer.size &&
@@ -174,6 +185,7 @@ internal object DesktopTrackMatcher {
             }
 
     private const val BRACKET_PASSES = 3
+    private const val MIN_RUN_TOGETHER_CHARS = 5
     private const val DASH_PASSES = 3
 
     private val WORD_SEPARATOR = Regex("""[\s.·]+""")

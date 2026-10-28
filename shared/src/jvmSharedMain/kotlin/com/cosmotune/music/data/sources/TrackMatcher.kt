@@ -678,7 +678,20 @@ object TrackMatcher {
             .also { atomicCache = users to it }
     }
     private fun sameArtist(a: List<String>, b: List<String>) =
-        if (a in atomicArtistNames || b in atomicArtistNames) a == b else runOf(a, b) || runOf(b, a)
+        if (a in atomicArtistNames || b in atomicArtistNames) a == b else runOf(a, b) || runOf(b, a) || runTogether(a, b)
+
+    /**
+     * The same name with its words broken differently: YouTube Music files "Yuvanshankar Raja" where
+     * Amazon says "Yuvan Shankar Raja", and as whole words neither is a run of the other. A name of
+     * one word on each side is only equal when it is equal, and a short run of letters proves nothing.
+     */
+    private fun runTogether(a: List<String>, b: List<String>): Boolean {
+        if (a.size == 1 && b.size == 1) return false
+        val joined = a.joinToString("")
+        return joined.length >= MIN_RUN_TOGETHER_CHARS && joined == b.joinToString("")
+    }
+
+    private const val MIN_RUN_TOGETHER_CHARS = 5
 
     /** Whether [outer] contains [inner] as a run of whole words. */
     private fun runOf(outer: List<String>, inner: List<String>): Boolean {
