@@ -275,6 +275,8 @@ class DesktopPlaybackEngine(
                 },
                 onFailure = { failure ->
                     val reported = priorFailure ?: failure
+                    // The reason is on screen as an error and was nowhere else: a song that will not play left no trace.
+                    DesktopTrackLog.log("could not play '${song.title}': ${reported.message ?: reported.javaClass.simpleName}")
                     _state.value = DesktopPlaybackState(
                         song = song,
                         volume = volume,

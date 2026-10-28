@@ -438,7 +438,19 @@ internal object DesktopSourceRegistry {
             DesktopModuleSource.parseTrack(song.videoId) != null ||
             song.videoId.startsWith("jiosaavn:")
         if (owned) {
-            return@runCatching DesktopLiveResolution(resolve(song, quality, excludedSourceId).getOrThrow())
+            val direct = resolve(song, quality, excludedSourceId)
+            direct.getOrNull()?.let { return@runCatching DesktopLiveResolution(it) }
+            val failure = direct.exceptionOrNull() ?: error("No stream")
+            // A row from a provider package is played by that package alone, and a package whose own service
+            // is down (YouTube Music's answers api_error for every recording) would leave the song silent
+            // although other sources hold the same recording. The song is looked up by title and artist on
+            // the sources that are left, the failed package excluded.
+            val failedPackage = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.first?.takeIf { it.startsWith("sflx-") }
+                ?: throw failure
+            DesktopTrackLog.log("'${song.title}' could not be played by ${com.cosmotune.providers.ProviderHub.sourceName(failedPackage) ?: failedPackage}: ${failure.message}; looking for it elsewhere")
+            val stand = available.firstOrNull { it.config.kind == DesktopSourceKind.YOUTUBE }?.match(song)
+                ?: throw failure
+            return@runCatching resolveLive(stand, quality, failedPackage).getOrThrow()
         }
 
         val youtube = available.firstOrNull {

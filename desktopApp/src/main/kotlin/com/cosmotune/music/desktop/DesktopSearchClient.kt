@@ -68,7 +68,11 @@ object DesktopSearchClient {
                     page.collection.artwork?.takeIf(com.cosmotune.providers.CatalogueArtwork::handles),
                     browseTypeOf(browseId), page.songs))
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-            catch (_: Exception) { Result.failure(IllegalStateException("This source could not load the page. Check its connection and settings.")) }
+            catch (failure: Exception) {
+                // The screen says only that the page could not load; the reason was nowhere.
+                DesktopTrackLog.log("page ${key.provider}/${key.kind}/${key.id} could not be loaded: ${failure.javaClass.simpleName}: ${failure.message}")
+                Result.failure(IllegalStateException("This source could not load the page. Check its connection and settings."))
+            }
         }
         return YtMusicRepository.browseSongs(browseId).map { page ->
             val header = page.header
