@@ -69,7 +69,7 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
         if (shell != null && mode == AppMode.MANGA) holder.SaveableStateProvider("manga") {
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
-            com.cosmotune.manga.ui.MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) })
+            com.cosmotune.manga.ui.MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true)
         }
         else if (shell != null && mode == AppMode.PODIO) holder.SaveableStateProvider("podio") {
             val request = MusicLink.pending.collectAsStateWithLifecycle()

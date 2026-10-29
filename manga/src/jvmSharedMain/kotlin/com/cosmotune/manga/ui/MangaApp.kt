@@ -35,7 +35,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Composable
-fun MangaApp(contentPadding: PaddingValues = PaddingValues(), onMusic: () -> Unit = {}, repository: MangaRepository? = null) {
+/** [showLeave] draws a Music button on the page; a phone needs it because this page replaces the screen that holds the mode menu. */
+fun MangaApp(contentPadding: PaddingValues = PaddingValues(), onMusic: () -> Unit = {}, repository: MangaRepository? = null, showLeave: Boolean = false) {
     var retry by remember { mutableIntStateOf(0) }
     val initialized = key(retry) { repository?.let { Result.success(it) } ?: rememberMangaRepository() }
     val ready = initialized.getOrNull()
@@ -48,11 +49,11 @@ fun MangaApp(contentPadding: PaddingValues = PaddingValues(), onMusic: () -> Uni
                 TextButton(onClick = onMusic) { Text(mangaText("Music")) }
             }
         }
-    } else MangaContent(contentPadding, onMusic, ready)
+    } else MangaContent(contentPadding, onMusic, ready, showLeave)
 }
 
 @Composable
-private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, repository: MangaRepository) {
+private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, repository: MangaRepository, showLeave: Boolean) {
     MangaBackgroundUpdates(repository)
     val state by repository.store.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -112,7 +113,7 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: () -> Unit, rep
             val next = selected?.nextChapter(current)
             MangaReader(repository, current, hasNext = next != null, onBack = { chapter = null }, onNext = { chapter = next })
         } else Column(Modifier.fillMaxSize().padding(contentPadding).windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp)) {
-            ModePageHeader(selected?.title ?: "Manga", if (selected != null) "Chapters, downloads and reading progress" else "Your library, new discoveries and stories to continue.")
+            ModePageHeader(selected?.title ?: "Manga", if (selected != null) "Chapters, downloads and reading progress" else "Your library, new discoveries and stories to continue.", onMusic.takeIf { showLeave })
             if (selected != null) TextButton(onClick = { selected = null }) { Text(mangaText("Back")) }
             else {
                 val libraryLabel = mangaText("Library"); val discoverLabel = mangaText("Discover")

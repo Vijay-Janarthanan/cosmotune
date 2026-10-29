@@ -28,9 +28,12 @@ object ModeNav {
     val mangaTab = kotlinx.coroutines.flow.MutableStateFlow("Library")
 }
 
-/** Shared native mode chrome: inherits Music's Material bridge, fonts and artwork palette. Modes are switched from the profile menu. */
+/**
+ * Shared native mode chrome: inherits Music's Material bridge, fonts and artwork palette. Modes are switched from the profile menu;
+ * [onMusic] adds a way back for a phone, where this page replaces the screen that holds that menu.
+ */
 @Composable
-fun ModePageHeader(title: String, subtitle: String) {
+fun ModePageHeader(title: String, subtitle: String, onMusic: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f)) {
@@ -39,6 +42,7 @@ fun ModePageHeader(title: String, subtitle: String) {
             Text(subtitle, style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
         }
+        if (onMusic != null) androidx.compose.material3.TextButton(onClick = onMusic) { Text("Music") }
     }
 }
 

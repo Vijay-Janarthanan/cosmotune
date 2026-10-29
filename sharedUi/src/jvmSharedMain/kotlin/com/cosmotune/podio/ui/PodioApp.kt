@@ -62,7 +62,9 @@ private val LANGUAGES = listOf("" to "All languages", "Tamil" to "Tamil", "Telug
 /** The same account-free radio/podcast page is used by Android and every desktop target. */
 @Composable
 fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -> Unit,
-    onToggle: () -> Unit, onSeek: (Long) -> Unit, onSpeed: (Float) -> Unit, onMusic: () -> Unit = {},
+    onToggle: () -> Unit, onSeek: (Long) -> Unit, onSpeed: (Float) -> Unit,
+    /** Leaves Podio for Music. Drawn as a button where the page owns the whole screen (a phone); the desktop has its top bar. */
+    onMusic: (() -> Unit)? = null,
     padding: PaddingValues = PaddingValues(), directory: PodioCatalogue? = null,
     /** False on the desktop, where the sidebar chooses Radio, Podcasts, Favourites and Following (see [ModeNav]). */
     showNavigation: Boolean = true,
@@ -227,6 +229,9 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val wide = maxWidth > 760.dp
     Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = if (wide) 24.dp else 12.dp)) {
+        if (showNavigation && onMusic != null) Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onMusic, modifier = Modifier.testTag("podio:music")) { Text("Back to Music") }
+        }
         // On a phone the tabs are the title: the room goes to the map and the list.
         if (wide || !showNavigation) Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {

@@ -67,6 +67,8 @@ import java.io.File
         catch (_: Exception) { failed = true; pending = null }
     }
     val current = pending?.first
+    // System Back leaves for Music; with no handler it closed the whole app.
+    androidx.activity.compose.BackHandler(onBack = onMusic)
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
     PodioApp(File(context.filesDir, "podio/library.json"),
         PodioPlayback(current?.id ?: state.song?.videoId, current?.title ?: state.song?.title.orEmpty(),
