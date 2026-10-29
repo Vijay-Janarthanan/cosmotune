@@ -30,9 +30,14 @@ object VideoMatcher {
         return listOf(title, base).filter(String::isNotBlank).distinct()
     }
 
+    private val SOUNDTRACK_NOTE = Regex("(?i)\\s*[(\\[][^)\\]]*(?:soundtrack|motion picture|\\bost\\b|original score|from the film)[^)\\]]*[)\\]]|\\s+-\\s+(?:original\\s+)?(?:motion picture\\s+)?(?:soundtrack|ost)\\s*$")
+
+    /** The film behind an album title: "Sakkarakatti (Original Motion Picture Soundtrack)" is the film "Sakkarakatti". */
+    fun cleanFilmName(album: String): String = album.replace(SOUNDTRACK_NOTE, "").trim().ifEmpty { album.trim() }
+
     /** Single-number film names require an entire token, never a digit inside a year or resolution. */
     fun hasFilmContext(candidateTitle: String, album: String): Boolean {
-        val film = filmKey(album)
+        val film = filmKey(cleanFilmName(album))
         if (film.isNotEmpty() && film.all(Char::isDigit)) {
             return Regex("(^|[^\\p{L}\\p{N}])${Regex.escape(film)}($|[^\\p{L}\\p{N}])").containsMatchIn(candidateTitle.lowercase())
         }
@@ -59,6 +64,27 @@ object VideoMatcher {
         return (titleMatches || filmMatches) && (artistMatches || publisherRole ||
             candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo && filmMatches)
     }
+
+    /**
+     * What may stand in for a publisher's video when there is none: an upload by anyone that names the song and says
+     * it is the video, with the artist or the film beside it. Dance, reaction and status uploads stay out. The audio
+     * check in `CanvasSession` still has to line the upload up with the song, so a wrong cut is dropped there.
+     */
+    fun hasFallbackEvidence(candidate: VideoCandidate, title: String, artist: String, album: String? = null): Boolean {
+        if (!advertisesVideo(candidate.title)) return false
+        val channel = compact(candidate.channelTitle)
+        if (listOf("dance", "fitness", "choreo", "reaction", "edits", "status").any { channel.contains(it) }) return false
+        val name = compact(candidate.title)
+        val loose = looseKey(candidate.title)
+        val titleMatches = searchTitleVariants(title).any { variant ->
+            compact(variant).let { it.length >= 3 && name.contains(it) } || looseKey(variant).let { it.length >= 3 && loose.contains(it) } }
+        if (!titleMatches) return false
+        val artistNamed = creditedArtists(artist).any { it.length >= 4 && (name.contains(it) || channel.contains(it)) }
+        return artistNamed || album?.let { hasFilmContext(candidate.title, it) } == true
+    }
+
+    /** Transliterations differ ("Marudaani" / "Marudhani", "Chinnama" / "Chinnamma"): no h, no doubled letters. */
+    private fun looseKey(text: String): String = compact(text).replace("h", "").replace(Regex("(.)\\1+"), "$1")
 
     /** Network corroboration is reserved for plausible publisher videos, not arbitrary fan uploads. */
     fun needsPublisherCorroboration(candidate: VideoCandidate, title: String, artist: String, album: String?): Boolean =
@@ -116,7 +142,9 @@ object VideoMatcher {
         }
 
         // A clip is not a song: Shorts-length videos never carry the whole audio.
+        // Nor is a teaser: under half the song's length, it would end long before the song does.
         if (candidate.durationSec in 1 until MIN_SONG_VIDEO_SEC ||
+            expectedDurationSec >= 120L && candidate.durationSec in 1 until expectedDurationSec / 2 ||
             candidate.durationSec > maxOf(900L, expectedDurationSec * 2 + 180)) score -= 300
 
         // 2. Channel credibility: a credited artist's own channel is the strongest hint there is

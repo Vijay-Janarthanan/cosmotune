@@ -52,7 +52,7 @@
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/matcher/VideoMatcher.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
-      "sha256": "affc8aa28787ac8cbdf0604198afc9d502760ffd6193833302abaec9eeae5afb"
+      "sha256": "0167082df0251875fe56f3ee30211c1d2cc85eb5f82183ba3d97f30d9b212e61"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
@@ -166,7 +166,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
       "normalizeLf": true,
-      "sha256": "a6f8e070d21e33a6ca4eac956432e93212667a7746c99aa961c8de3763d066f2"
+      "sha256": "06f60817012372a74a22ba123583832359ddc96b1b0ce7bcc3e122a783e9d4ba"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
@@ -260,5 +260,5 @@
     }
   ],
   "revisionStatus": "Published base revision; generic subtitle discovery and reciprocal publisher-channel proof staged in standalone checkout pending validation/publication",
-  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing, film abbreviation matching and signed-stream expiry handling are published in standalone OpenCanvas at the recorded revision. The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module."
+  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing, film abbreviation matching and signed-stream expiry handling are published in standalone OpenCanvas at the recorded revision. Cosmotune additionally retries a stalled search page on a fresh connection with its own request queue and logs each failed try, strips an album\u0027s soundtrack note before matching a film, rejects a teaser under half the song\u0027s length, and falls back to a full-length upload by anyone when no publisher has the video (the audio check still decides). The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module."
 }

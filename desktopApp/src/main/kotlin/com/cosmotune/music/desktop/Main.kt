@@ -33,6 +33,11 @@ fun main(args: Array<String>) {
     val instance = com.cosmotune.desktop.DesktopSingleInstance.acquire(
         onActivate = DesktopWindowVisibility::show,
     ) ?: return
+    // An exception nobody caught used to leave no line anywhere: a window that froze mid-song had nothing to read afterwards.
+    Thread.setDefaultUncaughtExceptionHandler { thread, failure ->
+        DesktopTrackLog.log("uncaught on '${thread.name}': ${failure.javaClass.name}: ${failure.message}\n" +
+            failure.stackTrace.take(30).joinToString("\n") { "    at $it" })
+    }
     val shutdown = Thread({ instance.close() }, "cosmotune-instance-cleanup")
     Runtime.getRuntime().addShutdownHook(shutdown)
     try {
