@@ -98,6 +98,8 @@
     <string name="video_comments_off">Comments are turned off</string>
     <string name="video_up_next">Up next</string>
     <string name="video_autoplay">Autoplay</string>
+    <string name="video_up_next_empty">No suggestions for this video</string>
+    <string name="video_up_next_error">Could not load the suggestions</string>
     <string name="video_play">Play</string>
     <string name="video_add_to_queue">Add to queue</string>
     <string name="video_open_channel">Open the channel</string>
@@ -495,7 +497,7 @@
     <string name="video_pip_forward_10">Forward 10 seconds</string>
     <string name="video_pip_play">Play</string>
     <string name="video_pip_pause">Pause</string>
-    <!-- Frame smoothing (the desktop app makes the in-between frames; the phone only matches the rate of its screen) -->
+    <!-- Frame smoothing (the desktop app and, experimentally, the phone make the in-between frames) -->
     <string name="video_smooth_title">Smoothness</string>
     <string name="video_smooth_mode">Frame smoothing</string>
     <string name="video_smooth_blend">Blend</string>
@@ -517,6 +519,8 @@
     <string name="video_smooth_match_display_note">Asks the screen to switch to the rate of the video when it can do so without a flicker.</string>
     <string name="video_smooth_status">Now</string>
     <string name="video_smooth_status_none">Not converting this video.</string>
+    <string name="video_smooth_experimental">Experimental</string>
+    <string name="video_smooth_experimental_note">Experimental on a phone: the frames are made by the graphics chip, which uses some battery, and the sound is held back by one frame to stay with the picture. If it cannot keep up it steps down by itself, and any error switches it off.</string>
     <string name="video_stats_smoothing">Smoothing</string>
     <string name="video_menu">Guide</string>
     <string name="video_account">Account</string>

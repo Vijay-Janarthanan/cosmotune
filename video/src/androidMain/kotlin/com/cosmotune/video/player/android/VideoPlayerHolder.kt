@@ -10,10 +10,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.session.CacheBitmapLoader
+import com.cosmotune.video.player.android.smooth.VideoRenderersFactory
 
 /**
  * Video's one ExoPlayer (spec 6.2, "Service"): built by [VideoPlaybackService] when it starts, and held here so the engine in the
@@ -39,7 +39,8 @@ object VideoPlayerHolder {
      * Builds the service's player: the media sources of [VideoMediaSourceFactory]; movie audio with audio focus handled
      * (`handleAudioFocus = true`, as Music's own player: starting one pauses the other, spec 6.2 "Focus"); paused when the
      * headphones come out; the CPU and Wi-Fi kept awake while it streams; decoder fallback on, so a decoder that fails to start
-     * gives way to the next one.
+     * gives way to the next one. The renderers are the defaults, with a pass-through audio processor that delays the sound by one
+     * frame while frame smoothing shows the picture one frame late (it does nothing otherwise).
      */
     @MainThread
     fun build(context: Context): ExoPlayer {
@@ -48,7 +49,7 @@ object VideoPlayerHolder {
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
-        val built = ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
+        val built = ExoPlayer.Builder(context, VideoRenderersFactory(context).setEnableDecoderFallback(true))
             .setMediaSourceFactory(VideoMediaSourceFactory(context))
             .setBandwidthMeter(meter)
             .setAudioAttributes(attributes, /* handleAudioFocus = */ true)

@@ -225,7 +225,7 @@ internal class HomeModel(
     }
 
     /**
-     * Sets [related] to what is known of the videos [ids] and fetches the related list of the others (`details(id).related`, three
+     * Sets [related] to what is known of the videos [ids] and fetches the related list of the others (`related(id)`, three
      * at a time at most), once for the launch: an answer is cached, a failure is not asked again for [HomeCache.RELATED_RETRY_MS].
      */
     fun loadRelated(ids: List<String>) {
@@ -237,7 +237,7 @@ internal class HomeModel(
         }
         if (missing.isEmpty()) return
         relatedJob = scope.launch {
-            val answers = missing.map { id -> async { id to attempt { source.details(id).related } } }.awaitAll()
+            val answers = missing.map { id -> async { id to attempt { source.related(id) } } }.awaitAll()
             for ((id, list) in answers) {
                 if (list != null) cache.related[id] = list else cache.relatedFailedAtMs[id] = clock()
             }

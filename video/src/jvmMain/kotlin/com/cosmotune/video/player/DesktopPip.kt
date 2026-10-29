@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -40,7 +41,6 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
@@ -50,6 +50,7 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.video.library.FileLibraryFiles
 import com.cosmotune.video.library.LibraryPlatform
 import com.cosmotune.video.library.videoLibraryDir
+import com.cosmotune.video.player.smooth.LocalVideoHostWindow
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_pip_back_10
 import com.cosmotune.video.resources.video_pip_back_to_app
@@ -63,17 +64,25 @@ import com.cosmotune.video.ui.player.SeekBackIcon
 import com.cosmotune.video.ui.player.SubtitleOverlay
 import com.cosmotune.video.ui.player.performPlayerKey
 import com.cosmotune.video.ui.player.playerKeyName
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.stringResource
+import java.awt.AWTEvent
 import java.awt.Cursor
 import java.awt.Frame
 import java.awt.GraphicsEnvironment
 import java.awt.MouseInfo
 import java.awt.Point
+import java.awt.Toolkit
 import java.awt.Window
+import java.awt.event.AWTEventListener
+import java.awt.event.MouseEvent
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import javax.swing.JFrame
+import javax.swing.SwingUtilities
+import javax.swing.Timer
 import kotlin.math.roundToInt
 
 /*
@@ -81,7 +90,8 @@ import kotlin.math.roundToInt
  * can be watched while the app is out of the way. The picture is the engine's own surface (one engine, one surface: the page it left
  * shows a placeholder meanwhile); the window keeps the video's shape, can be dragged from anywhere and resized from its corners, and
  * remembers its size and place. Closing it, or "Back to app", returns the video to the page and playback goes on. Its controls
- * (play and pause, 10 seconds back and forward, back to the app, close) show while the pointer moves and fade after a moment.
+ * (play and pause, 10 seconds back and forward, back to the app, close) show while the pointer is over the window and go a moment after
+ * it stops or leaves. The window holds the picture and the controls only: the stats and the settings stay with the page it left.
  */
 
 /** The window, made on first use and kept while it is open; every call is on the Compose (Swing) thread. */
@@ -103,7 +113,7 @@ internal object DesktopPip {
         settings: VideoSettingsRepository,
         provide: @Composable (@Composable () -> Unit) -> Unit,
     ) {
-        if (isOpen || surface == null || GraphicsEnvironment.isHeadless()) return
+        if (isOpen || frame != null || surface == null || GraphicsEnvironment.isHeadless()) return
         aspect = playback.state.value.aspect.takeIf { it > 0f } ?: aspect
         val window = ComposeWindow()
         frame = window
@@ -117,22 +127,30 @@ internal object DesktopPip {
             override fun windowClosing(e: WindowEvent) = close(returnToApp = false)
         })
         window.setContent {
-            provide { PipContent(window, playback, surface, settings) }
+            provide { CompositionLocalProvider(LocalVideoHostWindow provides window) { PipContent(window, playback, surface, settings) } }
         }
         isOpen = true
         window.isVisible = true
         window.toFront()
     }
 
-    /** Closes the window (the video keeps playing in the page it returns to); with [returnToApp] the app's window is brought forward too. */
+    /**
+     * Closes the window (the video keeps playing in the page it returns to); with [returnToApp] the app's window is brought forward too.
+     *
+     * The window is hidden at once but taken apart a moment later, and the page it left takes the picture back only then ([isOpen]
+     * stays true until the window's composition is gone): the close comes from this window's own click or effect, which must finish
+     * before the window is disposed, and the picture then has one surface drawing it at a time on the way back.
+     */
     fun close(returnToApp: Boolean) {
         val window = frame ?: return
         frame = null
         PipBoundsStore.write(boundsOf(window))
-        isOpen = false
         window.isVisible = false
-        window.dispose()
-        if (returnToApp) bringAppForward()
+        SwingUtilities.invokeLater {
+            window.dispose()
+            isOpen = false
+            if (returnToApp) bringAppForward()
+        }
     }
 
     /** The video's shape changed (it loaded): the window keeps its width and takes the new height. */
@@ -196,37 +214,79 @@ internal object PipBoundsStore {
     }
 }
 
-/** How long the controls stay after the pointer last moved. */
-private const val CONTROLS_MS = 2_500L
-
 /** The corner grips' size, and the controls' button size. */
 private val GRIP = 22.dp
 private val BUTTON = 36.dp
 private val BUTTON_BIG = 44.dp
 
-/** What the window holds: the picture, the subtitles, the drag layer, the controls and the four corner grips. */
+/** How often the pointer is read from the screen: the backstop for the enter and exit events an unfocused window does not get. */
+private const val POINTER_POLL_MS = 50
+
+private fun nowMs(): Long = System.nanoTime() / 1_000_000
+
+/**
+ * What the window holds: the picture, the subtitles, the drag layer, the controls and the four corner grips. The controls show while
+ * the pointer is over the window and go a moment after it stops or leaves (see [PipControlsTimer]); where the pointer is comes from
+ * the screen itself (the AWT mouse events of the window, and a short poll), not from Compose's hover, because an always-on-top
+ * window that does not have the focus often gets no exit event, and then the controls would stay for good.
+ */
 @Composable
 private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: VideoSurfaceProvider, settings: VideoSettingsRepository) {
     val state by playback.state.collectAsState()
     val cues by playback.engine.cues.collectAsState()
     val options by settings.settings.collectAsState()
     val focus = remember { FocusRequester() }
-    var lastMove by remember { mutableLongStateOf(System.nanoTime()) }
+    val timer = remember { PipControlsTimer(nowMs()) }
+    val wake = remember { Channel<Unit>(Channel.CONFLATED) }
     var shown by remember { mutableStateOf(true) }
     var position by remember { mutableLongStateOf(0L) }
     val close = { DesktopPip.close(returnToApp = false) }
     val back = { DesktopPip.close(returnToApp = true) }
+    val lock = { timer.lock(); wake.trySend(Unit); Unit }
+    val unlock = { timer.unlock(nowMs()); wake.trySend(Unit); Unit }
 
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     // The video loaded or changed shape: the window follows.
     LaunchedEffect(state.aspect) { DesktopPip.reshape(window, state.aspect) }
     // The video was stopped (or replaced by nothing): there is nothing left to show.
     LaunchedEffect(state.item) { if (state.item == null) close() }
-    LaunchedEffect(lastMove, state.playing) {
-        shown = true
-        if (state.playing) {
-            delay(CONTROLS_MS)
-            shown = false
+    LaunchedEffect(state.playing) {
+        timer.playing(nowMs(), state.playing)
+        wake.trySend(Unit)
+    }
+    // The controls follow the timer: it says when they show and when it next needs to be asked.
+    LaunchedEffect(timer) {
+        while (true) {
+            val now = nowMs()
+            shown = timer.visible(now)
+            val wait = timer.nextChange(now)
+            if (wait == null) wake.receive() else withTimeoutOrNull(wait) { wake.receive() }
+        }
+    }
+    // The pointer: read from the screen on every mouse event of the window and every few milliseconds.
+    DisposableEffect(window) {
+        var last: Point? = null
+        val sync = { moved: Boolean ->
+            val at = MouseInfo.getPointerInfo()?.location
+            val over = window.isShowing && pointerOverWindow(at?.x, at?.y, window.x, window.y, window.width, window.height)
+            val now = nowMs()
+            if (over) timer.pointerInside(now, moved || at != last) else timer.pointerOutside(now)
+            last = at
+            wake.trySend(Unit)
+            Unit
+        }
+        val listener = AWTEventListener { event ->
+            if (event is MouseEvent && SwingUtilities.getWindowAncestor(event.component) === window) {
+                sync(event.id == MouseEvent.MOUSE_MOVED || event.id == MouseEvent.MOUSE_DRAGGED || event.id == MouseEvent.MOUSE_PRESSED)
+            }
+        }
+        val toolkit = Toolkit.getDefaultToolkit()
+        toolkit.addAWTEventListener(listener, AWTEvent.MOUSE_EVENT_MASK or AWTEvent.MOUSE_MOTION_EVENT_MASK)
+        val poll = Timer(POINTER_POLL_MS) { sync(false) }
+        poll.start()
+        onDispose {
+            poll.stop()
+            toolkit.removeAWTEventListener(listener)
         }
     }
     LaunchedEffect(shown, state.playing) {
@@ -242,15 +302,7 @@ private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: 
             .background(Color.Black)
             .focusRequester(focus)
             .focusable()
-            .onPreviewKeyEvent { event -> onKey(event, playback, options, close) }
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent(PointerEventPass.Initial)
-                        lastMove = System.nanoTime()
-                    }
-                }
-            },
+            .onPreviewKeyEvent { event -> onKey(event, playback, options, close) },
     ) {
         surface.Surface(Modifier.fillMaxSize(), VideoScale.FIT)
         SubtitleOverlay(cues, SUBTITLE_SP, options.captionsScale, options.captionsBackground, lift = { 0f }, liftDp = 0.dp)
@@ -264,6 +316,7 @@ private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: 
                     var pointerStart = Point()
                     detectDragGestures(
                         onDragStart = {
+                            lock()
                             windowStart = window.location
                             pointerStart = MouseInfo.getPointerInfo()?.location ?: Point()
                         },
@@ -271,15 +324,16 @@ private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: 
                             change.consume()
                             DesktopPip.moveBy(window, windowStart, pointerStart)
                         },
-                        onDragEnd = { DesktopPip.saveNow(window) },
+                        onDragEnd = { DesktopPip.saveNow(window); unlock() },
+                        onDragCancel = { unlock() },
                     )
                 }
                 .pointerInput(playback) {
-                    detectTapGestures(onDoubleTap = { back() }, onTap = { lastMove = System.nanoTime() })
+                    detectTapGestures(onDoubleTap = { back() })
                 },
         )
 
-        if (shown || !state.playing) {
+        if (shown) {
             Box(
                 Modifier.fillMaxWidth().height(SCRIM_DP.dp).align(Alignment.TopCenter)
                     .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = SCRIM_ALPHA), Color.Transparent))),
@@ -311,7 +365,7 @@ private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: 
             }
         }
 
-        for (corner in PipCorner.entries) Grip(window, corner, Modifier.align(alignmentOf(corner)))
+        for (corner in PipCorner.entries) Grip(window, corner, Modifier.align(alignmentOf(corner)), lock, unlock)
     }
 }
 
@@ -332,7 +386,7 @@ private fun PipButton(icon: ImageVector, description: String, size: androidx.com
 
 /** A corner of the window that resizes it, with the cursor the corner calls for. */
 @Composable
-private fun Grip(window: ComposeWindow, corner: PipCorner, modifier: Modifier) {
+private fun Grip(window: ComposeWindow, corner: PipCorner, modifier: Modifier, lock: () -> Unit, unlock: () -> Unit) {
     val cursor = when (corner) {
         PipCorner.TOP_LEFT -> Cursor.NW_RESIZE_CURSOR
         PipCorner.TOP_RIGHT -> Cursor.NE_RESIZE_CURSOR
@@ -348,6 +402,7 @@ private fun Grip(window: ComposeWindow, corner: PipCorner, modifier: Modifier) {
                 var pointerStart = Point()
                 detectDragGestures(
                     onDragStart = {
+                        lock()
                         startBounds = DesktopPip.boundsOf(window)
                         pointerStart = MouseInfo.getPointerInfo()?.location ?: Point()
                     },
@@ -355,7 +410,8 @@ private fun Grip(window: ComposeWindow, corner: PipCorner, modifier: Modifier) {
                         change.consume()
                         DesktopPip.resizeBy(window, startBounds, pointerStart, corner)
                     },
-                    onDragEnd = { DesktopPip.saveNow(window) },
+                    onDragEnd = { DesktopPip.saveNow(window); unlock() },
+                    onDragCancel = { unlock() },
                 )
             },
     )

@@ -239,6 +239,7 @@ private fun desktopMain() = application {
         CompositionLocalProvider(
             LocalDesktopWindowActions provides actions,
             LocalDesktopWindowScope provides this,
+            com.cosmotune.video.player.smooth.LocalVideoHostWindow provides composeWindow,
             com.cosmotune.ui.shell.LocalWindowCaptionArea provides { modifier, content ->
                 val fullscreen by DesktopWindowMode.fullScreen.collectAsState()
                 if (fullscreen) androidx.compose.foundation.layout.Box(modifier) { content() }

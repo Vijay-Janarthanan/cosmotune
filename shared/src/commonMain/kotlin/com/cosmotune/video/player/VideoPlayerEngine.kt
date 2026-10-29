@@ -112,7 +112,8 @@ data class DecoderCaps(val codec: VideoCodec, val maxWidth: Int, val maxHeight: 
  * What an engine can play (spec 6.2, 6.3, 6.4): the decoders, Opus, an HDR display, the display's height in pixels.
  * [sideloadedDash]: the engine plays [MediaInput.Dash] (Android) or wants [MediaInput.Progressive] (desktop, spec 6.3);
  * [autoCeilingHeight]: Auto never goes above it (desktop 1440). [frameSmoothing]: the engine can make in-between frames (Blend and
- * Smooth in the settings); the phone's cannot, and the settings say so.
+ * Smooth in the settings); an engine that cannot says so in the settings. [frameSmoothingExperimental]: it can, but it is new on
+ * this platform (the phone's, on the GPU), and the settings say so.
  */
 data class EngineCapabilities(
     val video: List<DecoderCaps>,
@@ -122,6 +123,7 @@ data class EngineCapabilities(
     val sideloadedDash: Boolean,
     val autoCeilingHeight: Int?,
     val frameSmoothing: Boolean = false,
+    val frameSmoothingExperimental: Boolean = false,
 )
 
 /**

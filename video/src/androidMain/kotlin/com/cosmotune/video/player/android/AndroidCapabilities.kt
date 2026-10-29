@@ -10,6 +10,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import com.cosmotune.video.model.VideoCodec
+import com.cosmotune.video.player.android.smooth.SmoothingHub
 import com.cosmotune.video.player.DecoderCaps
 import com.cosmotune.video.player.EngineCapabilities
 
@@ -22,7 +23,8 @@ import com.cosmotune.video.player.EngineCapabilities
  * is a 30 fps one, the highest 60 fps rung below it is listed too (a decoder good for 2160p30 and 1440p60 says both), since the
  * selector keeps a rung when "some decoder covers its codec at that size and frame rate". Opus always plays; the display's HDR
  * capability; the display's height is the shorter side of its current bounds in pixels (the video's height when the phone is
- * turned); the engine plays the side-loaded DASH manifest; no Auto ceiling of its own.
+ * turned); the engine plays the side-loaded DASH manifest; no Auto ceiling of its own. Frame smoothing (Blend and Smooth, on
+ * the GPU) where the phone has OpenGL ES 2.0 or better, flagged experimental.
  */
 @OptIn(UnstableApi::class)
 object AndroidCapabilities {
@@ -55,6 +57,8 @@ object AndroidCapabilities {
             displayHeightPx = shorterSide(display),
             sideloadedDash = true,
             autoCeilingHeight = null,
+            frameSmoothing = SmoothingHub.supported(context),
+            frameSmoothingExperimental = true,
         )
     }
 

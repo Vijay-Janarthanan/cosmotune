@@ -81,7 +81,7 @@ class DesktopVideoEngine internal constructor(
      * it. Showing a frame between two source frames needs the newer one a source frame early, so the sound is shifted by that
      * much (mpv's `audio-delay`, positive: the sound waits, the picture does not) and put back when smoothing stops.
      */
-    private val smoothing = SmoothingPipeline(onAudioDelay = ::shiftAudio).also { exchange.smoothing = it }
+    private val smoothing = SmoothingPipeline(onAudioDelay = ::shiftAudio, displayHz = exchange.display::hz).also { exchange.smoothing = it }
     private val executor: ExecutorService = Executors.newSingleThreadExecutor { task ->
         Thread(task, "cosmotune-video-engine").apply { isDaemon = true }
     }

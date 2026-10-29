@@ -130,6 +130,10 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         // Before anything resolves a track: an addon with `checkValidLossless`
         // is gated on this, and the gate reads "no" until it has looked.
         com.cosmotune.music.playback.audio.LosslessOutput.init(this)
+        // The audio cache's index is read from disk when it opens, which grows with the cache and was the longest single wait on the
+        // main thread here. It needs the settings (its size limit) and nothing below needs it, so it opens beside them and is joined
+        // before the first thing that uses it, the version-update wipe.
+        val audioCacheOpen = openInBackground("startup-audio-cache") { AudioCache.init(this) }
         // Restores a party this device is still a member of, so a process death
         // mid-session is something the rest of the party never sees. The socket
         // and the clock offset are not restored — both are re-established on
@@ -154,14 +158,14 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         ListeningStats.init(this)
         // After AppSettings, whose switch decides whether half of it runs.
         ArtistFacts.init(this)
-        // One cache directory can only be opened once per process, and
-        // PlaybackService shares this one — so it's opened here, not there.
-        AudioCache.init(this)
         // The offscreen WebView that mints a Spotify access token from the
         // listener's own session cookie needs a Context, and nothing in the
         // suspend call chain that reaches it (a track's canvas lookup) has
         // one to hand — see SpotifyToken's doc for why.
         SpotifyToken.init(this)
+        // One cache directory can only be opened once per process, and PlaybackService shares this one, so it is opened here, not
+        // there; the open started above is finished before anything touches the cache.
+        audioCacheOpen.join()
         // A sideloaded update is just a new APK over the old one, so app data —
         // including whatever the old build left in these caches — survives it
         // untouched. Wipe both on the first launch of a higher versionCode so a
@@ -242,6 +246,23 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
             secret = secret,
             sessionKey = sessionKey,
         )
+    }
+
+    /**
+     * Runs [work] on its own thread and hands back a handle whose [Joiner.join] waits for it, and throws what it threw: the work was
+     * on the main thread before, where a failure ended the process, and moving it must not turn that into a silent half-started app.
+     */
+    private fun openInBackground(name: String, work: () -> Unit): Joiner {
+        var failure: Throwable? = null
+        val thread = thread(name = name) { try { work() } catch (e: Throwable) { failure = e } }
+        return Joiner {
+            thread.join()
+            failure?.let { throw it }
+        }
+    }
+
+    private fun interface Joiner {
+        fun join()
     }
 
     companion object {

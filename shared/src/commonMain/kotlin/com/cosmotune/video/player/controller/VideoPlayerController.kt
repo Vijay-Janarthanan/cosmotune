@@ -19,6 +19,7 @@ import com.cosmotune.video.player.PlayerErrorKind
 import com.cosmotune.video.player.PlayerSnapshot
 import com.cosmotune.video.player.PlayerStatus
 import com.cosmotune.video.player.QualityOption
+import com.cosmotune.video.player.RelatedState
 import com.cosmotune.video.player.SegmentDecider
 import com.cosmotune.video.player.SegmentDecision
 import com.cosmotune.video.player.Selection
@@ -150,6 +151,10 @@ class VideoPlayerController(
 
         /** Bumped by every reload, so a slow fetch of an older one is dropped. */
         var opSeq = 0
+
+        /** The related videos' second request: where it stands, and the job that runs it. */
+        var relatedState = RelatedState.IDLE
+        var relatedJob: Job? = null
         var recordedPositionMs = -1L
         var recordedDurationMs = -1L
     }
@@ -370,6 +375,58 @@ class VideoPlayerController(
         l.selection = selection
         doLoad(l, buildRequest(l, item, selection.input, start), play = true)
         startSegments(l, s)
+        startRelatedIfMissing(l)
+    }
+
+    // ------------------------------------------------------------------ the related videos
+
+    /**
+     * The details came with no related videos (the extractor returned none): "Up next" and autoplay would have nothing. The source
+     * is asked for them its second way ([VideoSource.related]), after playback has started, so the video never waits for the list.
+     */
+    private fun startRelatedIfMissing(l: Load) {
+        val details = l.details ?: return
+        if (l.short || l.local != null || details.related.any { it is ListItem.Video }) return
+        fetchRelated(l)
+    }
+
+    private fun fetchRelated(l: Load) {
+        l.relatedJob?.cancel()
+        l.relatedState = RelatedState.LOADING
+        l.relatedJob = scope.launch {
+            val result = try {
+                Result.success(source.related(l.videoId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                Result.failure(e)
+            }
+            finishRelated(l, result)
+        }
+        publish()
+    }
+
+    @Synchronized
+    private fun finishRelated(l: Load, result: Result<List<ListItem>>) {
+        if (load !== l) return
+        val details = l.details ?: return
+        val list = result.getOrNull()
+        if (list != null && list.any { it is ListItem.Video }) {
+            l.details = details.copy(related = list)
+            // The cache keeps the filled list too: playing the video again shows it at once.
+            cache[l.videoId]?.let { cache[l.videoId] = Cached(it.details.copy(related = list), it.atMs) }
+            l.relatedState = RelatedState.IDLE
+        } else {
+            l.relatedState = if (list == null) RelatedState.FAILED else RelatedState.EMPTY
+        }
+        publish()
+    }
+
+    @Synchronized
+    override fun retryRelated() {
+        val l = load ?: return
+        if (l.short || l.local != null || l.details == null || l.relatedState == RelatedState.LOADING) return
+        fetchRelated(l)
     }
 
     /** A download: no source call. The bundle's chapters, subtitles and segments stand in for the details and the SponsorBlock fetch. */
@@ -708,6 +765,7 @@ class VideoPlayerController(
             return
         }
         l.details = fresh
+        startRelatedIfMissing(l)
         reloadWith(l, fresh.streams, startMs = 0, play = true, pinned = null)
     }
 
@@ -1181,6 +1239,7 @@ class VideoPlayerController(
     }
 
     private fun stopWork() {
+        load?.relatedJob?.cancel()
         opJob?.cancel()
         segmentsJob?.cancel()
         tickerJob?.cancel()
@@ -1241,6 +1300,7 @@ class VideoPlayerController(
             audioOnly = wantsAudioOnly(l, s),
             muted = userMuted,
             short = l.short,
+            relatedState = l.relatedState,
         )
     }
 

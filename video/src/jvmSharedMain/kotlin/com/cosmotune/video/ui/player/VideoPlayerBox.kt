@@ -158,7 +158,7 @@ private fun BoxScope.PlayerChrome(
     LaunchedEffect(controller, playing) { controller.send(if (playing) ChromeEvent.PLAY else ChromeEvent.PAUSE) }
 
     var settingsOpen by remember { mutableStateOf(false) }
-    var statsShown by rememberSaveable { mutableStateOf(false) }
+    var statsShown by PlayerStatsSwitch::shown
     val scrubbing = remember { mutableStateOf(false) }
     val feedback = remember { GestureFeedback() }
     val platform = rememberPlayerPlatform(playback)
@@ -430,7 +430,7 @@ internal class Playhead(private val playback: VideoPlayback) {
 internal fun rememberPlayhead(playback: VideoPlayback): Playhead = remember(playback) { Playhead(playback) }
 
 @Composable
-private fun RunPlayhead(playhead: Playhead, mode: TickMode) {
+internal fun RunPlayhead(playhead: Playhead, mode: TickMode) {
     // One lambda for every frame: nothing is allocated per frame by this loop.
     val onFrame: (Long) -> Unit = remember(playhead) { { nanos -> playhead.sample(nanos / 1_000_000) } }
     LaunchedEffect(playhead, mode) {

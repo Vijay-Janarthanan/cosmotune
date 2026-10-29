@@ -43,6 +43,7 @@ data class PlaybackUiState(
     val audioOnly: Boolean,
     val muted: Boolean = false,
     val short: Boolean = false,
+    val relatedState: RelatedState = RelatedState.IDLE,
 ) {
     companion object {
         /** Nothing playing: the state before the first `play` and after `stop` (16:9, autoplay on as in spec 5.11). */
@@ -61,6 +62,13 @@ data class PlaybackUiState(
  * after the refresh budget is spent; the others mirror [com.cosmotune.video.source.VideoSourceError].
  */
 enum class VideoUiError { STOPPED, UNAVAILABLE, AGE, KIDS, PRIVATE, PAID, GEO, BOT, NETWORK, PARSING }
+
+/**
+ * Where the watch page's related videos ("Up next") stand when [PlaybackUiState.details] holds none: [IDLE] nothing is being done
+ * (the list is there, or the page is a download), [LOADING] the second source is being asked, [EMPTY] it answered with nothing,
+ * [FAILED] it could not answer. The page draws a skeleton, "No suggestions" or "Could not load", the last two with "Try again".
+ */
+enum class RelatedState { IDLE, LOADING, EMPTY, FAILED }
 
 /**
  * What the screens drive (spec 6.1): the controller (plan task Y-10) behind an interface, so the shell and the chrome are
@@ -121,6 +129,9 @@ interface VideoPlayback {
 
     /** Plays the next video at the end (spec 6.1). */
     fun setAutoplay(on: Boolean)
+
+    /** Asks again for the related videos of the video on the page ([PlaybackUiState.relatedState] shows the progress). */
+    fun retryRelated() = Unit
 
     /** Appends [item] to the queue (spec 6.1). */
     fun addToQueue(item: VideoItem)

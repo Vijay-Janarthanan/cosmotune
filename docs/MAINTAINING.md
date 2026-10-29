@@ -216,6 +216,8 @@ Video's own wiring. Our own files that know about the stored mode and the drawer
    `app/src/main/java/com/cosmotune/music/ui/MainViewModel.kt` (registers it with `AccountHostRegistry`) and
    `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopVideoAccountHost.kt` (the desktop's host). Delete the first and the
    third with the Video code and take the registration out of `MainViewModel.kt`; `ModeHooksContractTest` lists the three.
+   `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/Main.kt` provides the window Video draws on (`LocalVideoHostWindow`, which
+   gives the picture the refresh rate of the screen it is on): delete that one `CompositionLocalProvider` entry with the Video code.
 5. **Find what is left**: `grep -rl "com.cosmotune.video" --include=*.kt --include=*.kts --include=*.xml .` must print nothing, then run
    `./gradlew :shared:jvmTest :sharedUi:jvmTest :desktopApp:compileKotlin :app:assembleDevDebug` and the guard. `LegalTextsTest` fails
    when a file outside the Video folders mentions the package and this section does not name it: add the name here when you add a hook.
@@ -305,6 +307,8 @@ change the logo, update the kit and copy the files over, keeping the file names:
   (512 px). `mipmap-anydpi/ic_launcher.xml` and `ic_launcher_round.xml` point their `<monochrome>` layer at
   `ic_launcher_monochrome`, never at the foreground (the system would tint the multi-tone foreground into one blob).
 - Android 12+ splash: `values-v31/themes.xml` and `values-night-v31/themes.xml` (black; the system shows the launcher icon).
+  `MainActivity` takes over the splash's exit (`LaunchHandoff`) and dissolves it over the first frame, so the launch is one movement
+  and not a black screen cut to the app. Nothing holds the splash on screen: the theme and the look settings are read before `setContent`.
 - Shared UI: `sharedUi/src/commonMain/composeResources/drawable/ic_logo.xml`, the same file as the Android `ic_logo.xml`.
 - Desktop: `desktopApp/packaging/icons/AppIcon.png`, `AppIcon.ico` and `AppIcon.icns` (the installers and the Dock);
   `desktopApp/src/main/composeResources/drawable/logo.svg` (window and tray: it declares `width="1024"` and uses only

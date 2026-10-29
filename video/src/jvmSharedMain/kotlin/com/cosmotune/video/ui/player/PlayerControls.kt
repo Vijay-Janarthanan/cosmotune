@@ -324,7 +324,7 @@ private fun ChromeTitle(title: String, modifier: Modifier) {
  * queue.
  */
 @Composable
-private fun CentreControls(
+internal fun CentreControls(
     playback: VideoPlayback,
     state: PlaybackUiState,
     layout: PlayerLayout,
@@ -403,7 +403,7 @@ private fun PlayOrReplay(playback: VideoPlayback, state: PlaybackUiState, buffer
  * track made by a person, else the first) or hides them. Dimmed when the video has no subtitles.
  */
 @Composable
-private fun CaptionsButton(playback: VideoPlayback, state: PlaybackUiState, settings: VideoSettings, onInput: () -> Unit, floatingPlain: Boolean) {
+internal fun CaptionsButton(playback: VideoPlayback, state: PlaybackUiState, settings: VideoSettings, onInput: () -> Unit, floatingPlain: Boolean) {
     val on = state.subtitleLanguage != null
     CosmoIconButton(
         icon = VideoIcons.Captions,

@@ -257,7 +257,7 @@ private fun WidePlayer(
     // The black of the player around its picture (the documented exception).
     Box(modifier.clip(PLAYER_SHAPE).background(Color.Black)) {
         if (pipOpen) {
-            PipPlaceholder(onReturn = onReturnFromPip)
+            PipPlaceholder(playback, onReturn = onReturnFromPip)
         } else if (!fullWindow) {
             VideoPlayerBox(
                 playback = playback,
@@ -293,10 +293,7 @@ private fun WideSideColumn(view: WatchView, callbacks: WatchCallbacks, modifier:
                 val downloaded = rememberDownloadedIds()
                 val watched = rememberWatchedFractions(view.related)
                 LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
-                    if (view.related.isNotEmpty()) {
-                        item(key = "upnext") { UpNextHeader(view.autoplay, callbacks.onAutoplay) }
-                        upNextRows(view.related, watched, downloaded, desktop = true, onPlay = callbacks.onPlay, onMore = callbacks.onMore)
-                    }
+                    upNextSection(view, watched, downloaded, desktop = true, callbacks = callbacks)
                 }
             }
             WideSegment.CHAPTERS -> LazyColumn(Modifier.fillMaxWidth().weight(1f)) {

@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.nativeCanvas
 import com.cosmotune.video.local.AspectMath
 import com.cosmotune.video.local.VideoAspect
 import com.cosmotune.video.player.VideoScale
+import com.cosmotune.video.player.smooth.DisplayRateSource
+import com.cosmotune.video.player.smooth.LocalVideoHostWindow
 import com.cosmotune.video.player.smooth.SmoothingClock
 import com.cosmotune.video.player.smooth.SmoothingPipeline
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_RENDER_API_TYPE_SW
@@ -280,6 +282,9 @@ internal class FrameExchange {
     /** A counter that moves with every published frame or clear: the screen redraws when it changes. */
     val frames: StateFlow<Long> get() = sequence
 
+    /** Which window the video is drawn in now, so smoothing reads that monitor's refresh rate. */
+    val display = DisplayRateSource()
+
     /** Real-time frame smoothing, when the engine has it on; the renderer feeds it each new frame, the screen draws through it. */
     @Volatile var smoothing: SmoothingPipeline? = null
 
@@ -490,6 +495,12 @@ internal fun FrameCanvas(exchange: FrameExchange, modifier: Modifier, scale: Vid
     val pace = remember { mutableLongStateOf(0L) }
     SmoothingClock(exchange.smoothing, exchange.frames, pace)
     DisposableEffect(painter) { onDispose { painter.dispose() } }
+    // The window this surface is in tells smoothing which monitor's refresh rate to use.
+    val host = LocalVideoHostWindow.current
+    DisposableEffect(painter, host) {
+        exchange.display.attach(painter, host)
+        onDispose { exchange.display.detach(painter) }
+    }
     Canvas(modifier) {
         tick.longValue // a new frame invalidates this draw only
         pace.longValue // so does the smoothing clock, while in-between frames are being made

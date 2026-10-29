@@ -22,6 +22,7 @@ import com.cosmotune.video.resources.video_on
 import com.cosmotune.video.resources.video_smooth_anime
 import com.cosmotune.video.resources.video_smooth_auto
 import com.cosmotune.video.resources.video_smooth_blend
+import com.cosmotune.video.resources.video_smooth_experimental_note
 import com.cosmotune.video.resources.video_smooth_film
 import com.cosmotune.video.resources.video_smooth_match_display
 import com.cosmotune.video.resources.video_smooth_match_display_note
@@ -45,8 +46,9 @@ import kotlin.math.roundToInt
 /**
  * The Smoothness page of the player's settings: the mode as three choices (Off, Blend, Smooth), then the frame rate drawn, the
  * strength, "Only below 30 fps" and the kind of picture, each changing the stored settings at once, and the line that says what
- * is truly happening. On the phone, which cannot make frames, Blend and Smooth are listed as unavailable and the one real
- * control is shown: matching the screen's refresh rate to the video. [menu] picks the desktop menu's row size.
+ * is truly happening. An engine that cannot make frames lists Blend and Smooth as unavailable and shows the one real control:
+ * matching the screen's refresh rate to the video. The phone's engine can (experimentally, on its GPU): it adds a note saying so
+ * and that same control after the rest. [menu] picks the desktop menu's row size.
  */
 @Composable
 internal fun SmoothnessPanel(playback: VideoPlayback, menu: Boolean) {
@@ -54,6 +56,7 @@ internal fun SmoothnessPanel(playback: VideoPlayback, menu: Boolean) {
     val smooth = graph.settings.settings.collectAsState().value.smoothness
     val readout by playback.engine.smoothness.collectAsState()
     val canSmooth = remember(playback) { playback.engine.capabilities.frameSmoothing }
+    val experimental = remember(playback) { playback.engine.capabilities.frameSmoothingExperimental }
     val accent = Color(LocalCosmoColors.current.palette.accent)
     val on = stringResource(Res.string.video_on)
     val off = stringResource(Res.string.video_off)
@@ -90,6 +93,7 @@ internal fun SmoothnessPanel(playback: VideoPlayback, menu: Boolean) {
     pick(stringResource(Res.string.video_smooth_smooth), selected = smooth.mode == SmoothMode.SMOOTH) { change { it.copy(mode = SmoothMode.SMOOTH) } }
     SmoothNote(readoutText(smooth, readout))
     if (smooth.mode == SmoothMode.SMOOTH) SmoothNote(stringResource(Res.string.video_smooth_soap_note))
+    if (experimental) SmoothNote(stringResource(Res.string.video_smooth_experimental_note))
     val active = smooth.mode != SmoothMode.OFF
     val display = stringResource(Res.string.video_smooth_target_display)
     CosmoActionRow(
@@ -131,6 +135,14 @@ internal fun SmoothnessPanel(playback: VideoPlayback, menu: Boolean) {
         enabled = active,
         menu = menu,
     ) { change { it.copy(preset = SmoothPreset.entries[(it.preset.ordinal + 1) % SmoothPreset.entries.size]) } }
+    if (experimental) {
+        CosmoActionRow(
+            icon = CosmoIcons.Equaliser,
+            label = stringResource(Res.string.video_smooth_match_display),
+            value = if (smooth.matchDisplayRate) on else off,
+            menu = menu,
+        ) { change { it.copy(matchDisplayRate = !it.matchDisplayRate) } }
+    }
 }
 
 /** The mode in words for the main list's row: Off, Blend or Smooth; on the phone, whether the screen follows the video's rate. */

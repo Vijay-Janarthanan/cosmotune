@@ -165,7 +165,7 @@ class ShortsQueueEngine(
 
     /** The Shorts of the related list of [videoId], or null when the source could not give it (skipped, as a bonus). */
     private suspend fun relatedShorts(videoId: String): List<VideoItem>? =
-        bonus { source.details(videoId) }?.related?.mapNotNull { (it as? ListItem.Video)?.item }
+        bonus { source.related(videoId) }?.mapNotNull { (it as? ListItem.Video)?.item }
 
     /** [block], or null when it fails: the stages that only add to a queue never stop it. */
     private suspend fun <T> bonus(block: suspend () -> T): T? = try {

@@ -1,7 +1,11 @@
 package com.cosmotune.video.ui.watch
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
@@ -20,27 +24,112 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.blocks.CosmoOverline
+import com.cosmotune.ui.components.CosmoButton
+import com.cosmotune.ui.components.CosmoButtonKind
+import com.cosmotune.ui.components.CosmoButtonSize
 import com.cosmotune.ui.components.CosmoSwitch
+import com.cosmotune.ui.states.CosmoShimmer
+import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
+import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.library.HistoryEntry
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_autoplay
+import com.cosmotune.video.resources.video_retry
 import com.cosmotune.video.resources.video_up_next
+import com.cosmotune.video.resources.video_up_next_empty
+import com.cosmotune.video.resources.video_up_next_error
+import com.cosmotune.video.ui.blocks.ThumbnailShape
 import com.cosmotune.video.ui.blocks.VideoCard
 import com.cosmotune.video.ui.blocks.VideoRow
+import com.cosmotune.video.ui.blocks.rowThumbnailSize
 import com.cosmotune.video.ui.branding.rememberChannelAvatar
 import com.cosmotune.video.ui.branding.rememberVideoThumbnail
 import com.cosmotune.video.ui.branding.rememberVideoTitle
+import com.cosmotune.video.ui.home.CardSkeleton
 import org.jetbrains.compose.resources.stringResource
 
 /*
  * "Up next" (spec 5.4, item 6): the overline with the Autoplay switch at its end (`settings.autoplay`; the switch goes through the
  * playback, which stores the setting too), then the related videos as video rows, keyed by id. A row's tap plays it (a Short opens
  * the pager with the list's Shorts), its "more" opens the video sheet; titles and pictures come through DeArrow.
+ *
+ * The section never vanishes for a video that loaded: while the list is on its way (the details, or the second request for it) it
+ * is a skeleton of rows, and when there is none it is a line saying so ("No suggestions for this video", or "Could not load the
+ * suggestions") with "Try again".
  */
+
+/** What the "Up next" section draws, from [WatchRules.upNext]. */
+internal enum class UpNextShow { NONE, LIST, LOADING, EMPTY, FAILED }
+
+/** How many placeholder rows the skeleton shows. */
+private const val SKELETON_ROWS = 4
+
+/**
+ * The "Up next" section of the page's list: nothing ([UpNextShow.NONE]), the header and the related rows, the header and a
+ * skeleton, or the header and a note with a retry. [desktop] takes the side column's rows.
+ */
+internal fun LazyListScope.upNextSection(
+    view: WatchView,
+    watched: State<Map<String, Float>>,
+    downloaded: State<Set<String>>,
+    desktop: Boolean,
+    callbacks: WatchCallbacks,
+) {
+    if (view.upNext == UpNextShow.NONE) return
+    item(key = "upnext") { UpNextHeader(view.autoplay, callbacks.onAutoplay) }
+    when (view.upNext) {
+        UpNextShow.LIST -> upNextRows(view.related, watched, downloaded, desktop, onPlay = callbacks.onPlay, onMore = callbacks.onMore)
+        UpNextShow.LOADING -> items(SKELETON_ROWS, key = { "upnext-skeleton:$it" }) { UpNextSkeletonRow(desktop) }
+        UpNextShow.EMPTY, UpNextShow.FAILED ->
+            item(key = "upnext-note") { UpNextNote(failed = view.upNext == UpNextShow.FAILED, onRetry = callbacks.onRetryRelated) }
+        UpNextShow.NONE -> Unit
+    }
+}
+
+/** A related video's row while the list loads: the shape of the row (desktop) or of the feed card (phone), in the shimmer. */
+@Composable
+internal fun UpNextSkeletonRow(desktop: Boolean) {
+    if (!desktop) {
+        CardSkeleton(Modifier.padding(horizontal = CosmoSpacing.margin).padding(bottom = VideoMetrics.FEED_AFTER_DP.dp))
+        return
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = VideoMetrics.ROW_PAD_V_DP.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        CosmoShimmer(Modifier.rowThumbnailSize(true), ThumbnailShape)
+        Spacer(Modifier.width(CosmoSpacing.gutter))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SKELETON_LINE_GAP)) {
+            CosmoShimmer(Modifier.fillMaxWidth().height(SKELETON_TITLE_HEIGHT))
+            CosmoShimmer(Modifier.fillMaxWidth(SKELETON_META_FRACTION).height(SKELETON_META_HEIGHT))
+        }
+    }
+}
+
+private val SKELETON_LINE_GAP = 8.dp
+private val SKELETON_TITLE_HEIGHT = 14.dp
+private val SKELETON_META_HEIGHT = 12.dp
+private const val SKELETON_META_FRACTION = 0.55f
+
+/** The line under the header when there is no list: "No suggestions for this video" or "Could not load the suggestions", and "Try again". */
+@Composable
+internal fun UpNextNote(failed: Boolean, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    val palette = LocalCosmoColors.current.palette
+    val type = LocalCosmoType.current
+    val message = stringResource(if (failed) Res.string.video_up_next_error else Res.string.video_up_next_empty)
+    Column(modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = NOTE_PAD_V)) {
+        Text(message, style = type.forText(type.label, message), color = Color(palette.textSecondary))
+        Spacer(Modifier.height(NOTE_GAP))
+        CosmoButton(stringResource(Res.string.video_retry), onRetry, kind = CosmoButtonKind.TONAL, size = CosmoButtonSize.SMALL)
+    }
+}
+
+private val NOTE_PAD_V = 8.dp
+private val NOTE_GAP = 12.dp
 
 /** The gap between "Autoplay" and its switch. */
 private val SWITCH_GAP = 8.dp

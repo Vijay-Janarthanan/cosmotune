@@ -50,10 +50,29 @@ internal object YoutubeFeedParser {
 
     /** Parses the list items and the continuation token of a browse, search or continuation answer. */
     fun parse(response: JsonObject): ParsedFeed {
-        val walk = Walk()
         // The header, top bar, sidebar and framework updates hold no list items; walking only the content roots keeps the
         // account button's and the guide's own entries out of the lists.
-        for (root in ROOTS) response[root]?.let { walk.visit(it, 0) }
+        return parseNodes(response, ROOTS.map { response[it] })
+    }
+
+    /**
+     * The related videos of a watch page, from the answer of the `next` endpoint: the items under
+     * `contents.twoColumnWatchNextResults.secondaryResults` (the "Up next" column; since 2025 they are `lockupViewModel`s, before
+     * that `compactVideoRenderer`s), without the page's own playlist panel, comments and recommendations of the video itself.
+     * [currentId] is left out. Playlists the column also offers (mixes) stay in the feed's [ParsedFeed.playlists]; Up next takes the videos. A phone-shaped
+     * answer (`singleColumnWatchNextResults`) keeps them in its own `results` and is read the same way.
+     */
+    fun parseRelated(response: JsonObject, currentId: String? = null): ParsedFeed {
+        val contents = response.obj("contents")
+        val column = contents.obj("twoColumnWatchNextResults").obj("secondaryResults")
+            ?: contents.obj("singleColumnWatchNextResults").obj("results")
+        val feed = parseNodes(response, listOf(column))
+        return if (currentId == null) feed else feed.copy(videos = feed.videos.filter { it.id != currentId })
+    }
+
+    private fun parseNodes(response: JsonObject, roots: List<JsonElement?>): ParsedFeed {
+        val walk = Walk()
+        for (root in roots) root?.let { walk.visit(it, 0) }
         val ids = walk.videos.mapTo(HashSet()) { it.id }
         val seen = walk.looseVideoIds.count { it !in ids }
         if (walk.unreadable > 0 || (walk.videos.isEmpty() && seen > 0)) {

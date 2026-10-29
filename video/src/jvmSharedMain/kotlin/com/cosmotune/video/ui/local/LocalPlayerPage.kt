@@ -402,7 +402,7 @@ private fun LocalPagePhone(
         // The status bar's area and the bands around the picture are black (the player's own black).
         Box(Modifier.fillMaxWidth().background(Color.Black).padding(top = statusTop)) {
             if (pipOpen) {
-                Box(Modifier.fillMaxWidth().height(playerHeight)) { PipPlaceholder(onReturn = onReturnFromPip) }
+                Box(Modifier.fillMaxWidth().height(playerHeight)) { PipPlaceholder(playback, onReturn = onReturnFromPip) }
             } else {
                 VideoPlayerBox(
                     playback = playback,
@@ -492,7 +492,7 @@ private fun LocalPageWide(
                 // The black of the player around its picture (the documented exception).
                 Box(Modifier.fillMaxWidth().height(playerHeight).clip(PLAYER_SHAPE).background(Color.Black)) {
                     if (pipOpen) {
-                        PipPlaceholder(onReturn = onReturnFromPip)
+                        PipPlaceholder(playback, onReturn = onReturnFromPip)
                     } else if (!fullWindow) {
                         VideoPlayerBox(
                             playback = playback,

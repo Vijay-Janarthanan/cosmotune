@@ -25,6 +25,8 @@ import com.cosmotune.video.resources.video_off
 import com.cosmotune.video.resources.video_smooth_anime
 import com.cosmotune.video.resources.video_smooth_auto
 import com.cosmotune.video.resources.video_smooth_blend
+import com.cosmotune.video.resources.video_smooth_experimental
+import com.cosmotune.video.resources.video_smooth_experimental_note
 import com.cosmotune.video.resources.video_smooth_film
 import com.cosmotune.video.resources.video_smooth_match_display
 import com.cosmotune.video.resources.video_smooth_match_display_note
@@ -52,11 +54,18 @@ import kotlin.math.roundToInt
 /**
  * The Smoothness group of the settings page: the mode (Off, Blend, Smooth), the frame rate drawn, the strength, "Only when the
  * video is below 30 fps", the kind of picture, a plain note about the soap opera effect, and below them what is truly happening
- * ([readout]). The desktop app makes the frames ([canSmooth]); the phone shows Blend and Smooth as unavailable and offers its one
- * real control, matching the screen's refresh rate to the video.
+ * ([readout]). Where the engine makes the frames ([canSmooth]: the desktop app, and the phone on its GPU) the whole group is shown;
+ * an engine that does not shows Blend and Smooth as unavailable and offers its one real control, matching the screen's refresh rate
+ * to the video. [experimental] (the phone) labels the mode as such, explains it, and adds that same switch after the rest.
  */
 @Composable
-internal fun SmoothnessSettingsGroup(smooth: SmoothnessSettings, update: SettingsUpdate, canSmooth: Boolean, readout: SmoothnessReadout) {
+internal fun SmoothnessSettingsGroup(
+    smooth: SmoothnessSettings,
+    update: SettingsUpdate,
+    canSmooth: Boolean,
+    readout: SmoothnessReadout,
+    experimental: Boolean = false,
+) {
     val unavailable = stringResource(Res.string.video_smooth_unavailable)
     CosmoSettingsGroup(header = stringResource(Res.string.video_smooth_title)) {
         if (!canSmooth) {
@@ -75,7 +84,11 @@ internal fun SmoothnessSettingsGroup(smooth: SmoothnessSettings, update: Setting
         val targets = SmoothnessSettings.TARGET_CHOICES.map { if (it == 0) display else stringResource(Res.string.video_smooth_target_fps, it) }
         val presets = listOf(stringResource(Res.string.video_smooth_auto), stringResource(Res.string.video_smooth_film), stringResource(Res.string.video_smooth_anime))
         val on = smooth.mode != SmoothMode.OFF
-        CosmoSettingsRow(icon = CosmoIcons.Equaliser, title = stringResource(Res.string.video_smooth_mode))
+        CosmoSettingsRow(
+            icon = CosmoIcons.Equaliser,
+            title = stringResource(Res.string.video_smooth_mode),
+            subtitle = if (experimental) stringResource(Res.string.video_smooth_experimental) else null,
+        )
         CosmoSettingsSegmented(
             options = modes,
             selectedIndex = smooth.mode.ordinal,
@@ -85,6 +98,7 @@ internal fun SmoothnessSettingsGroup(smooth: SmoothnessSettings, update: Setting
         )
         SmoothNote(readoutText(smooth, readout))
         if (smooth.mode == SmoothMode.SMOOTH) SmoothNote(stringResource(Res.string.video_smooth_soap_note))
+        if (experimental) SmoothNote(stringResource(Res.string.video_smooth_experimental_note))
         CosmoRowDivider()
         CosmoSettingsRow(title = stringResource(Res.string.video_smooth_target), enabled = on)
         CosmoSettingsSegmented(
@@ -117,6 +131,14 @@ internal fun SmoothnessSettingsGroup(smooth: SmoothnessSettings, update: Setting
             enabled = on,
             compact = true,
         )
+        if (experimental) {
+            CosmoRowDivider()
+            SmoothSwitchRow(
+                title = stringResource(Res.string.video_smooth_match_display),
+                checked = smooth.matchDisplayRate,
+                subtitle = stringResource(Res.string.video_smooth_match_display_note),
+            ) { value -> update { it.copy(smoothness = it.smoothness.copy(matchDisplayRate = value)) } }
+        }
     }
 }
 

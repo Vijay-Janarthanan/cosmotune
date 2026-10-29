@@ -342,6 +342,8 @@ internal fun shouldSkipAfterDislike(
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Before super: the launch screen's exit is taken over here, so it dissolves over the first frame instead of cutting to it.
+        LaunchHandoff.install(this)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // Before the composition, so a cold launch from a widget's artwork has

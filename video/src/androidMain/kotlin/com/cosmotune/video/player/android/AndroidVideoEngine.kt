@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
+import androidx.media3.common.ColorInfo
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
@@ -41,6 +43,7 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DecoderCounters
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
@@ -50,6 +53,8 @@ import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import com.cosmotune.video.local.AspectMath
 import com.cosmotune.video.local.VideoAspect
+import com.cosmotune.video.player.android.smooth.SmoothPicture
+import com.cosmotune.video.player.android.smooth.SmoothingHub
 import com.cosmotune.video.model.SubtitleTrack
 import com.cosmotune.video.player.EngineCapabilities
 import com.cosmotune.video.player.LocalSubtitle
@@ -65,6 +70,7 @@ import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.player.VideoSurfaceProvider
 import com.cosmotune.video.player.baseScale
 import com.cosmotune.video.select.BandwidthWarmUp
+import com.cosmotune.video.settings.SmoothnessReadout
 import com.cosmotune.video.settings.SmoothnessSettings
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -105,6 +111,12 @@ import kotlin.math.roundToInt
  *   another thread it is worked out from the last known position, the time since and the speed.
  * - [Surface] is `ContentFrame` from media3-ui-compose on a `SurfaceView`, with an `AndroidView` over a plain [SurfaceView] kept
  *   ready as the fallback ([surfaceKind]).
+ *
+ * **Frame smoothing (experimental).** With the mode Off, or whenever [SmoothingHub.route] is false, nothing above changes: the
+ * picture is the plain surface path. With Blend or Smooth asked for and a video that needs it, [Surface] draws a `SurfaceView`
+ * that the GPU pipeline of the `smooth` package fills instead, the decoder drawing into the pipeline's surface through the same
+ * controller; the sound is held back by one source frame by an audio processor in the service player. Any error in that path
+ * switches it off and the plain picture comes back.
  */
 @OptIn(UnstableApi::class)
 class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProvider {
@@ -117,10 +129,15 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     private val main = Handler(mainLooper)
 
     private val snapshotValues = MutableStateFlow(PlayerSnapshot.Idle)
+
+    /** Frame smoothing (experimental): the settings, the readout and whether the picture goes through the GL pipeline at all. */
+    private val smoothing = SmoothingHub(appContext)
     private val cueFlow = MutableStateFlow<List<SubtitleCue>>(emptyList())
 
     override val snapshot: StateFlow<PlayerSnapshot> = snapshotValues.asStateFlow()
     override val cues: StateFlow<List<SubtitleCue>> = cueFlow.asStateFlow()
+
+    override val smoothness: StateFlow<SmoothnessReadout> get() = smoothing.readout
 
     /** What this phone decodes (spec 6.2): [AndroidCapabilities.of]; the decoder list is asked once, ahead of time (see `init`). */
     override val capabilities: EngineCapabilities
@@ -201,6 +218,15 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         }
 
         override fun onPlayerError(eventTime: AnalyticsListener.EventTime, error: PlaybackException) = publish()
+
+        // The format is known before the first frame: it says whether smoothing has anything to do (its declared rate, HDR).
+        override fun onVideoInputFormatChanged(
+            eventTime: AnalyticsListener.EventTime,
+            format: Format,
+            decoderReuseEvaluation: DecoderReuseEvaluation?,
+        ) {
+            smoothing.onFormat(format.frameRate.takeIf { it > 0f }, ColorInfo.isTransferHdr(format.colorInfo))
+        }
     }
 
     private val tick = Runnable {
@@ -229,6 +255,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
 
     override fun load(request: PlaybackRequest) {
         if (released) return
+        smoothing.onLoad()
         val from = request.startMs.coerceAtLeast(0)
         // A live stream starts at its default position, the live edge less the target offset (Y-28, spec 5.13, 6.2): a start of 0
         // would be the oldest moment of its window.
@@ -299,6 +326,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     override fun setSpeed(speed: Float) {
         val wanted = speed.coerceIn(MIN_SPEED, MAX_SPEED)
         this.speed = wanted
+        smoothing.playbackSpeed = wanted
         snapshotValues.update { it.copy(speed = wanted) }
         command { it.setPlaybackSpeed(wanted) }
     }
@@ -316,6 +344,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
 
     override fun setAudioOnly(audioOnly: Boolean) {
         this.audioOnly = audioOnly
+        smoothing.onAudioOnly(audioOnly)
         snapshotValues.update { it.copy(audioOnly = audioOnly) }
         command { c ->
             c.trackSelectionParameters = c.trackSelectionParameters.buildUpon()
@@ -370,6 +399,11 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     @Composable
     override fun Surface(modifier: Modifier, scale: VideoScale) {
         val player = surfacePlayer
+        val smooth by smoothing.route.collectAsState()
+        if (smooth && player != null) {
+            SmoothPicture(player, smoothing, if (scale == VideoScale.FIT) VideoAspect.FIT else VideoAspect.FILL, modifier)
+            return
+        }
         when (surfaceKind) {
             SurfaceKind.CONTENT_FRAME -> ContentFrame(
                 player = player,
@@ -385,6 +419,11 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     @Composable
     override fun Surface(modifier: Modifier, aspect: VideoAspect) {
         val player = surfacePlayer
+        val smooth by smoothing.route.collectAsState()
+        if (smooth && player != null) {
+            SmoothPicture(player, smoothing, aspect, modifier)
+            return
+        }
         when (surfaceKind) {
             SurfaceKind.CONTENT_FRAME -> ContentFrame(
                 player = player,
@@ -544,11 +583,13 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
 
     /**
      * "Match display refresh rate": with it on, the screen is asked to switch to the video's frame rate when it can do so without
-     * a flicker (media3's default, [C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS]); off, the screen stays where it is. The phone
-     * makes no frames of its own, so this is the whole of its smoothness setting.
+     * a flicker (media3's default, [C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS]); off, the screen stays where it is. The rest
+     * of the settings (Blend, Smooth, the rate drawn) go to [smoothing], which makes in-between frames on the GPU; with the mode Off
+     * it is not in the picture's path at all.
      */
     override fun setSmoothness(settings: SmoothnessSettings) {
         matchDisplayRate = settings.matchDisplayRate
+        smoothing.configure(settings)
         onMain { applyFrameRateStrategy() }
     }
 
@@ -602,6 +643,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         }
         val bitrate = meter?.bitrateEstimate ?: 0L
         val size = c?.videoSize
+        if (size != null) smoothing.onVideoSize(size.width, size.height, size.pixelWidthHeightRatio)
         snapshotValues.value = PlayerSnapshot(
             status = status,
             playing = playing,

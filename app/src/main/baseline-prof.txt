@@ -7,6 +7,27 @@
 # Wildcards rather than a recorded profile: recording one needs a macrobenchmark
 # run on an API 33+ or rooted device. This is a superset of any recorded journey
 # for our own code; the libraries' own profiles cover theirs.
+#
+# The packages below are the app's other code that runs before the first frame and during the first scroll: the shared UI (the new
+# look's theme, shell, palette, bottom chrome and every page), the design tokens, the cover palette, the look settings and the mode
+# host. They were not listed, so they ran interpreted on every install until the runtime had seen them often enough to compile
+# them, which is a slow cold start that a wildcard on com/cosmotune/music alone never reached.
 HSPLcom/cosmotune/music/**->**(**)**
 HSPLcom/my/kizzy/**->**(**)**
 Lcom/cosmotune/music/**;
+HSPLcom/cosmotune/ui/**->**(**)**
+HSPLcom/cosmotune/design/**->**(**)**
+HSPLcom/cosmotune/theme/**->**(**)**
+HSPLcom/cosmotune/settings/**->**(**)**
+HSPLcom/cosmotune/video/host/**->**(**)**
+HSPLcom/cosmotune/video/ui/**->**(**)**
+HSPLcom/cosmotune/audio/**->**(**)**
+HSPLcom/cosmotune/providers/**->**(**)**
+Lcom/cosmotune/ui/**;
+Lcom/cosmotune/design/**;
+Lcom/cosmotune/theme/**;
+Lcom/cosmotune/settings/**;
+Lcom/cosmotune/video/host/**;
+Lcom/cosmotune/video/ui/**;
+Lcom/cosmotune/audio/**;
+Lcom/cosmotune/providers/**;

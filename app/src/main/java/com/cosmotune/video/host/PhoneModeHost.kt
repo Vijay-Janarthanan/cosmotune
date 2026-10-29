@@ -62,6 +62,9 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     val shell = LocalCosmoShell.current
     val mode = shell?.settings?.mode?.collectAsStateWithLifecycle()?.value ?: AppMode.MUSIC
     val videoShell = shell?.takeIf { mode == AppMode.VIDEO && AppModes.available(AppMode.VIDEO) }
+    // Video's account is Music's sign-in, published by MainViewModel; a launch straight into Video has composed no Music yet, so the
+    // view model is asked for here, and the account is known as soon as Video opens.
+    if (videoShell != null) androidx.lifecycle.viewmodel.compose.viewModel<com.cosmotune.music.ui.MainViewModel>()
     // A stored mode that does not work (Video, after Video was switched off again) becomes Music: Music's own chrome draws only for the
     // stored mode, so without this a Music root would stand without its tab bar and its mini player.
     if (shell != null && !AppModes.available(mode)) LaunchedEffect(mode) { shell.settings.setMode(AppMode.MUSIC) }

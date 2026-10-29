@@ -116,6 +116,10 @@ class FakeVideoPlayback(
         flow.update { it.copy(autoplay = on) }
     }
 
+    override fun retryRelated() {
+        record("retryRelated()")
+    }
+
     override fun addToQueue(item: VideoItem) {
         record("addToQueue(${item.id})")
         flow.update { it.copy(queue = it.queue + item) }

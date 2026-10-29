@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.first
 import org.jetbrains.skia.Canvas
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.Rect
-import java.awt.GraphicsEnvironment
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -134,9 +133,12 @@ internal class SmoothingPipeline(
     override fun close() {
         disengage()
         executor.shutdownNow()
-        synchronized(poolLock) { releasePool() }
-        renderer?.close()
-        renderer = null
+        // The screen draws with the renderer's shaders under [poolLock]: they are closed under it too.
+        synchronized(poolLock) {
+            releasePool()
+            renderer?.close()
+            renderer = null
+        }
     }
 
     private fun disengage() {
@@ -189,7 +191,8 @@ internal class SmoothingPipeline(
         val width = buffer.width
         val height = buffer.height
         var lumaMaker = extractor
-        if (slots[0] == null || slots[0]!!.frame.width != width || slots[0]!!.frame.height != height) {
+        val rebuilt = slots[0] == null || slots[0]!!.frame.width != width || slots[0]!!.frame.height != height
+        if (rebuilt) {
             releasePool()
             val maker = LumaExtractor(width, height)
             lumaMaker = maker
@@ -205,7 +208,8 @@ internal class SmoothingPipeline(
         slot.frame.copyFrom(buffer)
         lumaMaker!!.extract(slot.frame.view(), slot.frame.stride, slot.luma)
         slot.image = Image.makeFromPixmap(slot.frame.pixmap)
-        val old = pair
+        // A pool that was just rebuilt closed the images of the old pair: nothing of it may be drawn again.
+        val old = if (rebuilt) null else pair
         val next = FramePair(
             older = old?.newer,
             newer = slot,
@@ -264,9 +268,11 @@ internal class SmoothingPipeline(
         if (older.luma.stamp != olderStamp || next.newer.luma.stamp != newerStamp) return // a snapshot was reused under the search
         resolver.note(out.still)
         val image = maker.toImage(out)
-        val previous = result
-        result = Result(next.no, image, out.sceneCut)
-        previous?.field?.close()
+        synchronized(poolLock) {
+            val previous = result
+            result = Result(next.no, image, out.sceneCut)
+            previous?.field?.close()
+        }
         governor.report((nanos() - started) / 1e6, budgetMs)
     }
 
@@ -280,11 +286,16 @@ internal class SmoothingPipeline(
      * [src] (in pixels of a frame of [sourceWidth] x [sourceHeight]) goes to [dst]. False when there is nothing smoothed to draw,
      * and the caller draws the plain frame.
      */
-    fun draw(canvas: Canvas, boxWidth: Float, boxHeight: Float, src: Rect, dst: Rect, sourceWidth: Int, sourceHeight: Int, nowNanos: Long): Boolean {
+    fun draw(canvas: Canvas, boxWidth: Float, boxHeight: Float, src: Rect, dst: Rect, sourceWidth: Int, sourceHeight: Int, nowNanos: Long): Boolean =
+        // The render thread closes a snapshot's image when the ring reuses it, and the whole pool when smoothing stops; drawing
+        // with an image that was closed meanwhile is a native crash, not an exception. Both happen under [poolLock].
+        synchronized(poolLock) { drawLocked(canvas, boxWidth, boxHeight, src, dst, sourceWidth, sourceHeight, nowNanos) }
+
+    private fun drawLocked(canvas: Canvas, boxWidth: Float, boxHeight: Float, src: Rect, dst: Rect, sourceWidth: Int, sourceHeight: Int, nowNanos: Long): Boolean {
         val current = pair ?: return false
         val active = mode
         if (active == SmoothMode.OFF) return false
-        val newer = current.newer.image ?: return false
+        val newer = current.newer.image?.takeUnless { it.isClosed } ?: return false
         val started = nanos()
         try {
             paint(canvas, boxWidth, boxHeight, src, dst, sourceWidth, sourceHeight, nowNanos, current, active, newer)
@@ -306,7 +317,7 @@ internal class SmoothingPipeline(
         val dest = SmoothRenderer.wholeImage(src, dst, sourceWidth, sourceHeight)
         val interval = sourceMeter.intervalNanos(nowNanos)
         val phase = if (interval == null) 1f else SmoothPolicy.phase(nowNanos, current.newerAt, current.gap, interval)
-        val older = current.older?.image
+        val older = current.older?.image?.takeUnless { it.isClosed }
         val s = settings
         canvas.save()
         try {
@@ -401,16 +412,4 @@ internal class SmoothingPipeline(
         const val READOUT_EVERY_NANOS = 500_000_000L
         const val HZ_EVERY_NANOS = 5_000_000_000L
     }
-}
-
-/** The refresh rate of the screen the application is on (60 when the system does not say). */
-internal object DisplayRate {
-    fun hz(): Float = try {
-        val rate = GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.displayMode.refreshRate
-        if (rate > 0) rate.toFloat() else DEFAULT_HZ
-    } catch (_: Throwable) {
-        DEFAULT_HZ // headless, or no screen to ask
-    }
-
-    private const val DEFAULT_HZ = 60f
 }

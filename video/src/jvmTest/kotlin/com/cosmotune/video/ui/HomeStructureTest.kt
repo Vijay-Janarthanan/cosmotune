@@ -99,7 +99,7 @@ class HomeStructureTest {
         assertTrue("Res.string.video_shelf_continue" in screen && "Res.string.video_shorts" in screen)
         assertTrue("HomePlanner.continueWatching(history)" in screen && "HomePlanner.subscriptionsShelf(feedItems)" in screen)
         assertTrue("HomePlanner.forYou(recent, related, history)" in screen && "HomePlanner.shorts(feedItems, fromRelated + accountItems.filter(ShortsFilter::isShort), model.items)" in screen)
-        assertTrue("source.details(id).related" in code("HomeKiosk"), "the feed's related videos are the related lists of the videos watched")
+        assertTrue("source.related(id)" in code("HomeKiosk"), "the feed's related videos are the related lists of the videos watched (with the source's second way to them)")
         assertTrue("watchedFraction(entry.positionMs, entry.durationMs)" in screen && "watched = continueWatched" in screen, "Continue watching has the watched bars")
         assertTrue("minOf(HomePlanner.SHORTS_AFTER - 1, feed.items.lastIndex)" in screen, "the Shorts shelf stands after the fourth card on a phone")
         assertTrue("ceil(HomePlanner.SHORTS_AFTER / columns.toDouble()).toInt() * columns" in screen, "and after the first whole row of the grid")

@@ -1,5 +1,9 @@
 package com.cosmotune.video.source.newpipe
 
+import com.cosmotune.music.data.TrackLog
+import com.cosmotune.video.account.AccountFailure
+import com.cosmotune.video.account.RelatedFallback
+import com.cosmotune.video.account.failureOf
 import com.cosmotune.video.model.ChannelPage
 import com.cosmotune.video.model.ChannelTab
 import com.cosmotune.video.model.CommentPage
@@ -16,7 +20,10 @@ import com.cosmotune.video.model.VideoDetails
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.source.VideoSource
 import com.cosmotune.video.source.VideoSourceError
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.ServiceList
@@ -44,9 +51,19 @@ import org.schabi.newpipe.extractor.Page as NpPage
  * no comment sorting (`CommentPage.sortable` is false and `sort` is ignored), and its kiosk list still holds the removed
  * "Trending" chart, which [kiosks] never offers.
  *
+ * Related videos ("Up next") come with the details. When the extractor returns none for a video (it parses only the item shapes
+ * it knows, and a page whose list it cannot read gives an empty one without an error), [related] asks the site's own `next`
+ * endpoint once ([RelatedFallback], signed when a session exists) and keeps the answer ten minutes; a failure is not kept.
+ *
  * @param clock the time the cache and the premiere test use (injectable for tests).
+ * @param relatedFallback the second way to the related videos (tests give a scripted one).
  */
-class NewPipeVideoSource(private val clock: () -> Long = System::currentTimeMillis) : VideoSource {
+class NewPipeVideoSource internal constructor(
+    private val clock: () -> Long,
+    private val relatedFallback: RelatedFallback,
+) : VideoSource {
+
+    constructor(clock: () -> Long = System::currentTimeMillis) : this(clock, RelatedFallback.Site)
 
     private val service get() = ServiceList.YouTube
 
@@ -184,8 +201,61 @@ class NewPipeVideoSource(private val clock: () -> Long = System::currentTimeMill
     private fun fetchDetails(videoId: String): VideoDetails {
         val info = streamInfoLoader(NewPipeAddresses.watchUrl(videoId))
         val details = NewPipeMapper.details(info, clock(), NewPipeHost.localization())
+        if (details.related.none { it is ListItem.Video }) {
+            // Nothing of the id: only how many errors the extractor kept, by kind, so a log shows why "Up next" starts empty.
+            TrackLog.w(TAG, "related: the extractor returned no videos (${info.errors.size} errors: ${info.errors.map { it.javaClass.simpleName }.distinct()}, age limit ${info.ageLimit})")
+        }
         synchronized(cache) { cache[videoId] = details }
         return details
+    }
+
+    /** The fallback's answers by video id, most recently used last; guarded by itself. Only non-empty answers are kept. */
+    private val relatedCache = object : LinkedHashMap<String, Pair<Long, List<ListItem>>>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, List<ListItem>>>): Boolean = size > CACHE_SIZE
+    }
+
+    /** One fallback request at a time, so two askers of the same video share the answer instead of making two requests. */
+    private val relatedGate = Mutex()
+
+    /**
+     * The related videos: the extractor's own list when it has videos; else the site's `next` answer, asked once per video and kept
+     * [DETAILS_TTL_MS]. An empty list means the site has no suggestions for it; a [VideoSourceError] means it could not be asked.
+     */
+    override suspend fun related(videoId: String): List<ListItem> {
+        val key = NewPipeMapper.videoIdOf(videoId) ?: videoId
+        val own = details(key).related
+        if (own.any { it is ListItem.Video }) return own
+        relatedKept(key)?.let { return it }
+        return relatedGate.withLock {
+            relatedKept(key)?.let { return@withLock it }
+            val videos = try {
+                relatedFallback.fetch(key)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                TrackLog.w(TAG, "related: the site's next answer failed: ${e.javaClass.simpleName}")
+                throw relatedError(e)
+            }
+            val items = videos.map { ListItem.Video(it) }
+            TrackLog.d(TAG, "related: ${items.size} videos from the site's next answer")
+            if (items.isNotEmpty()) synchronized(relatedCache) { relatedCache[key] = clock() to items }
+            items
+        }
+    }
+
+    private fun relatedKept(videoId: String): List<ListItem>? = synchronized(relatedCache) {
+        val hit = relatedCache[videoId] ?: return@synchronized null
+        if (clock() - hit.first in 0 until DETAILS_TTL_MS) {
+            hit.second
+        } else {
+            relatedCache.remove(videoId)
+            null
+        }
+    }
+
+    private fun relatedError(e: Throwable): VideoSourceError = when (val failure = failureOf(e)) {
+        is AccountFailure.Network -> VideoSourceError.Network(failure.message.orEmpty(), failure)
+        else -> VideoSourceError.Parsing(failure.message.orEmpty(), failure)
     }
 
     private fun cached(videoId: String): VideoDetails? = synchronized(cache) {
@@ -288,6 +358,7 @@ class NewPipeVideoSource(private val clock: () -> Long = System::currentTimeMill
     override fun setRegion(country: String, language: String) {
         NewPipeHost.setLocalization(country, language)
         synchronized(cache) { cache.clear() } // titles and descriptions come back in the new language
+        synchronized(relatedCache) { relatedCache.clear() }
     }
 
     // ---------------------------------------------------------------- helpers
@@ -327,6 +398,7 @@ class NewPipeVideoSource(private val clock: () -> Long = System::currentTimeMill
         /** How long [details] answers from memory (spec 6.1: details are cached 10 minutes). */
         const val DETAILS_TTL_MS = 10 * 60_000L
         private const val CACHE_SIZE = 24
+        private const val TAG = "CosmoVideo"
 
         /** The Shorts search reads at most this many pages per call, to return at least [MIN_SHORTS] (spec 5.3). */
         const val MAX_SHORT_PAGES = 3

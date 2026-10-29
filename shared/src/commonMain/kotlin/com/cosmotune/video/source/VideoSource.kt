@@ -36,6 +36,13 @@ interface VideoSource {
     /** The watch page's data (spec 5.4): metadata, chapters, related, subtitles, storyboard and streams. */
     suspend fun details(videoId: String): VideoDetails
 
+    /**
+     * The related videos of [videoId] (the watch page's "Up next", spec 5.4), for callers that need only the list. A source that has
+     * a second way to ask for them when [details] holds none answers with that one; it throws a [VideoSourceError] when it cannot
+     * answer at all (an empty list means the video has no suggestions). Plain sources answer [details]' own list.
+     */
+    suspend fun related(videoId: String): List<ListItem> = details(videoId).related
+
     /** A fresh stream set, never cached (spec 6.1: the refresh after a 403). */
     suspend fun streams(videoId: String): StreamSet
 

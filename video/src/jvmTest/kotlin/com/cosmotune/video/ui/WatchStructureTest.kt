@@ -6,17 +6,20 @@ import com.cosmotune.video.library.HistoryEntry
 import com.cosmotune.video.model.Description
 import com.cosmotune.video.model.DescriptionLink
 import com.cosmotune.video.model.ListItem
+import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.model.StreamSet
 import com.cosmotune.video.nav.VideoRoute
 import com.cosmotune.video.player.FakeVideoPlayback
 import com.cosmotune.video.player.PictureInPictureState
 import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.PlayerStatus
+import com.cosmotune.video.player.RelatedState
 import com.cosmotune.video.player.VideoUiError
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.source.FakeVideoSource
 import com.cosmotune.video.ui.watch.EscHint
 import com.cosmotune.video.ui.watch.PipUpdater
+import com.cosmotune.video.ui.watch.UpNextShow
 import com.cosmotune.video.ui.watch.WatchChip
 import com.cosmotune.video.ui.watch.WatchEntry
 import com.cosmotune.video.ui.watch.WatchOrientation
@@ -294,6 +297,33 @@ class WatchStructureTest {
         assertEquals(listOf(short, video), WatchRules.relatedVideos(withShort, hideShorts = false), "videos only, each once")
         assertEquals(listOf(video), WatchRules.relatedVideos(withShort, hideShorts = true), "Hide Shorts leaves them out")
         assertEquals(emptyList(), WatchRules.relatedVideos(null, hideShorts = false))
+    }
+
+    @Test fun upNextIsNeverLeftOutSilentlyForAVideoThatLoaded() {
+        val list = listOf(video)
+        fun show(related: List<VideoItem>, offline: Boolean = false, hasDetails: Boolean = true, failed: Boolean = false, state: RelatedState = RelatedState.IDLE) =
+            WatchRules.upNext(related, offline, hasDetails, failed, state)
+        assertEquals(UpNextShow.LIST, show(list), "the list when there is one")
+        assertEquals(UpNextShow.LIST, show(list, state = RelatedState.LOADING), "a list that is there wins over the state")
+        assertEquals(UpNextShow.NONE, show(list, offline = true), "a download has no suggestions")
+        assertEquals(UpNextShow.NONE, show(emptyList(), offline = true))
+        assertEquals(UpNextShow.LOADING, show(emptyList(), hasDetails = false), "the skeleton while the details load")
+        assertEquals(UpNextShow.NONE, show(emptyList(), hasDetails = false, failed = true), "a video that failed to load has no section")
+        assertEquals(UpNextShow.LOADING, show(emptyList(), state = RelatedState.LOADING), "the skeleton while the second request runs")
+        assertEquals(UpNextShow.FAILED, show(emptyList(), state = RelatedState.FAILED))
+        assertEquals(UpNextShow.EMPTY, show(emptyList(), state = RelatedState.EMPTY))
+        assertEquals(UpNextShow.EMPTY, show(emptyList()), "a loaded video with nothing to show says so")
+    }
+
+    @Test fun theUpNextSectionHasASkeletonANoteAndARetryOnBothLayouts() {
+        val upNext = flat(file("UpNext"))
+        assertTrue("fun LazyListScope.upNextSection(" in upNext)
+        assertTrue("UpNextShow.LOADING -> items(SKELETON_ROWS" in upNext && "UpNextSkeletonRow(desktop)" in upNext, "a skeleton of rows")
+        assertTrue("Res.string.video_up_next_empty" in upNext && "Res.string.video_up_next_error" in upNext && "Res.string.video_retry" in upNext, "the note and Try again")
+        assertTrue("onRetry = callbacks.onRetryRelated" in upNext)
+        assertTrue("upNextSection(view, watched, downloaded, desktop = false, callbacks = callbacks)" in flat(file("WatchPage")), "the phone's column")
+        assertTrue("upNextSection(view, watched, downloaded, desktop = true, callbacks = callbacks)" in flat(file("WatchPageWide")), "the wide side column")
+        assertTrue("onRetryRelated = { playback.retryRelated() }" in flat(file("WatchPage")), "Try again goes through the playback")
     }
 
     // ---- The blocks ------------------------------------------------------------------------------------------------------

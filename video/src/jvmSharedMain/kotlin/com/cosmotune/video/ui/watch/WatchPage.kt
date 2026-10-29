@@ -60,6 +60,7 @@ import com.cosmotune.video.nav.VideoRoute
 import com.cosmotune.video.player.PictureInPictureState
 import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.PlayerStatus
+import com.cosmotune.video.player.RelatedState
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoSurfaceProvider
 import com.cosmotune.video.player.VideoUiError
@@ -195,7 +196,8 @@ fun WatchPage(route: VideoRoute.Watch, contentPadding: PaddingValues, wide: Bool
  * shimmer), the [title] as shown and the [originalTitle] DeArrow replaced, the [description] (null when empty: a download keeps
  * none), the [chapters], the [related] videos (Shorts left out with "Hide Shorts"; none offline), whether the page is [offline] (a
  * download playing from its bundle: no related videos, comments or dislike count, and no source call, spec 5.4 "Offline"), [autoplay] and
- * whether the comments show.
+ * whether the comments show, and what [upNext] shows (the list, its skeleton, or a note saying there are no suggestions or that they
+ * could not be loaded).
  */
 @Immutable
 internal data class WatchView(
@@ -210,6 +212,7 @@ internal data class WatchView(
     val autoplay: Boolean,
     val commentsShown: Boolean,
     val loading: Boolean,
+    val upNext: UpNextShow = UpNextShow.NONE,
 )
 
 @Composable
@@ -254,6 +257,7 @@ private fun rememberWatchView(videoId: String, state: PlaybackUiState, settings:
         autoplay = settings.autoplay,
         commentsShown = !offline,
         loading = item == null && state.error == null,
+        upNext = WatchRules.upNext(related, offline, hasDetails = details != null, failed = state.error != null, state = state.relatedState),
     )
 }
 
@@ -288,6 +292,7 @@ internal class WatchCallbacks(
     val onPlay: (VideoItem) -> Unit,
     val onMore: (VideoItem) -> Unit,
     val onAutoplay: (Boolean) -> Unit,
+    val onRetryRelated: () -> Unit,
 )
 
 /**
@@ -337,6 +342,7 @@ private fun watchCallbacks(
         onPlay = { item -> actions.play(item, view.related) },
         onMore = onSheet,
         onAutoplay = { on -> playback.setAutoplay(on) },
+        onRetryRelated = { playback.retryRelated() },
     )
 }
 
@@ -401,10 +407,7 @@ private fun WatchPagePhone(
                     onOpenDescription = { descriptionOpen = true },
                     onOpenComments = { commentsOpen = true },
                 )
-                if (view.related.isNotEmpty()) {
-                    item(key = "upnext") { UpNextHeader(view.autoplay, callbacks.onAutoplay) }
-                    upNextRows(view.related, watched, downloaded, desktop = false, onPlay = callbacks.onPlay, onMore = callbacks.onMore)
-                }
+                upNextSection(view, watched, downloaded, desktop = false, callbacks = callbacks)
             }
         }
         // The sheets stand between the player and the shell's floating chrome, over the sheets' 40 % black scrim on the page (the
@@ -756,6 +759,20 @@ internal object WatchRules {
     fun relatedVideos(details: VideoDetails?, hideShorts: Boolean): List<VideoItem> {
         val videos = details?.related.orEmpty().mapNotNull { (it as? ListItem.Video)?.item }.distinctBy { it.id }
         return ShortsFilter.filter(videos, hideShorts) { it }
+    }
+
+    /**
+     * What "Up next" shows: nothing for a download or a video that failed to load; the [related] list when there is one; else a
+     * skeleton while the details or the second request for the list are on their way, and a note (no suggestions, or could not load
+     * them, both with "Try again") once they are not. The section is never left out silently for a video that loaded.
+     */
+    fun upNext(related: List<VideoItem>, offline: Boolean, hasDetails: Boolean, failed: Boolean, state: RelatedState): UpNextShow = when {
+        offline -> UpNextShow.NONE
+        related.isNotEmpty() -> UpNextShow.LIST
+        !hasDetails -> if (failed) UpNextShow.NONE else UpNextShow.LOADING
+        state == RelatedState.LOADING -> UpNextShow.LOADING
+        state == RelatedState.FAILED -> UpNextShow.FAILED
+        else -> UpNextShow.EMPTY
     }
 
     /** Whether [state] is a failure for want of a network while loading [videoId] (a failure before any detail names no item). */
