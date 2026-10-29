@@ -42,6 +42,8 @@ internal object DesktopWindowsTaskbar {
     private const val ID_NEXT = 102
 
     private const val WM_COMMAND = 0x0111
+    private const val WM_QUERYENDSESSION = 0x0011
+    private const val WM_ENDSESSION = 0x0016
     private const val WM_DWMSENDICONICTHUMBNAIL = 0x0323
     private const val WM_DWMSENDICONICLIVEPREVIEWBITMAP = 0x0326
     private const val THBN_CLICKED = 0x1800
@@ -169,6 +171,13 @@ internal object DesktopWindowsTaskbar {
         }
         message == WM_DWMSENDICONICLIVEPREVIEWBITMAP -> {
             sendLivePreview(hwnd)
+            0L
+        }
+        // An installer replacing the application's files, or a shutdown, asks it to end. A closed window only goes
+        // to the tray, so the request is answered here: agreed, and then the application quits.
+        message == WM_QUERYENDSESSION -> 1L
+        message == WM_ENDSESSION && wParam != 0L -> {
+            Thread({ DesktopQuit.now("Windows asked the application to close") }, "cosmotune-session-end").start()
             0L
         }
         else -> null

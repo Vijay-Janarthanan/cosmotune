@@ -318,7 +318,6 @@ import dev.chrisbanes.haze.materials.HazeMaterials
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.system.exitProcess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -2644,6 +2643,13 @@ fun CosmotuneDesktopApp() {
         runCatching { Res.readBytes("drawable/logo.svg") }.onSuccess(tray::setIcon)
     }
     LaunchedEffect(tray) {
+        // Native work first: the audio thread and the media controls are inside FFmpeg, WASAPI and WinRT, and
+        // exitProcess would unload those libraries under them. DesktopQuit ends the process by force if this stalls.
+        DesktopQuit.bind {
+            tray.stop()
+            playbackEngine.shutdown()
+            DesktopWindowsMedia.stop()
+        }
         DesktopTrayMenu.bind(
             onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
             onNext = ::playNext,
@@ -2656,14 +2662,7 @@ fun CosmotuneDesktopApp() {
                 DesktopWindowVisibility.show()
                 openSettings()
             },
-            onQuit = {
-                tray.stop()
-                // Native work first: the audio thread and the media controls are inside FFmpeg,
-                // WASAPI and WinRT, and exitProcess would unload those libraries under them.
-                playbackEngine.shutdown()
-                DesktopWindowsMedia.stop()
-                exitProcess(0)
-            },
+            onQuit = { DesktopQuit.now("Quit from the tray") },
         )
     }
     LaunchedEffect(selectedSong, playback.isPlaying) {
