@@ -28,7 +28,7 @@ internal object DesktopQuit {
     fun now(reason: String) {
         if (!started.compareAndSet(false, true)) return
         DesktopTrackLog.log("quitting: $reason")
-        Thread({
+        val guard = Thread({
             try {
                 Thread.sleep(deadlineMs)
             } catch (_: InterruptedException) {
@@ -40,6 +40,8 @@ internal object DesktopQuit {
         runCatching { orderly?.invoke() }
             .onFailure { DesktopTrackLog.log("quitting: ${it.javaClass.simpleName}: ${it.message}") }
         end()
+        // Only reached when ending the process returned (a test's stand-in): the deadline has nothing left to enforce.
+        guard.interrupt()
     }
 
     /** For tests: allows another [now]. */

@@ -56,4 +56,16 @@ class DesktopQuitTest {
         DesktopQuit.now("failing")
         assertEquals(1, ended.get())
     }
+
+    /** The deadline of a quit that finished must not fire later: in a test run it would end the whole test process. */
+    @Test fun aFinishedQuitLeavesNoForcedEndBehind() {
+        val forced = AtomicInteger()
+        DesktopQuit.bind {}
+        DesktopQuit.end = {}
+        DesktopQuit.force = { forced.incrementAndGet() }
+        DesktopQuit.deadlineMs = 200
+        DesktopQuit.now("finished")
+        Thread.sleep(700)
+        assertEquals(0, forced.get())
+    }
 }
