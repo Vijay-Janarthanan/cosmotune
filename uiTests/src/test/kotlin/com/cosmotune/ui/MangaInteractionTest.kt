@@ -27,6 +27,7 @@ import javax.imageio.ImageIO
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.rules.TemporaryFolder
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -34,8 +35,11 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class MangaInteractionTest {
-    @get:Rule val compose = createComposeRule()
-    @get:Rule val temporary = TemporaryFolder()
+    val compose = createComposeRule()
+    val temporary = TemporaryFolder()
+
+    // The reader's tests drive a render loop for long stretches; on a slow macOS runner Compose's own harness can race itself.
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(RetryOnComposeHarnessRace()).around(temporary).around(compose)
 
     private fun show(fontScale: Float = 1f, pageCount: Int = 3, imageHeight: Int = 240,
         mode: MangaReaderMode = MangaReaderMode.PAGES_RTL, repositoryOverride: MangaRepository? = null): Pair<MangaRepository, MangaBook> {
