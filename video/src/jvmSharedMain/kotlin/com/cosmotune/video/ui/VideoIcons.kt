@@ -98,6 +98,9 @@ object VideoIcons {
     val Info by icon("info") { circle(12f, 12f, 8.25f); stroke("M12 11v5"); stroke("M12 8h.01") }
     val Upload by icon("upload") { stroke("M12 15V4.5"); stroke("m7.5 9 4.5-4.5 4.5 4.5"); stroke("M5 19.5h14") }
 
+    /** Three lines: the guide's button (not in the plan's table of 22, which [all] lists). */
+    val Menu by icon("menu") { stroke("M4 6.5h16"); stroke("M4 12h16"); stroke("M4 17.5h16") }
+
     /** Every icon with its name, in the order of the plan's table: 22. */
     val all: List<Pair<String, ImageVector>> by lazy {
         listOf(

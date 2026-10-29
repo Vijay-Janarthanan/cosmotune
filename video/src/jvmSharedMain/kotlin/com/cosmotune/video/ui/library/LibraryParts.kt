@@ -182,11 +182,12 @@ internal fun LibraryShelf(
     downloaded: (String) -> Boolean,
     cardWidth: Dp,
     modifier: Modifier = Modifier,
+    onShowAll: (() -> Unit)? = null,
 ) {
     val keys = remember(items) { uniqueKeys(items) }
     val rowState = rememberLazyListState()
     Column(modifier.padding(top = SHELF_TOP)) {
-        CosmoSectionHeader(title = title)
+        CosmoSectionHeader(title = title, onShowAll = onShowAll)
         LocalShelfRowChrome.current.Wrap(rowState) {
             LazyRow(
                 state = rowState,

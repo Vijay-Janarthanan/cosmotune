@@ -44,6 +44,8 @@ internal object DesktopYouTubeAuth {
         Innertube.selectChannel(value?.pageId, value?.dataSyncId, value?.authUser)
         // A new session means a new player config and PoToken binding, as on the phone.
         StreamResolver.onSessionChanged()
+        // Video mode's account shows who this is.
+        DesktopVideoAccountHost.refresh()
         DesktopTrackLog.log(
             if (value == null) {
                 "youtube: signed out; requests are anonymous again"

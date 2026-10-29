@@ -9,7 +9,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
+import com.cosmotune.video.local.AspectMath
+import com.cosmotune.video.local.VideoAspect
 import com.cosmotune.video.player.VideoScale
+import com.cosmotune.video.player.smooth.SmoothingClock
+import com.cosmotune.video.player.smooth.SmoothingPipeline
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_RENDER_API_TYPE_SW
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_RENDER_PARAM_API_TYPE
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_RENDER_PARAM_BLOCK_FOR_TARGET_TIME
@@ -131,6 +135,7 @@ internal class MpvRenderer(
                     val buffer = exchange.beginWrite(width, height)
                     val result = mpv.mpv_render_context_render(context, buffer.params)
                     exchange.endWrite(buffer, published = result >= 0)
+                    if (result >= 0 && flags and MPV_RENDER_UPDATE_FRAME != 0L) exchange.sourceFrame(buffer)
                     if (result >= 0) {
                         renderedWidth = width
                         renderedHeight = height
@@ -221,6 +226,22 @@ internal class FrameBuffer(val width: Int, val height: Int) {
     @Volatile var serial: Long = 0
         internal set
 
+    /** Copies [other]'s pixels (a buffer of the same size) into this one; the frame smoothing keeps its own copies of the frames it blends. */
+    fun copyFrom(other: FrameBuffer) {
+        // The aligned slice of each buffer may be a few bytes longer than the picture, by a different amount: copy exactly the picture.
+        val size = stride * height
+        val from = other.memory.duplicate()
+        from.clear()
+        from.limit(size)
+        val to = memory.duplicate()
+        to.clear()
+        to.limit(size)
+        to.put(from)
+    }
+
+    /** The pixels, `stride x height` bytes, for reading (a view: the position and limit are the caller's own). */
+    fun view(): ByteBuffer = memory.asReadOnlyBuffer()
+
     /** The pixel at ([x], [y]) as `0xRRGGBB` (tests and the look check read frames with it). */
     fun rgb(x: Int, y: Int): Int {
         val at = y * stride + x * 4
@@ -258,6 +279,25 @@ internal class FrameExchange {
 
     /** A counter that moves with every published frame or clear: the screen redraws when it changes. */
     val frames: StateFlow<Long> get() = sequence
+
+    /** Real-time frame smoothing, when the engine has it on; the renderer feeds it each new frame, the screen draws through it. */
+    @Volatile var smoothing: SmoothingPipeline? = null
+
+    /** The renderer made [buffer] from a new frame of the video (not a redraw at a new size): the smoothing takes its measure and copy. */
+    fun sourceFrame(buffer: FrameBuffer) {
+        val pipeline = smoothing ?: return
+        try {
+            pipeline.onSourceFrame(buffer, System.nanoTime())
+        } catch (e: Throwable) {
+            pipeline.fail(e) // never lets the frames stop: the plain picture goes on
+        }
+    }
+
+    /** The video's own width in pixels (0 for none). */
+    val videoWidthPx: Int get() = videoWidth
+
+    /** The video's own height in pixels (0 for none). */
+    val videoHeightPx: Int get() = videoHeight
 
     /** The video's own size (0 x 0 for none), the cap of the render size. */
     fun setVideoSize(width: Int, height: Int) {
@@ -443,14 +483,17 @@ internal object FrameGeometry {
  * size to the exchange. The frame counter is read only in the draw lambda, so a new frame redraws without recomposing.
  */
 @Composable
-internal fun FrameCanvas(exchange: FrameExchange, modifier: Modifier, scale: VideoScale) {
+internal fun FrameCanvas(exchange: FrameExchange, modifier: Modifier, scale: VideoScale, aspect: VideoAspect? = null) {
     val painter = remember(exchange) { FramePainter(exchange) }
     val tick = remember { mutableLongStateOf(0L) }
     LaunchedEffect(exchange) { exchange.frames.collect { tick.longValue = it } }
+    val pace = remember { mutableLongStateOf(0L) }
+    SmoothingClock(exchange.smoothing, exchange.frames, pace)
     DisposableEffect(painter) { onDispose { painter.dispose() } }
     Canvas(modifier) {
         tick.longValue // a new frame invalidates this draw only
-        painter.draw(this, scale)
+        pace.longValue // so does the smoothing clock, while in-between frames are being made
+        painter.draw(this, scale, aspect)
     }
 }
 
@@ -463,12 +506,12 @@ internal class FramePainter(private val exchange: FrameExchange) {
     private var serial = -1L
     private var image: Image? = null
     private val placement = FloatArray(8)
-    private var placedFor = LongArray(3)
+    private var placedFor = LongArray(4)
     private var src: Rect? = null
     private var dst: Rect? = null
     private val paint = Paint()
 
-    fun draw(scope: DrawScope, scale: VideoScale) {
+    fun draw(scope: DrawScope, scale: VideoScale, aspect: VideoAspect? = null) {
         val boxWidth = scope.size.width
         val boxHeight = scope.size.height
         exchange.request(this, boxWidth.roundToInt(), boxHeight.roundToInt(), scale)
@@ -485,15 +528,31 @@ internal class FramePainter(private val exchange: FrameExchange) {
         }
         val box = FrameGeometry.pack(boxWidth.roundToInt(), boxHeight.roundToInt())
         val picture = FrameGeometry.pack(next.width, next.height)
-        if (src == null || placedFor[0] != box || placedFor[1] != picture || placedFor[2] != scale.ordinal.toLong()) {
-            FrameGeometry.placement(boxWidth, boxHeight, next.width, next.height, scale, placement)
-            src = Rect(placement[0], placement[1], placement[2], placement[3])
-            dst = Rect(placement[4], placement[5], placement[6], placement[7])
+        // A local file's aspect choices other than fit and fill: the whole picture drawn at the size AspectMath gives, centred.
+        val shaped = aspect != null && aspect != VideoAspect.FIT && aspect != VideoAspect.FILL
+        val shapeKey = if (shaped) aspect!!.ordinal.toLong() + 1 else 0L
+        val video = FrameGeometry.pack(exchange.videoWidthPx, exchange.videoHeightPx)
+        if (src == null || placedFor[0] != box || placedFor[1] != picture || placedFor[2] != scale.ordinal.toLong() || placedFor[3] != shapeKey + (video shl 8)) {
+            if (shaped) {
+                val drawn = AspectMath.drawnSize(aspect!!, boxWidth, boxHeight, exchange.videoWidthPx.toFloat(), exchange.videoHeightPx.toFloat())
+                val left = (boxWidth - drawn.width) / 2f
+                val top = (boxHeight - drawn.height) / 2f
+                src = Rect(0f, 0f, next.width.toFloat(), next.height.toFloat())
+                dst = Rect(left, top, left + drawn.width, top + drawn.height)
+            } else {
+                FrameGeometry.placement(boxWidth, boxHeight, next.width, next.height, scale, placement)
+                src = Rect(placement[0], placement[1], placement[2], placement[3])
+                dst = Rect(placement[4], placement[5], placement[6], placement[7])
+            }
             placedFor[0] = box
             placedFor[1] = picture
             placedFor[2] = scale.ordinal.toLong()
+            placedFor[3] = shapeKey + (video shl 8)
         }
-        scope.drawContext.canvas.nativeCanvas.drawImageRect(image!!, src!!, dst!!, SamplingMode.LINEAR, paint, true)
+        val canvas = scope.drawContext.canvas.nativeCanvas
+        val smoothing = exchange.smoothing
+        if (smoothing != null && smoothing.draw(canvas, boxWidth, boxHeight, src!!, dst!!, next.width, next.height, System.nanoTime())) return
+        canvas.drawImageRect(image!!, src!!, dst!!, SamplingMode.LINEAR, paint, true)
     }
 
     private fun release() {

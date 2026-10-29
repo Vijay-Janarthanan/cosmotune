@@ -1,0 +1,359 @@
+{
+ "responseContext": {
+  "serviceTrackingParams": [
+   {
+    "service": "GFEEDBACK",
+    "params": [
+     {
+      "key": "browse_id",
+      "value": "FEx"
+     },
+     {
+      "key": "logged_in",
+      "value": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "content": {
+       "richGridRenderer": {
+        "contents": [
+         {
+          "richItemRenderer": {
+           "content": {
+            "videoRenderer": {
+             "videoId": "subVideo0001",
+             "thumbnail": {
+              "thumbnails": [
+               {
+                "url": "https://i.ytimg.com/vi/subVideo0001/hqdefault.jpg",
+                "width": 480,
+                "height": 270
+               },
+               {
+                "url": "https://i.ytimg.com/vi/subVideo0001/mqdefault.jpg",
+                "width": 320,
+                "height": 180
+               }
+              ]
+             },
+             "title": {
+              "runs": [
+               {
+                "text": "Slow morning bread"
+               }
+              ]
+             },
+             "ownerText": {
+              "runs": [
+               {
+                "text": "Kitchen Table",
+                "navigationEndpoint": {
+                 "browseEndpoint": {
+                  "browseId": "UCkitchen00000000000001"
+                 }
+                }
+               }
+              ]
+             },
+             "longBylineText": {
+              "runs": [
+               {
+                "text": "Kitchen Table",
+                "navigationEndpoint": {
+                 "browseEndpoint": {
+                  "browseId": "UCkitchen00000000000001"
+                 }
+                }
+               }
+              ]
+             },
+             "channelThumbnailSupportedRenderers": {
+              "channelThumbnailWithLinkRenderer": {
+               "thumbnail": {
+                "thumbnails": [
+                 {
+                  "url": "https://yt3.ggpht.com/avatar-UCkitchen00000000000001=s68",
+                  "width": 68,
+                  "height": 68
+                 }
+                ]
+               }
+              }
+             },
+             "lengthText": {
+              "simpleText": "12:34"
+             },
+             "thumbnailOverlays": [
+              {
+               "thumbnailOverlayTimeStatusRenderer": {
+                "text": {
+                 "simpleText": "12:34"
+                },
+                "style": "DEFAULT"
+               }
+              }
+             ],
+             "viewCountText": {
+              "simpleText": "1,234 views"
+             },
+             "publishedTimeText": {
+              "simpleText": "2 hours ago"
+             }
+            }
+           }
+          }
+         },
+         {
+          "richItemRenderer": {
+           "content": {
+            "videoRenderer": {
+             "videoId": "subLive00001",
+             "thumbnail": {
+              "thumbnails": [
+               {
+                "url": "https://i.ytimg.com/vi/subLive00001/hqdefault.jpg",
+                "width": 480,
+                "height": 270
+               },
+               {
+                "url": "https://i.ytimg.com/vi/subLive00001/mqdefault.jpg",
+                "width": 320,
+                "height": 180
+               }
+              ]
+             },
+             "title": {
+              "runs": [
+               {
+                "text": "Harbor radio, live"
+               }
+              ]
+             },
+             "ownerText": {
+              "runs": [
+               {
+                "text": "Harbor Radio",
+                "navigationEndpoint": {
+                 "browseEndpoint": {
+                  "browseId": "UCharbor0000000000000001"
+                 }
+                }
+               }
+              ]
+             },
+             "longBylineText": {
+              "runs": [
+               {
+                "text": "Harbor Radio",
+                "navigationEndpoint": {
+                 "browseEndpoint": {
+                  "browseId": "UCharbor0000000000000001"
+                 }
+                }
+               }
+              ]
+             },
+             "channelThumbnailSupportedRenderers": {
+              "channelThumbnailWithLinkRenderer": {
+               "thumbnail": {
+                "thumbnails": [
+                 {
+                  "url": "https://yt3.ggpht.com/avatar-UCharbor0000000000000001=s68",
+                  "width": 68,
+                  "height": 68
+                 }
+                ]
+               }
+              }
+             },
+             "thumbnailOverlays": [
+              {
+               "thumbnailOverlayTimeStatusRenderer": {
+                "text": {
+                 "runs": [
+                  {
+                   "text": "LIVE"
+                  }
+                 ]
+                },
+                "style": "LIVE"
+               }
+              }
+             ],
+             "badges": [
+              {
+               "metadataBadgeRenderer": {
+                "style": "BADGE_STYLE_TYPE_LIVE_NOW",
+                "label": "LIVE NOW"
+               }
+              }
+             ],
+             "viewCountText": {
+              "runs": [
+               {
+                "text": "1,200"
+               },
+               {
+                "text": " watching"
+               }
+              ]
+             }
+            }
+           }
+          }
+         },
+         {
+          "richItemRenderer": {
+           "content": {
+            "videoRenderer": {
+             "videoId": "subSoon00001",
+             "thumbnail": {
+              "thumbnails": [
+               {
+                "url": "https://i.ytimg.com/vi/subSoon00001/hqdefault.jpg",
+                "width": 480,
+                "height": 270
+               },
+               {
+                "url": "https://i.ytimg.com/vi/subSoon00001/mqdefault.jpg",
+                "width": 320,
+                "height": 180
+               }
+              ]
+             },
+             "title": {
+              "runs": [
+               {
+                "text": "Premiere tonight"
+               }
+              ]
+             },
+             "ownerText": {
+              "runs": [
+               {
+                "text": "Trail Notes",
+                "navigationEndpoint": {
+                 "browseEndpoint": {
+                  "browseId": "UCtrails0000000000000001"
+                 }
+                }
+               }
+              ]
+             },
+             "longBylineText": {
+              "runs": [
+               {
+                "text": "Trail Notes",
+                "navigationEndpoint": {
+                 "browseEndpoint": {
+                  "browseId": "UCtrails0000000000000001"
+                 }
+                }
+               }
+              ]
+             },
+             "channelThumbnailSupportedRenderers": {
+              "channelThumbnailWithLinkRenderer": {
+               "thumbnail": {
+                "thumbnails": [
+                 {
+                  "url": "https://yt3.ggpht.com/avatar-UCtrails0000000000000001=s68",
+                  "width": 68,
+                  "height": 68
+                 }
+                ]
+               }
+              }
+             },
+             "upcomingEventData": {
+              "startTime": "1790000000"
+             }
+            }
+           }
+          }
+         },
+         {
+          "richItemRenderer": {
+           "content": {
+            "adSlotRenderer": {
+             "enablePacfLoggingWeb": true
+            }
+           }
+          }
+         },
+         {
+          "richSectionRenderer": {
+           "content": {
+            "richShelfRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Shorts"
+               }
+              ]
+             },
+             "contents": [
+              {
+               "richItemRenderer": {
+                "content": {
+                 "reelItemRenderer": {
+                  "videoId": "subShort0001",
+                  "headline": {
+                   "simpleText": "Ten second knife skills"
+                  },
+                  "thumbnail": {
+                   "thumbnails": [
+                    {
+                     "url": "https://i.ytimg.com/vi/subShort0001/hqdefault.jpg",
+                     "width": 480,
+                     "height": 270
+                    },
+                    {
+                     "url": "https://i.ytimg.com/vi/subShort0001/mqdefault.jpg",
+                     "width": 320,
+                     "height": 180
+                    }
+                   ]
+                  },
+                  "viewCountText": {
+                   "simpleText": "84K views"
+                  },
+                  "navigationEndpoint": {
+                   "reelWatchEndpoint": {
+                    "videoId": "subShort0001"
+                   }
+                  }
+                 }
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         },
+         {
+          "continuationItemRenderer": {
+           "continuationEndpoint": {
+            "continuationCommand": {
+             "token": "SUBS_TOKEN_1"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

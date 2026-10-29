@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import com.cosmotune.design.AppMode
 import com.cosmotune.video.player.VideoPlayback
+import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.settings.VideoSettingsRepository
 import com.cosmotune.video.source.VideoSource
 import com.cosmotune.video.ui.VideoHostLinks
@@ -75,6 +76,18 @@ internal fun CoroutineScope.followRegion(settings: VideoSettingsRepository, sour
             .map { regionOf(it.region, deviceCountry) to regionOf(it.contentLanguage, deviceLanguage) }
             .distinctUntilChanged()
             .collect { (country, language) -> source.setRegion(country, language) }
+    }
+
+/**
+ * Hands the engine the frame-smoothing settings now and at every change (the desktop smooths the picture; the phone's engine
+ * reads the display-rate switch). Both are the engine's own business: the settings are only passed on.
+ */
+internal fun CoroutineScope.followSmoothness(settings: VideoSettingsRepository, engine: VideoPlayerEngine): Job =
+    launch {
+        settings.settings
+            .map { it.smoothness }
+            .distinctUntilChanged()
+            .collect { engine.setSmoothness(it) }
     }
 
 /** [chosen] when it is set, else [device]. */

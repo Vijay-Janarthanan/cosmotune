@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -26,6 +29,8 @@ import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.theme.LocalCosmoColors
+import com.cosmotune.video.account.AccountState
+import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.nav.VideoRoute
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_channels
@@ -37,6 +42,8 @@ import com.cosmotune.video.resources.video_drawer_settings
 import com.cosmotune.video.resources.video_history
 import com.cosmotune.video.resources.video_import
 import com.cosmotune.video.resources.video_liked
+import com.cosmotune.video.resources.video_local_open
+import com.cosmotune.video.resources.video_local_title
 import com.cosmotune.video.resources.video_profile_name
 import com.cosmotune.video.resources.video_profile_subtitle
 import com.cosmotune.video.resources.video_saved_playlists
@@ -46,6 +53,7 @@ import com.cosmotune.video.resources.video_tab_library
 import com.cosmotune.video.resources.video_tab_subscriptions
 import com.cosmotune.video.resources.video_watch_later
 import com.cosmotune.video.ui.VideoIcons
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -53,6 +61,8 @@ import org.jetbrains.compose.resources.stringResource
  * pushed page ([onBack]); the page's name fading in once the page has [scrolled]; at the end Search (a 40 dp glass button, not
  * on the Search page itself) and the profile button, whose drawer lists [drawerEntries]. A top fade under it ([VideoTopFade]) is
  * the backdrop the glass buttons float on. [height] is the bar with the status bar in it, as [CosmoTopBar] takes it.
+ *
+ * [onOpenFile], when given, adds a glass button before Search that opens the picker for a video file on the device (the local player).
  *
  * [scrolled] is a lambda read here, so a page's scroll recomposes this bar when the answer changes and nothing above it.
  */
@@ -65,11 +75,18 @@ internal fun VideoTopBar(
     onSearch: () -> Unit,
     drawerEntries: List<CosmoDrawerEntry>,
     modifier: Modifier = Modifier,
+    onOpenFile: (() -> Unit)? = null,
 ) {
     val title = routeTitle(route)
     val search = stringResource(Res.string.video_search)
-    val profileName = stringResource(Res.string.video_profile_name)
-    val profileSubtitle = stringResource(Res.string.video_profile_subtitle)
+    val openFile = stringResource(Res.string.video_local_open)
+    val account = LocalVideoGraph.current.account
+    val signedIn = account.state.collectAsState().value as? AccountState.SignedIn
+    val profileName = signedIn?.displayName ?: stringResource(Res.string.video_profile_name)
+    val profileSubtitle = signedIn?.handle ?: stringResource(Res.string.video_profile_subtitle)
+    val avatarUrl = signedIn?.avatarUrl
+    val scope = rememberCoroutineScope()
+    var accountSheet by remember { mutableStateOf(false) }
     Box(modifier.fillMaxWidth()) {
         VideoTopFade(height)
         CosmoTopBar(
@@ -78,6 +95,15 @@ internal fun VideoTopBar(
             height = height,
             onBack = onBack,
             actions = {
+                if (onOpenFile != null && route !is VideoRoute.Search) {
+                    CosmoIconButton(
+                        icon = CosmoIcons.Video,
+                        contentDescription = openFile,
+                        onClick = onOpenFile,
+                        style = CosmoIconButtonStyle.GLASS,
+                        size = 40.dp,
+                    )
+                }
                 if (route !is VideoRoute.Search) {
                     CosmoIconButton(
                         icon = CosmoIcons.Search,
@@ -88,13 +114,22 @@ internal fun VideoTopBar(
                     )
                 }
                 CosmoProfileButton(
-                    avatarUrl = null,
+                    avatarUrl = avatarUrl,
                     name = profileName,
                     subtitle = profileSubtitle,
                     entries = drawerEntries,
-                    onAccount = {},
+                    onAccount = { accountSheet = true },
                 )
             },
+        )
+    }
+    if (accountSheet) {
+        AccountSheet(
+            state = account.state.value,
+            onSignIn = { scope.launch { account.signInRequest() } },
+            onSwitch = { id -> scope.launch { account.switchAccount(id) } },
+            onSignOut = { scope.launch { account.signOut() } },
+            onDismiss = { accountSheet = false },
         )
     }
 }
@@ -143,7 +178,8 @@ internal fun routeTitle(route: VideoRoute): String = when (route) {
     VideoRoute.Downloads -> stringResource(Res.string.video_downloads)
     VideoRoute.Settings -> stringResource(Res.string.video_drawer_settings)
     VideoRoute.Import -> stringResource(Res.string.video_import)
-    is VideoRoute.Watch, is VideoRoute.Shorts, is VideoRoute.Channel, is VideoRoute.Playlist, is VideoRoute.LocalPlaylist -> ""
+    VideoRoute.LocalFiles -> stringResource(Res.string.video_local_title)
+    is VideoRoute.LocalPlayer, is VideoRoute.Watch, is VideoRoute.Shorts, is VideoRoute.Channel, is VideoRoute.Playlist, is VideoRoute.LocalPlaylist -> ""
 }
 
 /**

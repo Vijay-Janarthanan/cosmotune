@@ -46,7 +46,13 @@ class PlayerKeyMapTest {
         assertEquals(PlayerKeyAction.Next, key("N", shift = true))
         assertEquals(PlayerKeyAction.Previous, key("P", shift = true))
         assertNull(key("N"))
-        assertNull(key("P"))
+    }
+
+    @Test
+    fun pOpensThePictureInPictureWindowAndShiftPIsPrevious() {
+        assertEquals(PlayerKeyAction.PictureInPicture, key("P"))
+        assertEquals(PlayerKeyAction.PictureInPicture, key("p"))
+        assertNull(key("P", ctrl = true))
     }
 
     @Test

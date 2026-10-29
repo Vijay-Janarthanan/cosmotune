@@ -26,7 +26,9 @@ class VideoHostLinks(
 
 /**
  * A video to open on arrival: a shared link (no start) or Music's "Watch the music video" (the song's moment, spec section 9).
- * [startMs] is null when the video starts from where it was left or from the beginning.
+ * [startMs] is null when the video starts from where it was left or from the beginning. A file on the device that another app handed
+ * over ("Open with") has [localSource] (its path or `content://` address, [videoId] is then empty) and its [localName]; it opens in the
+ * local player.
  */
 @Immutable
-data class PendingVideo(val videoId: String, val startMs: Long?)
+data class PendingVideo(val videoId: String, val startMs: Long?, val localSource: String? = null, val localName: String? = null)

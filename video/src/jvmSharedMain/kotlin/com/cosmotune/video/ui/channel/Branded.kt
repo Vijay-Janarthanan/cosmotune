@@ -9,6 +9,7 @@ import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.ui.blocks.VideoCard
 import com.cosmotune.video.ui.blocks.VideoCardBody
 import com.cosmotune.video.ui.blocks.VideoRow
+import com.cosmotune.video.ui.branding.rememberChannelAvatar
 import com.cosmotune.video.ui.branding.rememberVideoThumbnail
 import com.cosmotune.video.ui.branding.rememberVideoTitle
 
@@ -26,7 +27,10 @@ internal class Branded(val item: VideoItem, val title: String)
 internal fun rememberBranded(item: VideoItem): Branded {
     val title = rememberVideoTitle(item)
     val picture = rememberVideoThumbnail(item)
-    return remember(item, title, picture) { Branded(if (picture == item.thumbnailUrl) item else item.copy(thumbnailUrl = picture), title) }
+    val avatar = rememberChannelAvatar(item)
+    return remember(item, title, picture, avatar) {
+        Branded(if (picture == item.thumbnailUrl && avatar == item.channelAvatarUrl) item else item.copy(thumbnailUrl = picture, channelAvatarUrl = avatar), title)
+    }
 }
 
 /** The phone's feed card with its margin and the room after it. */

@@ -254,14 +254,14 @@ class ChannelPlaylistStructureTest {
 
     @Test fun theActionsAreSubscribeShareAndDownloadTheLatest() {
         val header = code("channel/ChannelHeader")
-        assertTrue("kind = if (subscribed) CosmoButtonKind.TONAL else CosmoButtonKind.PRIMARY" in header && "size = CosmoButtonSize.SMALL" in header)
+        assertTrue("SubscribePill(subscribed = subscribed, onClick = onSubscribe," in header, "Subscribe is the pill of the video apps")
         assertTrue(Regex("""icon = CosmoIcons\.Share,.*?style = CosmoIconButtonStyle\.TONAL,\s+size = 40\.dp""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(header), "Share is a 40 dp tonal icon button")
         assertTrue("padding(start = margin, end = margin, top = 12.dp, bottom = 4.dp)" in header, "padding 12 16 4")
         assertTrue("Res.string.video_dl_latest" in header, "Download the latest")
         val page = code("channel/ChannelPage")
         assertTrue("DownloadBatchInfo(channel.id, BatchKind.CHANNEL_LATEST, channel.name)" in page && "latestPicker = true" in page)
         assertTrue("const val DOWNLOAD_LATEST_MAX = 50" in page && "model.uploads(ChannelSections.uploadsTab(section), DOWNLOAD_LATEST_MAX)" in page, "the tab is read until 50 uploads are in")
-        assertTrue("graph.library.subscribe(channel)" in page && "graph.library.unsubscribe(channel.id)" in page)
+        assertTrue("subscribeToggle(channel, subscribed)" in page && "rememberSubscribeToggle()" in page, "the toggle subscribes in the library, and on the account while signed in")
     }
 
     @Test fun theChipsAreTheChannelsTabsAndShortsLeaveWithHideShorts() {

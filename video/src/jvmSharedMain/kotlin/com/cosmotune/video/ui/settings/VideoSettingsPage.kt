@@ -155,6 +155,9 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
     val settings by graph.settings.settings.collectAsState()
     val historyPaused by graph.library.historyPaused.collectAsState()
     val platform = rememberSettingsPlatform()
+    val engine = graph.playback.engine
+    val canSmooth = remember(engine) { engine.capabilities.frameSmoothing }
+    val smoothReadout by engine.smoothness.collectAsState()
     val pip = rememberPictureInPicture()
     val update: SettingsUpdate = remember(graph) { { transform -> graph.settings.update(transform) } }
     val locale = remember { Locale.getDefault() }
@@ -173,6 +176,7 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
         ) {
             CosmoPageHeader(title = stringResource(Res.string.video_drawer_settings), large = wide)
             PlaybackSettings(settings, update, pip.supported) { choice = it }
+            SmoothnessSettingsGroup(settings.smoothness, update, canSmooth, smoothReadout)
             CaptionSettings(settings, update, locale) { choice = it }
             SponsorBlockSettings(settings, update) { category = it }
             TitleSettings(settings, update) { choice = it }

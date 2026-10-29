@@ -179,7 +179,7 @@ class VideoModuleStructureTest {
         )
         val at = declared.map { src.indexOf(it) }
         assertTrue(at.all { it >= 0 } && at == at.sorted(), "the five links, in order: $at")
-        assertTrue("@Stable class VideoHostLinks(" in src && "@Immutable data class PendingVideo(val videoId: String, val startMs: Long?)" in src)
+        assertTrue("@Stable class VideoHostLinks(" in src && "@Immutable data class PendingVideo(val videoId: String, val startMs: Long?, val localSource: String? = null, val localName: String? = null)" in src)
     }
 
     @Test fun theDesktopEntryPointsHaveTheSignaturesOfThePlan() {
@@ -195,7 +195,9 @@ class VideoModuleStructureTest {
 
     @Test fun theSurfaceAndPictureInPictureSeamsAreDeclaredWithAnActualOnEachTarget() {
         val surface = VideoSourceContract.code(read("$player/VideoSurfaceProvider.kt")).replace(Regex("\\s+"), " ")
-        assertTrue("interface VideoSurfaceProvider { @Composable fun Surface(modifier: Modifier, scale: VideoScale) }" in surface)
+        assertTrue("interface VideoSurfaceProvider { @Composable fun Surface(modifier: Modifier, scale: VideoScale)" in surface)
+        // the local player's aspect choices: an overload an engine can override, and fit or fill for one that cannot
+        assertTrue("@Composable fun Surface(modifier: Modifier, aspect: VideoAspect) = Surface(modifier, aspect.baseScale())" in surface)
         assertTrue("enum class VideoScale { FIT, FILL }" in surface)
         val pip = VideoSourceContract.code(read("$player/Pip.kt")).replace(Regex("\\s+"), " ")
         assertTrue("@Composable expect fun rememberPictureInPicture(): PictureInPictureState" in pip)
@@ -204,7 +206,12 @@ class VideoModuleStructureTest {
         for (actual in listOf("video/src/androidMain/kotlin/com/cosmotune/video/player/Pip.android.kt", "video/src/jvmMain/kotlin/com/cosmotune/video/player/Pip.jvm.kt")) {
             val text = VideoSourceContract.code(read(actual)).replace(Regex("\\s+"), " ")
             assertTrue("actual fun rememberPictureInPicture(): PictureInPictureState" in text, "$actual has the actual")
-            assertTrue("override val supported: Boolean get() = false" in text && "override val active: Boolean get() = false" in text, "$actual reports not supported")
         }
+        // the phone has none unless the activity can; the desktop's is the always-on-top window (DesktopPip), opened by `enter`
+        val phone = VideoSourceContract.code(read("video/src/androidMain/kotlin/com/cosmotune/video/player/Pip.android.kt")).replace(Regex("\\s+"), " ")
+        assertTrue("override val supported: Boolean get() = false" in phone && "override val active: Boolean get() = false" in phone, "no activity: not supported")
+        val desktop = VideoSourceContract.code(read("video/src/jvmMain/kotlin/com/cosmotune/video/player/Pip.jvm.kt")).replace(Regex("\\s+"), " ")
+        assertTrue("override val active: Boolean get() = DesktopPip.isOpen" in desktop && "override val manual: Boolean get() = true" in desktop)
+        assertTrue("override fun enter() = DesktopPip.open(" in desktop && "override fun exit() = DesktopPip.close(returnToApp = false)" in desktop)
     }
 }

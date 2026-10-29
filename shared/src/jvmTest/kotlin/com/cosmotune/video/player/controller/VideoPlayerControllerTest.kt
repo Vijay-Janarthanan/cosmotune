@@ -2,6 +2,7 @@ package com.cosmotune.video.player.controller
 
 import com.cosmotune.video.library.FakeVideoLibrary
 import com.cosmotune.video.library.VideoLibrary
+import com.cosmotune.video.local.LocalVideo
 import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.StreamSet
 import com.cosmotune.video.model.VideoItem
@@ -1408,6 +1409,45 @@ class VideoPlayerControllerTest {
         runCurrent()
         assertEquals(VideoUiError.STOPPED, again.state.error)
         assertTrue(again.source.calls.isEmpty())
+    }
+
+    // ---------------------------------------------------------------- 9b. files on the device
+
+    private fun localItem(path: String = "/v/a.mp4") = item("fakevideo01").copy(id = LocalVideo.idFor(path))
+
+    @Test
+    fun aFileOnTheDeviceIsNotWrittenToTheWatchHistory() = runTest {
+        val r = rig()
+        r.controller.playLocal(localItem(), MediaInput.LocalFiles("/v/a.mp4", null, null), startMs = 0)
+        runCurrent()
+        playFor(r, 12_000)
+        r.controller.stop()
+        runCurrent()
+        assertTrue(r.library.records.isEmpty(), "the local player keeps its own positions")
+        assertTrue(r.source.calls.isEmpty())
+    }
+
+    @Test
+    fun theSourcesQueueDoesNotFollowAFileOnTheDevice() = runTest {
+        val r = rig()
+        r.engine.durationOnLoadMs = 10_000
+        val local = localItem()
+        r.controller.addToQueue(item("fakevideo05"))
+        r.controller.playLocal(local, MediaInput.LocalFiles("/v/a.mp4", null, null), startMs = 0)
+        runCurrent()
+
+        r.controller.playNext()
+        runCurrent()
+        assertEquals(local.id, r.state.item?.id, "Next is the local player's, not the source's")
+        r.controller.playPrevious()
+        runCurrent()
+        assertEquals(local.id, r.state.item?.id)
+
+        playFor(r, 10_000)
+        runCurrent()
+        assertEquals(PlayerStatus.ENDED, r.state.status, "the end does not play the source's next video")
+        assertEquals(local.id, r.state.item?.id)
+        assertTrue(r.source.calls.isEmpty())
     }
 
     // ---------------------------------------------------------------- 10. Shorts

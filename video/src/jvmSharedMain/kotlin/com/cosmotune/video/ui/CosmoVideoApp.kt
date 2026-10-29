@@ -30,6 +30,7 @@ import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.graph.VideoGraph
 import com.cosmotune.video.graph.rememberVideoGraph
 import com.cosmotune.video.nav.VideoRoute
+import com.cosmotune.video.ui.blocks.videoGround
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.TopBarScroll
 import com.cosmotune.video.ui.shell.VideoAccent
@@ -87,7 +88,8 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
     com.cosmotune.video.ui.shell.VideoBackgroundLifecycle(graph.playback, onWatch = route is VideoRoute.Watch)   // Y-34: leaving from any page
 
     val fullScreen = route is VideoRoute.Shorts
-    val onWatch = route is VideoRoute.Watch
+    // The local player stands like the watch page: the picture under the status bar, no top bar, room for the chrome below.
+    val onWatch = route is VideoRoute.Watch || route is VideoRoute.LocalPlayer
     val density = LocalDensity.current
     val navigationInsetDp = with(density) { WindowInsets.navigationBars.getBottom(density).toDp().value }
     val topBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + TOP_BAR_CONTENT
@@ -101,13 +103,15 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
         else -> PaddingValues(top = topBarHeight + PAGE_GAP, bottom = chromeHeight + PAGE_GAP)
     }
 
+    val opener = com.cosmotune.video.ui.local.rememberLocalVideoOpener()
+    val picker = com.cosmotune.video.ui.local.rememberVideoFilePicker(onVideos = { opener.open(it) }, onSubtitle = {})
     val hazeState = remember { HazeState() }
     val tracker = remember { TopBarScroll() }
     val scrolledAt = with(density) { SCROLLED_AT.toPx() }
     val scrolled = remember(tracker, scrolledAt) { derivedStateOf { tracker.offset > scrolledAt } }
     SideEffect { tracker.show(navigator.topPageKey()) }
 
-    Box(modifier.fillMaxSize().cosmoAmbientGround()) {
+    Box(modifier.fillMaxSize().cosmoAmbientGround().videoGround()) {
         Box(Modifier.fillMaxSize().hazeSource(hazeState).nestedScroll(tracker.connection)) {
             VideoNavHost(navigator, contentPadding, wide = windowWidth.value >= VideoMetrics.WIDE_MIN_DP)
         }
@@ -120,6 +124,7 @@ private fun VideoPhoneShell(windowWidth: Dp, host: VideoHostLinks, modifier: Mod
                 onSearch = { navigator.push(VideoRoute.Search()) },
                 drawerEntries = videoDrawerEntries(navigator),
                 modifier = Modifier.align(Alignment.TopCenter),
+                onOpenFile = { picker.openVideos() },
             )
         }
         if (!fullScreen) {
@@ -148,9 +153,16 @@ private fun VideoPipLayer(graph: VideoGraph) {
  */
 @Composable
 internal fun OpenPendingVideo(host: VideoHostLinks, navigator: VideoNavigator) {
-    LaunchedEffect(host, navigator) {
+    val opener = com.cosmotune.video.ui.local.rememberLocalVideoOpener()
+    LaunchedEffect(host, navigator, opener) {
         snapshotFlow { host.pendingVideo() }.filterNotNull().collect { pending ->
-            navigator.push(VideoRoute.Watch(pending.videoId, pending.startMs))
+            val local = pending.localSource
+            if (local != null) {
+                // A file another app handed over: the local player plays it.
+                opener.open(listOf(com.cosmotune.video.ui.local.PickedVideo(local, pending.localName ?: com.cosmotune.video.local.LocalVideo.fileName(local))))
+            } else {
+                navigator.push(VideoRoute.Watch(pending.videoId, pending.startMs))
+            }
             host.onPendingHandled()
         }
     }

@@ -257,7 +257,7 @@ class WiringStructureTest {
         val phone = VideoSourceContract.code(read("app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt"))
         assertTrue("mode == AppMode.MANGA) holder.SaveableStateProvider(\"manga\") {" in phone && "else if (videoShell == null)" in phone)
         val phoneManga = phone.substringAfter("mode == AppMode.MANGA) holder.SaveableStateProvider(\"manga\") {").substringBefore("else if (videoShell == null)")
-        assertTrue("MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) })" in phoneManga)
+        assertTrue("MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true)" in phoneManga)
         assertTrue("if (request.value != null) shell.settings.setMode(AppMode.MUSIC)" in phoneManga, "a music link opened while reading returns to Music")
         val desktop = VideoSourceContract.code(read("desktopApp/src/main/kotlin/com/cosmotune/video/host/DesktopModeHost.kt"))
         assertTrue("fun desktopMangaShown()" in desktop && "fun DesktopVideoPage(" in desktop)

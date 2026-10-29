@@ -58,6 +58,17 @@ class VideoSettingsTest {
     }
 
     @Test
+    fun smoothnessIsOffByDefaultSoFramesAreShownAsTheyCome() {
+        val smooth = s.smoothness
+        assertEquals(SmoothMode.OFF, smooth.mode)
+        assertEquals(0, smooth.targetFps)                  // the display's own rate
+        assertEquals(SmoothnessSettings.DEFAULT_STRENGTH, smooth.strength)
+        assertTrue(smooth.onlyBelow30)
+        assertEquals(SmoothPreset.AUTO, smooth.preset)
+        assertEquals(listOf(0, 48, 60, 90, 120), SmoothnessSettings.TARGET_CHOICES)
+    }
+
+    @Test
     fun downloadDefaults() {
         assertEquals(DownloadPrefs(), s.downloads)
         assertTrue(s.downloads.askBeforeEach)

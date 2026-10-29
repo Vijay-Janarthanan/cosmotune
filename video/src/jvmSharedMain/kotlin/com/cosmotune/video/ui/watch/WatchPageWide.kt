@@ -45,6 +45,7 @@ import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.player.PlayerKeyMap
+import com.cosmotune.video.player.rememberPictureInPicture
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoSurfaceProvider
 import com.cosmotune.video.resources.Res
@@ -98,7 +99,7 @@ internal fun wideSegments(hasChapters: Boolean, comments: Boolean): List<WideSeg
 /**
  * What a key does on the wide page (spec 6.6): the action of `PlayerKeyMap` for [name] (as `playerKeyName` names it), carried out on
  * [playback]; F opens the full window ([onFullWindow]), T toggles theatre mode ([onTheatre]); Escape is not the page's (no full
- * window here). True when the key was used.
+ * window here), and P opens picture-in-picture ([onPictureInPicture], null where there is none). True when the key was used.
  */
 internal fun onWatchPageKey(
     name: String,
@@ -109,6 +110,7 @@ internal fun onWatchPageKey(
     platform: PlayerPlatformControls?,
     onFullWindow: () -> Unit,
     onTheatre: () -> Unit,
+    onPictureInPicture: (() -> Unit)? = null,
 ): Boolean {
     val action = PlayerKeyMap.action(name, shift, ctrlOrCmd) ?: return false
     return performPlayerKey(
@@ -120,6 +122,7 @@ internal fun onWatchPageKey(
         onFullWindow = onFullWindow,
         onTheatre = onTheatre,
         onExitFullWindow = null,
+        onPictureInPicture = onPictureInPicture,
     )
 }
 
@@ -166,6 +169,10 @@ internal fun WatchPageWide(
     val openFullWindow = { WatchSession.fullWindow = true }
     val toggleTheatre = { WatchSession.theatre = !WatchSession.theatre }
     val title = view.title.takeIf { it.isNotEmpty() }
+    // The desktop's picture-in-picture window (and the system's, on a tablet): its button and key, and the placeholder meanwhile.
+    val pip = rememberPictureInPicture()
+    val enterPip = rememberPipEntry(pip)
+    val pipOpen = pip.manual && pip.active
 
     Box(
         Modifier
@@ -184,17 +191,18 @@ internal fun WatchPageWide(
                     platform = platform,
                     onFullWindow = openFullWindow,
                     onTheatre = toggleTheatre,
+                    onPictureInPicture = enterPip,
                 )
             },
     ) {
         Column(Modifier.fillMaxSize().padding(start = margin, end = margin, top = top)) {
             if (theatre) {
-                WidePlayer(playback, surface, fullWindow, title, openFullWindow, onBounds, Modifier.fillMaxWidth().height(playerHeight))
+                WidePlayer(playback, surface, fullWindow, title, openFullWindow, onBounds, Modifier.fillMaxWidth().height(playerHeight), enterPip, pipOpen) { pip.exit() }
                 Spacer(Modifier.height(gap))
             }
             Row(Modifier.fillMaxWidth().weight(1f)) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    if (!theatre) WidePlayer(playback, surface, fullWindow, title, openFullWindow, onBounds, Modifier.fillMaxWidth().height(playerHeight))
+                    if (!theatre) WidePlayer(playback, surface, fullWindow, title, openFullWindow, onBounds, Modifier.fillMaxWidth().height(playerHeight), enterPip, pipOpen) { pip.exit() }
                     LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = bottom)) {
                         val info = view.info
                         if (info == null) {
@@ -229,7 +237,9 @@ internal fun WatchPageWide(
 
 /**
  * The wide player: `VideoPlayerBox(layout = WINDOW)` cut to radius 22 on black; its full-window button and a double click open the
- * full window ([onFullWindow]). While the full window shows, the page keeps the black box in its place (one player, one picture).
+ * full window ([onFullWindow]), its picture-in-picture button ([onEnterPip]) and the P key open the picture-in-picture window. While the
+ * full window shows, the page keeps the black box in its place (one player, one picture); while the picture-in-picture window holds
+ * the picture ([pipOpen]) the box says so, with a Return button ([onReturnFromPip]).
  */
 @Composable
 private fun WidePlayer(
@@ -240,16 +250,22 @@ private fun WidePlayer(
     onFullWindow: () -> Unit,
     onBounds: (Rect) -> Unit,
     modifier: Modifier,
+    onEnterPip: (() -> Unit)?,
+    pipOpen: Boolean,
+    onReturnFromPip: () -> Unit,
 ) {
     // The black of the player around its picture (the documented exception).
     Box(modifier.clip(PLAYER_SHAPE).background(Color.Black)) {
-        if (!fullWindow) {
+        if (pipOpen) {
+            PipPlaceholder(onReturn = onReturnFromPip)
+        } else if (!fullWindow) {
             VideoPlayerBox(
                 playback = playback,
                 surface = surface,
                 layout = PlayerLayout.WINDOW,
                 modifier = Modifier.fillMaxSize(),
                 onToggleFullscreen = onFullWindow,
+                onEnterPip = onEnterPip,
                 onBoundsChanged = onBounds,
                 title = title,
             )

@@ -211,7 +211,11 @@ Video's own wiring. Our own files that know about the stored mode and the drawer
    `CosmoDesktopSidebar.kt` and `CosmoDesktopSidePanel.kt` each test `com.cosmotune.video.host.desktopVideoShown()` (or call
    `VideoDesktopBack`, `videoDesktopDrawerEntries()` and `VideoDesktopSidebar`): keep the Music branch. Two pins in
    `sharedUi/src/jvmTest` quote those lines: `DesktopChromeStructureTest.kt` and `DesktopShellContractTest.kt`. `LegalTextsTest` goes
-   with `video/`.
+   with `video/`. The account bridges hand Music's Google sign-in to Video's account and import only `com.cosmotune.video.account`
+   (the account logic of `:shared`): `app/src/main/java/com/cosmotune/music/auth/AndroidAccountHost.kt` (the phone's host),
+   `app/src/main/java/com/cosmotune/music/ui/MainViewModel.kt` (registers it with `AccountHostRegistry`) and
+   `desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopVideoAccountHost.kt` (the desktop's host). Delete the first and the
+   third with the Video code and take the registration out of `MainViewModel.kt`; `ModeHooksContractTest` lists the three.
 5. **Find what is left**: `grep -rl "com.cosmotune.video" --include=*.kt --include=*.kts --include=*.xml .` must print nothing, then run
    `./gradlew :shared:jvmTest :sharedUi:jvmTest :desktopApp:compileKotlin :app:assembleDevDebug` and the guard. `LegalTextsTest` fails
    when a file outside the Video folders mentions the package and this section does not name it: add the name here when you add a hook.

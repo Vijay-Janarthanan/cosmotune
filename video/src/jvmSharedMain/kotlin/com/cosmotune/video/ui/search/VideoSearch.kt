@@ -46,6 +46,7 @@ import com.cosmotune.video.ui.actions.rememberDownloadedIds
 import com.cosmotune.video.ui.actions.rememberVideoActions
 import com.cosmotune.video.ui.blocks.VideoActionsSheet
 import com.cosmotune.video.ui.blocks.VideoChips
+import com.cosmotune.video.ui.blocks.rememberSubscribeToggle
 import com.cosmotune.video.ui.blocks.VideoSheetContext
 import com.cosmotune.video.ui.desktop.DesktopVideoState
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
@@ -110,6 +111,7 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
     val downloaded by rememberDownloadedIds()
     val recentSearches = remember(recents) { recents.distinct() }
     val subscribed = remember(subscriptions) { subscriptions.mapTo(HashSet()) { it.channelId } }
+    val subscribeToggle = rememberSubscribeToggle()
 
     // What is typed: in the page's own field, or in the desktop sidebar's (which the route's query drives).
     val sidebar = sidebarSearchShown()
@@ -173,9 +175,7 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
         },
         onMore = { item -> sheet = item },
         onChannel = { channel -> navigator.push(VideoRoute.Channel(channel.id)) },
-        onSubscribe = { channel ->
-            if (channel.id in subscribed) library.unsubscribe(channel.id) else library.subscribe(channel)
-        },
+        onSubscribe = { channel -> subscribeToggle(channel, channel.id in subscribed) },
         onPlaylist = { playlist -> navigator.push(VideoRoute.Playlist(playlist.id)) },
     )
 

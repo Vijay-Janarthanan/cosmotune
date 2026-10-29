@@ -247,24 +247,28 @@ class HomePlannerTest {
         assertEquals(listOf("v1", "v2"), ids(HomePlanner.subscriptionsShelf(feed)))
     }
 
-    // ---- the order of the shelves -----------------------------------------------------------------------------------------
+    // ---- the one feed -----------------------------------------------------------------------------------------------------
 
-    private fun order(c: Boolean, s: Boolean, f: Boolean, sh: Boolean) = HomePlanner.shelfOrder(c, s, f, sh)
-
-    @Test fun theShortsShelfStandsAfterTheFirstShelf() {
-        val k = HomeShelfKind.entries
-        assertEquals(listOf(HomeShelfKind.CONTINUE, HomeShelfKind.SHORTS, HomeShelfKind.SUBSCRIPTIONS, HomeShelfKind.FOR_YOU), order(true, true, true, true))
-        assertEquals(listOf(HomeShelfKind.SUBSCRIPTIONS, HomeShelfKind.SHORTS, HomeShelfKind.FOR_YOU), order(false, true, true, true))
-        assertEquals(listOf(HomeShelfKind.FOR_YOU, HomeShelfKind.SHORTS), order(false, false, true, true))
-        assertEquals(4, k.size, "four kinds of shelf")
+    @Test fun theAccountsHomeIsTheFeedWhenItHasVideosAndLosesItsShorts() {
+        val home = listOf(video("a"), short("s"), video("b"), video("a"))
+        assertEquals(listOf("a", "b"), ids(HomePlanner.stream(home, listOf(video("x")), listOf(video("y")), listOf(video("z")))))
     }
 
-    @Test fun withNoOtherShelfTheShortsShelfIsFirst() {
-        assertEquals(listOf(HomeShelfKind.SHORTS), order(false, false, false, true))
+    @Test fun withoutAnAccountTheSubscriptionsTheRelatedVideosAndTheKioskTakeTurns() {
+        val out = HomePlanner.stream(
+            emptyList(),
+            subscriptions = listOf(video("s1"), video("s2")),
+            forYou = listOf(video("f1"), short("fs"), video("f2")),
+            kiosk = listOf(video("k1"), video("s1"), video("k2"), video("k3")),
+        )
+        assertEquals(listOf("s1", "f1", "k1", "s2", "f2", "k2", "k3"), ids(out))
     }
 
-    @Test fun shelvesWithNothingInThemAreLeftOut() {
-        assertEquals(listOf(HomeShelfKind.CONTINUE, HomeShelfKind.FOR_YOU), order(true, false, true, false))
-        assertTrue(order(false, false, false, false).isEmpty(), "a first launch shows only the kiosk")
+    @Test fun anEmptyFeedHasNothing() {
+        assertTrue(HomePlanner.stream(emptyList(), emptyList(), emptyList(), emptyList()).isEmpty())
+    }
+
+    @Test fun theShortsShelfStandsAfterTheFourthVideo() {
+        assertEquals(4, HomePlanner.SHORTS_AFTER)
     }
 }

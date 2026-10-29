@@ -99,11 +99,12 @@ class SearchStructureTest {
 
     @Test fun theSidebarsEnterRecordsTheSearchAndPushesTheSearchPage() {
         val sidebar = VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/desktop/VideoDesktopSidebarContent.kt")
+        val header = VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/desktop/VideoDesktopHeader.kt")
         val body = VideoSourceContract.functionBody(sidebar, "submitSidebarSearch").replace(Regex("\\s+"), " ")
         assertTrue("val q = query.trim()" in body)
         assertTrue("if (q.isNotEmpty()) DesktopVideoState.graph?.library?.addSearch(q)" in body, "the recent searches")
         assertTrue("navigator.push(VideoRoute.Search(q))" in body, "the search page")
-        assertTrue("onSubmit = { submitSidebarSearch(navigator, DesktopVideoState.query) }" in sidebar, "the field's Enter calls it")
+        assertTrue("onSubmit = { submitSidebarSearch(navigator, DesktopVideoState.query) }" in header, "the header's field: Enter calls it")
     }
 
     // ---- Spec 5.3: what the page is made of -----------------------------------------------------------------------------
@@ -172,7 +173,7 @@ class SearchStructureTest {
         assertTrue("rememberVideoTitle(" in results && "rememberVideoThumbnail(" in results, "DeArrow only through Y-16's helpers")
         val page = code("VideoSearch")
         assertTrue("rememberVideoActions()" in page && "VideoActionsSheet(" in page && "rememberDownloadedIds()" in page)
-        assertTrue("library.subscribe(" in everything && "library.unsubscribe(" in everything, "a channel row subscribes through the library")
+        assertTrue("subscribeToggle(channel, channel.id in subscribed)" in everything && "rememberSubscribeToggle()" in everything, "a channel row subscribes through the toggle: the library, and the account while signed in")
         assertTrue("VideoRoute.Channel(" in everything && "VideoRoute.Playlist(" in everything, "a channel and a playlist open their pages")
         assertTrue("VideoSheetContext.DEFAULT" in page)
     }

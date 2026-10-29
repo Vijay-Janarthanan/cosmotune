@@ -111,17 +111,17 @@ class LibraryStructureTest {
         assertTrue("CosmoPageHeader(title = title, modifier = modifier, large = wide, actions = actions)" in code("LibraryParts"), "the heading is part two's page heading")
         assertTrue(Regex("""CosmoIconButton\(\s*CosmoIcons\.Plus,[\s\S]*?style = CosmoIconButtonStyle\.TONAL,\s*size = 40\.dp""").containsMatchIn(src), "the 40 dp tonal plus")
         assertTrue("NewPlaylistDialog(" in src && "createPlaylist(" in src, "the plus makes a playlist")
-        assertTrue("LibraryPlan.continueWatching(" in src && "Res.string.video_shelf_continue" in src)
+        assertTrue("LibraryPlan.fractions(" in src && "VideoRoute.History" in src, "the You tab's History shelf has the watched bars and opens the history")
         val rows = Regex("""LibraryLink\(\s*([\w.]+),\s*Res\.string\.(\w+)""").findAll(src).map { it.groupValues[1] to it.groupValues[2] }.toList()
         assertEquals(
             listOf(
                 "VideoIcons.History" to "video_history", "CosmoIcons.Clock" to "video_watch_later", "CosmoIcons.HeartFill" to "video_liked",
                 "CosmoIcons.Download" to "video_downloads", "VideoIcons.Subscriptions" to "video_channels",
-                "VideoIcons.Bookmark" to "video_saved_playlists", "VideoIcons.Upload" to "video_import_export",
+                "VideoIcons.Bookmark" to "video_saved_playlists", "CosmoIcons.Video" to "video_local_title", "VideoIcons.Upload" to "video_import_export",
             ),
             rows,
         )
-        for (route in listOf("History", "WatchLater", "Liked", "Downloads", "Channels", "SavedPlaylists", "Import")) {
+        for (route in listOf("History", "WatchLater", "Liked", "Downloads", "Channels", "SavedPlaylists", "LocalFiles", "Import")) {
             assertTrue("VideoRoute.$route" in src, "a row pushes $route")
         }
         assertTrue("Res.string.video_your_playlists" in src && "VideoRoute.LocalPlaylist(" in src && "LibraryPlan.coverOf(" in src)

@@ -5,12 +5,10 @@ import com.cosmotune.video.model.ListItem
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.select.ShortsFilter
 
-/** The shelves Home can hold above its kiosk (spec 5.2), in the names of [HomePlanner.shelfOrder]. */
-enum class HomeShelfKind { CONTINUE, SUBSCRIPTIONS, FOR_YOU, SHORTS }
-
 /**
- * What Home's shelves hold and in which order (spec 5.2), decided on plain data: no clock, no source, no screen. The screen reads
- * the library, the feed and the kiosk, hands the lists over, and draws what comes back; a shelf with nothing in it is not drawn.
+ * What Home's shelves hold and how its one feed is mixed (spec 5.2), decided on plain data: no clock, no source, no screen. The
+ * screen reads the library, the feed and the kiosk, hands the lists over, and draws what comes back; a shelf with nothing in it is
+ * not drawn.
  *
  * Every list here is "newest first" where the spec says so, free of repeats (a video is shown once in a shelf), and capped.
  */
@@ -91,6 +89,21 @@ object HomePlanner {
         return interleave(lists, FOR_YOU_MAX)
     }
 
+    /**
+     * The one vertical feed of Home's "All" view: the account's own home when it has videos ([accountHome], signed in; its Shorts are
+     * left to the Shorts shelf), else one video in turn from the newest of the subscriptions ([subscriptions]), the related videos
+     * of what was watched ([forYou]) and the kiosk ([kiosk]), each video once and no Shorts. The kiosk's later pages join at the end.
+     */
+    fun stream(
+        accountHome: List<VideoItem>,
+        subscriptions: List<VideoItem>,
+        forYou: List<VideoItem>,
+        kiosk: List<VideoItem>,
+    ): List<VideoItem> {
+        if (accountHome.isNotEmpty()) return accountHome.filterNot(ShortsFilter::isShort).distinctBy { it.id }
+        return interleave(listOf(subscriptions, forYou, kiosk).map { list -> list.filterNot(ShortsFilter::isShort) }, Int.MAX_VALUE)
+    }
+
     /** One from each list in turn, a video only once, until [max] are taken or the lists run out. */
     private fun interleave(lists: List<List<VideoItem>>, max: Int): List<VideoItem> {
         val out = ArrayList<VideoItem>()
@@ -133,18 +146,8 @@ object HomePlanner {
     fun subscriptionsShelf(feed: List<VideoItem>): List<VideoItem> =
         newestFirst(feed.filterNot(ShortsFilter::isShort)).distinctBy { it.id }.take(SUBSCRIPTIONS_MAX)
 
-    /**
-     * The shelves to draw above the kiosk, top to bottom, from which ones have something to show: Continue watching, From your
-     * subscriptions, Up next for you, and the Shorts shelf after the first of those (first of all when there is no other).
-     */
-    fun shelfOrder(hasContinue: Boolean, hasSubscriptions: Boolean, hasForYou: Boolean, hasShorts: Boolean): List<HomeShelfKind> {
-        val shelves = ArrayList<HomeShelfKind>(4)
-        if (hasContinue) shelves.add(HomeShelfKind.CONTINUE)
-        if (hasSubscriptions) shelves.add(HomeShelfKind.SUBSCRIPTIONS)
-        if (hasForYou) shelves.add(HomeShelfKind.FOR_YOU)
-        if (hasShorts) shelves.add(minOf(1, shelves.size), HomeShelfKind.SHORTS)
-        return shelves
-    }
+    /** The Shorts shelf stands in the feed after this many videos (4), on a phone and on a wide page alike. */
+    const val SHORTS_AFTER = 4
 
     private fun newestFirst(items: List<VideoItem>): List<VideoItem> =
         items.sortedByDescending { it.uploadedAtMs ?: Long.MIN_VALUE }

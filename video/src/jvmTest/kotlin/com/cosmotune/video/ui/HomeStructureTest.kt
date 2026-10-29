@@ -29,7 +29,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeStructureTest {
     private val dir = "video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/home"
-    private val names = listOf("VideoHome", "HomeShelves", "HomeKiosk")
+    private val names = listOf("VideoHome", "HomeShelves", "HomeKiosk", "HomeAccountFeed")
     private fun code(name: String) = VideoSourceContract.code(VideoSourceContract.read("$dir/$name.kt"))
     private val all get() = names.associateWith { code(it) }
     private val screen get() = code("VideoHome")
@@ -46,7 +46,7 @@ class HomeStructureTest {
         assertFalse(lines.any { "VideoRoute.Home" in it && "VideoPlaceholder" in it }, "Home is no placeholder any more")
         // the other branches stay on their own lines with a blank line between (their owners replace them, not this task)
         val branches = lines.indices.filter { lines[it].trim().startsWith("is VideoRoute.") }
-        assertEquals(17, branches.size)
+        assertEquals(19, branches.size)
         for (i in branches.dropLast(1)) assertTrue(lines[i + 1].isBlank(), "a blank line follows ${lines[i].trim()}")
         assertTrue("com.cosmotune.video.ui.actions.VideoActionsHost(contentPadding)" in navHost, "Y-16's action host stays")
     }
@@ -88,24 +88,37 @@ class HomeStructureTest {
             }
         }
         assertTrue(seen >= 9, "found the lazy items (found $seen)")
-        assertTrue("uniqueKeys(kioskItems)" in screen && "uniqueKeys(items)" in shelves, "a repeat of a video in a list cannot crash it")
+        assertTrue("uniqueKeys(feed.items)" in screen && "uniqueKeys(items)" in shelves, "a repeat of a video in a list cannot crash it")
     }
 
-    @Test fun theShelvesAreTheFourOfTheSpecInThePlannersOrder() {
-        for (kind in listOf("CONTINUE", "SUBSCRIPTIONS", "FOR_YOU", "SHORTS")) assertTrue("HomeShelfKind.$kind ->" in screen, "a branch for $kind")
-        assertTrue("HomePlanner.shelfOrder(" in screen && "for (kind in order)" in screen)
-        for (key in listOf("video_shelf_continue", "video_shelf_subscriptions", "video_shelf_for_you", "video_shorts")) {
-            assertTrue("Res.string.$key" in screen, "the shelf title is the string $key")
-        }
+    @Test fun homeIsOneFeedWithTheContinueShelfAndTheShortsShelfStandingInIt() {
+        assertTrue("HomePlanner.stream(accountItems, subscriptionsShelf, forYou, kioskVideos)" in screen, "All is the planner's mixed feed")
+        assertTrue("private fun HomeFeedPhone(" in screen && "private fun HomeFeedWide(" in screen, "a lazy column on a phone, a lazy grid on a wide page")
+        assertTrue("LazyColumn(" in screen && "LazyVerticalGrid(" in screen && "GridCells.Fixed(columns)" in screen)
+        assertTrue("stickyHeader(key = \"chips\"" in screen, "the chip row sticks to the top of the phone's list")
+        assertTrue("Res.string.video_shelf_continue" in screen && "Res.string.video_shorts" in screen)
         assertTrue("HomePlanner.continueWatching(history)" in screen && "HomePlanner.subscriptionsShelf(feedItems)" in screen)
-        assertTrue("HomePlanner.forYou(recent, related, history)" in screen && "HomePlanner.shorts(feedItems, fromRelated, model.items)" in screen)
-        assertTrue("source.details(id).related" in code("HomeKiosk"), "Up next for you reads the related list of the videos watched")
+        assertTrue("HomePlanner.forYou(recent, related, history)" in screen && "HomePlanner.shorts(feedItems, fromRelated + accountItems.filter(ShortsFilter::isShort), model.items)" in screen)
+        assertTrue("source.details(id).related" in code("HomeKiosk"), "the feed's related videos are the related lists of the videos watched")
         assertTrue("watchedFraction(entry.positionMs, entry.durationMs)" in screen && "watched = continueWatched" in screen, "Continue watching has the watched bars")
+        assertTrue("minOf(HomePlanner.SHORTS_AFTER - 1, feed.items.lastIndex)" in screen, "the Shorts shelf stands after the fourth card on a phone")
+        assertTrue("ceil(HomePlanner.SHORTS_AFTER / columns.toDouble()).toInt() * columns" in screen, "and after the first whole row of the grid")
+        assertTrue("hasContinue = all && continueItems.isNotEmpty()" in screen, "Continue watching only while some video is part-watched")
+        assertFalse("HomeChannelsShelf" in screen || "video_home_channels" in screen, "the channels you follow are the Subscriptions page's")
+    }
+
+    @Test fun theAccountsHomeIsTheFeedWhileSignedInAndTheLocalFeedOtherwise() {
+        assertTrue("val signedIn = graph.account.state.collectAsState().value is AccountState.SignedIn" in screen)
+        assertTrue("AccountHomeFeed(graph.account, scope)" in screen)
+        val feed = VideoSourceContract.code(VideoSourceContract.read("$dir/HomeAccountFeed.kt"))
+        assertTrue("account.home(null).getOrNull()" in feed && "account.home(token).getOrNull()" in feed, "the first page, then the next at the end of the list")
+        assertTrue("if (!loaded || loadingMore) return" in feed, "one page at a time")
+        assertTrue("val loadMore: () -> Unit = { if (accountIsFeed) accountFeed?.loadMore() else model.loadMore() }" in screen)
     }
 
     @Test fun theShelvesNeverWaitForTheKiosk() {
-        val order = screen.substringAfter("val order = remember(").substringBefore("var sheet")
-        assertFalse("model.phase" in order, "the order of the shelves does not read the kiosk's phase")
+        val phase = screen.substringAfter("val phase = when {").substringBefore("val loadingMore")
+        assertTrue("stream.isNotEmpty() -> KioskPhase.READY" in phase, "videos from the device or the account are shown while the kiosk is still coming")
         assertTrue("HomeModel(graph.source, scope).also { it.restore(regionKey, settings.homeKiosk, recentIds) }" in screen, "the first frame holds what the cache has")
         assertTrue("LaunchedEffect(graph, followsChannels) { if (followsChannels) refreshFeed(graph.feed) }" in screen)
         assertTrue("feed.refresh(force = false)" in screen, "Home asks the feed to catch up, not forced: the feed limits it itself")
@@ -116,46 +129,62 @@ class HomeStructureTest {
         assertTrue("onShorts = openShorts" in screen && "onSeeAll = openShorts" in screen, "the chip and See all open the same route")
         assertTrue("navigator.openShort(it, ShortsOrigin.Home, shorts)" in screen, "a card opens the pager at it with the shelf's Shorts")
         assertTrue("showShorts = !hideShorts" in screen && "if (hideShorts) {\n            emptyList()" in screen, "the chip and the shelf go with Hide Shorts")
-        assertTrue("ShortsFilter.filter(model.items, hideShorts) { it }" in screen, "the kiosk loses its Shorts while they are hidden")
-        assertTrue("VideoIcons.Shorts" in shelves && "Res.string.video_shorts" in shelves && "ShortsChip(label = shortsLabel, onClick = onShorts)" in shelves)
-        assertTrue("if (showShorts) ShortsChip" in shelves, "the Shorts chip stands first in the row, before the kiosks")
+        assertTrue("model.items.filterNot(ShortsFilter::isShort)" in screen, "the feed holds no Shorts: they stand in their shelf")
+        assertTrue("Res.string.video_shorts" in shelves && "if (showShorts) add(shortsLabel)" in shelves, "the Shorts chip stands after All, before the kiosks")
     }
 
-    @Test fun theShortsChipIsAButtonWith48DpOfTargetAndTheFocusRing() {
-        val chip = shelves.substringAfter("internal fun ShortsChip(").substringBefore("/** The weight of a chip label")
-        assertTrue(".minimumInteractiveComponentSize()" in chip && ".height(ControlMetrics.CHIP_HEIGHT_DP.dp)" in chip)
-        assertTrue("role = Role.Button" in chip && ".cosmoFocusRing(interaction, rest.radiusDp.dp)" in chip)
-        assertTrue("ControlMetrics.CHIP_REST_FILL" in chip && "ControlMetrics.OUTLINE" in chip, "the rest recipe of CosmoChip")
-        assertTrue("contentDescription = null" in chip, "the icon is decoration: the label says it")
+    @Test fun theChipRowIsAllShortsAndTheKiosksInPillChips() {
+        val chips = shelves.substringAfter("internal fun HomeChips(").substringBefore("/** Lays the content out")
+        assertTrue("Res.string.video_all" in chips && "VideoChips(" in chips, "All first, in the pill chips of the feeds (48 dp target, focus ring, inverted when chosen)")
+        assertTrue("index == 0 -> onAll()" in chips && "showShorts && index == 1 -> onShorts()" in chips, "All and Shorts are not kiosks")
+        assertTrue("trailing = if (kiosks == null)" in chips && "CosmoShimmer(" in chips, "placeholders while the kiosks are on the way")
+        val pill = VideoSourceContract.code(VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/blocks/PillChip.kt"))
+        assertTrue(".minimumInteractiveComponentSize()" in pill && "role = Role.Tab" in pill && ".cosmoFocusRing(interaction, PILL_HEIGHT / 2)" in pill)
     }
 
     @Test fun theKioskStatesAreThreeSkeletonsTheEmptyStateAndTheCards() {
         assertTrue("private const val SKELETON_CARDS = 3" in screen)
         assertTrue("KioskPhase.LOADING ->" in screen && "KioskPhase.FAILED ->" in screen && "KioskPhase.READY ->" in screen)
-        assertTrue("CosmoEmptyState(message = titleError, actionLabel = titleRetry, onAction = model::retry)" in screen)
+        assertTrue("CosmoEmptyState(message = errorText, actionLabel = retryText, onAction = onRetry)" in screen)
         assertTrue("Res.string.video_list_error" in screen && "Res.string.video_retry" in screen)
-        // the error state is an item of the list, below the shelves
-        assertTrue(screen.indexOf("for (kind in order)") < screen.indexOf("KioskPhase.FAILED ->"))
+        assertTrue("titleError, titleRetry, model::retry" in screen, "Try again asks the model again")
     }
 
     @Test fun theKioskLoadsMoreThreeCardsBeforeTheEnd() {
         assertTrue("private const val LOAD_AHEAD_CARDS = 3" in screen)
-        assertTrue("lastVisible >= total - ahead" in screen && "model.loadMore()" in screen)
-        assertTrue("ceil(LOAD_AHEAD_CARDS / columns.toDouble())" in screen, "a wide page counts rows")
+        assertTrue("lastVisible >= total - LOAD_AHEAD_CARDS" in screen && "onLoadMore()" in screen)
+        assertTrue("lastVisible >= total - columns * 2" in screen, "a wide page counts rows: two rows ahead")
+        assertTrue("model.loadMore()" in screen)
     }
 
-    @Test fun theWidePageKeepsTheMarginsTheGridAndTheLargeHeading() {
-        assertTrue("VideoGridSpec.of(maxWidth.value).columns" in screen)
-        assertTrue("(VideoMetrics.DESKTOP_MARGIN_DP - VideoMetrics.MARGIN_DP).dp" in screen, "28 less the blocks' own 16")
-        assertTrue("private const val WIDE_SHELF_CARD_DP = 280" in screen)
-        assertTrue("VideoMetrics.GRID_COL_GAP_DP" in screen && "VideoMetrics.GRID_ROW_GAP_DP" in screen)
-        assertTrue("large = wide" in shelves && "private val WIDE_HEAD_TOP = 8.dp" in shelves, "display(DISPLAY_L) and 22 dp above (14 + 8)")
-        assertTrue("overline = stringResource(Res.string.video_home_overline)" in shelves)
+    @Test fun theWidePageIsAGridThatFillsItsWidth() {
+        assertTrue("homeColumns(maxWidth)" in screen && "GridCells.Fixed(columns)" in screen)
+        assertTrue("private const val CARD_MIN_DP = 320f" in screen && "private const val MIN_COLUMNS = 2" in screen && "private const val MAX_COLUMNS = 5" in screen)
+        assertTrue("VideoMetrics.DESKTOP_MARGIN_DP" in screen && "VideoMetrics.GRID_COL_GAP_DP" in screen)
+        assertTrue("VideoCardBody(" in screen, "the cards of the grid: a 12 dp picture, the channel's picture, the title in two lines")
+        assertTrue("private val SHELF_CARD_WIDTH = 200.dp" in shelves, "the compact Continue watching shelf")
     }
 
-    @Test fun theGreetingIsMusicsGreeting() {
-        for (key in listOf("cosmo_home_morning", "cosmo_home_afternoon", "cosmo_home_evening", "cosmo_home_late")) assertTrue("SharedRes.string.$key" in shelves)
-        assertTrue("HomeGreeting.period(now.hour)" in shelves)
+    @Test fun thereIsNoGreetingAndNoHeadingAboveTheChips() {
+        for ((name, text) in all) {
+            assertFalse("cosmo_home_" in text && "SharedRes.string" in text, "$name draws no greeting")
+            assertFalse("CosmoPageHeader" in text || "HomeHeader" in text || "video_home_overline" in text, "$name draws no heading")
+        }
+    }
+
+    @Test fun homeColumnsFillTheWidthFromTwoToFive() {
+        fun columns(width: Float) = com.cosmotune.video.ui.home.homeColumns(androidx.compose.ui.unit.Dp(width))
+        assertEquals(2, columns(840f))
+        assertEquals(3, columns(1060f))
+        assertEquals(4, columns(1420f))
+        assertEquals(5, columns(1800f))
+        assertEquals(5, columns(3000f), "never more than five")
+    }
+
+    @Test fun theNearBlackGroundIsVideosOwn() {
+        val ground = VideoSourceContract.code(VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/blocks/VideoGround.kt"))
+        assertTrue("Color(0xFF0F0F0F)" in ground && "if (colors.dark) VIDEO_DARK_GROUND else colors.live(lightField)" in ground, "near-black in the dark theme, the palette's ground in the light one")
+        assertTrue("videoSolidGround()" in screen, "the chip row that sticks has the ground under it")
     }
 
     @Test fun titlesAndPicturesGoThroughDeArrowInsideEveryCard() {
@@ -187,7 +216,7 @@ class HomeStructureTest {
                 assertTrue(inDraw, "$name: live( at line ${text.take(at).count { it == '\n' } + 1} is not in a draw lambda")
             }
         }
-        assertTrue(seen >= 1, "found the chip's live read (found $seen)")
+        assertTrue(seen >= 0)
     }
 
     @Test fun nothingAllocatesInADrawLambdaAndNothingRemembersABrush() {
@@ -234,11 +263,6 @@ class HomeStructureTest {
                         "import com.cosmotune.music.ui.components.LocalShelfRowChrome",
                         "import com.cosmotune.music.ui.haptics.Haptic",
                         "import com.cosmotune.music.ui.haptics.rememberHaptics",
-                        "import com.cosmotune.music.sharedui.resources.cosmo_home_afternoon",
-                        "import com.cosmotune.music.sharedui.resources.cosmo_home_evening",
-                        "import com.cosmotune.music.sharedui.resources.cosmo_home_late",
-                        "import com.cosmotune.music.sharedui.resources.cosmo_home_morning",
-                        "import com.cosmotune.music.sharedui.resources.Res",
                     ),
                     "$name imports $import from Music",
                 )

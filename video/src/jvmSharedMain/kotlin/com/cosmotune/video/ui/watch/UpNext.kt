@@ -29,7 +29,9 @@ import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_autoplay
 import com.cosmotune.video.resources.video_up_next
+import com.cosmotune.video.ui.blocks.VideoCard
 import com.cosmotune.video.ui.blocks.VideoRow
+import com.cosmotune.video.ui.branding.rememberChannelAvatar
 import com.cosmotune.video.ui.branding.rememberVideoThumbnail
 import com.cosmotune.video.ui.branding.rememberVideoTitle
 import org.jetbrains.compose.resources.stringResource
@@ -90,16 +92,32 @@ internal fun LazyListScope.upNextRows(
 internal fun UpNextRow(item: VideoItem, watchedFraction: Float?, downloaded: Boolean, desktop: Boolean, onPlay: (VideoItem) -> Unit, onMore: (VideoItem) -> Unit) {
     val title = rememberVideoTitle(item)
     val picture = rememberVideoThumbnail(item)
-    val shown = remember(item, picture) { if (picture == item.thumbnailUrl) item else item.copy(thumbnailUrl = picture) }
-    VideoRow(
-        item = shown,
-        onClick = { onPlay(item) },
-        onMore = { onMore(item) },
-        watchedFraction = watchedFraction,
-        desktop = desktop,
-        title = title,
-        downloaded = downloaded,
-    )
+    val avatar = rememberChannelAvatar(item)
+    val shown = remember(item, picture, avatar) {
+        if (picture == item.thumbnailUrl && avatar == item.channelAvatarUrl) item else item.copy(thumbnailUrl = picture, channelAvatarUrl = avatar)
+    }
+    if (desktop) {
+        // The side column's compact row, as the video apps have it beside the player.
+        VideoRow(
+            item = shown,
+            onClick = { onPlay(item) },
+            onMore = { onMore(item) },
+            watchedFraction = watchedFraction,
+            desktop = true,
+            title = title,
+            downloaded = downloaded,
+        )
+    } else {
+        // The phone's full-width card with the channel's picture, as in the feed.
+        VideoCard(
+            item = shown,
+            onClick = { onPlay(item) },
+            onMore = { onMore(item) },
+            watchedFraction = watchedFraction,
+            title = title,
+            downloaded = downloaded,
+        )
+    }
 }
 
 /**

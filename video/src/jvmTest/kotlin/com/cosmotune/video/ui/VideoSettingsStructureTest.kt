@@ -36,7 +36,7 @@ class VideoSettingsStructureTest {
     private val dir = "video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/settings"
     private fun read(path: String) = VideoSourceContract.read(path)
     private fun file(name: String) = read("$dir/$name.kt")
-    private val names = listOf("VideoSettingsPage", "SegmentSettings", "ChoiceSheet", "RegionList", "SettingsPlatform")
+    private val names = listOf("VideoSettingsPage", "SegmentSettings", "ChoiceSheet", "RegionList", "SettingsPlatform", "SmoothnessSettings")
 
     /** Each file of the page without its comments. */
     private val sources: Map<String, String> get() = names.associateWith { VideoSourceContract.code(file(it)) }
@@ -76,7 +76,7 @@ class VideoSettingsStructureTest {
     private val fields: List<String> = VideoSettings::class.java.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }.map { it.name }
 
     @Test fun theFieldsAreTheOnesTheTestKnows() {
-        assertEquals(29, fields.size, "a new field of VideoSettings needs a row (or a word in this test): $fields")
+        assertEquals(30, fields.size, "a new field of VideoSettings needs a row (or a word in this test): $fields")
         assertTrue("firstRunSeen" in fields && "homeKiosk" in fields)
     }
 

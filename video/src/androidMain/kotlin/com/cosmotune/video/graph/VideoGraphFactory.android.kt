@@ -9,6 +9,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.cosmotune.ui.theme.LocalCosmoShell
+import com.cosmotune.video.account.InnerTubeVideoAccount
 import com.cosmotune.video.downloads.android.AndroidDownloadController
 import com.cosmotune.video.feed.RefreshLimitedFeed
 import com.cosmotune.video.feed.SubscriptionFeedEngine
@@ -98,11 +99,14 @@ private object AndroidVideoProcess {
 
         val shorts = ShortsQueueEngine(source, feed, library, settings)
 
+        // The listener's own YouTube data, on the sign-in Music holds (one per process).
+        val account = InnerTubeVideoAccount.shared
+
         wire(application, library, settings, source, playback)
         return VideoGraph(
             source = source, library = library, settings = settings, segments = segments, branding = branding, votes = votes,
             feed = feed, downloads = downloads, playback = playback, surface = surface, music = music, metered = metered,
-            shorts = shorts,
+            shorts = shorts, account = account,
         )
     }
 
@@ -114,6 +118,7 @@ private object AndroidVideoProcess {
     private fun wire(application: Context, library: VideoLibraryStore, settings: VideoSettingsStore, source: NewPipeVideoSource, playback: VideoPlayerController) {
         val device = Locale.getDefault()
         scope.followRegion(settings, source, device.country, device.language)
+        scope.followSmoothness(settings, playback.engine)
         application.registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
                 if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {

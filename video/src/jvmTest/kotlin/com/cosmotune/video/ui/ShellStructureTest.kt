@@ -61,7 +61,8 @@ class ShellStructureTest {
         val src = read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/graph/VideoGraph.kt")
         val header = src.substringAfter("class VideoGraph(").substringBefore("\n)")
         val declared = Regex("""val (\w+):""").findAll(header).map { it.groupValues[1] }.toList()
-        assertEquals(slots, declared)
+        // the thirteen slots, then the listener's account (it defaults to signed out, so a graph built without it still works)
+        assertEquals(slots + "account", declared)
         assertTrue("val LocalVideoGraph = staticCompositionLocalOf<VideoGraph>" in src)
     }
 
@@ -215,17 +216,18 @@ class ShellStructureTest {
         "Home" to "Y-17", "Search" to "Y-18", "Watch" to "Y-19", "Channel" to "Y-20", "Playlist" to "Y-20", "LocalPlaylist" to "Y-20",
         "Subscriptions" to "Y-21", "Library" to "Y-22", "History" to "Y-22", "WatchLater" to "Y-22", "Liked" to "Y-22",
         "SavedPlaylists" to "Y-22", "Channels" to "Y-22", "Import" to "Y-22", "Downloads" to "Y-33", "Settings" to "Y-25", "Shorts" to "Y-31",
+        "LocalPlayer" to "local", "LocalFiles" to "local",
     )
 
-    @Test fun theRoutesAreTheSeventeenOfTheBrief() {
+    @Test fun theRoutesAreTheSeventeenOfTheBriefAndTheTwoOfTheLocalPlayer() {
         assertEquals(
             setOf(
                 "Home", "Subscriptions", "Library", "Search", "Watch", "Shorts", "Channel", "Playlist", "LocalPlaylist", "History", "WatchLater",
-                "Liked", "SavedPlaylists", "Channels", "Downloads", "Settings", "Import",
+                "Liked", "SavedPlaylists", "Channels", "Downloads", "Settings", "Import", "LocalPlayer", "LocalFiles",
             ),
             routeNames.toSet(),
         )
-        assertEquals(17, routeNames.size)
+        assertEquals(19, routeNames.size)
         assertEquals(routeNames.toSet(), owners.keys, "every route has an owner")
     }
 
@@ -297,7 +299,7 @@ class ShellStructureTest {
         val src = VideoSourceContract.code(shell("VideoTopBar"))
         assertTrue("CosmoTopBar(" in src)
         assertTrue(Regex("""CosmoIconButton\(\s+icon = CosmoIcons\.Search,[\s\S]*?style = CosmoIconButtonStyle\.GLASS,\s+size = 40\.dp""").containsMatchIn(src), "Search is a 40 dp glass button")
-        assertTrue(Regex("""CosmoProfileButton\(\s+avatarUrl = null,\s+name = profileName,\s+subtitle = profileSubtitle,\s+entries = drawerEntries""").containsMatchIn(src))
+        assertTrue(Regex("""CosmoProfileButton\(\s+avatarUrl = avatarUrl,\s+name = profileName,\s+subtitle = profileSubtitle,\s+entries = drawerEntries""").containsMatchIn(src))
         assertTrue("Res.string.video_profile_name" in src && "Res.string.video_profile_subtitle" in src)
         assertTrue("route !is VideoRoute.Search" in src, "the Search page has its own field")
         assertTrue(Regex("""scrolled = scrolled\(\)""").containsMatchIn(src), "the scroll answer is read inside the bar")
@@ -320,7 +322,7 @@ class ShellStructureTest {
         assertEquals(1, Regex("""CosmoBottomChrome\(""").findAll(tabs).count())
         assertTrue("mode = AppMode.VIDEO," in tabs, "CosmoBottomChrome is called with mode = AppMode.VIDEO")
         val labels = Regex("""CosmoTab\((\w+), ([\w.]+), ([\w.]+)\)""").findAll(tabs).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("home", "subscriptions", "library"), labels, "Home, Subscriptions and Library, in the order of VideoTab")
+        assertEquals(listOf("home", "shorts", "subscriptions", "you"), labels, "Home, Shorts (the pager), Subscriptions and You (the library)")
         assertEquals(listOf(VideoTab.HOME, VideoTab.SUBSCRIPTIONS, VideoTab.LIBRARY), VideoTab.entries)
         assertTrue("CosmoIcons.Home" in tabs && "CosmoIcons.Library" in tabs && "VideoIcons.Subscriptions" in tabs)
         assertTrue("navigator.push(VideoRoute.Watch(it.videoId))" in tabs, "a tap on the capsule opens the watch page")
@@ -427,7 +429,8 @@ class ShellStructureTest {
         assertEquals(
             listOf(
                 "CosmoIcons.Home" to "home", "VideoIcons.Shorts" to "shorts", "VideoIcons.Subscriptions" to "subscriptions", "VideoIcons.History" to "history",
-                "CosmoIcons.Clock" to "watchLater", "CosmoIcons.Queue" to "playlists", "CosmoIcons.Download" to "downloads",
+                "CosmoIcons.Clock" to "watchLater", "CosmoIcons.HeartFill" to "liked", "CosmoIcons.Queue" to "playlists", "CosmoIcons.Download" to "downloads",
+                "CosmoIcons.Video" to "localVideos",
             ),
             rows,
         )
@@ -437,20 +440,22 @@ class ShellStructureTest {
         assertTrue("navigator.push(VideoRoute.Settings)" in src && "Res.string.video_drawer_settings" in src, "Settings stands at the bottom")
         val settingsRow = Regex("""SidebarNavRow\(\s+icon = CosmoIcons\.Settings""").find(src)
         assertNotNull(settingsRow)
-        assertTrue(settingsRow.range.first > src.indexOf("items(channels"), "Settings stands after the channels, at the bottom")
+        assertTrue(settingsRow.range.first > src.indexOf("items(shownChannels"), "Settings stands after the channels, at the bottom")
     }
 
     @Test fun theDesktopSidebarKeepsTheNumbersOfMusicsOwn() {
         val src = VideoSourceContract.code(desktop("VideoDesktopSidebarContent"))
-        assertTrue("Modifier.width(ShellMetrics.DESKTOP_SIDEBAR_DP.dp)" in src, "220 dp")
-        assertTrue("private val SEARCH_HEIGHT = 44.dp" in src && "keyHint = if (IS_MAC) null else \"Ctrl K\"" in src)
+        assertTrue("if (collapsed) RAIL_WIDTH else ShellMetrics.DESKTOP_SIDEBAR_DP.dp" in src && "Modifier.width(width)" in src, "220 dp, 72 dp folded")
+        val header = VideoSourceContract.code(desktop("VideoDesktopHeader"))
+        assertTrue("private val FIELD_HEIGHT = 40.dp" in header && "keyHint = if (IS_MAC) null else \"Ctrl K\"" in header, "the search field is in the page's header: 40 dp, rounded")
+        assertTrue("private val RAIL_WIDTH = 72.dp" in src && "private const val COLLAPSED_CHANNELS = 7" in src)
         assertTrue("private val NAV_HEIGHT = 44.dp" in src && "private val NAV_RADIUS = 22.dp" in src)
         assertTrue("private val AVATAR = 36.dp" in src, "36 dp avatar circles")
         assertTrue("private const val HEADING_SP = 15f" in src && "private const val HEADING_WEIGHT = 700" in src, "the heading: 15 sp, 700")
         assertTrue("private const val ITEM_TITLE_SP = 14f" in src && "private const val ITEM_TITLE_WEIGHT = 650" in src, "the name: 14 sp, 650")
         // the channels: the newest upload first
         assertTrue("compareByDescending<Subscription> { it.lastUploadMs ?: Long.MIN_VALUE }" in src)
-        assertTrue("items(channels, key = { it.channelId })" in src, "stable keys")
+        assertTrue("items(shownChannels, key = { it.channelId })" in src, "stable keys")
         // the selected row follows the page on show and is filled with the tonal fill, drawn from the live palette
         assertTrue("tonalBrush(colors)" in src)
         val music = read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopSidebar.kt")
@@ -458,8 +463,9 @@ class ShellStructureTest {
     }
 
     @Test fun theSearchFieldSharesItsStateWithThePageThroughTheDesktopState() {
-        val sidebar = VideoSourceContract.code(desktop("VideoDesktopSidebarContent"))
-        assertTrue("DesktopVideoState.query" in sidebar && "DesktopVideoState.focusSearch = false" in sidebar)
+        val sidebar = VideoSourceContract.code(desktop("VideoDesktopHeader"))
+        assertTrue("DesktopVideoState.query" in sidebar && "DesktopVideoState.focusSearch = false" in sidebar, "the header's field")
+        assertTrue("DesktopVideoState.requestSearchFocus()" in VideoSourceContract.code(desktop("VideoDesktopSidebarContent")), "the host's request for the field is passed on")
         // the one function the search task (Y-18) owns: it records the query, then pushes the search page (SearchStructureTest pins its body)
         assertTrue("navigator.push(VideoRoute.Search(q))" in VideoSourceContract.functionBody(desktop("VideoDesktopSidebarContent"), "submitSidebarSearch"), "Enter pushes the search page")
         val page = VideoSourceContract.code(desktop("VideoDesktopEntry"))
@@ -483,7 +489,7 @@ class ShellStructureTest {
 
     private val shellFiles get() = listOf("VideoNavigator", "VideoNavHost", "VideoPlaceholder", "VideoTopBar", "VideoTabs", "VideoCapsule", "VideoAccent", "VideoBackHandler")
         .map { it to shell(it) } + listOf("CosmoVideoApp" to app) +
-        listOf("DesktopVideoState", "VideoDesktopEntry", "VideoDesktopSidebarContent").map { it to desktop(it) }
+        listOf("DesktopVideoState", "VideoDesktopEntry", "VideoDesktopSidebarContent", "VideoDesktopHeader").map { it to desktop(it) }
 
     /** The text before the `{` of every block that encloses [index], innermost first. */
     private fun enclosingHeads(code: String, index: Int): List<String> {

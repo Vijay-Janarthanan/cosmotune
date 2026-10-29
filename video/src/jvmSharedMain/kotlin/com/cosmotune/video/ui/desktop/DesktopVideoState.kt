@@ -21,6 +21,12 @@ internal object DesktopVideoState {
     /** Set by the search shortcut (Ctrl K, Cmd K on macOS); the sidebar takes the focus and clears it. */
     var focusSearch by mutableStateOf(false)
 
+    /** Whether the guide (the sidebar) is folded to its icon rail; the header's menu button toggles it. */
+    var sidebarCollapsed by mutableStateOf(false)
+
+    /** Whether the guide can fold: not while it holds the window's caption (the window's buttons need its width). Set by the sidebar. */
+    var sidebarCanCollapse by mutableStateOf(true)
+
     /** The graph, published by the page for the sidebar's channel list; null until the page has been composed once. */
     var graph by mutableStateOf<VideoGraph?>(null)
 

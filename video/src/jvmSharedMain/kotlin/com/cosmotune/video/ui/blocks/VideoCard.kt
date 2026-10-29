@@ -13,11 +13,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
@@ -49,11 +51,14 @@ fun VideoCard(
     title: String = item.title,
     downloaded: Boolean = false,
 ) {
-    Column(modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin)) {
-        VideoCardBody(item, onClick, onMore, Modifier, watchedFraction, title, downloaded)
+    Column(modifier.fillMaxWidth()) {
+        VideoCardBody(item, onClick, onMore, Modifier, watchedFraction, title, downloaded, bleed = true)
         Spacer(Modifier.height(VideoMetrics.FEED_AFTER_DP.dp))
     }
 }
+
+/** The corner of a grid card's picture on a wide page: 12 dp. */
+private val GRID_THUMB_SHAPE = SuperellipseShape(12.dp)
 
 /** The card without its margin and the room after it: the phone's [VideoCard] stands it in a margin, the wide grid in a cell. */
 @Composable
@@ -65,25 +70,31 @@ internal fun VideoCardBody(
     watchedFraction: Float?,
     title: String,
     downloaded: Boolean,
+    bleed: Boolean = false,
 ) {
     val palette = LocalCosmoColors.current.palette
     val meta = MetaLine(item, rememberNowMs())
     val titleStyle = rememberTitleStyle(VideoMetrics.FEED_TITLE_SP, title)
     val metaStyle = rememberMetaStyle(VideoMetrics.FEED_META_SP, meta)
     val more = stringResource(Res.string.video_more)
-    Column(modifier.fillMaxWidth().videoClickable(CosmoRadii.lg, onClick, onMore)) {
+    val hover = rememberCardHover()
+    Column(with(hover) { modifier.fillMaxWidth().track() }.videoClickable(CosmoRadii.lg, onClick, onMore)) {
         ThumbnailFrame(
             url = item.thumbnailUrl,
-            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-            shape = ThumbnailShape,
+            modifier = with(hover) { Modifier.fillMaxWidth().aspectRatio(16f / 9f).let { if (bleed) it else it.lifted() } },
+            shape = if (bleed) RectangleShape else GRID_THUMB_SHAPE,
             durationSec = item.durationSec,
             live = item.isLive,
             upcoming = item.isUpcoming,
             watchedFraction = watchedFraction,
             downloaded = downloaded,
+            hovered = hover.hovered,
         )
-        Row(Modifier.fillMaxWidth().padding(top = VideoMetrics.FEED_META_TOP_DP.dp), verticalAlignment = Alignment.Top) {
-            ChannelAvatar(item.channelAvatarUrl, VideoMetrics.FEED_AVATAR_DP.dp)
+        Row(
+            Modifier.fillMaxWidth().padding(top = VideoMetrics.FEED_META_TOP_DP.dp).then(if (bleed) Modifier.padding(horizontal = CosmoSpacing.margin) else Modifier),
+            verticalAlignment = Alignment.Top,
+        ) {
+            ChannelAvatar(item.channelAvatarUrl, VideoMetrics.FEED_AVATAR_DP.dp, name = item.channelName)
             Spacer(Modifier.width(VideoMetrics.FEED_GAP_DP.dp))
             Column(Modifier.weight(1f)) {
                 Text(text = title, style = titleStyle, color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)

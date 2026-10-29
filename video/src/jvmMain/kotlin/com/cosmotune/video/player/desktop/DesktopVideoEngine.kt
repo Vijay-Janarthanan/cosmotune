@@ -3,6 +3,7 @@ package com.cosmotune.video.player.desktop
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.cosmotune.video.model.AudioStream
+import com.cosmotune.video.local.VideoAspect
 import com.cosmotune.video.model.VideoStream
 import com.cosmotune.video.player.Edl
 import com.cosmotune.video.player.EngineCapabilities
@@ -16,7 +17,11 @@ import com.cosmotune.video.player.SubtitleCue
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.player.VideoSurfaceProvider
+import com.cosmotune.video.player.baseScale
+import com.cosmotune.video.player.smooth.SmoothingPipeline
 import com.cosmotune.video.select.BandwidthWarmUp
+import com.cosmotune.video.settings.SmoothnessReadout
+import com.cosmotune.video.settings.SmoothnessSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,6 +75,13 @@ class DesktopVideoEngine internal constructor(
     override val cues: StateFlow<List<SubtitleCue>> = cueFlow.asStateFlow()
 
     private val exchange = FrameExchange()
+
+    /**
+     * Real-time frame smoothing (Blend, Smooth): off until the settings turn it on, and then the frames of [exchange] pass through
+     * it. Showing a frame between two source frames needs the newer one a source frame early, so the sound is shifted by that
+     * much (mpv's `audio-delay`, positive: the sound waits, the picture does not) and put back when smoothing stops.
+     */
+    private val smoothing = SmoothingPipeline(onAudioDelay = ::shiftAudio).also { exchange.smoothing = it }
     private val executor: ExecutorService = Executors.newSingleThreadExecutor { task ->
         Thread(task, "cosmotune-video-engine").apply { isDaemon = true }
     }
@@ -107,6 +119,7 @@ class DesktopVideoEngine internal constructor(
         val number = generation.incrementAndGet()
         pendingStartMs = if (request.live) 0 else request.startMs.coerceAtLeast(0)
         exchange.clear()
+        smoothing.reset()
         cueFlow.value = emptyList()
         snapshotFlow.update {
             if (unsupported) unsupportedSnapshot(it)
@@ -167,6 +180,7 @@ class DesktopVideoEngine internal constructor(
         val number = generation.incrementAndGet()
         pendingStartMs = 0
         exchange.clear(freeBuffers = true)
+        smoothing.reset()
         cueFlow.value = emptyList()
         snapshotFlow.update {
             if (unsupported) unsupportedSnapshot(it)
@@ -190,6 +204,7 @@ class DesktopVideoEngine internal constructor(
             snapshotFlow.value = PlayerSnapshot.Idle
         }
         exchange.clear(freeBuffers = true)
+        smoothing.close()
         cueFlow.value = emptyList()
         try {
             executor.execute {
@@ -216,6 +231,21 @@ class DesktopVideoEngine internal constructor(
     override fun Surface(modifier: Modifier, scale: VideoScale) {
         FrameCanvas(exchange, modifier, scale)
     }
+
+    /** The picture of a local file under the person's aspect choice (stretched, forced to a shape, native size). */
+    @Composable
+    override fun Surface(modifier: Modifier, aspect: VideoAspect) {
+        FrameCanvas(exchange, modifier, aspect.baseScale(), aspect)
+    }
+
+    // ---- frame smoothing ----------------------------------------------------------------------------------------------
+
+    override val smoothness: StateFlow<SmoothnessReadout> get() = smoothing.readout
+
+    override fun setSmoothness(settings: SmoothnessSettings) = smoothing.configure(settings)
+
+    /** The pipeline reports how far the sound must wait as a negative shift; mpv's `audio-delay` delays the audio when positive. */
+    private fun shiftAudio(seconds: Double) = post { playerRef?.set("audio-delay", String.format(Locale.ROOT, "%.3f", -seconds)) }
 
     // ---- the engine thread --------------------------------------------------------------------------------------------
 

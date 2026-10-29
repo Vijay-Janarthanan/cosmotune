@@ -50,6 +50,7 @@ data class VideoSettings(
     val downloadFolder: String? = null,
     val firstRunSeen: Boolean = false,
     val homeKiosk: String = "music",
+    val smoothness: SmoothnessSettings = SmoothnessSettings() /* frame smoothing: off, so frames are shown as they come */,
 ) {
     companion object {
         /** The quality rows' choices (spec 5.11): Auto (null), 2160p, 1440p, 1080p, 720p, 480p, 360p, 240p, 144p. */

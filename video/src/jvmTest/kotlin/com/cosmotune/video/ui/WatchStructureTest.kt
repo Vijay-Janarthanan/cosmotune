@@ -326,7 +326,7 @@ class WatchStructureTest {
         val meta = flat(file("WatchMeta"))
         assertTrue("Res.string.video_likes_cd" in meta && "Res.string.video_dislikes_cd" in meta, "the counts are read by their descriptions")
         assertTrue("stringResource(Res.string.video_dl_done, stringResource(Res.string.video_dl_done_cd), done)" in meta, "Downloaded and its quality")
-        assertTrue("kind = if (info.subscribed) CosmoButtonKind.TONAL else CosmoButtonKind.PRIMARY," in meta, "Subscribe PRIMARY, Subscribed TONAL")
+        assertTrue("SubscribePill(subscribed = info.subscribed, onClick = onSubscribe)" in meta, "Subscribe inverted, Subscribed a wash")
     }
 
     @Test fun theDescriptionKeepsOnlyLinksItCanDraw() {

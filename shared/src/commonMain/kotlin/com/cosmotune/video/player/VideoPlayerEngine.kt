@@ -6,6 +6,9 @@ import com.cosmotune.video.model.SubtitleTrack
 import com.cosmotune.video.model.VideoCodec
 import com.cosmotune.video.model.VideoStream
 import com.cosmotune.video.segments.SkipSegment
+import com.cosmotune.video.settings.SmoothnessReadout
+import com.cosmotune.video.settings.SmoothnessSettings
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** What an engine is asked to play (spec 4.2, 6.2, 6.3). */
@@ -108,7 +111,8 @@ data class DecoderCaps(val codec: VideoCodec, val maxWidth: Int, val maxHeight: 
 /**
  * What an engine can play (spec 6.2, 6.3, 6.4): the decoders, Opus, an HDR display, the display's height in pixels.
  * [sideloadedDash]: the engine plays [MediaInput.Dash] (Android) or wants [MediaInput.Progressive] (desktop, spec 6.3);
- * [autoCeilingHeight]: Auto never goes above it (desktop 1440).
+ * [autoCeilingHeight]: Auto never goes above it (desktop 1440). [frameSmoothing]: the engine can make in-between frames (Blend and
+ * Smooth in the settings); the phone's cannot, and the settings say so.
  */
 data class EngineCapabilities(
     val video: List<DecoderCaps>,
@@ -117,6 +121,7 @@ data class EngineCapabilities(
     val displayHeightPx: Int,
     val sideloadedDash: Boolean,
     val autoCeilingHeight: Int?,
+    val frameSmoothing: Boolean = false,
 )
 
 /**
@@ -170,6 +175,18 @@ interface VideoPlayerEngine {
      */
     fun unload() {}
 
+    /**
+     * Frame smoothing: the desktop engine turns real-time Blend/Smooth frame generation on, off or to other settings; the phone's
+     * engine reads the display-rate switch. The default does nothing, for engines that cannot change their frames.
+     */
+    fun setSmoothness(settings: SmoothnessSettings) {}
+
+    /** What smoothing truly does now (the status chip reads it); [SmoothnessReadout.None] for an engine that does none. */
+    val smoothness: StateFlow<SmoothnessReadout> get() = NoSmoothness
+
     /** Frees the player; the engine is not used again. */
     fun release()
 }
+
+/** The readout of an engine that smooths nothing; shared, never changes. */
+private val NoSmoothness: StateFlow<SmoothnessReadout> = MutableStateFlow(SmoothnessReadout.None)

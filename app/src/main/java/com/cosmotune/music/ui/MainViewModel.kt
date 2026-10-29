@@ -5,7 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cosmotune.StartupRetry
 import com.cosmotune.music.R
+import com.cosmotune.music.auth.AndroidAccountHost
 import com.cosmotune.music.auth.AuthStore
+import com.cosmotune.video.account.AccountHostRegistry
 import com.cosmotune.music.auth.SignedIn
 import com.cosmotune.music.auth.GoogleAccountSession
 import com.cosmotune.music.auth.YouTubeProfile
@@ -1470,6 +1472,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val sourceLibraryChanges = mutableSetOf<String>()
     private var providerHomeJob: Job? = null
     private var providerHomeIdentity: Any? = null
+
+    /** Video mode's view of this sign-in; installed while this view model lives (see [AndroidAccountHost]). */
+    private val videoAccountHost = AndroidAccountHost(
+        googleAccounts, activeAccountId, activeProfileId, account, viewModelScope, ::selectProfile, ::signOut,
+    ).also { AccountHostRegistry.install(it) }
+
+    override fun onCleared() {
+        AccountHostRegistry.uninstall(videoAccountHost)
+        super.onCleared()
+    }
 
     init {
         startSearchPipeline()

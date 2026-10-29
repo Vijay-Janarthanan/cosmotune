@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.blocks
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -18,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +76,13 @@ private val DURATION_SCRIM = Color.Black.copy(alpha = VideoMetrics.BADGE_SCRIM_A
 
 /** The badge's shape: radius 6 (the superellipse rule). */
 private val BADGE_SHAPE = SuperellipseShape(VideoMetrics.BADGE_RADIUS_DP.dp)
+
+/** The wash over a thumbnail a mouse is over, and the disc behind the play glyph: media scrims over a picture, as the duration's. */
+private val HOVER_SCRIM = Color.Black.copy(alpha = 0.22f)
+private val HOVER_DISC = Color.Black.copy(alpha = 0.58f)
+private val HOVER_PLAY_DISC = 56.dp
+private val HOVER_PLAY_ICON = 28.dp
+private const val HOVER_FADE_MS = 140
 
 /** The count strip of a playlist (spec 5.3): the right 40 % of the thumbnail, black at 60 %. */
 internal const val COUNT_STRIP_FRACTION = 0.40f
@@ -134,6 +146,12 @@ internal object ThumbnailShape : Shape {
     }
 }
 
+/**
+ * Draws the picture of a thumbnail address instead of loading it. Null in the app; the screen previews (which have no network) provide
+ * one that paints a distinct picture for each address.
+ */
+internal val LocalThumbnailStandIn = staticCompositionLocalOf<(@Composable (url: String, modifier: Modifier) -> Unit)?> { null }
+
 /** Where the picture is: asked for, on its way, or not coming. The shimmer shows only while it is on its way. */
 private enum class ImagePhase { LOADING, SHOWN, FAILED }
 
@@ -152,8 +170,10 @@ internal fun ThumbnailFrame(
     watchedFraction: Float? = null,
     countStrip: String? = null,
     downloaded: Boolean = false,
+    hovered: Boolean = false,
 ) {
     val colors = LocalCosmoColors.current
+    val stand = LocalThumbnailStandIn.current
     var phase by remember(url) { mutableStateOf(ImagePhase.LOADING) }
     Box(
         modifier
@@ -161,7 +181,9 @@ internal fun ThumbnailFrame(
             // the placeholder: read while drawing, so it follows a palette fade
             .drawBehind { drawRect(colors.live(CoverField.SURFACE_VARIANT)) },
     ) {
-        if (url != null) {
+        if (url != null && stand != null) {
+            stand(url, Modifier.fillMaxSize())
+        } else if (url != null) {
             AsyncImage(
                 model = url,
                 contentDescription = null,
@@ -181,10 +203,34 @@ internal fun ThumbnailFrame(
             durationSec != null && durationSec > 0 -> TimeBadge(BadgeKind.DURATION, VideoText.duration(durationSec), spokenDuration(durationSec))
         }
         if (downloaded) VideoDownloadedBadge(Modifier.align(Alignment.TopEnd).padding(DOWNLOADED_INSET_DP.dp))
+        HoverPlay(hovered)
     }
 }
 
-/** The watched bar (spec 5.0): 3 dp at the bottom edge, the played part in `accent`, the rest white at 30 %. */
+/**
+ * What a mouse over a thumbnail shows (the desktop; a touch screen never reports a hover): a light wash over the picture and a
+ * 56 dp disc with the play glyph in its middle, fading in and out in [HOVER_FADE_MS]. Decoration: the card is the button.
+ */
+@Composable
+private fun BoxScope.HoverPlay(visible: Boolean) {
+    AnimatedVisibility(
+        visible = visible,
+        modifier = Modifier.matchParentSize(),
+        enter = fadeIn(tween(HOVER_FADE_MS)),
+        exit = fadeOut(tween(HOVER_FADE_MS)),
+    ) {
+        Box(Modifier.fillMaxSize().drawBehind { drawRect(HOVER_SCRIM) }.clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(HOVER_PLAY_DISC).clip(CircleShape).drawBehind { drawRect(HOVER_DISC) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(CosmoIcons.Play, contentDescription = null, tint = Color.White, modifier = Modifier.size(HOVER_PLAY_ICON))
+            }
+        }
+    }
+}
+
+/** The watched bar (spec 5.0): 3 dp at the bottom edge, the played part in the palette's red (`danger`), the rest white at 30 %. */
 @Composable
 private fun BoxScope.WatchedBar(fraction: Float) {
     val colors = LocalCosmoColors.current
@@ -198,7 +244,7 @@ private fun BoxScope.WatchedBar(fraction: Float) {
                 drawRect(WATCHED_TRACK)
                 val width = size.width * played
                 val rtl = layoutDirection == LayoutDirection.Rtl
-                drawRect(colors.live(CoverField.ACCENT), topLeft = Offset(if (rtl) size.width - width else 0f, 0f), size = Size(width, size.height))
+                drawRect(colors.live(CoverField.DANGER), topLeft = Offset(if (rtl) size.width - width else 0f, 0f), size = Size(width, size.height))
             },
     )
 }
@@ -303,18 +349,68 @@ fun VideoDownloadedBadge(modifier: Modifier = Modifier) {
     }
 }
 
-/** A channel's picture: a circle of [size], the placeholder fill behind it and when there is none. Decoration: the name is read beside it. */
+/**
+ * A channel's picture: a circle of [size], the placeholder fill behind it. When there is no picture (the list carried none, or it
+ * did not load) and the channel's [name] is known, the circle shows the name's first letter in white on a colour that follows the
+ * name, the same for the same name everywhere. Decoration: the name is read beside it.
+ */
 @Composable
-internal fun ChannelAvatar(url: String?, size: Dp, modifier: Modifier = Modifier) {
+internal fun ChannelAvatar(url: String?, size: Dp, modifier: Modifier = Modifier, name: String? = null) {
     val colors = LocalCosmoColors.current
+    val stand = LocalThumbnailStandIn.current
+    var failed by remember(url) { mutableStateOf(false) }
+    val initial = remember(name) { name?.let(::avatarInitial) }
     Box(
         modifier
             .size(size)
             .clip(CircleShape)
             .drawBehind { drawRect(colors.live(CoverField.SURFACE_VARIANT)) },
     ) {
-        if (url != null) {
-            AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        if (url != null && stand != null) {
+            stand(url, Modifier.fillMaxSize())
+        } else if (url != null && !failed) {
+            AsyncImage(
+                model = url,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                onError = { failed = true },
+            )
+        } else if (initial != null) {
+            AvatarInitial(initial, name.orEmpty(), size)
         }
     }
 }
+
+/** The letter in an avatar with no picture, on the colour of its name. */
+@Composable
+private fun AvatarInitial(initial: String, name: String, size: Dp) {
+    val type = LocalCosmoType.current
+    val tint = remember(name) { avatarTint(name) }
+    val style = remember(type, size) {
+        type.label.copy(fontSize = (size.value * AVATAR_LETTER).sp, fontWeight = FontWeight(VideoMetrics.FEED_TITLE_WEIGHT), letterSpacing = 0.sp)
+    }
+    Box(Modifier.fillMaxSize().drawBehind { drawRect(tint) }, contentAlignment = Alignment.Center) {
+        Text(text = initial, style = style, color = Color.White, maxLines = 1, overflow = TextOverflow.Clip)
+    }
+}
+
+/** The letter's size against the circle's. */
+private const val AVATAR_LETTER = 0.44f
+
+/** The first letter or digit of [name], upper case; null when the name has none. */
+internal fun avatarInitial(name: String): String? {
+    val at = name.indexOfFirst { it.isLetterOrDigit() }
+    if (at < 0) return null
+    val code = name.codePointAt(at)
+    return String(Character.toChars(code)).uppercase()
+}
+
+/** A colour that follows [name]: 12 hues around the wheel, dark enough for white text. The same name gives the same colour. */
+internal fun avatarTint(name: String): Color {
+    val hash = name.trim().lowercase().fold(0) { acc, c -> acc * 31 + c.code }
+    val hue = (Math.floorMod(hash, AVATAR_HUES)) * (360f / AVATAR_HUES)
+    return Color.hsv(hue, 0.50f, 0.52f)
+}
+
+private const val AVATAR_HUES = 12

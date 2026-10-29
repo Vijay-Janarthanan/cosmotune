@@ -2,8 +2,10 @@ package com.cosmotune.video.ui.desktop
 
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +35,10 @@ import com.cosmotune.video.graph.rememberVideoGraph
 import com.cosmotune.video.nav.VideoRoute
 import com.cosmotune.video.ui.OpenPendingVideo
 import com.cosmotune.video.ui.VideoHostLinks
+import com.cosmotune.video.ui.blocks.videoGround
+import com.cosmotune.video.ui.local.rememberLocalVideoOpener
+import com.cosmotune.video.ui.local.rememberVideoFilePicker
+import com.cosmotune.video.ui.local.videoDropTarget
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
 import com.cosmotune.video.ui.shell.VideoAccent
 import com.cosmotune.video.ui.shell.VideoBottomChrome
@@ -50,8 +56,9 @@ import dev.chrisbanes.haze.hazeSource
 
 /**
  * Video's page in the content area: [contentPadding] is what the desktop frame leaves clear for its bars. It provides the graph and
- * the process-wide navigator, draws [VideoNavHost] (always `wide`) under a top margin of 16 dp, and handles the search shortcut:
- * Ctrl K (Cmd K on macOS) takes the focus to the sidebar's field. The bottom is left to the pages (16 dp): Music's player bar, which
+ * the process-wide navigator, draws the header ([VideoDesktopHeader]: menu, search, account) and under it [VideoNavHost] (always
+ * `wide`) on Video's ground, and handles the search shortcut: Ctrl K (Cmd K on macOS) takes the focus to the header's field. The
+ * bottom is left to the pages (16 dp): Music's player bar, which
  * the frame reserves room for, stands aside in Video. A window narrower than the desktop's compact width (980 dp) has no sidebar
  * and the frame's bottom bar is Music's, so the page draws the tab capsule itself, and the shortcut opens the search page.
  * The Shorts pager gets the whole page.
@@ -87,10 +94,13 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
     val padding = when {
         fullPage -> PaddingValues()
         compact -> PaddingValues(top = PAGE_TOP, bottom = maxOf(frameBottom, chromeHeight + PAGE_BOTTOM))
-        else -> PaddingValues(top = PAGE_TOP, bottom = PAGE_BOTTOM)
+        else -> PaddingValues(top = PAGE_UNDER_HEADER, bottom = PAGE_BOTTOM)
     }
 
     val hazeState = remember { HazeState() }
+    // Video files dropped on the window, and Ctrl O (Cmd O), open in the local player.
+    val opener = rememberLocalVideoOpener()
+    val filePicker = rememberVideoFilePicker(onVideos = { opener.open(it) }, onSubtitle = {})
     val focus = remember { FocusRequester() }
     // The page keeps the keyboard focus until a control takes it, so the search shortcut is heard with nothing else focused.
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
@@ -98,6 +108,7 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
     Box(
         Modifier
             .fillMaxSize()
+            .videoDropTarget { opener.open(it) }
             .focusRequester(focus)
             .focusable()
             .onPreviewKeyEvent { event ->
@@ -105,13 +116,20 @@ private fun VideoDesktopPageBody(contentPadding: PaddingValues, host: VideoHostL
                 if (event.type == KeyEventType.KeyDown && shortcut && event.key == Key.K) {
                     if (compact) navigator.push(VideoRoute.Search()) else DesktopVideoState.requestSearchFocus()
                     true
+                } else if (event.type == KeyEventType.KeyDown && shortcut && event.key == Key.O) {
+                    filePicker.openVideos()
+                    true
                 } else {
                     false
                 }
             },
     ) {
-        Box(Modifier.fillMaxSize().hazeSource(hazeState)) {
-            VideoNavHost(navigator, padding, wide = true)
+        Column(Modifier.fillMaxSize().hazeSource(hazeState).videoGround()) {
+            // The header (menu, search, account) stands over every page but the Shorts pager; a narrow window has no guide and no header.
+            if (!compact && !fullPage) VideoDesktopHeader()
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                VideoNavHost(navigator, padding, wide = true)
+            }
         }
         if (compact && !fullPage) {
             VideoBottomChrome(
@@ -157,6 +175,9 @@ object VideoDesktopBack {
 
 /** Where the page begins under the frame's top bar (`.d2-main`: 16 dp), and how far its last row stands from the window's foot. */
 private val PAGE_TOP = 16.dp
+
+/** Where a page begins under the header's search row. */
+private val PAGE_UNDER_HEADER = 4.dp
 private val PAGE_BOTTOM = 16.dp
 
 private val IS_MAC = System.getProperty("os.name").orEmpty().contains("Mac", ignoreCase = true)

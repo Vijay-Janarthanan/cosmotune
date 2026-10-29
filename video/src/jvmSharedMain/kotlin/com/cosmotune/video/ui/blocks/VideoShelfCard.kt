@@ -1,6 +1,7 @@
 package com.cosmotune.video.ui.blocks
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -46,36 +48,50 @@ fun VideoShelfCard(
     val titleStyle = rememberTitleStyle(VideoMetrics.SHELF_TITLE_SP, item.title)
     val metaStyle = rememberMetaStyle(VideoMetrics.SHELF_META_SP, meta)
     val more = stringResource(Res.string.video_more)
+    val hover = rememberCardHover()
     Column(
-        modifier
+        with(hover) { modifier.track() }
             .width(width)
             .semantics { customActions = listOf(CustomAccessibilityAction(more) { onMore(); true }) }
             .videoClickable(CosmoRadii.md, onClick, onMore),
     ) {
         ThumbnailFrame(
             url = item.thumbnailUrl,
-            modifier = Modifier.size(width, VideoMetrics.thumbHeightDp(width.value).dp),
+            modifier = with(hover) { Modifier.size(width, VideoMetrics.thumbHeightDp(width.value).dp).lifted() },
             shape = ThumbnailShape,
             durationSec = item.durationSec,
             live = item.isLive,
             upcoming = item.isUpcoming,
             watchedFraction = watchedFraction,
             downloaded = downloaded,
+            hovered = hover.hovered,
         )
         Spacer(Modifier.height(SHELF_TEXT_GAP))
-        Text(text = item.title, style = titleStyle, color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (meta.isNotEmpty()) {
-            Text(
-                text = meta,
-                style = metaStyle,
-                color = Color(palette.textSecondary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
-            )
+        Row(verticalAlignment = Alignment.Top) {
+            if (!item.channelName.isNullOrBlank() || item.channelAvatarUrl != null) {
+                ChannelAvatar(item.channelAvatarUrl, SHELF_AVATAR, name = item.channelName)
+                Spacer(Modifier.width(SHELF_AVATAR_GAP))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(text = item.title, style = titleStyle, color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (meta.isNotEmpty()) {
+                    Text(
+                        text = meta,
+                        style = metaStyle,
+                        color = Color(palette.textSecondary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
         }
     }
 }
+
+/** The channel picture beside a shelf card's text: 28 dp, 8 dp from it. */
+private val SHELF_AVATAR = 28.dp
+private val SHELF_AVATAR_GAP = 8.dp
 
 /** Between a shelf card's picture and its title (part two's cards: 8 dp). */
 private val SHELF_TEXT_GAP = 8.dp

@@ -17,7 +17,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -25,6 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
+import com.cosmotune.video.account.AccountState
+import com.cosmotune.video.account.Rating
+import com.cosmotune.video.graph.LocalVideoGraph
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -71,6 +81,7 @@ import com.cosmotune.video.resources.video_theatre
 import com.cosmotune.video.resources.video_watch_later
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.blocks.ChannelAvatar
+import com.cosmotune.video.ui.blocks.SubscribePill
 import com.cosmotune.video.ui.blocks.MetaLine
 import com.cosmotune.video.ui.blocks.rememberMetaStyle
 import com.cosmotune.video.ui.blocks.rememberNowMs
@@ -98,8 +109,11 @@ private val CHANNEL_GAP = 12.dp
 private const val CHANNEL_NAME_SP = 15.5f
 private const val CHANNEL_COUNT_SP = 13f
 
-/** The chip's shape at rest: the B chip's rounded square (0.22 of its 36 dp height, `ControlMorph.chip`). */
-private val CHIP_SHAPE = SuperellipseShape(ControlMorph.chip(ControlMetrics.CHIP_HEIGHT_DP, selected = false, pressed = false, floating = false).radiusDp.dp)
+/** The chip's shape: a pill (half its 36 dp height). */
+private val CHIP_SHAPE = SuperellipseShape((ControlMetrics.CHIP_HEIGHT_DP / 2f).dp)
+
+/** The wash of ink behind a chip at rest: 10 %, a light grey on the light theme and the near-black grey of the dark one. */
+private const val CHIP_WASH = 0.10f
 
 /** A chip under a finger. */
 private const val CHIP_PRESSED_ALPHA = 0.7f
@@ -159,8 +173,9 @@ internal fun WatchMeta(
 ) {
     Column(modifier.fillMaxWidth()) {
         WatchTitle(info, sidePadding, onOpenDescription)
-        WatchActionChips(info, wide, theatre, sidePadding, onChip)
+        // The channel comes before the actions, as the video apps lay it out.
         WatchChannelRow(info, sidePadding, onOpenChannel, onSubscribe)
+        WatchActionChips(info, wide, theatre, sidePadding, onChip)
     }
 }
 
@@ -201,22 +216,31 @@ private fun WatchActionChips(info: WatchInfo, wide: Boolean, theatre: Boolean, s
     val chips = remember(info.item.id, info.item.isLive, info.item.isUpcoming, info.likes, info.dislikes, wide) {
         watchChips(info.item, info.likes, info.dislikes, wide)
     }
-    FlowRow(
-        Modifier
-            .fillMaxWidth()
-            .padding(start = sidePadding, end = sidePadding, top = CHIPS_TOP, bottom = CHIPS_BOTTOM),
-        horizontalArrangement = Arrangement.spacedBy(CHIPS_GAP),
-        verticalArrangement = Arrangement.spacedBy(CHIPS_GAP),
-    ) {
+    // Signed in, the like and dislike chips rate the video on the account (a second tap clears it).
+    val account = LocalVideoGraph.current.account
+    val signedIn = account.state.collectAsState().value is AccountState.SignedIn
+    val scope = rememberCoroutineScope()
+    var rating by remember(info.item.id) { mutableStateOf(Rating.NONE) }
+    fun rate(next: Rating) {
+        val target = if (rating == next) Rating.NONE else next
+        scope.launch { if (account.rate(info.item.id, target).isSuccess) rating = target }
+    }
+    val chipItems: @Composable () -> Unit = {
         for (chip in chips) {
             when (chip) {
                 WatchChip.LIKES -> {
                     val count = VideoText.compact(info.likes ?: 0)
-                    WatchActionChip(VideoIcons.ThumbUp, count, stringResource(Res.string.video_likes_cd, count), onClick = null)
+                    WatchActionChip(
+                        VideoIcons.ThumbUp, count, stringResource(Res.string.video_likes_cd, count),
+                        onClick = if (signedIn) ({ rate(Rating.LIKE) }) else null, on = rating == Rating.LIKE,
+                    )
                 }
                 WatchChip.DISLIKES -> {
                     val count = VideoText.compact(info.dislikes ?: 0)
-                    WatchActionChip(VideoIcons.ThumbDown, count, stringResource(Res.string.video_dislikes_cd, count), onClick = null)
+                    WatchActionChip(
+                        VideoIcons.ThumbDown, count, stringResource(Res.string.video_dislikes_cd, count),
+                        onClick = if (signedIn) ({ rate(Rating.DISLIKE) }) else null, on = rating == Rating.DISLIKE,
+                    )
                 }
                 WatchChip.SAVE -> WatchActionChip(VideoIcons.PlaylistAdd, stringResource(Res.string.video_save), null, onClick = { onChip(chip) })
                 WatchChip.WATCH_LATER -> WatchActionChip(
@@ -240,6 +264,20 @@ private fun WatchActionChips(info: WatchInfo, wide: Boolean, theatre: Boolean, s
                 WatchChip.THEATRE -> WatchActionChip(null, stringResource(Res.string.video_theatre), null, onClick = { onChip(chip) }, on = theatre)
             }
         }
+    }
+    if (wide) {
+        // A wide page wraps the actions, so every one stays visible with a mouse.
+        FlowRow(
+            Modifier.fillMaxWidth().padding(start = sidePadding, end = sidePadding, top = CHIPS_TOP, bottom = CHIPS_BOTTOM),
+            horizontalArrangement = Arrangement.spacedBy(CHIPS_GAP),
+            verticalArrangement = Arrangement.spacedBy(CHIPS_GAP),
+        ) { chipItems() }
+    } else {
+        // The phone scrolls them sideways in one row.
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = sidePadding, end = sidePadding, top = CHIPS_TOP, bottom = CHIPS_BOTTOM),
+            horizontalArrangement = Arrangement.spacedBy(CHIPS_GAP),
+        ) { chipItems() }
     }
 }
 
@@ -279,14 +317,12 @@ internal fun WatchActionChip(
             .graphicsLayer { alpha = if (pressed) CHIP_PRESSED_ALPHA else 1f }
             .drawWithCache {
                 val outline = CHIP_SHAPE.createOutline(size, layoutDirection, this)
-                val stroke = Stroke(1.dp.toPx())
                 onDrawBehind {
                     if (on) {
                         drawOutline(outline, colors.live(CoverField.ACCENT_CONTAINER))
                     } else {
                         val inkLive = colors.live(CoverField.TEXT_PRIMARY)
-                        drawOutline(outline, inkLive.copy(alpha = ControlMetrics.CHIP_REST_FILL))
-                        drawOutline(outline, inkLive.copy(alpha = ControlMetrics.OUTLINE), style = stroke)
+                        drawOutline(outline, inkLive.copy(alpha = CHIP_WASH))
                     }
                 }
             }
@@ -309,7 +345,7 @@ internal fun WatchActionChip(
 private const val CHIP_WEIGHT = 620
 
 /** The focus ring's corner around a chip. */
-private val CHIP_RADIUS = CosmoRadii.xs
+private val CHIP_RADIUS = (ControlMetrics.CHIP_HEIGHT_DP / 2f).dp
 
 /**
  * The channel row (spec 5.4): the avatar, the name over the subscriber count, and Subscribe or Subscribed. The row opens the channel
@@ -331,7 +367,7 @@ private fun WatchChannelRow(info: WatchInfo, sidePadding: Dp, onOpenChannel: () 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(Modifier.weight(1f).then(open).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-            ChannelAvatar(item.channelAvatarUrl, CHANNEL_AVATAR)
+            ChannelAvatar(item.channelAvatarUrl, CHANNEL_AVATAR, name = item.channelName)
             Spacer(Modifier.width(CHANNEL_GAP))
             Column(Modifier.weight(1f)) {
                 Text(name, style = nameStyle, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -340,12 +376,7 @@ private fun WatchChannelRow(info: WatchInfo, sidePadding: Dp, onOpenChannel: () 
         }
         if (item.channelId != null) {
             Spacer(Modifier.width(CHANNEL_GAP))
-            CosmoButton(
-                text = stringResource(if (info.subscribed) Res.string.video_subscribed else Res.string.video_subscribe),
-                onClick = onSubscribe,
-                kind = if (info.subscribed) CosmoButtonKind.TONAL else CosmoButtonKind.PRIMARY,
-                size = CosmoButtonSize.SMALL,
-            )
+            SubscribePill(subscribed = info.subscribed, onClick = onSubscribe)
         }
     }
 }

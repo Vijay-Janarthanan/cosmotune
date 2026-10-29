@@ -21,8 +21,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.ScaleFactor
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
@@ -46,6 +48,8 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
+import com.cosmotune.video.local.AspectMath
+import com.cosmotune.video.local.VideoAspect
 import com.cosmotune.video.model.SubtitleTrack
 import com.cosmotune.video.player.EngineCapabilities
 import com.cosmotune.video.player.LocalSubtitle
@@ -59,7 +63,9 @@ import com.cosmotune.video.player.SubtitleCue
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.player.VideoSurfaceProvider
+import com.cosmotune.video.player.baseScale
 import com.cosmotune.video.select.BandwidthWarmUp
+import com.cosmotune.video.settings.SmoothnessSettings
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -128,6 +134,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     @Volatile private var audioOnly = false
     @Volatile private var subtitleLanguage: String? = null
     @Volatile private var released = false
+    @Volatile private var matchDisplayRate = true
 
     /** Loads and unloads asked; the main thread counts the ones it has applied. While they differ, nothing old is published. */
     private val requestedLoads = AtomicInteger()
@@ -374,6 +381,21 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         }
     }
 
+    /** The picture of a local file under the person's aspect choice: `ContentFrame` with a [ContentScale] that follows [AspectMath]. */
+    @Composable
+    override fun Surface(modifier: Modifier, aspect: VideoAspect) {
+        val player = surfacePlayer
+        when (surfaceKind) {
+            SurfaceKind.CONTENT_FRAME -> ContentFrame(
+                player = player,
+                modifier = modifier,
+                surfaceType = SURFACE_TYPE_SURFACE_VIEW,
+                contentScale = remember(aspect) { AspectContentScale(aspect) },
+            )
+            SurfaceKind.SURFACE_VIEW -> ViewSurface(player, modifier, aspect.baseScale())
+        }
+    }
+
     /**
      * The fallback picture: an `AndroidView` over a plain [SurfaceView] attached to the player, sized to the video's shape inside
      * a black box (fit, or fill and crop). Kept for the case media3-ui-compose (built against Compose 1.11, run on the app's 1.10)
@@ -517,6 +539,23 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         detachHolder()
         player?.addAnalyticsListener(analytics)
         attached = player
+        applyFrameRateStrategy()
+    }
+
+    /**
+     * "Match display refresh rate": with it on, the screen is asked to switch to the video's frame rate when it can do so without
+     * a flicker (media3's default, [C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS]); off, the screen stays where it is. The phone
+     * makes no frames of its own, so this is the whole of its smoothness setting.
+     */
+    override fun setSmoothness(settings: SmoothnessSettings) {
+        matchDisplayRate = settings.matchDisplayRate
+        onMain { applyFrameRateStrategy() }
+    }
+
+    @MainThread
+    private fun applyFrameRateStrategy() {
+        val strategy = if (matchDisplayRate) C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS else C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
+        VideoPlayerHolder.player?.setVideoChangeFrameRateStrategy(strategy)
     }
 
     @MainThread
@@ -720,6 +759,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
             val name = address.substringBefore('?').lowercase()
             return when {
                 name.endsWith(".srt") -> MimeTypes.APPLICATION_SUBRIP
+                name.endsWith(".ass") || name.endsWith(".ssa") -> MimeTypes.TEXT_SSA
                 name.endsWith(".ttml") || name.endsWith(".dfxp") || name.endsWith(".xml") -> MimeTypes.APPLICATION_TTML
                 else -> MimeTypes.TEXT_VTT
             }
@@ -761,6 +801,15 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         }
 
         private const val MAX_CAUSES = 16
+    }
+}
+
+/** A [ContentScale] for a [VideoAspect]: the factors that take the video to the size [AspectMath.drawnSize] gives in the space. */
+private class AspectContentScale(private val aspect: VideoAspect) : ContentScale {
+    override fun computeScaleFactor(srcSize: Size, dstSize: Size): ScaleFactor {
+        val drawn = AspectMath.drawnSize(aspect, dstSize.width, dstSize.height, srcSize.width, srcSize.height)
+        val factors = AspectMath.scaleFactors(drawn, srcSize.width, srcSize.height)
+        return ScaleFactor(factors.width, factors.height)
     }
 }
 

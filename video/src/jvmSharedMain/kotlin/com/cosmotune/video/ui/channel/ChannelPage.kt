@@ -51,6 +51,7 @@ import com.cosmotune.video.model.ChannelTab
 import com.cosmotune.video.model.ListItem
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.nav.VideoRoute
+import com.cosmotune.video.ui.blocks.rememberSubscribeToggle
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_shorts
 import com.cosmotune.video.select.ShortsFilter
@@ -159,6 +160,7 @@ private fun ChannelReady(
 
     var menu by remember { mutableStateOf<MenuTarget?>(null) }
     var preparing by remember { mutableStateOf(false) }
+    val subscribeToggle = rememberSubscribeToggle()
     val subscribed = subscriptions.any { it.channelId == channel.id || it.channelId == route.channelId }
     val ui = ChannelUi(
         model = model,
@@ -174,7 +176,7 @@ private fun ChannelReady(
         downloaded = downloaded,
         actions = actions,
         onSelect = { wanted = it.name },
-        onSubscribe = { if (subscribed) graph.library.unsubscribe(channel.id) else graph.library.subscribe(channel) },
+        onSubscribe = { subscribeToggle(channel, subscribed) },
         onShare = { sharer.share(channel.name, ShareLinks.channel(channel.id)) },
         onDownload = {
             if (!preparing) {

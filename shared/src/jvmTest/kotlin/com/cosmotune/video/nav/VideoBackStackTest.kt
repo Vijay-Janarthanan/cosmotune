@@ -174,6 +174,8 @@ class VideoBackStackTest {
         VideoRoute.Channel("UCfakechannel0000000002", ChannelTab.SHORTS),
         VideoRoute.Playlist("PLfakeplaylist0000000001"),
         VideoRoute.LocalPlaylist("local-1"),
+        VideoRoute.LocalPlayer("local:00ab12cd34ef56a7"),
+        VideoRoute.LocalFiles,
         VideoRoute.History,
         VideoRoute.WatchLater,
         VideoRoute.Liked,

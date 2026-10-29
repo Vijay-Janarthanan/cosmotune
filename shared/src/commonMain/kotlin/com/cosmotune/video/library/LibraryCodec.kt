@@ -12,6 +12,9 @@ import com.cosmotune.video.segments.SegmentCategory
 import com.cosmotune.video.settings.CodecPreference
 import com.cosmotune.video.settings.SegmentBehaviour
 import com.cosmotune.video.settings.TitleCase
+import com.cosmotune.video.settings.SmoothMode
+import com.cosmotune.video.settings.SmoothPreset
+import com.cosmotune.video.settings.SmoothnessSettings
 import com.cosmotune.video.settings.VideoSettings
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
@@ -344,6 +347,29 @@ internal data class SettingsDocument(
     val downloadFolder: String? = DEFAULTS.downloadFolder,
     val firstRunSeen: Boolean = DEFAULTS.firstRunSeen,
     val homeKiosk: String = DEFAULTS.homeKiosk,
+    val smoothness: SmoothnessDto = SmoothnessDto(),
+)
+
+/** Frame smoothing inside `settings.json`; a file from before it has none of these keys and reads as the defaults (off). */
+@Serializable
+internal data class SmoothnessDto(
+    val mode: String = DEFAULTS.smoothness.mode.name,
+    val targetFps: Int = DEFAULTS.smoothness.targetFps,
+    val strength: Int = DEFAULTS.smoothness.strength,
+    val onlyBelow30: Boolean = DEFAULTS.smoothness.onlyBelow30,
+    val preset: String = DEFAULTS.smoothness.preset.name,
+    val matchDisplayRate: Boolean = DEFAULTS.smoothness.matchDisplayRate,
+)
+
+internal fun SmoothnessSettings.toDto() = SmoothnessDto(mode.name, targetFps, strength, onlyBelow30, preset.name, matchDisplayRate)
+
+internal fun SmoothnessDto.toDomain() = SmoothnessSettings(
+    mode = SmoothMode.entries.firstOrNull { it.name == mode } ?: DEFAULTS.smoothness.mode,
+    targetFps = if (targetFps in SmoothnessSettings.TARGET_CHOICES) targetFps else DEFAULTS.smoothness.targetFps,
+    strength = strength.coerceIn(0, 100),
+    onlyBelow30 = onlyBelow30,
+    preset = SmoothPreset.entries.firstOrNull { it.name == preset } ?: DEFAULTS.smoothness.preset,
+    matchDisplayRate = matchDisplayRate,
 )
 
 internal fun VideoSettings.toDocument() = SettingsDocument(
@@ -377,6 +403,7 @@ internal fun VideoSettings.toDocument() = SettingsDocument(
     downloadFolder = downloadFolder,
     firstRunSeen = firstRunSeen,
     homeKiosk = homeKiosk,
+    smoothness = smoothness.toDto(),
 )
 
 internal fun SettingsDocument.toSettings(): VideoSettings {
@@ -416,6 +443,7 @@ internal fun SettingsDocument.toSettings(): VideoSettings {
         downloadFolder = downloadFolder?.takeIf { it.isNotBlank() },
         firstRunSeen = firstRunSeen,
         homeKiosk = homeKiosk.ifBlank { DEFAULTS.homeKiosk },
+        smoothness = smoothness.toDomain(),
     )
 }
 

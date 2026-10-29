@@ -119,6 +119,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cosmotune.music.auth.DiscordLoginScreen
+import com.cosmotune.music.auth.SignInRequest
 import com.cosmotune.music.auth.SpotifyLoginScreen
 import com.cosmotune.music.auth.WebSessionMode
 import com.cosmotune.music.auth.YtMusicLoginScreen
@@ -361,8 +362,13 @@ class MainActivity : AppCompatActivity() {
             LaunchedEffect(highPerformance, performanceRefreshRate, composeView) {
                 applyPerformanceMode(highPerformance, performanceRefreshRate, composeView)
             }
+            // Video is dark first: while it is the mode, "follow the system" is dark; only an explicit Light choice makes it light.
+            val look = com.cosmotune.ui.settings.rememberCosmoLookSettings()
+            val videoMode = look.newLook.collectAsStateWithLifecycle().value &&
+                look.mode.collectAsStateWithLifecycle().value == com.cosmotune.design.AppMode.VIDEO &&
+                com.cosmotune.design.AppModes.available(com.cosmotune.design.AppMode.VIDEO)
             val darkTheme = when (theme) {
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.SYSTEM -> isSystemInDarkTheme() || videoMode
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
@@ -546,6 +552,14 @@ private fun CosmotuneApp(
      * signing in, or picking a channel in YouTube Music's own Accounts list.
      */
     var webSession by remember { mutableStateOf<WebSessionMode?>(null) }
+    // Video mode asked for the sign-in; the phone's mode host has made Music the mode, which is where the screen lives.
+    val signInRequested by SignInRequest.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(signInRequested) {
+        if (signInRequested) {
+            webSession = WebSessionMode.SIGN_IN
+            SignInRequest.handled()
+        }
+    }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     // Replay: the page, the stories over it, and the share sheet over those.
     // Three states rather than one enum because they stack â€” the stories are

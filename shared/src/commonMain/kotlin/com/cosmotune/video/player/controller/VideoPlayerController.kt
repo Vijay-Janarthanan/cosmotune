@@ -1,6 +1,7 @@
 package com.cosmotune.video.player.controller
 
 import com.cosmotune.video.library.VideoLibrary
+import com.cosmotune.video.local.LocalVideo
 import com.cosmotune.video.model.AudioStream
 import com.cosmotune.video.model.Description
 import com.cosmotune.video.model.ListItem
@@ -642,7 +643,8 @@ class VideoPlayerController(
      * unloaded, so no session or notification outlives the video.
      */
     private fun playOnOrStop(l: Load) {
-        val step = queueState.next(l.item)
+        // A file on the device has its own queue, kept by the local player: the source's queue is not its next.
+        val step = if (LocalVideo.isLocal(l.videoId)) null else queueState.next(l.item)
         if (step != null) {
             queueState = step.queue
             begin(step.item.id, null, short = false, local = null, known = step.item)
@@ -734,6 +736,8 @@ class VideoPlayerController(
         val l = load ?: return
         val item = l.item ?: return
         if (l.live || !engineLoaded || library.historyPaused.value) return
+        // A file on the device is not in the watch history (the local player keeps its own recent list and positions).
+        if (LocalVideo.isLocal(item.id)) return
         val snap = lastSnap ?: return
         val position = engine.positionMs()
         val valid = when (snap.status) {
@@ -1088,6 +1092,7 @@ class VideoPlayerController(
     override fun playNext() {
         val l = load
         if (l?.short == true) return          // the Shorts pager moves on by itself
+        if (LocalVideo.isLocal(l?.videoId)) return   // a file on the device: the local player's queue moves on, not the source's
         val current = l?.item ?: l?.knownItem
         val step = queueState.next(current)
         if (step != null) {
@@ -1109,7 +1114,7 @@ class VideoPlayerController(
         if (l.short) return
         // A live stream has no start to go back to (0 is its window's oldest moment): Previous only plays the video before it.
         val restart = !l.live && engineLoaded && engine.positionMs() > RESTART_AFTER_MS
-        val step = if (restart) null else queueState.previous(l.item ?: l.knownItem)
+        val step = if (restart || LocalVideo.isLocal(l.videoId)) null else queueState.previous(l.item ?: l.knownItem)
         if (step == null) {
             if (!l.live) seekTo(0)            // more than 3 s in, or nothing before it: back to the start
             return

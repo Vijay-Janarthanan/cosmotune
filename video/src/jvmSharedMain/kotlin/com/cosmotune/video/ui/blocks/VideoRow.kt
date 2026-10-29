@@ -1,5 +1,6 @@
 package com.cosmotune.video.ui.blocks
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -50,24 +51,27 @@ fun VideoRow(
 ) {
     val meta = MetaLine(item, rememberNowMs())
     val more = stringResource(Res.string.video_more)
+    val hover = rememberCardHover()
     VideoRowFrame(
         thumbnail = {
             ThumbnailFrame(
                 url = item.thumbnailUrl,
-                modifier = Modifier.rowThumbnailSize(desktop),
+                modifier = with(hover) { Modifier.rowThumbnailSize(desktop).lifted() },
                 shape = ThumbnailShape,
                 durationSec = item.durationSec,
                 live = item.isLive,
                 upcoming = item.isUpcoming,
                 watchedFraction = watchedFraction,
                 downloaded = downloaded,
+                hovered = hover.hovered,
             )
         },
         title = title,
         meta = meta,
+        avatar = if (item.channelName.isNullOrBlank()) null else ({ ChannelAvatar(item.channelAvatarUrl, ROW_AVATAR, name = item.channelName) }),
         onClick = onClick,
         onMore = onMore,
-        modifier = modifier,
+        modifier = with(hover) { modifier.track() },
         trailing = trailing ?: {
             CosmoIconButton(
                 icon = CosmoIcons.MoreVertical,
@@ -79,6 +83,10 @@ fun VideoRow(
         },
     )
 }
+
+/** The channel picture before a row's meta line: 20 dp, 6 dp from the text. */
+private val ROW_AVATAR = 20.dp
+private val ROW_AVATAR_GAP = 6.dp
 
 /** The size of a row's thumbnail: 160 x 90, on the desktop 168 x 94.5. */
 internal fun Modifier.rowThumbnailSize(desktop: Boolean): Modifier {
@@ -99,6 +107,7 @@ internal fun VideoRowFrame(
     onMore: (() -> Unit)?,
     modifier: Modifier,
     trailing: (@Composable RowScope.() -> Unit)?,
+    avatar: (@Composable () -> Unit)? = null,
 ) {
     val palette = LocalCosmoColors.current.palette
     val titleStyle = rememberTitleStyle(VideoMetrics.ROW_TITLE_SP, title)
@@ -115,14 +124,19 @@ internal fun VideoRowFrame(
         Column(Modifier.weight(1f)) {
             Text(text = title, style = titleStyle, color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (meta.isNotEmpty()) {
-                Text(
-                    text = meta,
-                    style = metaStyle,
-                    color = Color(palette.textSecondary),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.Top) {
+                    if (avatar != null) {
+                        Box(Modifier.padding(top = 1.dp, end = ROW_AVATAR_GAP)) { avatar() }
+                    }
+                    Text(
+                        text = meta,
+                        style = metaStyle,
+                        color = Color(palette.textSecondary),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
         if (trailing != null) trailing()

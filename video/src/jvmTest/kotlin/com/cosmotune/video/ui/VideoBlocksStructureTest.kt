@@ -93,7 +93,7 @@ class VideoBlocksStructureTest {
         )
         // the chips take one more, last: the Shorts chip of Home stands first in the same scrolling row
         assertEquals(
-            listOf("labels: List<String>", "selected: Int", "onSelect: (Int) -> Unit", "modifier: Modifier = Modifier", "leading: (@Composable () -> Unit)? = null"),
+            listOf("labels: List<String>", "selected: Int", "onSelect: (Int) -> Unit", "modifier: Modifier = Modifier", "leading: (@Composable () -> Unit)? = null", "trailing: (@Composable () -> Unit)? = null"),
             params("VideoChips", "VideoChips"),
         )
         assertEquals(listOf("item: VideoItem", "nowMs: Long", "showChannel: Boolean = true"), params("MetaLine", "MetaLine"))
@@ -314,7 +314,7 @@ class VideoBlocksStructureTest {
         // the channel row is part two's row with a tonal small button, and a 52 dp circle
         val channel = code("ChannelStrip")
         assertTrue("CosmoListRow(" in channel && "CosmoRowLeading.Cover(item.avatarUrl, circle = true)" in channel)
-        assertTrue("kind = CosmoButtonKind.TONAL, size = CosmoButtonSize.SMALL" in channel, "Subscribe is a small tonal button")
+        assertTrue("SubscribePill(subscribed = subscribed, onClick = onSubscribe)" in channel, "Subscribe is the pill of the video apps")
     }
 
     @Test fun everyLazyListOrGridHasKeys() {

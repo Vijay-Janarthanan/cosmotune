@@ -76,6 +76,10 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
 
                 is VideoRoute.Watch -> com.cosmotune.video.ui.watch.WatchPage(r, contentPadding, wide)
 
+                is VideoRoute.LocalPlayer -> com.cosmotune.video.ui.local.LocalPlayerPage(r, contentPadding, wide)
+
+                is VideoRoute.LocalFiles -> com.cosmotune.video.ui.local.LocalFilesPage(contentPadding, wide)
+
                 is VideoRoute.Shorts -> com.cosmotune.video.ui.shorts.ShortsScreen(r, contentPadding, wide)
 
                 is VideoRoute.Channel -> com.cosmotune.video.ui.channel.ChannelPage(r, contentPadding, wide)

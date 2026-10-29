@@ -22,7 +22,8 @@ enum class VideoTab(val root: VideoRoute) {
  *
  * - [push] lands on the current tab. Pushing the route that is already on top changes nothing; a [VideoRoute.Watch] on top of
  *   a [VideoRoute.Watch] of the same video is replaced by the newer request (a new start time), and a [VideoRoute.Search] on
- *   top of a [VideoRoute.Search] is replaced, so a stack never holds the same video or two searches one after the other.
+ *   top of a [VideoRoute.Search] is replaced, so a stack never holds the same video or two searches one after the other; a
+ *   [VideoRoute.LocalPlayer] on top of another is replaced too (opening a second file takes the player's place).
  *   A tab root pushed shows that root (the tab is selected and its stack dropped): a root is never stacked on something.
  * - [pop] removes the top and answers whether it did: it refuses at a tab root.
  * - [selectTab] of another tab shows that tab's own stack as it was left; of the current tab it pops this one to its root.
@@ -56,6 +57,7 @@ class VideoBackStack {
             last == route -> Unit
             last is VideoRoute.Watch && route is VideoRoute.Watch && last.videoId == route.videoId -> list[list.lastIndex] = route
             last is VideoRoute.Search && route is VideoRoute.Search -> list[list.lastIndex] = route
+            last is VideoRoute.LocalPlayer && route is VideoRoute.LocalPlayer -> list[list.lastIndex] = route
             else -> {
                 list += route
                 if (list.size > MAX_DEPTH) list.removeAt(0)

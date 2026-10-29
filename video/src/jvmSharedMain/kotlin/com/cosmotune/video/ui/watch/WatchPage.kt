@@ -49,7 +49,7 @@ import com.cosmotune.video.downloads.DownloadController
 import com.cosmotune.video.downloads.DownloadState
 import com.cosmotune.video.downloads.readLocalBundle
 import com.cosmotune.video.graph.LocalVideoGraph
-import com.cosmotune.video.library.VideoLibrary
+import com.cosmotune.video.ui.blocks.rememberSubscribeToggle
 import com.cosmotune.video.model.ChannelItem
 import com.cosmotune.video.model.Chapter
 import com.cosmotune.video.model.Description
@@ -133,12 +133,12 @@ fun WatchPage(route: VideoRoute.Watch, contentPadding: PaddingValues, wide: Bool
     val aspect = state.aspect
     SideEffect { pipUpdater.update(enabled = pipEnabled, aspect = aspect) }
     DisposableEffect(pipUpdater) { onDispose { pipUpdater.leave() } }
-    val enterPip = rememberEnterPictureInPicture()?.takeIf { pip.supported }
+    val enterPip = rememberPipEntry(pip)
 
     val view = rememberWatchView(route.videoId, state, settings)
     val actions = rememberVideoActions()
     var sheetFor by remember { mutableStateOf<VideoItem?>(null) }
-    val callbacks = watchCallbacks(view, state.details, actions, playback, graph.library, navigator) { sheetFor = it }
+    val callbacks = watchCallbacks(view, state.details, actions, playback, navigator, rememberSubscribeToggle()) { sheetFor = it }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val phoneLandscape = WatchRules.phoneLandscape(maxWidth.value, maxHeight.value, rotationEntersFullScreen)
@@ -171,6 +171,7 @@ fun WatchPage(route: VideoRoute.Watch, contentPadding: PaddingValues, wide: Bool
                 pipUpdater = pipUpdater,
                 onCollapse = if (navigator.canPop) ({ navigator.pop(); Unit }) else null,
                 onEnterFullscreen = enterFullscreen,
+                onEnterPip = enterPip,
             )
         }
     }
@@ -299,8 +300,8 @@ private fun watchCallbacks(
     details: VideoDetails?,
     actions: VideoActionHandler,
     playback: VideoPlayback,
-    library: VideoLibrary,
     navigator: VideoNavigator,
+    subscribeToggle: (ChannelItem, Boolean) -> Unit,
     onSheet: (VideoItem) -> Unit,
 ): WatchCallbacks {
     val info = view.info
@@ -329,11 +330,7 @@ private fun watchCallbacks(
             val item = info?.item
             val channelId = item?.channelId
             if (item != null && channelId != null) {
-                if (info.subscribed) {
-                    library.unsubscribe(channelId)
-                } else {
-                    library.subscribe(ChannelItem(channelId, item.channelName.orEmpty(), item.channelAvatarUrl, info.subscriberCount, null, null))
-                }
+                subscribeToggle(ChannelItem(channelId, item.channelName.orEmpty(), item.channelAvatarUrl, info.subscriberCount, null, null), info.subscribed)
             }
         },
         onSeek = { ms -> playback.seekTo(ms) },
@@ -365,6 +362,7 @@ private fun WatchPagePhone(
     pipUpdater: PipUpdater,
     onCollapse: (() -> Unit)?,
     onEnterFullscreen: () -> Unit,
+    onEnterPip: (() -> Unit)?,
 ) {
     var descriptionOpen by rememberSaveable(view.videoId) { mutableStateOf(false) }
     var commentsOpen by rememberSaveable(view.videoId) { mutableStateOf(false) }
@@ -389,6 +387,7 @@ private fun WatchPagePhone(
                     modifier = Modifier.fillMaxWidth().height(playerHeight),
                     onCollapse = onCollapse,
                     onToggleFullscreen = onEnterFullscreen,
+                    onEnterPip = onEnterPip,
                     onBoundsChanged = onBounds,
                 )
             }

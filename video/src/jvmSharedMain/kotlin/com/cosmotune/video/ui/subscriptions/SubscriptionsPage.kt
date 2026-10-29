@@ -42,6 +42,7 @@ import com.cosmotune.ui.blocks.CosmoOverline
 import com.cosmotune.ui.chrome.CosmoPullIndicator
 import com.cosmotune.ui.components.CosmoButton
 import com.cosmotune.ui.components.CosmoButtonKind
+import com.cosmotune.ui.components.CosmoButtonSize
 import com.cosmotune.ui.components.CosmoChip
 import com.cosmotune.ui.states.CosmoEmptyState
 import com.cosmotune.ui.theme.CosmoSpacing
@@ -66,6 +67,7 @@ import com.cosmotune.video.resources.video_older
 import com.cosmotune.video.resources.video_open_channel_chip
 import com.cosmotune.video.resources.video_shorts
 import com.cosmotune.video.resources.video_tab_subscriptions
+import com.cosmotune.video.resources.video_view_all
 import com.cosmotune.video.resources.video_this_month
 import com.cosmotune.video.resources.video_this_week
 import com.cosmotune.video.resources.video_today
@@ -81,6 +83,7 @@ import com.cosmotune.video.ui.blocks.VideoActionsSheet
 import com.cosmotune.video.ui.blocks.VideoCard
 import com.cosmotune.video.ui.blocks.VideoCardBody
 import com.cosmotune.video.ui.blocks.VideoSheetContext
+import com.cosmotune.video.ui.branding.rememberChannelAvatar
 import com.cosmotune.video.ui.branding.rememberVideoThumbnail
 import com.cosmotune.video.ui.branding.rememberVideoTitle
 import com.cosmotune.video.ui.shell.LocalVideoNavigator
@@ -195,6 +198,7 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                                 onRefresh = if (pullEnabled) null else refresh,
                                 onDownloadAll = downloadAll,
                                 onOpenChannel = { id -> navigator.push(VideoRoute.Channel(id)) },
+                                onViewAll = { navigator.push(VideoRoute.Channels) },
                             )
                             if (wide) {
                                 for ((group, groupRows) in rows) {
@@ -276,7 +280,13 @@ private fun LazyListScope.feedHead(
     onRefresh: (() -> Unit)?,
     onDownloadAll: (() -> Unit)?,
     onOpenChannel: (String) -> Unit,
+    onViewAll: () -> Unit,
 ) {
+    item(key = KEY_VIEW_ALL, contentType = "view-all") {
+        Row(Modifier.fillMaxWidth().padding(horizontal = inset), horizontalArrangement = Arrangement.End) {
+            CosmoButton(text = stringResource(Res.string.video_view_all), onClick = onViewAll, kind = CosmoButtonKind.TEXT, size = CosmoButtonSize.SMALL)
+        }
+    }
     item(key = KEY_STRIP, contentType = "strip") {
         ChannelStrip(channels = model.strip, selectedId = model.selectedId, onSelect = onSelect, modifier = Modifier.padding(horizontal = inset))
     }
@@ -331,6 +341,7 @@ private fun OpenChannelChip(onOpen: () -> Unit, modifier: Modifier = Modifier) {
     )
 }
 
+private const val KEY_VIEW_ALL = "feed:view-all"
 private const val KEY_STRIP = "feed:strip"
 private const val KEY_SHORTS = "feed:shorts"
 private const val KEY_STATUS = "feed:status"
@@ -370,7 +381,8 @@ private fun FeedCard(
 ) {
     val title = rememberVideoTitle(item)
     val picture = rememberVideoThumbnail(item)
-    val shown = remember(item, picture) { if (picture == item.thumbnailUrl) item else item.copy(thumbnailUrl = picture) }
+    val avatar = rememberChannelAvatar(item)
+    val shown = remember(item, picture, avatar) { if (picture == item.thumbnailUrl && avatar == item.channelAvatarUrl) item else item.copy(thumbnailUrl = picture, channelAvatarUrl = avatar) }
     if (wide) {
         VideoCardBody(shown, onClick, onMore, modifier, watchedFraction, title, downloaded)
     } else {

@@ -29,6 +29,12 @@ sealed interface VideoRoute {
     /** The watch page. */
     data class Watch(val videoId: String, val startMs: Long? = null) : VideoRoute
 
+    /** The local player for the file whose id ([com.cosmotune.video.local.LocalVideo.idFor]) is [id]; its source is in the recent list. */
+    data class LocalPlayer(val id: String) : VideoRoute
+
+    /** The files the local player has opened (the recent list), with the button that opens another. */
+    data object LocalFiles : VideoRoute
+
     /** The Shorts pager. */
     data class Shorts(val origin: ShortsOrigin, val startVideoId: String? = null, val seedKey: String? = null) : VideoRoute
 
@@ -88,6 +94,8 @@ internal object VideoRouteCodec {
         VideoRoute.Library -> "library"
         is VideoRoute.Search -> "search:${escape(route.query)}"
         is VideoRoute.Watch -> "watch:${escape(route.videoId)}:${route.startMs?.toString() ?: NONE}"
+        is VideoRoute.LocalPlayer -> "localplayer:${escape(route.id)}"
+        VideoRoute.LocalFiles -> "localfiles"
         is VideoRoute.Shorts -> "shorts:${escape(encodeOrigin(route.origin))}:${optional(route.startVideoId)}:${optional(route.seedKey)}"
         is VideoRoute.Channel -> "channel:${escape(route.channelId)}:${route.tab.name}"
         is VideoRoute.Playlist -> "playlist:${escape(route.playlistId)}"
@@ -118,6 +126,8 @@ internal object VideoRouteCodec {
                 val start = if (parts[2] == NONE) null else parts[2].toLongOrNull() ?: return null
                 VideoRoute.Watch(id, start)
             }
+            "localplayer" -> if (fields == 1) field(1)?.let { VideoRoute.LocalPlayer(it) } else null
+            "localfiles" -> VideoRoute.LocalFiles.takeIf { fields == 0 }
             "shorts" -> {
                 if (fields != 3) return null
                 val origin = field(1)?.let { decodeOrigin(it) } ?: return null

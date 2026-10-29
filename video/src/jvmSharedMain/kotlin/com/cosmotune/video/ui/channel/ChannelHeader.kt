@@ -59,6 +59,8 @@ import com.cosmotune.video.resources.video_subscribe
 import com.cosmotune.video.resources.video_subscribed
 import com.cosmotune.video.resources.video_subscribers
 import com.cosmotune.video.ui.blocks.ChannelAvatar
+import com.cosmotune.video.ui.blocks.LocalThumbnailStandIn
+import com.cosmotune.video.ui.blocks.SubscribePill
 import com.cosmotune.video.ui.blocks.VideoChips
 import com.cosmotune.video.ui.blocks.rememberMetaStyle
 import org.jetbrains.compose.resources.pluralStringResource
@@ -106,7 +108,12 @@ internal fun ChannelBanner(url: String?, wide: Boolean, widthDp: Float, margin: 
                 }
             },
     ) {
-        if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        val stand = LocalThumbnailStandIn.current
+        if (url != null && stand != null) {
+            stand(url, Modifier.fillMaxSize())
+        } else if (url != null) {
+            AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
     }
 }
 
@@ -199,12 +206,8 @@ internal fun ChannelActions(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CosmoButton(
-            text = stringResource(if (subscribed) Res.string.video_subscribed else Res.string.video_subscribe),
-            onClick = onSubscribe,
-            kind = if (subscribed) CosmoButtonKind.TONAL else CosmoButtonKind.PRIMARY,
-            size = CosmoButtonSize.SMALL,
-        )
+        // On a phone the pill takes the width the icons leave, as in the video apps.
+        SubscribePill(subscribed = subscribed, onClick = onSubscribe, modifier = if (wide) Modifier else Modifier.weight(1f))
         CosmoIconButton(
             icon = CosmoIcons.Share,
             contentDescription = stringResource(Res.string.video_share),

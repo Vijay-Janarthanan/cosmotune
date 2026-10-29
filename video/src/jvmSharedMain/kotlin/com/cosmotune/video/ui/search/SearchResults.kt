@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -54,8 +55,12 @@ import com.cosmotune.video.source.VideoSourceError
 import com.cosmotune.video.ui.blocks.ChannelRow
 import com.cosmotune.video.ui.blocks.PlaylistRow
 import com.cosmotune.video.ui.blocks.ThumbnailShape
+import com.cosmotune.video.ui.blocks.VideoResultCard
 import com.cosmotune.video.ui.blocks.VideoRow
+import com.cosmotune.video.ui.blocks.VideoCard
+import com.cosmotune.video.ui.home.CardSkeleton
 import com.cosmotune.video.ui.blocks.rowThumbnailSize
+import com.cosmotune.video.ui.branding.rememberChannelAvatar
 import com.cosmotune.video.ui.branding.rememberVideoThumbnail
 import com.cosmotune.video.ui.branding.rememberVideoTitle
 import kotlinx.coroutines.CancellationException
@@ -342,15 +347,26 @@ private fun ResultRow(entry: ListItem, wide: Boolean, callbacks: SearchRowCallba
 private fun SearchVideoRow(item: VideoItem, wide: Boolean, downloaded: Boolean, callbacks: SearchRowCallbacks) {
     val title = rememberVideoTitle(item)
     val picture = rememberVideoThumbnail(item)
-    val shown = remember(item, picture) { if (picture == item.thumbnailUrl) item else item.copy(thumbnailUrl = picture) }
-    VideoRow(
-        item = shown,
-        onClick = { callbacks.onVideo(item) },
-        onMore = { callbacks.onMore(item) },
-        desktop = wide,
-        title = title,
-        downloaded = downloaded,
-    )
+    val avatar = rememberChannelAvatar(item)
+    val shown = remember(item, picture, avatar) { if (picture == item.thumbnailUrl && avatar == item.channelAvatarUrl) item else item.copy(thumbnailUrl = picture, channelAvatarUrl = avatar) }
+    // A wide page gets the big result card (a 360 dp picture, the channel with its picture); the phone the feed's full-width card.
+    if (wide) {
+        VideoResultCard(
+            item = shown,
+            onClick = { callbacks.onVideo(item) },
+            onMore = { callbacks.onMore(item) },
+            title = title,
+            downloaded = downloaded,
+        )
+    } else {
+        VideoCard(
+            item = shown,
+            onClick = { callbacks.onVideo(item) },
+            onMore = { callbacks.onMore(item) },
+            title = title,
+            downloaded = downloaded,
+        )
+    }
 }
 
 /** The page of a search that found nothing: the empty state with the query in curly quotes and the hint. */
@@ -366,15 +382,21 @@ private fun NoResults(query: String) {
 /** The shape of a [VideoRow] while it loads: the thumbnail, a title line and a shorter meta line, in the shimmer. */
 @Composable
 private fun ResultSkeletonRow(wide: Boolean) {
+    // The phone's results are the feed's cards: their skeleton.
+    if (!wide) {
+        CardSkeleton(Modifier.padding(horizontal = CosmoSpacing.margin).padding(bottom = VideoMetrics.FEED_AFTER_DP.dp))
+        return
+    }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = VideoMetrics.ROW_PAD_V_DP.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CosmoShimmer(Modifier.rowThumbnailSize(wide), ThumbnailShape)
-        Spacer(Modifier.width(CosmoSpacing.gutter))
+        CosmoShimmer(if (wide) Modifier.width(WIDE_SKELETON_PICTURE).aspectRatio(16f / 9f) else Modifier.rowThumbnailSize(false), ThumbnailShape)
+        Spacer(Modifier.width(if (wide) CosmoSpacing.margin else CosmoSpacing.gutter))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SKELETON_LINE_GAP)) {
             CosmoShimmer(Modifier.fillMaxWidth().height(SKELETON_TITLE_HEIGHT))
             CosmoShimmer(Modifier.fillMaxWidth(SKELETON_META_FRACTION).height(SKELETON_META_HEIGHT))
+            if (wide) CosmoShimmer(Modifier.fillMaxWidth(SKELETON_CHANNEL_FRACTION).height(SKELETON_META_HEIGHT))
         }
     }
 }
@@ -383,3 +405,7 @@ private val SKELETON_LINE_GAP = 8.dp
 private val SKELETON_TITLE_HEIGHT = 14.dp
 private val SKELETON_META_HEIGHT = 12.dp
 private const val SKELETON_META_FRACTION = 0.55f
+private const val SKELETON_CHANNEL_FRACTION = 0.3f
+
+/** The wide result card's picture: 360 dp. */
+private val WIDE_SKELETON_PICTURE = 360.dp

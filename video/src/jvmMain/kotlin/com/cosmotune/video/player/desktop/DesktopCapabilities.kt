@@ -34,6 +34,7 @@ object DesktopCapabilities {
         displayHeightPx = displayHeightPx,
         sideloadedDash = false,
         autoCeilingHeight = AUTO_CEILING_HEIGHT,
+        frameSmoothing = true,
     )
 
     /**

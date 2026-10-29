@@ -11,6 +11,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -30,6 +31,7 @@ import com.cosmotune.ui.sheets.SurfaceSheetSwitch
 import com.cosmotune.ui.sheets.cosmoMenuSurface
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.video.design.VideoMetrics
+import com.cosmotune.video.local.LocalVideo
 import com.cosmotune.video.model.AudioStream
 import com.cosmotune.video.model.AudioTrackKind
 import com.cosmotune.video.player.PlaybackUiState
@@ -50,9 +52,13 @@ import com.cosmotune.video.resources.video_quality_auto
 import com.cosmotune.video.resources.video_quality_auto_value
 import com.cosmotune.video.resources.video_speed
 import com.cosmotune.video.resources.video_speed_value
+import com.cosmotune.video.resources.video_smooth_title
 import com.cosmotune.video.resources.video_stats
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.ui.VideoIcons
+import com.cosmotune.video.ui.local.LocalAspectPage
+import com.cosmotune.video.ui.local.LocalSettingsPage
+import com.cosmotune.video.ui.local.LocalSettingsRows
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 
@@ -70,7 +76,7 @@ private const val SLIDER_PAD_DP = 22f
 internal val SPEEDS: List<Float> = (1..16).map { it * PlayerKeyMap.SPEED_STEP }
 
 /** The pages of the settings: the rows, and the list each row opens in the same sheet. */
-internal enum class SettingsPage { MAIN, QUALITY, SPEED, CAPTIONS, AUDIO }
+internal enum class SettingsPage { MAIN, QUALITY, SPEED, CAPTIONS, AUDIO, SMOOTHNESS }
 
 /**
  * The phone's player settings (spec 6.5): a C sheet (`CosmoSheetSurface`, through the app's sheet host) with the rows Quality ("Auto ·
@@ -162,6 +168,14 @@ internal fun PlayerSettingsPanel(
     @Composable
     fun back(label: String) = CosmoActionRow(icon = CosmoIcons.ChevronLeft, label = label, menu = menu) { page = SettingsPage.MAIN }
 
+    // A local file adds an Aspect ratio list of its own to the settings (see LocalSettingsRows).
+    val local = LocalVideo.isLocal(state.item?.id)
+    var localPage by rememberSaveable { mutableStateOf(LocalSettingsPage.NONE) }
+    if (local && localPage == LocalSettingsPage.ASPECT) {
+        LocalAspectPage(menu, back = { localPage = LocalSettingsPage.NONE }, done = onDone)
+        return
+    }
+
     when (page) {
         SettingsPage.MAIN -> {
             CosmoActionRow(VideoIcons.Hd, quality, value = qualityValue(state), enabled = state.ladder.isNotEmpty(), menu = menu) { page = SettingsPage.QUALITY }
@@ -176,8 +190,13 @@ internal fun PlayerSettingsPanel(
                 value = tracks.firstOrNull { it.trackId != null && it.trackId == state.audioTrackId }?.let { trackLabel(it) } ?: original,
                 enabled = tracks.size > 1, menu = menu,
             ) { page = SettingsPage.AUDIO }
+            val canSmooth = remember(playback) { playback.engine.capabilities.frameSmoothing }
+            CosmoActionRow(
+                CosmoIcons.Equaliser, stringResource(Res.string.video_smooth_title), value = smoothnessValue(settings.smoothness, canSmooth), menu = menu,
+            ) { page = SettingsPage.SMOOTHNESS }
             CosmoActionRow(CosmoIcons.Repeat, stringResource(Res.string.video_loop), value = if (state.loop) on else off, menu = menu) { playback.setLoop(!state.loop) }
             CosmoActionRow(VideoIcons.Info, stringResource(Res.string.video_stats), value = if (statsShown) on else off, menu = menu) { onToggleStats() }
+            if (local) LocalSettingsRows(menu, onAspect = { localPage = LocalSettingsPage.ASPECT }, onDone = onDone)
         }
         SettingsPage.QUALITY -> {
             back(quality)
@@ -208,6 +227,10 @@ internal fun PlayerSettingsPanel(
                     onDone()
                 }
             }
+        }
+        SettingsPage.SMOOTHNESS -> {
+            back(stringResource(Res.string.video_smooth_title))
+            SmoothnessPanel(playback, menu)
         }
         SettingsPage.AUDIO -> {
             back(audio)

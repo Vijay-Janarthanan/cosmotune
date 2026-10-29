@@ -229,8 +229,21 @@ class ModeHooksContractTest {
                 .map { it.relativeTo(VideoSourceContract.root).invariantSeparatorsPath }
                 .toList()
         }
-        assertEquals(emptyList(), offenders, "Music never depends on :video")
+        assertEquals(emptyList(), offenders - accountBridges.toSet(), "Music never depends on :video")
+        // the bridges are the one place Music's sign-in meets Video's account, and reach only the account logic of :shared
+        for (bridge in accountBridges) {
+            val imports = Regex("""(?m)^\s*import\s+(com\.cosmotune\.video\.\S+)""").findAll(read(bridge)).map { it.groupValues[1] }.toList()
+            assertTrue(imports.isNotEmpty(), "$bridge is a bridge")
+            assertTrue(imports.all { it.startsWith("com.cosmotune.video.account.") }, "$bridge imports only the account logic, not Video's screens: $imports")
+        }
     }
+
+    /** The files of Music that hand the Google sign-in to Video's account (docs/MAINTAINING.md names them in the removal steps). */
+    private val accountBridges = listOf(
+        "app/src/main/java/com/cosmotune/music/auth/AndroidAccountHost.kt",
+        "app/src/main/java/com/cosmotune/music/ui/MainViewModel.kt",
+        "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopVideoAccountHost.kt",
+    )
 
     // ---- FORK.md ----------------------------------------------------------------------------------------------------------------
 

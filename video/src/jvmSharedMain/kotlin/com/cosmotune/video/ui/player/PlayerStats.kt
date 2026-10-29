@@ -38,6 +38,7 @@ import com.cosmotune.video.resources.video_stats_decoder
 import com.cosmotune.video.resources.video_stats_dropped
 import com.cosmotune.video.resources.video_stats_hardware
 import com.cosmotune.video.resources.video_stats_resolution
+import com.cosmotune.video.resources.video_stats_smoothing
 import com.cosmotune.video.resources.video_stats_software
 import org.jetbrains.compose.resources.stringResource
 
@@ -60,6 +61,7 @@ private const val UNKNOWN = "–"
 @Composable
 internal fun PlayerStats(playback: VideoPlayback, state: PlaybackUiState, playhead: Playhead, metrics: ChromeMetrics, modifier: Modifier = Modifier) {
     val snapshot by playback.engine.snapshot.collectAsState()
+    val smoothing by playback.engine.smoothness.collectAsState()
     val type = LocalCosmoType.current
     val palette = LocalCosmoColors.current.palette
     val style = remember(type) { TextStyle(fontFamily = type.textFamily, fontWeight = FontWeight.Medium, fontSize = STATS_SP.sp).tabular() }
@@ -76,7 +78,7 @@ internal fun PlayerStats(playback: VideoPlayback, state: PlaybackUiState, playhe
         stringResource(Res.string.video_stats_dropped) to snapshot.droppedFrames.toString(),
         stringResource(Res.string.video_stats_decoder) to decoder(snapshot, hardware),
         stringResource(Res.string.video_stats_client) to (video?.url?.let { GooglevideoRequests.clientOf(it) } ?: UNKNOWN),
-    )
+    ) + listOfNotNull(smoothing.label()?.let { stringResource(Res.string.video_stats_smoothing) to it }) // only a conversion that is happening
     Column(
         modifier
             .padding(start = STATS_EDGE_DP.dp, top = metrics.topRowDp.dp)

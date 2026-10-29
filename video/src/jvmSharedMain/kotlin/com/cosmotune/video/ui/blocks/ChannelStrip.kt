@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -50,6 +51,7 @@ import com.cosmotune.video.model.ChannelItem
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_all
 import com.cosmotune.video.resources.video_meta_join
+import com.cosmotune.video.resources.video_new_uploads_cd
 import com.cosmotune.video.resources.video_subscribe
 import com.cosmotune.video.resources.video_subscribed
 import com.cosmotune.video.resources.video_subscribers
@@ -74,6 +76,13 @@ private const val STRIP_NAME_SP = 12f
 private val RING_WIDTH = 2.dp
 private val RING_GAP = 2.dp
 
+/** A channel counts as having new videos for this long after its newest upload: 3 days. */
+private const val FRESH_MS = 3 * 24 * 60 * 60 * 1000L
+
+/** The dot of a channel with new videos: 12 dp, in `accent`, ringed by 2 dp of the page's ground at the avatar's top-right. */
+private val DOT = 12.dp
+private val DOT_RING = 2.dp
+
 /** The key of the "All" item (no channel id is this long). */
 private const val ALL_KEY = "all"
 
@@ -89,6 +98,7 @@ fun ChannelStrip(
     onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val now = rememberNowMs()
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         contentPadding = STRIP_PADDING,
@@ -98,12 +108,14 @@ fun ChannelStrip(
             StripItem(name = stringResource(Res.string.video_all), avatarUrl = null, all = true, selected = selectedId == null, onClick = { onSelect(null) })
         }
         items(channels, key = { it.channelId }) { channel ->
+            val upload = channel.lastUploadMs
             StripItem(
                 name = channel.name,
                 avatarUrl = channel.avatarUrl,
                 all = false,
                 selected = channel.channelId == selectedId,
                 onClick = { onSelect(channel.channelId) },
+                fresh = upload != null && now - upload in 0..FRESH_MS,
             )
         }
     }
@@ -111,7 +123,7 @@ fun ChannelStrip(
 
 /** One circle and its name: a button (the choice of a filter), selected or not. */
 @Composable
-private fun StripItem(name: String, avatarUrl: String?, all: Boolean, selected: Boolean, onClick: () -> Unit) {
+private fun StripItem(name: String, avatarUrl: String?, all: Boolean, selected: Boolean, onClick: () -> Unit, fresh: Boolean = false) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
     val type = LocalCosmoType.current
@@ -162,7 +174,21 @@ private fun StripItem(name: String, avatarUrl: String?, all: Boolean, selected: 
                     Icon(VideoIcons.Subscriptions, contentDescription = null, tint = Color(palette.onAccentContainer), modifier = Modifier.size(ALL_ICON))
                 }
             } else {
-                ChannelAvatar(avatarUrl, VideoMetrics.STRIP_AVATAR_DP.dp)
+                ChannelAvatar(avatarUrl, VideoMetrics.STRIP_AVATAR_DP.dp, name = name)
+            }
+            if (fresh) {
+                val cd = stringResource(Res.string.video_new_uploads_cd)
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .size(DOT + DOT_RING * 2)
+                        .drawBehind {
+                            val ring = DOT_RING.toPx()
+                            drawCircle(colors.live(CoverField.BACKGROUND_TOP))
+                            drawCircle(colors.live(CoverField.ACCENT), radius = size.minDimension / 2f - ring)
+                        }
+                        .semantics { contentDescription = cd },
+                )
             }
         }
         Text(
@@ -208,7 +234,6 @@ fun ChannelRow(
         handle != null -> handle
         else -> subscribers
     }
-    val label = stringResource(if (subscribed) Res.string.video_subscribed else Res.string.video_subscribe)
     CosmoListRow(
         title = item.name,
         onClick = onClick,
@@ -216,7 +241,7 @@ fun ChannelRow(
         subtitle = subtitle,
         leading = CosmoRowLeading.Cover(item.avatarUrl, circle = true),
         trailing = {
-            CosmoButton(text = label, onClick = onSubscribe, kind = CosmoButtonKind.TONAL, size = CosmoButtonSize.SMALL)
+            SubscribePill(subscribed = subscribed, onClick = onSubscribe)
         },
     )
 }

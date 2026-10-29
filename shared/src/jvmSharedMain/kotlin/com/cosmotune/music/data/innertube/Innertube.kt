@@ -23,6 +23,9 @@ import com.cosmotune.music.data.model.LikeStatus
 import com.cosmotune.music.data.model.PlaylistMove
 import com.cosmotune.music.data.model.PlaylistPrivacy
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -113,7 +116,13 @@ object Innertube {
                 channelOverride = null
             }
             field = value
+            cookieFlow.value = value
         }
+
+    private val cookieFlow = MutableStateFlow<String?>(null)
+
+    /** [cookie] as a flow, so a screen that is not Music's (Video mode's account) follows a sign-in, a switch and a sign-out. */
+    val cookieState: StateFlow<String?> = cookieFlow.asStateFlow()
 
     /**
      * Google's per-session visitor id.
@@ -1182,6 +1191,84 @@ object Innertube {
         return response
     }
 
+    // ---- The YouTube site, for Video mode ------------------------------------
+
+    private const val WEB_BASE = "https://www.youtube.com/youtubei/v1"
+    private const val WEB_CLIENT_ID = "1"
+
+    /**
+     * The WEB client version claimed for the YouTube site. Google keeps answering old ones for months, so a pinned value
+     * is a starting point only; [webClientVersion] can be set by a host that has read a newer one.
+     */
+    private const val WEB_CLIENT_VERSION = "2.20251001.01.00"
+
+    @Volatile
+    var webClientVersion: String = WEB_CLIENT_VERSION
+
+    /**
+     * The `Authorization` header value the YouTube site (not Music) expects for [cookie]: SAPISIDHASH over
+     * `https://www.youtube.com`, or null when the jar holds no signing secret. [nowSeconds] is a parameter so a test can pin the clock.
+     */
+    fun webAuthorization(cookie: String, nowSeconds: Long = System.currentTimeMillis() / 1000): String? =
+        sapisidFrom(cookie)?.let { sapisidHash(it, YOUTUBE_ORIGIN, nowSeconds) }
+
+    /**
+     * One youtubei call as the YouTube site's own web client (www.youtube.com, WEB), for Video mode: the signed-in feeds, the
+     * playlists and the account's writes. It is signed with the very session [postMusic] uses (same cookie, same account and brand
+     * channel from [SessionScope]); only the origin the hash is taken over and the client identity differ. With no session it
+     * is an anonymous request. Failures surface as Ktor exceptions (HTTP status) or [IOException], as for the other calls.
+     */
+    suspend fun postWeb(
+        endpoint: String,
+        bodyExtras: JsonObjectBuilder.() -> Unit,
+    ): JsonObject {
+        if (cookie != null) ensureSessionScope()
+        ensureVisitorData()
+        val session = scope
+        val version = webClientVersion
+        val response = withRetry {
+            client.post("$WEB_BASE/$endpoint") {
+                contentType(ContentType.Application.Json)
+                parameter("prettyPrint", "false")
+                parameter("hl", currentLanguage)
+                header("User-Agent", WEB_USER_AGENT)
+                header("Accept-Language", acceptLanguageHeader)
+                header("X-Origin", YOUTUBE_ORIGIN)
+                header("Origin", YOUTUBE_ORIGIN)
+                header("Referer", "$YOUTUBE_ORIGIN/")
+                header("X-YouTube-Client-Name", WEB_CLIENT_ID)
+                header("X-YouTube-Client-Version", version)
+                visitorData?.let { header("X-Goog-Visitor-Id", it) }
+                cookie?.let { c ->
+                    header("Cookie", c)
+                    header("X-Goog-AuthUser", authUserFor(session))
+                    pageIdFor(session)?.let { header("X-Goog-PageId", it) }
+                    webAuthorization(c)?.let { header("Authorization", it) }
+                }
+                setBody(
+                    buildJsonObject {
+                        putJsonObject("context") {
+                            putJsonObject("client") {
+                                put("clientName", "WEB")
+                                put("clientVersion", version)
+                                put("hl", currentLanguage)
+                                put("gl", currentRegion)
+                                visitorData?.let { put("visitorData", it) }
+                            }
+                            putJsonObject("user") {
+                                put("lockedSafetyMode", false)
+                                if (cookie != null) dataSyncIdFor(session)?.let { put("onBehalfOfUser", it) }
+                            }
+                            putJsonObject("request") { put("useSsl", true) }
+                        }
+                        bodyExtras()
+                    },
+                )
+            }.body<JsonObject>()
+        }
+        return response
+    }
+
     /**
      * Like [postMusic] but deliberately strips the session cookie so YouTube
      * Music does not record the call against any account.
@@ -1272,8 +1359,11 @@ object Innertube {
     private val SAPISID_NAMES =
         listOf("SAPISID", "__Secure-3PAPISID", "__Secure-1PAPISID")
 
-    private fun sapisidHash(sapisid: String, origin: String = MUSIC_ORIGIN): String {
-        val timestamp = System.currentTimeMillis() / 1000
+    private fun sapisidHash(
+        sapisid: String,
+        origin: String = MUSIC_ORIGIN,
+        timestamp: Long = System.currentTimeMillis() / 1000,
+    ): String {
         val digest = MessageDigest.getInstance("SHA-1")
             .digest("$timestamp $sapisid $origin".toByteArray())
             .joinToString("") { "%02x".format(Locale.ROOT, it) }

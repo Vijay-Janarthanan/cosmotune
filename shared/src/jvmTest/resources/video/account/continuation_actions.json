@@ -1,0 +1,123 @@
+{
+ "responseContext": {
+  "serviceTrackingParams": [
+   {
+    "service": "GFEEDBACK",
+    "params": [
+     {
+      "key": "browse_id",
+      "value": "FEx"
+     },
+     {
+      "key": "logged_in",
+      "value": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "onResponseReceivedActions": [
+  {
+   "clickTrackingParams": "x",
+   "appendContinuationItemsAction": {
+    "continuationItems": [
+     {
+      "richItemRenderer": {
+       "content": {
+        "videoRenderer": {
+         "videoId": "subVideo0002",
+         "thumbnail": {
+          "thumbnails": [
+           {
+            "url": "https://i.ytimg.com/vi/subVideo0002/hqdefault.jpg",
+            "width": 480,
+            "height": 270
+           },
+           {
+            "url": "https://i.ytimg.com/vi/subVideo0002/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+           }
+          ]
+         },
+         "title": {
+          "runs": [
+           {
+            "text": "Second page video"
+           }
+          ]
+         },
+         "ownerText": {
+          "runs": [
+           {
+            "text": "Circuit Garden",
+            "navigationEndpoint": {
+             "browseEndpoint": {
+              "browseId": "UCcircuit000000000000001"
+             }
+            }
+           }
+          ]
+         },
+         "longBylineText": {
+          "runs": [
+           {
+            "text": "Circuit Garden",
+            "navigationEndpoint": {
+             "browseEndpoint": {
+              "browseId": "UCcircuit000000000000001"
+             }
+            }
+           }
+          ]
+         },
+         "channelThumbnailSupportedRenderers": {
+          "channelThumbnailWithLinkRenderer": {
+           "thumbnail": {
+            "thumbnails": [
+             {
+              "url": "https://yt3.ggpht.com/avatar-UCcircuit000000000000001=s68",
+              "width": 68,
+              "height": 68
+             }
+            ]
+           }
+          }
+         },
+         "lengthText": {
+          "simpleText": "5:00"
+         },
+         "thumbnailOverlays": [
+          {
+           "thumbnailOverlayTimeStatusRenderer": {
+            "text": {
+             "simpleText": "5:00"
+            },
+            "style": "DEFAULT"
+           }
+          }
+         ],
+         "viewCountText": {
+          "simpleText": "10 views"
+         },
+         "publishedTimeText": {
+          "simpleText": "1 day ago"
+         }
+        }
+       }
+      }
+     },
+     {
+      "continuationItemRenderer": {
+       "continuationEndpoint": {
+        "continuationCommand": {
+         "token": "SUBS_TOKEN_2"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

@@ -1,19 +1,26 @@
 package com.cosmotune.video.host
 
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
+import androidx.core.util.Consumer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.design.AppMode
 import com.cosmotune.design.AppModes
+import com.cosmotune.music.auth.SignInRequest
 import com.cosmotune.settings.CosmoLookSettings
 import com.cosmotune.ui.modes.LocalModeLinks
 import com.cosmotune.ui.modes.ModeLinks
@@ -59,8 +66,12 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     // stored mode, so without this a Music root would stand without its tab bar and its mini player.
     if (shell != null && !AppModes.available(mode)) LaunchedEffect(mode) { shell.settings.setMode(AppMode.MUSIC) }
     val holder = rememberSaveableStateHolder()
+    // Video asked for the Google sign-in: its screen is Music's, so Music becomes the mode and opens it (MainActivity clears the request).
+    val signIn = SignInRequest.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(signIn.value, shell) { if (signIn.value && shell != null && mode == AppMode.VIDEO) shell.settings.setMode(AppMode.MUSIC) }
     // A video that Music asked for ("Watch the music video", Y-26 sets it); Video opens it first.
     val asked = remember { mutableStateOf<PendingVideo?>(null) }
+    OpenVideoFiles(shell, asked)
     // Music's way into Video: no shell (the look off) or Video not available, no links. One identity per shell, so the static local
     // changes only when the look does.
     val links = remember(shell, asked) { shell?.let { phoneModeLinks(it.settings, asked) } }
@@ -125,6 +136,41 @@ internal fun phoneModeLinks(settings: CosmoLookSettings, asked: MutableState<Pen
         asked.value = PendingVideo(videoId, atVideoMs)
         settings.setMode(AppMode.VIDEO)
     }
+}
+
+/**
+ * A video file that another app opens with Cosmotune ("Open with" in a file manager, a gallery, a download) is Video's, and plays in its
+ * local player: the activity's launch intent and every later one ([ComponentActivity.addOnNewIntentListener]) are read here, so the
+ * activity itself knows nothing of Video. The file is handed to Video as the video [asked] waits for, and the mode becomes Video; where
+ * Video is not available (or the new look is off) the file is dropped.
+ */
+@Composable
+private fun OpenVideoFiles(shell: CosmoShellState?, asked: MutableState<PendingVideo?>) {
+    val context = LocalContext.current
+    DisposableEffect(context, shell, asked) {
+        val activity = context.findComponentActivity()
+        if (activity == null) {
+            onDispose { }
+        } else {
+            val open = { intent: Intent? ->
+                val file = LocalVideoLink.read(activity, intent)
+                if (file != null && shell != null && AppModes.available(AppMode.VIDEO)) {
+                    asked.value = file
+                    shell.settings.setMode(AppMode.VIDEO)
+                }
+            }
+            open(activity.intent)
+            val listener = Consumer<Intent> { open(it) }
+            activity.addOnNewIntentListener(listener)
+            onDispose { activity.removeOnNewIntentListener(listener) }
+        }
+    }
+}
+
+private tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findComponentActivity()
+    else -> null
 }
 
 /** The video that a link asks for, or null: only a link to one video ([LinkRequest.Track]) is Video's. */

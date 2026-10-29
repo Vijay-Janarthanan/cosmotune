@@ -723,6 +723,16 @@ fun CosmotuneDesktopApp() {
     var accounts by remember { mutableStateOf(DesktopAccounts.accounts()) }
     var activeAccountId by remember { mutableStateOf(DesktopAccounts.activeAccountId()) }
     var activeProfileId by remember { mutableStateOf(DesktopAccounts.activeProfileId()) }
+    // Video mode's account shares this sign-in: it opens this window's sign-in dialog, and a switch or sign-out it makes is read back here.
+    LaunchedEffect(Unit) { DesktopVideoAccountHost.install { overlays.signIn = true } }
+    val videoAccountRevision by DesktopVideoAccountHost.revision.collectAsState()
+    LaunchedEffect(videoAccountRevision) {
+        if (videoAccountRevision > 0) {
+            accounts = DesktopAccounts.accounts()
+            activeAccountId = DesktopAccounts.activeAccountId()
+            activeProfileId = DesktopAccounts.activeProfileId()
+        }
+    }
     var signInBusy by remember { mutableStateOf<String?>(null) }
     var signInError by remember { mutableStateOf<String?>(null) }
     var webSignInJob by remember { mutableStateOf<Job?>(null) }
@@ -7143,7 +7153,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.11" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.12" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )

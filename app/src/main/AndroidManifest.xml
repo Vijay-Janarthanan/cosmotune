@@ -197,6 +197,16 @@
                 <data android:host="youtu.be" />
             </intent-filter>
 
+            <!--
+              A video file opened from a file manager, a gallery or a download: "Open with" lists Cosmotune, which plays it in Video
+              mode's local player. No scheme is named, so content: and file: addresses both match; the type is what decides.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+
             <!-- Public Listen Together invites. autoVerify makes a tap open
                  Cosmotune directly once the domain publishes its assetlinks
                  association for the production signing certificate. -->

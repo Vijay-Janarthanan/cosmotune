@@ -23,6 +23,7 @@ data class VideoItem(
     val isLive: Boolean = false,
     val isUpcoming: Boolean = false,
     val isShort: Boolean = false,
+    val snippet: String? = null,
 ) {
     /**
      * The watched bar's fraction (spec 5.0: "shown from 10 s watched"): [positionMs] over [durationMs] clamped to 0..1, or

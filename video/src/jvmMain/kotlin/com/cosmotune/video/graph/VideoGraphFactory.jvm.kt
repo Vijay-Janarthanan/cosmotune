@@ -3,6 +3,7 @@ package com.cosmotune.video.graph
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import com.cosmotune.ui.theme.LocalCosmoShell
+import com.cosmotune.video.account.InnerTubeVideoAccount
 import com.cosmotune.video.downloads.desktop.DesktopDownloadController
 import com.cosmotune.video.feed.RefreshLimitedFeed
 import com.cosmotune.video.feed.SubscriptionFeedEngine
@@ -94,11 +95,14 @@ private object DesktopVideoProcess {
 
         val shorts = ShortsQueueEngine(source, feed, library, settings)
 
+        // The listener's own YouTube data, on the sign-in Music holds (one per process).
+        val account = InnerTubeVideoAccount.shared
+
         wire(library, settings, source, playback)
         return VideoGraph(
             source = source, library = library, settings = settings, segments = segments, branding = branding, votes = votes,
             feed = feed, downloads = downloads, playback = playback, surface = surface, music = music, metered = metered,
-            shorts = shorts,
+            shorts = shorts, account = account,
         )
     }
 
@@ -109,6 +113,7 @@ private object DesktopVideoProcess {
     private fun wire(library: VideoLibraryStore, settings: VideoSettingsStore, source: NewPipeVideoSource, playback: VideoPlayerController) {
         val device = Locale.getDefault()
         scope.followRegion(settings, source, device.country, device.language)
+        scope.followSmoothness(settings, playback.engine)
         Runtime.getRuntime().addShutdownHook(
             Thread({
                 runCatching { library.flush() }

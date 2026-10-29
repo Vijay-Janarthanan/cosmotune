@@ -451,4 +451,75 @@
     <string name="video_empty_saved_playlists">No saved playlists yet</string>
     <!-- Live streams and premieres (Y-28) -->
     <string name="video_live_starts">Starts %1$s</string>
+    <!-- Home, search and subscriptions layout (the redesign) -->
+    <string name="video_featured">Featured</string>
+    <string name="video_tab_you">You</string>
+    <string name="video_view_all">View all</string>
+    <string name="video_sign_in">Sign in</string>
+    <string name="video_sign_out">Sign out</string>
+    <string name="video_switch_account">Switch account</string>
+    <string name="video_signed_out_hint">Sign in to see your subscriptions, history and playlists everywhere.</string>
+    <string name="video_signed_out_name">Not signed in</string>
+    <string name="video_new_uploads_cd">New videos</string>
+    <string name="video_home_channels">Your channels</string>
+
+    <!-- Local video files and desktop picture-in-picture -->
+    <string name="video_local_title">Local videos</string>
+    <string name="video_local_open">Open video file</string>
+    <string name="video_local_recent">Recent files</string>
+    <string name="video_local_empty">No files yet. Open a video from this device, or drop one on the window.</string>
+    <string name="video_local_missing">That file is no longer there, so it was removed from the list.</string>
+    <string name="video_local_gone">The file could not be opened</string>
+    <string name="video_local_dimmed">Not on this device any more</string>
+    <string name="video_local_up_next">Up next</string>
+    <string name="video_local_remove">Remove from list</string>
+    <string name="video_local_clear">Clear the list</string>
+    <string name="video_local_resume">Resume at %1$s</string>
+    <string name="video_local_subtitle_file">Subtitle file</string>
+    <string name="video_local_subtitle_load">Load a subtitle file</string>
+    <string name="video_local_subtitle_loaded">%1$s</string>
+    <string name="video_local_remember">Remember position</string>
+    <string name="video_aspect">Aspect ratio</string>
+    <string name="video_aspect_fit">Fit</string>
+    <string name="video_aspect_fill">Fill</string>
+    <string name="video_aspect_stretch">Stretch</string>
+    <string name="video_aspect_16_9">16:9</string>
+    <string name="video_aspect_4_3">4:3</string>
+    <string name="video_aspect_21_9">21:9</string>
+    <string name="video_aspect_original">Original</string>
+    <string name="video_pip_playing">Playing in picture-in-picture</string>
+    <string name="video_pip_return">Return</string>
+    <string name="video_pip_back_to_app">Back to app</string>
+    <string name="video_pip_close">Close</string>
+    <string name="video_pip_back_10">Back 10 seconds</string>
+    <string name="video_pip_forward_10">Forward 10 seconds</string>
+    <string name="video_pip_play">Play</string>
+    <string name="video_pip_pause">Pause</string>
+    <!-- Frame smoothing (the desktop app makes the in-between frames; the phone only matches the rate of its screen) -->
+    <string name="video_smooth_title">Smoothness</string>
+    <string name="video_smooth_mode">Frame smoothing</string>
+    <string name="video_smooth_blend">Blend</string>
+    <string name="video_smooth_smooth">Smooth</string>
+    <string name="video_smooth_unavailable">Needs the desktop app for now</string>
+    <string name="video_smooth_target">Frame rate drawn</string>
+    <string name="video_smooth_target_display">Display</string>
+    <string name="video_smooth_target_fps">%1$d fps</string>
+    <string name="video_smooth_strength">Strength</string>
+    <string name="video_smooth_strength_note">Blend: how soft the fade between frames is. Smooth: how much of a doubtful match is still trusted.</string>
+    <string name="video_smooth_only_slow">Only when the video is below 30 fps</string>
+    <string name="video_smooth_only_slow_short">Only below 30 fps</string>
+    <string name="video_smooth_preset">Kind of picture</string>
+    <string name="video_smooth_auto">Auto</string>
+    <string name="video_smooth_film">Film</string>
+    <string name="video_smooth_anime">Anime</string>
+    <string name="video_smooth_soap_note">Smooth can make films and series look like a live broadcast (the soap opera effect). Blend is gentler, and Off is how the video was made.</string>
+    <string name="video_smooth_match_display">Match display refresh rate</string>
+    <string name="video_smooth_match_display_note">Asks the screen to switch to the rate of the video when it can do so without a flicker.</string>
+    <string name="video_smooth_status">Now</string>
+    <string name="video_smooth_status_none">Not converting this video.</string>
+    <string name="video_stats_smoothing">Smoothing</string>
+    <string name="video_menu">Guide</string>
+    <string name="video_account">Account</string>
+    <string name="video_guide_show_more">Show more</string>
+    <string name="video_guide_show_less">Show less</string>
 </resources>

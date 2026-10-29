@@ -9,12 +9,16 @@ import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.segments.SegmentCategory
 import com.cosmotune.video.settings.CodecPreference
 import com.cosmotune.video.settings.SegmentBehaviour
+import com.cosmotune.video.settings.SmoothMode
+import com.cosmotune.video.settings.SmoothPreset
+import com.cosmotune.video.settings.SmoothnessSettings
 import com.cosmotune.video.settings.TitleCase
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.source.FakeVideoSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -167,7 +171,27 @@ class LibraryCodecTest {
         downloads = DownloadPrefs(askBeforeEach = false, remembered = DownloadRequest(DownloadQuality.Rung(720, 30), SubtitlePick(true, "en"))),
         pauseOnLowBattery = false, downloadWifiOnly = false, downloadFolder = "content://tree/primary%3AMovies", firstRunSeen = true,
         homeKiosk = "gaming",
+        smoothness = SmoothnessSettings(SmoothMode.SMOOTH, targetFps = 90, strength = 70, onlyBelow30 = false, preset = SmoothPreset.ANIME, matchDisplayRate = false),
     )
+
+    @Test
+    fun aSettingsFileFromBeforeSmoothnessLoadsWithItOff() {
+        val old = codec.decodeSettings("""{"version":1,"autoplay":false,"homeKiosk":"gaming"}""")
+        assertEquals(SmoothnessSettings(), old.smoothness)
+        assertEquals(SmoothMode.OFF, old.smoothness.mode)
+        assertFalse(old.autoplay)
+    }
+
+    @Test
+    fun smoothnessIsKeptAsWrittenAndOddValuesFallBackToTheDefaults() {
+        val s = codec.decodeSettings("""{"version":1,"smoothness":{"mode":"WARP","targetFps":75,"strength":900,"preset":"CARTOON","onlyBelow30":false}}""").smoothness
+        assertEquals(SmoothMode.OFF, s.mode)
+        assertEquals(0, s.targetFps)
+        assertEquals(100, s.strength)
+        assertEquals(SmoothPreset.AUTO, s.preset)
+        assertFalse(s.onlyBelow30)
+        assertEquals(SmoothMode.BLEND, codec.decodeSettings("""{"version":1,"smoothness":{"mode":"BLEND"}}""").smoothness.mode)
+    }
 
     @Test
     fun everyFieldOfTheSettingsRoundTrips() {
@@ -179,7 +203,7 @@ class LibraryCodecTest {
     fun theSettingsDocumentCoversEveryFieldOfVideoSettings() {
         val fields = VideoSettings::class.java.declaredFields.filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) }
         assertEquals(
-            29, fields.size,
+            30, fields.size,
             "VideoSettings changed: ${fields.map { it.name }}. Add the new field to SettingsDocument in LibraryCodec.kt and to everyFieldChanged here.",
         )
     }

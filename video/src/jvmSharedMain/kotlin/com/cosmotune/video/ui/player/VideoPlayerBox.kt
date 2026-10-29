@@ -49,6 +49,8 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.graph.LocalVideoGraph
+import com.cosmotune.video.local.LocalVideo
+import com.cosmotune.video.local.VideoAspect
 import com.cosmotune.video.player.ChromeEvent
 import com.cosmotune.video.player.ChromeState
 import com.cosmotune.video.player.ChromeVisibility
@@ -60,6 +62,7 @@ import com.cosmotune.video.player.VideoScale
 import com.cosmotune.video.player.VideoSurfaceProvider
 import com.cosmotune.video.player.controller.VideoPlayerController
 import com.cosmotune.video.settings.VideoSettings
+import com.cosmotune.video.ui.local.LocalPlayerSession
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 
@@ -105,6 +108,8 @@ fun VideoPlayerBox(
     val settings by LocalVideoGraph.current.settings.settings.collectAsState()
     var scale by remember { mutableStateOf(VideoScale.FIT) }
     val shownScale = if (layout == PlayerLayout.FULLSCREEN && chrome) scale else VideoScale.FIT
+    // A file on the device is shaped by the person's aspect choice, in every layout; the pinch then sets fit or fill.
+    val localAspect = if (LocalVideo.isLocal(state.item?.id)) LocalPlayerSession.aspect else null
     val captionSp = subtitleSp(layout, desktopFullWindow)
 
     Box(
@@ -113,13 +118,16 @@ fun VideoPlayerBox(
             .background(Color.Black)
             .onGloballyPositioned { onBoundsChanged(it.boundsInWindow()) },
     ) {
-        surface?.Surface(Modifier.fillMaxSize(), shownScale)
+        if (localAspect != null) surface?.Surface(Modifier.fillMaxSize(), localAspect) else surface?.Surface(Modifier.fillMaxSize(), shownScale)
         if (!chrome) {
             val cues by playback.engine.cues.collectAsState()
             SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp)
             return@Box
         }
-        PlayerChrome(playback, state, settings, layout, desktopFullWindow, title, onCollapse, onToggleFullscreen, onEnterPip, captionSp) { scale = it }
+        PlayerChrome(playback, state, settings, layout, desktopFullWindow, title, onCollapse, onToggleFullscreen, onEnterPip, captionSp) {
+            scale = it
+            if (localAspect != null) LocalPlayerSession.aspect = if (it == VideoScale.FILL) VideoAspect.FILL else VideoAspect.FIT
+        }
     }
 }
 
@@ -173,7 +181,7 @@ private fun BoxScope.PlayerChrome(
     Box(
         Modifier
             .matchParentSize()
-            .onKeyEvent { event -> onPlayerKey(event, playback, state, settings, platform, fullWindow, onToggleFullscreen) { controller.send(ChromeEvent.INPUT) } }
+            .onKeyEvent { event -> onPlayerKey(event, playback, state, settings, platform, fullWindow, onToggleFullscreen, onEnterPip) { controller.send(ChromeEvent.INPUT) } }
             .focusRequester(focus)
             .focusable(enabled = layout == PlayerLayout.WINDOW),
     ) {
@@ -336,6 +344,7 @@ private fun onPlayerKey(
     platform: PlayerPlatformControls,
     fullWindow: Boolean,
     onToggleFullscreen: () -> Unit,
+    onEnterPip: (() -> Unit)?,
     onInput: () -> Unit,
 ): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
@@ -349,6 +358,7 @@ private fun onPlayerKey(
         platform = platform,
         onFullWindow = onToggleFullscreen,
         onExitFullWindow = if (fullWindow) onToggleFullscreen else null,
+        onPictureInPicture = onEnterPip,
     )
     if (done) onInput()
     return done

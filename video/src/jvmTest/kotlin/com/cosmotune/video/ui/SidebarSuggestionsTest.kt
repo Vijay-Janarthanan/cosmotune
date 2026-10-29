@@ -45,7 +45,7 @@ class SidebarSuggestionsTest {
     }
 
     @Test fun theFieldAndThePageAreWiredToIt() {
-        val sidebar = VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/desktop/VideoDesktopSidebarContent.kt")
+        val sidebar = VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/desktop/VideoDesktopHeader.kt")
         assertTrue("onQueryChange = { DesktopVideoState.query = it; openSidebarSuggestions(navigator, it) }" in sidebar)
         val page = VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/search/VideoSearch.kt")
         assertTrue("LaunchedEffect(route.query) { if (!DesktopVideoState.takeKeepTyped()) DesktopVideoState.query = route.query }" in page)

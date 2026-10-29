@@ -666,7 +666,7 @@ fun playerKeyName(event: KeyEvent): String? = KEY_NAMES[event.key]
 /**
  * Carries out [action] (spec 6.6) on [playback]: play and pause, seeks (Replay from the start once ended), the volume through
  * [platform], mute, captions (the default language of [settings]), next and previous, the speed (0.25 to 4), the jumps to tenths. [onFullWindow], [onTheatre] and
- * [onExitFullWindow] are the page's (null: not handled here). True when the action was carried out.
+ * [onExitFullWindow] and [onPictureInPicture] are the page's (null: not handled here). True when the action was carried out.
  */
 fun performPlayerKey(
     action: PlayerKeyAction,
@@ -677,6 +677,7 @@ fun performPlayerKey(
     onFullWindow: (() -> Unit)? = null,
     onTheatre: (() -> Unit)? = null,
     onExitFullWindow: (() -> Unit)? = null,
+    onPictureInPicture: (() -> Unit)? = null,
 ): Boolean {
     when (action) {
         PlayerKeyAction.TogglePlay -> {
@@ -704,6 +705,7 @@ fun performPlayerKey(
         PlayerKeyAction.FullWindow -> (onFullWindow ?: return false).invoke()
         PlayerKeyAction.Theatre -> (onTheatre ?: return false).invoke()
         PlayerKeyAction.ExitFullWindow -> (onExitFullWindow ?: return false).invoke()
+        PlayerKeyAction.PictureInPicture -> (onPictureInPicture ?: return false).invoke()
     }
     return true
 }

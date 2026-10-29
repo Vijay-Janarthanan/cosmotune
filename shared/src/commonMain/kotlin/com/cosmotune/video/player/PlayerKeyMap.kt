@@ -37,12 +37,15 @@ sealed interface PlayerKeyAction {
 
     /** Esc: leaves the full window. */
     data object ExitFullWindow : PlayerKeyAction
+
+    /** P: the desktop's picture-in-picture window. */
+    data object PictureInPicture : PlayerKeyAction
 }
 
 /**
  * The desktop's keys over a video (spec 6.6; pure): Space or K play and pause; J and L back and forward 10 s; Left and Right 5 s; Up
  * and Down volume; M mute; F full window; T theatre; C captions; Shift+N next; Shift+P previous; `<` and `>` speed; 0 to 9 jump to
- * 0 % to 90 %; Esc leaves full window.
+ * 0 % to 90 %; P picture-in-picture (the desktop window); Esc leaves full window.
  *
  * A key is named as the caller's key event names it: a letter or a digit as itself (letters in either case), or one of `Space`,
  * `Left`, `Right`, `Up`, `Down`, `Escape`, `Comma`, `Period`, or the characters `<` and `>` (which most layouts type as Shift+Comma
@@ -92,7 +95,7 @@ object PlayerKeyMap {
             'T' -> PlayerKeyAction.Theatre
             'C' -> PlayerKeyAction.Captions
             'N' -> if (shift) PlayerKeyAction.Next else null
-            'P' -> if (shift) PlayerKeyAction.Previous else null
+            'P' -> if (shift) PlayerKeyAction.Previous else PlayerKeyAction.PictureInPicture
             else -> null
         }
     }
