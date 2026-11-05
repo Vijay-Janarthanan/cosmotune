@@ -148,9 +148,13 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
   </tr>
   <tr>
     <td>
-      <h3>Listening together</h3>
-      <p>Start a party and friends join from their own Cosmotune to hear the same song at the same moment; the host can keep the
-      controls. Parties run through a party server whose address you enter in the app.</p>
+      <h3>Shared rooms</h3>
+      <p>Make a room and friends join with a six-character code from their own Cosmotune (phone or desktop). Whatever the host plays,
+      a song, a video from Video mode, a live radio station or a podcast episode, plays on everyone's own device in their own app, so
+      nothing is streamed between you and everyone keeps their own quality, captions and speed. There is a chat with song requests, a
+      room icon in every mode, and a first version of voice: everyone joins muted and can unmute any time, and you can mute or turn
+      down anyone for yourself only. Rooms need an internet connection; the host can keep the controls. Voice connects devices
+      directly, so some mobile networks may not connect yet.</p>
       <h3>Private by default</h3>
       <p>You do not need a Cosmotune account and there is nothing to sign up for. Your history, preferences, subscriptions and playlists
       are kept on your device. An optional cloud account, off until you turn it on, can keep your playlists the same on your devices
@@ -422,7 +426,7 @@ Contributions are welcome. Read [the maintenance guide](docs/MAINTAINING.md) bef
 Needs JDK 21. `./gradlew :desktopApp:run` starts the desktop app;
 `./gradlew :app:assembleDevDebug` builds the Android app. Notes for working on the code are in
 [the maintenance guide](docs/MAINTAINING.md). Optional settings in `local.properties`: `GOOGLE_DESKTOP_CLIENT_ID` and
-`GOOGLE_DESKTOP_CLIENT_SECRET` (desktop Google sign-in), `LISTEN_TOGETHER_SERVER` (the party server address). The Firebase
+`GOOGLE_DESKTOP_CLIENT_SECRET` (desktop Google sign-in), `LISTEN_TOGETHER_SERVER` (the address of the older party server, which the browser companion still uses; phone and desktop rooms do not). The Firebase
 security rules and their tests are in [firebase/](firebase/README.md) (`cd firebase && npm install && npm test`).
 
 ## What it contacts
