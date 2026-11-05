@@ -1,0 +1,6 @@
+{"contents":{"twoColumnWatchNextResults":{"results":{"results":{"contents":[
+  {"videoPrimaryInfoRenderer":{"title":{"simpleText":"A film"}}},
+  {"itemSectionRenderer":{"sectionIdentifier":"comment-item-section","contents":[
+    {"continuationItemRenderer":{"trigger":"CONTINUATION_TRIGGER_ON_ITEM_SHOWN","continuationEndpoint":{"continuationCommand":{"token":"SECTION_TOKEN","request":"CONTINUATION_REQUEST_TYPE_WATCH_NEXT"}}}}
+  ]}}
+]}}}}}

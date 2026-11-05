@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">विज़ुअल</string>
+    <string name="player_visuals_close">विज़ुअल बंद करें</string>
+    <string name="player_visuals_artwork">कवर</string>
+    <string name="player_visuals_pulse">धड़कन</string>
+    <string name="player_visuals_waveform">तरंग</string>
+    <string name="player_visuals_waiting">विज़ुअल देखने के लिए इस डिवाइस पर ऑडियो चलाएँ।</string>
+</resources>

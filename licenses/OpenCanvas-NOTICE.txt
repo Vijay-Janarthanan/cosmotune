@@ -1,0 +1,9 @@
+OpenCanvas
+Copyright (c) 2026 Vijay Janarthanan <vijaybfriendly@gmail.com>.
+
+This product includes software developed by Vijay Janarthanan:
+OpenCanvas — Universal Zero-Backend Smart Video Canvas Engine for Kotlin, React Native, Flutter, and Web.
+
+Attribution Requirement:
+Any project, fork, or service redistributing or embedding OpenCanvas must retain this notice and attribute original authorship to Vijay Janarthanan (vijaybfriendly@gmail.com).
+

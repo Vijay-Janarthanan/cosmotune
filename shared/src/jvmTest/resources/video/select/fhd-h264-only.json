@@ -1,0 +1,19 @@
+{
+  "description": "A 1080p video that only has H.264: video-only 1080p to 144p at 30 fps, one muxed 360p, AAC audio only. Made up (no real address).",
+  "durationMs": 95000,
+  "videoOnly": [
+    {"itag": 137, "mime": "video/mp4", "codec": "H264", "codecs": "avc1.640028", "w": 1920, "h": 1080, "fps": 30, "kbps": 3800},
+    {"itag": 136, "mime": "video/mp4", "codec": "H264", "codecs": "avc1.4d401f", "w": 1280, "h": 720,  "fps": 30, "kbps": 2000},
+    {"itag": 135, "mime": "video/mp4", "codec": "H264", "codecs": "avc1.4d401f", "w": 854,  "h": 480,  "fps": 30, "kbps": 1000},
+    {"itag": 134, "mime": "video/mp4", "codec": "H264", "codecs": "avc1.4d401e", "w": 640,  "h": 360,  "fps": 30, "kbps": 600},
+    {"itag": 133, "mime": "video/mp4", "codec": "H264", "codecs": "avc1.4d4015", "w": 426,  "h": 240,  "fps": 30, "kbps": 300},
+    {"itag": 160, "mime": "video/mp4", "codec": "H264", "codecs": "avc1.4d400c", "w": 256,  "h": 144,  "fps": 30, "kbps": 110}
+  ],
+  "muxed": [
+    {"itag": 18, "mime": "video/mp4", "codec": "H264", "codecs": "avc1.42001E, mp4a.40.2", "w": 640, "h": 360, "fps": 30, "kbps": 600, "ranges": false}
+  ],
+  "audio": [
+    {"itag": 140, "mime": "audio/mp4", "codec": "AAC", "codecs": "mp4a.40.2", "kbps": 128, "rate": 44100, "ch": 2, "lang": "en"},
+    {"itag": 139, "mime": "audio/mp4", "codec": "AAC", "codecs": "mp4a.40.5", "kbps": 48,  "rate": 22050, "ch": 2, "lang": "en"}
+  ]
+}

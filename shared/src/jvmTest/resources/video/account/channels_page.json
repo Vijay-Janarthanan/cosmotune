@@ -1,0 +1,141 @@
+{
+ "responseContext": {
+  "serviceTrackingParams": [
+   {
+    "service": "GFEEDBACK",
+    "params": [
+     {
+      "key": "browse_id",
+      "value": "FEx"
+     },
+     {
+      "key": "logged_in",
+      "value": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "itemSectionRenderer": {
+           "contents": [
+            {
+             "shelfRenderer": {
+              "content": {
+               "expandedShelfContentsRenderer": {
+                "items": [
+                 {
+                  "channelRenderer": {
+                   "channelId": "UCkitchen00000000000001",
+                   "title": {
+                    "simpleText": "Kitchen Table"
+                   },
+                   "thumbnail": {
+                    "thumbnails": [
+                     {
+                      "url": "//yt3.ggpht.com/kitchen=s88",
+                      "width": 88,
+                      "height": 88
+                     }
+                    ]
+                   },
+                   "subscriberCountText": {
+                    "simpleText": "1.2M subscribers"
+                   },
+                   "videoCountText": {
+                    "simpleText": "340 videos"
+                   },
+                   "descriptionSnippet": {
+                    "runs": [
+                     {
+                      "text": "Home "
+                     },
+                     {
+                      "text": "cooking."
+                     }
+                    ]
+                   },
+                   "ownerBadges": [
+                    {
+                     "metadataBadgeRenderer": {
+                      "style": "BADGE_STYLE_TYPE_VERIFIED"
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 {
+                  "channelRenderer": {
+                   "channelId": "UCtrails0000000000000001",
+                   "title": {
+                    "simpleText": "Trail Notes"
+                   },
+                   "thumbnail": {
+                    "thumbnails": [
+                     {
+                      "url": "https://yt3.ggpht.com/trails=s88",
+                      "width": 88,
+                      "height": 88
+                     }
+                    ]
+                   },
+                   "subscriberCountText": {
+                    "simpleText": "@trailnotes"
+                   },
+                   "videoCountText": {
+                    "simpleText": "85K subscribers"
+                   }
+                  }
+                 },
+                 {
+                  "gridChannelRenderer": {
+                   "channelId": "UCcircuit000000000000001",
+                   "title": {
+                    "simpleText": "Circuit Garden"
+                   },
+                   "thumbnail": {
+                    "thumbnails": [
+                     {
+                      "url": "https://yt3.ggpht.com/circuit=s88",
+                      "width": 88,
+                      "height": 88
+                     }
+                    ]
+                   },
+                   "subscriberCountText": {
+                    "simpleText": "430K subscribers"
+                   }
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        ],
+        "continuations": [
+         {
+          "nextContinuationData": {
+           "continuation": "CHANNELS_TOKEN_1"
+          }
+         }
+        ]
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

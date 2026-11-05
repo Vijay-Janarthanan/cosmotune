@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-feature android:name="tachiyomi.extension" android:required="false" />
+    <application android:label="Cosmotune source API fixture" android:hasCode="true">
+        <meta-data android:name="tachiyomi.extension.factory" android:value="com.cosmotune.manga.entry.FactoryBridge" />
+        <meta-data android:name="tachiyomix.extensionLib" android:value="1.6" />
+    </application>
+</manifest>

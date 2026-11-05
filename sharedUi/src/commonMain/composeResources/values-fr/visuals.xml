@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">Visualisations</string>
+    <string name="player_visuals_close">Fermer les visualisations</string>
+    <string name="player_visuals_artwork">Pochette</string>
+    <string name="player_visuals_pulse">Pulsation</string>
+    <string name="player_visuals_waveform">Forme d’onde</string>
+    <string name="player_visuals_waiting">Lancez la lecture audio sur cet appareil pour voir la visualisation.</string>
+</resources>

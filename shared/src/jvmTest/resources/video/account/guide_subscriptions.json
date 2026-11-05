@@ -1,0 +1,105 @@
+{
+ "responseContext": {
+  "serviceTrackingParams": [
+   {
+    "service": "GFEEDBACK",
+    "params": [
+     {
+      "key": "browse_id",
+      "value": "FEx"
+     },
+     {
+      "key": "logged_in",
+      "value": "1"
+     }
+    ]
+   }
+  ]
+ },
+ "items": [
+  {
+   "guideSectionRenderer": {
+    "items": [
+     {
+      "guideEntryRenderer": {
+       "navigationEndpoint": {
+        "browseEndpoint": {
+         "browseId": "FEwhat_to_watch"
+        }
+       },
+       "formattedTitle": {
+        "simpleText": "Home"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "guideSubscriptionsSectionRenderer": {
+    "items": [
+     {
+      "guideEntryRenderer": {
+       "navigationEndpoint": {
+        "browseEndpoint": {
+         "browseId": "UCkitchen00000000000001"
+        }
+       },
+       "formattedTitle": {
+        "simpleText": "Kitchen Table"
+       },
+       "thumbnail": {
+        "thumbnails": [
+         {
+          "url": "https://yt3.ggpht.com/kitchen=s32",
+          "width": 32,
+          "height": 32
+         }
+        ]
+       }
+      }
+     },
+     {
+      "guideCollapsibleEntryRenderer": {
+       "expandableItems": [
+        {
+         "guideEntryRenderer": {
+          "navigationEndpoint": {
+           "browseEndpoint": {
+            "browseId": "UCtrails0000000000000001"
+           }
+          },
+          "formattedTitle": {
+           "simpleText": "Trail Notes"
+          },
+          "thumbnail": {
+           "thumbnails": [
+            {
+             "url": "https://yt3.ggpht.com/trails=s32",
+             "width": 32,
+             "height": 32
+            }
+           ]
+          }
+         }
+        },
+        {
+         "guideEntryRenderer": {
+          "navigationEndpoint": {
+           "browseEndpoint": {
+            "browseId": "FEchannels"
+           }
+          },
+          "formattedTitle": {
+           "simpleText": "All subscriptions"
+          }
+         }
+        }
+       ]
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

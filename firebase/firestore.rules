@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// Cloud sync: a signed-in user (guest or Google) can read and write only what sits under their own users/{uid}.
+// Design: docs/superpowers/specs/2026-11-05-cosmotune-accounts-sync-rooms-design.md, section 5.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+  }
+}

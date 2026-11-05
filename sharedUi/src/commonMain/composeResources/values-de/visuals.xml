@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">Visualisierung</string>
+    <string name="player_visuals_close">Visualisierung schließen</string>
+    <string name="player_visuals_artwork">Cover</string>
+    <string name="player_visuals_pulse">Puls</string>
+    <string name="player_visuals_waveform">Wellenform</string>
+    <string name="player_visuals_waiting">Spiele Audio auf diesem Gerät ab, um die Visualisierung zu sehen.</string>
+</resources>

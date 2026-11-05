@@ -1,0 +1,13 @@
+{"onResponseReceivedEndpoints":[
+  {"appendContinuationItemsAction":{"continuationItems":[
+    {"commentViewModel":{"commentId":"r1","commentKey":"KR1","toolbarStateKey":"SR1"}},
+    {"continuationItemRenderer":{"button":{"buttonRenderer":{"command":{"continuationCommand":{"token":"MORE_REPLIES"}}}}}}
+  ]}}
+],
+"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+  {"entityKey":"KR1","payload":{"commentEntityPayload":{
+    "properties":{"commentId":"r1","content":{"content":"Thanks"},"publishedTime":"1 hour ago"},
+    "author":{"displayName":"Cara","channelId":"UCcara"},
+    "toolbar":{"likeCountNotliked":"2","replyCount":""}
+  }}}
+]}}}

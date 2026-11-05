@@ -1,0 +1,149 @@
+package com.cosmotune.music.desktop
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.produceState
+import com.cosmotune.ui.theme.CosmoRadii
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.cosmotune.music.ui.icons.CosmotuneIcons
+
+/** Device drivers may block; output drawers must remain interactive while enumeration runs. */
+@Composable
+internal fun rememberDesktopAudioDevices(): List<DesktopAudioDevice> {
+    val changes by DesktopAudioDevices.changes.collectAsState()
+    val devices by produceState<List<DesktopAudioDevice>>(emptyList(), changes) {
+        value = withContext(Dispatchers.IO) {
+            try { DesktopAudioDevices.available() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { emptyList() }
+        }
+    }
+    return devices
+}
+
+/**
+ * Where playback is sent. Android routes through `AudioManager`; here the choice is a mixer.
+ *
+ * Enumerated when the dialog opens rather than held: devices come and go with what is plugged in.
+ */
+@Composable
+internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
+    val selected by DesktopAudioDevices.selected.collectAsState()
+    val direct by DesktopOutputMode.direct.collectAsState()
+    val status by DesktopOutputMode.status.collectAsState()
+    val dopDevice by DesktopOutputMode.dopDevice.collectAsState()
+    var confirmingDop by remember { mutableStateOf(false) }
+    val devices = rememberDesktopAudioDevices()
+    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 440) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = panelInset(22.dp), vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                DesktopStrings["audio_output", "Audio output"],
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                DesktopStrings["d_audio_output_subtitle", "Changes take effect immediately."],
+                color = DesktopSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(10.dp))
+            DesktopListeningDeviceEntry()
+            OutputRow("System output", "Recommended · shares audio with other apps", chosen = !direct) { DesktopOutputMode.select(false) }
+            OutputRow("Prefer direct device output", "Exact format negotiation; may take control of the device. Falls back when unavailable.", chosen = direct) { DesktopOutputMode.select(true) }
+            Text(status, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+            if (DesktopPlatform.isWindows || DesktopPlatform.isLinux) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("DSD over PCM (DoP)", style = MaterialTheme.typography.titleSmall)
+                        Text("For a confirmed DoP DAC on this device selection. Off by default.", color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = dopDevice == selected && selected.isNotBlank(), enabled = direct && selected.isNotBlank() &&
+                        (DesktopPlatform.isWindows || selected.startsWith("alsa:hw:")), onCheckedChange = { enabled ->
+                        if (enabled) confirmingDop = true else DesktopOutputMode.confirmDop(null)
+                    })
+                }
+                Text("DoP supports local uncompressed DSF/DFF. Player volume must be 100% and speed 1×; use the DAC volume control. EQ, normalization, silence skipping and mixing are bypassed. Output loss stops playback; markers never fall back to system audio. Replay after changing DoP settings.",
+                    color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+            } else Text("DSD uses PCM conversion on this output. Native DSD and DoP are not available on this backend.", color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(10.dp))
+            OutputRow(
+                name = DesktopStrings["d_system_default", "System default"],
+                description = "",
+                chosen = selected == DesktopAudioDevices.SYSTEM_DEFAULT,
+            ) {
+                DesktopAudioDevices.select(DesktopAudioDevices.SYSTEM_DEFAULT)
+                onDismiss()
+            }
+            devices.forEach { device ->
+                OutputRow(device.name, device.description, chosen = selected == device.id) {
+                    DesktopAudioDevices.select(device.id)
+                    onDismiss()
+                }
+            }
+        }
+    }
+    if (confirmingDop) AlertDialog(onDismissRequest = { confirmingDop = false }, title = { Text("Confirm this DAC supports DoP") },
+        text = { Text("Check the DAC manufacturer's documentation for DoP support and the DSD rate you will play. A 24-bit PCM rate alone does not establish DoP support. This choice applies only to the selected device; software volume and DSP are bypassed.") },
+        confirmButton = { TextButton(onClick = { DesktopOutputMode.confirmDop(selected); confirmingDop = false }) { Text("This DAC supports DoP") } },
+        dismissButton = { TextButton(onClick = { confirmingDop = false }) { Text("Cancel") } })
+}
+
+@Composable
+private fun OutputRow(name: String, description: String, chosen: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CosmoRadii.rSm))
+            .desktopRowClickable(onClick = onClick)
+            .padding(horizontal = panelInset(12.dp), vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (description.isNotBlank()) {
+                Text(
+                    description,
+                    color = DesktopSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (chosen) {
+            Spacer(Modifier.width(10.dp))
+            Icon(CosmotuneIcons.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+        }
+    }
+}

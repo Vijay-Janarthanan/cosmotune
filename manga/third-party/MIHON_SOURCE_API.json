@@ -1,0 +1,127 @@
+{
+  "repository": "https://github.com/mihonapp/mihon",
+  "commit": "d001e6f210e6a077a30dd9a1392573a3225bba2f",
+  "licence": "Apache-2.0",
+  "adaptations": [
+    "Cosmotune Rx-await helper",
+    "Default empty memo JSON without app-specific extension",
+    "Public host image-request bridge",
+    "Retained legacy suspend detail/chapter entry points",
+    "Provide the upstream exception and user-agent interceptors in extension default clients, before bounded response handling"
+  ],
+  "files": [
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/CatalogueSource.kt",
+      "sha256": "f83a7f5d698bc98213d0a07fd30ae50a38f15bac3e38d9e6101a18d78ed671ea",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/CatalogueSource.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/ConfigurableSource.kt",
+      "sha256": "515db0e7db9b633ff8ee2a1ecb6ff6953169cfe556f45669a1d800c4afdaceda",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/ConfigurableSource.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/Filter.kt",
+      "sha256": "077c1014fb22786502aa91e402e4516c7717351e4fc0bce5d8cbf09c39fdc201",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/Filter.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/FilterList.kt",
+      "sha256": "0d914693cc6302260fe56294d58cebf67404a54f31744178e9cef10ae5512d39",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/FilterList.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/MangasPage.kt",
+      "sha256": "d8beea21945b98493f6531c4c9b5ba1169cd5dce5fac4de0701adb1f5401fad8",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/MangasPage.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/Page.kt",
+      "sha256": "13bddc0f0fb954c45e6ca3294174d44b67eec59ef86b4ece4bc431a559425332",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/Page.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/SChapter.kt",
+      "sha256": "39c03a0b9011afbead061434daf79d696b12c0a5a0ae4a64f258f886f66499db",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/SChapter.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/SChapterImpl.kt",
+      "sha256": "732dd62c5539049656a3791481a3411956e5d162476e70aee11a4ea2cc58e1ea",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/SChapterImpl.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/SManga.kt",
+      "sha256": "1848776bbd108f90063a04004286eacd82ab0cf1821be0b7ea59a09f7e8a7cdd",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/SManga.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/SMangaImpl.kt",
+      "sha256": "e2608c2ba7e6712a10948802769a99a623947b109bd5b1b898863f7941e1b00d",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/SMangaImpl.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/SMangaUpdate.kt",
+      "sha256": "f298847f29e2b70170487ef3bc3425c80f23f1e5ade7bb22f66851779f3c5b18",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/SMangaUpdate.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/model/UpdateStrategy.kt",
+      "sha256": "dcdf5b3a60108c7cc1ffc8f2954fc21ac9bacc5ca066c40037533cf17b03b3eb",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/model/UpdateStrategy.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/online/HttpSource.kt",
+      "sha256": "663bd6c4067a2f529adae0241e7b0a6f86e84a7829f17a67835d46754ae021bb",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/online/HttpSource.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/online/ParsedHttpSource.kt",
+      "sha256": "871bfcdf7200896112405c06ab4f4cb71ba4a12b3a575584310609613327533e",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/online/ParsedHttpSource.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/online/ResolvableSource.kt",
+      "sha256": "ea9e3518111f28ba04601c0772efa71016ab27abe60f0623a69e6d62e2100193",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/online/ResolvableSource.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/Source.kt",
+      "sha256": "c31c6b24ef9ef038e749500032df0a8a707b9ce9074abaa4fb0df121e19816f5",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/Source.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/SourceFactory.kt",
+      "sha256": "4ff3f8e591d8d059dc665735f0cb1a7fd478c00db73e7b3928b95407c383bc44",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/SourceFactory.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/source/UnmeteredSource.kt",
+      "sha256": "82a01676da96d2386e6d4441ff97521a9eb1d8da8f1302beb871bd1cd7a72636",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/source/UnmeteredSource.kt"
+    },
+    {
+      "original": "source-api/src/main/kotlin/eu/kanade/tachiyomi/util/JsoupExtensions.kt",
+      "sha256": "a02c60bcb33220c7d3f2357409a05fe20d4d36e2af03ba996528cab082fb9702",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/util/JsoupExtensions.kt"
+    },
+    {
+      "original": "core/common/src/main/kotlin/eu/kanade/tachiyomi/network/interceptor/UncaughtExceptionInterceptor.kt",
+      "sha256": "736f6f6612c4526ee70eb398a85e9127ac41e4fd2618cc5f2b1e82ddc40ab2cc",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/network/interceptor/UncaughtExceptionInterceptor.kt"
+    },
+    {
+      "original": "core/common/src/main/kotlin/eu/kanade/tachiyomi/network/interceptor/UserAgentInterceptor.kt",
+      "sha256": "6f962859b633b579ed33a6e149e5863f24cb5041d2fc3230f783e24f3bfc42a4",
+      "local": "manga/src/androidMain/kotlin/eu/kanade/tachiyomi/network/interceptor/UserAgentInterceptor.kt"
+    }
+  ],
+  "compatibilityReferences": [
+    {
+      "original": "core/common/src/main/kotlin/eu/kanade/tachiyomi/network/OkHttpExtensions.kt",
+      "sha256": "4a6319fef7de41b3b1e8ea893d9228145cc6c287f3a7ea3117bd4f15c4e0eda8",
+      "api": "decodeFromJsonResponse(Json, DeserializationStrategy, Response)",
+      "adaptation": "Independent bounded UTF-8 implementation matching the JVM context-parameter signature; verified through the signed Android fixture"
+    }
+  ]
+}

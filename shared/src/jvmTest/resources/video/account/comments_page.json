@@ -1,0 +1,43 @@
+{"onResponseReceivedEndpoints":[
+  {"reloadContinuationItemsCommand":{"slot":"RELOAD_CONTINUATION_SLOT_HEADER","continuationItems":[
+    {"commentsHeaderRenderer":{
+      "countText":{"runs":[{"text":"1,234"},{"text":" Comments"}]},
+      "createRenderer":{"commentSimpleboxRenderer":{"submitButton":{"buttonRenderer":{"serviceEndpoint":{"createCommentEndpoint":{"createCommentParams":"CREATE_PARAMS"}}}}}},
+      "sortMenu":{"sortFilterSubMenuRenderer":{"subMenuItems":[
+        {"title":"Top","serviceEndpoint":{"continuationCommand":{"token":"TOP_TOKEN"}}},
+        {"title":"Newest","serviceEndpoint":{"continuationCommand":{"token":"NEWEST_TOKEN"}}}
+      ]}}
+    }}
+  ]}},
+  {"reloadContinuationItemsCommand":{"slot":"RELOAD_CONTINUATION_SLOT_BODY","continuationItems":[
+    {"commentThreadRenderer":{
+      "replies":{"commentRepliesRenderer":{"contents":[{"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":"REPLIES_TOKEN"}}}}]}},
+      "commentViewModel":{"commentViewModel":{"commentId":"c1","commentKey":"K1","toolbarStateKey":"S1","toolbarSurfaceKey":"T1","pinnedText":"Pinned by Asha"}}
+    }},
+    {"commentThreadRenderer":{
+      "commentViewModel":{"commentViewModel":{"commentId":"c2","commentKey":"K2","toolbarStateKey":"S2"}}
+    }},
+    {"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":"NEXT_PAGE"}}}}
+  ]}}
+],
+"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+  {"entityKey":"K1","payload":{"commentEntityPayload":{
+    "properties":{"commentId":"c1","content":{"content":" First! "},"publishedTime":"2 days ago (edited)"},
+    "author":{"displayName":"Asha","channelId":"UCasha","avatarThumbnailUrl":"//yt3.ggpht.com/asha","isCreator":true},
+    "toolbar":{"likeCountNotliked":"1.2K","replyCount":"3"}
+  }}},
+  {"entityKey":"S1","payload":{"engagementToolbarStateEntityPayload":{"likeState":"TOOLBAR_LIKE_STATE_LIKED","heartState":"TOOLBAR_HEART_STATE_HEARTED"}}},
+  {"entityKey":"T1","payload":{"engagementToolbarSurfaceEntityPayload":{
+    "likeCommand":{"innertubeCommand":{"performCommentActionEndpoint":{"action":"LIKE_c1"}}},
+    "unlikeCommand":{"innertubeCommand":{"performCommentActionEndpoint":{"action":"UNLIKE_c1"}}},
+    "dislikeCommand":{"innertubeCommand":{"performCommentActionEndpoint":{"action":"DISLIKE_c1"}}},
+    "undislikeCommand":{"innertubeCommand":{"performCommentActionEndpoint":{"action":"UNDISLIKE_c1"}}},
+    "replyCommand":{"innertubeCommand":{"createCommentReplyDialogEndpoint":{"dialog":{"commentReplyDialogRenderer":{"replyButton":{"buttonRenderer":{"serviceEndpoint":{"createCommentReplyEndpoint":{"createReplyParams":"REPLY_c1"}}}}}}}}}
+  }}},
+  {"entityKey":"K2","payload":{"commentEntityPayload":{
+    "properties":{"commentId":"c2","content":{"content":"Nice"},"publishedTime":"1 hour ago"},
+    "author":{"displayName":"Ben","channelId":"not-a-channel"},
+    "toolbar":{"likeCountNotliked":"","replyCount":""}
+  }}},
+  {"entityKey":"S2","payload":{"engagementToolbarStateEntityPayload":{"likeState":"TOOLBAR_LIKE_STATE_INDIFFERENT","heartState":"TOOLBAR_HEART_STATE_UNHEARTED"}}}
+]}}}

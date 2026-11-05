@@ -1,0 +1,250 @@
+name: Check
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop-linux:
+    name: Desktop · Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Write local.properties
+        run: |
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+
+      - run: chmod +x gradlew
+
+      - name: Tests
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
+
+      - name: Tracker evidence names tests that exist
+        run: |
+          python3 tools/test_check_tracker_evidence.py
+          python3 tools/check-tracker-evidence.py
+
+      - name: Build the distributable
+        run: ./gradlew :desktopApp:createDistributable
+
+      - name: The analyser is in the jar
+        run: |
+          jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/lib/app/desktopApp*.jar)
+          jar tf "$jar" | grep -q 'native/libcosmotune_analysis.so'
+          jar tf "$jar" | grep -q 'models/.*\.onnx'
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-test-reports
+          path: |
+            desktopApp/build/reports/tests/
+            shared/build/reports/tests/
+            sharedUi/build/reports/tests/
+            video/build/reports/tests/
+            uiTests/build/reports/tests/
+
+  desktop-windows:
+    name: Desktop · Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Write local.properties
+        shell: bash
+        run: |
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+
+      - name: CMake version
+        run: cmake --version
+
+      - name: Tests
+        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
+
+      - name: Build the distributable
+        run: .\gradlew.bat :desktopApp:createDistributable
+
+      - name: The analyser is in the jar
+        shell: bash
+        run: |
+          jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune/app/desktopApp*.jar)
+          jar tf "$jar" | grep -q 'native/cosmotune_analysis.dll'
+          jar tf "$jar" | grep -q 'models/.*\.onnx'
+          # Windows media controls (WinRT) and the window/WASAPI bridge, built from smtc_abi.cpp and
+          # window_jni.cpp by MinGW g++ and Ninja; a missing tool or header would skip them quietly.
+          jar tf "$jar" | grep -q 'native/cosmotune_smtc.dll'
+          jar tf "$jar" | grep -q 'native/cosmotune_window.dll'
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-test-reports
+          path: |
+            desktopApp/build/reports/tests/
+            shared/build/reports/tests/
+            sharedUi/build/reports/tests/
+            video/build/reports/tests/
+            uiTests/build/reports/tests/
+
+  desktop-macos:
+    name: Desktop · macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Write local.properties
+        run: |
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+
+      - run: chmod +x gradlew
+
+      - name: Tests
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
+
+      - name: Build the distributable
+        run: ./gradlew :desktopApp:createDistributable
+
+      - name: The analyser and models are in the jar
+        run: |
+          jar=$(ls desktopApp/build/compose/binaries/main/app/Cosmotune.app/Contents/app/desktopApp*.jar)
+          jar tf "$jar" | grep -q 'models/.*\.onnx'
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos-test-reports
+          path: |
+            desktopApp/build/reports/tests/
+            shared/build/reports/tests/
+            sharedUi/build/reports/tests/
+            video/build/reports/tests/
+            uiTests/build/reports/tests/
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Write local.properties
+        run: |
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+
+      - run: chmod +x gradlew
+
+      - name: Tests
+        run: ./gradlew --max-workers=1 :app:testDevDebugUnitTest :tv:testDevDebugUnitTest :wearos:testDevDebugUnitTest
+
+      - name: Build the dev APK
+        run: ./gradlew --max-workers=1 :app:assembleDevDebug :tv:assembleDevDebug
+
+      - name: Verify OpenCanvas import and packaged models
+        run: |
+          python3 tools/verify-opencanvas-import.py --apk-dir app/build/outputs/apk/dev/debug
+          python3 tools/verify-opencanvas-import.py --apk-dir tv/build/outputs/apk/dev/debug
+
+      - name: Upload the dev APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotune-dev-debug
+          path: app/build/outputs/apk/dev/debug/*.apk
+
+      - name: Upload the TV dev APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosmotune-tv-dev-debug
+          path: tv/build/outputs/apk/dev/debug/*.apk
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports
+          path: |
+            app/build/reports/tests/
+            tv/build/reports/tests/
+            wearos/build/reports/tests/
+
+  web:
+    name: Browser · player and helpers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web typecheck
+      - run: pnpm --dir web test
+      - run: pnpm --dir web build:site
+      - run: python3 tools/package-web.py --version 1.0.16 --output build/web-check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cosmotune-web-check
+          path: build/web-check/*
+
+  backend:
+    name: Backend · Go
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./...

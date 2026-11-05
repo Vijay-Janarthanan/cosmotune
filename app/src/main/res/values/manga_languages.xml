@@ -1,0 +1,11 @@
+<resources>
+    <string name="manga_language_ta">தமிழ்</string>
+    <string name="manga_language_te">తెలుగు</string>
+    <string name="manga_language_kn">ಕನ್ನಡ</string>
+    <string name="manga_language_ml">മലയാളം</string>
+    <string name="manga_language_bn">বাংলা</string>
+    <string name="manga_language_mr">मराठी</string>
+    <string name="manga_language_gu">ગુજરાતી</string>
+    <string name="manga_language_pa">ਪੰਜਾਬੀ</string>
+    <string name="manga_language_or">ଓଡ଼ିଆ</string>
+</resources>

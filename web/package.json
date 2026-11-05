@@ -1,0 +1,18 @@
+{
+  "name": "cosmotune-web",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @cosmotune/app dev",
+    "dev:ext": "pnpm --filter @cosmotune/extension dev",
+    "dev:ext:firefox": "pnpm --filter @cosmotune/extension dev:firefox",
+    "build": "pnpm -r build",
+    "build:site": "pnpm --filter @cosmotune/extension package && pnpm --filter @cosmotune/app build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}

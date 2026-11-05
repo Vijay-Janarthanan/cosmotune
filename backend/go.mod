@@ -1,0 +1,5 @@
+module github.com/Vijay-Janarthanan/cosmotune/backend
+
+go 1.27.0
+
+require github.com/gorilla/websocket v1.5.3 // indirect

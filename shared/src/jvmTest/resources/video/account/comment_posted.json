@@ -1,0 +1,11 @@
+{"actions":[
+  {"createCommentAction":{"contents":{"commentThreadRenderer":{"commentViewModel":{"commentViewModel":{"commentId":"new1","commentKey":"KN"}}}}}}
+],
+"actionResults":[{"status":"STATUS_SUCCEEDED"}],
+"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+  {"entityKey":"KN","payload":{"commentEntityPayload":{
+    "properties":{"commentId":"new1","content":{"content":"Hello there"},"publishedTime":"just now"},
+    "author":{"displayName":"Me","channelId":"UCme"},
+    "toolbar":{"likeCountNotliked":"","replyCount":""}
+  }}}
+]}}}

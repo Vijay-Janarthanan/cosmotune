@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/sipbuu/lokal",
+  "revision": "3199796ef90743a5abbac6ffc96495beec855a4e",
+  "license": "MIT",
+  "files": [
+    {
+      "source": "electron/mornye/bootstrap.js",
+      "sha256": "2d486c3336abc112b5187c2fe98fbdffdbbad079216edb79201fd852436e8dea",
+      "target": "src/jvmSharedMain/resources/providers/sflx-bootstrap.js",
+      "adaptations": [
+        "Removed Node module String.raw wrapper; retained guest-only factory",
+        "Added source/license comment; host bridge is implemented separately in Kotlin",
+        "Implemented UTF-8 encodeInto and decoding of ArrayBuffer/view slices; reject unsupported encodings explicitly",
+        "Respect integer PKCE verifier lengths and clamp them to the supported 43–128 character range"
+      ]
+    }
+  ]
+}

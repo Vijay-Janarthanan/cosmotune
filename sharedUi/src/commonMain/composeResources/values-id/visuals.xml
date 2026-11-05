@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">Visualisasi</string>
+    <string name="player_visuals_close">Tutup visualisasi</string>
+    <string name="player_visuals_artwork">Sampul</string>
+    <string name="player_visuals_pulse">Denyut</string>
+    <string name="player_visuals_waveform">Gelombang audio</string>
+    <string name="player_visuals_waiting">Putar audio di perangkat ini untuk melihat visualisasi.</string>
+</resources>

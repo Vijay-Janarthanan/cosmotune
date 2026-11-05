@@ -1,0 +1,64 @@
+[
+  {
+    "contentDetails": {
+      "activityType": "all",
+      "newItemCount": 0,
+      "totalItemCount": 12
+    },
+    "etag": "fixture",
+    "id": "fixture-DVWqyf",
+    "kind": "youtube#subscription",
+    "snippet": {
+      "channelId": "UCBacU3lzDPXzaLLkPZCLk1V",
+      "description": "fixture",
+      "publishedAt": "2020-11-01T17:24:34.498Z",
+      "resourceId": {
+        "channelId": "UCDVWqyfkrFAZd6_6X-yZl_D",
+        "kind": "youtube#channel"
+      },
+      "title": "Northern Lights Workshop",
+      "thumbnails": {
+        "default": {
+          "url": "https://images.example/UCDVWqyfkrFAZd6_6X-yZl_D/default.jpg"
+        },
+        "high": {
+          "url": "https://images.example/UCDVWqyfkrFAZd6_6X-yZl_D/high.jpg"
+        }
+      }
+    }
+  },
+  {
+    "contentDetails": {
+      "activityType": "all",
+      "newItemCount": 0,
+      "totalItemCount": 12
+    },
+    "etag": "fixture",
+    "id": "fixture-cI08Wo",
+    "kind": "youtube#subscription",
+    "snippet": {
+      "channelId": "UCBacU3lzDPXzaLLkPZCLk1V",
+      "description": "fixture",
+      "publishedAt": "2021-02-03T04:05:06.000Z",
+      "resourceId": {
+        "channelId": "UCcI08WoHmiXWnhREl-Asie_",
+        "kind": "youtube#channel"
+      },
+      "title": "Paper, Scissors & Stone",
+      "thumbnails": {
+        "default": {
+          "url": "https://images.example/UCcI08WoHmiXWnhREl-Asie_/default.jpg"
+        },
+        "high": {
+          "url": "https://images.example/UCcI08WoHmiXWnhREl-Asie_/high.jpg"
+        }
+      }
+    }
+  },
+  {
+    "kind": "youtube#subscription",
+    "snippet": {
+      "title": "No resource id"
+    }
+  }
+]

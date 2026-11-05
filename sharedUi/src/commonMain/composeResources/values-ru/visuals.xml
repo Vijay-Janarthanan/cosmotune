@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">Визуализация</string>
+    <string name="player_visuals_close">Закрыть визуализацию</string>
+    <string name="player_visuals_artwork">Обложка</string>
+    <string name="player_visuals_pulse">Пульс</string>
+    <string name="player_visuals_waveform">Звуковая волна</string>
+    <string name="player_visuals_waiting">Включите воспроизведение на этом устройстве, чтобы увидеть визуализацию.</string>
+</resources>

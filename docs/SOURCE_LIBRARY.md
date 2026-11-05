@@ -1,0 +1,13 @@
+# Local source library for 1.0.4
+
+This implementation is in the working tree and has not been released. It covers device-local ratings, saved albums/playlists and followed artists for source-qualified recordings and catalogue pages. These actions do not require a YouTube account. Source identifiers are rejected by the shared YouTube rating endpoint rather than sent as video IDs.
+
+Both native players and source menus can rate recordings. Android notifications and Wear commands use the same local route. Account changes clear account overrides while retaining local source ratings. Library shows source favourites, albums/playlists and artists in their corresponding sections, including while signed out. Clearing a heart updates an open source-favourites list.
+
+Android source detail pages and desktop collection/artist pages expose save/follow controls. Saved metadata can reopen after a source request fails, including offline; those pages say “Saved copy.” This preserves the library listing, not the remote audio: playing an uncached recording still needs an available enabled source. Connection failures do not silently substitute a different recording.
+
+The versioned library has a 16 MiB limit, up to 20,000 ratings, 500 saved collections and 1,000 followed artists. Writes are serialized across store instances, protected and published atomically. Android uses its device key, Windows current-user DPAPI and other desktops owner-only files. Unreadable originals are preserved and block replacement. Android automatic backups exclude the containing provider directory. Explicit portable export remains outstanding.
+
+Records retain structured artists, browse links, duration, quality and hi-res metadata. Queue occurrence/origin fields are removed from snapshots. Artwork is an opaque checked reference; raw signed image and audio addresses, provider settings and account credentials are not included. The recent metadata lookup is bounded to 2,000 recordings. Source/local track sharing uses title/artist text when no public catalogue link is known, instead of making an invalid YouTube link.
+
+Checks passed source ratings/restart, structured metadata, saved/followed page reconstruction, concurrent writers, corruption preservation and source/account separation. Actual Compose interactions passed Save/Saved and Follow/Following undo, plus signed-out favourites → album → artist navigation. Android/Desktop production Kotlin compilation passed. This is not a physical watch round-trip or a claim of source-aware release-inbox synchronization, mixed local-playlist editing, portable backups or every provider's availability; those remain part of the full tracker work.

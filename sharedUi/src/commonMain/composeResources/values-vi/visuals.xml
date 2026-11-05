@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">Hiệu ứng hình ảnh</string>
+    <string name="player_visuals_close">Đóng hiệu ứng hình ảnh</string>
+    <string name="player_visuals_artwork">Ảnh bìa</string>
+    <string name="player_visuals_pulse">Nhịp</string>
+    <string name="player_visuals_waveform">Dạng sóng</string>
+    <string name="player_visuals_waiting">Phát âm thanh trên thiết bị này để xem hiệu ứng hình ảnh.</string>
+</resources>

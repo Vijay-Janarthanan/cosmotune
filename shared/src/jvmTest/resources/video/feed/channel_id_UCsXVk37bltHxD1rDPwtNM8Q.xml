@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+ <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UCsXVk37bltHxD1rDPwtNM8Q"/>
+ <id>yt:channel:sXVk37bltHxD1rDPwtNM8Q</id>
+ <yt:channelId>sXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+ <title>Kurzgesagt – In a Nutshell</title>
+ <link rel="alternate" href="https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q"/>
+ <author>
+  <name>Kurzgesagt – In a Nutshell</name>
+  <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+ </author>
+ <published>2013-07-09T20:17:20+00:00</published>
+ <entry>
+  <id>yt:video:_y9JuojAIg0</id>
+  <yt:videoId>_y9JuojAIg0</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>We Finally Know More About Humanity’s First Civilization</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=_y9JuojAIg0"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-10-08T14:07:00+00:00</published>
+  <updated>2026-10-15T23:19:59+00:00</updated>
+  <media:group>
+   <media:title>We Finally Know More About Humanity’s First Civilization</media:title>
+   <media:content url="https://www.youtube.com/v/_y9JuojAIg0?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/_y9JuojAIg0/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="147981" average="5.00" min="1" max="5"/>
+    <media:statistics views="9026744"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:ujkD4SxPKOI</id>
+  <yt:videoId>ujkD4SxPKOI</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>AI Just Crossed the Terrifying Line - Now What?</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=ujkD4SxPKOI"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-10-05T14:58:58+00:00</published>
+  <updated>2026-10-15T03:57:15+00:00</updated>
+  <media:group>
+   <media:title>AI Just Crossed the Terrifying Line - Now What?</media:title>
+   <media:content url="https://www.youtube.com/v/ujkD4SxPKOI?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/ujkD4SxPKOI/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="474332" average="5.00" min="1" max="5"/>
+    <media:statistics views="19957037"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:b1EMX3wyqCY</id>
+  <yt:videoId>b1EMX3wyqCY</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>Your Brain on Magic Mushrooms</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/b1EMX3wyqCY"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-09-28T14:00:34+00:00</published>
+  <updated>2026-10-02T08:23:00+00:00</updated>
+  <media:group>
+   <media:title>Your Brain on Magic Mushrooms</media:title>
+   <media:content url="https://www.youtube.com/v/b1EMX3wyqCY?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/b1EMX3wyqCY/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="38960" average="5.00" min="1" max="5"/>
+    <media:statistics views="1020292"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:oNTaHYXQ4MM</id>
+  <yt:videoId>oNTaHYXQ4MM</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>Humans Can Regrow an Organ</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/oNTaHYXQ4MM"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-09-26T14:00:11+00:00</published>
+  <updated>2026-10-02T00:12:24+00:00</updated>
+  <media:group>
+   <media:title>Humans Can Regrow an Organ</media:title>
+   <media:content url="https://www.youtube.com/v/oNTaHYXQ4MM?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/oNTaHYXQ4MM/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="60280" average="5.00" min="1" max="5"/>
+    <media:statistics views="1320123"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:RQprZZJIb6Y</id>
+  <yt:videoId>RQprZZJIb6Y</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>Your Skeleton Is Electric</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/RQprZZJIb6Y"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-09-24T17:30:19+00:00</published>
+  <updated>2026-10-01T09:36:42+00:00</updated>
+  <media:group>
+   <media:title>Your Skeleton Is Electric</media:title>
+   <media:content url="https://www.youtube.com/v/RQprZZJIb6Y?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/RQprZZJIb6Y/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="24278" average="5.00" min="1" max="5"/>
+    <media:statistics views="485832"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:QW_jlUn4gA8</id>
+  <yt:videoId>QW_jlUn4gA8</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>This Is What a Godlike Civilization Would Look Like</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=QW_jlUn4gA8"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-09-22T14:00:01+00:00</published>
+  <updated>2026-10-09T10:21:05+00:00</updated>
+  <media:group>
+   <media:title>This Is What a Godlike Civilization Would Look Like</media:title>
+   <media:content url="https://www.youtube.com/v/QW_jlUn4gA8?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/QW_jlUn4gA8/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="164791" average="5.00" min="1" max="5"/>
+    <media:statistics views="8616632"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:0NY2gAftzJE</id>
+  <yt:videoId>0NY2gAftzJE</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>This Woman Cured Her Cancer with an Insane Method</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=0NY2gAftzJE"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-09-15T14:00:02+00:00</published>
+  <updated>2026-10-06T16:44:58+00:00</updated>
+  <media:group>
+   <media:title>This Woman Cured Her Cancer with an Insane Method</media:title>
+   <media:content url="https://www.youtube.com/v/0NY2gAftzJE?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/0NY2gAftzJE/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="228272" average="5.00" min="1" max="5"/>
+    <media:statistics views="21128332"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:NIifnIP_NnQ</id>
+  <yt:videoId>NIifnIP_NnQ</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>How ADHD Medication Works</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/NIifnIP_NnQ"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-09-05T14:00:06+00:00</published>
+  <updated>2026-09-30T11:12:42+00:00</updated>
+  <media:group>
+   <media:title>How ADHD Medication Works</media:title>
+   <media:content url="https://www.youtube.com/v/NIifnIP_NnQ?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/NIifnIP_NnQ/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="43733" average="5.00" min="1" max="5"/>
+    <media:statistics views="927658"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:hiIIGMeMEuE</id>
+  <yt:videoId>hiIIGMeMEuE</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>What If You Never Slept?</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/hiIIGMeMEuE"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-09-03T14:00:25+00:00</published>
+  <updated>2026-10-04T11:14:31+00:00</updated>
+  <media:group>
+   <media:title>What If You Never Slept?</media:title>
+   <media:content url="https://www.youtube.com/v/hiIIGMeMEuE?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/hiIIGMeMEuE/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="101262" average="5.00" min="1" max="5"/>
+    <media:statistics views="2760880"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:tZ8i1RxGSYM</id>
+  <yt:videoId>tZ8i1RxGSYM</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>Can Earth Run Out of Water?</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/tZ8i1RxGSYM"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-08-31T14:00:04+00:00</published>
+  <updated>2026-10-03T09:08:14+00:00</updated>
+  <media:group>
+   <media:title>Can Earth Run Out of Water?</media:title>
+   <media:content url="https://www.youtube.com/v/tZ8i1RxGSYM?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/tZ8i1RxGSYM/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="188737" average="5.00" min="1" max="5"/>
+    <media:statistics views="3831562"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:EqkRVbaBxtg</id>
+  <yt:videoId>EqkRVbaBxtg</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>What If Gravity Was 10% Stronger?</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/EqkRVbaBxtg"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-08-29T14:00:15+00:00</published>
+  <updated>2026-10-01T15:30:46+00:00</updated>
+  <media:group>
+   <media:title>What If Gravity Was 10% Stronger?</media:title>
+   <media:content url="https://www.youtube.com/v/EqkRVbaBxtg?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/EqkRVbaBxtg/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="53836" average="5.00" min="1" max="5"/>
+    <media:statistics views="1403285"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:YqAI0oqtt7w</id>
+  <yt:videoId>YqAI0oqtt7w</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>Dust Is Not What You Think</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/YqAI0oqtt7w"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-08-27T14:00:06+00:00</published>
+  <updated>2026-10-05T11:43:54+00:00</updated>
+  <media:group>
+   <media:title>Dust Is Not What You Think</media:title>
+   <media:content url="https://www.youtube.com/v/YqAI0oqtt7w?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/YqAI0oqtt7w/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="111754" average="5.00" min="1" max="5"/>
+    <media:statistics views="2782119"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:OKsWuqNjomQ</id>
+  <yt:videoId>OKsWuqNjomQ</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>Why Ebola Keeps Coming Back</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/OKsWuqNjomQ"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-08-24T14:00:33+00:00</published>
+  <updated>2026-10-03T02:22:30+00:00</updated>
+  <media:group>
+   <media:title>Why Ebola Keeps Coming Back</media:title>
+   <media:content url="https://www.youtube.com/v/OKsWuqNjomQ?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/OKsWuqNjomQ/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="41001" average="5.00" min="1" max="5"/>
+    <media:statistics views="913390"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:IvtsVHzMLwY</id>
+  <yt:videoId>IvtsVHzMLwY</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>How Stress Changes Your Brain</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/IvtsVHzMLwY"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-08-22T14:00:02+00:00</published>
+  <updated>2026-10-01T05:35:44+00:00</updated>
+  <media:group>
+   <media:title>How Stress Changes Your Brain</media:title>
+   <media:content url="https://www.youtube.com/v/IvtsVHzMLwY?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/IvtsVHzMLwY/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="98233" average="5.00" min="1" max="5"/>
+    <media:statistics views="1912052"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:w5RZfxQHxyY</id>
+  <yt:videoId>w5RZfxQHxyY</yt:videoId>
+  <yt:channelId>UCsXVk37bltHxD1rDPwtNM8Q</yt:channelId>
+  <title>How Antidepressants Work</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/w5RZfxQHxyY"/>
+  <author>
+   <name>Kurzgesagt – In a Nutshell</name>
+   <uri>https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q</uri>
+  </author>
+  <published>2026-08-20T14:00:18+00:00</published>
+  <updated>2026-10-03T22:04:05+00:00</updated>
+  <media:group>
+   <media:title>How Antidepressants Work</media:title>
+   <media:content url="https://www.youtube.com/v/w5RZfxQHxyY?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/w5RZfxQHxyY/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="66175" average="5.00" min="1" max="5"/>
+    <media:statistics views="1257479"/>
+   </media:community>
+  </media:group>
+ </entry>
+</feed>

@@ -1,0 +1,83 @@
+<resources>
+    <string name="manga__a318c2" formatted="false">+</string>
+    <string name="manga_api_key_16f0ee" formatted="false">API key</string>
+    <string name="manga_add_to_library_2bf9ea" formatted="false">लाइब्रेरी में जोड़ें</string>
+    <string name="manga_add_website_a748b2" formatted="false">Add website</string>
+    <string name="manga_all_collections_16a2d2" formatted="false">सभी संग्रह</string>
+    <string name="manga_all_editions_80c6b6" formatted="false">सभी संस्करण</string>
+    <string name="manga_all_enabled_sources_a5e1aa" formatted="false">सभी सक्रिय स्रोत</string>
+    <string name="manga_assign_collections_fee721" formatted="false">संग्रह चुनें</string>
+    <string name="manga_automatic_chapter_updates_9b47d9" formatted="false">स्वचालित अध्याय अपडेट</string>
+    <string name="manga_back_76900f" formatted="false">वापस</string>
+    <string name="manga_cancel_19766e" formatted="false">रद्द करें</string>
+    <string name="manga_cancel_download_de5b23" formatted="false">Cancel download</string>
+    <string name="manga_check_available_disk_space_and_file_acce_8c84cd" formatted="false">Check available disk space and file access, then retry.</string>
+    <string name="manga_check_for_updates_f26f32" formatted="false">अपडेट जाँचें</string>
+    <string name="manga_choose_source_f1fd6f" formatted="false">स्रोत चुनें</string>
+    <string name="manga_clear_cache_d33461" formatted="false">कैश साफ़ करें</string>
+    <string name="manga_collection_name_922214" formatted="false">संग्रह का नाम</string>
+    <string name="manga_collections_9f9fea" formatted="false">संग्रह</string>
+    <string name="manga_connect_komga_library_f500a9" formatted="false">Connect Komga library</string>
+    <string name="manga_create_a_collection_from_manage_collecti_ac025e" formatted="false">Create a collection from Manage collections in your library.</string>
+    <string name="manga_create_collection_69152b" formatted="false">संग्रह बनाएँ</string>
+    <string name="manga_custom_websites_and_templates_848c84" formatted="false">Custom websites and templates</string>
+    <string name="manga_daily_b36c26" formatted="false">प्रतिदिन</string>
+    <string name="manga_delete_e2d0a5" formatted="false">हटाएँ</string>
+    <string name="manga_delete_collection_e734ac" formatted="false">संग्रह हटाएँ</string>
+    <string name="manga_discover_d4a33d" formatted="false">खोजें</string>
+    <string name="manga_dismiss_48845b" formatted="false">बंद करें</string>
+    <string name="manga_done_11a676" formatted="false">पूर्ण</string>
+    <string name="manga_download_d6eafe" formatted="false">डाउनलोड</string>
+    <string name="manga_export_library_backup_ae0e40" formatted="false">लाइब्रेरी बैकअप निर्यात करें</string>
+    <string name="manga_find_source_88e834" formatted="false">स्रोत खोजें</string>
+    <string name="manga_image_folder_19c393" formatted="false">चित्र फ़ोल्डर</string>
+    <string name="manga_import_comic_dc944b" formatted="false">कॉमिक आयात करें</string>
+    <string name="manga_in_library_be6339" formatted="false">लाइब्रेरी में</string>
+    <string name="manga_language_code_26dec0" formatted="false">Language code</string>
+    <string name="manga_language_code_e_g_en_or_ja_15fe4e" formatted="false">Language code, e.g. en or ja</string>
+    <string name="manga_library_dc20b3" formatted="false">लाइब्रेरी</string>
+    <string name="manga_load_more_ac8991" formatted="false">Load more</string>
+    <string name="manga_manage_collections_c3089f" formatted="false">संग्रह प्रबंधित करें</string>
+    <string name="manga_manga_sources_b9bbd2" formatted="false">मंगा स्रोत</string>
+    <string name="manga_mark_read_b49c9b" formatted="false">पढ़ा चिह्नित करें</string>
+    <string name="manga_mark_unread_54b4e3" formatted="false">अपठित चिह्नित करें</string>
+    <string name="manga_merge_library_299678" formatted="false">लाइब्रेरी मिलाएँ</string>
+    <string name="manga_music_6eb00b" formatted="false">Music</string>
+    <string name="manga_my_library_fbc3b8" formatted="false">मेरी लाइब्रेरी</string>
+    <string name="manga_newest_first_ffb6f5" formatted="false">नए पहले</string>
+    <string name="manga_no_custom_websites_yet_4c2540" formatted="false">No custom websites yet.</string>
+    <string name="manga_off_ca7981" formatted="false">बंद</string>
+    <string name="manga_oldest_first_6e2ebd" formatted="false">पुराने पहले</string>
+    <string name="manga_password_e7cf3e" formatted="false">Password</string>
+    <string name="manga_previous_a57b08" formatted="false">Previous</string>
+    <string name="manga_refresh_chapters_c0d3d3" formatted="false">अध्याय ताज़ा करें</string>
+    <string name="manga_refresh_chapters_to_load_this_series_03be42" formatted="false">Refresh chapters to load this series.</string>
+    <string name="manga_remove_c3812f" formatted="false">Remove</string>
+    <string name="manga_remove_download_5dfc36" formatted="false">डाउनलोड हटाएँ</string>
+    <string name="manga_remove_from_library_8e7161" formatted="false">लाइब्रेरी से हटाएँ</string>
+    <string name="manga_rename_3064d7" formatted="false">नाम बदलें</string>
+    <string name="manga_reset_verification_80b5f0" formatted="false">सत्यापन रीसेट करें</string>
+    <string name="manga_restore_manga_library_1f6582" formatted="false">Restore Manga library?</string>
+    <string name="manga_restore_library_backup_d287c0" formatted="false">लाइब्रेरी बैकअप बहाल करें</string>
+    <string name="manga_retry_942087" formatted="false">Retry</string>
+    <string name="manga_retry_page_2788ca" formatted="false">Retry page</string>
+    <string name="manga_retry_save_71fdfa" formatted="false">Retry save</string>
+    <string name="manga_save_name_b72972" formatted="false">नाम सहेजें</string>
+    <string name="manga_search_manga_6fd3ca" formatted="false">मंगा खोजें</string>
+    <string name="manga_server_url_22f5eb" formatted="false">Server URL</string>
+    <string name="manga_source_name_193996" formatted="false">Source name</string>
+    <string name="manga_sources_caf85b" formatted="false">स्रोत</string>
+    <string name="manga_stop_cae7d5" formatted="false">रोकें</string>
+    <string name="manga_stop_search_58bc18" formatted="false">Stop search</string>
+    <string name="manga_template_json_text_39d191" formatted="false">Template (JSON text)</string>
+    <string name="manga_test_and_save_be8494" formatted="false">Test and save</string>
+    <string name="manga_test_catalogue_18850c" formatted="false">Test catalogue</string>
+    <string name="manga_the_series_and_their_reading_progress_st_904c4b" formatted="false">The series and their reading progress stay in your library.</string>
+    <string name="manga_unassigned_14d33b" formatted="false">बिना संग्रह</string>
+    <string name="manga_unread_only_8ab25e" formatted="false">केवल अपठित</string>
+    <string name="manga_user_name_b82e11" formatted="false">User name</string>
+    <string name="manga_verify_source_website_d690d0" formatted="false">स्रोत वेबसाइट सत्यापित करें</string>
+    <string name="manga_website_url_eb650f" formatted="false">Website URL</string>
+    <string name="manga_weekly_297513" formatted="false">साप्ताहिक</string>
+    <string name="manga__afba24" formatted="false">−</string>
+</resources>

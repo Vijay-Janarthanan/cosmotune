@@ -1,0 +1,12 @@
+[
+  {
+    "file": "LICENSE.brotli",
+    "source": "https://raw.githubusercontent.com/google/brotli/master/LICENSE",
+    "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94"
+  },
+  {
+    "file": "LICENSE.zstandard",
+    "source": "https://raw.githubusercontent.com/facebook/zstd/dev/LICENSE",
+    "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+  }
+]

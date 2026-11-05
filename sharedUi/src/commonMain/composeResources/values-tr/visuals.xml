@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">Görseller</string>
+    <string name="player_visuals_close">Görselleri kapat</string>
+    <string name="player_visuals_artwork">Kapak</string>
+    <string name="player_visuals_pulse">Nabız</string>
+    <string name="player_visuals_waveform">Dalga biçimi</string>
+    <string name="player_visuals_waiting">Görselleştirmeyi görmek için bu cihazda ses çalın.</string>
+</resources>

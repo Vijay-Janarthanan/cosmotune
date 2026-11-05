@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">ビジュアル</string>
+    <string name="player_visuals_close">ビジュアルを閉じる</string>
+    <string name="player_visuals_artwork">ジャケット</string>
+    <string name="player_visuals_pulse">パルス</string>
+    <string name="player_visuals_waveform">波形</string>
+    <string name="player_visuals_waiting">ビジュアルを表示するには、この端末で音声を再生してください。</string>
+</resources>

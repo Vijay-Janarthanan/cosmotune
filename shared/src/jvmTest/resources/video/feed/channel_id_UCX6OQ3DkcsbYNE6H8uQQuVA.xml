@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+ <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UCX6OQ3DkcsbYNE6H8uQQuVA"/>
+ <id>yt:channel:X6OQ3DkcsbYNE6H8uQQuVA</id>
+ <yt:channelId>X6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+ <title>MrBeast</title>
+ <link rel="alternate" href="https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA"/>
+ <author>
+  <name>MrBeast</name>
+  <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+ </author>
+ <published>2012-02-20T00:43:50+00:00</published>
+ <entry>
+  <id>yt:video:aNI2jv7lBPQ</id>
+  <yt:videoId>aNI2jv7lBPQ</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Giving $10,000 To A Random Subscriber</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/aNI2jv7lBPQ"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-10-09T16:00:01+00:00</published>
+  <updated>2026-10-13T09:10:32+00:00</updated>
+  <media:group>
+   <media:title>Giving $10,000 To A Random Subscriber</media:title>
+   <media:content url="https://www.youtube.com/v/aNI2jv7lBPQ?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/aNI2jv7lBPQ/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="875814" average="5.00" min="1" max="5"/>
+    <media:statistics views="30266101"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:plN7JMbadRg</id>
+  <yt:videoId>plN7JMbadRg</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Eat Everything In A Grocery Store, Win $1,000,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=plN7JMbadRg"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-10-03T16:00:01+00:00</published>
+  <updated>2026-10-16T05:42:11+00:00</updated>
+  <media:group>
+   <media:title>Eat Everything In A Grocery Store, Win $1,000,000</media:title>
+   <media:content url="https://www.youtube.com/v/plN7JMbadRg?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/plN7JMbadRg/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="4044975" average="5.00" min="1" max="5"/>
+    <media:statistics views="264174125"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:CEJXqm2eiJ0</id>
+  <yt:videoId>CEJXqm2eiJ0</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>What’s Inside My Briefcase?</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/CEJXqm2eiJ0"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-09-27T16:00:14+00:00</published>
+  <updated>2026-10-06T05:15:09+00:00</updated>
+  <media:group>
+   <media:title>What’s Inside My Briefcase?</media:title>
+   <media:content url="https://www.youtube.com/v/CEJXqm2eiJ0?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/CEJXqm2eiJ0/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="1116460" average="5.00" min="1" max="5"/>
+    <media:statistics views="71474828"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:v9QtM6qnG50</id>
+  <yt:videoId>v9QtM6qnG50</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>I Built A City To Save Kids From Illegal Labor</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=v9QtM6qnG50"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-09-19T16:00:01+00:00</published>
+  <updated>2026-10-02T00:17:09+00:00</updated>
+  <media:group>
+   <media:title>I Built A City To Save Kids From Illegal Labor</media:title>
+   <media:content url="https://www.youtube.com/v/v9QtM6qnG50?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/v9QtM6qnG50/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2308054" average="5.00" min="1" max="5"/>
+    <media:statistics views="101715648"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:T_SMf9j50uc</id>
+  <yt:videoId>T_SMf9j50uc</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Can We Build an Entire Village?</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/T_SMf9j50uc"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-09-18T16:00:01+00:00</published>
+  <updated>2026-09-30T03:10:21+00:00</updated>
+  <media:group>
+   <media:title>Can We Build an Entire Village?</media:title>
+   <media:content url="https://www.youtube.com/v/T_SMf9j50uc?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/T_SMf9j50uc/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="899366" average="5.00" min="1" max="5"/>
+    <media:statistics views="26026641"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:gTKS8SAwUzE</id>
+  <yt:videoId>gTKS8SAwUzE</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>I Survived The Most Extreme Places On Earth</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=gTKS8SAwUzE"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-09-05T16:00:01+00:00</published>
+  <updated>2026-09-30T07:22:12+00:00</updated>
+  <media:group>
+   <media:title>I Survived The Most Extreme Places On Earth</media:title>
+   <media:content url="https://www.youtube.com/v/gTKS8SAwUzE?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/gTKS8SAwUzE/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="1546494" average="5.00" min="1" max="5"/>
+    <media:statistics views="127479831"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:5mU6SRS2Bxo</id>
+  <yt:videoId>5mU6SRS2Bxo</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>World’s Largest Tennis Match</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/5mU6SRS2Bxo"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-08-23T16:00:04+00:00</published>
+  <updated>2026-10-14T07:14:13+00:00</updated>
+  <media:group>
+   <media:title>World’s Largest Tennis Match</media:title>
+   <media:content url="https://www.youtube.com/v/5mU6SRS2Bxo?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/5mU6SRS2Bxo/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="389298" average="5.00" min="1" max="5"/>
+    <media:statistics views="19506247"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:Qtl8lJwbd4g</id>
+  <yt:videoId>Qtl8lJwbd4g</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Escape 100 Cops, Win $500,000</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=Qtl8lJwbd4g"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-08-22T16:00:05+00:00</published>
+  <updated>2026-09-30T02:52:25+00:00</updated>
+  <media:group>
+   <media:title>Escape 100 Cops, Win $500,000</media:title>
+   <media:content url="https://www.youtube.com/v/Qtl8lJwbd4g?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/Qtl8lJwbd4g/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2154602" average="5.00" min="1" max="5"/>
+    <media:statistics views="119575213"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:LiH-P4rSkLI</id>
+  <yt:videoId>LiH-P4rSkLI</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Can You Pass This Classroom Quiz?</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/LiH-P4rSkLI"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-08-11T16:00:06+00:00</published>
+  <updated>2026-09-30T20:18:01+00:00</updated>
+  <media:group>
+   <media:title>Can You Pass This Classroom Quiz?</media:title>
+   <media:content url="https://www.youtube.com/v/LiH-P4rSkLI?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/LiH-P4rSkLI/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="1885979" average="5.00" min="1" max="5"/>
+    <media:statistics views="71294263"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:Af6i6ChAVTw</id>
+  <yt:videoId>Af6i6ChAVTw</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Last To Leave Mansion, Keeps It</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=Af6i6ChAVTw"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-08-08T16:00:01+00:00</published>
+  <updated>2026-10-01T18:23:30+00:00</updated>
+  <media:group>
+   <media:title>Last To Leave Mansion, Keeps It</media:title>
+   <media:content url="https://www.youtube.com/v/Af6i6ChAVTw?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/Af6i6ChAVTw/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2420203" average="5.00" min="1" max="5"/>
+    <media:statistics views="128300324"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:NMR32p4kwAQ</id>
+  <yt:videoId>NMR32p4kwAQ</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Mr Rizz IRL</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/NMR32p4kwAQ"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-08-02T22:59:39+00:00</published>
+  <updated>2026-09-30T15:10:31+00:00</updated>
+  <media:group>
+   <media:title>Mr Rizz IRL</media:title>
+   <media:content url="https://www.youtube.com/v/NMR32p4kwAQ?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/NMR32p4kwAQ/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2932785" average="5.00" min="1" max="5"/>
+    <media:statistics views="115089529"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:f7y2XikE7sY</id>
+  <yt:videoId>f7y2XikE7sY</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Paying For Food With My Car</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/f7y2XikE7sY"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-07-31T16:00:11+00:00</published>
+  <updated>2026-10-14T08:54:16+00:00</updated>
+  <media:group>
+   <media:title>Paying For Food With My Car</media:title>
+   <media:content url="https://www.youtube.com/v/f7y2XikE7sY?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i3.ytimg.com/vi/f7y2XikE7sY/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="2979456" average="5.00" min="1" max="5"/>
+    <media:statistics views="120365350"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:lVylRtlPOIE</id>
+  <yt:videoId>lVylRtlPOIE</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>I Granted 100 Kids Their Biggest Wish!</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=lVylRtlPOIE"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-07-25T16:00:05+00:00</published>
+  <updated>2026-09-30T09:47:56+00:00</updated>
+  <media:group>
+   <media:title>I Granted 100 Kids Their Biggest Wish!</media:title>
+   <media:content url="https://www.youtube.com/v/lVylRtlPOIE?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/lVylRtlPOIE/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="1760142" average="5.00" min="1" max="5"/>
+    <media:statistics views="68873265"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:Df5Y-2ndQyU</id>
+  <yt:videoId>Df5Y-2ndQyU</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Read My Book, You Could Win $1,000,000</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/Df5Y-2ndQyU"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-07-17T16:00:06+00:00</published>
+  <updated>2026-10-12T09:02:19+00:00</updated>
+  <media:group>
+   <media:title>Read My Book, You Could Win $1,000,000</media:title>
+   <media:content url="https://www.youtube.com/v/Df5Y-2ndQyU?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i1.ytimg.com/vi/Df5Y-2ndQyU/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="732590" average="5.00" min="1" max="5"/>
+    <media:statistics views="28812032"/>
+   </media:community>
+  </media:group>
+ </entry>
+ <entry>
+  <id>yt:video:egvLKQe6I4I</id>
+  <yt:videoId>egvLKQe6I4I</yt:videoId>
+  <yt:channelId>UCX6OQ3DkcsbYNE6H8uQQuVA</yt:channelId>
+  <title>Don't Pop the Balloon</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/egvLKQe6I4I"/>
+  <author>
+   <name>MrBeast</name>
+   <uri>https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA</uri>
+  </author>
+  <published>2026-07-10T16:00:09+00:00</published>
+  <updated>2026-09-30T21:35:00+00:00</updated>
+  <media:group>
+   <media:title>Don't Pop the Balloon</media:title>
+   <media:content url="https://www.youtube.com/v/egvLKQe6I4I?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i2.ytimg.com/vi/egvLKQe6I4I/hqdefault.jpg" width="480" height="360"/>
+   <media:description>(description removed)</media:description>
+   <media:community>
+    <media:starRating count="4207779" average="5.00" min="1" max="5"/>
+    <media:statistics views="220123355"/>
+   </media:community>
+  </media:group>
+ </entry>
+</feed>

@@ -1,0 +1,9199 @@
+package com.cosmotune.music.desktop
+
+import androidx.compose.foundation.lazy.LazyListState
+import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.theme.FollowCover
+import com.cosmotune.music.ui.components.LocalShelfRowChrome
+import com.cosmotune.music.ui.components.ShelfRowChrome
+import com.cosmotune.music.ui.components.ShelfRow
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.pointer.isBackPressed
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.mutableStateListOf
+import com.cosmotune.music.ui.components.PAGE_GUTTER
+import com.cosmotune.music.ui.components.trackColumnWidth
+import com.cosmotune.music.ui.components.SourceQualityBadge
+import com.cosmotune.music.ui.components.sourceQualityBadge
+import com.cosmotune.music.ui.replay.ReplayCreditCard
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import com.cosmotune.music.data.YtMusicRepository
+import com.cosmotune.music.data.model.EntityType
+import com.cosmotune.music.data.model.SearchHistoryEntity
+import com.cosmotune.music.ui.LocalPullToRefreshEnabled
+import com.cosmotune.music.ui.screens.ExploreScreen
+import com.cosmotune.music.ui.screens.HomeScreen
+import com.cosmotune.music.ui.screens.CompactTrackRow
+import com.cosmotune.music.ui.screens.LibraryGridPage
+import com.cosmotune.music.ui.screens.LibraryLink
+import com.cosmotune.music.ui.screens.LibraryScreen
+import com.cosmotune.music.ui.screens.MoodGenrePlaylistsScreen
+import com.cosmotune.music.ui.screens.SearchScreen
+import com.cosmotune.music.data.NerdStats
+import com.cosmotune.music.playback.PlaybackPosition
+import com.cosmotune.music.playback.QueueSource
+import com.cosmotune.music.playback.QueueTimeline
+import com.cosmotune.music.playback.QueueTimeline.asQueueEntry
+import com.cosmotune.music.data.listentogether.partyQueueIndexOf
+import com.cosmotune.music.data.listentogether.partyUpcomingAfter
+import com.cosmotune.music.ui.LyricsProviderState
+import com.cosmotune.music.ui.player.LyricsSidePanel
+import com.cosmotune.ui.nowplaying.NowPlayingSwitch
+import com.cosmotune.music.ui.player.QueueSidePanel
+import com.cosmotune.music.ui.player.PlayerBack
+import com.cosmotune.music.ui.player.RepeatModes
+import com.cosmotune.music.ui.player.rememberMixPulse
+import androidx.compose.runtime.SideEffect
+import com.cosmotune.music.data.model.QueueTier
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.FastRewind
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.NorthWest
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.RemoveCircleOutline
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Sort
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VolumeUp
+import com.cosmotune.ui.bridge.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import com.cosmotune.ui.bridge.CircularProgressIndicator
+import com.cosmotune.ui.bridge.DropdownMenu
+import com.cosmotune.ui.bridge.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import com.cosmotune.ui.bridge.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalUriHandler
+import com.cosmotune.design.AppMode
+import com.cosmotune.design.AppModes
+import com.cosmotune.ui.settings.asSearchItems
+import com.cosmotune.ui.settings.blurb
+import com.cosmotune.ui.settings.icon
+import com.cosmotune.ui.settings.settingsHighlight
+import com.cosmotune.ui.settings.text
+import com.cosmotune.ui.settings.title
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import cosmotune.desktopapp.generated.resources.Res
+import cosmotune.desktopapp.generated.resources.logo
+import cosmotune.desktopapp.generated.resources.logo_mark
+import cosmotune.desktopapp.generated.resources.sf_pro_display_bold
+import cosmotune.desktopapp.generated.resources.sf_pro_display_heavy
+import cosmotune.desktopapp.generated.resources.sf_pro_display_medium
+import cosmotune.desktopapp.generated.resources.sf_pro_display_regular
+import cosmotune.desktopapp.generated.resources.sf_pro_display_semibold
+import com.cosmotune.music.data.model.ArtistPage
+import com.cosmotune.music.data.model.BrowseItem
+import com.cosmotune.music.data.model.BrowseType
+import com.cosmotune.music.data.model.CARD_ART_PX
+import com.cosmotune.music.data.model.HEADER_ART_PX
+import com.cosmotune.music.data.model.HomeShelf
+import com.cosmotune.music.data.model.LibraryPage
+import com.cosmotune.music.data.model.LikeStatus
+import com.cosmotune.music.data.model.MoodGenre
+import com.cosmotune.music.data.model.MoodGenreSection
+import com.cosmotune.music.data.model.PLAYER_ART_PX
+import com.cosmotune.music.data.model.PlaylistPrivacy
+import com.cosmotune.music.data.model.ROW_ART_PX
+import com.cosmotune.music.data.model.SearchFilter
+import com.cosmotune.music.data.model.SearchResult
+import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.PlaybackSourceType
+import com.cosmotune.music.data.model.Song
+import com.cosmotune.podio.offlinePodioItem
+import com.cosmotune.music.data.model.SubscriptionState
+import com.cosmotune.music.data.model.UiState
+import com.cosmotune.music.data.model.UserPlaylist
+import com.cosmotune.music.data.model.artworkAt
+import com.cosmotune.music.data.model.durationMillis
+import com.cosmotune.music.data.model.isMatchMissing
+import com.cosmotune.music.data.model.isMatchPending
+import com.cosmotune.music.data.model.isSameTrackAs
+import com.cosmotune.music.data.model.playingRowMatcher
+import com.cosmotune.music.data.model.isUnresolvedSpotify
+import com.cosmotune.music.data.spotify.SPOTIFY_PAGE_PREFIX
+import com.cosmotune.music.data.spotify.SpotifyLibrary
+import com.cosmotune.music.sharedui.resources.Res as SharedRes
+import com.cosmotune.music.sharedui.resources.cosmo_liked_songs
+import com.cosmotune.music.sharedui.resources.cosmo_releases
+import com.cosmotune.music.sharedui.resources.explore
+import com.cosmotune.music.sharedui.resources.spotify_logo
+import com.cosmotune.music.data.model.withoutRepeatsOf
+import com.cosmotune.music.data.settings.AutomixPerformanceMode
+import com.cosmotune.music.data.settings.LastPlayerScreen
+import com.cosmotune.music.data.settings.SmartAnalysis
+import com.cosmotune.music.data.settings.TrackAnalysisState
+import com.cosmotune.music.data.settings.TransitionWindow
+import com.cosmotune.music.ui.icons.CosmotuneIcons
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.materials.HazeMaterials
+import java.util.UUID
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import com.cosmotune.music.data.search.AddonSearch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.yield
+import org.jetbrains.compose.resources.Font as composeFont
+import org.jetbrains.compose.resources.painterResource
+
+/**
+ * The margin every page keeps from the window's edge.
+ *
+ * Desktop-only pages share Library's edge inset so switching destinations does not move the page
+ * content sideways.
+ */
+internal val DesktopPageGutter = PAGE_GUTTER
+
+internal val DesktopBackground = Color(0xFF202020)
+internal val DesktopSurface = Color(0xFF0D0D0F)
+private val DesktopSurfaceRaised = Color(0xFF1C1C1E)
+internal val DesktopGlass = Color(0x661C1C1E)
+internal val DesktopGlassStrong = Color(0xCC0D0D0F)
+
+/** The floating bars in the narrow layout. */
+private val DesktopBarGlass = Color(0xB324242A)
+
+/** The backdrop the floating bars blur. */
+internal val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
+
+/** How much a page's scrollable should keep clear of the floating bars. */
+private val LocalDesktopBottomInset = staticCompositionLocalOf { 0.dp }
+
+/** Android's own edge on these bars: `Color.White.copy(alpha = 0.10f)`. */
+private val DesktopBarEdge = Color(0x1AFFFFFF)
+internal val DesktopAccent = Color.White
+
+/** Deleting, signing out, and anything that failed — the one place a colour survives, as on Android. */
+internal val DesktopDestructive = Color(0xFFFF453A)
+
+/** A chip the way Android draws a chosen segment: solid white with black on it, or nothing at all. */
+@Composable
+internal fun desktopChipColors() = FilterChipDefaults.filterChipColors(
+    containerColor = Color.Transparent,
+    labelColor = DesktopSecondary,
+    selectedContainerColor = Color.White,
+    selectedLabelColor = Color.Black,
+)
+
+/** Android's switch: a white track with a black knob on, a faint wash off. */
+@Composable
+internal fun desktopSwitchColors() = SwitchDefaults.colors(
+    checkedTrackColor = Color.White,
+    checkedThumbColor = Color.Black,
+    checkedBorderColor = Color.Transparent,
+    uncheckedTrackColor = Color.White.copy(alpha = 0.10f),
+    uncheckedThumbColor = Color.White.copy(alpha = 0.35f),
+    uncheckedBorderColor = Color.Transparent,
+)
+internal val DesktopSecondary = Color(0xFF8E8E93)
+internal val DesktopDivider = Color(0xFF2C2C2E)
+private const val STATS_SAMPLE_MS = 5_000L
+
+/** How often the playhead is offered to the history tracker. */
+private const val HISTORY_SAMPLE_MS = 5_000L
+
+/** How long the search field is left alone before its typeahead is asked for. */
+private const val SUGGESTION_DEBOUNCE_MS = 220L
+
+/** How many tracks a station is built with when one is started explicitly. */
+/** A search costs more than a completion, so the live rows wait for a longer pause. */
+private const val TYPEAHEAD_MEDIA_DEBOUNCE_MS = 400L
+
+/** How many playable rows the dropdown shows, matching Android's own limit. */
+private const val TYPEAHEAD_MEDIA_LIMIT = 8
+
+private const val INITIAL_RADIO_TRACKS = 24
+
+/** An artist's top songs, capped so the release shelves are not buried. */
+private const val MAX_ARTIST_SONGS = 20
+private const val ARTIST_SONGS_PER_COLUMN = 4
+
+/** The artist photograph's height. */
+private val ARTIST_BANNER_HEIGHT = 420.dp
+
+/** The library shelf the account's own playlists arrive on, and the one edits are spliced into. */
+private const val PLAYLISTS_SHELF = "Playlists"
+private const val STATS_MAX_DELTA_MS = 15_000L
+private const val SCROBBLE_THRESHOLD_MS = 180_000L
+
+/** Used for tracking restart of the current song when previous button is pressed. */
+private const val BACK_RESTARTS_AFTER_MS = 10_000L
+
+/** How long the supplier waits for the server to echo an AutoPlay queue addition. */
+private const val PARTY_AUTOPLAY_ECHO_TIMEOUT_MS = 5_000L
+
+/** The phone gives one empty station response a delayed second chance. */
+private const val AUTOPLAY_EMPTY_REFRESH_DELAY_MS = 2_000L
+
+/** The phone's dark scheme, which the shared pages are drawn against. */
+internal fun desktopColorScheme() = darkColorScheme(
+    primary = DesktopAccent,
+    // Black on the accent, now that the accent is white.
+    onPrimary = Color.Black,
+    primaryContainer = Color.White.copy(alpha = 0.16f),
+    onPrimaryContainer = Color.White,
+    background = DesktopBackground,
+    onBackground = Color.White,
+    surface = DesktopSurface,
+    onSurface = Color.White,
+    surfaceVariant = DesktopSurfaceRaised,
+    onSurfaceVariant = DesktopSecondary,
+    outline = Color(0xFF2C2C2E),
+    outlineVariant = DesktopDivider,
+    surfaceTint = DesktopAccent,
+)
+
+@Composable
+internal fun desktopTypography(): Typography {
+    val sfProDisplay = FontFamily(
+        composeFont(Res.font.sf_pro_display_regular, FontWeight.W400),
+        composeFont(Res.font.sf_pro_display_medium, FontWeight.W500),
+        composeFont(Res.font.sf_pro_display_semibold, FontWeight.W600),
+        composeFont(Res.font.sf_pro_display_bold, FontWeight.W700),
+        composeFont(Res.font.sf_pro_display_heavy, FontWeight.W800),
+    )
+    val defaults = Typography()
+    return defaults.copy(
+        displayLarge = defaults.displayLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W800, fontSize = 34.sp, letterSpacing = (-0.8).sp),
+        displayMedium = defaults.displayMedium.copy(fontFamily = sfProDisplay),
+        displaySmall = defaults.displaySmall.copy(fontFamily = sfProDisplay),
+        headlineLarge = defaults.headlineLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W800, fontSize = 30.sp, letterSpacing = (-0.7).sp),
+        headlineMedium = defaults.headlineMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 22.sp, letterSpacing = (-0.4).sp),
+        headlineSmall = defaults.headlineSmall.copy(fontFamily = sfProDisplay),
+        titleLarge = defaults.titleLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W700, fontSize = 20.sp, letterSpacing = (-0.3).sp),
+        titleMedium = defaults.titleMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 16.sp, letterSpacing = (-0.2).sp),
+        titleSmall = defaults.titleSmall.copy(fontFamily = sfProDisplay),
+        bodyLarge = defaults.bodyLarge.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W400, fontSize = 16.sp),
+        bodyMedium = defaults.bodyMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W400, fontSize = 14.sp),
+        bodySmall = defaults.bodySmall.copy(fontFamily = sfProDisplay),
+        labelLarge = defaults.labelLarge.copy(fontFamily = sfProDisplay),
+        labelMedium = defaults.labelMedium.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 12.sp),
+        labelSmall = defaults.labelSmall.copy(fontFamily = sfProDisplay, fontWeight = FontWeight.W600, fontSize = 11.sp),
+    )
+}
+
+/** The new look's dock in a compact window, in its order (DESIGN_SYSTEM.md 5.2). */
+private val MUSIC_DOCK get() = listOf(DesktopDestination.LISTEN_NOW, DesktopDestination.EXPLORE, DesktopDestination.RELEASES, DesktopDestination.LIBRARY)
+
+private enum class DesktopDestination(val id: String, val label: String) {
+    LISTEN_NOW("listen-now", "Home"),
+    EXPLORE("explore", "Explore"),
+    LIBRARY("library", "Library"),
+    SEARCH("search", "Search"),
+    HISTORY("history", "History"),
+    DOWNLOADS("downloads", "Downloads"),
+    LOCAL_MUSIC("local-music", "Local Music"),
+    SETTINGS("settings", "Settings"),
+    RELEASES("releases", "Releases"),
+}
+
+private enum class DesktopRepeatMode {
+    OFF,
+    ALL,
+    ONE,
+    ;
+
+    fun next(): DesktopRepeatMode = when (this) {
+        OFF -> ALL
+        ALL -> ONE
+        ONE -> OFF
+    }
+
+    fun label(): String = when (this) {
+        OFF -> "Off"
+        ALL -> "All"
+        ONE -> "One"
+    }
+}
+
+@Composable
+fun CosmotuneDesktopApp() {
+    val scope = rememberCoroutineScope()
+    // Opens a provider's verification by itself when a search or stream needs it, and closes it on completion.
+    com.cosmotune.ui.providers.ProviderVerificationHost()
+    // Filled once the audio engine exists. Local playback helpers use this single hook so every
+    // transport and queue gesture reaches Listen Together without duplicating protocol logic.
+    val partySyncHolder = remember { arrayOfNulls<DesktopPartySync>(1) }
+    val partyState by DesktopListenTogether.state.collectAsState()
+    val roomJoined by DesktopRooms.joined.collectAsState()
+    var personalQueueStash by remember { mutableStateOf<DesktopQueue?>(null) }
+    var personalPositionStash by remember { mutableStateOf(0L) }
+    var personalPlayingStash by remember { mutableStateOf(false) }
+    val persistence = remember { DesktopPersistence() }
+    var availableUpdate by remember { mutableStateOf<DesktopUpdateChecker.UpdateInfo?>(null) }
+    LaunchedEffect(Unit) { availableUpdate = DesktopUpdateChecker.check() }
+    availableUpdate?.let { update ->
+        AlertDialog(
+            onDismissRequest = { availableUpdate = null },
+            title = { Text(DesktopStrings["d_update_available", "Update available"]) },
+            text = {
+                Text(
+                    "Cosmotune ${update.version} is out — you have ${DesktopUpdateChecker.currentVersion}." +
+                        (update.notes?.takeIf { it.isNotBlank() }?.let { "\n\n${it.take(600)}" } ?: ""),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
+                    availableUpdate = null
+                }) { Text(DesktopStrings["d_download", "Download"]) }
+            },
+            dismissButton = {
+                TextButton(onClick = { availableUpdate = null }) {
+                    Text(DesktopStrings["d_later", "Later"])
+                }
+            },
+        )
+    }
+    var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
+    var query by remember { mutableStateOf("") }
+    var searchFilter by remember { mutableStateOf(SearchFilter.ALL) }
+    var searchRows by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+    // What has been searched before, and what YouTube thinks is being typed.
+    val searchHistory by DesktopSearchHistory.recent.collectAsState()
+    // Whether anything has been searched for since the field was last emptied: until then the
+    // page shows recent searches rather than a result set.
+    var searchCommitted by remember { mutableStateOf(false) }
+    var searchScrollReset by remember { mutableStateOf(0) }
+    var searchFocusRequested by remember { mutableStateOf(false) }
+    var searchSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    // Playable rows for the half-typed query, shown under the text completions.
+    var searchTypeahead by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+    // False while the query is being set *by* the app.
+    var searchTyping by remember { mutableStateOf(false) }
+    var searchLoading by remember { mutableStateOf(false) }
+    var searchError by remember { mutableStateOf<String?>(null) }
+    // The Add-ons source (BC-31): the enabled add-ons and provider packages, asked only when a query is submitted.
+    // Starts where the listener last searched ("Search in", remembered by DesktopSearchIn).
+    var searchAddons by remember { mutableStateOf(DesktopSearchIn.selected.value != AddonSearch.YOUTUBE) }
+    var addonResults by remember { mutableStateOf<UiState<List<Song>>?>(null) }
+    // Source by source as each answers; one slow or failing source never holds back the others' rows.
+    val addonSearchSession = remember(scope) { com.cosmotune.music.data.search.AddonSearchSession(scope) }
+    val addonSearchProgress by addonSearchSession.state.collectAsState()
+    val searchInChoice by DesktopSearchIn.selected.collectAsState()
+    LaunchedEffect(addonSearchSession) { addonSearchSession.state.collect { progress -> if (progress != null) addonResults = progress.asUiState() } }
+    // A provider just verified (its window closed by itself): ask it again for the search that needed it, once.
+    LaunchedEffect(addonSearchSession) { com.cosmotune.providers.ProviderAutoVerification.verified.collect { addonSearchSession.retry("sflx-$it") } }
+    val addonHistory by DesktopAddonSearchHistory.recent.collectAsState()
+    var homeState by remember { mutableStateOf<UiState<List<HomeShelf>>>(UiState.Loading) }
+    // The home feed is paged: `FEmusic_home` answers with a couple of shelves and a token, and
+    // everything else arrives by following it.
+    var homeContinuation by remember { mutableStateOf<String?>(null) }
+    var homeLoadingMore by remember { mutableStateOf(false) }
+    // Recently Played has its own request and its own skeleton at the head of the page, as on the
+    // phone; it is only asked for with an account to have played on.
+    var homeRecentsLoading by remember { mutableStateOf(false) }
+    // Held out here so a page keeps its place when another is visited and it is come back to.
+    val homeListState = rememberLazyListState()
+    val exploreListState = rememberLazyListState()
+    val moodGenreListState = rememberLazyListState()
+    val searchListState = rememberLazyListState()
+    val libraryListState = rememberLazyListState()
+    val libraryGridState = rememberLazyGridState()
+    /** A Library shelf's "Show all", open as a grid in place of the page. */
+    var libraryShowAll by remember { mutableStateOf<HomeShelf?>(null) }
+    /** What the Spotify grid is waiting on, or why it is empty; null once its playlists are in. */
+    var spotifyLibraryStatus by remember { mutableStateOf<String?>(null) }
+    var spotifyImportOpen by remember { mutableStateOf(false) }
+    /** Where the one back button in the top bar goes: every place visited, oldest first. */
+    val navHistory = remember { mutableStateListOf<DesktopNavEntry>() }
+    /** Set while [goBack] puts a place back, so that move is not itself recorded as a visit. */
+    val navRestoring = remember { booleanArrayOf(false) }
+    /** Opens a song's menu at the pointer; set by the pages' menu host once it is in place. */
+    var pageMenu by remember { mutableStateOf<(Song) -> Unit>({}) }
+    val homeSeenTitles = remember { HashSet<String>() }
+    var homeGeneration by remember { mutableStateOf(0) }
+    var providerHomeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var homeIdentity by remember { mutableStateOf<String?>(null) }
+    var exploreState by remember { mutableStateOf<UiState<List<MoodGenreSection>>>(UiState.Loading) }
+    var selectedMoodGenre by remember { mutableStateOf<MoodGenre?>(null) }
+    // Bumped by a retry so the loaders below re-run without the state they are keyed on having to
+    // change to something and back again.
+    var exploreReloads by remember { mutableStateOf(0) }
+    var moodGenreReloads by remember { mutableStateOf(0) }
+    var moodGenreShelves by remember { mutableStateOf<UiState<List<HomeShelf>>>(UiState.Loading) }
+    var selectedSong by remember { mutableStateOf<Song?>(null) }
+    // The live queue: what is playing, what played before it, what is next.
+    var liveQueue by remember {
+        mutableStateOf(
+            DesktopQueue.restored(
+                persistence.queue(),
+                persistence.string("queue_index", "0").toIntOrNull() ?: 0,
+            ),
+        )
+    }
+    // The order the queue was in before shuffle rearranged it, so the toggle can be undone.
+    var preShuffleOrder by remember { mutableStateOf<List<String>>(emptyList()) }
+    // One party AutoPlay top-up at a time; see topUpPartyAutoplay.
+    val partyAutoplayLock = remember { Mutex() }
+    val queue = liveQueue.songs
+    // What was played on this computer. The account's own history replaces it
+    // while signed in — see [remoteHistory] — because that is what Android's
+    // History screen is and what makes a phone and a desktop agree.
+    var history by remember { mutableStateOf(persistence.history()) }
+    var remoteHistory by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var likedIds by remember { mutableStateOf(persistence.likedIds()) }
+    // In-flight tail of the Liked Music chain; replaced whenever the library is fetched again.
+    var likedSyncJob by remember { mutableStateOf<Job?>(null) }
+    var dislikedIds by remember { mutableStateOf(persistence.dislikedIds()) }
+    val overlays = remember { DesktopOverlays() }
+    var downloads by remember { mutableStateOf(persistence.downloads()) }
+    var localSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    val downloadQueue by DesktopDownloadQueue.active.collectAsState()
+    val downloadInProgress = downloadQueue.keys
+    var playlists by remember { mutableStateOf(persistence.playlists()) }
+    // Cloud sync runs on its own scope: started once here, nudged when the playlists change, and the list read again
+    // whenever the sync wrote into the store (a playlist edited on another device).
+    LaunchedEffect(Unit) {
+        DesktopCloud.start()
+        DesktopCloud.playlistRevision.collect { revision ->
+            if (revision > 0) playlists = withContext(Dispatchers.IO) { persistence.playlists() }
+        }
+    }
+    LaunchedEffect(playlists) { DesktopCloud.playlistsChanged(playlists) }
+    // Likes the sync wrote (made on another device) join the liked set; source ratings in it are the source store's and stay.
+    LaunchedEffect(Unit) {
+        DesktopCloud.likeRevision.collect { revision ->
+            if (revision > 0) {
+                val stored = withContext(Dispatchers.IO) { persistence.likedIds() }
+                likedIds = likedIds.filter(com.cosmotune.providers.SourceLibraryStore::ownsTrack).toSet() +
+                    stored.filterNot(com.cosmotune.providers.SourceLibraryStore::ownsTrack)
+            }
+        }
+    }
+    LaunchedEffect(likedIds) { DesktopCloud.likesChanged(likedIds) }
+    var statsRevision by remember { mutableStateOf(0L) }
+    var listeningToolsOpen by remember { mutableStateOf(false) }
+    var listeningToolsOpenOn by remember { mutableStateOf<com.cosmotune.ui.listening.ListeningTab?>(null) }
+    val releasesListState = rememberLazyListState()
+    var libraryActionTarget by remember { mutableStateOf<ShelfItem?>(null) }
+    var replayPeriod by remember { mutableStateOf(DesktopReplayPeriod.ALL_TIME) }
+    val replayHolder = remember { DesktopAccounts.active()?.name.orEmpty() }
+    var replaySummary by remember { mutableStateOf(DesktopListeningStats.summary()) }
+    var statsCountedSongs by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    // One busy flag and one message for every playlist edit: only one of them can be in flight,
+    // because each is driven by a dialog that is modal.
+    var playlistBusy by remember { mutableStateOf(false) }
+    var playlistError by remember { mutableStateOf<String?>(null) }
+    // The album and artist pages the playing track belongs to, looked up while
+    // the player is open. Whatever started a track knew its title and artwork
+    // but rarely its ids — a home-feed tile carries neither — so without this
+    // the credit under the title is not a link at all. Android does the same
+    // thing, and for the same reason; see its `links` in MainActivity.
+    var trackLinks by remember { mutableStateOf<Song?>(null) }
+    // Settings is a modal over whatever page is open, the way Music puts its own preferences in a
+    // sheet rather than a navigation destination.
+    var autoplay by remember { mutableStateOf(persistence.boolean("autoplay", true)) }
+    var dontRepeatSuggestions by remember {
+        mutableStateOf(persistence.boolean(KEY_DONT_REPEAT_SUGGESTIONS, false))
+    }
+    /** Everything AutoPlay has played or offered this run — see [KEY_DONT_REPEAT_SUGGESTIONS]. */
+    val sessionSongHistory = remember { mutableListOf<Song>() }
+    var filterNonMusicAudio by remember {
+        mutableStateOf(persistence.boolean(DesktopLocalMusic.KEY_FILTER_NON_MUSIC_AUDIO, false))
+    }
+    var localMusicRevision by remember { mutableStateOf(0) }
+    // The track the queued station was built around, so a top-up is asked for once per song rather
+    // than once per recomposition.
+    var autoplaySeed by remember { mutableStateOf<String?>(null) }
+    var autoplayJob by remember { mutableStateOf<Job?>(null) }
+    var automix by remember { mutableStateOf(persistence.boolean("automix", false)) }
+    // A manual skip blends into the already-prepared next track over ~15s instead of cutting.
+    var automixOnSkip by remember { mutableStateOf(persistence.boolean(DesktopAutomixOptions.KEY_ON_SKIP, false)) }
+    // Apple-style Automix phrase length in bars: 0 = adaptive (default), 8 or 16 = fixed.
+    var automixPhraseBars by remember {
+        mutableStateOf(DesktopAutomixOptions.phraseBars(persistence.string(DesktopAutomixOptions.KEY_PHRASE_BARS, "0")))
+    }
+    var automixPerformance by remember {
+        mutableStateOf(
+            runCatching { AutomixPerformanceMode.valueOf(persistence.string("automix_performance", "BALANCED")) }
+                .getOrDefault(AutomixPerformanceMode.BALANCED),
+        )
+    }
+    var shuffle by remember { mutableStateOf(persistence.boolean("shuffle", false)) }
+    var repeatMode by remember {
+        mutableStateOf(
+            runCatching { DesktopRepeatMode.valueOf(persistence.string("repeat_mode", "OFF")) }
+                .getOrDefault(DesktopRepeatMode.OFF),
+        )
+    }
+    var playbackSpeed by remember { mutableStateOf(persistence.string("playback_speed", "1.0").toFloatOrNull() ?: 1.0f) }
+    var volume by remember { mutableStateOf(persistence.string("volume", "1.0").toFloatOrNull()?.coerceIn(0.0f, 1.0f) ?: 1.0f) }
+    var crossfadeSeconds by remember { mutableStateOf(persistence.string("crossfade_seconds", "0").toIntOrNull()?.coerceIn(0, 12) ?: 0) }
+    var downloadQuality by remember { mutableStateOf(persistence.string("download_quality", "LOSSLESS")) }
+    var trayIconEnabled by remember { mutableStateOf(persistence.boolean("tray_icon", true)) }
+    var closeToTray by remember { mutableStateOf(persistence.boolean("close_to_tray", true)) }
+    // The three the FFmpeg engine unlocked: none of them could exist while JavaFX owned the decode,
+    // because none of them can be done without the samples themselves.
+    var spatialAudio by remember { mutableStateOf(persistence.boolean("spatial_audio", false)) }
+    var dolbyAtmos by remember { mutableStateOf(persistence.boolean("dolby_atmos", true)) }
+    var skipSilence by remember { mutableStateOf(persistence.boolean("skip_silence", false)) }
+    var loudnessNormalization by remember { mutableStateOf(persistence.boolean("loudness_normalization", true)) }
+    var outputPrecision by remember { mutableStateOf(persistence.string("output_precision", "PCM_16")) }
+    // The blob backdrop the mesh replaced, kept as an opt-out.
+    var legacyMeshGradient by remember { mutableStateOf(persistence.boolean("legacy_mesh_gradient", false)) }
+    var animatedCanvas by remember { mutableStateOf(persistence.boolean("animated_canvas", true)) }
+    var spotifyCanvasCookie by remember { mutableStateOf(DesktopSpotifyToken.cookie()) }
+    // Held here rather than by the Integrations page, so leaving the page does not close the
+    // sign-in window.
+    var spotifySignInJob by remember { mutableStateOf<Job?>(null) }
+    var spotifySignInError by remember { mutableStateOf<String?>(null) }
+    var showNerdStats by remember { mutableStateOf(persistence.boolean("show_nerd_stats", false)) }
+    var syncedLyrics by remember {
+        mutableStateOf(persistence.boolean(DesktopLyricsClient.KEY_SYNCED_LYRICS, true))
+    }
+    var lyricsBlur by remember {
+        mutableStateOf(persistence.boolean(DesktopLyricsClient.KEY_LYRICS_BLUR, true))
+    }
+    var prioritizeSyllables by remember {
+        mutableStateOf(persistence.boolean(DesktopLyricsClient.KEY_PRIORITIZE_SYLLABLES, false))
+    }
+    var lyricsOrder by remember { mutableStateOf(persistence.lyricsSourceOrder()) }
+    var lyricsOn by remember { mutableStateOf(persistence.lyricsEnabledSources()) }
+    var fullBleedArtwork by remember { mutableStateOf(persistence.boolean("full_bleed_artwork", false)) }
+    var accounts by remember { mutableStateOf(DesktopAccounts.accounts()) }
+    var activeAccountId by remember { mutableStateOf(DesktopAccounts.activeAccountId()) }
+    var activeProfileId by remember { mutableStateOf(DesktopAccounts.activeProfileId()) }
+    // Video mode's account shares this sign-in: it opens this window's sign-in dialog, and a switch or sign-out it makes is read back here.
+    LaunchedEffect(Unit) { DesktopVideoAccountHost.install { overlays.signIn = true } }
+    val videoAccountRevision by DesktopVideoAccountHost.revision.collectAsState()
+    LaunchedEffect(videoAccountRevision) {
+        if (videoAccountRevision > 0) {
+            accounts = DesktopAccounts.accounts()
+            activeAccountId = DesktopAccounts.activeAccountId()
+            activeProfileId = DesktopAccounts.activeProfileId()
+        }
+    }
+    var signInBusy by remember { mutableStateOf<String?>(null) }
+    var signInError by remember { mutableStateOf<String?>(null) }
+    var webSignInJob by remember { mutableStateOf<Job?>(null) }
+    val activeAccount = accounts.firstOrNull { it.accountId == activeAccountId } ?: accounts.firstOrNull()
+    // The account's own library, fetched once a session is in force.
+    var libraryState by remember { mutableStateOf<UiState<LibraryPage>>(UiState.Loading) }
+    // Whether YouTube is actually accepting the session, which is not the same as having an account
+    // saved.
+    var youtubeSignedIn by remember { mutableStateOf(false) }
+    // Set by an edit that the library feed has not caught up with yet.
+    var libraryStale by remember { mutableStateOf(false) }
+    // Bumped when the session changes underneath, so the loader below re-runs without anything it
+    // is keyed on having to change to something and back.
+    var sessionRevision by remember { mutableStateOf(0) }
+    // Read off the library rather than fetched again: the Playlists shelf is the same feed the
+    // picker wants, minus the entries no edit can be aimed at.
+    val accountPlaylists = remember(libraryState) {
+        (libraryState as? UiState.Success)?.data?.shelves
+            ?.firstOrNull { it.title == PLAYLISTS_SHELF }
+            ?.items
+            ?.let(DesktopSearchClient::userPlaylists)
+            .orEmpty()
+    }
+    // The add-to-playlist dialog intentionally keeps only playlists owned by the account. The
+    // sidebar is a library browser instead, so it shows the complete paged shelf: owned, saved,
+    // and YouTube's built-in playlists such as Liked Music.
+    val sidebarAccountPlaylists = remember(libraryState) {
+        (libraryState as? UiState.Success)?.data?.shelves
+            ?.firstOrNull { it.title == PLAYLISTS_SHELF }
+            ?.items
+            ?.filter { it.browseId != null }
+            .orEmpty()
+    }
+
+    fun reloadLibrary() {
+        libraryState = UiState.Loading
+        sessionRevision++
+    }
+
+    /** Edits the Playlists shelf in place, without re-fetching it. */
+    fun editPlaylistShelf(edit: (List<ShelfItem>) -> List<ShelfItem>) {
+        val page = (libraryState as? UiState.Success)?.data ?: return
+        val index = page.shelves.indexOfFirst { it.title == PLAYLISTS_SHELF }
+        val shelves = if (index >= 0) {
+            page.shelves.toMutableList().apply {
+                this[index] = this[index].copy(items = edit(this[index].items))
+            }
+        } else {
+            // A fresh account has no Playlists shelf at all, and it is exactly the account most
+            // likely to be making its first one.
+            val items = edit(emptyList())
+            if (items.isEmpty()) return
+            listOf(HomeShelf(PLAYLISTS_SHELF, items)) + page.shelves
+        }
+        libraryState = UiState.Success(page.copy(shelves = shelves.toList()))
+    }
+
+    // Whoever was signed in last is signed in again, before anything asks YouTube for something
+    // that depends on it.
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) { DesktopAccounts.activate() }
+        sessionRevision++
+    }
+    var audioQuality by remember { mutableStateOf(persistence.audioQuality()) }
+    var sourceConfigs by remember { mutableStateOf(persistence.sourceConfigs()) }
+    var sourceStatus by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    val youtubeSourceEnabled = sourceConfigs.any {
+        it.kind == DesktopSourceKind.YOUTUBE && it.enabled
+    }
+    val sleepTimerMinutes by DesktopSleepTimer.minutes.collectAsState()
+    val sleepAfterTrack by DesktopSleepTimer.afterTrack.collectAsState()
+    var sleepTimerTick by remember { mutableStateOf(0L) }
+    LaunchedEffect(sleepTimerMinutes) {
+        while (sleepTimerMinutes != null && currentCoroutineContext().isActive) {
+            delay(1_000L)
+            sleepTimerTick++
+        }
+    }
+    val sleepRemainingMs = remember(sleepTimerMinutes, sleepTimerTick) {
+        DesktopSleepTimer.remainingMs()
+    }
+    var openedCollection by remember { mutableStateOf<DesktopCollection?>(null) }
+    var collectionLoadingMore by remember { mutableStateOf(false) }
+    var collectionError by remember { mutableStateOf<String?>(null) }
+    var collectionReloads by remember { mutableStateOf(0) }
+    // The artist page is its own destination rather than a collection with a different header.
+    var openedArtist by remember { mutableStateOf<DesktopArtistTarget?>(null) }
+    var artistState by remember { mutableStateOf<UiState<ArtistPage>>(UiState.Loading) }
+    var artistReloads by remember { mutableStateOf(0) }
+
+    fun canonicalSong(song: Song): Song {
+        val homeSong = (homeState as? UiState.Success)?.data.orEmpty()
+            .asSequence()
+            .flatMap { it.items.asSequence() }
+            .filter { it.videoId == song.videoId }
+            .map(ShelfItem::toSong)
+            .firstOrNull()
+        return if (homeSong != null && song.artist.isUnknownArtist()) {
+            song.copy(
+                artist = homeSong.artist,
+                durationText = song.durationText ?: homeSong.durationText,
+                thumbnailUrl = song.thumbnailUrl ?: homeSong.thumbnailUrl,
+            )
+        } else {
+            song
+        }
+    }
+
+    lateinit var startSong: (Song, Boolean) -> Unit
+    lateinit var playbackEngine: DesktopPlaybackEngine
+
+    fun saveQueue() {
+        // A party queue is temporary. The phone keeps the listener's own queue aside and so does
+        // desktop; never let a shared running order overwrite the queue restored after leaving or
+        // after a process restart.
+        if (DesktopListenTogether.state.value.inParty) return
+        persistence.saveQueue(liveQueue.songs)
+        persistence.saveString("queue_index", liveQueue.index.toString())
+    }
+
+    /** Opens whatever the queue is currently pointing at. */
+    fun playCurrent(startPlaying: Boolean = true, startAtMs: Long = 0) {
+        val song = liveQueue.current ?: return
+        com.cosmotune.podio.PodioPlaybackPolicy.speedOnTransition(playbackEngine.state.value.song?.videoId, song.videoId, playbackSpeed)
+            ?.let(playbackEngine::setPlaybackSpeed)
+        selectedSong = song
+        history = (listOf(song) + history.filterNot { it.videoId == song.videoId }).take(50)
+        saveQueue()
+        persistence.saveHistory(history)
+        playbackEngine.load(song, startPlaying, startAtMs)
+        partySyncHolder[0]?.onLocalIntent(song.videoId)
+        scope.launch { DesktopScrobbling.updateNowPlaying(song) }
+    }
+
+    fun partyTrackChangeBlocked(): Boolean {
+        if (!DesktopListenTogether.state.value.controlsLocked) return false
+        DesktopPlayerHost.showMessage("Only the party host can change playback")
+        return true
+    }
+
+    /**
+     * The phone's party queue for a track picked here: that track, then what the party's members
+     * queued by hand. Never the album around it, and never the last track's AutoPlay — the party
+     * shares one running order, and the phone builds it exactly this way.
+     */
+    fun partyPlaybackQueue(tapped: Song): List<Song> {
+        val party = DesktopListenTogether.state.value
+        val upcoming = partyUpcomingAfter(party.queue, party.playback, party.playback.track?.videoId)
+        return QueueTimeline.buildPartyPlaybackQueue(
+            tapped,
+            tapped.queueSource(),
+            DesktopQueue.adopt(liveQueue.upcoming, upcoming.map { it.toDesktopSong() }),
+        )
+    }
+
+    /** A song played on its own — from a search row, a shelf card, history. */
+    fun playSong(song: Song, startPlaying: Boolean = true, source: DesktopQueueSource? = null) {
+        if (partyTrackChangeBlocked()) return
+        val tapped = canonicalSong(song).withSource(source)
+        val songs = if (DesktopListenTogether.state.value.inParty) {
+            partyPlaybackQueue(tapped)
+        } else {
+            // The phone's one-off queue: the song, then whatever the listener had queued by hand.
+            QueueTimeline.buildOneOffQueue(liveQueue.songs, liveQueue.index, tapped, tapped.queueSource())
+        }
+        liveQueue = DesktopQueue(songs, index = 0)
+        preShuffleOrder = emptyList()
+        playCurrent(startPlaying)
+    }
+
+    /** Opens the Spotify sign-in window for an `sp_dc`, or closes the one already open. */
+    fun signInToSpotify() {
+        spotifySignInJob?.let {
+            it.cancel()
+            return
+        }
+        spotifySignInError = null
+        spotifySignInJob = scope.launch {
+            try {
+                val cookie = DesktopWebSignIn.captureSpotify()
+                DesktopSpotifyToken.setCookie(cookie)
+                spotifyCanvasCookie = cookie
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                DesktopTrackLog.log("sign-in: Spotify failed: ${failure.message}")
+                spotifySignInError = failure.message ?: "Could not complete the Spotify sign-in."
+            } finally {
+                spotifySignInJob = null
+            }
+        }
+    }
+
+    /** Takes a captured cookie all the way to a saved account. */
+    suspend fun signIn(cookie: String, label: String, sourceProfile: String? = null) {
+        signInError = null
+        signInBusy = label
+        try {
+            val scope = withContext(Dispatchers.IO) { DesktopYouTubeSession.adoptSessionScope(cookie) }
+            if (scope == null) {
+                signInError = "$label is not signed in to YouTube Music."
+                return
+            }
+            DesktopYouTubeAuth.adopt(scope)
+            // Asked with the session in force, so they describe the account that was just captured
+            // rather than nobody in particular.
+            val details = DesktopSearchClient.accountMenu().getOrNull()?.let(DesktopAccountParser::account)
+            val channels = DesktopSearchClient.accountsList().getOrNull()
+                ?.let(DesktopAccountParser::channels)
+                .orEmpty()
+            // Off the UI thread: saving reaches the platform keyring over D-Bus, and a blocking
+            // call to another process is not something to do on the thread that is drawing.
+            withContext(Dispatchers.IO) { DesktopAccounts.save(cookie, scope, details, channels, sourceProfile) }
+            accounts = withContext(Dispatchers.IO) { DesktopAccounts.accounts() }
+            activeAccountId = DesktopAccounts.activeAccountId()
+            activeProfileId = DesktopAccounts.activeProfileId()
+            overlays.signIn = false
+            overlays.accounts = false
+        } finally {
+            signInBusy = null
+        }
+    }
+
+    fun playSongs(songs: List<Song>, startIndex: Int = 0, source: DesktopQueueSource? = null) {
+        // A Spotify playlist's rows still being matched to YouTube Music, or with no match, have
+        // nothing to play: they stay out of the queue, and the pick moves to the next playable row.
+        val resolved = songs.withIndex().filterNot { it.value.isUnresolvedSpotify }
+        if (resolved.isEmpty()) return
+        if (partyTrackChangeBlocked()) return
+        val playable = resolved.map { canonicalSong(it.value).withSource(source) }
+        // Past the end still means the last row, as the clamp here always did.
+        val at = resolved.indexOfFirst { it.index >= startIndex }.takeIf { it >= 0 } ?: resolved.lastIndex
+        if (DesktopListenTogether.state.value.inParty) {
+            liveQueue = DesktopQueue(partyPlaybackQueue(playable[at]), index = 0)
+            preShuffleOrder = emptyList()
+            playCurrent()
+            return
+        }
+        // The phone's context queue: the album up to the pick, the pick, what the listener had
+        // queued by hand, then the rest of the album.
+        val built = QueueTimeline.buildContextQueue(
+            currentTimeline = liveQueue.songs,
+            currentIndex = liveQueue.index,
+            newContextSongs = playable,
+            selectedIndex = at,
+            contextSource = playable[at].queueSource(),
+        )
+        liveQueue = if (shuffle) {
+            DesktopQueue.shuffledStartingAt(built.timeline, built.startIndex)
+        } else {
+            // Keep the complete queue so Previous can navigate to the tracks before the selected one.
+            DesktopQueue.startingAt(built.timeline, built.startIndex)
+        }
+        preShuffleOrder = if (shuffle) built.timeline.map(DesktopQueue::orderKey) else emptyList()
+        playCurrent()
+    }
+
+    /** Moves within the queue, dropping whatever a forward jump passed over. */
+    fun playQueueIndex(target: Int) {
+        if (target !in liveQueue.songs.indices) return
+        if (partyTrackChangeBlocked()) return
+        liveQueue = liveQueue.jumpTo(target)
+        playCurrent()
+    }
+
+    fun cycleSleepTimer() {
+        when {
+            sleepAfterTrack -> DesktopSleepTimer.cancel()
+            sleepTimerMinutes == null -> DesktopSleepTimer.start(DesktopSleepTimer.presets.first())
+            sleepTimerMinutes == DesktopSleepTimer.presets.last() -> DesktopSleepTimer.startAfterTrack()
+            else -> {
+                val current = DesktopSleepTimer.presets.indexOf(sleepTimerMinutes)
+                DesktopSleepTimer.start(DesktopSleepTimer.presets.getOrElse(current + 1) { DesktopSleepTimer.presets.last() })
+            }
+        }
+    }
+    startSong = ::playSong
+
+    /** Applies a rating locally and carries it to the account. */
+    fun rate(song: Song, status: LikeStatus) {
+        fun learnConfirmed() {
+            val current = when {
+                song.videoId in likedIds -> LikeStatus.LIKE
+                song.videoId in dislikedIds -> LikeStatus.DISLIKE
+                else -> LikeStatus.INDIFFERENT
+            }
+            if (current != status) return
+            com.cosmotune.music.data.recommendations.LocalPreferenceLearning.onFeedback(song, when (status) {
+                LikeStatus.LIKE -> com.cosmotune.music.data.recommendations.MusicFeedback.LIKE
+                LikeStatus.DISLIKE -> com.cosmotune.music.data.recommendations.MusicFeedback.LESS_LIKE_THIS
+                LikeStatus.INDIFFERENT -> com.cosmotune.music.data.recommendations.MusicFeedback.CLEAR
+            })
+        }
+        if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)) {
+            val previousLiked = song.videoId in likedIds
+            val previousDisliked = song.videoId in dislikedIds
+            likedIds = if (status == LikeStatus.LIKE) likedIds + song.videoId else likedIds - song.videoId
+            dislikedIds = if (status == LikeStatus.DISLIKE) dislikedIds + song.videoId else dislikedIds - song.videoId
+            com.cosmotune.providers.ProviderHub.remember(song)
+            scope.launch {
+                try { com.cosmotune.providers.ProviderHub.rate(song.videoId, status); learnConfirmed() }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) {
+                    likedIds = if (previousLiked) likedIds + song.videoId else likedIds - song.videoId
+                    dislikedIds = if (previousDisliked) dislikedIds + song.videoId else dislikedIds - song.videoId
+                    DesktopPlayerHost.showMessage("The source rating could not be saved. Check storage and reopen this song.")
+                }
+            }
+            return
+        }
+        likedIds = if (status == LikeStatus.LIKE) likedIds + song.videoId else likedIds - song.videoId
+        dislikedIds = if (status == LikeStatus.DISLIKE) {
+            dislikedIds + song.videoId
+        } else {
+            dislikedIds - song.videoId
+        }
+        persistence.saveLikedIds(likedIds)
+        persistence.saveDislikedIds(dislikedIds)
+        DesktopCloud.rated(song, status)
+        // This local rating is durable even when the optional account request fails.
+        learnConfirmed()
+        scope.launch {
+            DesktopSearchClient.rate(song.videoId, status)
+                .onFailure { DesktopTrackLog.log("youtube: rating ${song.videoId} failed: ${it.message}") }
+        }
+    }
+
+    fun toggleLike(song: Song) =
+        rate(song, if (song.videoId in likedIds) LikeStatus.INDIFFERENT else LikeStatus.LIKE)
+
+    fun toggleDislike(song: Song) =
+        rate(song, if (song.videoId in dislikedIds) LikeStatus.INDIFFERENT else LikeStatus.DISLIKE)
+
+    /** The origin the live queue is carrying, for anything appended to it. */
+    fun currentQueueSource(): DesktopQueueSource? = liveQueue.current?.playbackSource?.let {
+        DesktopQueueSource(
+            it,
+            liveQueue.current?.playbackSourceType ?: PlaybackSourceType.QUEUE,
+            liveQueue.current?.playbackSourceId,
+        )
+    }
+
+    /**
+     * Queues a track by hand, into the listener's own section — "Play next" at its head, "Add to
+     * queue" at its end, above the album and AutoPlay either way. In a party, held to the same
+     * twenty-five upcoming songs the phone and the server allow.
+     */
+    fun enqueue(song: Song, next: Boolean) {
+        val party = DesktopListenTogether.state.value
+        if (party.controlsLocked) return
+        if (party.inParty && liveQueue.upcoming.size >= DesktopPartySync.MAX_PARTY_UPCOMING_QUEUE) {
+            DesktopPlayerHost.showMessage(
+                "Queue is full (maximum ${DesktopPartySync.MAX_PARTY_UPCOMING_QUEUE} songs in party)",
+            )
+            return
+        }
+        val queued = canonicalSong(song).copy(radioName = liveQueue.current?.radioName)
+            .withSource(currentQueueSource())
+        liveQueue = liveQueue.enqueue(queued, playNext = next)
+        saveQueue()
+        partySyncHolder[0]?.onLocalIntent()
+    }
+
+    /** Slots a track in right after the one playing. */
+    fun playNext(song: Song) = enqueue(song, next = true)
+
+    /** Puts a track at the end of what the listener queued — not the end of the queue. */
+    fun addToQueue(song: Song) = enqueue(song, next = false)
+
+    /** Starts the station YouTube Music builds around one track. */
+    fun startRadio(song: Song) {
+        if (partyTrackChangeBlocked()) return
+        val seed = canonicalSong(song).copy(radioName = song.title)
+        scope.launch {
+            // AutoPlay's section behind the seed, as the phone queues a station — which is also
+            // what lets a party share it: a context tail is never published.
+            val related = DesktopAutoplay.tracksFor(listOf(seed), seed, INITIAL_RADIO_TRACKS)
+                .getOrNull()
+                .orEmpty()
+            if (related.isEmpty()) {
+                DesktopTrackLog.log("radio: nothing to build a station on for '${song.title}'")
+                return@launch
+            }
+            if (partyTrackChangeBlocked()) return@launch
+            if (liveQueue.current?.videoId == seed.videoId) {
+                liveQueue = DesktopQueue(listOf(liveQueue.current!!) + related, index = 0)
+                saveQueue()
+                partySyncHolder[0]?.onLocalIntent()
+            } else {
+                val station = listOf(seed.asQueueEntry(QueueTier.CONTEXT)) + related
+                liveQueue = if (shuffle) DesktopQueue.shuffledStartingAt(station, 0) else DesktopQueue(station, 0)
+                preShuffleOrder = if (shuffle) station.map(DesktopQueue::orderKey) else emptyList()
+                playCurrent()
+            }
+            DesktopTrackLog.log("radio: started a station on '${song.title}' with ${related.size} tracks")
+        }
+    }
+
+    /**
+     * Opens an album or playlist in place of whatever page was open. The page it replaces is kept
+     * in the history, not underneath: an artist page left standing under an album would be drawn
+     * over it, which is how an album opened from an artist once went nowhere.
+     */
+    fun showCollection(collection: DesktopCollection) {
+        openedArtist = null
+        overlays.replay = false
+        overlays.settingsPage = null
+        collectionError = null
+        openedCollection = collection
+    }
+
+    /**
+     * Opens an album or playlist by id straight away, with a loader where the tracks go, the way an
+     * artist's page opens — rather than leaving the click with nothing to show until YouTube answers.
+     * [fallback] is what the card that was clicked already knew.
+     */
+    fun openCollection(browseId: String, fallback: BrowseItem? = null) {
+        val current = openedCollection
+        if (current?.browseId == browseId && !current.loading) {
+            showCollection(current)
+            return
+        }
+        showCollection(
+            DesktopCollection(
+                browseId = browseId,
+                title = fallback?.title.orEmpty(),
+                subtitle = fallback?.subtitle.orEmpty(),
+                thumbnailUrl = fallback?.thumbnailUrl,
+                type = fallback?.type?.takeIf { it != BrowseType.OTHER } ?: browseTypeOf(browseId),
+                songs = emptyList(),
+                loading = true,
+            ),
+        )
+        collectionReloads++
+    }
+
+    // Keyed on the id, so a second page opened before the first answered cancels the first rather
+    // than racing it; and a loading page restored by Back fetches again.
+    LaunchedEffect(openedCollection?.browseId, openedCollection?.loading, collectionReloads) {
+        val pending = openedCollection
+            ?.takeIf { it.loading && !it.browseId.startsWith(SPOTIFY_PAGE_PREFIX) }
+            ?: return@LaunchedEffect
+        collectionError = null
+        DesktopSearchClient.browse(
+            browseId = pending.browseId,
+            fallback = BrowseItem(
+                browseId = pending.browseId,
+                title = pending.title,
+                subtitle = pending.subtitle,
+                thumbnailUrl = pending.thumbnailUrl,
+                type = pending.type,
+            ),
+        ).fold(
+            onSuccess = { loaded ->
+                if (openedCollection?.browseId == pending.browseId) openedCollection = loaded
+            },
+            onFailure = { collectionError = it.message ?: "Could not open ${pending.title.ifBlank { "this page" }}" },
+        )
+    }
+
+    // A Spotify playlist: its tracks, then each one's YouTube Music match. Keyed like the browse
+    // above, so opening another page cancels it, and Back to a page left half matched (or Retry
+    // on one that failed) reads it again.
+    LaunchedEffect(openedCollection?.browseId, collectionReloads) {
+        val page = openedCollection?.takeIf { it.browseId.startsWith(SPOTIFY_PAGE_PREFIX) }
+            ?: return@LaunchedEffect
+        if (!page.loading && page.songs.none { it.isMatchPending }) return@LaunchedEffect
+        collectionError = null
+        fun update(change: (DesktopCollection) -> DesktopCollection) {
+            openedCollection?.takeIf { it.browseId == page.browseId }?.let { openedCollection = change(it) }
+        }
+        runCatching { loadSpotifyPlaylist(page.browseId.removePrefix(SPOTIFY_PAGE_PREFIX), ::update) }
+            .onFailure { failure ->
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                DesktopTrackLog.log("spotify: playlist ${page.title} failed: ${failure.message}")
+                collectionError = failure.message ?: "Could not open ${page.title}"
+                // The error page stands in for the list only while there is no list.
+                update { if (it.songs.isEmpty()) it.copy(loading = true) else it }
+            }
+    }
+
+    fun openAlbum(browseId: String) = openCollection(browseId)
+
+    /** Copies the track's YouTube Music link. */
+    fun shareSong(song: Song) {
+        if (com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId) || song.localUri != null || song.localPath != null) {
+            DesktopExternalLinks.copy("${song.title} — ${song.artist}\nShared from Cosmotune")
+            return
+        }
+        DesktopExternalLinks.copy("https://music.youtube.com/watch?v=${song.videoId}")
+        DesktopTrackLog.log("copied a link to '${song.title}'")
+    }
+
+    /**
+     * The link YouTube Music's own overflow shares for a release, built from the browse id rather
+     * than fetched — nothing about it depends on the tracks or the account. Albums and playlists
+     * only: an artist's is a channel link, not a release.
+     */
+    fun shareCollection(collection: DesktopCollection) {
+        val id = collection.browseId
+        if (com.cosmotune.providers.ProviderBrowseKey.parse(id) != null || id.startsWith("local:")) {
+            DesktopExternalLinks.copy("${collection.title}\n${collection.subtitle}\n${collection.songs.size} songs · Shared from Cosmotune")
+            return
+        }
+        val url = when (collection.type) {
+            BrowseType.PLAYLIST -> "https://music.youtube.com/playlist?list=${id.removePrefix("VL")}"
+            BrowseType.ALBUM -> "https://music.youtube.com/browse/$id"
+            else -> return
+        }
+        DesktopExternalLinks.copy(url)
+        DesktopTrackLog.log("copied a link to '${collection.title}'")
+    }
+
+    fun downloadSong(song: Song) {
+        // A second tap on something already queued or running calls it off.
+        if (song.videoId in downloadInProgress) {
+            DesktopDownloadQueue.cancel(song.videoId)
+            return
+        }
+        if (song.videoId in downloads.map(Song::videoId) || song.localPath != null) return
+        DesktopDownloadQueue.enqueue(song)
+    }
+
+    /** Deletes the file a download saved and forgets the record. */
+    fun removeDownload(song: Song) {
+        scope.launch {
+            withContext(Dispatchers.IO) { DesktopDownloadManager.delete(song) }
+            downloads = downloads.filterNot { it.videoId == song.videoId }
+            persistence.saveDownloads(downloads)
+        }
+    }
+
+    /** Everything on a page, in the order it is listed. */
+    fun downloadAll(songs: List<Song>) {
+        val have = downloads.map(Song::videoId).toSet()
+        DesktopDownloadQueue.enqueueAll(
+            songs.filterNot { it.videoId in have || it.localPath != null || it.isUnresolvedSpotify },
+        )
+    }
+
+    /** Keeps a station queued ahead of whatever is playing. */
+
+    /**
+     * How many AutoPlay tracks the party already has waiting after [videoId], or null outside a
+     * party or while its queue does not hold that track yet.
+     */
+    fun partyAutoplayWaiting(party: DesktopListenTogether.State, videoId: String): Int? {
+        if (!party.inParty) return null
+        if (partyQueueIndexOf(party.queue, party.playback, videoId) < 0) return null
+        return partyUpcomingAfter(party.queue, party.playback, videoId).count { it.fromAutoplay }
+    }
+
+    /**
+     * Sends [suggestions] to the party and waits for them to come back; the phone's
+     * `topUpPartyAutoplay`.
+     *
+     * Serialised, and the send-and-wait not cancellable, because a track change cancels the load in
+     * flight and starts another: the second used to read the party before the first batch had
+     * echoed, find nothing waiting, and send the same station again — every suggestion twice, on
+     * every device. Holding the lock until the echo means the next top-up reads a queue that
+     * already has these in it, and filters against it.
+     */
+    suspend fun topUpPartyAutoplay(currentId: String, suggestions: List<Song>): Boolean =
+        partyAutoplayLock.withLock {
+            withContext(NonCancellable) {
+                val party = DesktopListenTogether.state.value
+                val waiting = partyUpcomingAfter(party.queue, party.playback, currentId)
+                val waitingIds = waiting.mapTo(HashSet()) { it.videoId }
+                val room = MAX_QUEUED_AUTOPLAY - waiting.count { it.fromAutoplay }
+                val fresh = suggestions.filterNot { it.videoId in waitingIds }.take(room.coerceAtLeast(0))
+                if (fresh.isEmpty()) return@withContext true
+                DesktopListenTogether.queueAdd(fresh.map { it.toPartyTrack(0L) })
+                val added = fresh.first().videoId
+                withTimeoutOrNull(PARTY_AUTOPLAY_ECHO_TIMEOUT_MS) {
+                    DesktopListenTogether.state.first { state -> state.queue.items.any { it.videoId == added } }
+                } != null
+            }
+        }
+
+    fun loadAutoplaySongs(playFirst: Boolean = false) {
+        val current = selectedSong ?: return
+        if (current.videoId.startsWith("podio:")) return
+        val party = DesktopListenTogether.state.value
+        if (!DesktopAutoplay.enabled(party, autoplay) ||
+            repeatMode == DesktopRepeatMode.ALL ||
+            (party.inParty && DesktopAutoplay.supplierId(party) != party.you?.memberId)
+        ) return
+
+        if (dontRepeatSuggestions) sessionSongHistory += current
+
+        // In a party the server's queue is the one being topped up, and this computer's copy of it
+        // lags by however long reconcile is held off. Counted from the copy, a batch that had
+        // already landed read as missing and the same station went out again.
+        val queued = partyAutoplayWaiting(party, current.videoId)
+            ?: liveQueue.songs.drop(liveQueue.index + 1).count { it.fromAutoplay }
+        val needed = MAX_QUEUED_AUTOPLAY - queued
+        if (needed <= 0 && !playFirst) return
+        // One request per seed.
+        if (!playFirst && autoplaySeed == current.videoId) return
+        autoplaySeed = current.videoId
+
+        autoplayJob?.cancel()
+        autoplayJob = scope.launch {
+            var remaining = needed.coerceAtLeast(1)
+            var emptyRefreshesRemaining = 1
+            while (isActive) {
+                DesktopTrackLog.log("autoplay: building a station from '${current.title}'")
+                val at = liveQueue.songs.size
+                // What the queue holds — the party's too — plus everything this session has
+                // already offered.
+                val partyQueue = DesktopListenTogether.state.value
+                    .takeIf { it.inParty }?.queue?.items.orEmpty().map { it.toDesktopSong() }
+                val suggestions = DesktopAutoplay.tracksFor(
+                    existing = if (dontRepeatSuggestions) {
+                        liveQueue.songs + partyQueue + sessionSongHistory
+                    } else {
+                        liveQueue.songs + partyQueue
+                    },
+                    seedSong = current,
+                    limit = remaining,
+                ).getOrElse { failure ->
+                    DesktopTrackLog.log("autoplay: could not build a station: ${failure.message}")
+                    emptyList()
+                }
+                // The listener may have moved on while the station was being fetched; appending
+                // then would attach it to the wrong seed.
+                val latestParty = DesktopListenTogether.state.value
+                if (selectedSong?.videoId != current.videoId ||
+                    !DesktopAutoplay.enabled(latestParty, autoplay) ||
+                    (latestParty.inParty && DesktopAutoplay.supplierId(latestParty) != latestParty.you?.memberId)
+                ) return@launch
+                if (suggestions.isEmpty()) {
+                    DesktopTrackLog.log("autoplay: no station came back for '${current.title}'")
+                    // Match the phone's bounded recovery: retry once after a short delay, but only
+                    // while the current track genuinely has no tail to play next.
+                    if (liveQueue.index < 0 || liveQueue.index != liveQueue.songs.lastIndex) return@launch
+                    if (emptyRefreshesRemaining-- <= 0) return@launch
+                    delay(AUTOPLAY_EMPTY_REFRESH_DELAY_MS)
+                    remaining = MAX_QUEUED_AUTOPLAY
+                    continue
+                }
+                // The station carries on from what was playing, so it keeps that queue's origin —
+                // Android holds the source on every queue item, not just the ones picked by hand.
+                val inherited = current.playbackSource?.let {
+                    DesktopQueueSource(it, current.playbackSourceType ?: PlaybackSourceType.QUEUE, current.playbackSourceId)
+                }
+                val queuedSuggestions = suggestions.map { it.withSource(inherited) }
+                if (latestParty.inParty) {
+                    // Match the phone: the server owns the party queue. Do not mutate this one
+                    // device first; queueAdd is echoed back and all members apply it atomically.
+                    val landed = topUpPartyAutoplay(current.videoId, queuedSuggestions)
+                    if (!landed) {
+                        autoplaySeed = null
+                        DesktopTrackLog.log("autoplay: party refused the queue top-up; retry is armed")
+                        return@launch
+                    }
+                    if (playFirst) DesktopListenTogether.next()
+                } else {
+                    liveQueue = liveQueue.append(queuedSuggestions)
+                    saveQueue()
+                    // The mix continues from where it was added rather than starting a queue of
+                    // its own.
+                    if (playFirst) playQueueIndex(at)
+                }
+                if (dontRepeatSuggestions) sessionSongHistory += suggestions
+                DesktopTrackLog.log(
+                    "autoplay: queued ${suggestions.size} after '${current.title}'",
+                )
+                return@launch
+            }
+        }
+    }
+
+    /**
+     * Turning AutoPlay on or off, and what that does to the queue.
+     *
+     * Android runs one path for this — `toggleAutoplayFromNotification` — whether the switch was
+     * thrown in the player or anywhere else, and it does more than set a flag. Off drops the
+     * suggestions it had already queued, because switching it off is the listener saying they do
+     * not want them. On clears the seed first, so the station is fetched again for the track
+     * already playing rather than being refused as one this seed has been loaded for.
+     */
+    fun setAutoplay(enabled: Boolean) {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        autoplay = enabled
+        persistence.saveBoolean("autoplay", enabled)
+        autoplayJob?.cancel()
+        autoplayJob = null
+        autoplaySeed = null
+        if (DesktopListenTogether.state.value.inParty) {
+            // As on the phone, the server owns the effective setting and queue while connected.
+            // Keep the personal preference for after leaving, but do not trim or top up this one
+            // device ahead of the server's state broadcast.
+            DesktopListenTogether.setAutoplay(enabled)
+            return
+        }
+        if (enabled) {
+            loadAutoplaySongs()
+        } else {
+            val trimmed = liveQueue.withoutAutoplay()
+            if (trimmed !== liveQueue) {
+                liveQueue = trimmed
+                saveQueue()
+            }
+        }
+    }
+
+    fun advanceQueue() {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        when {
+            liveQueue.hasNext -> {
+                liveQueue = liveQueue.next()
+                playCurrent()
+            }
+            repeatMode == DesktopRepeatMode.ALL && liveQueue.songs.isNotEmpty() -> {
+                liveQueue = liveQueue.copy(index = 0)
+                playCurrent()
+            }
+            DesktopAutoplay.enabled(DesktopListenTogether.state.value, autoplay) ->
+                loadAutoplaySongs(playFirst = true)
+        }
+    }
+
+    fun playNext() {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        if (liveQueue.hasNext || repeatMode == DesktopRepeatMode.ALL || autoplay) {
+            playbackEngine.state.value.song?.videoId?.let(com.cosmotune.music.data.recommendations.LocalPreferenceLearning::onSkipped)
+        }
+        // Automix on skip: when the next deck is already prepared, blend into it instead of cutting. The blend's own
+        // hand-off advances the queue, so a mix that started returns here; anything else is the ordinary skip.
+        if (DesktopAutomixOptions.skipMix(automixOnSkip, DesktopListenTogether.state.value.inParty) && repeatMode != DesktopRepeatMode.ONE) {
+            val upcoming = selectedSong?.videoId?.let {
+                liveQueue.followingFor(it, repeatAll = repeatMode == DesktopRepeatMode.ALL)
+            }
+            if (upcoming != null && playbackEngine.beginSkipMix(upcoming.videoId, DesktopAutomixOptions.SKIP_MIX_SECONDS)) return
+        }
+        advanceQueue()
+    }
+
+    fun playPrevious() {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        val positionMs = playbackEngine.state.value.positionMs
+
+        // After 10 seconds, Previous restarts the current song.
+        if (positionMs > BACK_RESTARTS_AFTER_MS) {
+            playbackEngine.seekTo(0L)
+            partySyncHolder[0]?.onLocalIntent()
+            return
+        }
+
+        // Within 10 seconds, Previous goes to the previous song in queue.
+        if (!liveQueue.hasPrevious) return
+        playbackEngine.state.value.song?.videoId?.let(com.cosmotune.music.data.recommendations.LocalPreferenceLearning::onSkipped)
+        liveQueue = liveQueue.previous()
+        playCurrent()
+    }
+
+    /**
+     * Shuffle rearranges the queue rather than switching playback to a hidden random order, so what
+     * the queue shows stays what plays.
+     */
+    fun setShuffle(enabled: Boolean) {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        shuffle = enabled
+        persistence.saveBoolean("shuffle", enabled)
+        liveQueue = if (enabled) {
+            preShuffleOrder = liveQueue.orderKeys()
+            liveQueue.shuffledAhead()
+        } else {
+            liveQueue.inOrderOf(preShuffleOrder).also { preShuffleOrder = emptyList() }
+        }
+        saveQueue()
+        partySyncHolder[0]?.onLocalIntent()
+    }
+
+    fun closePlaylistDialogs() {
+        overlays.playlistDialog = false
+        playlistTarget = null
+        overlays.rename = false
+        overlays.delete = false
+        overlays.reorder = false
+        playlistError = null
+        playlistBusy = false
+    }
+
+    /** Creates a playlist — on the account when there is one, otherwise here. */
+    fun createPlaylist(title: String, privacy: PlaylistPrivacy) {
+        val name = title.trim()
+        if (name.isBlank()) return
+        val seed = playlistTarget
+        // A track from another source cannot go in an account playlist, so the playlist made to
+        // hold it is one kept here.
+        if (!DesktopYouTubeAuth.isSignedIn || (seed != null && !DesktopSearchClient.isVideoId(seed.videoId))) {
+            playlists = playlists + DesktopPlaylist(title = name, songs = listOfNotNull(seed))
+            persistence.savePlaylists(playlists)
+            closePlaylistDialogs()
+            return
+        }
+        playlistBusy = true
+        playlistError = null
+        scope.launch {
+            DesktopSearchClient.createPlaylist(name, privacy, listOfNotNull(seed?.videoId))
+                .onSuccess { playlistId ->
+                    closePlaylistDialogs()
+                    editPlaylistShelf { items ->
+                        val card = ShelfItem(
+                            title = name,
+                            // Only what this request itself establishes: an unseeded playlist gets
+                            // a card of just its name rather than a guess at what the feed will
+                            // call it.
+                            subtitle = if (seed != null) "1 song" else "",
+                            thumbnailUrl = seed?.thumbnailUrl,
+                            videoId = null,
+                            browseId = "VL$playlistId",
+                        )
+                        // Leads the shelf because it is the newest, which is the order the feed
+                        // itself comes in.
+                        listOf(card) + items.filterNot { it.browseId == card.browseId }
+                    }
+                    libraryStale = true
+                }
+                .onFailure {
+                    playlistBusy = false
+                    playlistError = it.message ?: "Could not create the playlist"
+                }
+        }
+    }
+
+    fun openPlaylist(playlist: DesktopPlaylist) {
+        showCollection(
+            DesktopCollection(
+                browseId = playlist.id,
+                title = playlist.title,
+                subtitle = "Playlist • ${playlist.songs.size} songs",
+                thumbnailUrl = playlist.songs.firstOrNull()?.thumbnailUrl,
+                type = BrowseType.PLAYLIST,
+                songs = playlist.songs,
+            ),
+        )
+    }
+
+    /**
+     * Keeps an imported Spotify playlist where the phone does: on the account when signed in,
+     * otherwise on this computer, which is also the fallback if the account refuses it. Returns a
+     * note only for that fallback.
+     */
+    suspend fun importSpotifyPlaylist(title: String, songs: List<Song>): String? {
+        val signedIn = DesktopYouTubeAuth.isSignedIn
+        if (signedIn) {
+            val created = DesktopSearchClient.createPlaylist(title, PlaylistPrivacy.PRIVATE, songs.map(Song::videoId))
+            created.getOrNull()?.let { playlistId ->
+                editPlaylistShelf { items ->
+                    val card = ShelfItem(
+                        title = title,
+                        subtitle = "${songs.size} songs",
+                        thumbnailUrl = songs.firstOrNull()?.thumbnailUrl,
+                        videoId = null,
+                        browseId = "VL$playlistId",
+                    )
+                    listOf(card) + items.filterNot { it.browseId == card.browseId }
+                }
+                libraryStale = true
+                openCollection("VL$playlistId")
+                return null
+            }
+            DesktopTrackLog.log("spotify import: account playlist failed: ${created.exceptionOrNull()?.message}")
+        }
+        val playlist = DesktopPlaylist(title = title, songs = songs)
+        playlists = playlists + playlist
+        persistence.savePlaylists(playlists)
+        openPlaylist(playlist)
+        return if (signedIn) {
+            DesktopStrings.format(
+                "spotify_import_local_fallback",
+                title,
+                fallback = "Couldn't create it on YouTube Music, so '%1\$s' was saved on this device instead.",
+            )
+        } else {
+            null
+        }
+    }
+
+    fun addToPlaylist(playlist: DesktopPlaylist) {
+        val song = playlistTarget ?: return
+        playlists = playlists.map { current ->
+            if (current.id == playlist.id) current.copy(songs = (current.songs + song).distinctBy(Song::videoId)) else current
+        }
+        persistence.savePlaylists(playlists)
+        playlistTarget = null
+    }
+
+    fun addToAccountPlaylist(playlist: UserPlaylist) {
+        val song = playlistTarget ?: return
+        playlistBusy = true
+        playlistError = null
+        scope.launch {
+            DesktopSearchClient.addToPlaylist(playlist.playlistId, listOf(song.videoId))
+                .onSuccess { closePlaylistDialogs() }
+                .onFailure {
+                    DesktopTrackLog.log("playlist: could not add ${song.videoId}: ${it.message}")
+                    playlistBusy = false
+                    playlistError = it.message ?: "Could not add to ${playlist.title}"
+                }
+        }
+    }
+
+    playbackEngine = remember {
+        DesktopPlaybackEngine(
+            onEnded = {
+                selectedSong?.let(DesktopScrobbling::onPlaybackEnded)
+                if (DesktopSleepTimer.afterTrack.value) {
+                    DesktopSleepTimer.cancel()
+                } else if (DesktopListenTogether.inRoom) {
+                    // A room moves on by its shared clock (DesktopPartySync), once for everyone; a
+                    // player that finished a moment early waits for it rather than skipping too.
+                } else if (repeatMode == DesktopRepeatMode.ONE) {
+                    // Replayed in place. [startSong] makes the track a queue of one, which threw
+                    // the rest of the queue away the first time it repeated.
+                    val song = selectedSong
+                    if (song != null && liveQueue.current?.videoId == song.videoId) {
+                        playCurrent()
+                    } else {
+                        song?.let { startSong(it, true) }
+                    }
+                } else {
+                    advanceQueue()
+                }
+            },
+            onCrossfaded = { song ->
+                scope.launch {
+                    // The queue moves with the audio. Only the selection used to, which left the
+                    // queue on the track that had just finished — so Next "advanced" onto the song
+                    // already playing, and every later skip landed one behind.
+                    liveQueue = liveQueue.afterHandoffTo(song.videoId)
+                    saveQueue()
+                    selectedSong = song
+                    history = (listOf(song) + history.filterNot { it.videoId == song.videoId }).take(50)
+                    persistence.saveHistory(history)
+                    DesktopScrobbling.updateNowPlaying(song)
+                    partySyncHolder[0]?.onLocalIntent()
+                }
+            },
+        )
+    }
+    val partySync = remember(playbackEngine) {
+        DesktopPartySync(
+            scope = scope,
+            engine = playbackEngine,
+            playTrack = { shared, at ->
+                // The phone's PartySync.load: the party's running order, standing on its track —
+                // so the queue on screen moves with the song rather than keeping the old one as
+                // "now playing" and the new one as the first thing still to come.
+                val songs = DesktopQueue.adopt(liveQueue.songs, shared.map { it.toDesktopSong() })
+                liveQueue = DesktopQueue(songs, at.coerceIn(songs.indices)).trimmed()
+                liveQueue.current?.let { song ->
+                    selectedSong = song
+                    playbackEngine.load(song, playWhenReady = false)
+                }
+            },
+            localQueue = { liveQueue.songs to liveQueue.index },
+            applyPartyUpcoming = { upcoming ->
+                val aligned = liveQueue.withPartyUpcoming(upcoming.map { it.toDesktopSong() })
+                if (aligned !== liveQueue) liveQueue = aligned
+            },
+            applyPartyAutoplay = { _ ->
+                // The party setting overrides the personal preference only while connected. The
+                // phone deliberately does not persist it or delete queue rows on this device.
+                autoplayJob?.cancel()
+                autoplayJob = null
+                autoplaySeed = null
+            },
+            onEnteredParty = {
+                if (personalQueueStash == null) {
+                    personalQueueStash = liveQueue
+                    personalPositionStash = playbackEngine.state.value.positionMs
+                    personalPlayingStash = playbackEngine.state.value.isPlaying
+                }
+            },
+            onLeftParty = {
+                personalQueueStash?.let { stashed ->
+                    liveQueue = stashed
+                    selectedSong = stashed.current
+                    stashed.current?.let {
+                        playbackEngine.load(it, personalPlayingStash, personalPositionStash)
+                    }
+                    saveQueue()
+                }
+                personalQueueStash = null
+            },
+            video = DesktopRoomVideo,
+            holdSeed = { DesktopRooms.startingWithItem },
+        )
+    }
+    DisposableEffect(partySync) {
+        partySyncHolder[0] = partySync
+        partySync.start()
+        onDispose {
+            partySync.stop()
+            if (partySyncHolder[0] === partySync) partySyncHolder[0] = null
+        }
+    }
+    fun togglePlayPauseFromUser() {
+        if (partySync.handleLockedPlayPause()) return
+        playbackEngine.togglePlayPause()
+        partySync.onLocalIntent()
+    }
+    fun playFromUser() {
+        if (DesktopListenTogether.state.value.controlsLocked) {
+            if (!playbackEngine.state.value.isPlaying) partySync.handleLockedPlayPause()
+            return
+        }
+        playbackEngine.play()
+        partySync.onLocalIntent()
+    }
+    fun pauseFromUser() {
+        if (DesktopListenTogether.state.value.controlsLocked) {
+            if (playbackEngine.state.value.isPlaying) partySync.handleLockedPlayPause()
+            return
+        }
+        playbackEngine.pause()
+        partySync.onLocalIntent()
+    }
+    val mprisController = remember(playbackEngine) {
+        DesktopMprisController(
+            onPlay = ::playFromUser,
+            onPause = ::pauseFromUser,
+            onPlayPause = ::togglePlayPauseFromUser,
+            onNext = ::playNext,
+            onPrevious = ::playPrevious,
+            onShuffleChanged = { enabled ->
+                shuffle = enabled
+                persistence.saveBoolean("shuffle", enabled)
+            },
+            onLoopStatusChanged = { status ->
+                repeatMode = when (status) {
+                    "Track" -> DesktopRepeatMode.ONE
+                    "Playlist" -> DesktopRepeatMode.ALL
+                    else -> DesktopRepeatMode.OFF
+                }
+                persistence.saveString("repeat_mode", repeatMode.name)
+            },
+            onRateChanged = { value ->
+                playbackSpeed = value.toFloat().coerceIn(0.25f, 3.0f)
+                persistence.saveString("playback_speed", playbackSpeed.toString())
+            },
+            onVolumeChanged = { value ->
+                volume = value.toFloat().coerceIn(0.0f, 1.0f)
+                persistence.saveString("volume", volume.toString())
+            },
+            onSeek = { positionMs ->
+                if (!DesktopListenTogether.state.value.controlsLocked) {
+                    playbackEngine.seekTo(positionMs)
+                    partySync.onLocalIntent()
+                }
+            },
+            // Position is read by the shell whenever it likes, so from the engine, not the last update.
+            livePlayback = { playbackEngine.state.value },
+        )
+    }
+    DisposableEffect(mprisController) {
+        mprisController.start()
+        onDispose { mprisController.stop() }
+    }
+    // The Windows half of the same idea. Linux has MPRIS above; on Windows this
+    // is what the media keys and the volume flyout's card talk to.
+    DisposableEffect(playbackEngine) {
+        DesktopWindowsMedia.start(
+            DesktopWindowsMedia.Controller(
+                onPlay = ::playFromUser,
+                onPause = ::pauseFromUser,
+                onNext = ::playNext,
+                onPrevious = ::playPrevious,
+                onStop = ::pauseFromUser,
+                // The shell's scrubber (BC-35): as MPRIS's SetPosition, refused while the party host holds the controls.
+                onSeek = { positionMs ->
+                    if (!DesktopListenTogether.state.value.controlsLocked) {
+                        playbackEngine.seekTo(DesktopWindowsMedia.seekTarget(positionMs, playbackEngine.state.value.durationMs))
+                        partySync.onLocalIntent()
+                    }
+                },
+            ),
+        )
+        onDispose { DesktopWindowsMedia.stop() }
+    }
+
+    LaunchedEffect(playbackSpeed, selectedSong?.videoId) {
+        if (!com.cosmotune.podio.PodioPlaybackPolicy.isPodio(playbackEngine.state.value.song?.videoId)) playbackEngine.setPlaybackSpeed(playbackSpeed)
+    }
+    LaunchedEffect(volume) { playbackEngine.setVolume(volume) }
+    LaunchedEffect(audioQuality) { playbackEngine.setAudioQuality(audioQuality.name) }
+    LaunchedEffect(automixPerformance) {
+        playbackEngine.setAutomixPerformance(automixPerformance)
+    }
+    // Every one of the seven settings renders the same curve, so they are collected together
+    // rather than destructured — seven sources of one tuning is seven chances to read them in the
+    // wrong order.
+    DesktopListeningDevicesHost()
+    val eqEnabled by DesktopEqualizerSettings.enabled.collectAsState()
+    val eqMode by DesktopEqualizerSettings.mode.collectAsState()
+    val eqToneX by DesktopEqualizerSettings.toneX.collectAsState()
+    val eqToneY by DesktopEqualizerSettings.toneY.collectAsState()
+    val eqFocused by DesktopEqualizerSettings.focused.collectAsState()
+    val eqBalance by DesktopEqualizerSettings.balance.collectAsState()
+    val eqBands by DesktopEqualizerSettings.bands.collectAsState()
+    val eqFullHeadroom by DesktopEqualizerSettings.fullHeadroom.collectAsState()
+    LaunchedEffect(eqEnabled, eqMode, eqToneX, eqToneY, eqFocused, eqBalance, eqBands, eqFullHeadroom) {
+        playbackEngine.setEqualizer(eqEnabled, DesktopEqualizerSettings.curve(), eqBalance)
+    }
+    LaunchedEffect(loudnessNormalization) { playbackEngine.setLoudnessNormalization(loudnessNormalization) }
+    LaunchedEffect(spatialAudio, skipSilence, outputPrecision) {
+        playbackEngine.setSpatialAudio(spatialAudio)
+        playbackEngine.setSkipSilence(skipSilence)
+        playbackEngine.setOutputPrecision(outputPrecision)
+    }
+    // Not while listening together, exactly as on the phone: a blend starts the next track early,
+    // by a length this computer decides from its own copy of the audio, so every member would begin
+    // the next song at a different moment and be dragged back by a correcting seek. The transition a
+    // party shares is the plain one. The settings themselves are left alone and come back after.
+    val inParty = partyState.inParty
+    LaunchedEffect(automix, automixOnSkip, automixPhraseBars, crossfadeSeconds, inParty, audioQuality, selectedSong?.videoId, queue, liveQueue.index, shuffle, repeatMode) {
+        playbackEngine.setAutomixEnabled(automix && !inParty)
+        playbackEngine.setAutomixPhraseBars(DesktopAutomixOptions.enginePhraseBars(automix, inParty, automixPhraseBars))
+        playbackEngine.setCrossfadeSeconds(if (inParty) 0 else crossfadeSeconds)
+        // A party mixes only with the plain transition, so a skip there cuts like it always did.
+        playbackEngine.setSkipMixEnabled(DesktopAutomixOptions.skipMix(automixOnSkip, inParty))
+        // Exactly what Next would play, so a crossfade can never blend into anything else. Shuffle
+        // is already the queue's order; picking "the first track that is not this one" under it
+        // blended into a song from history whenever the current one was not at the top.
+        // Repeat-one prepares nothing: the track ends and [onEnded] starts it again, rather than
+        // blending into the next one.
+        val next = selectedSong
+            ?.takeIf { repeatMode != DesktopRepeatMode.ONE }
+            ?.let { liveQueue.followingFor(it.videoId, repeatAll = repeatMode == DesktopRepeatMode.ALL) }
+        playbackEngine.prepareNext(next)
+    }
+    // Topped up on every track change, the way Android does it, rather than only once the queue has
+    // run dry.
+    LaunchedEffect(selectedSong?.videoId, autoplay, repeatMode) {
+        loadAutoplaySongs()
+    }
+    val partyAutoplaySupplier = DesktopAutoplay.supplierId(partyState)
+    LaunchedEffect(
+        partyState.code,
+        partyState.playback.autoplayEnabled,
+        partyAutoplaySupplier,
+    ) {
+        if (partyState.inParty &&
+            partyState.playback.autoplayEnabled &&
+            partyAutoplaySupplier == partyState.you?.memberId
+        ) {
+            autoplayJob?.cancel()
+            autoplayJob = null
+            autoplaySeed = null
+            loadAutoplaySongs()
+        }
+    }
+    LaunchedEffect(liveQueue.songs.size, liveQueue.index, partyState.queue.seq) {
+        val currentId = selectedSong?.videoId
+        val shouldRefresh = DesktopAutoplay.queueNeedsRefresh(
+            enabled = DesktopAutoplay.enabled(partyState, autoplay),
+            repeatAll = repeatMode == DesktopRepeatMode.ALL,
+            currentIndex = liveQueue.index,
+            itemCount = liveQueue.songs.size,
+            loadInProgress = autoplayJob?.isActive == true,
+        )
+        // Only re-arm a seed that has already been attempted. The track-change effect above owns
+        // the initial load; this effect owns later local or server queue edits that expose a tail.
+        if (shouldRefresh && currentId != null && autoplaySeed == currentId) {
+            autoplayJob = null
+            autoplaySeed = null
+            loadAutoplaySongs()
+        }
+    }
+    LaunchedEffect(Unit) {
+        while (currentCoroutineContext().isActive) {
+            delay(1_000L)
+            if (DesktopSleepTimer.isExpired()) {
+                DesktopSleepTimer.cancel()
+                playbackEngine.pause()
+            }
+        }
+    }
+    val playback by playbackEngine.state.collectAsState()
+
+    // The shared player reads the playhead off this one object, and only where it
+    // draws it — see PlaybackPosition — so a tick never recomposes the player.
+    val playerPosition = remember { PlaybackPosition() }
+    LaunchedEffect(playbackEngine) {
+        playbackEngine.state.collect {
+            // The audio thread's own timestamp, not this collector's: it runs on the UI thread and
+            // gets to a reading as late as the UI is busy.
+            playerPosition.report(it.positionMs, it.positionSampledAtNanos)
+            playerPosition.seeks = it.seeks
+            playerPosition.advancing = !it.awaitingAudio
+        }
+    }
+
+    // Lyrics and motion artwork follow whatever is *playing*, not whatever page happens to be open.
+    // This is where Android keeps it — `MainActivity`, keyed on the player's own track — so the
+    // lookup starts the moment a track does and the panel is already populated by the time anyone
+    // opens the player. Run from the player page instead, nothing was fetched until it was opened,
+    // and a track half a minute in then showed a skeleton and arrived mid-song.
+    var lyrics by remember { mutableStateOf<DesktopLyrics?>(null) }
+    // The provider picked for this track in the player's lyrics drawer, if any.
+    var lyricsOnly by remember(selectedSong?.videoId) { mutableStateOf<String?>(null) }
+    var lyricsLoading by remember { mutableStateOf(false) }
+    var lyricsOffsetOpen by remember { mutableStateOf(false) }
+    var lyricsError by remember { mutableStateOf<String?>(null) }
+    var canvas by remember { mutableStateOf<DesktopCanvasArtwork?>(null) }
+
+    // The length the lyrics are matched on, taken once per track. A better rendition swapped in
+    // mid-song reports its own, slightly different length — or none, for a manifest — and keyed
+    // on the live duration, every such upgrade threw away the lyrics on screen and fetched them
+    // all over again. Only the playing track's own report counts: right after a skip, [playback]
+    // still describes the track before.
+    var lyricsLengthMs by remember(selectedSong?.videoId) { mutableStateOf(0L) }
+    val playingLengthMs = playback.durationMs.takeIf { playback.song?.videoId == selectedSong?.videoId } ?: 0L
+    LaunchedEffect(selectedSong?.videoId, playingLengthMs > 0L) {
+        if (lyricsLengthMs <= 0L && playingLengthMs > 0L) lyricsLengthMs = playingLengthMs
+    }
+
+    // Keyed on the duration too: it lands a beat after the track, and a database match needs it,
+    // so looking up against a length of zero would settle on the wrong recording.
+    LaunchedEffect(
+        selectedSong?.videoId,
+        lyricsLengthMs,
+        syncedLyrics,
+        prioritizeSyllables,
+        lyricsOn,
+        lyricsOrder,
+        lyricsOnly,
+    ) {
+        val current = selectedSong
+        lyrics = null
+        lyricsError = null
+        if (current == null || com.cosmotune.podio.PodioPlaybackPolicy.isPodio(current.videoId)) {
+            lyricsLoading = false
+            return@LaunchedEffect
+        }
+        if (!syncedLyrics) {
+            lyricsError = "Synced lyrics are switched off"
+            lyricsLoading = false
+            return@LaunchedEffect
+        }
+        // A length is what a database match is made on, and it lands a beat after the track. Looking
+        // up without one would settle on whichever recording shares the name — so this waits, the
+        // same way Android's `loadLyrics` turns the call away until a duration exists.
+        val length = lyricsLengthMs.takeIf { it > 0L } ?: current.durationMillis()
+        if (length <= 0L) {
+            lyricsLoading = true
+            return@LaunchedEffect
+        }
+        lyricsLoading = true
+        DesktopLyricsClient.lookup(current, length, only = lyricsOnly).fold(
+            onSuccess = { lyrics = it },
+            onFailure = { lyricsError = it.message ?: "Lyrics unavailable" },
+        )
+        lyricsLoading = false
+    }
+
+    LaunchedEffect(selectedSong?.videoId, animatedCanvas) {
+        val current = selectedSong
+        if (current == null || !animatedCanvas) {
+            canvas = null
+            return@LaunchedEffect
+        }
+        // Paint what is already known before waiting on anything: re-opening the player on a track
+        // resolved a minute ago should not go dark on its way back to the same clip.
+        canvas = DesktopCanvasClient.cached(current)
+        // The film a song is from is what makes the video search find it, and it only comes with the track's
+        // links, which are otherwise fetched once the player is open. Asked here as well, for a moment at most,
+        // so a song played from the bar is searched for with its film too.
+        val film = if (current.albumName.isNullOrBlank() && DesktopMusicSources.hasYouTubeOriginal(current)) {
+            kotlinx.coroutines.withTimeoutOrNull(2_500L) { DesktopSearchClient.trackLinks(current.videoId).getOrNull() }
+                ?.albumName?.takeIf { it.isNotBlank() }
+        } else null
+        val asked = if (film != null) current.copy(albumName = film) else current
+        canvas = withContext(Dispatchers.IO) { DesktopCanvasClient.lookup(asked) }
+    }
+
+    LaunchedEffect(
+        // The whole song, not its id: an album or artwork found after the track started is
+        // Metadata the shell has to be sent. And every seek, which MPRIS announces as Seeked.
+        playback.song,
+        playback.seeks,
+        playback.isPlaying,
+        playback.durationMs,
+        playback.volume,
+        playback.error,
+        shuffle,
+        repeatMode,
+        playbackSpeed,
+    ) {
+        mprisController.update(
+            playback = playback,
+            shuffle = shuffle,
+            loopStatus = when (repeatMode) {
+                DesktopRepeatMode.OFF -> "None"
+                DesktopRepeatMode.ALL -> "Playlist"
+                DesktopRepeatMode.ONE -> "Track"
+            },
+            rate = playbackSpeed.toDouble(),
+        )
+    }
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs) {
+        DesktopScrobbling.onPlaybackStateChanged(playback)
+        DesktopWindowsMedia.publish(playback)
+    }
+    // Refetched on opening the page rather than cached for the session: the
+    // point of it is that something played elsewhere shows up here.
+    LaunchedEffect(destination, youtubeSignedIn, sessionRevision) {
+        if (destination != DesktopDestination.HISTORY || !youtubeSignedIn) return@LaunchedEffect
+        DesktopSearchClient.history().onSuccess { remoteHistory = it }
+    }
+    LaunchedEffect(selectedSong?.videoId, overlays.nowPlaying) {
+        trackLinks = null
+        val current = selectedSong ?: return@LaunchedEffect
+        // Only while the player is up, so playing from the mini player costs
+        // nothing, and only when something is actually missing.
+        if (!overlays.nowPlaying) return@LaunchedEffect
+        if (!DesktopMusicSources.hasYouTubeOriginal(current)) return@LaunchedEffect
+        if (current.artistId != null && current.albumId != null) return@LaunchedEffect
+        trackLinks = DesktopSearchClient.trackLinks(current.videoId).getOrNull()
+    }
+    // Keyed on the same things, plus the rate: Discord counts the bar down on
+    // its own clock, so only a change to what it was told is worth another push.
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed) {
+        DesktopDiscordRpc.onPlaybackStateChanged(playback, playbackSpeed)
+    }
+    // The account's own history on YouTube Music, which is what the home feed is built out of.
+    DisposableEffect(playback.song?.videoId) {
+        val previous = playbackEngine.state.value.positionMs / 1_000
+        onDispose { DesktopPlaybackTracker.onTrackChanged(previous) }
+    }
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying) {
+        val songId = playback.song?.videoId ?: return@LaunchedEffect
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(songId)) return@LaunchedEffect
+        if (!playback.isPlaying) return@LaunchedEffect
+        DesktopPlaybackTracker.onPlaying(songId)
+        while (currentCoroutineContext().isActive) {
+            delay(HISTORY_SAMPLE_MS)
+            val snapshot = playbackEngine.state.value
+            if (snapshot.song?.videoId != songId) break
+            DesktopPlaybackTracker.onProgress(songId, snapshot.positionMs / 1_000)
+        }
+    }
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying) {
+        val songId = playback.song?.videoId ?: return@LaunchedEffect
+        if (!playback.isPlaying) return@LaunchedEffect
+        var previousPosition = playback.positionMs
+        var countedAsPlay = songId in statsCountedSongs
+        if (com.cosmotune.podio.PodioPlaybackPolicy.isPodio(songId)) return@LaunchedEffect
+        while (currentCoroutineContext().isActive) {
+            delay(STATS_SAMPLE_MS)
+            val snapshot = playbackEngine.state.value
+            if (!snapshot.isPlaying || snapshot.song?.videoId != songId) break
+            val position = snapshot.positionMs
+            val delta = (position - previousPosition).takeIf { it in 1L..STATS_MAX_DELTA_MS } ?: 0L
+            if (delta > 0L) {
+                val threshold = snapshot.durationMs.takeIf { it > 0L }?.let { minOf(it / 2L, SCROBBLE_THRESHOLD_MS) }
+                    ?: SCROBBLE_THRESHOLD_MS
+                val reachedThreshold = !countedAsPlay && position >= threshold
+                DesktopListeningStats.record(snapshot.song, delta, reachedThreshold)
+                if (reachedThreshold) {
+                    countedAsPlay = true
+                    statsCountedSongs = statsCountedSongs + songId
+                }
+                statsRevision++
+            }
+            previousPosition = position
+        }
+    }
+    LaunchedEffect(playback.song?.videoId, playback.isPlaying) {
+        val learning = com.cosmotune.music.data.recommendations.LocalPreferenceLearning
+        try {
+            while (currentCoroutineContext().isActive) {
+                val snapshot = playbackEngine.state.value
+                val song = snapshot.song ?: break
+                if (!snapshot.isPlaying || song.videoId != playback.song?.videoId) break
+                learning.onSample(song, snapshot.durationMs)
+                delay(1_000)
+            }
+        } finally { learning.onPaused() }
+    }
+    LaunchedEffect(statsRevision) {
+        replaySummary = withContext(Dispatchers.IO) { DesktopListeningStats.summary(replayPeriod) }
+    }
+    DisposableEffect(playbackEngine) {
+        onDispose { playbackEngine.release() }
+    }
+
+    /** Opens an artist's page, from a card, a search row or the player's credit. */
+    fun openArtist(browseId: String, name: String) {
+        val target = DesktopArtistTarget(browseId, name)
+        if (openedArtist == target && artistState is UiState.Success) return
+        openedCollection = null
+        overlays.replay = false
+        overlays.settingsPage = null
+        openedArtist = target
+        artistState = UiState.Loading
+        artistReloads++
+    }
+
+    /**
+     * The "…" menu for one row, wherever it is drawn.
+     *
+     * Built once so a row on Downloads or Local Music offers what the player's own "…" offers —
+     * Android opens the same `SongActionsSheet` from every one of them.
+     */
+    fun songActionsFor(song: Song) = DesktopSongActions(
+        signedIn = youtubeSignedIn,
+        disliked = song.videoId in dislikedIds,
+        downloaded = downloads.any { it.videoId == song.videoId },
+        downloadInProgress = song.videoId in downloadInProgress,
+        sleepTimerMinutes = sleepTimerMinutes,
+        sleepAfterTrack = sleepAfterTrack,
+        onToggleDislike = ::toggleDislike,
+        onAddToPlaylist = { playlistTarget = it },
+        onDownload = ::downloadSong,
+        onRemoveDownload = ::removeDownload,
+        onStartRadio = ::startRadio,
+        onPlayNext = ::playNext,
+        onAddToQueue = ::addToQueue,
+        onOpenAlbum = ::openAlbum,
+        onOpenArtist = { id -> openArtist(id, song.artist) },
+        onSleepTimer = { minutes ->
+            if (minutes == null) DesktopSleepTimer.cancel() else DesktopSleepTimer.start(minutes)
+        },
+        onSleepAfterTrack = { DesktopSleepTimer.startAfterTrack() },
+        onShare = ::shareSong,
+    )
+
+    /** The "…" a song row hangs off, built the same way on every page that offers one. */
+    @Composable
+    fun songMenu(song: Song) = DesktopSongMenuAnchor(
+        song = song,
+        liked = song.videoId in likedIds,
+        actions = songActionsFor(song),
+        onToggleLike = { toggleLike(song) },
+        onRevertToOriginal = null,
+        onUpgradeQuality = null,
+    )
+
+    /** Replay counts artists by name, so the page has to be found from the name alone. */
+    fun openArtistByName(name: String) {
+        scope.launch {
+            val match = DesktopSearchClient.search(name, SearchFilter.ARTISTS)
+                .getOrDefault(emptyList())
+                .filterIsInstance<SearchResult.Browse>()
+                .map { it.item }
+                .firstOrNull { it.browseId.isNotBlank() }
+                ?: return@launch
+            openArtist(match.browseId, match.title)
+        }
+    }
+
+    LaunchedEffect(openedArtist, artistReloads) {
+        val target = openedArtist ?: return@LaunchedEffect
+        if (artistState !is UiState.Loading) return@LaunchedEffect
+        DesktopSearchClient.artistPage(target.browseId).fold(
+            onSuccess = { artistState = UiState.Success(it) },
+            onFailure = { artistState = UiState.Error(it.message ?: "Could not open ${target.name}") },
+        )
+    }
+
+    fun toggleSubscription(subscription: SubscriptionState) {
+        val target = openedArtist ?: return
+        val sourceKey = com.cosmotune.providers.ProviderBrowseKey.parse(target.browseId)
+        if (sourceKey != null) {
+            scope.launch {
+                try {
+                    val library = requireNotNull(com.cosmotune.providers.ProviderHub.state.value.library)
+                    val page = DesktopSourceCatalogue.load(sourceKey)
+                    library.follow(page, !subscription.subscribed)
+                    val state = artistState as? UiState.Success
+                    if (openedArtist?.browseId == target.browseId && state != null) artistState = UiState.Success(
+                        state.data.copy(subscription = subscription.copy(subscribed = !subscription.subscribed)))
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { DesktopPlayerHost.showMessage("The source follow could not be saved. Check connection and storage.") }
+            }
+            return
+        }
+        val next = !subscription.subscribed
+        // Painted before the network answers and put back if it refuses.
+        artistState = (artistState as? UiState.Success)?.let { current ->
+            UiState.Success(current.data.copy(subscription = subscription.copy(subscribed = next)))
+        } ?: artistState
+        scope.launch {
+            DesktopSearchClient.setSubscribed(subscription.channelId, next).onFailure { failure ->
+                DesktopTrackLog.log("subscription: ${target.name} failed: ${failure.message}")
+                artistState = (artistState as? UiState.Success)?.let { current ->
+                    UiState.Success(current.data.copy(subscription = subscription))
+                } ?: artistState
+            }
+        }
+    }
+
+    /** A search hit or a recent search that is a page: an artist's own, or a collection's. */
+    fun openBrowseItem(item: BrowseItem) {
+        if (item.type == BrowseType.ARTIST) {
+            openArtist(item.browseId, item.title)
+        } else {
+            openCollection(item.browseId, item)
+        }
+    }
+
+    fun openShelfItem(item: ShelfItem, shelfTitle: String? = null) {
+        val videoId = item.videoId
+        val browseId = item.browseId
+        when {
+            videoId != null -> {
+                val source = shelfTitle?.let { DesktopQueueSource(it, PlaybackSourceType.HOME) }
+                playSong(item.toSong(), source = source)
+            }
+            // An artist is a page of its own, not a list of tracks with a photograph on top.
+            browseTypeOf(browseId.orEmpty()) == BrowseType.ARTIST ->
+                openArtist(browseId!!, item.title)
+            browseId != null -> openCollection(
+                browseId = browseId,
+                fallback = BrowseItem(
+                    browseId = browseId,
+                    title = item.title,
+                    subtitle = item.subtitle,
+                    thumbnailUrl = item.thumbnailUrl,
+                    type = BrowseType.OTHER,
+                ),
+            )
+        }
+    }
+
+    fun openMenu(song: Song) = pageMenu(song)
+
+    /** What the phone records for a search hit: the thing picked, not the words typed to find it. */
+    fun recordSongSearch(song: Song) = DesktopSearchHistory.record(
+        SearchHistoryEntity(
+            id = song.videoId,
+            title = song.title,
+            subtitle = song.artist,
+            artworkUrl = song.thumbnailUrl,
+            entityType = EntityType.TRACK,
+        ),
+    )
+
+    fun recordBrowseSearch(item: BrowseItem) = DesktopSearchHistory.record(
+        SearchHistoryEntity(
+            id = item.browseId,
+            title = item.title,
+            subtitle = item.subtitle,
+            artworkUrl = item.thumbnailUrl,
+            entityType = when (item.type) {
+                BrowseType.ALBUM -> EntityType.ALBUM
+                BrowseType.ARTIST -> EntityType.ARTIST
+                BrowseType.PLAYLIST -> EntityType.PLAYLIST
+                else -> EntityType.TRACK
+            },
+        ),
+    )
+
+    /** Typing, from the page's field or the sidebar's: the typeahead follows, and an empty field goes back to recents. */
+    fun editQuery(text: String) {
+        query = text
+        searchTyping = true
+        if (text.isBlank()) {
+            searchCommitted = false
+            searchRows = emptyList()
+            searchError = null
+            addonSearchSession.cancel()
+            addonResults = null
+        }
+    }
+
+    fun search() {
+        if (query.isBlank() || searchLoading) return
+        overlays.settingsPage = null
+        destination = DesktopDestination.SEARCH
+        searchTyping = false
+        searchSuggestions = emptyList()
+        if (searchAddons) {
+            // Never YouTube Music for this source: the add-ons' own search calls, on submit only (see AddonSearch).
+            val text = query.trim()
+            if (!AddonSearch.shouldSearch(text, submitted = true)) return
+            DesktopAddonSearchHistory.record(text)
+            searchScrollReset++
+            // "All", or the one source picked in "Search in".
+            val sources = AddonSearch.select(DesktopSourceRegistry.addonSearchSources(), DesktopSearchIn.lastAddonChoice)
+            if (sources.isEmpty()) {
+                addonSearchSession.cancel()
+                addonResults = UiState.Error(DesktopStrings["search_addons_none", "No addons are enabled. Add one in Settings → Sources."])
+                return
+            }
+            addonResults = UiState.Loading
+            addonSearchSession.start(text, sources)
+            return
+        }
+        // Submitting is picking the first track the typeahead offered, as on the phone — or, with
+        // none, the first the results bring back.
+        val typedHit = searchTypeahead.firstNotNullOfOrNull { row ->
+            when (row) {
+                is SearchResult.TopTrack -> row.song
+                is SearchResult.Track -> row.song
+                else -> null
+            }
+        }
+        typedHit?.let(::recordSongSearch)
+        searchCommitted = true
+        searchScrollReset++
+        searchLoading = true
+        searchError = null
+        scope.launch {
+            try {
+                DesktopMusicSources.search(query, searchFilter).fold(
+                    onSuccess = { rows ->
+                        searchRows = rows
+                        if (typedHit == null) {
+                            rows.firstNotNullOfOrNull { row ->
+                                when (row) {
+                                    is SearchResult.TopTrack -> row.song
+                                    is SearchResult.Track -> row.song
+                                    else -> null
+                                }
+                            }?.let(::recordSongSearch)
+                        }
+                    },
+                    onFailure = { searchError = it.message ?: "Search failed" },
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                searchError = failure.message ?: "Search failed"
+            } finally {
+                // OBS and other desktop capture tools can briefly interrupt focus/coroutines.
+                searchLoading = false
+            }
+        }
+    }
+
+    /** The typeahead, one request behind the keystrokes rather than one per. */
+    LaunchedEffect(query, searchTyping, searchAddons) {
+        // The Add-ons source sends nothing while typing: no YouTube completion of what is meant for the add-ons.
+        if (!searchTyping || query.isBlank() || searchAddons) {
+            searchSuggestions = emptyList()
+            return@LaunchedEffect
+        }
+        delay(SUGGESTION_DEBOUNCE_MS)
+        DesktopSearchClient.searchSuggestions(query)
+            .onSuccess { if (searchTyping) searchSuggestions = it }
+            .onFailure { searchSuggestions = emptyList() }
+    }
+
+    // Its own pass, on its own delay: a search costs far more than a completion, so it waits for a
+    // longer pause in the typing rather than riding the same one.
+    LaunchedEffect(query, searchTyping, searchAddons) {
+        if (!searchTyping || query.isBlank() || searchAddons) {
+            searchTypeahead = emptyList()
+            return@LaunchedEffect
+        }
+        delay(TYPEAHEAD_MEDIA_DEBOUNCE_MS)
+        DesktopSearchClient.searchTypeahead(query)
+            .onSuccess { if (searchTyping) searchTypeahead = it.take(TYPEAHEAD_MEDIA_LIMIT) }
+            .onFailure { searchTypeahead = emptyList() }
+    }
+
+    fun runSearch(term: String) {
+        query = term
+        searchTyping = false
+        searchSuggestions = emptyList()
+        searchTypeahead = emptyList()
+        search()
+    }
+
+    fun selectDestination(next: DesktopDestination) {
+        overlays.roomView = false
+        if (next == DesktopDestination.LIBRARY && libraryStale) {
+            libraryStale = false
+            reloadLibrary()
+        }
+        openedArtist = null
+        openedCollection = null
+        overlays.replay = false
+        overlays.settingsPage = null
+        selectedMoodGenre = null
+        libraryShowAll = null
+        if (next == DesktopDestination.SEARCH) searchFocusRequested = true
+        destination = next
+    }
+
+    // Settings' search and scroll outlive a visit to one of its pages, and start over each time
+    // Settings itself is opened.
+    var settingsSession by remember { mutableStateOf(0) }
+    var settingsQuery by remember(settingsSession) { mutableStateOf("") }
+    var settingsCategory by remember(settingsSession) { mutableStateOf(com.cosmotune.ui.settings.SettingsCategory.ALL) }
+    val settingsListState = remember(settingsSession) { LazyListState() }
+
+    /** Settings in place of the page — from the sidebar, the account switcher or the tray. */
+    fun openSettings() {
+        overlays.nowPlaying = false
+        overlays.roomView = false
+        if (overlays.settingsPage == null) settingsSession++
+        overlays.settingsPage = DesktopSettingsPage.MAIN
+    }
+
+    /** Listen together in place of the page: where a room is made or joined, and the room itself, drawn wide, once in one. */
+    fun openRoomPage() {
+        overlays.nowPlaying = false
+        overlays.listenTogether = false
+        if (DesktopRooms.joined.value) {
+            overlays.roomView = true
+            return
+        }
+        overlays.settingsPage = DesktopSettingsPage.LISTEN_TOGETHER
+    }
+
+    /**
+     * The room icon on every page, in every mode: the joined room at once, over the page (closing it comes back here), or with no room
+     * yet the make-or-join panel over the page, which becomes the room once one is made or joined.
+     */
+    fun openRoom() {
+        overlays.nowPlaying = false
+        if (DesktopRooms.joined.value) {
+            overlays.listenTogether = false
+            overlays.roomView = true
+        } else {
+            overlays.listenTogether = true
+        }
+    }
+
+    /** The Library's folder rows: the two folders this computer has, and Spotify once connected. */
+    val libraryLinks = remember(spotifyCanvasCookie.isNotBlank()) {
+        listOfNotNull(
+            LibraryLink(
+                item = ShelfItem(
+                    title = DesktopStrings["downloads", "Downloads"],
+                    subtitle = DesktopStrings["downloaded_songs", "Downloaded songs"],
+                    thumbnailUrl = null,
+                    videoId = null,
+                    browseId = LOCAL_DOWNLOADS_ID,
+                ),
+                icon = Icons.Rounded.Download,
+            ),
+            LibraryLink(
+                item = ShelfItem(
+                    title = DesktopStrings["local_music", "Local Music"],
+                    subtitle = DesktopStrings["d_audio_files_on_this_computer", "Audio files on this computer"],
+                    thumbnailUrl = null,
+                    videoId = null,
+                    browseId = LOCAL_MUSIC_ID,
+                ),
+                icon = Icons.Rounded.Folder,
+            ),
+            // As on the phone, only while signed in to Spotify in Account & integrations.
+            LibraryLink(
+                item = ShelfItem(
+                    title = SPOTIFY_SHELF,
+                    subtitle = DesktopStrings["spotify_library_subtitle", "Your playlists and Liked Songs"],
+                    thumbnailUrl = null,
+                    videoId = null,
+                    browseId = SPOTIFY_LIBRARY_ID,
+                ),
+                icon = Icons.Rounded.Cloud,
+                logo = SharedRes.drawable.spotify_logo,
+            ).takeIf { spotifyCanvasCookie.isNotBlank() },
+        )
+    }
+
+    /** The Spotify account's playlists, as a Library grid; Liked Songs first, as on the phone. */
+    fun openSpotifyLibrary() {
+        libraryShowAll = HomeShelf(SPOTIFY_SHELF, emptyList())
+        spotifyLibraryStatus = "Loading your Spotify playlists…"
+        scope.launch {
+            runCatching { SpotifyLibrary.playlists() }
+                .onSuccess { found ->
+                    spotifyLibraryStatus = null
+                    if (libraryShowAll?.title == SPOTIFY_SHELF) {
+                        libraryShowAll = HomeShelf(SPOTIFY_SHELF, found.map { it.toShelfItem() })
+                    }
+                }
+                .onFailure {
+                    DesktopTrackLog.log("spotify: playlists failed: ${it.message}")
+                    spotifyLibraryStatus = "Could not load your Spotify playlists: ${it.message}"
+                }
+        }
+    }
+
+    /**
+     * The Library's "On device" shelf: the playlists kept on this computer rather than on the
+     * account — the desktop's counterpart of the phone's downloaded releases, and like them
+     * reachable from nowhere else.
+     */
+    val libraryDeviceItems = remember(playlists) {
+        playlists.map { playlist ->
+            ShelfItem(
+                title = playlist.title,
+                subtitle = "Playlist • ${playlist.songs.size} songs",
+                thumbnailUrl = playlist.songs.firstOrNull()?.thumbnailUrl,
+                videoId = null,
+                browseId = LOCAL_PLAYLIST_PREFIX + playlist.id,
+            )
+        }
+    }
+
+    /** A Library card: a folder is a page of this app's, a local playlist is opened from here. */
+    fun openLibraryItem(item: ShelfItem) {
+        val browseId = item.browseId.orEmpty()
+        when {
+            browseId == LOCAL_DOWNLOADS_ID -> selectDestination(DesktopDestination.DOWNLOADS)
+            browseId == LOCAL_MUSIC_ID -> selectDestination(DesktopDestination.LOCAL_MUSIC)
+            browseId == SPOTIFY_LIBRARY_ID -> openSpotifyLibrary()
+            // Spotify's tracks fill in below, as they are read and matched.
+            browseId.startsWith(SPOTIFY_PAGE_PREFIX) -> showCollection(
+                DesktopCollection(
+                    browseId = browseId,
+                    title = item.title,
+                    subtitle = item.subtitle,
+                    thumbnailUrl = item.thumbnailUrl,
+                    type = BrowseType.PLAYLIST,
+                    songs = emptyList(),
+                    loading = true,
+                ),
+            )
+            browseId.startsWith(LOCAL_PLAYLIST_PREFIX) ->
+                playlists.firstOrNull { it.id == browseId.removePrefix(LOCAL_PLAYLIST_PREFIX) }?.let(::openPlaylist)
+            else -> openShelfItem(item)
+        }
+    }
+
+    /**
+     * Adds shelves to the page as they arrive, skipping any heading already on it and any shelf
+     * that repeats one's releases — the phone's `publishHomeShelves`. Recently Played is
+     * [prepend]ed and replaces any stale copy the core feed carried.
+     */
+    fun publishHomeShelves(shelves: List<HomeShelf>, prepend: Boolean = false) {
+        val existing = (homeState as? UiState.Success)?.data.orEmpty()
+        if (prepend) {
+            val replacing = shelves.map { it.title.lowercase() }.toSet()
+            homeSeenTitles.addAll(replacing)
+            homeState = UiState.Success(shelves + existing.filterNot { it.title.lowercase() in replacing })
+            return
+        }
+        val added = shelves.withoutRepeatsOf(existing)
+            .filter { it.items.isNotEmpty() && homeSeenTitles.add(it.title.lowercase()) }
+        if (added.isNotEmpty()) homeState = UiState.Success(existing + added)
+    }
+
+    fun publishProviderHomeShelves(shelves: List<HomeShelf>) {
+        val (kept, removed) = com.cosmotune.providers.ProviderHome.replacing((homeState as? UiState.Success)?.data.orEmpty(), shelves)
+        removed.forEach { homeSeenTitles.remove(it.title.lowercase()) }
+        homeState = UiState.Success(kept)
+        publishHomeShelves(shelves)
+        homeState = UiState.Success(com.cosmotune.music.data.recommendations.DiscoveryFeed.order((homeState as? UiState.Success)?.data.orEmpty()))
+    }
+
+    /**
+     * The phone's Home: the core feed, the account's own Recently Played at its head, and the
+     * supplementary browse feeds, all asked for at once and laid down as each lands. Signed out
+     * there is no Recently Played to ask for, which is also how the phone has it.
+     */
+    fun loadHome() {
+        if (!youtubeSourceEnabled) {
+            homeState = UiState.Error("YouTube Music is disabled")
+            return
+        }
+        val generation = ++homeGeneration
+        val signedIn = DesktopYouTubeAuth.isSignedIn
+        homeIdentity = "$signedIn/${DesktopAccounts.activeAccountId()}"
+        homeState = UiState.Loading
+        homeContinuation = null
+        homeSeenTitles.clear()
+        homeLoadingMore = false
+        homeRecentsLoading = signedIn
+        providerHomeJob?.cancel()
+        providerHomeJob = scope.launch {
+            com.cosmotune.providers.DiscoveryHome.load() { shelves ->
+                if (generation == homeGeneration) publishProviderHomeShelves(shelves)
+            }
+        }
+        scope.launch {
+            launch {
+                DesktopSearchClient.home().fold(
+                    onSuccess = { feed ->
+                        if (generation != homeGeneration) return@fold
+                        homeContinuation = feed.continuation
+                        publishHomeShelves(feed.shelves)
+                    },
+                    onFailure = {
+                        if (generation == homeGeneration && homeState !is UiState.Success) {
+                            homeState = UiState.Error(it.message ?: "Could not load Home")
+                        }
+                    },
+                )
+            }
+            if (signedIn) {
+                launch {
+                    YtMusicRepository.homeRecentlyPlayed()
+                        .onSuccess { shelf ->
+                            if (generation != homeGeneration) return@onSuccess
+                            homeRecentsLoading = false
+                            shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
+                        }
+                        .onFailure { if (generation == homeGeneration) homeRecentsLoading = false }
+                }
+            }
+            DesktopSearchClient.HOME_SUPPLEMENT_BROWSE_IDS.forEach { browseId ->
+                launch {
+                    DesktopSearchClient.homeSupplement(browseId).onSuccess { shelves ->
+                        if (generation == homeGeneration) publishHomeShelves(shelves)
+                    }
+                }
+            }
+        }
+    }
+
+    /** The next page of the core feed, as the list nears its end; a no-op once it has run dry. */
+    fun loadMoreHome() {
+        val token = homeContinuation ?: return
+        if (homeLoadingMore || homeState !is UiState.Success) return
+        val generation = homeGeneration
+        homeLoadingMore = true
+        scope.launch {
+            DesktopSearchClient.moreHome(token).fold(
+                onSuccess = { feed ->
+                    if (generation != homeGeneration) return@fold
+                    val before = homeSeenTitles.size
+                    publishHomeShelves(feed.shelves)
+                    // A page with nothing new is the feed looping back on itself, not running dry.
+                    homeContinuation = feed.continuation.takeIf { homeSeenTitles.size > before }
+                },
+                onFailure = { homeContinuation = null },
+            )
+            homeLoadingMore = false
+        }
+    }
+
+    // The tray icon speaks StatusNotifierItem rather than going through AWT, which only implements
+    // the XEmbed tray a Wayland session does not have.
+    val tray = remember {
+        DesktopStatusNotifierController(
+            // Clicking the icon is how the window comes back once it has been closed to the tray,
+            // so it has to raise the window before it does anything inside it.
+            onActivate = {
+                DesktopWindowVisibility.show()
+                overlays.nowPlaying = true
+            },
+            onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+        )
+    }
+    DisposableEffect(tray, trayIconEnabled) {
+        if (trayIconEnabled) tray.start()
+        onDispose { tray.stop() }
+    }
+    // Deliberately not a key on the effect above.
+    DisposableEffect(trayIconEnabled, closeToTray) {
+        // The listener's choice, with the tray as its precondition: hiding with no tray to come
+        // back from leaves an audible process and no window.
+        DesktopWindowVisibility.keepRunningWhenClosed = trayIconEnabled && closeToTray
+        onDispose { DesktopWindowVisibility.keepRunningWhenClosed = false }
+    }
+    LaunchedEffect(tray, trayIconEnabled) {
+        if (!trayIconEnabled) return@LaunchedEffect
+        // The logo travels to the tray as pixels: a themed icon name would be whatever the user's
+        // theme draws for a generic music player.
+        runCatching { Res.readBytes("drawable/logo.svg") }.onSuccess(tray::setIcon)
+    }
+    LaunchedEffect(tray) {
+        // Native work first: the audio thread and the media controls are inside FFmpeg, WASAPI and WinRT, and
+        // exitProcess would unload those libraries under them. DesktopQuit ends the process by force if this stalls.
+        DesktopQuit.bind {
+            tray.stop()
+            playbackEngine.shutdown()
+            DesktopWindowsMedia.stop()
+        }
+        DesktopTrayMenu.bind(
+            onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+            onNext = ::playNext,
+            onPrevious = ::playPrevious,
+            onOpenPlayer = {
+                DesktopWindowVisibility.show()
+                overlays.nowPlaying = true
+            },
+            onOpenSettings = {
+                DesktopWindowVisibility.show()
+                openSettings()
+            },
+            onQuit = { DesktopQuit.now("Quit from the tray") },
+        )
+    }
+    LaunchedEffect(selectedSong, playback.isPlaying) {
+        val title = selectedSong?.let { "${it.title} — ${it.artist}" }
+        tray.update(title = title, isPlaying = playback.isPlaying)
+        DesktopTrayMenu.publish(title = title, playing = playback.isPlaying)
+    }
+    LaunchedEffect(Unit) {
+        DesktopMiniPlayer.actions = DesktopMiniPlayer.Actions(
+            playPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+            next = ::playNext,
+            previous = ::playPrevious,
+            openMain = { DesktopWindowVisibility.show(); DesktopMiniPlayer.close() },
+        )
+    }
+    LaunchedEffect(selectedSong, playback.isPlaying, playback.positionMs / 1000, playback.durationMs) {
+        val song = selectedSong
+        DesktopMiniPlayer.publish(DesktopMiniPlayer.NowPlaying(song?.title.orEmpty(), song?.artist.orEmpty(), song?.thumbnailUrl,
+            playback.isPlaying, if (playback.durationMs > 0) playback.positionMs.toFloat() / playback.durationMs else 0f))
+    }
+
+    LaunchedEffect(Unit) {
+        // Unpacks the analyser and its models on first run.
+        DesktopAnalysisRuntime.ensureStarted()
+        DesktopHorizontalScroll.install()
+        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+        // A download record is a claim about a folder this app does not own, so it can outlive the
+        // file it names. Checked once at startup rather than trusted: a stale entry showed the
+        // track as downloaded, refused to fetch it again, and then would not play.
+        val onDisk = withContext(Dispatchers.IO) { DesktopDownloadManager.verified(downloads) }
+        if (onDisk.size != downloads.size) {
+            // Repair before forgetting: a file moved within Music or Downloads is found again by
+            // name; the rest are offered for Retry in the download manager, never fetched unasked.
+            val gone = downloads.filter { song -> onDisk.none { it.videoId == song.videoId } }
+            val repaired = withContext(Dispatchers.IO) {
+                val plan = com.cosmotune.music.data.downloads.DownloadRegistryRepair.plan(
+                    gone.mapNotNull { song ->
+                        val name = song.localPath?.let { java.io.File(it).name }
+                            ?: song.localUri?.let { uri -> runCatching { java.io.File(java.net.URI(uri)).name }.getOrNull() }
+                        name?.takeIf { it.isNotBlank() }?.let { com.cosmotune.music.data.downloads.DownloadRegistryRepair.Missing(song.videoId, it) }
+                    },
+                    com.cosmotune.music.data.downloads.DownloadRegistryRepair.candidatesUnder(DesktopLocalMusic.roots().map { it.toFile() }),
+                    claimed = onDisk.mapNotNull { it.localPath?.let { path -> runCatching { java.io.File(path).canonicalPath }.getOrNull() } }.toSet(),
+                )
+                plan to gone.mapNotNull { song -> plan.relocated[song.videoId]?.let { song.copy(localPath = it.absolutePath, localUri = it.toURI().toString()) } }
+            }
+            val (plan, relocated) = repaired
+            DesktopTrackLog.log(
+                "downloads: ${gone.size} recorded file(s) are gone; ${relocated.size} found again, " +
+                    "${gone.size - relocated.size} offered for Retry",
+            )
+            downloads = onDisk + relocated
+            persistence.saveDownloads(downloads)
+            DesktopDownloadQueue.offerMissing(gone.filter { it.videoId !in plan.relocated })
+        }
+        loadHome()
+    }
+
+    val providerHubState by com.cosmotune.providers.ProviderHub.state.collectAsState()
+    LaunchedEffect(providerHubState.library) {
+        providerHubState.library?.state?.collect { local ->
+            if (openedCollection?.browseId == com.cosmotune.providers.SourceLibraryStore.LIKED_BROWSE_ID) {
+                openedCollection = openedCollection?.copy(songs = local.liked)
+            }
+            val sourceArtist = openedArtist?.browseId?.takeIf { com.cosmotune.providers.ProviderBrowseKey.parse(it) != null }
+            if (sourceArtist != null) {
+                val current = artistState as? UiState.Success
+                if (current != null) artistState = UiState.Success(current.data.copy(subscription =
+                    SubscriptionState(sourceArtist, local.followed.any { it.id == sourceArtist })))
+            }
+            likedIds = likedIds.filterNot(com.cosmotune.providers.SourceLibraryStore::ownsTrack).toSet() + local.liked.map { it.videoId }
+            dislikedIds = dislikedIds.filterNot(com.cosmotune.providers.SourceLibraryStore::ownsTrack).toSet() + local.ratings.filterValues { it.status == "DISLIKE" }.keys
+        }
+    }
+    val emptyProviderState = remember { kotlinx.coroutines.flow.MutableStateFlow(com.cosmotune.providers.ProviderState()) }
+    val providerState by (providerHubState.manager?.store?.state ?: emptyProviderState).collectAsState()
+    LaunchedEffect(providerHubState.manager, providerState.installed, providerState.settings) {
+        if (homeIdentity != null && !providerHubState.loading) loadHome()
+    }
+
+    // The feed is the account's: signing in, out or across to another channel is a different Home,
+    // and Recently Played only exists with an account behind it.
+    LaunchedEffect(youtubeSignedIn, activeAccountId) {
+        val identity = "${DesktopYouTubeAuth.isSignedIn}/${DesktopAccounts.activeAccountId()}"
+        if (homeIdentity != null && identity != homeIdentity) loadHome()
+    }
+
+    // The mark on a downloaded row, for the shared pages.
+    LaunchedEffect(downloads) {
+        DesktopAppUiHost.downloaded.value = downloads.mapTo(HashSet(), Song::videoId)
+    }
+
+    // What reached disk goes into the library's own record, which is what the Downloads page and
+    // every row's tick read from.
+    LaunchedEffect(Unit) {
+        DesktopDownloadQueue.finished.collect { saved ->
+            downloads = (listOf(saved) + downloads.filterNot { it.videoId == saved.videoId }).take(200)
+            persistence.saveDownloads(downloads)
+        }
+    }
+
+    // The charts are period-filtered at read time, so a different period is a different read.
+    LaunchedEffect(replayPeriod) {
+        replaySummary = withContext(Dispatchers.IO) { DesktopListeningStats.summary(replayPeriod) }
+    }
+
+    // Re-scanned when the filter or the folder changes, never on first composition.
+    LaunchedEffect(localMusicRevision) {
+        if (localMusicRevision == 0) return@LaunchedEffect
+        localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+        DesktopLocalMusicWatcher.restart()
+    }
+
+    // A track dropped into the folder appears without a relaunch.
+    LaunchedEffect(Unit) {
+        DesktopLocalMusicWatcher.restart()
+        DesktopLocalMusicWatcher.changes.collect {
+            localSongs = withContext(Dispatchers.IO) { DesktopLocalMusic.scan() }
+        }
+    }
+
+    suspend fun loadExplore() {
+        if (!youtubeSourceEnabled) {
+            exploreState = UiState.Error("YouTube Music is disabled")
+            return
+        }
+        exploreState = UiState.Loading
+        DesktopSearchClient.moodAndGenres().fold(
+            onSuccess = { sections ->
+                exploreState = if (sections.isEmpty()) {
+                    UiState.Error("Nothing to explore right now")
+                } else {
+                    UiState.Success(sections)
+                }
+            },
+            onFailure = { exploreState = UiState.Error(it.message ?: "Could not load Explore") },
+        )
+    }
+
+    LaunchedEffect(destination, exploreReloads) {
+        if (destination == DesktopDestination.EXPLORE &&
+            (exploreState is UiState.Loading || exploreReloads > 0)
+        ) {
+            loadExplore()
+        }
+    }
+
+    // The new look's Home shows Explore's moods as chips (P4-10) and its Search page holds Explore's mood grid (P4-11), so Listen now
+    // and Search load Explore too, while the new look is on; Retry on either page reloads it.
+    val homeWantsExplore = (destination == DesktopDestination.LISTEN_NOW || destination == DesktopDestination.SEARCH) &&
+        com.cosmotune.ui.settings.rememberCosmoLookSettings().newLook.collectAsState().value
+    LaunchedEffect(homeWantsExplore) {
+        if (homeWantsExplore && exploreState is UiState.Loading) loadExplore()
+    }
+    LaunchedEffect(exploreReloads) {
+        if (exploreReloads > 0 && homeWantsExplore) loadExplore()
+    }
+
+    // Category buttons carry no artwork of their own, so a few are resolved at a time from the
+    // shelves they open.
+    LaunchedEffect(exploreState) {
+        val sections = (exploreState as? UiState.Success)?.data ?: return@LaunchedEffect
+        if (sections.all { section -> section.items.all { it.thumbnailUrl != null } }) return@LaunchedEffect
+        val limiter = Semaphore(4)
+        coroutineScope {
+            sections.flatMap(MoodGenreSection::items)
+                .filter { it.thumbnailUrl == null }
+                .forEach { item ->
+                    launch {
+                        val artwork = limiter.withPermit {
+                            DesktopSearchClient.moodGenreArtwork(item.browseId, item.params).getOrNull()
+                        } ?: return@launch
+                        val current = (exploreState as? UiState.Success)?.data ?: return@launch
+                        exploreState = UiState.Success(
+                            current.map { section ->
+                                section.copy(
+                                    items = section.items.map { entry ->
+                                        if (entry.browseId == item.browseId && entry.params == item.params) {
+                                            entry.copy(thumbnailUrl = artwork)
+                                        } else {
+                                            entry
+                                        }
+                                    },
+                                )
+                            },
+                        )
+                    }
+                }
+        }
+    }
+
+    /** The next page of the open collection, appended in place. */
+    fun loadMoreCollectionSongs() {
+        val collection = openedCollection ?: return
+        val token = collection.continuation ?: return
+        if (collectionLoadingMore) return
+        collectionLoadingMore = true
+        scope.launch {
+            try {
+                DesktopSearchClient.moreCollectionSongs(token, collection.songs.firstOrNull()?.artist)
+                    .onSuccess { (songs, next) ->
+                        val current = openedCollection
+                        if (current != null && current.browseId == collection.browseId && current.continuation == token) {
+                            val joined = com.cosmotune.music.data.model.MusicCollectionPages.append(current.songs, songs,
+                                token, next, current.seenContinuationTokens)
+                            openedCollection = current.copy(songs = joined.songs, continuation = joined.continuation,
+                                seenContinuationTokens = joined.seenTokens, paginationError = joined.error)
+                        }
+                    }
+                    .onFailure { failure ->
+                        if (failure is kotlinx.coroutines.CancellationException) throw failure
+                        val current = openedCollection
+                        if (current != null && current.browseId == collection.browseId && current.continuation == token) {
+                            // Keep the token and rows. Only an explicit retry repeats a failed request.
+                            openedCollection = current.copy(paginationError = "Could not load more songs. Try again.")
+                        }
+                    }
+            } finally { collectionLoadingMore = false }
+        }
+    }
+
+    fun renameOpenPlaylist(title: String) {
+        val collection = openedCollection ?: return
+        playlistBusy = true
+        playlistError = null
+        scope.launch {
+            DesktopSearchClient.renamePlaylist(collection.playlistId, title)
+                .onSuccess {
+                    // Renamed in place as well as re-fetched: the page that ordered it is still on
+                    // screen showing the old name, and the library reload behind it takes a moment.
+                    openedCollection = openedCollection
+                        ?.takeIf { it.browseId == collection.browseId }
+                        ?.copy(title = title)
+                        ?: openedCollection
+                    editPlaylistShelf { items ->
+                        items.map { if (it.browseId == collection.browseId) it.copy(title = title) else it }
+                    }
+                    closePlaylistDialogs()
+                    libraryStale = true
+                }
+                .onFailure {
+                    playlistBusy = false
+                    playlistError = it.message ?: "Could not rename the playlist"
+                }
+        }
+    }
+
+    /**
+     * Sends a new order for the playlist being read (BC-35). [original] and [reordered] are the same whole list of entries, as it
+     * was and as the listener left it: a reorder is sent as moves relative to neighbours and needs every entry to move against.
+     */
+    fun reorderOpenPlaylist(original: List<Song>, reordered: List<Song>) {
+        val collection = openedCollection ?: return
+        playlistBusy = true
+        playlistError = null
+        scope.launch {
+            DesktopSearchClient.reorderPlaylist(
+                collection.playlistId,
+                current = original.mapNotNull { it.setVideoId },
+                target = reordered.mapNotNull { it.setVideoId },
+            ).onSuccess {
+                val current = openedCollection
+                if (current != null && current.browseId == collection.browseId) {
+                    // The whole list arrived to be reordered, so the page now shows all of it and has no further page to ask for.
+                    openedCollection = current.copy(songs = reordered, continuation = null)
+                }
+                closePlaylistDialogs()
+                libraryStale = true
+            }.onFailure {
+                playlistBusy = false
+                playlistError = it.message ?: "Could not reorder the playlist"
+            }
+        }
+    }
+
+    fun deleteOpenPlaylist() {
+        val collection = openedCollection ?: return
+        playlistBusy = true
+        playlistError = null
+        scope.launch {
+            DesktopSearchClient.deletePlaylist(collection.playlistId)
+                .onSuccess {
+                    closePlaylistDialogs()
+                    // Its page is the one open, and a deleted playlist has nothing left to show.
+                    if (openedCollection?.browseId == collection.browseId) openedCollection = null
+                    editPlaylistShelf { items -> items.filterNot { it.browseId == collection.browseId } }
+                    libraryStale = true
+                }
+                .onFailure {
+                    playlistBusy = false
+                    playlistError = it.message ?: "Could not delete the playlist"
+                }
+        }
+    }
+
+    /** Takes one row back out of the playlist it is being read in. */
+    fun removeFromOpenPlaylist(song: Song) {
+        val collection = openedCollection ?: return
+        val setVideoId = song.setVideoId ?: return
+        scope.launch {
+            DesktopSearchClient.removeFromPlaylist(
+                collection.playlistId,
+                listOf(setVideoId to song.videoId),
+            ).onSuccess {
+                val current = openedCollection
+                if (current != null && current.browseId == collection.browseId) {
+                    openedCollection = current.copy(
+                        songs = current.songs.filterNot { it.setVideoId == setVideoId },
+                    )
+                }
+            }.onFailure {
+                DesktopTrackLog.log("playlist: could not remove ${song.videoId}: ${it.message}")
+            }
+        }
+    }
+
+    /**
+     * The account's library, re-read whenever the session behind it changes — signing in, switching
+     * channel, signing out.
+     */
+    LaunchedEffect(activeAccountId, activeProfileId, sessionRevision) {
+        youtubeSignedIn = DesktopYouTubeAuth.isSignedIn
+        if (!DesktopYouTubeAuth.isSignedIn) {
+            libraryState = UiState.Success(LibraryPage(emptyList(), emptyList(), emptyList()))
+            return@LaunchedEffect
+        }
+        libraryState = UiState.Loading
+        DesktopSearchClient.library().fold(
+            onSuccess = { page ->
+                // The continuation is a job to run, not page state — it is consumed below.
+                libraryState = UiState.Success(page.copy(likedContinuation = null))
+                DesktopTrackLog.log(
+                    "library: ${page.likedSongs.size} liked, ${page.librarySongs.size} added, " +
+                        "shelves ${page.shelves.joinToString { "${it.title}=${it.items.size}" }}",
+                )
+                val fromAccount = page.likedSongs.mapTo(HashSet(), Song::videoId)
+                if (!likedIds.containsAll(fromAccount)) {
+                    likedIds = likedIds + fromAccount
+                    // Off the drawing thread: an account with a long Liked Music writes a few tens
+                    // of kilobytes through the preference store, and that is a disk flush.
+                    withContext(Dispatchers.IO) { persistence.saveLikedIds(likedIds) }
+                }
+                // Liked Music is published to the tab a page budget deep; the rest is followed here
+                // for its ids alone, so a liked track past the budget still reads as liked.
+                // Tied to the account it was fetched for: the liked set is one shared map, and a
+                // sync still running after a switch would seed it with a stranger's likes.
+                val syncingFor = activeAccountId
+                page.likedContinuation?.let { token ->
+                    likedSyncJob?.cancel()
+                    likedSyncJob = scope.launch {
+                        val extra = HashSet<String>()
+                        DesktopSearchClient.syncLikedIds(token, onIds = { ids -> extra += ids })
+                        if (syncingFor != DesktopAccounts.activeAccountId()) return@launch
+                        if (!likedIds.containsAll(extra)) {
+                            likedIds = likedIds + extra
+                            withContext(Dispatchers.IO) { persistence.saveLikedIds(likedIds) }
+                            DesktopTrackLog.log("library: liked sync added ${extra.size} ids past the first pages")
+                        }
+                    }
+                }
+            },
+            onFailure = { libraryState = UiState.Error(it.message ?: "Could not load your library") },
+        )
+        // A session refused mid-flight is dropped by the request itself, so the answer to "are we
+        // signed in" is only settled once the call is over.
+        youtubeSignedIn = DesktopYouTubeAuth.isSignedIn
+    }
+
+    fun here() = DesktopNavEntry(
+        destination = destination,
+        artist = openedArtist,
+        collection = openedCollection,
+        mood = selectedMoodGenre,
+        showAll = libraryShowAll,
+        replay = overlays.replay,
+        settings = overlays.settingsPage,
+    )
+
+    // Every move between places is a visit, however it was made — the sidebar, a card, a search
+    // hit, the player's credits. The place left is what back returns to.
+    LaunchedEffect(Unit) {
+        var last: DesktopNavEntry? = null
+        snapshotFlow { here() }.collect { now ->
+            val before = last
+            if (before != null && before.key != now.key) {
+                if (navRestoring[0]) {
+                    navRestoring[0] = false
+                } else {
+                    navHistory.add(before)
+                    if (navHistory.size > NAV_HISTORY_LIMIT) navHistory.removeAt(0)
+                }
+            }
+            // The newest copy of the same place, so an album that has paged in more tracks comes
+            // back with them.
+            last = now
+        }
+    }
+
+    /** Back to the place before this one — the top bar's arrow, the mouse's back button, Alt+Left. */
+    fun goBack() {
+        // The room drawn over the page goes first: back is the page it was opened over.
+        if (overlays.roomView) {
+            overlays.roomView = false
+            return
+        }
+        val entry = navHistory.removeLastOrNull() ?: return
+        if (entry.key == here().key) return
+        navRestoring[0] = true
+        destination = entry.destination
+        overlays.replay = entry.replay
+        overlays.settingsPage = entry.settings
+        collectionError = null
+        openedCollection = entry.collection
+        libraryShowAll = entry.showAll
+        if (entry.mood != selectedMoodGenre) {
+            selectedMoodGenre = entry.mood
+            moodGenreShelves = UiState.Loading
+        }
+        if (entry.artist != openedArtist) {
+            openedArtist = entry.artist
+            if (entry.artist != null) {
+                artistState = UiState.Loading
+                artistReloads++
+            }
+        }
+    }
+
+    fun openMoodGenre(item: MoodGenre) {
+        selectedMoodGenre = item
+        moodGenreShelves = UiState.Loading
+    }
+
+    LaunchedEffect(selectedMoodGenre, moodGenreReloads) {
+        val item = selectedMoodGenre ?: return@LaunchedEffect
+        if (moodGenreShelves !is UiState.Loading) return@LaunchedEffect
+        DesktopSearchClient.moodGenreShelves(item.browseId, item.params).fold(
+            onSuccess = { shelves ->
+                moodGenreShelves = if (shelves.isEmpty()) {
+                    UiState.Error("Nothing to explore here yet")
+                } else {
+                    UiState.Success(shelves)
+                }
+            },
+            onFailure = { moodGenreShelves = UiState.Error(it.message ?: "Could not load this category") },
+        )
+    }
+
+    // The menu the shared player's "…" opens.
+    var playerMenuOpen by remember(selectedSong?.videoId) { mutableStateOf(false) }
+
+    /** The song menu's verbs for [song], as the player sheet offers them. */
+    fun playerSongActions(song: Song) = DesktopSongActions(
+        signedIn = youtubeSignedIn,
+        disliked = song.videoId in dislikedIds,
+        downloaded = downloads.any { it.videoId == song.videoId },
+        downloadInProgress = song.videoId in downloadInProgress,
+        sleepTimerMinutes = sleepTimerMinutes,
+        sleepAfterTrack = sleepAfterTrack,
+        onToggleDislike = ::toggleDislike,
+        onAddToPlaylist = { playlistTarget = it },
+        onDownload = ::downloadSong,
+        onRemoveDownload = ::removeDownload,
+        onStartRadio = ::startRadio,
+        onPlayNext = ::playNext,
+        onAddToQueue = ::addToQueue,
+        // Both leave the player, the way opening a page from Android's sheet collapses it.
+        onOpenAlbum = { id ->
+            overlays.nowPlaying = false
+            openAlbum(id)
+        },
+        onOpenArtist = { id ->
+            overlays.nowPlaying = false
+            openArtist(id, song.artist)
+        },
+        onSleepTimer = { minutes ->
+            if (minutes == null) DesktopSleepTimer.cancel() else DesktopSleepTimer.start(minutes)
+        },
+        onSleepAfterTrack = { DesktopSleepTimer.startAfterTrack() },
+        onShare = ::shareSong,
+    )
+
+    // What the shared player reads as settings, kept in step with the window's own.
+    SideEffect {
+        DesktopPlayerSettings.animatedCanvas.value = animatedCanvas
+        DesktopPlayerSettings.fullBleedArtwork.value = fullBleedArtwork
+        DesktopPlayerSettings.legacyMeshGradient.value = legacyMeshGradient
+        DesktopPlayerSettings.lyricsBlur.value = lyricsBlur
+        DesktopPlayerSettings.syncedLyrics.value = syncedLyrics
+        DesktopPlayerSettings.showNerdStats.value = showNerdStats
+        DesktopPlayerSettings.smartFadeEnabled.value = automix
+        DesktopPlayerSettings.smartAnalysis.value = playback.smartAnalysis
+        DesktopPlayerSettings.smartMixInProgress.value = playback.mixing
+        DesktopPlayerSettings.smartTransitionWindow.value = playback.transitionWindow
+        DesktopPlayerSettings.lyricsSourceOrder.value =
+            DesktopLyricsClient.enabledSources(lyricsOrder, lyricsOn).mapNotNull(::lyricsSourceNamed)
+        DesktopPlayerHost.volumeLevel.value = volume
+        DesktopPlayerHost.onVolumeChange = {
+            volume = it
+            persistence.saveString("volume", it.toString())
+        }
+    }
+
+    // The engine's measured stream, as the player's quality badge and stats line read it.
+    LaunchedEffect(playback.streamFormat, playback.streamSourceId, playback.streamOffer) {
+        NerdStats.current.value = desktopNerdSnapshot(playback.streamFormat, playback.streamSourceId, playback.streamOffer,
+            playback.streamSourceId?.let { DesktopSourceRegistry.sourceNameFor(DesktopStream("", sourceId = it)) } ?: "Local audio")
+    }
+    LaunchedEffect(playback.searchingBetter, selectedSong?.videoId) {
+        NerdStats.racingLossless.value = selectedSong?.videoId
+            ?.takeIf { playback.searchingBetter }
+            ?.let(::setOf)
+            .orEmpty()
+    }
+    LaunchedEffect(playback.streamFormat, playback.isPlaying) {
+        DesktopPlayerHost.pipeline.value = playbackEngine.pipeline()
+    }
+    DesktopPlayerHost.pipelineDialog = { onDismiss ->
+        DesktopAudioPipelineDialog(
+            format = playback.streamFormat,
+            sourceName = playback.streamSourceId?.let { id ->
+                sourceConfigs.firstOrNull { it.id == id }?.displayName
+            },
+            pipeline = playbackEngine.pipeline(),
+            onDismiss = onDismiss,
+        )
+    }
+
+    // What the player and the lyrics column beside the page both read, worked out once for the two.
+    val sharedLyrics = lyrics?.lines
+    val sharedLyricsSource = remember(lyrics) { lyrics?.source?.let(::lyricsSourceNamed) }
+    val sharedLyricsUnavailable = !lyricsLoading && sharedLyrics.isNullOrEmpty()
+    val providerStates = remember(lyricsOrder, lyricsOn, sharedLyricsSource, lyricsLoading) {
+        DesktopLyricsClient.enabledSources(lyricsOrder, lyricsOn)
+            .mapNotNull(::lyricsSourceNamed)
+            .associateWith { source ->
+                when {
+                    source == sharedLyricsSource -> LyricsProviderState.FOUND
+                    lyricsLoading -> LyricsProviderState.FETCHING
+                    else -> LyricsProviderState.NOT_FETCHED
+                }
+            }
+    }
+
+    // The queue's edits, for the player's queue and the queue column alike.
+    fun removeFromQueue(at: Int) {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        val edited = liveQueue.removeAt(at)
+        if (edited !== liveQueue) {
+            liveQueue = edited
+            saveQueue()
+            partySyncHolder[0]?.onLocalIntent()
+        }
+    }
+
+    fun moveInQueue(from: Int, to: Int) {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        val edited = liveQueue.move(from, to)
+        if (edited !== liveQueue) {
+            liveQueue = edited
+            saveQueue()
+            partySyncHolder[0]?.onLocalIntent()
+        }
+    }
+
+    // Clears what the listener queued by hand, as the phone's Clear does; the album and AutoPlay
+    // stay where they are.
+    fun clearQueue() {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        val edited = liveQueue.withoutUserQueue()
+        if (edited === liveQueue) return
+        liveQueue = edited
+        saveQueue()
+        partySyncHolder[0]?.onLocalIntent()
+    }
+
+    fun seekPlayer(target: Long) {
+        if (DesktopListenTogether.state.value.controlsLocked) return
+        val duration = playback.durationMs
+        playbackEngine.seekTo(
+            if (duration > 0) target.coerceIn(0L, duration) else target.coerceAtLeast(0L),
+        )
+        partySyncHolder[0]?.onLocalIntent()
+    }
+
+    val remoteDelegate = rememberUpdatedState(object : com.cosmotune.remote.LanRemoteHost {
+        override fun playback(): com.cosmotune.remote.RemotePlayback {
+            val current = playbackEngine.state.value
+            return com.cosmotune.remote.RemotePlayback(current.song?.title ?: "Nothing playing", current.song?.artist.orEmpty(),
+                current.isPlaying, current.positionMs, current.durationMs.takeIf { it > 0 }, current.volume,
+                shuffle = shuffle,
+                repeat = when (repeatMode) {
+                    DesktopRepeatMode.OFF -> com.cosmotune.remote.RemoteRepeat.OFF
+                    DesktopRepeatMode.ALL -> com.cosmotune.remote.RemoteRepeat.ALL
+                    DesktopRepeatMode.ONE -> com.cosmotune.remote.RemoteRepeat.ONE
+                },
+                liked = current.song?.let { it.videoId in likedIds })
+        }
+
+        override suspend fun queue(): com.cosmotune.remote.RemoteQueue = withContext(Dispatchers.Main) {
+            val songs = liveQueue.songs
+            val at = liveQueue.index
+            if (at !in songs.indices) return@withContext com.cosmotune.remote.RemoteQueue()
+            // One played row for context, the playing one, and what follows.
+            val rows = ((at - 1).coerceAtLeast(0)..(at + 50).coerceAtMost(songs.lastIndex)).map { i ->
+                com.cosmotune.remote.RemoteQueueItem(i, songs[i].title, songs[i].artist)
+            }
+            com.cosmotune.remote.RemoteQueue(at, rows)
+        }
+
+        private fun candidates(): Sequence<Song> = sequence {
+            yieldAll(downloads); yieldAll(localSongs)
+            val page = (libraryState as? UiState.Success)?.data
+            yieldAll(page?.likedSongs.orEmpty()); yieldAll(page?.librarySongs.orEmpty())
+            playlists.forEach { yieldAll(it.songs) }
+            yieldAll(history); yieldAll(liveQueue.songs)
+        }.take(50_000).distinctBy { it.videoId }
+
+        override suspend fun search(query: String): List<com.cosmotune.remote.RemoteTrack> = withContext(Dispatchers.Main) {
+            candidates().filter { query.isBlank() || it.title.contains(query, true) || it.artist.contains(query, true) }
+                .take(50).map { com.cosmotune.remote.RemoteTrack(it.videoId, it.title, it.artist) }.toList()
+        }
+
+        override suspend fun command(command: com.cosmotune.remote.RemoteCommand) = withContext(Dispatchers.Main) {
+            if (command.action in setOf(com.cosmotune.remote.RemoteAction.NEXT, com.cosmotune.remote.RemoteAction.PREVIOUS,
+                    com.cosmotune.remote.RemoteAction.SEEK, com.cosmotune.remote.RemoteAction.PLAY_TRACK,
+                    com.cosmotune.remote.RemoteAction.SHUFFLE, com.cosmotune.remote.RemoteAction.REPEAT,
+                    com.cosmotune.remote.RemoteAction.PLAY_QUEUE_INDEX)) {
+                check(!DesktopListenTogether.state.value.controlsLocked) { "Listen Together controls are locked" }
+            }
+            when (command.action) {
+                com.cosmotune.remote.RemoteAction.PLAY -> { check(playbackEngine.state.value.song != null); playFromUser() }
+                com.cosmotune.remote.RemoteAction.PAUSE -> pauseFromUser()
+                com.cosmotune.remote.RemoteAction.TOGGLE -> { check(playbackEngine.state.value.song != null); togglePlayPauseFromUser() }
+                com.cosmotune.remote.RemoteAction.NEXT -> playNext()
+                com.cosmotune.remote.RemoteAction.PREVIOUS -> playPrevious()
+                com.cosmotune.remote.RemoteAction.SEEK -> seekPlayer(checkNotNull(command.positionMs))
+                com.cosmotune.remote.RemoteAction.VOLUME -> {
+                    volume = checkNotNull(command.volume)
+                    persistence.saveString("volume", volume.toString())
+                }
+                com.cosmotune.remote.RemoteAction.PLAY_TRACK -> {
+                    check(!DesktopListenTogether.state.value.inParty) { "Leave Listen Together before replacing the queue" }
+                    val song = checkNotNull(candidates().firstOrNull { it.videoId == command.trackId }) { "This library entry is no longer available" }
+                    playSongs(listOf(song))
+                }
+                com.cosmotune.remote.RemoteAction.SHUFFLE -> setShuffle(!shuffle)
+                // The player's own order: off, all, one.
+                com.cosmotune.remote.RemoteAction.REPEAT -> {
+                    repeatMode = when (repeatMode) {
+                        DesktopRepeatMode.OFF -> DesktopRepeatMode.ALL
+                        DesktopRepeatMode.ALL -> DesktopRepeatMode.ONE
+                        DesktopRepeatMode.ONE -> DesktopRepeatMode.OFF
+                    }
+                    persistence.saveString("repeat_mode", repeatMode.name)
+                }
+                com.cosmotune.remote.RemoteAction.LIKE -> toggleLike(checkNotNull(playbackEngine.state.value.song) { "Nothing is playing" })
+                com.cosmotune.remote.RemoteAction.PLAY_QUEUE_INDEX -> {
+                    val index = checkNotNull(command.index)
+                    check(index in liveQueue.songs.indices) { "That queue entry has gone" }
+                    playQueueIndex(index)
+                }
+            }
+        }
+    })
+    val phoneRemote = remember(playbackEngine) {
+        com.cosmotune.remote.LanRemoteController(object : com.cosmotune.remote.LanRemoteHost {
+            override fun playback() = remoteDelegate.value.playback()
+            override suspend fun command(command: com.cosmotune.remote.RemoteCommand) = remoteDelegate.value.command(command)
+            override suspend fun search(query: String) = remoteDelegate.value.search(query)
+            override suspend fun queue() = remoteDelegate.value.queue()
+        })
+    }
+    DisposableEffect(phoneRemote) { onDispose { phoneRemote.close() } }
+
+    com.cosmotune.ui.theme.CosmoLookTheme(
+        dark = true,
+        legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) },
+    ) {
+        val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current
+        cosmoShell?.FollowCover(selectedSong, liveQueue.songs.getOrNull(liveQueue.index + 1))
+        val ambientBackdrop by DesktopAppearanceSettings.ambientBackdrop.collectAsState()
+        val windowActions = LocalDesktopWindowActions.current
+        // A room's videos open in Video mode, which the room switches to through the stored mode.
+        SideEffect { DesktopRoomVideo.look = cosmoShell?.settings }
+        // The room for every page and mode: one launcher for the window ("Play in room", the room icon).
+        val roomLauncher = rememberDesktopRoomLauncher(open = ::openRoom, askToJoin = ::openRoom)
+        LaunchedEffect(roomJoined) {
+            if (roomJoined && overlays.listenTogether) {
+                // Made or joined from the panel over the page: the panel becomes the room, over the same page.
+                overlays.listenTogether = false
+                overlays.roomView = true
+            }
+            if (!roomJoined) overlays.roomView = false
+        }
+        // Podio's, Manga's and Read's sidebar rows change their tab, not a Music page: picking one is a move away from the room.
+        val podioTab by com.cosmotune.ui.blocks.ModeNav.podioTab.collectAsState()
+        val podioSaved by com.cosmotune.ui.blocks.ModeNav.podioSaved.collectAsState()
+        val mangaTab by com.cosmotune.ui.blocks.ModeNav.mangaTab.collectAsState()
+        LaunchedEffect(podioTab, podioSaved, mangaTab) { overlays.roomView = false }
+        CompositionLocalProvider(
+            com.cosmotune.ui.room.LocalRoomLauncher provides roomLauncher,
+            LocalContentColor provides Color.White,
+            LocalDesktopSongContextMenu provides rememberDesktopSongAction(::openMenu),
+            LocalNowPlaying provides selectedSong,
+            com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,
+            com.cosmotune.desktop.LocalCosmoPlayPause provides com.cosmotune.desktop.rememberStableAction(::togglePlayPauseFromUser),
+            com.cosmotune.video.host.LocalDesktopPlaySong provides com.cosmotune.video.host.rememberStableSongAction { playSong(it) },
+            com.cosmotune.ui.modes.LocalModeLinks provides com.cosmotune.video.host.rememberDesktopModeLinks(),
+        ) {
+            libraryActionTarget?.let { item ->
+                val pins by DesktopAppUiHost.pinnedPlaylists.collectAsState()
+                com.cosmotune.desktop.DesktopLibraryActions(item, item.browseId in pins,
+                    onPin = { item.browseId?.let(DesktopAppUiHost::togglePinnedPlaylist) },
+                    onOpen = { openLibraryItem(item) }, onDismiss = { libraryActionTarget = null })
+            }
+            val listeningLibraryPage = (libraryState as? UiState.Success)?.data
+            com.cosmotune.desktop.DesktopListeningTools(
+                open = listeningToolsOpen,
+                onDismiss = { listeningToolsOpen = false; listeningToolsOpenOn = null },
+                openOn = listeningToolsOpenOn,
+                syncPlaylists = com.cosmotune.desktop.desktopSyncPlaylists(playlists),
+                applySyncedPlaylists = { records, files ->
+                    val before = playlists
+                    val next = withContext(Dispatchers.IO) { com.cosmotune.desktop.applyDesktopSyncedPlaylists(before, records, files) }
+                    check(playlists == before) { "The local playlists changed. Review the synchronization again." }
+                    withContext(kotlinx.coroutines.NonCancellable) {
+                        check(withContext(Dispatchers.IO) { persistence.savePlaylistsIfUnchanged(before, next) }) {
+                            "The saved playlists changed. Review synchronization again."
+                        }
+                        check(playlists == before) { "The local playlists changed during the commit. Review synchronization again." }
+                        playlists = next
+                    }
+                },
+                remote = com.cosmotune.ui.listening.ListeningRemoteHost(phoneRemote) { link -> DesktopQrCode(link, size = 208.dp) },
+                library = com.cosmotune.listening.ListeningLibrary(
+                    songs = downloads + localSongs + listeningLibraryPage?.likedSongs.orEmpty() + listeningLibraryPage?.librarySongs.orEmpty() + playlists.flatMap { it.songs } + history + liveQueue.songs,
+                    likedIds = likedIds,
+                    downloadedIds = downloads.mapTo(mutableSetOf()) { it.videoId },
+                    recentIds = history.mapTo(mutableSetOf()) { it.videoId },
+                ),
+                queue = { com.cosmotune.ui.listening.ListeningQueue(liveQueue.songs, liveQueue.index, playbackEngine.state.value.positionMs,
+                    when (repeatMode) { DesktopRepeatMode.OFF -> 0; DesktopRepeatMode.ONE -> 1; DesktopRepeatMode.ALL -> 2 }, shuffle) },
+                createPlaylist = { title, songs ->
+                    if (playlists.none { it.title == title && it.songs.map(Song::videoId) == songs.map(Song::videoId) }) {
+                        val next = playlists + DesktopPlaylist(title = title, songs = songs)
+                        withContext(Dispatchers.IO) { persistence.savePlaylists(next) }
+                        playlists = next
+                    }
+                },
+                restore = { session ->
+                    check(!DesktopListenTogether.state.value.inParty) { "Leave Listen Together before opening a saved session." }
+                    liveQueue = DesktopQueue(session.tracks.map { it.song() }, session.index)
+                    selectedSong = liveQueue.current
+                    shuffle = session.shuffle
+                    preShuffleOrder = if (shuffle) liveQueue.songs.map(DesktopQueue::orderKey) else emptyList()
+                    repeatMode = when (session.repeat) { 1 -> DesktopRepeatMode.ONE; 2 -> DesktopRepeatMode.ALL; else -> DesktopRepeatMode.OFF }
+                    persistence.saveBoolean("shuffle", shuffle)
+                    persistence.saveString("repeat_mode", repeatMode.name)
+                    saveQueue()
+                    playbackEngine.load(checkNotNull(liveQueue.current), playWhenReady = false, startAtMs = session.positionMs)
+                },
+                play = { songs ->
+                    check(!DesktopListenTogether.state.value.inParty) { "Leave Listen Together before opening a smart playlist." }
+                    playSongs(songs)
+                },
+                openRelease = { id, _ -> openAlbum(id) },
+                findMusic = { selectDestination(DesktopDestination.SEARCH) },
+                importMusic = { spotifyImportOpen = true },
+                applySetup = { preferences, lowData ->
+                    if (lowData) {
+                        audioQuality = DesktopAudioQuality.LOW
+                        persistence.saveAudioQuality(audioQuality)
+                        animatedCanvas = false
+                        persistence.saveBoolean("animated_canvas", false)
+                    }
+                    if (preferences.preferLocal) selectDestination(DesktopDestination.LOCAL_MUSIC)
+                    DesktopStrings.setLanguage(preferences.contentLanguage)
+                },
+                sourceSummary = listOfNotNull(playback.streamSourceId?.let { "Playing source: $it" }, playback.streamFormat?.summary).joinToString(" · "),
+            )
+            DesktopFrame(
+                // The phone's page is black, not the near-black of its cards.
+                containerColor = DesktopBackground,
+                // The joined room stands in for the page in every mode (Video's page with it, so Video's picture is drawn once, in the
+                // room); closing it brings the page back as it was.
+                page = if (overlays.roomView && roomJoined) {
+                    { padding ->
+                        Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
+                            DesktopRoomView(onClose = { overlays.roomView = false })
+                        }
+                    }
+                } else {
+                    null
+                },
+                // Only Replay dresses itself unless ambient backdrop is on; everywhere else the chrome sits on the plain surface.
+                backdrop = { transparentBase ->
+                    val ambientArtworkUrl = replaySummary.songs.firstOrNull()?.song?.thumbnailUrl
+                        .takeIf { overlays.replay }
+                        ?: selectedSong?.thumbnailUrl.takeIf { ambientBackdrop }
+                    if (cosmoShell != null) com.cosmotune.ui.theme.AmbientBackground(Modifier.fillMaxSize()) else DesktopPageBackdrop(
+                        artworkUrl = ambientArtworkUrl,
+                        transparentBase = transparentBase,
+                    )
+                },
+                modifier = Modifier.onPreviewKeyEvent { event ->
+                    if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive).or(com.cosmotune.video.host.DesktopModeHost.podioActive)) return@onPreviewKeyEvent false
+                    if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+                    when {
+                        event.key == Key.MediaPlayPause -> {
+                            if (selectedSong != null) togglePlayPauseFromUser()
+                            true
+                        }
+                        event.key == Key.MediaNext -> {
+                            playNext()
+                            true
+                        }
+                        event.key == Key.MediaPrevious -> {
+                            playPrevious()
+                            true
+                        }
+                        // Ctrl/Command+Shift+M opens or closes the always-on-top mini player.
+                        event.key == Key.M && event.isShiftPressed && (event.isCtrlPressed || event.isMetaPressed) -> {
+                            DesktopMiniPlayer.toggle()
+                            true
+                        }
+                        event.key == Key.DirectionLeft && event.isAltPressed && !overlays.nowPlaying -> {
+                            goBack()
+                            true
+                        }
+                        DesktopPlatform.isMac && event.isMetaPressed && event.key == Key.Comma -> {
+                            openSettings()
+                            true
+                        }
+                        DesktopPlatform.isMac && event.isMetaPressed && event.key == Key.F -> {
+                            searchFocusRequested = true
+                            true
+                        }
+                        // Ctrl K: the shortcut the new look's search field shows on its key cap (macOS has Command F above).
+                        cosmoShell != null && !DesktopPlatform.isMac && event.isCtrlPressed && event.key == Key.K -> {
+                            searchFocusRequested = true
+                            true
+                        }
+                        DesktopPlatform.isMac && event.isMetaPressed && event.key == Key.W -> {
+                            windowActions?.close?.invoke()
+                            true
+                        }
+                        DesktopPlatform.isMac && event.isMetaPressed && event.key == Key.M -> {
+                            windowActions?.minimize?.invoke()
+                            true
+                        }
+                        // One layer at a time, innermost first: the player's own side panel, then
+                        // the player.
+                        event.key == Key.Escape -> when {
+                            // The player's own layers first — the lyrics, the queue, a
+                            // drawer — in the order Android's back reaches them.
+                            overlays.nowPlaying && PlayerBack.dispatch() -> true
+                            overlays.nowPlaying -> {
+                                overlays.nowPlaying = false
+                                true
+                            }
+                            // The room over the page: back to the page, still in the room.
+                            overlays.roomView -> {
+                                overlays.roomView = false
+                                true
+                            }
+                            overlays.sidePanel != null -> {
+                                overlays.sidePanel = null
+                                true
+                            }
+                            // A page of Settings steps back the way the back button does, unless
+                            // one of its prompts is up over it.
+                            overlays.settingsPage != null &&
+                                !overlays.lastfmLogin && !overlays.listenBrainzToken && !overlays.discordToken -> {
+                                goBack()
+                                true
+                            }
+                            else -> false
+                        }
+                        else -> false
+                    }
+                },
+                topBar = { compact ->
+                    if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopTopBar(
+                        compact,
+                        navHistory.isNotEmpty() || overlays.roomView,
+                        ::goBack,
+                        activeAccount.shownAvatar(activeProfileId),
+                        { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
+                        accountName = activeAccount.shownName(activeProfileId),
+                        // A compact window has no sidebar field: Search is the bar's button (DESIGN_SYSTEM.md 5.2).
+                        onSearch = { selectDestination(DesktopDestination.SEARCH) },
+                        // The profile drawer's entries. Settings and Replay stand in place of the page, so they leave each other first.
+                        entries = listOf(
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Library, "Your listening", onClick = { listeningToolsOpen = true }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Replay, DesktopStrings["replay", "Replay"], onClick = { overlays.settingsPage = null; overlays.replay = true }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Together, DesktopStrings["listen_together", "Listen together"], onClick = ::openRoomPage),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings["downloads", "Downloads"], onClick = { selectDestination(DesktopDestination.DOWNLOADS) }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Equaliser, DesktopStrings["equalizer", "Equalizer"], onClick = { overlays.settingsPage = DesktopSettingsPage.EQUALIZER }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Settings, DesktopStrings["settings", "Settings"], onClick = { openSettings() }),
+                        ),
+                    ) else
+                    DesktopTopBar(
+                        compact = compact,
+                        song = selectedSong,
+                        isPlaying = playback.isPlaying,
+                        isLoading = playback.isLoading,
+                        previousEnabled = liveQueue.hasPrevious ||
+                            playback.positionMs > BACK_RESTARTS_AFTER_MS,
+                        progress = if (playback.durationMs > 0L) {
+                            playback.positionMs.toFloat() / playback.durationMs.toFloat()
+                        } else {
+                            0f
+                        },
+                        volume = playback.volume,
+                        shuffle = shuffle,
+                        repeatMode = repeatMode,
+                        onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+                        onPrevious = ::playPrevious,
+                        onNext = ::playNext,
+                        onShuffleChange = ::setShuffle,
+                        onRepeatModeChange = {
+                            repeatMode = it
+                            persistence.saveString("repeat_mode", it.name)
+                        },
+                        onOpenNowPlaying = { overlays.nowPlaying = true },
+                        onVolumeChange = {
+                            volume = it
+                            persistence.saveString("volume", it.toString())
+                        },
+                        onOpenAudioOutput = { overlays.audioOutput = true },
+                        // A second click on the same button puts the column away, as in Apple Music.
+                        onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
+                        onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
+                        sidePanel = overlays.sidePanel,
+                        accountAvatar = activeAccount.shownAvatar(activeProfileId),
+                        onOpenAccounts = { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
+                        canGoBack = navHistory.isNotEmpty(),
+                        onBack = ::goBack,
+                    )
+                },
+                sidebar = {
+                    DesktopSidebar(
+                        destination = destination,
+                        settingsOpen = overlays.settingsPage != null,
+                        accountPlaylists = sidebarAccountPlaylists,
+                        localPlaylists = playlists,
+                        openedCollectionId = openedCollection?.browseId,
+                        query = query,
+                        onQueryChange = { text ->
+                            editQuery(text)
+                            if (destination != DesktopDestination.SEARCH || overlays.settingsPage != null) {
+                                selectDestination(DesktopDestination.SEARCH)
+                            }
+                        },
+                        onSearch = ::search,
+                        onDestinationSelected = ::selectDestination,
+                        onOpenAccountPlaylist = { openShelfItem(it, PLAYLISTS_SHELF) },
+                        onOpenLocalPlaylist = ::openPlaylist,
+                        onOpenSettings = ::openSettings,
+                        focusSearch = searchFocusRequested,
+                        onSearchFocused = { searchFocusRequested = false },
+                    )
+                },
+                bottomBar = { compact ->
+                    if (cosmoShell != null) com.cosmotune.ui.shell.CosmoBottomChrome(
+                        tabs = listOf(
+                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["home", "Home"], com.cosmotune.ui.components.CosmoIcons.Home, com.cosmotune.ui.components.CosmoIcons.HomeFill),
+                            com.cosmotune.ui.shell.CosmoTab(org.jetbrains.compose.resources.stringResource(SharedRes.string.explore), com.cosmotune.ui.components.CosmoIcons.Explore, com.cosmotune.ui.components.CosmoIcons.ExploreFill),
+                            com.cosmotune.ui.shell.CosmoTab(org.jetbrains.compose.resources.stringResource(SharedRes.string.cosmo_releases), com.cosmotune.ui.components.CosmoIcons.Bell, com.cosmotune.ui.components.CosmoIcons.BellFill),
+                            com.cosmotune.ui.shell.CosmoTab(DesktopStrings["library", "Library"], com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.LibraryFill),
+                        ),   // DESIGN_SYSTEM.md 5.2: Search is not a tab, it is the top bar's button
+                        selectedIndex = MUSIC_DOCK.indexOf(destination),
+                        onTabSelected = { index -> selectDestination(MUSIC_DOCK[index]) },
+                        song = selectedSong,
+                        isPlaying = playback.isPlaying,
+                        isLoading = playback.isLoading,
+                        position = playerPosition,
+                        durationMs = playback.durationMs,
+                        onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+                        onNext = ::playNext,
+                        onExpand = {
+                            // A live station opens its own page (the map held on its place) in Podio, not the music player.
+                            if (selectedSong?.videoId?.startsWith("podio:radio:") == true) {
+                                com.cosmotune.ui.blocks.ModeNav.podioTab.value = "Radio"; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = false
+                                com.cosmotune.ui.blocks.ModeNav.podioDetail.value = true
+                                cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO)
+                            } else overlays.nowPlaying = true
+                        },
+                        controlsLocked = partyState.controlsLocked,
+                        onBlockedControl = {},
+                        hazeState = LocalDesktopHaze.current,
+                        onHeightChanged = {},
+                        modifier = Modifier.widthIn(max = com.cosmotune.music.ui.components.FLOATING_BAR_MAX_WIDTH).fillMaxWidth(),
+                    ) else
+                    DesktopBottomChrome(
+                        compact = compact,
+                        destination = destination,
+                        song = selectedSong,
+                        isPlaying = playback.isPlaying,
+                        onDestinationSelected = ::selectDestination,
+                        onExpand = {
+                            // A live station opens its own page (the map held on its place) in Podio, not the music player.
+                            if (selectedSong?.videoId?.startsWith("podio:radio:") == true) {
+                                com.cosmotune.ui.blocks.ModeNav.podioTab.value = "Radio"; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = false
+                                com.cosmotune.ui.blocks.ModeNav.podioDetail.value = true
+                                cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO)
+                            } else overlays.nowPlaying = true
+                        },
+                        onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+                        onNext = ::playNext,
+                    )
+                },
+                trailing = {
+                    val current = selectedSong
+                    DesktopSidePanelColumn(
+                        panel = overlays.sidePanel.takeIf { current != null },
+                        onClose = { overlays.sidePanel = null },
+                    ) { which ->
+                        if (current == null) return@DesktopSidePanelColumn
+                        when (which) {
+                            DesktopSidePanel.LYRICS -> LyricsSidePanel(
+                                song = current,
+                                isPlaying = playback.isPlaying,
+                                position = playerPosition,
+                                lyrics = sharedLyrics,
+                                lyricsSource = sharedLyricsSource,
+                                lyricsProviderStates = providerStates,
+                                onSelectLyricsProvider = { source -> lyricsOnly = source.label },
+                                lyricsUnavailable = sharedLyricsUnavailable,
+                                onSeek = ::seekPlayer,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            DesktopSidePanel.QUEUE -> QueueSidePanel(
+                                queue = liveQueue.songs,
+                                queueIndex = liveQueue.index,
+                                autoplayEnabled = DesktopAutoplay.enabled(partyState, autoplay),
+                                onJumpTo = ::playQueueIndex,
+                                onRemove = ::removeFromQueue,
+                                onMove = ::moveInQueue,
+                                onClear = ::clearQueue,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                },
+                overlay = {
+                    // The floating player bar: before the sheet, so the player (which grows out of it) is drawn over it.
+                    if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopPlayerBarHost(overlays.sidePanel != null) { m ->
+                        selectedSong?.let { current ->
+                            com.cosmotune.ui.shell.CosmoPlayerBar(
+                                song = current,
+                                isPlaying = playback.isPlaying,
+                                isLoading = playback.isLoading,
+                                position = playerPosition,
+                                durationMs = playback.durationMs,
+                                liked = current.videoId in likedIds,
+                                shuffle = shuffle,
+                                repeatMode = when (repeatMode) {
+                                    DesktopRepeatMode.OFF -> RepeatModes.OFF
+                                    DesktopRepeatMode.ONE -> RepeatModes.ONE
+                                    DesktopRepeatMode.ALL -> RepeatModes.ALL
+                                },
+                                controlsLocked = partyState.controlsLocked,
+                                lyricsOn = overlays.sidePanel == DesktopSidePanel.LYRICS,
+                                queueOn = overlays.sidePanel == DesktopSidePanel.QUEUE,
+                                onPlayPause = ::togglePlayPauseFromUser,
+                                onPrevious = ::playPrevious,
+                                onNext = ::playNext,
+                                onToggleShuffle = { setShuffle(!shuffle) },
+                                onCycleRepeat = {
+                                    repeatMode = repeatMode.next()
+                                    persistence.saveString("repeat_mode", repeatMode.name)
+                                },
+                                onToggleLike = { toggleLike(current) },
+                                onSeekFraction = { fraction ->
+                                    val duration = playbackEngine.state.value.durationMs
+                                    if (duration > 0) seekPlayer((fraction * duration).toLong())
+                                },
+                                // A second click on the same button puts the column away, as in Apple Music.
+                                onLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
+                                onQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
+                                onOutput = { overlays.audioOutput = true },
+                                onExpand = {
+                            // A live station opens its own page (the map held on its place) in Podio, not the music player.
+                            if (selectedSong?.videoId?.startsWith("podio:radio:") == true) {
+                                com.cosmotune.ui.blocks.ModeNav.podioTab.value = "Radio"; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = false
+                                com.cosmotune.ui.blocks.ModeNav.podioDetail.value = true
+                                cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.PODIO)
+                            } else overlays.nowPlaying = true
+                        },
+                                onBlockedControl = {},
+                                hazeState = LocalDesktopHaze.current,
+                                modifier = m,
+                                volumeLabel = DesktopStrings["d_volume", "Volume"],
+                            )
+                        }
+                    }
+                    val videoModeShown = com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown()
+                    LaunchedEffect(videoModeShown) {
+                        if (videoModeShown) {
+                            DesktopWindowMode.exit()
+                            overlays.nowPlaying = false
+                            cosmoShell?.playerProgress?.snapTo(0f)
+                            cosmoShell?.capsuleHidden = false
+                        }
+                    }
+                    if (!videoModeShown) DesktopPlayerSheet(
+                        visible = overlays.nowPlaying && selectedSong != null,
+                        onDismiss = {
+                            DesktopWindowMode.exit()
+                            overlays.nowPlaying = false
+                        },
+                    ) { windowWidth, windowHeight ->
+                        val current = selectedSong ?: return@DesktopPlayerSheet
+                        val playerSong = trackLinks?.takeIf { it.videoId == current.videoId }
+                            ?.let { extra ->
+                                current.copy(
+                                    artistId = current.artistId ?: extra.artistId,
+                                    // Same as on the phone: the watch-queue lookup
+                                    // is what carries a channel per credited
+                                    // artist, so it is what makes every name in
+                                    // the credit line openable.
+                                    artists = current.artists.ifEmpty { extra.artists },
+                                    albumId = current.albumId ?: extra.albumId,
+                                    albumName = current.albumName ?: extra.albumName,
+                                )
+                            }
+                            ?: current
+                        NowPlayingSwitch(
+                            song = playerSong,
+                            isPlaying = playback.isPlaying,
+                            isLoading = playback.isLoading,
+                            position = playerPosition,
+                            durationMs = playback.durationMs,
+                            audioVersionSwitching = false,
+                            qualityUpgraded = false,
+                            queue = liveQueue.songs,
+                            queueIndex = liveQueue.index,
+                            hasPrevious = liveQueue.hasPrevious,
+                            hasNext = liveQueue.hasNext,
+                            repeatMode = when (repeatMode) {
+                                DesktopRepeatMode.OFF -> RepeatModes.OFF
+                                DesktopRepeatMode.ONE -> RepeatModes.ONE
+                                DesktopRepeatMode.ALL -> RepeatModes.ALL
+                            },
+                            shuffleEnabled = shuffle,
+                            autoplayEnabled = DesktopAutoplay.enabled(partyState, autoplay),
+                            signedIn = youtubeSignedIn,
+                            accountName = activeAccount.shownName(activeProfileId),
+                            likeStatus = when (current.videoId) {
+                                in likedIds -> LikeStatus.LIKE
+                                in dislikedIds -> LikeStatus.DISLIKE
+                                else -> LikeStatus.INDIFFERENT
+                            },
+                            onToggleLike = { toggleLike(current) },
+                            onPlayPause = ::togglePlayPauseFromUser,
+                            onNext = ::playNext,
+                            onPrevious = ::playPrevious,
+                            onBlockedControl = {
+                                DesktopPlayerHost.showMessage("Only the party host can change playback")
+                            },
+                            onSeek = ::seekPlayer,
+                            onSeekFraction = { fraction ->
+                                val duration = playbackEngine.state.value.durationMs
+                                if (duration > 0) seekPlayer((fraction * duration).toLong())
+                            },
+                            onToggleShuffle = { setShuffle(!shuffle) },
+                            // The phone's order: off, all, one.
+                            onCycleRepeat = {
+                                repeatMode = when (repeatMode) {
+                                    DesktopRepeatMode.OFF -> DesktopRepeatMode.ALL
+                                    DesktopRepeatMode.ALL -> DesktopRepeatMode.ONE
+                                    DesktopRepeatMode.ONE -> DesktopRepeatMode.OFF
+                                }
+                                persistence.saveString("repeat_mode", repeatMode.name)
+                            },
+                            onToggleAutoplay = {
+                                setAutoplay(!DesktopAutoplay.enabled(DesktopListenTogether.state.value, autoplay))
+                            },
+                            onJumpTo = ::playQueueIndex,
+                            onRemoveFromQueue = ::removeFromQueue,
+                            onMoveInQueue = ::moveInQueue,
+                            onClearQueue = ::clearQueue,
+                            onOpenMenu = { playerMenuOpen = true },
+                            onOpenAlbum = { id ->
+                                overlays.nowPlaying = false
+                                openAlbum(id)
+                            },
+                            // The lead credit carries the track's own channel
+                            // id and opens straight away; anyone else on the
+                            // line has no id, so the page is found from the
+                            // name — and only when the answer is that name
+                            // exactly, so a fragment like "2115" opens nothing
+                            // rather than White 2115.
+                            onOpenArtist = { id, name ->
+                                overlays.nowPlaying = false
+                                if (id != null) {
+                                    openArtist(id, name)
+                                } else {
+                                    scope.launch {
+                                        YtMusicRepository.findArtistPageId(name).getOrNull()
+                                            ?.let { found -> openArtist(found, name) }
+                                    }
+                                }
+                            },
+                            onOpenPlaybackSource = {
+                                val id = playerSong.playbackSourceId
+                                overlays.nowPlaying = false
+                                if (playerSong.playbackSourceType == PlaybackSourceType.BROWSE && id != null) {
+                                    openAlbum(id)
+                                }
+                            },
+                            onListenTogether = ::openRoomPage,
+                            lyrics = sharedLyrics,
+                            lyricsSource = sharedLyricsSource,
+                            lyricsProviderStates = providerStates,
+                            onSelectLyricsProvider = { source -> lyricsOnly = source.label },
+                            lyricsUnavailable = sharedLyricsUnavailable,
+                            lyricsOffsetOpen = lyricsOffsetOpen,
+                            onDismissLyricsOffset = { lyricsOffsetOpen = false },
+                            windowWidth = windowWidth,
+                            windowHeight = windowHeight,
+                        )
+                        if (playerMenuOpen) {
+                            // Where the player's "…" sits: the right column's credits row, at
+                            // the right edge of the centred two-column layout.
+                            val columnEdge = minOf(windowWidth, 1100.dp) / 2 - 47.dp
+                            Box(
+                                Modifier
+                                    .align(Alignment.Center)
+                                    .offset(x = columnEdge)
+                                    .size(34.dp),
+                            ) {
+                                DesktopSongMenuFor(
+                                    song = playerSong,
+                                    liked = current.videoId in likedIds,
+                                    actions = playerSongActions(current),
+                                    onToggleLike = { toggleLike(current) },
+                                    onRevertToOriginal = {
+                                        DesktopOriginalVersion.pin(current.videoId)
+                                        playbackEngine.reloadCurrent()
+                                    }.takeIf {
+                                        playback.streamSourceId != null &&
+                                            playback.streamSourceId != "youtube" &&
+                                            DesktopMusicSources.hasYouTubeOriginal(current) &&
+                                            !DesktopOriginalVersion.isPinned(current.videoId)
+                                    },
+                                    onUpgradeQuality = {
+                                        DesktopOriginalVersion.clear(current.videoId)
+                                        playbackEngine.reloadCurrent(forceSourceRefresh = true)
+                                    }.takeIf { DesktopOriginalVersion.isPinned(current.videoId) },
+                                    onDismiss = { playerMenuOpen = false },
+                                    onLyricsOffset = { lyricsOffsetOpen = true },
+                                    onRetryLyrics = {
+                                        DesktopLyricsClient.invalidate(current.videoId)
+                                        val alternatives = DesktopLyricsClient.enabledSources(lyricsOrder, lyricsOn)
+                                            .filter { it != lyrics?.source }
+                                        lyricsOnly = alternatives.firstOrNull()
+                                        if (alternatives.isEmpty()) DesktopPlayerHost.showMessage("Enable another lyrics source in Settings")
+                                    },
+                                )
+                            }
+                        }
+                        val message by DesktopPlayerHost.messages.collectAsState()
+                        LaunchedEffect(message) {
+                            if (message != null) {
+                                delay(2_500)
+                                DesktopPlayerHost.messages.value = null
+                            }
+                        }
+                        message?.let { text ->
+                            Text(
+                                text = text,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 36.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.Black.copy(alpha = 0.72f))
+                                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                            )
+                        }
+                    }
+                    // The sign-in expired and could not be renewed (not even from the browser): "Sign in again".
+                    if (!overlays.signIn) {
+                        Box(Modifier.fillMaxWidth().padding(top = 64.dp), contentAlignment = Alignment.TopCenter) {
+                            com.cosmotune.ui.account.SessionExpiredBannerHost(
+                                onSignIn = { overlays.signIn = true },
+                                modifier = Modifier.widthIn(max = 640.dp),
+                            )
+                        }
+                    }
+                    if (overlays.accounts) {
+                        DesktopAccountSelector(
+                            accounts = accounts,
+                            activeAccountId = activeAccountId,
+                            activeProfileId = activeProfileId,
+                            busy = signInBusy != null,
+                            onSelect = { account, profile ->
+                                DesktopAccounts.select(account.accountId, profile.profileId)
+                                activeAccountId = account.accountId
+                                activeProfileId = profile.profileId
+                            },
+                            onAddAccount = { overlays.accounts = false; overlays.signIn = true },
+                            onRemoveAccount = { account ->
+                                scope.launch {
+                                    accounts = withContext(Dispatchers.IO) {
+                                        DesktopAccounts.remove(account.accountId)
+                                        DesktopAccounts.accounts()
+                                    }
+                                    activeAccountId = DesktopAccounts.activeAccountId()
+                                    activeProfileId = DesktopAccounts.activeProfileId()
+                                }
+                            },
+                            onOpenSettings = { overlays.accounts = false; openSettings() },
+                            onDismiss = { overlays.accounts = false },
+                        )
+                    }
+
+                    if (spotifyImportOpen) {
+                        DesktopSpotifyImportDialog(
+                            signedIn = youtubeSignedIn,
+                            onImported = ::importSpotifyPlaylist,
+                            onDismiss = { spotifyImportOpen = false },
+                        )
+                    }
+
+                    if (overlays.signIn) {
+                        DesktopSignInDialog(
+                            busy = signInBusy,
+                            error = signInError,
+                            webSignIn = DesktopWebSignIn.available,
+                            onWebSignIn = {
+                                webSignInJob?.cancel()
+                                webSignInJob = scope.launch {
+                                    signInError = null
+                                    signInBusy = WEB_SIGN_IN
+                                    try {
+                                        val cookie = DesktopWebSignIn.captureYouTube()
+                                        signIn(cookie, WEB_SIGN_IN)
+                                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                        throw cancelled
+                                    } catch (failure: Exception) {
+                                        DesktopTrackLog.log("sign-in: YouTube Music failed: ${failure.message}")
+                                        signInError = failure.message ?: "Could not complete the sign-in."
+                                    } finally {
+                                        signInBusy = null
+                                        webSignInJob = null
+                                    }
+                                }
+                            },
+                            onImport = { profile ->
+                                scope.launch {
+                                    when (val found = withContext(Dispatchers.IO) { DesktopBrowserCookies.read(profile) }) {
+                                        is DesktopBrowserCookies.Result.Session ->
+                            signIn(found.cookie, profile.label, profile.database.toString())
+                                        DesktopBrowserCookies.Result.SignedOut ->
+                                            signInError = "${profile.label} is not signed in."
+                                        is DesktopBrowserCookies.Result.Unavailable ->
+                                            signInError = "${profile.label}: ${found.reason}."
+                                    }
+                                }
+                            },
+                            onPaste = { pasted ->
+                                scope.launch {
+                                    if (!DesktopBrowserCookies.hasSigningSecret(pasted)) {
+                                        signInError = "That cookie has no signing secret in it — copy the whole header."
+                                    } else {
+                                        signIn(pasted, "the cookie you pasted")
+                                    }
+                                }
+                            },
+                            onDismiss = {
+                                webSignInJob?.cancel()
+                                overlays.signIn = false
+                                signInError = null
+                            },
+                        )
+                    }
+                    if (overlays.playlistDialog || playlistTarget != null) {
+                        DesktopPlaylistDialog(
+                            song = playlistTarget,
+                            accountPlaylists = accountPlaylists,
+                            localPlaylists = playlists,
+                            signedIn = youtubeSignedIn,
+                            canUseAccount = playlistTarget
+                                ?.let { DesktopSearchClient.isVideoId(it.videoId) } ?: true,
+                            busy = playlistBusy,
+                            error = playlistError,
+                            onPickAccount = ::addToAccountPlaylist,
+                            onPickLocal = ::addToPlaylist,
+                            onCreate = ::createPlaylist,
+                            onDismiss = ::closePlaylistDialogs,
+                        )
+                    }
+                    if (overlays.rename) {
+                        DesktopRenamePlaylistDialog(
+                            current = openedCollection?.title.orEmpty(),
+                            busy = playlistBusy,
+                            error = playlistError,
+                            onRename = ::renameOpenPlaylist,
+                            onDismiss = ::closePlaylistDialogs,
+                        )
+                    }
+                    val reorderCollection = openedCollection?.takeIf { overlays.reorder }
+                    if (reorderCollection != null) {
+                        DesktopReorderPlaylistDialog(
+                            browseId = reorderCollection.browseId,
+                            busy = playlistBusy,
+                            error = playlistError,
+                            load = DesktopSearchClient::playlistEntries,
+                            onSave = ::reorderOpenPlaylist,
+                            onDismiss = ::closePlaylistDialogs,
+                        )
+                    }
+                    if (overlays.delete) {
+                        DesktopDeletePlaylistDialog(
+                            title = openedCollection?.title.orEmpty(),
+                            busy = playlistBusy,
+                            error = playlistError,
+                            onDelete = ::deleteOpenPlaylist,
+                            onDismiss = ::closePlaylistDialogs,
+                        )
+                    }
+                    if (overlays.downloadManager) {
+                        DesktopDownloadManagerDialog(onDismiss = { overlays.downloadManager = false })
+                    }
+                    if (overlays.lastfmLogin) {
+                        DesktopLastfmLoginDialog(onDismiss = { overlays.lastfmLogin = false })
+                    }
+                    if (overlays.listenBrainzToken) {
+                        DesktopListenBrainzTokenDialog(onDismiss = { overlays.listenBrainzToken = false })
+                    }
+                    if (overlays.discordToken) {
+                        DesktopDiscordTokenDialog(onDismiss = { overlays.discordToken = false })
+                    }
+                    if (overlays.listenTogether) {
+                        DesktopRoomPanel(
+                            autoplayEnabled = autoplay,
+                            onDismiss = {
+                                overlays.listenTogether = false
+                                // Closed without a room: the item "Play in room" chose is not played later by surprise.
+                                DesktopRooms.cancelPendingStart()
+                            },
+                        )
+                    }
+                    // Short notices on every page and in every mode; the player sheet shows its own while it is open.
+                    if (!(overlays.nowPlaying && selectedSong != null && !videoModeShown)) {
+                        Box(Modifier.fillMaxSize().padding(bottom = 96.dp), contentAlignment = Alignment.BottomCenter) {
+                            DesktopNoticeToast()
+                        }
+                    }
+                    if (overlays.audioOutput) {
+                        DesktopAudioOutputDialog(onDismiss = { overlays.audioOutput = false })
+                    }
+                    if (overlays.pipeline) {
+                        DesktopAudioPipelineDialog(
+                            format = playback.streamFormat,
+                            sourceName = playback.streamSourceId?.let { id ->
+                                sourceConfigs.firstOrNull { it.id == id }?.displayName
+                            },
+                            pipeline = playbackEngine.pipeline(),
+                            onDismiss = { overlays.pipeline = false },
+                        )
+                    }
+                },
+            ) { contentPadding ->
+                if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)
+                if (com.cosmotune.video.host.desktopMangaShown()) return@DesktopFrame com.cosmotune.video.host.DesktopMangaPage(contentPadding)
+                if (com.cosmotune.video.host.desktopPodioShown()) {
+                    return@DesktopFrame com.cosmotune.podio.ui.PodioApp(
+                        storage = com.cosmotune.podio.PodioLibrary.desktopFile(),
+                        playback = com.cosmotune.podio.ui.PodioPlayback(playback.song?.videoId, playback.song?.title.orEmpty(), playback.song?.artist.orEmpty(),
+                            playback.isPlaying, playback.isLoading, playback.positionMs, playback.durationMs, playback.error, rate = playbackEngine.playbackRate),
+                        onPlay = { item, position ->
+                            if (!partyTrackChangeBlocked()) {
+                                val requested = item.song()
+                                val offline = downloads.firstOrNull { it.videoId == item.id }
+                                liveQueue = DesktopQueue(listOf(com.cosmotune.podio.PodioDownloads.withOfflinePath(requested, offline)), index = 0)
+                                preShuffleOrder = emptyList()
+                                playCurrent(startAtMs = position)
+                            }
+                        },
+                        onToggle = ::togglePlayPauseFromUser,
+                        onSeek = playbackEngine::seekTo, onSpeed = playbackEngine::setPlaybackSpeed,
+                        padding = contentPadding,
+                        showNavigation = false,
+                        volume = volume, onVolume = { volume = it },
+                        onSettings = ::openSettings,
+                        sleepTimerMinutes = sleepTimerMinutes, sleepAfterEpisode = sleepAfterTrack,
+                        onSleepTimer = { minutes -> if (minutes == null) DesktopSleepTimer.cancel() else DesktopSleepTimer.start(minutes) },
+                        onSleepAfterEpisode = { DesktopSleepTimer.startAfterTrack() },
+                        onDownloadEpisode = { item ->
+                            when (downloadQueue[item.id]?.state) {
+                                DesktopDownloadState.Queued, is DesktopDownloadState.Running -> DesktopDownloadQueue.cancel(item.id)
+                                else -> DesktopDownloadQueue.enqueue(item.song())
+                            }
+                        },
+                        downloadedEpisodes = downloads.mapNotNull { it.offlinePodioItem() },
+                        episodeDownloadStatus = downloadQueue.mapValues { (_, item) -> when (val status = item.state) {
+                            DesktopDownloadState.Queued -> "Queued"
+                            is DesktopDownloadState.Running -> "Downloading ${(status.fraction.coerceIn(0f, 1f) * 100).toInt()}%"
+                            is DesktopDownloadState.Failed -> "Download failed: ${status.reason} · tap to retry"
+                        } },
+                        episodeDownloadsRunning = downloadQueue.filterValues { it.state !is DesktopDownloadState.Failed }.keys,
+                        onImportOpmlFile = {
+                            com.cosmotune.desktop.chooseCosmotuneFile("", false, "Import podcast subscriptions")?.let { file ->
+                                withContext(Dispatchers.IO) { file.inputStream().use(com.cosmotune.podio.PodioOpml::read) }
+                            }
+                        },
+                        onExportOpmlFile = { text ->
+                            val selected = com.cosmotune.desktop.chooseCosmotuneFile("Cosmotune-podcasts.opml", true, "Export podcast subscriptions")
+                            if (selected == null) false else withContext(Dispatchers.IO) { selected.writeText(text, Charsets.UTF_8); true }
+                        },
+                    )
+                }
+                // Desktop pages start at the same top edge as Library. Only preserve space for the
+                // floating player/navigation bar at the bottom in compact windows.
+                val sharedPagePadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
+                // Every page of the new look starts 28 dp in from the sidebar (`.d2-main`, `.dh-bento`). Home, the album and playlist page and the
+                // artist page keep that margin themselves; the pages built from the phone's blocks keep its 16 dp and are moved in by the rest.
+                val pageInset = if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) 0f else com.cosmotune.design.ShellMetrics.desktopPageInsetDp(
+                    pageKeepsPhoneMargin = overlays.settingsPage == null && !overlays.replay && openedArtist == null && openedCollection == null &&
+                        destination != DesktopDestination.LISTEN_NOW,
+                )
+                CompositionLocalProvider(
+                    LocalPullToRefreshEnabled provides false,
+                    LocalShelfRowChrome provides DesktopShelfRowChrome,
+                ) {
+                DesktopPointerMenuHost<Song>(
+                    menu = { song, onDismiss ->
+                        DesktopSongMenuFor(
+                            song = song,
+                            liked = song.videoId in likedIds,
+                            actions = songActionsFor(song),
+                            onToggleLike = { toggleLike(song) },
+                            onRevertToOriginal = null,
+                            onUpgradeQuality = null,
+                            onDismiss = onDismiss,
+                        )
+                    },
+                ) { openMenu ->
+                pageMenu = openMenu
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    if (event.type == PointerEventType.Press && event.buttons.isBackPressed) goBack()
+                                }
+                            }
+                        }
+                        .padding(horizontal = pageInset.dp),
+                ) {
+                    when {
+                        // Settings and its pages stand in for the page, held to the width the
+                        // Settings card had. Its prompts are still cards, over the page.
+                        overlays.settingsPage != null -> {
+                        // The new look's Settings list scrolls behind the floating bar (its content padding, not a shorter box, so no hard edge
+                        // shows above the window's bottom); the pages of its sub-screens have scrolls of their own and keep the shorter box.
+                        val settingsBehindBar = com.cosmotune.ui.theme.LocalCosmoShell.current != null && overlays.settingsPage == DesktopSettingsPage.MAIN
+                        Box(
+                            Modifier.fillMaxSize().padding(bottom = if (settingsBehindBar) 0.dp else contentPadding.calculateBottomPadding()),
+                        ) {
+                            CompositionLocalProvider(
+                                LocalDesktopPanelIsPage provides true,
+                                LocalDesktopBottomInset provides if (settingsBehindBar) contentPadding.calculateBottomPadding() else 0.dp,
+                            ) {
+                            when (overlays.settingsPage!!) {
+                                DesktopSettingsPage.MAIN -> DesktopSettingsScreen(
+                                    onPlayProviderSongs = { songs, index -> playSongs(songs, index, DesktopQueueSource("Provider", PlaybackSourceType.BROWSE)) },
+                                    query = settingsQuery,
+                                    onQueryChange = { settingsQuery = it },
+                                    selectedCategory = settingsCategory,
+                                    onCategoryChange = { settingsCategory = it },
+                                    listState = settingsListState,
+                                    autoplay = autoplay,
+                                    onAutoplayChange = ::setAutoplay,
+                                    automix = automix,
+                                    onAutomixChange = {
+                                        automix = it
+                                        persistence.saveBoolean("automix", it)
+                                    },
+                                    automixOnSkip = automixOnSkip,
+                                    onAutomixOnSkipChange = {
+                                        automixOnSkip = it
+                                        persistence.saveBoolean(DesktopAutomixOptions.KEY_ON_SKIP, it)
+                                    },
+                                    automixPhraseBars = automixPhraseBars,
+                                    onAutomixPhraseBarsChange = {
+                                        automixPhraseBars = DesktopAutomixOptions.phraseBars(it.toString())
+                                        persistence.saveString(DesktopAutomixOptions.KEY_PHRASE_BARS, automixPhraseBars.toString())
+                                    },
+                                    automixPerformance = automixPerformance,
+                                    onAutomixPerformanceChange = {
+                                        automixPerformance = it
+                                        persistence.saveString("automix_performance", it.name)
+                                    },
+                                    shuffle = shuffle,
+                                    onShuffleChange = ::setShuffle,
+                                    repeatMode = repeatMode,
+                                    onRepeatModeChange = {
+                                        repeatMode = it
+                                        persistence.saveString("repeat_mode", it.name)
+                                    },
+                                    playbackSpeed = playbackSpeed,
+                                    onPlaybackSpeedChange = {
+                                        playbackSpeed = it
+                                        persistence.saveString("playback_speed", it.toString())
+                                    },
+                                    crossfadeSeconds = crossfadeSeconds,
+                                    onCrossfadeSecondsChange = {
+                                        crossfadeSeconds = it
+                                        persistence.saveString("crossfade_seconds", it.toString())
+                                    },
+                                    animatedCanvas = animatedCanvas,
+                                    showNerdStats = showNerdStats,
+                                    fullBleedArtwork = fullBleedArtwork,
+                                    onAnimatedCanvasChange = {
+                                        animatedCanvas = it
+                                        persistence.saveBoolean("animated_canvas", it)
+                                    },
+                                    spotifyCanvasReady = spotifyCanvasCookie.isNotBlank(),
+                                    onOpenSpotifyCanvasSetup = { overlays.settingsPage = DesktopSettingsPage.SPOTIFY_CANVAS },
+                                    dontRepeatSuggestions = dontRepeatSuggestions,
+                                    onDontRepeatSuggestionsChange = {
+                                        dontRepeatSuggestions = it
+                                        persistence.saveBoolean(KEY_DONT_REPEAT_SUGGESTIONS, it)
+                                    },
+                                    onChooseLocalMusicFolder = { onChosen ->
+                                        DesktopLocalMusic.chooseFolder()?.let { chosen ->
+                                            DesktopLocalMusic.setFolder(chosen)
+                                            onChosen()
+                                            localMusicRevision++
+                                        }
+                                    },
+                                    onLocalMusicFolderChanged = { localMusicRevision++ },
+                                    filterNonMusicAudio = filterNonMusicAudio,
+                                    onFilterNonMusicAudioChange = {
+                                        filterNonMusicAudio = it
+                                        persistence.saveBoolean(DesktopLocalMusic.KEY_FILTER_NON_MUSIC_AUDIO, it)
+                                        // The scan's result changes with it, so it has to be taken again.
+                                        localMusicRevision++
+                                    },
+                                    syncedLyrics = syncedLyrics,
+                                    onSyncedLyricsChange = {
+                                        syncedLyrics = it
+                                        persistence.saveBoolean(DesktopLyricsClient.KEY_SYNCED_LYRICS, it)
+                                    },
+                                    lyricsBlur = lyricsBlur,
+                                    onLyricsBlurChange = {
+                                        lyricsBlur = it
+                                        persistence.saveBoolean(DesktopLyricsClient.KEY_LYRICS_BLUR, it)
+                                    },
+                                    enabledLyricsSources = DesktopLyricsClient.enabledSources(lyricsOrder, lyricsOn),
+                                    onOpenLyricsSources = { overlays.settingsPage = DesktopSettingsPage.LYRICS_SOURCES },
+                                    onOpenTranslationLanguage = { overlays.settingsPage = DesktopSettingsPage.TRANSLATION_LANGUAGE },
+                                    onOpenEqualizer = { overlays.settingsPage = DesktopSettingsPage.EQUALIZER },
+                                    onOpenAudioOutput = { overlays.settingsPage = DesktopSettingsPage.AUDIO_OUTPUT },
+                                    onOpenListenTogether = { overlays.settingsPage = DesktopSettingsPage.LISTEN_TOGETHER },
+                                    onShowNerdStatsChange = {
+                                        showNerdStats = it
+                                        persistence.saveBoolean("show_nerd_stats", it)
+                                    },
+                                    onFullBleedArtworkChange = {
+                                        fullBleedArtwork = it
+                                        persistence.saveBoolean("full_bleed_artwork", it)
+                                    },
+                                    legacyMeshGradient = legacyMeshGradient,
+                                    onLegacyMeshGradientChange = {
+                                        legacyMeshGradient = it
+                                        persistence.saveBoolean("legacy_mesh_gradient", it)
+                                    },
+                                    spatialAudio = spatialAudio,
+                                    onSpatialAudioChange = {
+                                        spatialAudio = it
+                                        persistence.saveBoolean("spatial_audio", it)
+                                    },
+                                    dolbyAtmos = dolbyAtmos,
+                                    onDolbyAtmosChange = {
+                                        dolbyAtmos = it
+                                        DesktopAddonSettings.dolbyAtmosEnabled = it
+                                        persistence.saveBoolean("dolby_atmos", it)
+                                        DesktopAddonSource.clearCompletedTrackCalls()
+                                    },
+                                    loudnessNormalization = loudnessNormalization,
+                                    onLoudnessNormalizationChange = { loudnessNormalization = it; persistence.saveBoolean("loudness_normalization", it) },
+                                    skipSilence = skipSilence,
+                                    onSkipSilenceChange = {
+                                        skipSilence = it
+                                        persistence.saveBoolean("skip_silence", it)
+                                    },
+                                    outputPrecision = outputPrecision,
+                                    onOutputPrecisionChange = {
+                                        outputPrecision = it
+                                        persistence.saveString("output_precision", it)
+                                    },
+                                    outputSummary = playbackEngine.outputSummary(),
+                                    trayIconEnabled = trayIconEnabled,
+                                    closeToTray = closeToTray,
+                                    onCloseToTrayChange = {
+                                        closeToTray = it
+                                        persistence.saveBoolean("close_to_tray", it)
+                                    },
+                                    onTrayIconChange = {
+                                        trayIconEnabled = it
+                                        persistence.saveBoolean("tray_icon", it)
+                                    },
+                                    downloadQuality = downloadQuality,
+                                    onDownloadQualityChange = {
+                                        downloadQuality = it
+                                        persistence.saveString("download_quality", it)
+                                    },
+                                    audioQuality = audioQuality,
+                                    onAudioQualityChange = {
+                                        audioQuality = it
+                                        persistence.saveAudioQuality(it)
+                                    },
+                                    sleepTimerMinutes = sleepTimerMinutes,
+                                    sleepAfterTrack = sleepAfterTrack,
+                                    sleepRemainingMs = sleepRemainingMs,
+                                    onSleepTimerCycle = ::cycleSleepTimer,
+                                    sourceConfigs = sourceConfigs,
+                                    sourceStatus = sourceStatus,
+                                    onSourceEnabledChange = { config, enabled ->
+                                        val next = sourceConfigs.map {
+                                            if (it.id == config.id && it.kind != DesktopSourceKind.YOUTUBE) {
+                                                it.copy(enabled = enabled)
+                                            } else {
+                                                it
+                                            }
+                                        }
+                                        persistence.saveSourceConfigs(next)
+                                        sourceConfigs = persistence.sourceConfigs()
+                                        DesktopModuleSource.reload()
+                                    },
+                                    onSaveSource = { saved ->
+                                        // Replaced by id, so any number of addons can be configured.
+                                        val without = sourceConfigs.filterNot {
+                                            it.id == saved.id ||
+                                                (saved.kind == DesktopSourceKind.CUSTOM_MODULE &&
+                                                    it.kind == DesktopSourceKind.CUSTOM_MODULE)
+                                        }
+                                        persistence.saveSourceConfigs((without + saved).inSourceOrder())
+                                        sourceConfigs = persistence.sourceConfigs()
+                                        // Whatever was held for this entry describes a server that may no
+                                        // longer be the one selected.
+                                        DesktopAddonSource.forget(saved.id)
+                                        DesktopModuleSource.reload()
+                                    },
+                                    onRemoveSource = { config ->
+                                        if (config.isUserAdded) {
+                                            persistence.saveSourceConfigs(sourceConfigs.filterNot { it.id == config.id })
+                                            sourceConfigs = persistence.sourceConfigs()
+                                            DesktopAddonSource.forget(config.id)
+                                            DesktopModuleSource.reload()
+                                        }
+                                    },
+                                    onMoveSource = { config, delta ->
+                                        val next = moveUserSource(sourceConfigs, config.id, delta)
+                                        persistence.saveSourceConfigs(next)
+                                        sourceConfigs = persistence.sourceConfigs()
+                                    },
+                                    onTestSource = { candidate ->
+                                        sourceStatus = sourceStatus + (candidate.id to "Checking source…")
+                                        scope.launch {
+                                            val health = when (candidate.kind) {
+                                                DesktopSourceKind.ADDON -> DesktopAddonSource.health(candidate)
+                                                DesktopSourceKind.SUBSONIC -> runCatching {
+                                                    val info = requireNotNull(DesktopSourceRegistry.subsonic(candidate)) {
+                                                        "Add the user name and password or API key"
+                                                    }.client.ping()
+                                                    listOfNotNull("Connected", info.type, info.version.takeIf(String::isNotBlank)).joinToString(" · ")
+                                                }
+                                                else -> DesktopModuleSource.health(candidate)
+                                            }
+                                            health.fold(
+                                                onSuccess = { sourceStatus = sourceStatus + (candidate.id to it) },
+                                                onFailure = {
+                                                    sourceStatus = sourceStatus +
+                                                        (candidate.id to (it.message ?: "Source unavailable"))
+                                                },
+                                            )
+                                        }
+                                    },
+                                    onOpenIntegrations = { overlays.settingsPage = DesktopSettingsPage.INTEGRATIONS },
+                                    onOpenLicenses = { overlays.settingsPage = DesktopSettingsPage.LICENSES },
+                                )
+                                DesktopSettingsPage.EQUALIZER -> DesktopEqualizerDialog(onDismiss = ::goBack)
+                                DesktopSettingsPage.AUDIO_OUTPUT -> DesktopAudioOutputDialog(onDismiss = ::goBack)
+                                DesktopSettingsPage.LISTEN_TOGETHER -> DesktopRoomPanel(
+                                    autoplayEnabled = autoplay,
+                                    onDismiss = ::goBack,
+                                )
+                                DesktopSettingsPage.LYRICS_SOURCES -> DesktopLyricsSourcesDialog(
+                                    order = lyricsOrder,
+                                    enabled = lyricsOn,
+                                    prioritizeSyllables = prioritizeSyllables,
+                                    onReorder = {
+                                        lyricsOrder = it
+                                        persistence.saveLyricsSourceOrder(it)
+                                    },
+                                    onToggle = { name ->
+                                        lyricsOn = if (name in lyricsOn) lyricsOn - name else lyricsOn + name
+                                        persistence.saveLyricsEnabledSources(lyricsOn)
+                                    },
+                                    onPrioritizeSyllables = {
+                                        prioritizeSyllables = it
+                                        persistence.saveBoolean(DesktopLyricsClient.KEY_PRIORITIZE_SYLLABLES, it)
+                                    },
+                                    onReset = {
+                                        lyricsOrder = DesktopLyricsClient.sources.map { it.name }
+                                        lyricsOn = lyricsOrder.toSet()
+                                        prioritizeSyllables = false
+                                        persistence.saveLyricsSourceOrder(lyricsOrder)
+                                        persistence.saveLyricsEnabledSources(lyricsOn)
+                                        persistence.saveBoolean(DesktopLyricsClient.KEY_PRIORITIZE_SYLLABLES, false)
+                                    },
+                                    onDismiss = ::goBack,
+                                )
+                                DesktopSettingsPage.TRANSLATION_LANGUAGE -> DesktopTranslationLanguageDialog(onDismiss = ::goBack)
+                                DesktopSettingsPage.SPOTIFY_CANVAS -> DesktopSpotifyCanvasDialog(
+                                    onDismiss = ::goBack,
+                                    onSaved = { spotifyCanvasCookie = it },
+                                )
+                                DesktopSettingsPage.INTEGRATIONS -> DesktopIntegrationsDialog(
+                                    song = playback.song,
+                                    spotify = DesktopSpotifyConnection(
+                                        connected = spotifyCanvasCookie.isNotBlank(),
+                                        canSignIn = DesktopWebSignIn.available,
+                                        signingIn = spotifySignInJob != null,
+                                        error = spotifySignInError,
+                                        onSignIn = ::signInToSpotify,
+                                        onPasteCookie = { overlays.settingsPage = DesktopSettingsPage.SPOTIFY_CANVAS },
+                                        onDisconnect = {
+                                            DesktopSpotifyToken.setCookie("")
+                                            spotifyCanvasCookie = ""
+                                        },
+                                    ),
+                                    onOpenLastfm = { overlays.lastfmLogin = true },
+                                    onOpenListenBrainz = { overlays.listenBrainzToken = true },
+                                    onOpenDiscordToken = { overlays.discordToken = true },
+                                    onDismiss = ::goBack,
+                                )
+                                DesktopSettingsPage.LICENSES -> DesktopLicensesPage(onDismiss = ::goBack)
+                            }
+                            }
+                        }
+                        }
+                        overlays.replay -> DesktopReplayPage(
+                            summary = replaySummary,
+                            period = replayPeriod,
+                            holder = replayHolder,
+                            onPeriodChange = { replayPeriod = it },
+                            onPlaySong = { playSong(it) },
+                            onOpenArtist = ::openArtistByName,
+                            contentPadding = contentPadding,
+                        )
+                        openedArtist != null -> DesktopArtistPage(
+                            state = artistState,
+                            fallbackName = openedArtist!!.name,
+                            onRetry = {
+                                artistState = UiState.Loading
+                                artistReloads++
+                            },
+                            onPlaySongs = { songs, index ->
+                                playSongs(songs, index, openedArtist?.let { artistSource(it) })
+                            },
+                            onShuffle = { songs ->
+                                playSongs(songs, 0, openedArtist?.let { artistSource(it) })
+                            },
+                            onOpenMenu = { song -> openMenu(song) },
+                            onShelfItemClick = ::openShelfItem,
+                            // A channel subscription is the account's, so a guest is never shown
+                            // the button.
+                            onToggleSubscription = if (youtubeSignedIn) ::toggleSubscription else null,
+                            contentPadding = contentPadding,
+                        )
+                        openedCollection?.loading == true -> DesktopPageScaffold(contentPadding) {
+                            Box(Modifier.fillMaxSize()) {
+                                val error = collectionError
+                                if (error != null) {
+                                    DesktopErrorPage(error) { collectionReloads++ }
+                                } else {
+                                    val title = openedCollection?.title.orEmpty()
+                                    DesktopLoadingPage(if (title.isBlank()) "Loading…" else "Loading $title…")
+                                }
+                            }
+                        }
+                        openedCollection != null -> DesktopCollectionPage(
+                            collection = openedCollection!!,
+                            loadingMore = collectionLoadingMore,
+                            onLoadMore = ::loadMoreCollectionSongs,
+                            onRename = { overlays.rename = true }.takeIf { openedCollection?.owned == true },
+                            onShare = openedCollection
+                                ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
+                                ?.let { collection -> { shareCollection(collection) } },
+                            onDelete = { overlays.delete = true }.takeIf { openedCollection?.owned == true },
+                            onReorder = { overlays.reorder = true }.takeIf {
+                                openedCollection?.owned == true && openedCollection?.type == BrowseType.PLAYLIST
+                            },
+                            onRemoveFromPlaylist = ::removeFromOpenPlaylist
+                                .takeIf { openedCollection?.owned == true },
+                            likedIds = likedIds,
+                            onPlaySongs = { songs, index ->
+                                playSongs(songs, index, openedCollection?.let { collectionSource(it) })
+                            },
+                            onShuffle = { songs ->
+                                playSongs(songs.shuffled(), 0, openedCollection?.let { collectionSource(it) })
+                            },
+                            onDownloadAll = ::downloadAll,
+                            animatedCanvas = animatedCanvas,
+                            onToggleLike = { song ->
+                                toggleLike(song)
+                            },
+                            onAddToPlaylist = { playlistTarget = it },
+                            onDownload = ::downloadSong,
+                            downloadedIds = downloads.map(Song::videoId).toSet(),
+                            downloadInProgress = downloadInProgress,
+                            contentPadding = contentPadding,
+                        )
+                        destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.home.HomeSwitch(
+                            discoveryHistory = history,
+                            discoveryLikedIds = likedIds + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
+                            followedArtists = com.cosmotune.ui.home.rememberFollowedMusicArtists(com.cosmotune.desktop.desktopListeningFile(), listeningToolsOpen),
+                            playlistSongs = remember(downloads, localSongs, listeningLibraryPage, history, playlists) {
+                                sequenceOf(downloads.asSequence(), localSongs.asSequence(), listeningLibraryPage?.likedSongs.orEmpty().asSequence(),
+                                    listeningLibraryPage?.librarySongs.orEmpty().asSequence(), history.asSequence(), playlists.asSequence().flatMap { it.songs.asSequence() })
+                                    .flatten().distinctBy { it.videoId }.take(2_000).toList()
+                            },
+                            saveGeneratedPlaylist = { name, songs ->
+                                val next = playlists + DesktopPlaylist(title = name, songs = songs)
+                                withContext(Dispatchers.IO) { persistence.savePlaylists(next) }
+                                playlists = next
+                            },
+                            state = homeState,
+                            listState = homeListState,
+                            onItemClick = { item, shelfTitle -> openShelfItem(item, shelfTitle) },
+                            onRetry = ::loadHome,
+                            refreshing = false,
+                            onRefresh = ::loadHome,
+                            pullState = rememberPullToRefreshState(),
+                            contentPadding = sharedPagePadding,
+                            title = null,
+                            browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { selectDestination(DesktopDestination.EXPLORE); openMoodGenre(it) }, onRetry = { exploreReloads++ }),
+                            quickLinks = listOfNotNull(
+                                org.jetbrains.compose.resources.stringResource(SharedRes.string.cosmo_liked_songs).takeIf { youtubeSignedIn }?.let { label ->
+                                    com.cosmotune.ui.home.HomeQuickLink(label, com.cosmotune.ui.components.CosmoIcons.Heart) { openShelfItem(ShelfItem(label, "", null, null, com.cosmotune.music.data.YtMusicRepository.LIKED_MUSIC)) }
+                                },
+                                com.cosmotune.ui.home.HomeQuickLink(DesktopStrings["downloads", "Downloads"], com.cosmotune.ui.components.CosmoIcons.Download) { selectDestination(DesktopDestination.DOWNLOADS) },
+                            ),
+                            signedIn = youtubeSignedIn,
+                            onSignIn = { overlays.accounts = true },
+                            onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) else if (item.browseId != null) libraryActionTarget = item },
+                            onLoadMore = ::loadMoreHome,
+                            loadingMore = homeLoadingMore,
+                            recentlyPlayedLoading = homeRecentsLoading,
+                            leadHero = false,
+                            // The playing card's indicator, as the Search page below gets it: the engine's live state. Only the new Home
+                            // draws it: the old one never had it on the desktop, and with the look off nothing changes.
+                            currentSong = playback.song.takeIf { cosmoShell != null },
+                            isPlaying = cosmoShell != null && playback.isPlaying,
+                        )
+                        destination == DesktopDestination.RELEASES -> com.cosmotune.ui.listening.CosmoReleasesPage(
+                            file = com.cosmotune.desktop.desktopListeningFile(),
+                            listState = releasesListState,
+                            contentPadding = sharedPagePadding,
+                            onOpenRelease = { id, title -> openShelfItem(ShelfItem(title, "", null, null, id)) },
+                            onManage = {
+                                listeningToolsOpenOn = com.cosmotune.ui.listening.ListeningTab.RELEASES
+                                listeningToolsOpen = true
+                            },
+                            refreshKey = listeningToolsOpen,
+                        )
+                        destination == DesktopDestination.EXPLORE && selectedMoodGenre != null -> Column(Modifier.fillMaxSize()) {
+                            com.cosmotune.ui.search.MoodGenreSwitch(
+                                title = selectedMoodGenre!!.title,
+                                state = moodGenreShelves,
+                                listState = moodGenreListState,
+                                onItemClick = { item -> openShelfItem(item, selectedMoodGenre?.title) },
+                                onRetry = {
+                                    moodGenreShelves = UiState.Loading
+                                    moodGenreReloads++
+                                },
+                                contentPadding = PaddingValues(bottom = sharedPagePadding.calculateBottomPadding()),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        destination == DesktopDestination.EXPLORE -> com.cosmotune.ui.search.ExploreSwitch(
+                            state = exploreState,
+                            listState = exploreListState,
+                            onCategoryClick = ::openMoodGenre,
+                            onRetry = { exploreReloads++ },
+                            refreshing = false,
+                            onRefresh = { exploreReloads++ },
+                            pullState = rememberPullToRefreshState(),
+                            contentPadding = sharedPagePadding,
+                            showTitle = false,
+                        )
+                        destination == DesktopDestination.SEARCH -> com.cosmotune.ui.search.SearchSwitch(
+                            query = query,
+                            onQueryChange = ::editQuery,
+                            filter = searchFilter,
+                            // The playing row's indicator, as the phone passes it: the engine's
+                            // live state, not the selection a track change publishes behind it.
+                            currentSong = playback.song,
+                            isPlaying = playback.isPlaying,
+                            onFilterChange = {
+                                searchFilter = it
+                                if (query.isNotBlank()) search()
+                            },
+                            results = when {
+                                searchLoading -> UiState.Loading
+                                searchError != null -> UiState.Error(searchError!!)
+                                searchCommitted -> UiState.Success(searchRows)
+                                else -> null
+                            },
+                            loadingMore = false,
+                            onLoadMore = {},
+                            listState = searchListState,
+                            scrollResetTrigger = searchScrollReset,
+                            focusRequested = searchFocusRequested,
+                            onFocusHandled = { searchFocusRequested = false },
+                            onSongClick = { songs, index ->
+                                songs.getOrNull(index)?.let { song ->
+                                    recordSongSearch(song)
+                                    playSong(song, source = DesktopQueueSource(DesktopStrings["search", "Search"], PlaybackSourceType.SEARCH))
+                                }
+                            },
+                            onSongLongPress = ::openMenu,
+                            onSongSwipe = { song ->
+                                if (DesktopAppUiHost.swipeToPlayNext.value) playNext(song) else addToQueue(song)
+                            },
+                            onTopResultPlay = { song ->
+                                recordSongSearch(song)
+                                playSong(song, source = DesktopQueueSource(DesktopStrings["search", "Search"], PlaybackSourceType.SEARCH))
+                            },
+                            onTopResultPlaylist = { song ->
+                                recordSongSearch(song)
+                                playlistTarget = song
+                            },
+                            onBrowseClick = { item ->
+                                recordBrowseSearch(item)
+                                openBrowseItem(item)
+                            },
+                            history = searchHistory,
+                            // The typed text leads the list, put there by the keystroke rather than
+                            // taken from the response — the page drops it, as the phone's does.
+                            suggestions = if (searchTyping && query.isNotBlank()) {
+                                listOf(query) +
+                                    searchSuggestions.filterNot { it.equals(query, ignoreCase = true) }
+                            } else {
+                                emptyList()
+                            },
+                            typeaheadResults = if (searchTyping && query.isNotBlank()) searchTypeahead else emptyList(),
+                            onSubmit = ::search,
+                            onSuggestionClick = ::runSearch,
+                            onHistoryClick = { entity ->
+                                // Going back to a recent does not record it again, as on the phone.
+                                when (entity.entityType) {
+                                    EntityType.TRACK -> playSong(
+                                        Song(
+                                            videoId = entity.id,
+                                            title = entity.title,
+                                            artist = entity.subtitle,
+                                            thumbnailUrl = entity.artworkUrl,
+                                        ),
+                                        source = DesktopQueueSource(entity.title, PlaybackSourceType.SEARCH),
+                                    )
+                                    EntityType.ARTIST -> openArtist(entity.id, entity.title)
+                                    EntityType.ALBUM, EntityType.PLAYLIST -> openBrowseItem(
+                                        BrowseItem(
+                                            browseId = entity.id,
+                                            title = entity.title,
+                                            subtitle = entity.subtitle,
+                                            thumbnailUrl = entity.artworkUrl,
+                                            type = if (entity.entityType == EntityType.ALBUM) BrowseType.ALBUM else BrowseType.PLAYLIST,
+                                        ),
+                                    )
+                                }
+                            },
+                            onHistoryRemove = DesktopSearchHistory::remove,
+                            onHistoryClear = DesktopSearchHistory::clear,
+                            onTypeaheadLongPress = ::openMenu,
+                            contentPadding = sharedPagePadding,
+                            topPadding = 0.dp,
+                            showField = false,
+                            // YouTube Music or the add-ons, as on the phone (the desktop's library has its own page and search).
+                            sourceSwitcher = {
+                                com.cosmotune.ui.components.CosmoSegmented(
+                                    options = listOf(
+                                        DesktopStrings["search_source_youtube", "YouTube"],
+                                        DesktopStrings["search_source_addons", "Addons"],
+                                    ),
+                                    selectedIndex = if (searchAddons) 1 else 0,
+                                    onSelect = { index ->
+                                        val addons = index == 1
+                                        if (addons != searchAddons) {
+                                            searchAddons = addons
+                                            DesktopSearchIn.select(if (addons) DesktopSearchIn.lastAddonChoice else AddonSearch.YOUTUBE)
+                                            searchSuggestions = emptyList()
+                                            searchTypeahead = emptyList()
+                                            searchScrollReset++
+                                            if (query.isNotBlank()) search()
+                                        }
+                                    },
+                                )
+                            },
+                            searchingAddons = searchAddons,
+                            addonResults = addonResults,
+                            addonHistory = addonHistory,
+                            onAddonHistoryClick = ::runSearch,
+                            onAddonHistoryRemove = DesktopAddonSearchHistory::remove,
+                            onAddonHistoryClear = DesktopAddonSearchHistory::clear,
+                            onAddonSongClick = { songs, index ->
+                                // The add-on's own stream for the row, the other results queued behind it.
+                                playSongs(songs, index, source = DesktopQueueSource(DesktopStrings["search_source_addons", "Addons"], PlaybackSourceType.BROWSE, "addons:search"))
+                            },
+                            // "Search in": All, YouTube Music and every installed source, remembered between launches.
+                            searchIn = com.cosmotune.ui.search.rememberSearchInState(
+                                sources = { DesktopSourceRegistry.addonSearchSources() },
+                                selected = if (searchAddons) searchInChoice else AddonSearch.YOUTUBE,
+                                onSelect = { choice ->
+                                    DesktopSearchIn.select(choice)
+                                    val addons = choice != AddonSearch.YOUTUBE
+                                    searchSuggestions = emptyList()
+                                    searchTypeahead = emptyList()
+                                    searchScrollReset++
+                                    searchAddons = addons
+                                    if (query.isNotBlank()) search()
+                                },
+                                progress = addonSearchProgress,
+                            ),
+                            browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { selectDestination(DesktopDestination.EXPLORE); openMoodGenre(it) }, onRetry = { exploreReloads++ }),
+                        )
+                        destination == DesktopDestination.LIBRARY && libraryShowAll != null -> Column(Modifier.fillMaxSize()) {
+                            // The phone keeps the grid's sort beside it, in the bar above; here it sits
+                            // at the end of the row the way back is on.
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 8.dp, end = 12.dp),
+                                horizontalArrangement = Arrangement.End,
+                            ) { DesktopLibrarySortMenu() }
+                            spotifyLibraryStatus?.takeIf { libraryShowAll?.title == SPOTIFY_SHELF }?.let { status ->
+                                Text(
+                                    status,
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
+                                )
+                            }
+                            com.cosmotune.ui.library.LibraryGridSwitch(
+                                shelf = libraryShowAll!!,
+                                gridState = libraryGridState,
+                                onItemClick = ::openLibraryItem,
+                                onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) else if (item.browseId != null) libraryActionTarget = item },
+                                contentPadding = PaddingValues(bottom = sharedPagePadding.calculateBottomPadding()),
+                                modifier = Modifier.weight(1f),
+                                onNewPlaylist = { overlays.playlistDialog = true }
+                                    .takeIf { libraryShowAll?.title == PLAYLISTS_SHELF },
+                            )
+                        }
+                        destination == DesktopDestination.LIBRARY -> com.cosmotune.ui.library.LibrarySwitch(
+                            signedIn = youtubeSignedIn,
+                            state = libraryState,
+                            listState = libraryListState,
+                            onShelfItemClick = ::openLibraryItem,
+                            onShelfItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) else if (item.browseId != null) libraryActionTarget = item },
+                            onNewPlaylist = { overlays.playlistDialog = true },
+                            onImportSpotifyPlaylist = { spotifyImportOpen = true },
+                            onShowAll = { shelf -> libraryShowAll = shelf },
+                            replay = {
+                                // The phone's wallet of Replay cards, or nothing until there is
+                                // listening to deal them from.
+                                val cards = remember(replaySummary) { replaySummary.heroCards() }
+                                if (!replaySummary.isEmpty && cards.isNotEmpty()) {
+                                    ShelfRow(
+                                        modifier = Modifier.padding(vertical = 6.dp),
+                                        contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    ) {
+                                        items(cards, key = { it.label }) { card ->
+                                            ReplayCreditCard(
+                                                label = card.label,
+                                                value = card.value,
+                                                detail = card.detail,
+                                                artworkUrl = card.artworkUrl,
+                                                holder = replayHolder,
+                                                memberSince = replaySummary.memberSince(),
+                                                onClick = { overlays.replay = true },
+                                                modifier = Modifier.width(300.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            onSignIn = { overlays.accounts = true },
+                            onRetry = ::reloadLibrary,
+                            refreshing = false,
+                            onRefresh = ::reloadLibrary,
+                            pullState = rememberPullToRefreshState(),
+                            contentPadding = sharedPagePadding,
+                            links = libraryLinks,
+                            deviceItems = libraryDeviceItems,
+                            showTitle = false,
+                        )
+                        destination == DesktopDestination.HISTORY -> DesktopHistoryPage(
+                            // The account's history when there is one, and what
+                            // this computer played when there is not.
+                            history = remoteHistory.ifEmpty { history },
+                            onSongClick = { playSong(it, source = DesktopQueueSource(DesktopStrings["history", "History"], PlaybackSourceType.HISTORY)) },
+                            onDownload = ::downloadSong,
+                            onAddToPlaylist = { playlistTarget = it },
+                            downloadedIds = downloads.map(Song::videoId).toSet(),
+                            downloadInProgress = downloadInProgress,
+                            contentPadding = contentPadding,
+                            menu = { song -> songMenu(song) },
+                        )
+                        destination == DesktopDestination.DOWNLOADS -> Box(Modifier.fillMaxSize()) {
+                            DesktopDownloadsPage(
+                                downloads = downloads,
+                                onFindMusic = { selectDestination(DesktopDestination.SEARCH) },
+                                onSongClick = { playSong(it, source = DesktopQueueSource(DesktopStrings["downloads", "Downloads"], PlaybackSourceType.BROWSE)) },
+                                contentPadding = contentPadding,
+                                menu = { song -> songMenu(song) },
+                            )
+                            // Only while there is a queue to look at.
+                            if (downloadInProgress.isNotEmpty()) {
+                                DesktopActionButton(
+                                    "Queue · ${downloadInProgress.size}",
+                                    CosmotuneIcons.Download,
+                                    onClick = { overlays.downloadManager = true },
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(end = 28.dp, bottom = 28.dp + contentPadding.calculateBottomPadding()),
+                                )
+                            }
+                        }
+                        destination == DesktopDestination.LOCAL_MUSIC -> DesktopLocalMusicPage(
+                            songs = localSongs,
+                            onSongClick = { playSong(it, source = DesktopQueueSource(DesktopStrings["local_music", "Local Music"], PlaybackSourceType.BROWSE)) },
+                            contentPadding = contentPadding,
+                            menu = { song -> songMenu(song) },
+                        )
+                    }
+                }
+                }
+
+            }
+        }
+        }
+    }
+
+}
+
+@Composable
+private fun DesktopTopBar(
+    compact: Boolean,
+    song: Song?,
+    isPlaying: Boolean,
+    isLoading: Boolean,
+    previousEnabled: Boolean,
+    progress: Float,
+    volume: Float,
+    shuffle: Boolean,
+    repeatMode: DesktopRepeatMode,
+    onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onShuffleChange: (Boolean) -> Unit,
+    onRepeatModeChange: (DesktopRepeatMode) -> Unit,
+    onOpenNowPlaying: () -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    onOpenAudioOutput: () -> Unit,
+    onOpenLyrics: () -> Unit,
+    onOpenQueue: () -> Unit,
+    /** Which of the two the column beside the page is showing, lit on its button. */
+    sidePanel: DesktopSidePanel?,
+    accountAvatar: String?,
+    onOpenAccounts: () -> Unit,
+    /** The app's one way back — every page's own arrow was folded into this. */
+    canGoBack: Boolean,
+    onBack: () -> Unit,
+) {
+    val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
+    val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
+    // The same beat clock the player's scrubber runs, so this line and the player breathe
+    // together through an Automix blend.
+    val mixBlend = DesktopPlayerSettings.smartMixBlend.collectAsState()
+    val reduceAnimation by DesktopPlayerSettings.reduceAnimation.collectAsState()
+    val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation)
+    val currentProgress by rememberUpdatedState(progress)
+
+    // Apple Music uses one calm strip for both player controls and window furniture. The left
+    // sidebar owns the traffic lights; the rest is a balanced transport / now-playing / utility
+    // layout with deliberately smaller glyphs than the phone player.
+    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(64.dp)) {
+        Box(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            // The window's own buttons live at the head of the sidebar; a compact window has no
+            // sidebar, so there they lead this bar instead.
+            if (compact && inlineCaption) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .desktopWindowGlass(DesktopChromeEdge.BOTTOM)
+                        .padding(start = if (DesktopPlatform.isMac) 16.dp else 10.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    DesktopWindowButtons()
+                }
+            }
+            Row(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .desktopWindowGlass(DesktopChromeEdge.BOTTOM)
+                    .padding(start = 14.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // The mark leads the player's own controls, now that the sidebar runs to the top.
+                Image(
+                    painter = painterResource(Res.drawable.logo_mark),
+                    contentDescription = "Cosmotune",
+                    modifier = Modifier.size(width = 28.dp, height = 18.dp),
+                )
+                Spacer(Modifier.width(14.dp))
+                DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        DesktopStrings["back", "Back"],
+                        tint = if (canGoBack) Color.White else DesktopSecondary.copy(alpha = 0.40f),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
+                if (!compact) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(0.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 32.dp) {
+                            Icon(
+                                CosmotuneIcons.Shuffle,
+                                DesktopStrings["shuffle", "Shuffle"],
+                                tint = if (shuffle) DesktopAccent else DesktopSecondary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 32.dp) {
+                            Icon(
+                                Icons.Rounded.FastRewind,
+                                DesktopStrings["widget_previous", "Previous"],
+                                tint = if (previousEnabled) Color.White else DesktopSecondary.copy(alpha = 0.40f),
+                                modifier = Modifier.size(21.dp),
+                            )
+                        }
+                        DesktopToolbarButton(onClick = onPlayPause, size = 32.dp) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Icon(
+                                    if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                    if (isPlaying) "Pause" else "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(23.dp),
+                                )
+                            }
+                        }
+                        DesktopToolbarButton(onClick = onNext, size = 32.dp) {
+                            Icon(
+                                Icons.Rounded.FastForward,
+                                DesktopStrings["widget_next", "Next"],
+                                tint = Color.White,
+                                modifier = Modifier.size(21.dp),
+                            )
+                        }
+                        DesktopToolbarButton(
+                            onClick = { onRepeatModeChange(repeatMode.next()) },
+                            size = 32.dp,
+                        ) {
+                            val tint = if (repeatMode != DesktopRepeatMode.OFF) DesktopAccent else DesktopSecondary
+                            if (repeatMode == DesktopRepeatMode.ONE) {
+                                Text(
+                                    "1",
+                                    color = tint,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.semantics { contentDescription = "Repeat one" },
+                                )
+                            } else {
+                                Icon(
+                                    CosmotuneIcons.Repeat,
+                                    "Repeat ${repeatMode.label()}",
+                                    tint = tint,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
+
+                    Box(
+                        Modifier.weight(1f).padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .widthIn(min = 300.dp, max = 520.dp)
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(CosmoRadii.rXs))
+                                .clip(RoundedCornerShape(CosmoRadii.rXs))
+                                .clickable(onClick = onOpenNowPlaying),
+                            color = Color(0xFF323236),
+                            tonalElevation = 0.dp,
+                        ) {
+                            Box(Modifier.fillMaxSize()) {
+                                if (song == null) {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            CosmotuneIcons.MusicNote,
+                                            DesktopStrings["playback_channel_name", "Now playing"],
+                                            tint = DesktopSecondary.copy(alpha = 0.65f),
+                                            modifier = Modifier.size(21.dp),
+                                        )
+                                    }
+                                } else {
+                                    Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                                        DesktopArtwork(
+                                            song.thumbnailUrl,
+                                            Modifier.size(44.dp).clip(RoundedCornerShape(CosmoRadii.rXs)),
+                                            px = ROW_ART_PX,
+                                        )
+                                        Column(
+                                            Modifier.weight(1f).padding(start = 12.dp, end = 56.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                        ) {
+                                            Text(
+                                                song.title,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.SemiBold,
+                                            )
+                                            Text(
+                                                song.artist,
+                                                color = DesktopSecondary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                        }
+                                    }
+                                    // Drawn rather than sized: through a blend the line covers
+                                    // the full width and pulses on the beat, as the player's
+                                    // scrubber does, and reading either in draw keeps the frame
+                                    // clock from recomposing the whole bar.
+                                    Box(
+                                        Modifier
+                                            .align(Alignment.BottomStart)
+                                            .padding(start = 44.dp)
+                                            .fillMaxWidth()
+                                            .height(2.dp)
+                                            .drawBehind {
+                                                val base = currentProgress.coerceIn(0f, 1f)
+                                                val fraction = base + (1f - base) * mixPulse.cover
+                                                drawRect(
+                                                    color = Color.White.copy(alpha = mixPulse.alpha(0.48f)),
+                                                    size = Size(size.width * fraction, size.height),
+                                                )
+                                            },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(1.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Rounded.VolumeUp,
+                        DesktopStrings["d_volume", "Volume"],
+                        tint = DesktopSecondary,
+                        modifier = Modifier.size(17.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    DesktopThinSlider(
+                        value = volume,
+                        onValueChange = onVolumeChange,
+                        idleHeight = 4.dp,
+                        activeHeight = 8.dp,
+                        modifier = Modifier.width(78.dp),
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    DesktopToolbarButton(onClick = onOpenAudioOutput, size = 32.dp) {
+                        Icon(
+                            Icons.Rounded.Headphones,
+                            DesktopStrings["audio_output", "Audio output"],
+                            tint = DesktopSecondary,
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                    DesktopToolbarButton(onClick = onOpenLyrics, size = 32.dp) {
+                        Icon(
+                            CosmotuneIcons.LyricsQuote,
+                            DesktopStrings["lyrics", "Lyrics"],
+                            tint = if (sidePanel == DesktopSidePanel.LYRICS) Color.White else DesktopSecondary,
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                    DesktopToolbarButton(onClick = onOpenQueue, size = 32.dp) {
+                        Icon(
+                            CosmotuneIcons.Queue,
+                            DesktopStrings["queue", "Queue"],
+                            tint = if (sidePanel == DesktopSidePanel.QUEUE) Color.White else DesktopSecondary,
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                    // The joined room, one click away from any page (the new look keeps it in its own top bar).
+                    com.cosmotune.ui.room.LocalRoomLauncher.current?.takeIf { it.inRoom }?.let { launcher ->
+                        com.cosmotune.ui.room.RoomEntryButton(launcher, compact = true)
+                    }
+                    DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
+                }
+            }
+            }
+            HorizontalDivider(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                thickness = 1.dp,
+                color = desktopChromeDivider(),
+            )
+        }
+    }
+}
+
+@Composable
+internal fun DesktopToolbarButton(
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    size: Dp = 36.dp,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        Modifier
+            .size(size)
+            .clip(CircleShape)
+            .desktopHoverWash()
+            .clickable(
+                enabled = enabled,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun DesktopSidebar(
+    destination: DesktopDestination,
+    settingsOpen: Boolean,
+    accountPlaylists: List<ShelfItem>,
+    localPlaylists: List<DesktopPlaylist>,
+    openedCollectionId: String?,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onDestinationSelected: (DesktopDestination) -> Unit,
+    onOpenAccountPlaylist: (ShelfItem) -> Unit,
+    onOpenLocalPlaylist: (DesktopPlaylist) -> Unit,
+    onOpenSettings: () -> Unit,
+    /** Search was picked: the sidebar's box is the page's field, so it takes the focus. */
+    focusSearch: Boolean,
+    onSearchFocused: () -> Unit,
+) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopSidebar(
+        nav = listOf(
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Home, com.cosmotune.ui.components.CosmoIcons.HomeFill, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW, onClick = { onDestinationSelected(DesktopDestination.LISTEN_NOW) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Explore, com.cosmotune.ui.components.CosmoIcons.ExploreFill, org.jetbrains.compose.resources.stringResource(SharedRes.string.explore), destination == DesktopDestination.EXPLORE, onClick = { onDestinationSelected(DesktopDestination.EXPLORE) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Bell, com.cosmotune.ui.components.CosmoIcons.BellFill, org.jetbrains.compose.resources.stringResource(SharedRes.string.cosmo_releases), destination == DesktopDestination.RELEASES, onClick = { onDestinationSelected(DesktopDestination.RELEASES) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.LibraryFill, DesktopStrings["library", "Library"], destination == DesktopDestination.LIBRARY, onClick = { onDestinationSelected(DesktopDestination.LIBRARY) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Clock, com.cosmotune.ui.components.CosmoIcons.Clock, DesktopStrings["history", "History"], destination == DesktopDestination.HISTORY, onClick = { onDestinationSelected(DesktopDestination.HISTORY) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Download, com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings["downloads", "Downloads"], destination == DesktopDestination.DOWNLOADS, aside = DesktopDownloadQueue.active.collectAsState().value.size.takeIf { it > 0 }?.toString(), onClick = { onDestinationSelected(DesktopDestination.DOWNLOADS) }),
+            com.cosmotune.desktop.CosmoDesktopNavItem(com.cosmotune.ui.components.CosmoIcons.Library, com.cosmotune.ui.components.CosmoIcons.Library, DesktopStrings["local_music", "Local Music"], destination == DesktopDestination.LOCAL_MUSIC, onClick = { onDestinationSelected(DesktopDestination.LOCAL_MUSIC) }),
+        ),
+        playlists = com.cosmotune.desktop.cosmoSidebarPlaylists(accountPlaylists, localPlaylists, openedCollectionId, onOpenAccountPlaylist, onOpenLocalPlaylist),
+        settingsSelected = settingsOpen,
+        onOpenSettings = onOpenSettings,
+        query = query,
+        onQueryChange = onQueryChange,
+        onSearch = onSearch,
+        focusSearch = focusSearch,
+        onSearchFocused = onSearchFocused,
+    )
+    val searchFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(focusSearch) {
+        if (focusSearch) {
+            runCatching { searchFocusRequester.requestFocus() }
+            onSearchFocused()
+        }
+    }
+    val windowInfo = LocalWindowInfo.current
+    var searchFocused by remember { mutableStateOf(false) }
+    var restoreSearchFocus by remember { mutableStateOf(false) }
+
+    LaunchedEffect(windowInfo.isWindowFocused) {
+        if (!windowInfo.isWindowFocused) {
+            restoreSearchFocus = searchFocused
+        } else if (restoreSearchFocus) {
+            // Let the desktop window finish its activation before asking Compose to put the native
+            // text input target back in focus.
+            yield()
+            searchFocusRequester.requestFocus()
+            restoreSearchFocus = false
+        }
+    }
+
+    val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
+    val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
+    Box(
+        Modifier
+            .width(220.dp)
+            .fillMaxHeight()
+            .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            // The sidebar runs to the top of the window, so its head is the window's caption: the
+            // three buttons, and room to take hold of the window by.
+            if (inlineCaption) {
+                DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(SIDEBAR_CAPTION_HEIGHT)) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(start = if (DesktopPlatform.isMac) 16.dp else 10.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        DesktopWindowButtons()
+                    }
+                }
+            }
+        Column(
+            Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp, bottom = 16.dp),
+        ) {
+            DesktopSearchField(
+                query = query,
+                onQueryChange = onQueryChange,
+                onSearch = onSearch,
+                focusRequester = searchFocusRequester,
+                onFocusChanged = { searchFocused = it },
+            )
+            Spacer(Modifier.height(20.dp))
+            DesktopSidebarItem(CosmotuneIcons.Home, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW) {
+                onDestinationSelected(DesktopDestination.LISTEN_NOW)
+            }
+            DesktopSidebarItem(CosmotuneIcons.Explore, "Explore", destination == DesktopDestination.EXPLORE) {
+                onDestinationSelected(DesktopDestination.EXPLORE)
+            }
+            DesktopSidebarItem(CosmotuneIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
+                onDestinationSelected(DesktopDestination.LIBRARY)
+            }
+            DesktopSidebarItem(CosmotuneIcons.Search, "Search", destination == DesktopDestination.SEARCH) {
+                onDestinationSelected(DesktopDestination.SEARCH)
+            }
+            Spacer(Modifier.height(6.dp))
+            HorizontalDivider(color = desktopChromeDivider())
+            Spacer(Modifier.height(12.dp))
+            DesktopSidebarItem(CosmotuneIcons.Clock, "History", destination == DesktopDestination.HISTORY) {
+                onDestinationSelected(DesktopDestination.HISTORY)
+            }
+            val queued by DesktopDownloadQueue.active.collectAsState()
+            DesktopSidebarItem(
+                CosmotuneIcons.Download,
+                if (queued.isEmpty()) "Downloads" else "Downloads · ${queued.size}",
+                destination == DesktopDestination.DOWNLOADS,
+            ) {
+                onDestinationSelected(DesktopDestination.DOWNLOADS)
+            }
+            DesktopSidebarItem(CosmotuneIcons.Library, "Local Music", destination == DesktopDestination.LOCAL_MUSIC) {
+                onDestinationSelected(DesktopDestination.LOCAL_MUSIC)
+            }
+            Spacer(Modifier.height(6.dp))
+            HorizontalDivider(color = desktopChromeDivider())
+            Spacer(Modifier.height(12.dp))
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(bottom = 8.dp),
+            ) {
+                items(accountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
+                    DesktopSidebarItem(
+                        Icons.AutoMirrored.Rounded.PlaylistPlay,
+                        playlist.title,
+                        openedCollectionId == playlist.browseId,
+                    ) { onOpenAccountPlaylist(playlist) }
+                }
+                items(localPlaylists, key = { "local:${it.id}" }) { playlist ->
+                    DesktopSidebarItem(
+                        Icons.AutoMirrored.Rounded.PlaylistPlay,
+                        playlist.title,
+                        openedCollectionId == playlist.id,
+                    ) { onOpenLocalPlaylist(playlist) }
+                }
+                if (accountPlaylists.isEmpty() && localPlaylists.isEmpty()) {
+                    item {
+                        Text(
+                            "Your playlists will appear here",
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
+                            color = DesktopSecondary.copy(alpha = 0.68f),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(color = desktopChromeDivider())
+            Spacer(Modifier.height(8.dp))
+            DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen) {
+                onOpenSettings()
+            }
+        }
+        }
+        Box(
+            Modifier
+                .align(Alignment.CenterEnd)
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(desktopChromeDivider()),
+        )
+    }
+}
+
+@Composable
+private fun DesktopSidebarItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CosmoRadii.rSm))
+            .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, label, tint = if (selected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            label,
+            color = if (selected) Color.White else DesktopSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun DesktopBottomChrome(
+    compact: Boolean,
+    destination: DesktopDestination,
+    song: Song?,
+    isPlaying: Boolean,
+    onDestinationSelected: (DesktopDestination) -> Unit,
+    onExpand: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (compact && song != null) {
+            DesktopMiniPlayer(
+                song = song,
+                isPlaying = isPlaying,
+                onExpand = onExpand,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
+            )
+        }
+        DesktopFloatingNavigation(destination, onDestinationSelected)
+    }
+}
+
+@Composable
+private fun DesktopFloatingNavigation(
+    destination: DesktopDestination,
+    onDestinationSelected: (DesktopDestination) -> Unit,
+) {
+    val tabs = listOf(
+        DesktopDestination.LISTEN_NOW to (CosmotuneIcons.Play to "Play"),
+        DesktopDestination.EXPLORE to (CosmotuneIcons.Explore to "Explore"),
+        DesktopDestination.LIBRARY to (CosmotuneIcons.Library to "Library"),
+        DesktopDestination.SEARCH to (CosmotuneIcons.Search to "Search"),
+    )
+    val selected = tabs.firstOrNull { it.first == destination }?.first ?: DesktopDestination.LIBRARY
+    val shape = RoundedCornerShape(percent = 50)
+    Surface(
+        modifier = Modifier
+            .widthIn(max = 440.dp)
+            .fillMaxWidth()
+            .clip(shape)
+            .desktopBarGlass(shape),
+        shape = shape,
+        color = Color.Transparent,
+        tonalElevation = 0.dp,
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            tabs.forEach { (item, iconAndLabel) ->
+                val isSelected = item == selected
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(if (isSelected) DesktopAccent.copy(alpha = 0.18f) else Color.Transparent)
+                        .clickable { onDestinationSelected(item) }
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(iconAndLabel.first, iconAndLabel.second, tint = if (isSelected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(20.dp))
+                    Text(iconAndLabel.second, color = if (isSelected) Color.White else DesktopSecondary, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DesktopMiniPlayer(
+    song: Song,
+    isPlaying: Boolean,
+    onExpand: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+) {
+    val shape = RoundedCornerShape(percent = 50)
+    Row(
+        Modifier
+            .widthIn(max = 440.dp)
+            .fillMaxWidth()
+            .clip(shape)
+            .desktopBarGlass(shape)
+            .clickable(onClick = onExpand)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DesktopArtwork(song.thumbnailUrl, Modifier.size(40.dp).clip(RoundedCornerShape(CosmoRadii.rSm)), px = ROW_ART_PX)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+            Text(song.artist, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        IconButton(onClick = onPlayPause) {
+            Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (isPlaying) "Pause" else "Play", tint = Color.White)
+        }
+        IconButton(onClick = onNext) {
+            Icon(Icons.Rounded.FastForward, DesktopStrings["widget_next", "Next"], tint = Color.White)
+        }
+    }
+}
+
+@Composable
+internal fun DesktopSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester = remember { FocusRequester() },
+    onFocusChanged: (Boolean) -> Unit = {},
+    placeholder: String = "Search",
+) {
+    val searchShape = RoundedCornerShape(CosmoRadii.rSm)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .clip(searchShape)
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), searchShape)
+            .clickable { focusRequester.requestFocus() }
+            .padding(horizontal = 9.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .onFocusChanged { onFocusChanged(it.isFocused) }
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+                        onSearch()
+                        true
+                    } else {
+                        false
+                    }
+                },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+            cursorBrush = SolidColor(DesktopAccent),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+            decorationBox = { innerTextField ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        CosmotuneIcons.Search,
+                        contentDescription = null,
+                        tint = DesktopSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1f)) {
+                        if (query.isBlank()) {
+                            Text(placeholder, color = DesktopSecondary, maxLines = 1)
+                        }
+                        innerTextField()
+                    }
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun DesktopFrame(
+    containerColor: Color,
+    modifier: Modifier = Modifier,
+    /**
+     * The open page's own colours, painted across the whole window rather than only the content
+     * area, so the title bar, top bar and sidebar take their tint from the page they are framing
+     * instead of staying a flat slab beside it.
+     */
+    /** Receives true when its solid base should be left clear for the system material. */
+    backdrop: @Composable (transparentBase: Boolean) -> Unit,
+    topBar: @Composable (Boolean) -> Unit,
+    sidebar: @Composable () -> Unit,
+    bottomBar: @Composable (Boolean) -> Unit,
+    /** The column on the far side of the page — the lyrics or the queue, when one is open. */
+    trailing: @Composable () -> Unit = {},
+    overlay: @Composable () -> Unit = {},
+    /** Drawn in place of [content] while set, with the same padding: a page that stands over whichever mode is showing. */
+    page: (@Composable (PaddingValues) -> Unit)? = null,
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    // Held out here rather than inside the constraints box.
+    val haze = remember { HazeState() }
+    // With a system material active, the window stays clear under its chrome. The app-background
+    // preference decides whether the page and side column also stay clear or retain their solid
+    // gray ground.
+    val material by DesktopWindowBackdrop.active.collectAsState()
+    val appBackground by DesktopWindowBackdrop.appBackground.collectAsState()
+    val glass = material != DesktopBackdrop.OFF
+    val materialBehindApp = glass && appBackground
+    // The new look draws its own ambient ground behind the sidebar, the top bar, the page and the side column whatever the window's
+    // material is, so none of them stands on the raw material or on a flat slab; the material shows through under the title bar only.
+    val cosmoGround = com.cosmotune.ui.theme.LocalCosmoShell.current != null
+    val maximized by DesktopWindowMode.maximized.collectAsState()
+    val roundCorners = DesktopPlatform.isMac && !maximized
+    CompositionLocalProvider(LocalDesktopHaze provides haze) {
+        Box(
+            modifier
+                .fillMaxSize()
+                .then(if (roundCorners) Modifier.clip(RoundedCornerShape(CosmoRadii.rSm)) else Modifier)
+                .then(if (glass) Modifier else Modifier.background(containerColor)),
+        ) {
+            // Both sources of the same state: the chrome blurs the backdrop behind it, and the
+            // floating bottom bar blurs the page scrolling under it.
+            if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
+            Column(Modifier.fillMaxSize()) {
+                // Above everything, and outside the box the rest of the window is drawn in, because
+                // that is what a title bar is.
+                DesktopTitleBar()
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                    // With a material the new look's ground lies here, below the title bar (without one, the window's own ground above is it).
+                    if (glass && cosmoGround) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val compact = maxWidth < 980.dp
+                        // The sidebar runs the full height of the window, its head the window's
+                        // caption; the player's bar and the page share the column beside it.
+                        Row(Modifier.fillMaxSize()) {
+                            if (!compact) sidebar()
+                            Column(Modifier.weight(1f).fillMaxHeight()) {
+                            topBar(compact)
+                            Row(Modifier.fillMaxWidth().weight(1f)) {
+                                Box(
+                                    Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .then(
+                                            if (glass && !materialBehindApp && !cosmoGround) {
+                                                Modifier.background(containerColor)
+                                            } else {
+                                                Modifier
+                                            },
+                                        ),
+                                ) {
+                                    Box(Modifier.fillMaxSize().hazeSource(haze)) {
+                                        if (glass && !cosmoGround) backdrop(materialBehindApp)
+                                        (page ?: content)(
+                                            PaddingValues(
+                                                start = 0.dp,
+                                                end = 0.dp,
+                                                // Room for the bar that floats over this, so the
+                                                // last row can still be scrolled clear of it.
+                                                bottom = when {
+                                                    com.cosmotune.ui.theme.LocalCosmoShell.current != null ->
+                                                        com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp
+                                                    compact -> 128.dp
+                                                    else -> 16.dp
+                                                },
+                                            ),
+                                        )
+                                    }
+                                    if (compact) {
+                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(true) }
+                                    }
+                                }
+                                Box(
+                                    Modifier
+                                        .fillMaxHeight()
+                                        .then(
+                                            if (glass && !materialBehindApp && !cosmoGround) {
+                                                Modifier.background(containerColor)
+                                            } else {
+                                                Modifier
+                                            },
+                                        ),
+                                ) { trailing() }
+                            }
+                            }
+                        }
+                    }
+                    overlay()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * What [DesktopFrame] paints behind the window.
+ *
+ * [artworkUrl] is the page's lead artwork when it has one, and the mesh built from it is laid under
+ * ink so a page of text stays readable over it.
+ */
+@Composable
+private fun DesktopPageBackdrop(artworkUrl: String?, transparentBase: Boolean) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .then(if (transparentBase) Modifier else Modifier.background(DesktopBackground)),
+    ) {
+        if (artworkUrl == null) return@Box
+        DesktopMesh(artworkUrl)
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.Black.copy(alpha = 0.30f),
+                        Color.Black.copy(alpha = 0.72f),
+                        Color.Black.copy(alpha = 0.88f),
+                    ),
+                ),
+            ),
+        )
+    }
+}
+
+/** What the mesh is averaged from — coarse by design. */
+/** Whether AutoPlay may offer a song this session has already played or suggested. */
+internal const val KEY_DONT_REPEAT_SUGGESTIONS = "dont_repeat_suggestions"
+
+internal const val KEY_LIBRARY_SORT = "library_sort"
+
+private const val MESH_SOURCE_PX = 120
+
+
+
+/** Enough to scroll through, short of turning the shelf into the history page. */
+/** The Library's "On device" cards — the phone's ids for the two folders, so their cards draw alike. */
+private const val LOCAL_DOWNLOADS_ID = "local:downloads"
+private const val LOCAL_MUSIC_ID = "local:all"
+private const val LOCAL_PLAYLIST_PREFIX = "desktop-playlist:"
+
+
+
+/**
+ * An artist: their picture, the numbers under it, their top songs, and the carousels of what they
+ * have released.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DesktopArtistPage(
+    state: UiState<ArtistPage>,
+    fallbackName: String,
+    onRetry: () -> Unit,
+    onPlaySongs: (List<Song>, Int) -> Unit,
+    onShuffle: (List<Song>) -> Unit,
+    /** The ⋮ on a top song, or a right-click on it. */
+    onOpenMenu: (Song) -> Unit,
+    onShelfItemClick: (ShelfItem, String?) -> Unit,
+    /** Null for a guest: a channel subscription is the account's. */
+    onToggleSubscription: ((SubscriptionState) -> Unit)?,
+    contentPadding: PaddingValues,
+) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopArtistPage(state = state, fallbackName = fallbackName, onRetry = onRetry, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onOpenMenu = onOpenMenu, onShelfItemClick = onShelfItemClick, onToggleSubscription = onToggleSubscription, contentPadding = contentPadding, nowPlaying = LocalNowPlaying.current)
+    DesktopPageScaffold(contentPadding) {
+        when (state) {
+            UiState.Loading -> Box(Modifier.fillMaxSize()) {
+                DesktopLoadingPage("Loading $fallbackName…")
+            }
+            is UiState.Error -> Box(Modifier.fillMaxSize()) {
+                DesktopErrorPage(state.message, onRetry)
+            }
+            is UiState.Success -> {
+                val artist = state.data
+                val name = artist.name?.takeIf(String::isNotBlank) ?: fallbackName
+                val visuals = com.cosmotune.ui.pages.rememberArtistVisuals(name)
+                val palette = rememberDesktopArtworkPalette(artist.thumbnailUrl)
+                // Android caps the top-songs block and pages it sideways so the release shelves are
+                // not buried under a hundred rows.
+                val top = artist.songs.take(MAX_ARTIST_SONGS)
+                Box(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        contentPadding = pagePadding(bottom = 32.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        item(key = "artist-header") {
+                            DesktopArtistBanner(artist.thumbnailUrl, name, palette, visuals.art)
+                        }
+                        if (artist.subscriberCountText != null || artist.monthlyListenerCount != null) {
+                            item(key = "artist-stats") {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = DesktopPageGutter, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    // YouTube's own text already reads "1.2M subscribers" in full,
+                                    // so only the number is kept and the label re-said in the app's
+                                    // words.
+                                    artist.subscriberCountText?.let {
+                                        DesktopStatChip(Icons.Rounded.Person, "${it.substringBefore(' ')} subscribers")
+                                    }
+                                    artist.monthlyListenerCount?.let {
+                                        DesktopStatChip(Icons.Rounded.GraphicEq, "${it.substringBefore(' ')} monthly listeners")
+                                    }
+                                }
+                            }
+                        }
+                        item(key = "artist-actions") {
+                            // The phone's artist controls: subscribing first, where saving sits on a
+                            // release, then the labelled Play pill and Shuffle.
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = DesktopPageGutter, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                val subscription = artist.subscription
+                                if (subscription != null && onToggleSubscription != null) {
+                                    DesktopCircleButton(
+                                        if (subscription.subscribed) CosmotuneIcons.Check else CosmotuneIcons.Plus,
+                                        if (subscription.subscribed) {
+                                            DesktopStrings["unsubscribe", "Unsubscribe"]
+                                        } else {
+                                            DesktopStrings["subscribe", "Subscribe"]
+                                        },
+                                        onClick = { onToggleSubscription(subscription) },
+                                    )
+                                }
+                                DesktopPlayPill(
+                                    label = DesktopStrings["play", "Play"],
+                                    onClick = { if (top.isNotEmpty()) onPlaySongs(top, 0) },
+                                )
+                                DesktopCircleButton(CosmotuneIcons.Shuffle, DesktopStrings["shuffle", "Shuffle"], onClick = { onShuffle(top) })
+                            }
+                        }
+                        artist.description?.takeIf(String::isNotBlank)?.let { blurb ->
+                            item(key = "artist-about") {
+                                Column(Modifier.padding(top = 16.dp)) {
+                                    SectionTitle(DesktopStrings["d_about_artist", "About artist"])
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        blurb,
+                                        color = DesktopSecondary,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(horizontal = DesktopPageGutter),
+                                    )
+                                }
+                            }
+                        }
+                        if (top.isNotEmpty()) {
+                            // Paged sideways four to a column, the way Home lists Recents.
+                            item(key = "artist-top-songs") {
+                                Column(Modifier.padding(top = 20.dp, bottom = 6.dp)) {
+                                    SectionTitle(DesktopStrings["top_songs", "Top songs"])
+                                    Spacer(Modifier.height(8.dp))
+                                    BoxWithConstraints {
+                                        val columnWidth = trackColumnWidth(maxWidth)
+                                        ShelfRow(
+                                            contentPadding = PaddingValues(horizontal = DesktopPageGutter),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        ) {
+                                            items(top.withIndex().chunked(ARTIST_SONGS_PER_COLUMN)) { column ->
+                                                Column(Modifier.width(columnWidth)) {
+                                                    column.forEach { (index, song) ->
+                                                        CompactTrackRow(
+                                                            title = song.title,
+                                                            subtitle = song.artist,
+                                                            thumbnailUrl = song.thumbnailUrl,
+                                                            onClick = { onPlaySongs(top, index) },
+                                                            onLongPress = { onOpenMenu(song) },
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        artist.sections.forEach { shelf ->
+                            item(key = "artist-shelf-${shelf.title}") {
+                                Box(Modifier.padding(top = 18.dp)) {
+                                    DesktopShelf(shelf, onItemClick = onShelfItemClick)
+                                }
+                            }
+                        }
+                        if (visuals.signature != null) item(key = "artist-signature") {
+                            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                com.cosmotune.ui.pages.ArtistSignatureMark(visuals.signature, name)
+                            }
+                        }
+                        if (top.isEmpty() && artist.sections.isEmpty()) {
+                            item {
+                                DesktopEmptyPage(
+                                    Icons.Rounded.Person,
+                                    "Nothing to show for $name",
+                                    "YouTube Music has no songs or releases on this page.",
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The photograph, and the name across the foot of it. */
+@Composable
+private fun DesktopArtistBanner(url: String?, name: String, palette: DesktopArtworkPalette, art: com.cosmotune.music.data.canvas.AppleArtistArt?) {
+    Box(Modifier.fillMaxWidth().height(ARTIST_BANNER_HEIGHT)) {
+        com.cosmotune.ui.pages.ArtistMotionArtwork(art, url, Modifier.matchParentSize())
+        // Two washes rather than one.
+        Box(
+            Modifier.matchParentSize().background(
+                Brush.verticalGradient(
+                    0f to Color.Transparent,
+                    0.55f to palette.primary.copy(alpha = 0.18f),
+                    1f to DesktopSurface,
+                ),
+            ),
+        )
+        Box(
+            Modifier.matchParentSize().background(
+                Brush.verticalGradient(
+                    0f to Color.Black.copy(alpha = 0.35f),
+                    0.4f to Color.Transparent,
+                    1f to Color.Black.copy(alpha = 0.45f),
+                ),
+            ),
+        )
+        Text(
+            name,
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 18.dp),
+        )
+    }
+}
+
+@Composable
+private fun DesktopStatChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .background(DesktopGlass.copy(alpha = 0.55f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = DesktopSecondary, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(7.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = Color.White)
+    }
+}
+
+/** The artist page that is open, and the name to bill it under until it loads. */
+/** The page an artist's tracks were started from. */
+private fun artistSource(target: DesktopArtistTarget) =
+    DesktopQueueSource(target.name, PlaybackSourceType.BROWSE, target.browseId)
+
+/** The album or playlist a queue was started from. */
+private fun collectionSource(collection: DesktopCollection) =
+    DesktopQueueSource(collection.title, PlaybackSourceType.BROWSE, collection.browseId)
+
+/** Where a queue was started from, for the player's "Playing from" caption. */
+internal data class DesktopQueueSource(
+    val title: String,
+    val type: PlaybackSourceType,
+    val id: String? = null,
+)
+
+/**
+ * Where this row says it was played from, as the shared queue rules take it — the phone's
+ * `play()` makes the same one from the first row of what it was handed.
+ */
+private fun Song.queueSource(): QueueSource = QueueSource(
+    title = playbackSource ?: albumName ?: "Queue",
+    type = playbackSourceType ?: PlaybackSourceType.QUEUE,
+    id = playbackSourceId,
+)
+
+/** Stamps [source] onto a row, leaving one that already names its origin alone. */
+private fun Song.withSource(source: DesktopQueueSource?): Song = when {
+    source == null || playbackSource != null -> this
+    else -> copy(
+        playbackSource = source.title,
+        playbackSourceType = source.type,
+        playbackSourceId = source.id,
+    )
+}
+
+private data class DesktopArtistTarget(val browseId: String, val name: String)
+
+/** One place the window has been: which page, and whatever was open on it. */
+private data class DesktopNavEntry(
+    val destination: DesktopDestination,
+    val artist: DesktopArtistTarget?,
+    val collection: DesktopCollection?,
+    val mood: MoodGenre?,
+    val showAll: HomeShelf?,
+    val replay: Boolean,
+    val settings: DesktopSettingsPage?,
+) {
+    /** What makes two entries the same place: an album that paged in more tracks has not moved. */
+    val key: List<Any?>
+        get() = listOf(destination, artist?.browseId, collection?.browseId, mood?.browseId, mood?.params, showAll?.title, replay, settings)
+}
+
+/** Deep enough for any way back anyone takes; the oldest fall off. */
+private const val NAV_HISTORY_LIMIT = 50
+
+/** The strip at the head of the sidebar that holds the window's buttons and can be dragged by. */
+private val SIDEBAR_CAPTION_HEIGHT = 34.dp
+
+
+@Composable
+private fun DesktopHistoryPage(
+    history: List<Song>,
+    onSongClick: (Song) -> Unit,
+    onDownload: (Song) -> Unit,
+    onAddToPlaylist: (Song) -> Unit,
+    downloadedIds: Set<String>,
+    downloadInProgress: Set<String>,
+    contentPadding: PaddingValues,
+    menu: (@Composable (Song) -> Unit)? = null,
+) {
+    DesktopPageScaffold(contentPadding) {
+      PlayingRowScope(history) {
+        LazyColumn(
+            contentPadding = pagePadding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (history.isEmpty()) item { DesktopEmptyPage(CosmotuneIcons.Clock, "Nothing played yet", "Songs you play will show up here.") }
+            else items(history, key = Song::videoId) {
+                DesktopSongRow(
+                    song = it,
+                    liked = false,
+                    onClick = onSongClick,
+                    onToggleLike = null,
+                    onDownload = onDownload,
+                    onAddToPlaylist = onAddToPlaylist,
+                    downloaded = it.videoId in downloadedIds,
+                    downloadInProgress = it.videoId in downloadInProgress,
+                    menu = menu,
+                )
+            }
+        }
+      }
+    }
+}
+
+@Composable
+private fun DesktopDownloadsPage(
+    downloads: List<Song>,
+    onFindMusic: () -> Unit,
+    onSongClick: (Song) -> Unit,
+    contentPadding: PaddingValues,
+    menu: (@Composable (Song) -> Unit)? = null,
+) {
+    DesktopLocalMusicPage(
+        songs = downloads,
+        onSongClick = onSongClick,
+        contentPadding = contentPadding,
+        menu = menu,
+        title = DesktopStrings["downloads", "Downloads"],
+        subtitle = DesktopStrings["d_available_offline", "Available offline"],
+        emptyIcon = CosmotuneIcons.Download,
+        emptyTitle = DesktopStrings["d_no_downloads", "No downloads"],
+        emptyDescription = DesktopStrings["d_downloaded_songs_will_appear_here", "Downloaded songs will appear here."],
+        persistenceKey = "downloaded",
+        onEmptyAction = onFindMusic,
+    )
+}
+
+@Composable
+private fun DesktopLocalMusicPage(
+    songs: List<Song>,
+    onSongClick: (Song) -> Unit,
+    contentPadding: PaddingValues,
+    title: String = "Local Music",
+    subtitle: String = "Audio files found in Music and Downloads",
+    emptyIcon: androidx.compose.ui.graphics.vector.ImageVector = CosmotuneIcons.MusicNote,
+    emptyTitle: String = "No local music",
+    emptyDescription: String = "Put audio files in your Music folder and reopen this page.",
+    persistenceKey: String = "local",
+    onEmptyAction: (() -> Unit)? = null,
+    menu: (@Composable (Song) -> Unit)? = null,
+) {
+    val persistence = remember { DesktopPersistence() }
+    var selectedTab by remember(persistenceKey) { mutableStateOf(0) }
+    var searchQuery by remember(persistenceKey) { mutableStateOf("") }
+    var view by remember(persistenceKey) {
+        mutableStateOf(
+            if (persistence.string("${persistenceKey}_view", "LIST") == "GRID") {
+                DesktopLibraryView.GRID
+            } else {
+                DesktopLibraryView.LIST
+            },
+        )
+    }
+    var sort by remember(persistenceKey) {
+        mutableStateOf(
+            runCatching {
+                DesktopLibrarySort.valueOf(persistence.string("${persistenceKey}_sort", "TITLE_ASC"))
+            }.getOrDefault(DesktopLibrarySort.TITLE_ASC),
+        )
+    }
+    var drillDown by remember(persistenceKey) { mutableStateOf<Pair<String, List<Song>>?>(null) }
+    // Columns and filters (LK-09), shared with Android and kept per list.
+    var columns by remember(persistenceKey) {
+        mutableStateOf(com.cosmotune.listening.LibraryViewOptions.decode(persistence.string("${persistenceKey}_columns", "").ifBlank { null }))
+    }
+    val analysisOf = { song: Song -> com.cosmotune.audio.LibraryLoudness.analysisFor(song.videoId) }
+    val genres = remember(songs) { com.cosmotune.listening.LibraryViewOptions.genresOf(songs, analysisOf) }
+    val filteredSongs = remember(songs, sort, searchQuery, columns) {
+        columns.apply(songs.sortedForDesktopLibrary(sort).filter { song ->
+            searchQuery.isBlank() || song.title.contains(searchQuery, true) || song.artist.contains(searchQuery, true) ||
+                song.albumName.orEmpty().contains(searchQuery, true)
+        }, analysisOf)
+    }
+    val artists = remember(filteredSongs) {
+        filteredSongs.groupBy { it.artist.ifBlank { "On This Computer" } }
+            .entries.sortedBy { it.key.lowercase() }
+    }
+    val albums = remember(filteredSongs) {
+        filteredSongs.groupBy { it.albumName?.takeIf(String::isNotBlank) ?: "Unknown Album" }
+            .entries.sortedBy { it.key.lowercase() }
+    }
+    DesktopPageScaffold(contentPadding) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = DesktopPageGutter),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DesktopSearchField(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onSearch = {},
+                    modifier = Modifier.weight(1f),
+                    placeholder = DesktopStrings["d_search_your_music", "Search your music"],
+                )
+                Spacer(Modifier.width(10.dp))
+                TextButton(onClick = {
+                    sort = when (sort) {
+                        DesktopLibrarySort.TITLE_ASC -> DesktopLibrarySort.TITLE_DESC
+                        DesktopLibrarySort.TITLE_DESC -> DesktopLibrarySort.DATE_ADDED
+                        DesktopLibrarySort.DATE_ADDED -> DesktopLibrarySort.DATE_MODIFIED
+                        DesktopLibrarySort.DATE_MODIFIED -> DesktopLibrarySort.TITLE_ASC
+                    }
+                    persistence.saveString("${persistenceKey}_sort", sort.name)
+                }) {
+                    Text(sort.label())
+                }
+                IconButton(onClick = {
+                    view = if (view == DesktopLibraryView.LIST) DesktopLibraryView.GRID else DesktopLibraryView.LIST
+                    persistence.saveString("${persistenceKey}_view", view.name)
+                }) {
+                    Icon(if (view == DesktopLibraryView.LIST) CosmotuneIcons.GridView else CosmotuneIcons.ListView, "Change view")
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            com.cosmotune.ui.listening.LibraryColumnsBar(columns, genres, onChange = { next ->
+                columns = next
+                persistence.saveString("${persistenceKey}_columns", next.encode())
+            })
+            Spacer(Modifier.height(6.dp))
+            TabRow(selectedTabIndex = selectedTab, containerColor = Color.Transparent) {
+                listOf("Songs", "Artists", "Albums").forEachIndexed { index, label ->
+                    Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(label) })
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            if (songs.isEmpty()) {
+                DesktopEmptyPage(emptyIcon, emptyTitle, emptyDescription, onEmptyAction, DesktopStrings["search", "Search"])
+            } else if (drillDown != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { drillDown = null }) { Icon(Icons.Rounded.ArrowBack, DesktopStrings["back", "Back"]) }
+                    Text(drillDown!!.first, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.height(6.dp))
+                DesktopLibrarySongContent(drillDown!!.second, view, onSongClick, menu, columns)
+            } else when (selectedTab) {
+                0 -> DesktopLibrarySongContent(filteredSongs, view, onSongClick, menu, columns)
+                1 -> DesktopLibraryGroupingContent(artists, view, onGroupClick = { drillDown = it })
+                else -> DesktopLibraryGroupingContent(albums, view, onGroupClick = { drillDown = it })
+            }
+        }
+    }
+}
+
+private fun DesktopLibrarySort.label(): String = when (this) {
+    DesktopLibrarySort.TITLE_ASC -> "A–Z"
+    DesktopLibrarySort.TITLE_DESC -> "Z–A"
+    DesktopLibrarySort.DATE_ADDED -> "Added"
+    DesktopLibrarySort.DATE_MODIFIED -> "Modified"
+}
+
+@Composable
+private fun DesktopLibrarySongContent(
+    songs: List<Song>,
+    view: DesktopLibraryView,
+    onSongClick: (Song) -> Unit,
+    menu: (@Composable (Song) -> Unit)? = null,
+    columns: com.cosmotune.listening.LibraryViewOptions? = null,
+) {
+    if (songs.isEmpty()) {
+        DesktopEmptyPage(CosmotuneIcons.Search, "No matching music", "Try a different search.")
+    } else if (view == DesktopLibraryView.GRID) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 150.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = pagePadding(bottom = 32.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            gridItems(songs, key = Song::videoId) { song ->
+                Column(Modifier.fillMaxWidth().clickable { onSongClick(song) }) {
+                    DesktopArtwork(song.thumbnailUrl, Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(CosmoRadii.rMd)))
+                    Spacer(Modifier.height(7.dp))
+                    Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                    Text(song.artist, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    } else PlayingRowScope(songs) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = pagePadding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            items(songs, key = Song::videoId) { song ->
+                Column {
+                    DesktopSongRow(
+                        song,
+                        liked = false,
+                        onClick = onSongClick,
+                        onToggleLike = null,
+                        downloaded = song.localPath != null,
+                        menu = menu,
+                    )
+                    if (columns != null) com.cosmotune.ui.listening.LibraryColumnsLine(song, columns,
+                        com.cosmotune.audio.LibraryLoudness.analysisFor(song.videoId), Modifier.padding(start = 64.dp, end = 12.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DesktopLibraryGroupingContent(
+    groups: List<Map.Entry<String, List<Song>>>,
+    view: DesktopLibraryView,
+    onGroupClick: (Pair<String, List<Song>>) -> Unit,
+) {
+    if (groups.isEmpty()) {
+        DesktopEmptyPage(CosmotuneIcons.Search, "Nothing here yet", "Music will be grouped as it is added.")
+    } else if (view == DesktopLibraryView.GRID) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 150.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = pagePadding(bottom = 32.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            gridItems(groups, key = { it.key }) { group ->
+                Column(Modifier.fillMaxWidth().clickable { onGroupClick(group.key to group.value) }) {
+                    DesktopArtwork(group.value.firstOrNull()?.thumbnailUrl, Modifier.fillMaxWidth().height(150.dp).clip(CircleShape))
+                    Spacer(Modifier.height(7.dp))
+                    Text(group.key, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                    Text("${group.value.size} songs", color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = pagePadding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            items(groups, key = { it.key }) { group ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onGroupClick(group.key to group.value) }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DesktopArtwork(group.value.firstOrNull()?.thumbnailUrl, Modifier.size(54.dp).clip(CircleShape))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(group.key, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                        Text("${group.value.size} songs", color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Icon(CosmotuneIcons.Play, DesktopStrings["open", "Open"], tint = DesktopSecondary)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The sections of the desktop's Settings, each on the page of its [category], in the order the page shows them. A section is one
+ * item of the page's list, so a search result can scroll to it.
+ */
+private enum class DesktopSettingsSection(val category: com.cosmotune.ui.settings.SettingsCategory) {
+    ACCOUNT(com.cosmotune.ui.settings.SettingsCategory.ACCOUNT),
+    CLOUD_SYNC(com.cosmotune.ui.settings.SettingsCategory.ACCOUNT),
+    AUDIO_QUALITY(com.cosmotune.ui.settings.SettingsCategory.PLAYBACK),
+    OUTPUT_PRECISION(com.cosmotune.ui.settings.SettingsCategory.PLAYBACK),
+    AUDIO_OUTPUT(com.cosmotune.ui.settings.SettingsCategory.PLAYBACK),
+    PLAYBACK(com.cosmotune.ui.settings.SettingsCategory.PLAYBACK),
+    DESKTOP_PLAYBACK(com.cosmotune.ui.settings.SettingsCategory.PLAYBACK),
+    MISCELLANEOUS(com.cosmotune.ui.settings.SettingsCategory.PLAYBACK),
+    SOURCES(com.cosmotune.ui.settings.SettingsCategory.SOURCES),
+    DOWNLOADS(com.cosmotune.ui.settings.SettingsCategory.DOWNLOADS),
+    LOCAL_MUSIC(com.cosmotune.ui.settings.SettingsCategory.DOWNLOADS),
+    STORAGE(com.cosmotune.ui.settings.SettingsCategory.DOWNLOADS),
+    FREE_SPACE(com.cosmotune.ui.settings.SettingsCategory.DOWNLOADS),
+    LYRICS(com.cosmotune.ui.settings.SettingsCategory.LYRICS),
+    CANVAS(com.cosmotune.ui.settings.SettingsCategory.LYRICS),
+    APPEARANCE(com.cosmotune.ui.settings.SettingsCategory.APPEARANCE),
+    LANGUAGE(com.cosmotune.ui.settings.SettingsCategory.APPEARANCE),
+    VIDEO(com.cosmotune.ui.settings.SettingsCategory.VIDEO),
+    READ(com.cosmotune.ui.settings.SettingsCategory.READ),
+    PODIO(com.cosmotune.ui.settings.SettingsCategory.PODIO),
+    LISTENING(com.cosmotune.ui.settings.SettingsCategory.LISTENING),
+    LISTEN_TOGETHER(com.cosmotune.ui.settings.SettingsCategory.INTEGRATIONS),
+    SERVICES(com.cosmotune.ui.settings.SettingsCategory.INTEGRATIONS),
+    NETWORK(com.cosmotune.ui.settings.SettingsCategory.INTEGRATIONS),
+    ABOUT(com.cosmotune.ui.settings.SettingsCategory.ABOUT),
+    ADVANCED(com.cosmotune.ui.settings.SettingsCategory.ABOUT),
+    COLOPHON(com.cosmotune.ui.settings.SettingsCategory.ABOUT),
+}
+
+/** How wide the settings home and its page run together, and the narrowest window that shows them side by side. */
+private val DesktopSettingsHubWidth = 1180.dp
+private val DesktopSettingsTwoPaneMin = 760.dp
+private val DesktopSettingsRailWidth = 280.dp
+
+/** The section the search pass is running, so a row registers on its page. */
+private val LocalDesktopSettingsSection = compositionLocalOf<DesktopSettingsSection?> { null }
+
+/** The group the search pass is in, shown with a result as where it lives. */
+private val LocalDesktopSettingsGroupTitle = compositionLocalOf<String?> { null }
+
+/**
+ * The way from Music's settings into another [mode], whose own settings live in it: a group under the name of [category] with
+ * one row. Only while the new look is on (the modes need it) and the mode works.
+ */
+@Composable
+private fun DesktopModeLink(mode: AppMode, category: com.cosmotune.ui.settings.SettingsCategory, title: String, summary: String) {
+    val shell = com.cosmotune.ui.theme.LocalCosmoShell.current
+    val available = shell != null && AppModes.available(mode)
+    SettingsGroup(category.title()) {
+        SettingsRow(
+            category.icon,
+            title,
+            if (available) summary else com.cosmotune.ui.settings.SettingsText.MODE_NEEDS_LOOK.text(),
+            if (available) ({ shell?.settings?.setMode(mode) }) else null,
+        )
+    }
+}
+
+/**
+ * Settings as a page of inset groups, the way Android presents it, held to the width the old card
+ * had so the rows do not stretch across a wide window. Its query and scroll belong to the caller,
+ * so they are where they were when back returns from one of the pages it opens.
+ */
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun DesktopSettingsScreen(
+    onPlayProviderSongs: (List<Song>, Int) -> Unit,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    selectedCategory: com.cosmotune.ui.settings.SettingsCategory,
+    onCategoryChange: (com.cosmotune.ui.settings.SettingsCategory) -> Unit,
+    listState: LazyListState,
+    autoplay: Boolean,
+    onAutoplayChange: (Boolean) -> Unit,
+    automix: Boolean,
+    onAutomixChange: (Boolean) -> Unit,
+    automixOnSkip: Boolean,
+    onAutomixOnSkipChange: (Boolean) -> Unit,
+    automixPhraseBars: Int,
+    onAutomixPhraseBarsChange: (Int) -> Unit,
+    automixPerformance: AutomixPerformanceMode,
+    onAutomixPerformanceChange: (AutomixPerformanceMode) -> Unit,
+    shuffle: Boolean,
+    onShuffleChange: (Boolean) -> Unit,
+    repeatMode: DesktopRepeatMode,
+    onRepeatModeChange: (DesktopRepeatMode) -> Unit,
+    playbackSpeed: Float,
+    onPlaybackSpeedChange: (Float) -> Unit,
+    crossfadeSeconds: Int,
+    onCrossfadeSecondsChange: (Int) -> Unit,
+    animatedCanvas: Boolean,
+    onAnimatedCanvasChange: (Boolean) -> Unit,
+    spotifyCanvasReady: Boolean,
+    onOpenSpotifyCanvasSetup: () -> Unit,
+    dontRepeatSuggestions: Boolean,
+    onDontRepeatSuggestionsChange: (Boolean) -> Unit,
+    filterNonMusicAudio: Boolean,
+    onFilterNonMusicAudioChange: (Boolean) -> Unit,
+    onChooseLocalMusicFolder: (onChosen: () -> Unit) -> Unit,
+    onLocalMusicFolderChanged: () -> Unit,
+    syncedLyrics: Boolean,
+    onSyncedLyricsChange: (Boolean) -> Unit,
+    lyricsBlur: Boolean,
+    onLyricsBlurChange: (Boolean) -> Unit,
+    /** The sources that will actually be asked, in the order they are asked. */
+    enabledLyricsSources: List<String>,
+    onOpenLyricsSources: () -> Unit,
+    onOpenTranslationLanguage: () -> Unit,
+    onOpenEqualizer: () -> Unit,
+    /** Opens the output-device picker. */
+    onOpenAudioOutput: () -> Unit,
+    /** Opens the listening-together party. */
+    onOpenListenTogether: () -> Unit,
+    showNerdStats: Boolean,
+    onShowNerdStatsChange: (Boolean) -> Unit,
+    fullBleedArtwork: Boolean,
+    onFullBleedArtworkChange: (Boolean) -> Unit,
+    legacyMeshGradient: Boolean,
+    onLegacyMeshGradientChange: (Boolean) -> Unit,
+    trayIconEnabled: Boolean,
+    closeToTray: Boolean,
+    onCloseToTrayChange: (Boolean) -> Unit,
+    onTrayIconChange: (Boolean) -> Unit,
+    spatialAudio: Boolean,
+    onSpatialAudioChange: (Boolean) -> Unit,
+    dolbyAtmos: Boolean,
+    onDolbyAtmosChange: (Boolean) -> Unit,
+    loudnessNormalization: Boolean,
+    onLoudnessNormalizationChange: (Boolean) -> Unit,
+    skipSilence: Boolean,
+    onSkipSilenceChange: (Boolean) -> Unit,
+    outputPrecision: String,
+    onOutputPrecisionChange: (String) -> Unit,
+    outputSummary: String,
+    downloadQuality: String,
+    onDownloadQualityChange: (String) -> Unit,
+    audioQuality: DesktopAudioQuality,
+    onAudioQualityChange: (DesktopAudioQuality) -> Unit,
+    sleepTimerMinutes: Int?,
+    sleepAfterTrack: Boolean,
+    sleepRemainingMs: Long?,
+    onSleepTimerCycle: () -> Unit,
+    sourceConfigs: List<DesktopSourceConfig>,
+    sourceStatus: Map<String, String>,
+    onSourceEnabledChange: (DesktopSourceConfig, Boolean) -> Unit,
+    onSaveSource: (DesktopSourceConfig) -> Unit,
+    onRemoveSource: (DesktopSourceConfig) -> Unit,
+    onMoveSource: (DesktopSourceConfig, Int) -> Unit,
+    onTestSource: (DesktopSourceConfig) -> Unit,
+    onOpenIntegrations: () -> Unit,
+    onOpenLicenses: () -> Unit,
+) {
+    val settingsInset = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 16.dp else 0.dp
+    val settingsScope = rememberCoroutineScope()
+    var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
+    var editingSubsonic by remember { mutableStateOf<DesktopSourceConfig?>(null) }
+    val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
+    val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
+    val sourceProbeKey = sourceConfigs
+        .filter { it.kind.needsServer && it.isComplete }
+        .joinToString { "${it.id}@${it.baseUrl}" }
+    LaunchedEffect(sourceProbeKey) {
+        sourceConfigs
+            .filter { it.kind.needsServer && it.isComplete }
+            .forEach(onTestSource)
+    }
+    val settingsQuery = query
+    val searching = settingsQuery.isNotBlank()
+    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.16" }
+    val highlight = remember { com.cosmotune.ui.settings.SettingsHighlight() }
+    // The pages the desktop has: a category with none of its settings here (backup is the phone's) is left out of the list.
+    val pages = remember {
+        com.cosmotune.ui.settings.SettingsCategory.pages.filter { page -> DesktopSettingsSection.entries.any { it.category == page } }
+    }
+    val syncedLyricsTitle = DesktopStrings["synced_lyrics", "Synced lyrics"]
+    val animatedCanvasTitle = DesktopStrings["d_animated_canvas", "Animated canvas"]
+    val hubEntries = com.cosmotune.ui.settings.settingsCategoryEntries(
+        categories = pages,
+        summaries = mapOf(
+            com.cosmotune.ui.settings.SettingsCategory.PLAYBACK to "${audioQuality.label} · ${DesktopAudioDevices.label()}",
+            com.cosmotune.ui.settings.SettingsCategory.SOURCES to sourceConfigs.filter { it.enabled }.joinToString(", ") { it.displayName },
+            com.cosmotune.ui.settings.SettingsCategory.DOWNLOADS to downloadQuality.lowercase().replaceFirstChar { it.titlecase() },
+            com.cosmotune.ui.settings.SettingsCategory.LYRICS to listOfNotNull(
+                syncedLyricsTitle.takeIf { syncedLyrics },
+                animatedCanvasTitle.takeIf { animatedCanvas },
+            ).joinToString(" · "),
+            com.cosmotune.ui.settings.SettingsCategory.APPEARANCE to DesktopStrings.languageLabel(),
+            com.cosmotune.ui.settings.SettingsCategory.ABOUT to "Cosmotune $settingsVersion",
+        ),
+    )
+    // A picked search result: its page opens, the list goes to its section, and its row lights up once the page is drawn.
+    var pendingJump by remember { mutableStateOf<Pair<DesktopSettingsSection, String>?>(null) }
+    LaunchedEffect(pendingJump) {
+        val jump = pendingJump ?: return@LaunchedEffect
+        withFrameNanos { }
+        val index = DesktopSettingsSection.entries.filter { it.category == jump.first.category }.indexOf(jump.first)
+        if (index >= 0) listState.scrollToItem(index + 1)
+        highlight.flash(jump.second)
+        pendingJump = null
+    }
+    // Each section's rows, drawn on its page and run once more, drawing nothing, while the search registers the rows.
+    val sectionContent: @Composable (DesktopSettingsSection) -> Unit = { section ->
+        when (section) {
+            DesktopSettingsSection.PLAYBACK -> {
+                    SettingsGroup(DesktopStrings["playback", "Playback"]) {
+                    if (!automix) {
+                        if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 10.dp)) {
+                            Text(DesktopStrings["crossfade", "Crossfade"], style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                if (crossfadeSeconds == 0) "Off" else "${crossfadeSeconds}s",
+                                color = DesktopSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            DesktopBareSlider(
+                                value = crossfadeSeconds.toFloat(),
+                                onValueChange = { onCrossfadeSecondsChange(it.toInt()) },
+                                valueRange = 0f..12f,
+                                steps = 11,
+                            )
+                        }
+                        }
+                    }
+                    SettingsToggle(
+                        DesktopStrings["automix", "Automix [BETA]"],
+                        if (automix) {
+                            "Calculates timing and blends transitions from the tracks"
+                        } else {
+                            "Automatically calculates transition timing without a slider"
+                        },
+                        automix,
+                        onAutomixChange,
+                    )
+                    SettingsToggle(
+                        DesktopStrings["automix_on_skip", "Automix on skip"],
+                        DesktopStrings["automix_on_skip_subtitle", "When you skip ahead, mix into the next song over ~15s instead of cutting"],
+                        automixOnSkip,
+                        onAutomixOnSkipChange,
+                    )
+                    if (automix) {
+                        val phraseTitle = DesktopStrings["automix_phrase_length", "Automix phrase length"]
+                        val phraseSubtitle = DesktopStrings["automix_phrase_length_subtitle", "Blend over a fixed number of bars, beat-aligned"]
+                        if (settingsRowVisible(phraseTitle, phraseSubtitle)) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
+                                Text(phraseTitle, fontWeight = FontWeight.Medium)
+                                Text(phraseSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(10.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    DesktopAutomixOptions.PHRASE_CHOICES.forEach { bars ->
+                                        FilterChip(
+                                            colors = desktopChipColors(),
+                                            selected = automixPhraseBars == bars,
+                                            onClick = { onAutomixPhraseBarsChange(bars) },
+                                            label = { Text(phraseBarsLabel(bars)) },
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text(phraseBarsDetail(automixPhraseBars), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    if (settingsRowVisible(DesktopStrings["automix_performance", "Automix performance"], DesktopStrings["automix_performance_subtitle", "Sets how much CPU background analysis may use"])) {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
+                            Text(DesktopStrings["automix_performance", "Automix performance"], fontWeight = FontWeight.Medium)
+                            Text(
+                                DesktopStrings["automix_performance_subtitle", "Sets how much CPU background analysis may use"],
+                                color = DesktopSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AutomixPerformanceMode.entries.forEach { mode ->
+                                    FilterChip(
+                                        colors = desktopChipColors(),
+                                        selected = automixPerformance == mode,
+                                        onClick = { onAutomixPerformanceChange(mode) },
+                                        label = { Text(mode.label()) },
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                automixPerformance.detail(),
+                                color = DesktopSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                    SettingsToggle(
+                        DesktopStrings["loudness_normalization", "Loudness normalization"],
+                        "Balances YouTube tracks using their loudness metadata and local files measured in Listening tools → Library review. Other sources keep their original level.",
+                        loudnessNormalization,
+                        onLoudnessNormalizationChange,
+                    )
+                    val eqOn by DesktopEqualizerSettings.enabled.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["skip_silence", "Skip silence"],
+                        DesktopStrings["d_shorten_long_gaps_rather_than_playing_them_out", "Shorten long gaps rather than playing them out"],
+                        skipSilence,
+                        onSkipSilenceChange,
+                    )
+                    SettingsToggle(
+                        DesktopStrings["stereo_widening", "Stereo widening"],
+                        DesktopStrings["stereo_widening_subtitle", "Optional stereo width and crossfeed"],
+                        spatialAudio,
+                        onSpatialAudioChange,
+                    )
+                    SettingsToggle(
+                        DesktopStrings["dolby_atmos", "Dolby Atmos"],
+                        if (DesktopCodecs.supportsDolbyAtmos) {
+                            "Prefer an add-on's immersive mix and decode E-AC-3 with FFmpeg"
+                        } else {
+                            DesktopStrings["dolby_atmos_unavailable", "This device can't play Atmos, so these songs play in their usual version"]
+                        },
+                        dolbyAtmos && DesktopCodecs.supportsDolbyAtmos,
+                        { if (DesktopCodecs.supportsDolbyAtmos) onDolbyAtmosChange(it) },
+                    )
+                    SettingsNavigationRow(
+                        title = DesktopStrings["equalizer", "Equalizer"],
+                        subtitle = if (eqOn) {
+                            DesktopStrings["equalizer_subtitle", "Tone, seven bands and balance"]
+                        } else {
+                            DesktopStrings["d_off", "Off"]
+                        },
+                        onClick = onOpenEqualizer,
+                    )
+                }
+            }
+            DesktopSettingsSection.DESKTOP_PLAYBACK -> {
+                SettingsGroup(DesktopStrings["d_desktop_playback", "Desktop playback"]) {
+                    SettingsToggle(
+                        DesktopStrings["autoplay", "Autoplay"],
+                        DesktopStrings["d_keep_the_music_going_with_similar_songs", "Keep the music going with similar songs"],
+                        autoplay,
+                        onAutoplayChange,
+                    )
+                    SettingsToggle(
+                        DesktopStrings["shuffle", "Shuffle"],
+                        DesktopStrings["d_mix_the_order_of_the_current_queue", "Mix the order of the current queue"],
+                        shuffle,
+                        onShuffleChange,
+                    )
+                    SettingsRow(
+                        CosmotuneIcons.Repeat,
+                        DesktopStrings["d_repeat", "Repeat"],
+                        "${repeatMode.label()} · Tap to change",
+                    ) { onRepeatModeChange(repeatMode.next()) }
+                    SettingsRow(
+                        Icons.Rounded.Tune,
+                        DesktopStrings["d_playback_speed", "Playback speed"],
+                        "${"%.2f".format(playbackSpeed)}×",
+                    ) {
+                        val next = when {
+                            playbackSpeed < 0.76f -> 1.0f
+                            playbackSpeed < 1.01f -> 1.25f
+                            playbackSpeed < 1.26f -> 1.5f
+                            playbackSpeed < 1.51f -> 2.0f
+                            else -> 0.5f
+                        }
+                        onPlaybackSpeedChange(next)
+                    }
+                    SettingsRow(
+                        Icons.Rounded.Bedtime,
+                        "Sleep timer",
+                        when {
+                            sleepRemainingMs != null -> "${formatSleepTimer(sleepRemainingMs)} until playback pauses"
+                            sleepAfterTrack -> "Pausing when this song ends"
+                            else -> "Pause playback after a while"
+                        },
+                    ) { onSleepTimerCycle() }
+                }
+            }
+            DesktopSettingsSection.LYRICS -> {
+                SettingsGroup(DesktopStrings["open_lyrics", "Lyrics"]) {
+                    SettingsToggle(
+                        DesktopStrings["synced_lyrics", "Synced lyrics"],
+                        DesktopStrings["synced_lyrics_subtitle", "Lights up the words on the player as they're sung"],
+                        syncedLyrics,
+                        onSyncedLyricsChange,
+                    )
+                    // Nothing to choose between while the feature is off, and the sources are
+                    // third-party services reached on the listener's connection.
+                    if (syncedLyrics) {
+                        SettingsToggle(
+                            DesktopStrings["d_blur_unfocused_lyrics", "Blur unfocused lyrics"],
+                            DesktopStrings["d_keeps_the_spotlight_on_the_current_line", "Keeps the spotlight on the current line"],
+                            lyricsBlur,
+                            onLyricsBlurChange,
+                        )
+                        SettingsNavigationRow(
+                            title = DesktopStrings["lyrics_sources", "Lyrics sources"],
+                            subtitle = enabledLyricsSources
+                                .joinToString(", ")
+                                .ifEmpty { "None. Lyrics will not be fetched." },
+                            onClick = onOpenLyricsSources,
+                        )
+                        val translationLanguage by DesktopTranslationSetting.language.collectAsState()
+                        SettingsNavigationRow(
+                            title = DesktopStrings["translation_language", "Translation language"],
+                            subtitle = DesktopTranslationSetting.describe(translationLanguage),
+                            onClick = onOpenTranslationLanguage,
+                        )
+                    }
+                }
+            }
+            DesktopSettingsSection.LANGUAGE -> {
+                SettingsGroup(DesktopStrings["language", "Language"]) {
+                    var languageMenuOpen by remember { mutableStateOf(false) }
+                    val chosen by DesktopStrings.language.collectAsState()
+                    Box {
+                        SettingsRow(
+                            Icons.Rounded.Language,
+                            DesktopStrings["app_language", "App language"],
+                            DesktopStrings.languageLabel(),
+                        ) { languageMenuOpen = true }
+                        DropdownMenu(languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
+                            DesktopStrings.available.forEach { language ->
+                                DropdownMenuItem(
+                                    text = { Text(language.label) },
+                                    trailingIcon = if (language.tag == chosen) {
+                                        { Icon(CosmotuneIcons.Check, contentDescription = null) }
+                                    } else {
+                                        null
+                                    },
+                                    onClick = {
+                                        DesktopStrings.setLanguage(language.tag)
+                                        languageMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            DesktopSettingsSection.STORAGE -> {
+                SettingsGroup(DesktopStrings["storage", "Storage"]) {
+                    var limitMb by remember { mutableStateOf(DesktopMediaCache.limitMb()) }
+                    if (settingsRowVisible(DesktopStrings["song_cache_limit", "Song cache limit"])) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 10.dp)) {
+                        Text(DesktopStrings["song_cache_limit", "Song cache limit"], style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            if (limitMb > DesktopMediaCache.WARNING_MB) {
+                                "Keeps up to ${formatCacheSize(limitMb)} of downloaded audio on disk. " +
+                                    "This can take a noticeable share of your free space."
+                            } else {
+                                "Keeps downloaded audio on disk for instant seeking and replays"
+                            },
+                            color = DesktopSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        DesktopBareSlider(
+                            value = limitMb.toFloat(),
+                            onValueChange = { limitMb = it.roundToInt() },
+                            onValueChangeFinished = { DesktopMediaCache.setLimitMb(limitMb) },
+                            valueRange = DesktopMediaCache.MIN_LIMIT_MB.toFloat()..
+                                DesktopMediaCache.MAX_LIMIT_MB.toFloat(),
+                            steps = 18,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(formatCacheSize(limitMb), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                    }
+                    }
+                }
+            }
+            DesktopSettingsSection.LOCAL_MUSIC -> {
+                SettingsGroup(DesktopStrings["local_music", "Local Music"]) {
+                    var folderLabel by remember { mutableStateOf(DesktopLocalMusic.folderLabel()) }
+                    SettingsRow(
+                        Icons.Rounded.Folder,
+                        "Local music folder",
+                        folderLabel,
+                    ) {
+                        onChooseLocalMusicFolder { folderLabel = DesktopLocalMusic.folderLabel() }
+                    }
+                    if (DesktopLocalMusic.folder() != null) {
+                        SettingsRow(
+                            CosmotuneIcons.Library,
+                            DesktopStrings["use_all_audio_folders", "Use all audio folders"],
+                            DesktopStrings["use_all_audio_folders_subtitle", "Remove the folder limit and scan music across the device"],
+                        ) {
+                            DesktopLocalMusic.setFolder(null)
+                            folderLabel = DesktopLocalMusic.folderLabel()
+                            onLocalMusicFolderChanged()
+                        }
+                    }
+                    SettingsToggle(
+                        DesktopStrings["filter_non_music_audio", "Filter non-music audio"],
+                        DesktopStrings[
+                            "filter_non_music_audio_subtitle",
+                            "Hides clips under 30 seconds, WAV files, voice notes, recordings and system sounds",
+                        ],
+                        filterNonMusicAudio,
+                        onFilterNonMusicAudioChange,
+                    )
+                }
+            }
+            DesktopSettingsSection.APPEARANCE -> {
+                SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
+                    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["reduce_dynamic_blur", "Reduce dynamic blur"],
+                        DesktopStrings["reduce_dynamic_blur_subtitle", "Swaps frosted glass for solid fills across the app"],
+                        reduceDynamicBlur,
+                        DesktopAppearanceSettings::setReduceDynamicBlur,
+                    )
+                    // Window furniture belongs beside the visual settings it changes, rather than
+                    // interrupting playback controls. These rows remain Windows-only.
+                    if (DesktopPlatform.drawsOwnWindowFrame) {
+                        val titleBar by DesktopTitleBarSetting.enabled.collectAsState()
+                        SettingsToggle(
+                            DesktopStrings["d_title_bar", "Title bar"],
+                            DesktopStrings[
+                                "d_a_slim_bar_above_the_toolbar",
+                                "A slim bar above the toolbar with the window's own buttons. " +
+                                    "Off, the window has no title bar at all.",
+                            ],
+                            titleBar,
+                            DesktopTitleBarSetting::set,
+                        )
+                    }
+                    if (DesktopWindowBackdrop.available) {
+                        val backdropChoice by DesktopWindowBackdrop.selected.collectAsState()
+                        val backdropActive by DesktopWindowBackdrop.active.collectAsState()
+                        val materialTitle = DesktopStrings["d_window_material", "Window material"]
+                        val materialSubtitle = DesktopStrings[
+                            "d_window_material_subtitle",
+                            "Sets the material for the sidebar and top bar",
+                        ]
+                        if (settingsRowVisible(materialTitle, materialSubtitle)) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
+                                Text(materialTitle, fontWeight = FontWeight.Medium)
+                                Text(materialSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(10.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    DesktopBackdrop.entries.forEach { option ->
+                                        FilterChip(
+                                            colors = desktopChipColors(),
+                                            selected = backdropChoice == option,
+                                            onClick = { DesktopWindowBackdrop.set(option) },
+                                            label = { Text(option.label) },
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    when {
+                                        backdropChoice != DesktopBackdrop.OFF && backdropActive == DesktopBackdrop.OFF ->
+                                            if (DesktopPlatform.isMac) "Native vibrancy could not be attached"
+                                            else "Needs Windows 11 version 22H2 or later"
+                                        backdropChoice == DesktopBackdrop.MICA ->
+                                            if (DesktopPlatform.isMac) "A subtle blur of your desktop wallpaper"
+                                            else "A soft tint taken from your wallpaper"
+                                        backdropChoice == DesktopBackdrop.ACRYLIC ->
+                                            "A frosted blur of whatever is behind the window"
+                                        else -> "Solid, as the rest of the app"
+                                    },
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                        val appBackground by DesktopWindowBackdrop.appBackground.collectAsState()
+                        SettingsToggle(
+                            DesktopStrings["d_app_background", "App background"],
+                            DesktopStrings[
+                                "d_app_background_subtitle",
+                                "Use the window material instead of a solid gray background",
+                            ],
+                            appBackground,
+                            DesktopWindowBackdrop::setAppBackground,
+                        )
+                        val ambientBackdrop by DesktopAppearanceSettings.ambientBackdrop.collectAsState()
+                        SettingsToggle(
+                            DesktopStrings["d_ambient_backdrop", "Ambient artwork glow"],
+                            DesktopStrings[
+                                "d_ambient_backdrop_subtitle",
+                                "Diffuse current song artwork colors under the window glass",
+                            ],
+                            ambientBackdrop,
+                            DesktopAppearanceSettings::setAmbientBackdrop,
+                        )
+                    }
+                    com.cosmotune.desktop.CosmoLookDesktopToggles { title, subtitle, checked, onChange -> SettingsToggle(title, subtitle, checked, onChange) }
+                    SettingsToggle(
+                        DesktopStrings["full_screen_cover_art", "Full-screen cover art"],
+                        DesktopStrings["full_screen_cover_art_subtitle", "Runs the cover to the edges of the player instead of a square sleeve"],
+                        fullBleedArtwork,
+                        onFullBleedArtworkChange,
+                    )
+                    SettingsToggle(
+                        DesktopStrings["legacy_mesh_gradient", "Legacy mesh gradient"],
+                        DesktopStrings["d_use_the_older_blob_backdrop_behind_the_player", "Use the older blob backdrop behind the player"],
+                        legacyMeshGradient,
+                        onLegacyMeshGradientChange,
+                    )
+                    DesktopArtistSignatureSettings()
+                    val queueHistory by DesktopPlayerSettings.showQueueHistory.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["show_queue_history", "Show queue history"],
+                        DesktopStrings["show_queue_history_subtitle", "Show up to 25 previously played songs above Now playing in the queue"],
+                        queueHistory,
+                        { DesktopPlayerSettings.setShowQueueHistory(it) },
+                    )
+                    val hideVolumeBar by DesktopAppearanceSettings.hideVolumeBar.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["hide_volume_bar", "Hide volume bar"],
+                        DesktopStrings["hide_volume_bar_subtitle", "Removes the volume slider from the main player"],
+                        hideVolumeBar,
+                        DesktopAppearanceSettings::setHideVolumeBar,
+                    )
+
+                }
+            }
+            DesktopSettingsSection.MISCELLANEOUS -> {
+                SettingsGroup(com.cosmotune.ui.settings.SettingsText.GROUP_WINDOW.text()) {
+                    SettingsToggle(
+                        DesktopStrings["d_tray_icon", "Tray icon"],
+                        DesktopStrings[
+                            "d_show_cosmotune_in_the_system_tray_with_playback_controls",
+                            "Show Cosmotune in the system tray, with playback controls",
+                        ],
+                        trayIconEnabled,
+                        onTrayIconChange,
+                    )
+                    if (trayIconEnabled) {
+                        SettingsToggle(
+                            DesktopStrings["d_keep_playing_when_closed", "Keep playing when closed"],
+                            DesktopStrings[
+                                "d_closing_the_window_leaves_cosmotune_in_the_tray_instead_o",
+                                "Closing the window leaves Cosmotune in the tray instead of quitting",
+                            ],
+                            closeToTray,
+                            onCloseToTrayChange,
+                        )
+                    }
+                }
+            }
+            DesktopSettingsSection.AUDIO_QUALITY -> {
+                SettingsGroup(DesktopStrings["audio_quality", "Audio quality"]) {
+                    if (settingsRowVisible(DesktopStrings["audio_quality", "Audio quality"])) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DesktopAudioQuality.entries.forEach { rung ->
+                                FilterChip(
+                                    colors = desktopChipColors(),
+                                    selected = audioQuality == rung,
+                                    onClick = { onAudioQualityChange(rung) },
+                                    label = { Text(rung.label) },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        // A rung is not a bitrate: it decides which kinds of source are allowed to
+                        // answer, so say which.
+                        Text(
+                            audioQuality.detail,
+                            color = DesktopSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    }
+                }
+            }
+            DesktopSettingsSection.LISTEN_TOGETHER -> {
+                SettingsGroup(DesktopStrings["listen_together", "Listen together"]) {
+                    SettingsNavigationRow(
+                        DesktopStrings["listen_together", "Listen together"],
+                        if (DesktopRooms.joined.collectAsState().value) "In a room. Open it to see who is listening." else DesktopStrings["listen_together_create_subtitle", "Start a room or join one with a code."],
+                    ) { onOpenListenTogether() }
+                }
+            }
+            DesktopSettingsSection.AUDIO_OUTPUT -> {
+                SettingsGroup(DesktopStrings["audio_output", "Audio output"]) {
+                    SettingsNavigationRow(
+                        DesktopStrings["pipeline_output_device", "Output device"],
+                        DesktopAudioDevices.label(),
+                    ) { onOpenAudioOutput() }
+                }
+            }
+            DesktopSettingsSection.OUTPUT_PRECISION -> {
+                SettingsGroup(DesktopStrings["d_output_precision", "Output precision"]) {
+                    if (settingsRowVisible(DesktopStrings["d_output_precision", "Output precision"])) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("PCM_16" to "16-bit PCM", "FLOAT_32" to "32-bit float").forEach { (value, label) ->
+                                FilterChip(
+                                    colors = desktopChipColors(),
+                                    selected = outputPrecision == value,
+                                    onClick = { onOutputPrecisionChange(value) },
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        // What was asked for and what the device agreed to are not the same
+                        // question, and a setting that silently did not take is worse than one that
+                        // says so.
+                        Text(
+                            "Playing at $outputSummary",
+                            color = DesktopSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    }
+                }
+            }
+            DesktopSettingsSection.DOWNLOADS -> {
+                SettingsGroup(DesktopStrings["download_channel_name", "Downloads"]) {
+                    if (settingsRowVisible(DesktopStrings["download_channel_name", "Downloads"])) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf("STANDARD" to "Standard", "HIGH" to "High", "LOSSLESS" to "Lossless").forEach { (value, label) ->
+                            FilterChip(
+                                colors = desktopChipColors(),
+                                selected = downloadQuality == value,
+                                onClick = { onDownloadQualityChange(value) },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+                    }
+                }
+            }
+            DesktopSettingsSection.SOURCES -> {
+                val sourcesCollector = com.cosmotune.ui.settings.LocalSettingsCollector.current
+                if (sourcesCollector != null) {
+                    sourcesCollector.add(
+                        com.cosmotune.ui.settings.SettingsItem(
+                            id = "SOURCES|Provider packages",
+                            title = "Provider packages",
+                            category = com.cosmotune.ui.settings.SettingsCategory.SOURCES,
+                            keywords = listOf(DesktopStrings["source", "Sources"], "providers", "Mornye", "Amazon Music", "Qobuz", "Tidal", "Deezer", "Spotify", "repository"),
+                        ),
+                    )
+                } else {
+                    Column(Modifier.fillMaxWidth().settingsHighlight("Provider packages")) {
+                        com.cosmotune.ui.providers.ProviderPackagesEntry(onPlay = onPlayProviderSongs)
+                    }
+                }
+                SettingsGroup(DesktopStrings["sources_order_header", "Sources · tried in this order"]) {
+                    val sourcesHeading = DesktopStrings["sources_order_header", "Sources · tried in this order"]
+                    val userAddedIds = sourceConfigs.inSourceOrder()
+                        .filter(DesktopSourceConfig::isUserAdded)
+                        .map(DesktopSourceConfig::id)
+                    sourceConfigs.inSourceOrder().forEachIndexed { index, config ->
+                        if (!settingsRowVisible(sourcesHeading, config.displayName)) return@forEachIndexed
+                        DesktopSourceSettingsRow(
+                            position = index + 1,
+                            config = config,
+                            status = sourceStatus[config.id],
+                            skippedByQuality = config.enabled && !audioQuality.permits(config.kind),
+                            onEdit = when {
+                                config.kind == DesktopSourceKind.SUBSONIC -> { { editingSubsonic = config } }
+                                config.kind.needsServer -> { { editingSource = config } }
+                                else -> null
+                            },
+                            onToggle = if (config.kind == DesktopSourceKind.YOUTUBE) {
+                                null
+                            } else {
+                                { onSourceEnabledChange(config, it) }
+                            },
+                            onMoveUp = if (userAddedIds.indexOf(config.id) > 0) {
+                                { onMoveSource(config, -1) }
+                            } else null,
+                            onMoveDown = if (userAddedIds.indexOf(config.id) in 0 until userAddedIds.lastIndex) {
+                                { onMoveSource(config, 1) }
+                            } else null,
+                        )
+                        if (config.kind == DesktopSourceKind.SUBSONIC && config.isComplete) androidx.compose.runtime.key(config.id, config.baseUrl, config.userSettings) {
+                            com.cosmotune.ui.providers.HttpAddonCatalogueEntry(
+                                identity = config.id, title = config.displayName, enabled = config.enabled,
+                                revision = config.hashCode().toString(),
+                                load = { resource, identity, _ ->
+                                    withContext(Dispatchers.IO) {
+                                        requireNotNull(DesktopSourceRegistry.subsonic(config)) { "Source is unavailable" }.load(resource, identity)
+                                    }
+                                },
+                                song = { track -> DesktopSourceRegistry.subsonic(config)?.song(track) ?: track.song(config.id) },
+                                onPlay = onPlayProviderSongs,
+                            )
+                        }
+                        if (config.kind == DesktopSourceKind.ADDON) androidx.compose.runtime.key(config.id, config.baseUrl) {
+                            com.cosmotune.ui.providers.HttpAddonSettingsEntry(config.displayName, config.userSettings,
+                                load = {
+                                    val client = DesktopAddonClient(config.baseUrl, config.userSettings)
+                                    try { client.manifest().getOrThrow().settings.map { it.forEditor() } } finally { client.clear() }
+                                }, onSave = { selected -> onSaveSource(config.copy(userSettings = selected)) })
+                            com.cosmotune.ui.providers.HttpAddonCatalogueEntry(
+                                identity = config.id, title = config.displayName, enabled = config.enabled,
+                                revision = config.hashCode().toString(),
+                                load = { resource, identity, force -> DesktopAddonSource.catalogue(config, resource, identity, force) },
+                                song = { track -> DesktopAddonSource.catalogueSong(config, track) }, onPlay = onPlayProviderSongs,
+                            )
+                        }
+                    }
+                    // One entry point, and it creates an addon.
+                    SettingsRow(
+                        CosmotuneIcons.Plus,
+                        "Add a source",
+                        DesktopSourceKind.ADDON.detail,
+                    ) {
+                        editingSource = DesktopSourceConfig(
+                            id = UUID.randomUUID().toString(),
+                            kind = DesktopSourceKind.ADDON,
+                        )
+                    }
+                    SettingsRow(
+                        CosmotuneIcons.Plus,
+                        "Add a Subsonic server",
+                        "Navidrome, Gonic, Airsonic or any OpenSubsonic server with your own files",
+                    ) {
+                        editingSubsonic = DesktopSourceConfig(
+                            id = UUID.randomUUID().toString(),
+                            kind = DesktopSourceKind.SUBSONIC,
+                        )
+                    }
+                }
+            }
+            DesktopSettingsSection.ACCOUNT -> {
+                // One row rather than the four groups this used to be. Every
+                // integration option Android has lives behind it; inline, the
+                // list was longer than the rest of Settings put together.
+                SettingsGroup(DesktopStrings["d_account", "Account"]) {
+                    SettingsRow(
+                        Icons.Rounded.Share,
+                        DesktopStrings["account_integrations", "Account & integrations"],
+                        DesktopStrings["d_discord_rich_presence_last_fm_and_listenbrainz", "Last.fm and ListenBrainz"],
+                        onOpenIntegrations,
+                    )
+                }
+            }
+            DesktopSettingsSection.CLOUD_SYNC -> {
+                // Syncing as a guest needs nothing from the person; Google only ties this device's library to the same
+                // account on their other devices. Every button hands off to DesktopCloud's own scope, so leaving Settings
+                // mid-sign-in or mid-sync stops nothing.
+                val cloud by DesktopCloud.status.collectAsState()
+                val cloudActivity by DesktopCloud.activity.collectAsState()
+                val cloudOn by DesktopCloud.enabled.collectAsState()
+                var confirmCloudDelete by remember { mutableStateOf(false) }
+                // "Last synced 4 min ago" reads against a clock that moves while the page is open.
+                val cloudNow by produceState(System.currentTimeMillis()) {
+                    while (true) {
+                        delay(30_000)
+                        value = System.currentTimeMillis()
+                    }
+                }
+                val (cloudTitle, cloudSummary) = cloudStatusText(cloud, cloudActivity, cloudOn, cloudNow)
+                val withGoogle = cloudOn && cloud.signedIn && !cloud.isGuest
+                SettingsGroup("Cloud sync") {
+                    SettingsRow(Icons.Rounded.Cloud, cloudTitle, cloudSummary)
+                    // Opt-in: nothing is sent, and no guest account exists, until the person turns it on or signs in.
+                    if (!cloudOn && !cloudActivity.waitingForBrowser) {
+                        SettingsRow(
+                            Icons.Rounded.Sync,
+                            "Turn on cloud sync",
+                            "Playlists, likes and followed artists on all your devices, no sign-in needed",
+                            DesktopCloud::turnOn,
+                        )
+                    }
+                    if (cloudActivity.waitingForBrowser) {
+                        SettingsRow(
+                            Icons.Rounded.Close,
+                            "Cancel sign-in",
+                            "Stops waiting for the Google page in your browser",
+                            DesktopCloud::cancelGoogleSignIn,
+                        )
+                    } else if (!withGoogle || cloud.needsSignIn) {
+                        SettingsRow(
+                            Icons.Rounded.AccountCircle,
+                            "Sign in with Google",
+                            if (DesktopCloud.google.isConfigured) {
+                                "Opens your browser. Your library follows you to every device signed in to the same account"
+                            } else {
+                                DesktopCloud.NOT_SET_UP
+                            },
+                            if (DesktopCloud.google.isConfigured) DesktopCloud::beginGoogleSignIn else null,
+                        )
+                    }
+                    if (cloudOn) {
+                        SettingsRow(
+                            Icons.Rounded.Sync,
+                            "Sync now",
+                            "Your library also syncs on its own every 15 minutes and shortly after you change it",
+                            DesktopCloud::syncNow,
+                        )
+                    }
+                    if (withGoogle) {
+                        SettingsRow(
+                            Icons.Rounded.Person,
+                            "Sign out",
+                            "Turns cloud sync off on this device; what is in your Google account stays there",
+                            DesktopCloud::signOut,
+                        )
+                    }
+                    if (cloudOn && cloud.signedIn) {
+                        SettingsRow(
+                            Icons.Rounded.DeleteForever,
+                            "Delete cloud account and data",
+                            "Removes everything Cosmotune keeps in the cloud for this account and turns sync off. Your library on this device stays",
+                        ) { confirmCloudDelete = true }
+                    }
+                }
+                if (confirmCloudDelete) {
+                    AlertDialog(
+                        onDismissRequest = { confirmCloudDelete = false },
+                        title = { Text("Delete cloud account and data?") },
+                        text = {
+                            Text(
+                                "Your synced playlists are removed from the cloud and the account is deleted. " +
+                                    "Other devices stop syncing with it. Nothing on this computer is deleted.",
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                confirmCloudDelete = false
+                                DesktopCloud.deleteAccount()
+                            }) { Text("Delete") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { confirmCloudDelete = false }) { Text(DesktopStrings["cancel", "Cancel"]) }
+                        },
+                    )
+                }
+            }
+            DesktopSettingsSection.ADVANCED -> {
+                SettingsGroup(DesktopStrings["advanced_options", "Advanced options"]) {
+                    SettingsToggle(
+                        DesktopStrings["show_nerd_stats", "Show stats for nerds"],
+                        DesktopStrings["show_nerd_stats_subtitle", "Codec, bitrate and sample rate on the player"],
+                        showNerdStats,
+                        onShowNerdStatsChange,
+                    )
+                }
+            }
+            DesktopSettingsSection.FREE_SPACE -> {
+                // Last on the page, apart from the settings above: these throw things away.
+                SettingsGroup(com.cosmotune.ui.settings.SettingsText.GROUP_FREE_SPACE.text()) {
+                    var cleared by remember { mutableStateOf<String?>(null) }
+                    SettingsRow(
+                        Icons.Rounded.DeleteSweep,
+                        "Clear song cache",
+                        cleared ?: "Frees space used by downloaded audio",
+                    ) {
+                        DesktopMediaCache.clear()
+                        cleared = "Song cache cleared"
+                    }
+                    var imagesCleared by remember { mutableStateOf(false) }
+                    SettingsRow(
+                        Icons.Rounded.DeleteSweep,
+                        "Clear image cache",
+                        if (imagesCleared) "Image cache cleared" else "Frees space used by album artwork",
+                    ) {
+                        DesktopArtworkCache.clear()
+                        imagesCleared = true
+                    }
+                }
+            }
+            DesktopSettingsSection.CANVAS -> {
+                SettingsGroup(com.cosmotune.ui.settings.SettingsText.GROUP_CANVAS.text()) {
+                    SettingsToggle(
+                        DesktopStrings["d_animated_canvas", "Animated canvas"],
+                        DesktopStrings["d_show_motion_artwork_when_it_is_available", "Show motion artwork when it is available"],
+                        animatedCanvas,
+                        onAnimatedCanvasChange,
+                    )
+                    if (animatedCanvas) {
+                        val openCanvasEnabled by DesktopAppearanceSettings.openCanvasEnabled.collectAsState()
+
+                        SettingsToggle(
+                            "Dynamic YouTube Canvas (OpenCanvas)",
+                            "Plays the artist's music video behind the song, in step with it. Powered by OpenCanvas. Looks up the video on YouTube and sync maps on jsDelivr.",
+                            openCanvasEnabled,
+                            DesktopAppearanceSettings::setOpenCanvasEnabled,
+                        )
+                        if (openCanvasEnabled) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
+                                Text("OpenCanvas Playback", fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Synced to the song: the video starts at the song's position, jumps when you seek or skip, " +
+                                        "pauses with the music and never loops. Tracks whose video can't be aligned keep the still cover.",
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+
+                            val openCanvasResolution by DesktopAppearanceSettings.openCanvasResolution.collectAsState()
+                            Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
+                                Text("OpenCanvas Stream Resolution", fontWeight = FontWeight.Medium)
+                                val resDescription = when (openCanvasResolution) {
+                                    "360p" -> "360p · Uses less data"
+                                    "480p" -> "480p · Standard definition"
+                                    "720p" -> "720p · High definition"
+                                    "1080p" -> "1080p · Full HD"
+                                    else -> openCanvasResolution
+                                }
+                                Text(
+                                    resDescription,
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf("360p", "480p", "720p", "1080p").forEach { res ->
+                                        FilterChip(
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            ),
+                                            selected = openCanvasResolution.equals(res, ignoreCase = true),
+                                            onClick = { DesktopAppearanceSettings.setOpenCanvasResolution(res) },
+                                            label = { Text(res) },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        SettingsNavigationRow(
+                            title = DesktopStrings["spotify_canvas_setup", "Spotify Canvas setup"],
+                            subtitle = if (spotifyCanvasReady) {
+                                "Connected"
+                            } else {
+                                "To use Spotify Canvas, provide your Spotify sp_dc cookie."
+                            },
+                            onClick = onOpenSpotifyCanvasSetup,
+                        )
+                    }
+                }
+            }
+            DesktopSettingsSection.LISTENING -> {
+                SettingsGroup(DesktopStrings["d_recommendations", "Recommendations"]) {
+                    if (settingsRowVisible("Learn from my listening")) com.cosmotune.ui.listening.RecommendationLearningSettings()
+                    SettingsToggle(
+                        DesktopStrings["d_dont_repeat_songs_in_current_session", "Don\u2019t repeat songs in current session"],
+                        DesktopStrings["d_autoplay_wont_suggest_a_song_already_played_or_suggested", "AutoPlay won\u2019t suggest a song already played or suggested this session"],
+                        dontRepeatSuggestions,
+                        onDontRepeatSuggestionsChange,
+                    )
+                }
+            }
+            DesktopSettingsSection.VIDEO -> {
+                DesktopModeLink(AppMode.VIDEO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO_SUMMARY.text())
+            }
+            DesktopSettingsSection.READ -> {
+                DesktopModeLink(AppMode.MANGA, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_READ.text(), com.cosmotune.ui.settings.SettingsText.OPEN_READ_SUMMARY.text())
+            }
+            DesktopSettingsSection.PODIO -> {
+                DesktopModeLink(AppMode.PODIO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_PODIO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_PODIO_SUMMARY.text())
+            }
+            DesktopSettingsSection.SERVICES -> {
+                // A second way to the integrations page, from the category its services belong to.
+                SettingsGroup(com.cosmotune.ui.settings.SettingsText.GROUP_SERVICES.text()) {
+                    SettingsRow(
+                        Icons.Rounded.Share,
+                        com.cosmotune.ui.settings.SettingsText.SERVICES.text(),
+                        com.cosmotune.ui.settings.SettingsText.SERVICES_SUMMARY.text(),
+                        onOpenIntegrations,
+                    )
+                }
+            }
+            DesktopSettingsSection.NETWORK -> {
+                SettingsGroup("Restricted network · experimental") {
+                    SettingsToggle(
+                        "Connect through Tor",
+                        if (torEnabled != com.cosmotune.desktop.TorConnection.active) {
+                            "Restart Cosmotune to ${if (torEnabled) "enable Tor" else "return to a direct connection"}."
+                        } else {
+                            "$torStatus. Routes HTTPS requests through Tor. Plain-HTTP sources are unavailable; music services may block Tor. Changes require a restart."
+                        },
+                        torEnabled,
+                        com.cosmotune.desktop.TorConnection::select,
+                    )
+                }
+            }
+            DesktopSettingsSection.ABOUT -> {
+                SettingsGroup(com.cosmotune.ui.settings.SettingsText.GROUP_ABOUT.text()) {
+                    val uriHandler = LocalUriHandler.current
+                    SettingsRow(
+                        com.cosmotune.ui.settings.SettingsCategory.ABOUT.icon,
+                        com.cosmotune.ui.settings.SettingsText.VERSION.text(),
+                        "Cosmotune $settingsVersion",
+                    )
+                    SettingsRow(
+                        CosmotuneIcons.Library,
+                        com.cosmotune.ui.settings.SettingsText.SOURCE_CODE.text(),
+                        com.cosmotune.CosmoConfig.PROJECT_URL,
+                    ) { uriHandler.openUri(com.cosmotune.CosmoConfig.PROJECT_URL) }
+                    SettingsRow(
+                        CosmotuneIcons.Library,
+                        com.cosmotune.ui.settings.SettingsText.LICENSES.text(),
+                        DesktopStrings["d_third_party_licenses", "Third-party licenses"],
+                    ) { onOpenLicenses() }
+                }
+            }
+            DesktopSettingsSection.COLOPHON -> {
+                DesktopSettingsFooter(onLicenses = onOpenLicenses)
+            }
+        }
+    }
+    // The settings home and its pages side by side: the categories on the left, the page on the right; in a narrow window
+    // the home and a page take turns, as on the phone.
+    DesktopSettingsPageFrame(maxWidth = DesktopSettingsHubWidth) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val twoPane = maxWidth >= DesktopSettingsTwoPaneMin
+            val current = if (selectedCategory == com.cosmotune.ui.settings.SettingsCategory.ALL && twoPane) pages.first() else selectedCategory
+            val openCategory: (com.cosmotune.ui.settings.SettingsCategory) -> Unit = { category ->
+                onCategoryChange(category)
+                onQueryChange("")
+                settingsScope.launch { listState.scrollToItem(0) }
+            }
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    com.cosmotune.ui.settings.SettingsHubTitle(DesktopStrings["settings", "Settings"], Modifier.weight(1f))
+                    DesktopSearchField(
+                        query = settingsQuery,
+                        onQueryChange = { onQueryChange(it) },
+                        onSearch = {},
+                        placeholder = DesktopStrings["settings_search_hint", "Search settings"],
+                        modifier = Modifier.padding(start = 24.dp).width(320.dp),
+                    )
+                }
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    if (twoPane) {
+                        com.cosmotune.ui.settings.SettingsCategoryRail(
+                            entries = hubEntries,
+                            selected = current.takeIf { !searching },
+                            onSelect = openCategory,
+                            modifier = Modifier
+                                .width(DesktopSettingsRailWidth)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState())
+                                .padding(top = 8.dp, bottom = 28.dp + LocalDesktopBottomInset.current),
+                        )
+                        Spacer(Modifier.width(20.dp))
+                    }
+                    Box(Modifier.weight(1f).fillMaxHeight()) {
+                        when {
+                            searching -> {
+                                // Every section runs here, drawing nothing: its rows register with the collector, the results are read after.
+                                val collector = remember(settingsQuery) { com.cosmotune.ui.settings.SettingsCollector() }
+                                androidx.compose.ui.layout.Layout(
+                                    content = {
+                                        CompositionLocalProvider(com.cosmotune.ui.settings.LocalSettingsCollector provides collector) {
+                                            DesktopSettingsSection.entries.forEach { section ->
+                                                CompositionLocalProvider(LocalDesktopSettingsSection provides section) { sectionContent(section) }
+                                            }
+                                        }
+                                    },
+                                ) { _, _ -> layout(0, 0) {} }
+                                val results = com.cosmotune.ui.settings.SettingsIndex.search(hubEntries.asSearchItems() + collector.items, settingsQuery)
+                                Column(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(bottom = 28.dp + LocalDesktopBottomInset.current),
+                                ) {
+                                    com.cosmotune.ui.settings.SettingsSearchResults(
+                                        results = results,
+                                        query = settingsQuery,
+                                        onPick = { item ->
+                                            onCategoryChange(item.category)
+                                            onQueryChange("")
+                                            val section = DesktopSettingsSection.entries.firstOrNull { it.name == item.id.substringBefore('|') }
+                                            if (section != null) {
+                                                pendingJump = section to item.title
+                                            } else {
+                                                settingsScope.launch { listState.scrollToItem(0) }
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                            current == com.cosmotune.ui.settings.SettingsCategory.ALL -> {
+                                Column(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(bottom = 28.dp + LocalDesktopBottomInset.current),
+                                ) {
+                                    com.cosmotune.ui.settings.SettingsHub(entries = hubEntries, onOpen = openCategory)
+                                }
+                            }
+                            else -> CompositionLocalProvider(
+                                com.cosmotune.ui.settings.LocalSettingsHighlight provides highlight,
+                                com.cosmotune.ui.settings.LocalSettingsTileColor provides com.cosmotune.ui.settings.settingsCategoryTint(current),
+                            ) {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    state = listState,
+                                    contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp + LocalDesktopBottomInset.current),
+                                ) {
+                                    item(key = "header") {
+                                        com.cosmotune.ui.settings.SettingsPageHeader(
+                                            title = current.title(),
+                                            onBack = if (twoPane) null else ({ onCategoryChange(com.cosmotune.ui.settings.SettingsCategory.ALL) }),
+                                            subtitle = current.blurb(),
+                                            modifier = Modifier.padding(bottom = 6.dp),
+                                        )
+                                    }
+                                    DesktopSettingsSection.entries.filter { it.category == current }.forEach { section ->
+                                        item(key = section.name) { sectionContent(section) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    editingSubsonic?.let { config ->
+        val isNew = sourceConfigs.none { it.id == config.id }
+        com.cosmotune.ui.providers.SubsonicServerDialog(
+            isNew = isNew, label = config.label, address = config.baseUrl, settings = config.userSettings,
+            http = com.cosmotune.music.data.Http.client,
+            onSave = { edit ->
+                onSaveSource(config.copy(label = edit.label, baseUrl = edit.address, userSettings = edit.settings))
+                editingSubsonic = null
+            },
+            onRemove = if (isNew) null else ({ onRemoveSource(config); editingSubsonic = null }),
+            onDismiss = { editingSubsonic = null },
+        )
+    }
+
+    editingSource?.let { config ->
+        DesktopSourceEditorDialog(
+            config = config,
+            configuredSources = sourceConfigs,
+            isNew = sourceConfigs.none { it.id == config.id },
+            status = sourceStatus[config.id],
+            onDismiss = { editingSource = null },
+            onSave = {
+                onSaveSource(it)
+                editingSource = null
+            },
+            onRemove = {
+                onRemoveSource(config)
+                editingSource = null
+            },
+            onTest = onTestSource,
+        )
+    }
+}
+
+/** The line at the foot of the settings sheet, as Android has it. */
+@Composable
+private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.16" }
+    val linkStyles = TextLinkStyles(
+        style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
+    )
+    Text(
+        text = buildAnnotatedString {
+            append("Made with love by Vijay\n")
+            append("Cosmotune $version  ")
+            withLink(LinkAnnotation.Url(com.cosmotune.CosmoConfig.PROJECT_URL, linkStyles)) {
+                append("Source")
+            }
+            append("  ")
+            withLink(LinkAnnotation.Clickable("licenses", linkStyles) { onLicenses() }) {
+                append("Licenses")
+            }
+        },
+        style = MaterialTheme.typography.labelSmall,
+        color = DesktopSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp),
+    )
+}
+
+/** Everything this build is assembled from, and the terms each part came under. A page of Settings. */
+@Composable
+private fun DesktopLicensesPage(onDismiss: () -> Unit) {
+    DesktopSettingsPageFrame {
+        Text(
+            DesktopStrings["d_third_party_licenses", "Third-party licenses"],
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+        )
+        Text(
+            DesktopStrings["d_cosmotune_is_free_software_and_so_is_everything_it_is_bui", "Cosmotune is free software, and so is everything it is built on."],
+            color = DesktopSecondary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            DesktopLicenses.groups.forEach { group ->
+                item(key = group.title) {
+                    SettingsGroup(group.title) {
+                        group.entries.forEach { entry ->
+                            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(entry.name, fontWeight = FontWeight.Medium)
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        entry.license,
+                                        color = DesktopAccent,
+                                        style = MaterialTheme.typography.labelMedium,
+                                    )
+                                }
+                                if (entry.note.isNotBlank()) {
+                                    Text(
+                                        entry.note,
+                                        color = DesktopSecondary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                Text(
+                                    entry.url,
+                                    color = DesktopSecondary.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 18.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            Button(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent, contentColor = Color.Black),
+            ) { Text(DesktopStrings["done", "Done"]) }
+        }
+    }
+}
+
+@Composable
+private fun DesktopSourceSettingsRow(
+    position: Int,
+    config: DesktopSourceConfig,
+    status: String?,
+    skippedByQuality: Boolean = false,
+    onEdit: (() -> Unit)?,
+    onToggle: ((Boolean) -> Unit)?,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
+) {
+    val enabledAlpha = if (config.enabled) 1f else 0.45f
+    val sourceInset = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 16.dp else 0.dp
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .desktopRowClickable(enabled = onEdit != null) { onEdit?.invoke() }
+            .padding(horizontal = sourceInset, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "$position",
+            color = DesktopSecondary,
+            modifier = Modifier.width(20.dp).alpha(enabledAlpha),
+        )
+        Icon(
+            when (config.kind) {
+                DesktopSourceKind.ADDON -> Icons.Rounded.Extension
+                DesktopSourceKind.CUSTOM_MODULE, DesktopSourceKind.MODULE -> Icons.Rounded.Extension
+                DesktopSourceKind.SUBSONIC -> Icons.Rounded.LibraryMusic
+                DesktopSourceKind.JIOSAAVN -> Icons.Rounded.GraphicEq
+                DesktopSourceKind.YOUTUBE -> Icons.Rounded.PlayCircle
+            },
+            contentDescription = null,
+            tint = DesktopAccent,
+            modifier = Modifier.size(21.dp).alpha(enabledAlpha),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f).alpha(enabledAlpha)) {
+            Text(config.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                when {
+                    !config.enabled -> "Disabled"
+                    // The ceiling in force, not the switch, is why this one is being passed over —
+                    // worth saying, or the row reads as enabled and silently unused.
+                    skippedByQuality -> "Skipped at this audio quality"
+                    status != null -> status
+                    !config.isComplete -> "Setup required"
+                    config.kind.needsServer -> "Checking…"
+                    else -> config.kind.detail
+                } + if (!config.allowDownloads) {
+                    " · " + DesktopStrings["source_downloads_off", "Streaming only"]
+                } else {
+                    ""
+                },
+                color = if (skippedByQuality) DesktopAccent else DesktopSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        if (onMoveUp != null) {
+            IconButton(onClick = onMoveUp, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Rounded.KeyboardArrowUp, "Move source earlier")
+            }
+        }
+        if (onMoveDown != null) {
+            IconButton(onClick = onMoveDown, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Rounded.KeyboardArrowDown, "Move source later")
+            }
+        }
+        if (onToggle == null) {
+            Text(DesktopStrings["always_on", "Always on"], color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+        } else {
+            Switch(checked = config.enabled, onCheckedChange = onToggle, colors = desktopSwitchColors())
+        }
+    }
+}
+
+@Composable
+private fun DesktopSourceEditorDialog(
+    config: DesktopSourceConfig,
+    configuredSources: List<DesktopSourceConfig>,
+    isNew: Boolean,
+    status: String?,
+    onDismiss: () -> Unit,
+    onSave: (DesktopSourceConfig) -> Unit,
+    onRemove: () -> Unit,
+    onTest: (DesktopSourceConfig) -> Unit,
+) {
+    var label by remember(config.id) { mutableStateOf(config.label) }
+    var baseUrl by remember(config.id) { mutableStateOf(config.baseUrl) }
+    var checking by remember(config.id) { mutableStateOf(false) }
+    var message by remember(config.id) { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val candidate = config.copy(label = label.trim(), baseUrl = baseUrl.trim())
+
+    /** Works out what is actually on the end of the URL before storing it. */
+    fun identify(thenSave: Boolean) {
+        if (candidate.baseUrl.isBlank() || checking) return
+        checking = true
+        message = null
+        scope.launch {
+            val outcome = DesktopSourceFormats.identify(candidate.baseUrl)
+            checking = false
+            outcome.fold(
+                onSuccess = { detected ->
+                    when (detected) {
+                        is DesktopDetectedFormat.Addon -> {
+                            val named = candidate.copy(
+                                kind = DesktopSourceKind.ADDON,
+                                baseUrl = detected.baseUrl,
+                                label = candidate.label.ifBlank { detected.manifest.displayName },
+                                allowDownloads = detected.manifest.downloadsAllowed,
+                            )
+                            val duplicate = configuredSources.duplicateOf(named.baseUrl, exceptId = named.id)
+                            if (duplicate != null) {
+                                message = "Already added as ${duplicate.displayName}"
+                            } else {
+                                message = "Addon · ${detected.manifest.displayName}"
+                                if (thenSave) onSave(named)
+                            }
+                        }
+                        is DesktopDetectedFormat.ModuleIndex -> {
+                            val asIndex = candidate.copy(
+                                kind = DesktopSourceKind.CUSTOM_MODULE,
+                                baseUrl = detected.url.ifBlank { candidate.baseUrl },
+                            )
+                            message = "Module index · ${detected.moduleCount} modules"
+                            if (thenSave) onSave(asIndex)
+                        }
+                        is DesktopDetectedFormat.Unsupported -> message = detected.reason
+                    }
+                },
+                onFailure = { message = it.message ?: "Nothing answered at that address" },
+            )
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (isNew) "Add a source" else config.displayName) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = baseUrl,
+                    onValueChange = {
+                        baseUrl = it
+                        message = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(DesktopStrings["d_addon_url", "Addon URL"]) },
+                    placeholder = { Text("https://example.com/addon") },
+                    singleLine = true,
+                    enabled = !checking,
+                )
+                Text(
+                    DesktopStrings[
+                        "d_an_addon_server",
+                        "An addon server — Cosmotune asks it over plain HTTP and runs no code from it. " +
+                            "A compatible module index also works and is stored as one.",
+                    ],
+                    color = DesktopSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(DesktopStrings["d_name_optional", "Name (optional)"]) },
+                    placeholder = { Text(DesktopStrings["d_my_music_source", "My music source"]) },
+                    singleLine = true,
+                    enabled = !checking,
+                )
+                (message ?: status)?.let {
+                    Text(it, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        dismissButton = {
+            Row {
+                if (!isNew) TextButton(onClick = onRemove, enabled = !checking) { Text(DesktopStrings["remove", "Remove"]) }
+                TextButton(onClick = onDismiss) { Text(DesktopStrings["cancel", "Cancel"]) }
+            }
+        },
+        confirmButton = {
+            Row {
+                TextButton(
+                    onClick = {
+                        onTest(candidate)
+                        identify(thenSave = false)
+                    },
+                    enabled = candidate.baseUrl.isNotBlank() && !checking,
+                ) {
+                    Text(if (checking) "Checking…" else "Test")
+                }
+                TextButton(
+                    onClick = { identify(thenSave = true) },
+                    enabled = candidate.baseUrl.isNotBlank() && !checking,
+                ) {
+                    Text(DesktopStrings["save", "Save"])
+                }
+            }
+        },
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DesktopCollectionPage(
+    collection: DesktopCollection,
+    loadingMore: Boolean,
+    onLoadMore: () -> Unit,
+    /** The three edits only a playlist's owner is offered. */
+    onRename: (() -> Unit)?,
+    onDelete: (() -> Unit)?,
+    /** Copies the release's own YouTube Music link; null for anything with no link to share. */
+    onShare: (() -> Unit)?,
+    onRemoveFromPlaylist: ((Song) -> Unit)?,
+    likedIds: Set<String>,
+    onPlaySongs: (List<Song>, Int) -> Unit,
+    onShuffle: (List<Song>) -> Unit,
+    onDownloadAll: (List<Song>) -> Unit,
+    animatedCanvas: Boolean,
+    onToggleLike: (Song) -> Unit,
+    onDownload: (Song) -> Unit,
+    onAddToPlaylist: (Song) -> Unit,
+    downloadedIds: Set<String>,
+    downloadInProgress: Set<String>,
+    contentPadding: PaddingValues,
+    /** Opens the reorder dialog; only a playlist the account owns can be rearranged (BC-35). */
+    onReorder: (() -> Unit)? = null,
+) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopCollectionPage(collection = collection, loadingMore = loadingMore, onLoadMore = onLoadMore, onRename = onRename, onDelete = onDelete, onShare = onShare, onRemoveFromPlaylist = onRemoveFromPlaylist, likedIds = likedIds, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onDownloadAll = onDownloadAll, animatedCanvas = animatedCanvas, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloadedIds = downloadedIds, downloadInProgress = downloadInProgress, contentPadding = contentPadding, onReorder = onReorder, nowPlaying = LocalNowPlaying.current)
+    val songs = collection.songs
+    // The phone's "search this list": a filter over the rows already loaded.
+    var searching by remember(collection.browseId) { mutableStateOf(false) }
+    var listQuery by remember(collection.browseId) { mutableStateOf("") }
+    val isCurrentRow = rememberPlayingRowMatcher(songs)
+    val shownSongs = remember(songs, listQuery) {
+        val needle = listQuery.trim()
+        songs.withIndex().filter { (_, song) ->
+            needle.isBlank() || song.title.contains(needle, ignoreCase = true) ||
+                song.artist.contains(needle, ignoreCase = true) ||
+                song.albumName.orEmpty().contains(needle, ignoreCase = true)
+        }
+    }
+    var moreOpen by remember(collection.browseId) { mutableStateOf(false) }
+    val subtitleParts = collection.subtitle
+        .split(" • ", " · ", " | ")
+        .map(String::trim)
+        .filter(String::isNotBlank)
+    val credit = subtitleParts.firstOrNull {
+        it.lowercase() !in setOf("album", "single", "ep", "playlist", "artist") &&
+            !it.matches(Regex("\\d{4}")) &&
+            !it.matches(Regex("\\d{1,2}:\\d{2}(?::\\d{2})?")) &&
+            !it.matches(Regex("[0-9,.]+\\s*(?:songs?|tracks?)", RegexOption.IGNORE_CASE))
+    }.orEmpty()
+    val typeLabel = when (collection.type) {
+        BrowseType.ALBUM -> "Album"
+        BrowseType.PLAYLIST -> "Playlist"
+        BrowseType.ARTIST -> "Artist"
+        BrowseType.OTHER -> "Collection"
+    }
+    val metadata = buildList {
+        add(typeLabel.uppercase())
+        subtitleParts.firstOrNull { it.matches(Regex("\\d{4}")) }?.let(::add)
+        if (songs.isNotEmpty()) add("${songs.size} songs")
+        val seconds = songs.sumOf { it.durationText.durationMillis() / 1_000L }
+        if (seconds > 0) add(formatCollectionDuration(seconds))
+    }.joinToString(" • ").uppercase()
+    DesktopPageScaffold(contentPadding) {
+        LazyColumn(
+            contentPadding = pagePadding(
+                start = DesktopPageGutter,
+                top = DesktopPageGutter,
+                end = DesktopPageGutter,
+                bottom = 32.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 36.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // The services hang motion artwork off the release, so a page for one asks for
+                    // it directly rather than picking a track and hoping it sits on the right
+                    // edition.
+                    val albumCanvas by produceState<DesktopCanvasArtwork?>(null, collection.title, animatedCanvas) {
+                        value = if (!animatedCanvas) {
+                            null
+                        } else {
+                            withContext(Dispatchers.IO) {
+                                DesktopCanvasClient.lookupAlbum(
+                                    collection.title,
+                                    songs.firstOrNull()?.artist.orEmpty(),
+                                )
+                            }
+                        }
+                    }
+                    Box(Modifier.size(286.dp).clip(RoundedCornerShape(CosmoRadii.rSm))) {
+                        DesktopArtwork(
+                            collection.thumbnailUrl ?: songs.firstOrNull()?.thumbnailUrl,
+                            Modifier.fillMaxSize(),
+                        )
+                        albumCanvas?.let {
+                            DesktopCanvasView(it.url, Modifier.fillMaxSize(), fallbackUrl = it.fallbackUrl)
+                        }
+                    }
+                    Spacer(Modifier.width(30.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            typeLabel.uppercase(),
+                            color = DesktopSecondary,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 1.2.sp,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            collection.title,
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (credit.isNotBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                credit,
+                                color = DesktopAccent,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (metadata.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(metadata, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Spacer(Modifier.height(24.dp))
+                        // The phone's release controls, in its order: Shuffle, Play, search this
+                        // list, and everything else behind the overflow — downloading a release is
+                        // done once, finding a track on it is done while reading the page.
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            DesktopSourceLibraryButton(collection)
+                            DesktopCircleButton(CosmotuneIcons.Shuffle, DesktopStrings["shuffle", "Shuffle"], onClick = { onShuffle(songs) })
+                            DesktopPlayPill(
+                                label = DesktopStrings["play", "Play"],
+                                onClick = { if (songs.isNotEmpty()) onPlaySongs(songs, 0) },
+                                iconOnly = true,
+                            )
+                            DesktopCircleButton(
+                                if (searching) Icons.Rounded.Close else CosmotuneIcons.Search,
+                                if (searching) DesktopStrings["close_search", "Close search"] else DesktopStrings["search_this_list", "Search this list"],
+                                onClick = {
+                                    searching = !searching
+                                    if (!searching) listQuery = ""
+                                },
+                            )
+                            Box {
+                                DesktopCircleButton(Icons.Rounded.MoreHoriz, DesktopStrings["more", "More"], onClick = { moreOpen = true })
+                                DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text(DesktopStrings["download_all", "Download all"]) },
+                                        leadingIcon = { Icon(CosmotuneIcons.Download, null) },
+                                        onClick = {
+                                            moreOpen = false
+                                            onDownloadAll(songs)
+                                        },
+                                    )
+                                    onShare?.let { share ->
+                                        DropdownMenuItem(
+                                            text = { Text(DesktopStrings["share", "Share"]) },
+                                            leadingIcon = { Icon(Icons.Rounded.Share, null) },
+                                            onClick = {
+                                                moreOpen = false
+                                                share()
+                                            },
+                                        )
+                                    }
+                                    onRename?.let { rename ->
+                                        DropdownMenuItem(
+                                            text = { Text(DesktopStrings["rename", "Rename"]) },
+                                            leadingIcon = { Icon(Icons.Rounded.Edit, null) },
+                                            onClick = {
+                                                moreOpen = false
+                                                rename()
+                                            },
+                                        )
+                                    }
+                                    onReorder?.let { reorder ->
+                                        DropdownMenuItem(
+                                            text = { Text(DesktopStrings["reorder_playlist", "Edit order"]) },
+                                            leadingIcon = { Icon(Icons.Rounded.DragHandle, null) },
+                                            onClick = {
+                                                moreOpen = false
+                                                reorder()
+                                            },
+                                        )
+                                    }
+                                    onDelete?.let { delete ->
+                                        DropdownMenuItem(
+                                            text = { Text(DesktopStrings["delete", "Delete"]) },
+                                            leadingIcon = { Icon(Icons.Rounded.Delete, null) },
+                                            onClick = {
+                                                moreOpen = false
+                                                delete()
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (searching) {
+                item(key = "collection-search") {
+                    DesktopSearchField(
+                        query = listQuery,
+                        onQueryChange = { listQuery = it },
+                        onSearch = {},
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                        placeholder = DesktopStrings["search_this_list", "Search this list"],
+                    )
+                }
+            }
+            itemsIndexed(shownSongs, key = { _, (index, song) -> "${song.videoId}-$index" }) { position, (index, song) ->
+                DesktopCollectionSongRow(
+                    // Striped by place on screen, not track number, so a filtered list still
+                    // alternates.
+                    striped = position % 2 == 1,
+                    song = song,
+                    isCurrent = isCurrentRow(song),
+                    collectionType = collection.type,
+                    liked = song.videoId in likedIds,
+                    onClick = { _ -> onPlaySongs(songs, index) },
+                    onToggleLike = onToggleLike,
+                    onDownload = onDownload,
+                    onAddToPlaylist = onAddToPlaylist,
+                    downloaded = song.videoId in downloadedIds,
+                    downloadInProgress = song.videoId in downloadInProgress,
+                    number = index + 1,
+                    onRemove = onRemoveFromPlaylist?.takeIf { song.setVideoId != null },
+                )
+            }
+            if (collection.continuation != null || collection.paginationError != null) {
+                item(key = "collection-more") {
+                    LaunchedEffect(collection.continuation, songs.size) {
+                        if (collection.continuation != null && collection.paginationError == null) onLoadMore()
+                    }
+                    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        collection.paginationError?.let { Text(it) }
+                        if (loadingMore) CircularProgressIndicator(Modifier.size(22.dp), color = DesktopAccent)
+                        else if (collection.continuation != null) TextButton(onClick = onLoadMore) {
+                            Text(if (collection.paginationError != null) DesktopStrings["retry", "Try again"] else DesktopStrings["load_more", "Load more"])
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The width of a collection row's action cluster, fixed so the duration column lines up down the
+ * table whichever rows can be removed.
+ */
+private fun collectionActionsWidth(hasRemove: Boolean): Dp =
+    if (hasRemove) 136.dp else 102.dp
+
+@Composable
+private fun DesktopCollectionSongRow(
+    song: Song,
+    /** From the list's [rememberPlayingRowMatcher]; null falls back to the name rule. */
+    isCurrent: Boolean? = null,
+    collectionType: BrowseType,
+    liked: Boolean,
+    onClick: (Song) -> Unit,
+    onToggleLike: ((Song) -> Unit)?,
+    onDownload: ((Song) -> Unit)?,
+    onAddToPlaylist: ((Song) -> Unit)?,
+    downloaded: Boolean,
+    downloadInProgress: Boolean,
+    number: Int,
+    /** Every other row is shaded, so a wide row can be followed across to its buttons. */
+    striped: Boolean,
+    /** Takes this row out of the playlist being read. */
+    onRemove: ((Song) -> Unit)? = null,
+) {
+    // A Spotify track still being matched to YouTube Music, or with no match: listed, but there is
+    // nothing yet to play, like, save or remove.
+    val unresolved = song.isUnresolvedSpotify
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .alpha(if (song.isMatchMissing) 0.45f else 1f)
+            .clip(RoundedCornerShape(CosmoRadii.rSm))
+            .background(if (striped) Color.White.copy(alpha = 0.04f) else Color.Transparent)
+            .desktopSongContextMenu(song, enabled = !unresolved)
+            .clickable(enabled = !unresolved) { onClick(song) }
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val nowPlaying = isCurrent ?: song.isNowPlaying()
+        Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) {
+            if (song.isMatchPending) {
+                CircularProgressIndicator(color = DesktopSecondary, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
+            } else {
+                Text(
+                    number.toString(),
+                    color = DesktopSecondary,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        // No sleeve on an album's rows.
+        if (collectionType != BrowseType.ALBUM) {
+            DesktopArtwork(song.thumbnailUrl, Modifier.size(44.dp).clip(RoundedCornerShape(CosmoRadii.rSm)), px = ROW_ART_PX)
+            Spacer(Modifier.width(12.dp))
+        }
+        Text(
+            song.title,
+            Modifier.weight(0.42f),
+            color = if (nowPlaying) Color.White else Color.White.copy(alpha = 0.75f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            song.artist,
+            Modifier.weight(0.20f).padding(horizontal = 8.dp),
+            color = DesktopSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        // Every row of an album is on that album; the column would only repeat the page's title.
+        if (collectionType != BrowseType.ALBUM) {
+            Text(
+                song.albumName ?: "—",
+                Modifier.weight(0.25f).padding(horizontal = 8.dp),
+                color = DesktopSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            song.durationText ?: "—",
+            Modifier.width(58.dp),
+            color = DesktopSecondary,
+            textAlign = TextAlign.End,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(
+            Modifier.width(collectionActionsWidth(onRemove != null)),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            if (unresolved) return@Row
+            onRemove?.let { remove ->
+                IconButton(onClick = { remove(song) }, modifier = Modifier.size(34.dp)) {
+                    Icon(
+                        Icons.Rounded.RemoveCircleOutline,
+                        DesktopStrings["d_remove_from_playlist", "Remove from playlist"],
+                        tint = DesktopSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            onToggleLike?.let { onLike ->
+                IconButton(onClick = { onLike(song) }, modifier = Modifier.size(34.dp)) {
+                    Icon(
+                        if (liked) CosmotuneIcons.HeartFilled else CosmotuneIcons.Heart,
+                        "Favorite",
+                        tint = if (liked) DesktopAccent else DesktopSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            onDownload?.let { onSave ->
+                IconButton(onClick = { if (!downloaded) onSave(song) }, modifier = Modifier.size(34.dp)) {
+                    if (downloadInProgress) {
+                        CircularProgressIndicator(Modifier.size(16.dp), color = DesktopAccent, strokeWidth = 2.dp)
+                    } else {
+                        Icon(
+                            if (downloaded) CosmotuneIcons.Download else CosmotuneIcons.Download,
+                            if (downloaded) "Downloaded" else "Download",
+                            tint = if (downloaded) DesktopAccent else DesktopSecondary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
+            onAddToPlaylist?.let { onAdd ->
+                IconButton(onClick = { onAdd(song) }, modifier = Modifier.size(34.dp)) {
+                    Icon(CosmotuneIcons.Plus, DesktopStrings["add_to_playlist", "Add to playlist"], tint = DesktopSecondary, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+}
+
+
+/** The track playing, for rows that want to say so. */
+private val LocalNowPlaying = compositionLocalOf<Song?> { null }
+
+/** Whether this row is the track being played, for the now-playing highlight. */
+@Composable
+private fun Song.isNowPlaying(): Boolean = LocalPlayingRow.current?.invoke(this) ?: isSameTrackAs(LocalNowPlaying.current)
+
+/**
+ * The answer of the list being drawn to "is this row the one playing?", from [PlayingRowScope]; null outside a list, where a row
+ * falls back to the name rule. A local rather than a parameter, so the rows' parameter lists (pinned by the new look's delegates)
+ * stay as they are.
+ */
+private val LocalPlayingRow = compositionLocalOf<((Song) -> Boolean)?> { null }
+
+/** Which of [rows] is the track being played: the one that was played, not every namesake (see [playingRowMatcher]). */
+@Composable
+private fun rememberPlayingRowMatcher(rows: List<Song>): (Song) -> Boolean {
+    val current = LocalNowPlaying.current
+    return remember(rows, current) { playingRowMatcher(rows, current) }
+}
+
+/** Draws [content], a list of [rows], with only the row that was played lit (see [LocalPlayingRow]). */
+@Composable
+private fun PlayingRowScope(rows: List<Song>, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalPlayingRow provides rememberPlayingRowMatcher(rows), content = content)
+}
+
+/** The frosted pane the floating bars are made of. */
+@Composable
+internal fun Modifier.desktopBarGlass(shape: Shape): Modifier =
+    desktopFrosted(DesktopBarGlass, tintAlpha = 0.55f).border(0.5.dp, DesktopBarEdge, shape)
+
+/** The edge of a chrome pane that meets the page, and so has to dissolve into it. */
+internal enum class DesktopChromeEdge { NONE, BOTTOM, END }
+
+/**
+ * The same pane for the window's own chrome — square-edged, and a shade denser, because the sidebar
+ * and top bar carry far more text than a floating bar does.
+ *
+ * [edge] names the side the page is on. The pane's tint is dissolved across the last [fade] of it so
+ * the two meet in a gradient rather than on a line.
+ */
+@Composable
+internal fun Modifier.desktopChromeGlass(
+    edge: DesktopChromeEdge = DesktopChromeEdge.NONE,
+    fade: Float = 0.2f,
+): Modifier = desktopFrosted(
+    opaque = DesktopSurface.copy(alpha = 0.88f),
+    tintAlpha = 0.46f,
+    edge = edge,
+    fade = fade,
+)
+
+/**
+ * The window's own chrome — title bar, top bar, sidebar. Over Windows 11's Mica or Acrylic
+ * ([DesktopWindowBackdrop]) it is a light dark tint and nothing else, so DWM's material shows
+ * through; the in-app blur would paint the page's backdrop over it. Otherwise the in-app glass.
+ *
+ * No dissolve over the material: it would fade the tint out into bare material right where the
+ * opaque page begins, a lighter stripe along the seam rather than a softer one.
+ */
+@Composable
+internal fun Modifier.desktopWindowGlass(
+    edge: DesktopChromeEdge = DesktopChromeEdge.NONE,
+    fade: Float = 0.2f,
+): Modifier {
+    val backdrop by DesktopWindowBackdrop.active.collectAsState()
+    return if (backdrop == DesktopBackdrop.OFF) {
+        desktopChromeGlass(edge, fade)
+    } else {
+        val base = background(Color.Black.copy(alpha = WINDOW_GLASS_TINT))
+        if (DesktopPlatform.isMac && edge == DesktopChromeEdge.BOTTOM) {
+            base.drawBehind {
+                // Subtle liquid glass specular highlight along the top edge
+                drawLine(
+                    color = Color.White.copy(alpha = 0.08f),
+                    start = Offset(0f, 0f),
+                    end = Offset(size.width, 0f),
+                    strokeWidth = 1f,
+                )
+            }
+        } else {
+            base
+        }
+    }
+}
+
+/** Enough to keep white text readable over a bright wallpaper, little enough to let it through. */
+private const val WINDOW_GLASS_TINT = 0.28f
+
+/**
+ * The separators in the window's chrome. Acrylic lets the wallpaper through bright, and the solid
+ * dark divider cut across it as a black line; a faint white one reads as an edge in the glass
+ * instead. Mica is dark enough for the usual one.
+ */
+@Composable
+internal fun desktopChromeDivider(): Color {
+    val backdrop by DesktopWindowBackdrop.active.collectAsState()
+    return when {
+        backdrop == DesktopBackdrop.ACRYLIC -> Color.White.copy(alpha = 0.14f)
+        DesktopPlatform.isMac && backdrop != DesktopBackdrop.OFF -> Color.White.copy(alpha = 0.10f)
+        else -> DesktopDivider
+    }
+}
+
+@Composable
+private fun Modifier.desktopFrosted(
+    opaque: Color,
+    tintAlpha: Float,
+    edge: DesktopChromeEdge = DesktopChromeEdge.NONE,
+    fade: Float = 0f,
+): Modifier {
+    val haze = LocalDesktopHaze.current
+    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    if (haze == null || reduceDynamicBlur) {
+        return this.background(edge.dissolve(opaque, fade) ?: SolidColor(opaque))
+    }
+    val dissolve = edge.dissolve(Color.Black, fade)
+    return this.hazeEffect(state = haze) {
+        // Spelled out rather than taken from a preset.
+        blurEnabled = true
+        backgroundColor = DesktopSurface
+        blurRadius = 30.dp
+        // Dark enough that white text on the pane always wins, translucent enough that the
+        // colour of what is behind it still comes through.
+        tints = listOf(HazeTint(DesktopSurface.copy(alpha = tintAlpha)))
+        noiseFactor = 0.04f
+        // Assigned either way: the scope belongs to the node and outlives the draw, so a pane that
+        // stops dissolving — the leading stretch of the top bar, when the window grows back out of
+        // compact — would otherwise keep the mask it was given in the other layout.
+        mask = dissolve
+    }
+}
+
+/** The gradient that takes [colour] to nothing across the pane's last [fade]. */
+private fun DesktopChromeEdge.dissolve(colour: Color, fade: Float): Brush? {
+    if (this == DesktopChromeEdge.NONE || fade <= 0f) return null
+    val stops = arrayOf(
+        0f to colour,
+        (1f - fade).coerceIn(0f, 1f) to colour,
+        1f to Color.Transparent,
+    )
+    return if (this == DesktopChromeEdge.BOTTOM) {
+        Brush.verticalGradient(*stops)
+    } else {
+        Brush.horizontalGradient(*stops)
+    }
+}
+
+private fun AutomixPerformanceMode.label(): String = when (this) {
+    AutomixPerformanceMode.EFFICIENT -> "Efficient"
+    AutomixPerformanceMode.BALANCED -> "Balanced"
+    AutomixPerformanceMode.PERFORMANCE -> "Performance"
+}
+
+/** Android's description of each rung. */
+private fun AutomixPerformanceMode.detail(): String = when (this) {
+    AutomixPerformanceMode.EFFICIENT ->
+        "1 thread · lowest heat and battery use · analysis may take longer"
+    AutomixPerformanceMode.BALANCED ->
+        "2 threads · recommended balance of speed, heat and battery"
+    AutomixPerformanceMode.PERFORMANCE ->
+        "4 threads · fastest analysis · higher heat and battery use"
+}
+
+/** Android's wording for the Automix line, so both players read alike. */
+private fun TrackAnalysisState.label(): String = when (this) {
+    TrackAnalysisState.ANALYSED -> "analysed"
+    TrackAnalysisState.REFINING -> "analysed, refining…"
+    TrackAnalysisState.ANALYSING -> "analysing…"
+    TrackAnalysisState.WAITING -> "waiting"
+    TrackAnalysisState.FAILED -> "failed"
+}
+
+@Composable
+private fun DesktopShelf(
+    shelf: HomeShelf,
+    onItemClick: (ShelfItem, String?) -> Unit,
+    gutter: Dp = DesktopPageGutter,
+) {
+    Column {
+        SectionTitle(shelf.title, shelf.subtitle, gutter)
+        DesktopScrollableRow(gutter = gutter) {
+            items(shelf.items, key = { it.videoId ?: it.browseId ?: it.title }) { item ->
+                DesktopShelfCard(item) { onItemClick(it, shelf.title) }
+            }
+        }
+    }
+}
+
+/**
+ * A sideways row with the affordances a desktop needs to move it.
+ *
+ * A carousel longer than the window has no way to be scrolled with a mouse — the wheel belongs to
+ * the page underneath — so this adds the three that work: dragging it, the pointer's horizontal
+ * ticks while it is hovered, and a paging arrow at whichever end still has more.
+ *
+ * Shared rather than repeated: every shelf-shaped row in the app wants the same three.
+ */
+@Composable
+internal fun DesktopScrollableRow(
+    gutter: Dp = DesktopPageGutter,
+    spacing: Dp = 14.dp,
+    content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
+) {
+    val rowState = rememberLazyListState()
+    DesktopShelfRowChrome.Wrap(rowState) {
+        LazyRow(
+            state = rowState,
+            contentPadding = PaddingValues(horizontal = gutter),
+            horizontalArrangement = Arrangement.spacedBy(spacing),
+            flingBehavior = com.cosmotune.music.ui.components.rememberShelfFlingBehavior(rowState),
+            content = content,
+        )
+    }
+}
+
+/**
+ * What every sideways shelf is wrapped in on the desktop — the shared pages' rows too, through
+ * [LocalShelfRowChrome]. A mouse cannot swipe a row, so it gets the arrows it pages with, a drag
+ * to pull it by, and the horizontal wheel while the pointer is over it.
+ */
+internal object DesktopShelfRowChrome : ShelfRowChrome {
+    @Composable
+    override fun Wrap(state: LazyListState, row: @Composable () -> Unit) {
+        val scope = rememberCoroutineScope()
+        val interaction = remember { MutableInteractionSource() }
+        val hovered by interaction.collectIsHoveredAsState()
+        // A pulled row is let go the way a flung one settles: on a card's leading edge (BC-32).
+        val settle = com.cosmotune.music.ui.components.rememberShelfFlingBehavior(state)
+
+        /** One screenful, less a sliver so the card at the edge stays in view. */
+        fun page(forward: Boolean) {
+            val viewport = state.layoutInfo.let { it.viewportEndOffset - it.viewportStartOffset }
+            val distance = (viewport - SHELF_PAGE_OVERLAP_PX).coerceAtLeast(SHELF_PAGE_OVERLAP_PX)
+            scope.launch {
+                state.animateScrollBy(if (forward) distance.toFloat() else -distance.toFloat())
+                // And then onto a card's edge, as a fling would have left it.
+                state.scroll { with(settle) { performFling(0f) } }
+            }
+        }
+
+        // Whichever row the pointer is in takes the horizontal ticks; the page underneath keeps the
+        // wheel, as it does everywhere else.
+        LaunchedEffect(hovered) {
+            if (!hovered) return@LaunchedEffect
+            DesktopHorizontalScroll.ticks.collect { tick -> state.scrollBy(tick * SHELF_WHEEL_STEP) }
+        }
+
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .hoverable(interaction)
+                // A row can be taken hold of and pulled, which is the first thing anyone tries.
+                .draggable(
+                    state = rememberDraggableState { delta -> scope.launch { state.scrollBy(-delta) } },
+                    orientation = Orientation.Horizontal,
+                    onDragStopped = { velocity -> state.scroll { with(settle) { performFling(-velocity) } } },
+                ),
+        ) {
+            row()
+            DesktopShelfArrow(
+                alignment = Alignment.CenterStart,
+                icon = Icons.Rounded.ChevronLeft,
+                description = DesktopStrings["d_scroll_left", "Scroll left"],
+                visible = hovered && state.canScrollBackward,
+                onClick = { page(forward = false) },
+            )
+            DesktopShelfArrow(
+                alignment = Alignment.CenterEnd,
+                icon = CosmotuneIcons.ChevronRight,
+                description = DesktopStrings["d_scroll_right", "Scroll right"],
+                visible = hovered && state.canScrollForward,
+                onClick = { page(forward = true) },
+            )
+        }
+    }
+}
+
+/** How much of the outgoing card stays visible after a paged scroll. */
+internal const val SHELF_PAGE_OVERLAP_PX = 120
+
+/** How far one notch of a horizontal scroll moves a shelf. */
+internal const val SHELF_WHEEL_STEP = 90f
+
+@Composable
+internal fun BoxScope.DesktopShelfArrow(
+    alignment: Alignment,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    visible: Boolean,
+    onClick: () -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = Modifier.align(alignment).padding(horizontal = 6.dp),
+    ) {
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.55f))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, description, tint = Color.White, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+@Composable
+private fun DesktopShelfCard(item: ShelfItem, onClick: (ShelfItem) -> Unit) {
+    val width = 158.dp
+    val shape = RoundedCornerShape(CosmoRadii.rSm)
+    Column(
+        Modifier
+            .width(width)
+            // The whole card answers the pointer, artwork and captions together, so the two do not
+            // move independently of each other.
+            .desktopHoverLift(shape)
+            .clickable { onClick(item) },
+    ) {
+        Box(
+            Modifier
+                .size(width)
+                .clip(shape)
+                .background(DesktopGlass)
+                .border(1.dp, Color.White.copy(alpha = 0.12f), shape),
+        ) {
+            DesktopArtwork(item.thumbnailUrl, Modifier.fillMaxSize())
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(item.title, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(item.subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun DesktopSongRow(
+    song: Song,
+    liked: Boolean,
+    onClick: (Song) -> Unit,
+    onToggleLike: ((Song) -> Unit)?,
+    onDownload: ((Song) -> Unit)? = null,
+    onAddToPlaylist: ((Song) -> Unit)? = null,
+    downloaded: Boolean = false,
+    downloadInProgress: Boolean = false,
+    number: Int? = null,
+    /** The row's own "…", when the page has a menu to give it. */
+    menu: (@Composable (Song) -> Unit)? = null,
+) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopSongRow(song = song, liked = liked, onClick = onClick, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloaded = downloaded, downloadInProgress = downloadInProgress, number = number, menu = menu, isCurrent = song.isNowPlaying())
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CosmoRadii.rSm))
+            .background(DesktopGlass.copy(alpha = 0.38f))
+            .desktopSongContextMenu(song)
+            .clickable { onClick(song) }
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (number != null) {
+            Text(
+                "$number",
+                Modifier.width(28.dp),
+                color = DesktopSecondary,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.width(12.dp))
+        }
+        DesktopArtwork(
+            song.thumbnailUrl,
+            Modifier.size(52.dp).clip(RoundedCornerShape(CosmoRadii.rSm)),
+            px = ROW_ART_PX,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                song.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.Medium,
+                color = if (song.isNowPlaying()) Color.White else Color.White.copy(alpha = 0.75f),
+            )
+            Text(listOfNotNull(song.artist.takeIf(String::isNotBlank), song.durationText).joinToString(" · "), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        // The tier the row's source offered (an add-on's Lossless, Hi-Res, Atmos; a local file's container), as the player's badge.
+        song.sourceQualityBadge()?.let { quality ->
+            SourceQualityBadge(
+                quality = quality,
+                color = DesktopSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+        }
+        if (onToggleLike != null) {
+            IconButton(onClick = { onToggleLike(song) }) { Icon(if (liked) CosmotuneIcons.HeartFilled else CosmotuneIcons.Heart, "Favorite", tint = if (liked) DesktopAccent else DesktopSecondary) }
+        }
+        if (onDownload != null) {
+            if (downloadInProgress) {
+                IconButton(onClick = { onDownload(song) }) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = DesktopAccent,
+                        strokeWidth = 2.dp,
+                    )
+                }
+            } else {
+                IconButton(onClick = { if (!downloaded) onDownload(song) }) {
+                    Icon(
+                        imageVector = if (downloaded) CosmotuneIcons.Download else CosmotuneIcons.Download,
+                        contentDescription = if (downloaded) "Downloaded" else "Download",
+                        tint = if (downloaded) DesktopAccent else DesktopSecondary,
+                    )
+                }
+            }
+        }
+        if (onAddToPlaylist != null) {
+            IconButton(onClick = { onAddToPlaylist(song) }) {
+                Icon(CosmotuneIcons.Plus, DesktopStrings["add_to_playlist", "Add to playlist"], tint = DesktopSecondary)
+            }
+        }
+        // The same menu every other surface opens, so a row on a list page offers what a row on
+        // the player does; the row itself plays.
+        menu?.invoke(song)
+    }
+}
+
+/** A page's box, inset from the shell's chrome. */
+@Composable
+private fun DesktopPageScaffold(contentPadding: PaddingValues, content: @Composable () -> Unit) {
+    val direction = LocalLayoutDirection.current
+    Box(
+        Modifier.fillMaxSize().padding(
+            start = contentPadding.calculateStartPadding(direction),
+            end = contentPadding.calculateEndPadding(direction),
+            top = contentPadding.calculateTopPadding(),
+        ),
+    ) {
+        CompositionLocalProvider(
+            LocalDesktopBottomInset provides contentPadding.calculateBottomPadding(),
+        ) {
+            content()
+        }
+    }
+}
+
+/** A scrollable's own padding, plus room to clear whatever floats over the page. */
+@Composable
+private fun pagePadding(
+    start: Dp = 0.dp,
+    top: Dp = 0.dp,
+    end: Dp = 0.dp,
+    bottom: Dp = 0.dp,
+): PaddingValues = PaddingValues(
+    start = start,
+    top = top,
+    end = end,
+    bottom = bottom + LocalDesktopBottomInset.current,
+)
+
+@Composable
+private fun SectionTitle(
+    title: String,
+    subtitle: String = "",
+    gutter: Dp = DesktopPageGutter,
+    /** An action belonging to this heading, drawn at the far end of it. */
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = gutter), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            if (subtitle.isNotBlank()) Text(subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium)
+        }
+        trailing?.invoke()
+    }
+}
+
+@Composable
+private fun DesktopLoadingPage(label: String) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoLoadingState(label = label)
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = DesktopAccent)
+            Spacer(Modifier.height(14.dp))
+            Text(label, color = DesktopSecondary)
+        }
+    }
+}
+
+@Composable
+private fun DesktopErrorPage(message: String, onRetry: () -> Unit) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoEmptyState(title = DesktopStrings["d_error_title", "Something went wrong"], message = message, icon = Icons.Rounded.Tune, actionLabel = DesktopStrings["d_try_again", "Try again"], onAction = onRetry)
+    DesktopEmptyPage(Icons.Rounded.Tune, "Something went wrong", message, onRetry, "Try again")
+}
+
+@Composable
+private fun DesktopEmptyPage(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, message: String, onAction: (() -> Unit)? = null, actionLabel: String? = null) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoEmptyState(title = title, message = message, icon = icon, actionLabel = actionLabel, onAction = onAction)
+    Column(Modifier.fillMaxWidth().padding(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, null, tint = DesktopAccent, modifier = Modifier.size(42.dp))
+        Spacer(Modifier.height(14.dp))
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        Text(message, color = DesktopSecondary, textAlign = TextAlign.Center)
+        if (onAction != null && actionLabel != null) TextButton(onClick = onAction) { Text(actionLabel) }
+    }
+}
+
+/** A titled block of settings rows. */
+@Composable
+private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
+    // The search pass draws nothing: the rows register with the group's name as where they live.
+    if (com.cosmotune.ui.settings.LocalSettingsCollector.current != null) {
+        CompositionLocalProvider(LocalDesktopSettingsGroupTitle provides title) { content() }
+        return
+    }
+    val query = LocalSettingsQuery.current
+    // A group whose own name matches shows whole; otherwise only its matching rows do, and the
+    // heading goes with them when none are left.
+    val wholeGroup = query.isBlank() || title.contains(query, ignoreCase = true)
+    val matched = remember(query) { androidx.compose.runtime.mutableStateListOf<String>() }
+    val visible = wholeGroup || matched.isNotEmpty()
+    // The gap belongs to the group, not to the list: as list spacing, every filtered-out group
+    // still left its 18dp behind and the surviving ones sat under a band of empty space.
+    Column(if (visible && com.cosmotune.ui.theme.LocalCosmoShell.current == null) Modifier.padding(bottom = 20.dp) else Modifier) {
+        if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+            // The new look: the group is one tile (the desktop's rows are spaced, not ruled) under its name as an overline.
+            com.cosmotune.ui.settings.CosmoSettingsGroup(header = title.takeIf { visible }, topSpacing = 0.dp) {
+                CompositionLocalProvider(
+                    LocalSettingsQuery provides if (wholeGroup) "" else query,
+                    LocalSettingsMatches provides matched,
+                ) {
+                    content()
+                }
+            }
+            return@Column
+        }
+        if (visible) {
+            Text(
+                title.uppercase(),
+                color = DesktopSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                // In line with the rows' own text, now that no card sets them in.
+                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+            )
+        }
+        Column {
+            CompositionLocalProvider(
+                LocalSettingsQuery provides if (wholeGroup) "" else query,
+                LocalSettingsMatches provides matched,
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+/** What the settings field is filtering on, or blank when it is empty. */
+private val LocalSettingsQuery = compositionLocalOf { "" }
+
+/** Where a row tells its group that it survived the filter, so an empty group can hide its name. */
+private val LocalSettingsMatches = compositionLocalOf<MutableList<String>?> { null }
+
+/**
+ * Whether a row with this text belongs on screen, and registering it with its group when it does.
+ * Rows call this first and return early when it is false.
+ */
+@Composable
+private fun settingsRowVisible(title: String, subtitle: String = ""): Boolean {
+    // In the search pass the row registers itself and draws nothing.
+    val collector = com.cosmotune.ui.settings.LocalSettingsCollector.current
+    if (collector != null) {
+        val section = LocalDesktopSettingsSection.current
+        if (section != null) {
+            collector.add(
+                com.cosmotune.ui.settings.SettingsItem(
+                    id = "${section.name}|$title|$subtitle",
+                    title = title,
+                    category = section.category,
+                    summary = subtitle.takeIf { it.isNotBlank() },
+                    group = LocalDesktopSettingsGroupTitle.current,
+                ),
+            )
+        }
+        return false
+    }
+    val query = LocalSettingsQuery.current
+    if (query.isBlank()) return true
+    val hit = title.contains(query, ignoreCase = true) || subtitle.contains(query, ignoreCase = true)
+    val matches = LocalSettingsMatches.current
+    DisposableEffect(hit, title, matches) {
+        if (hit) matches?.add(title)
+        onDispose { if (hit) matches?.remove(title) }
+    }
+    return hit
+}
+
+/** A settings row that opens something rather than toggling it. */
+@Composable
+internal fun SettingsNavigationRow(title: String, subtitle: String, onClick: () -> Unit) {
+    if (!settingsRowVisible(title, subtitle)) return
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(title = title, subtitle = subtitle, onClick = onClick)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .settingsHighlight(title)
+            .desktopRowClickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = DesktopSecondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Icon(
+            CosmotuneIcons.ChevronRight,
+            null,
+            tint = DesktopSecondary,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+/** A settings row whose control is a slider, with its value read out beside the title. */
+/** Material's slider with the step ticks and end-stop dot taken off, as Android draws them. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun DesktopBareSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    steps: Int = 0,
+    onValueChangeFinished: (() -> Unit)? = null,
+) {
+    val colors = SliderDefaults.colors(
+        thumbColor = MaterialTheme.colorScheme.primary,
+        activeTrackColor = MaterialTheme.colorScheme.primary,
+        inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f),
+    )
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        onValueChangeFinished = onValueChangeFinished,
+        valueRange = valueRange,
+        steps = steps,
+        colors = colors,
+        thumb = {
+            Box(Modifier.size(16.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+        },
+        track = { state ->
+            SliderDefaults.Track(
+                sliderState = state,
+                modifier = Modifier.height(4.dp),
+                colors = colors,
+                drawStopIndicator = null,
+                drawTick = { _, _ -> },
+            )
+        },
+        modifier = modifier.fillMaxWidth().heightIn(min = 48.dp),
+    )
+}
+
+@Composable
+internal fun SettingsToggle(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    if (!settingsRowVisible(title, subtitle)) return
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(title = title, subtitle = subtitle, onClick = { onCheckedChange(!checked) }, trailing = { com.cosmotune.ui.components.CosmoSwitch(checked = checked, onCheckedChange = onCheckedChange) })
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .settingsHighlight(title)
+            .desktopRowClickable { onCheckedChange(!checked) }
+            .padding(vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
+        }
+        Spacer(Modifier.width(18.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = desktopSwitchColors())
+    }
+}
+
+@Composable
+private fun SettingsRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: (() -> Unit)? = null,
+) {
+    if (!settingsRowVisible(title, subtitle)) return
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(icon = icon, title = title, subtitle = subtitle, onClick = onClick)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .settingsHighlight(title)
+            .desktopRowClickable(enabled = onClick != null) { onClick?.invoke() }
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(34.dp).clip(RoundedCornerShape(CosmoRadii.rSm)).background(Color.White.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, tint = DesktopAccent, modifier = Modifier.size(19.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
+        }
+        if (onClick != null) {
+            Spacer(Modifier.width(10.dp))
+            Icon(CosmotuneIcons.ChevronRight, null, tint = DesktopSecondary, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun DesktopActionButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Row(modifier.clip(CircleShape).background(DesktopAccent).clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Color.Black, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = Color.Black, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+private fun SearchResult.key(): String = when (this) {
+    is SearchResult.TopTrack -> "track:${song.videoId}"
+    is SearchResult.Track -> "track:${song.videoId}"
+    is SearchResult.Browse -> "browse:${item.browseId}"
+}
+
+private fun ShelfItem.toSong(): Song {
+    song?.let { return it }
+    val parts = subtitle.split(" • ", " · ", " | ").filter(String::isNotBlank)
+    // Android's InnertubeParser uses the first non-type/non-tally segment.
+    val artist = parts.firstOrNull {
+        !it.matches(SHELF_DURATION) &&
+            it.lowercase() !in SHELF_TYPE_WORDS &&
+            !it.matches(SHELF_TALLY)
+    } ?: "Unknown Artist"
+    return Song(
+        videoId = videoId.orEmpty(),
+        title = title,
+        artist = artist,
+        thumbnailUrl = thumbnailUrl,
+        durationText = parts.firstOrNull { it.matches(SHELF_DURATION) },
+    )
+}
+
+private fun String.isUnknownArtist(): Boolean =
+    trim().equals("unknown", ignoreCase = true) ||
+        trim().equals("unknown artist", ignoreCase = true) ||
+        trim().equals("unknown artist(s)", ignoreCase = true) ||
+        isBlank()
+
+private val SHELF_DURATION = Regex("""\d{1,2}:\d{2}(?::\d{2})?""")
+private val SHELF_TALLY = Regex("[0-9,.]+\\s*(?:views?|likes?|songs?)", RegexOption.IGNORE_CASE)
+private val SHELF_TYPE_WORDS = setOf("song", "video", "album", "ep", "single", "playlist", "mix")
+
+private fun formatTime(ms: Long): String {
+    val totalSeconds = (ms / 1_000L).coerceAtLeast(0L)
+    return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
+}
+
+private fun formatCollectionDuration(totalSeconds: Long): String {
+    val minutes = totalSeconds / 60L
+    return if (minutes < 60L) {
+        "$minutes min"
+    } else {
+        "${minutes / 60L} hr ${minutes % 60L} min"
+    }
+}
+
+private fun formatSleepTimer(ms: Long): String = formatTime(ms)
+
+/** Chip label for an Apple-style Automix phrase length, in bars; 0 is the adaptive default. */
+private fun phraseBarsLabel(bars: Int): String = when (bars) {
+    8 -> DesktopStrings["automix_phrase_8", "8 bars"]
+    16 -> DesktopStrings["automix_phrase_16", "16 bars"]
+    else -> DesktopStrings["automix_phrase_auto", "Auto"]
+}
+
+/** What the selected phrase length does, shown under the chips. */
+private fun phraseBarsDetail(bars: Int): String = when (bars) {
+    8 -> DesktopStrings["automix_phrase_8_detail", "Mixes over exactly 8 bars, both edges on the beat grid"]
+    16 -> DesktopStrings["automix_phrase_16_detail", "Mixes over exactly 16 bars, both edges on the beat grid"]
+    else -> DesktopStrings["automix_phrase_auto_detail", "Chooses each transition's length from the two tracks"]
+}

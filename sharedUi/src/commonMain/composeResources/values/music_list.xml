@@ -1,0 +1,21 @@
+<resources>
+    <string name="music_list_sort">Order: %1$s</string>
+    <string name="music_list_default">Default order</string>
+    <string name="music_list_reversed">Reverse list order</string>
+    <string name="music_list_title">Title A–Z</string>
+    <string name="music_list_title_desc">Title Z–A</string>
+    <string name="music_list_artist">Artist</string>
+    <string name="music_list_album">Album</string>
+    <string name="music_list_duration">Duration</string>
+    <string name="music_list_added">Oldest added</string>
+    <string name="music_list_added_desc">Newest added</string>
+    <string name="music_list_reset">Clear filters</string>
+    <string name="music_list_count">Songs · %1$d / %2$d</string>
+    <string name="music_list_loaded_count">Loaded songs · %1$d / %2$d</string>
+    <string name="music_list_select">Select songs</string>
+    <string name="music_list_selected">Selected · %1$d</string>
+    <string name="music_list_play_selected">Play selected</string>
+    <string name="music_list_select_shown">Select shown</string>
+    <string name="music_list_clear_selection">Clear selection</string>
+    <string name="music_list_no_results">No songs match these filters.</string>
+</resources>

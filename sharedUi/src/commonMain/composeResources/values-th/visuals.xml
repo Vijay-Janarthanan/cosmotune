@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">ภาพประกอบ</string>
+    <string name="player_visuals_close">ปิดภาพประกอบ</string>
+    <string name="player_visuals_artwork">ปกอัลบั้ม</string>
+    <string name="player_visuals_pulse">จังหวะ</string>
+    <string name="player_visuals_waveform">รูปคลื่น</string>
+    <string name="player_visuals_waiting">เล่นเสียงบนอุปกรณ์นี้เพื่อดูภาพประกอบ</string>
+</resources>

@@ -1,0 +1,42 @@
+{
+  "description": "A 4K60 video the way the source offers it: AV1, VP9 and H.264 ladders, two HDR VP9 streams, one muxed 360p, AAC and Opus audio in one track. Made up (no real address); the sizes follow the 16:9 frames.",
+  "durationMs": 212000,
+  "videoOnly": [
+    {"itag": 701, "mime": "video/mp4",  "codec": "AV1",  "codecs": "av01.0.13M.08", "w": 3840, "h": 2160, "fps": 60, "kbps": 14000},
+    {"itag": 700, "mime": "video/mp4",  "codec": "AV1",  "codecs": "av01.0.12M.08", "w": 2560, "h": 1440, "fps": 60, "kbps": 7500},
+    {"itag": 699, "mime": "video/mp4",  "codec": "AV1",  "codecs": "av01.0.09M.08", "w": 1920, "h": 1080, "fps": 60, "kbps": 3000},
+    {"itag": 698, "mime": "video/mp4",  "codec": "AV1",  "codecs": "av01.0.08M.08", "w": 1280, "h": 720,  "fps": 60, "kbps": 1800},
+    {"itag": 697, "mime": "video/mp4",  "codec": "AV1",  "codecs": "av01.0.05M.08", "w": 854,  "h": 480,  "fps": 30, "kbps": 800},
+    {"itag": 696, "mime": "video/mp4",  "codec": "AV1",  "codecs": "av01.0.04M.08", "w": 640,  "h": 360,  "fps": 30, "kbps": 450},
+    {"itag": 695, "mime": "video/mp4",  "codec": "AV1",  "codecs": "av01.0.01M.08", "w": 426,  "h": 240,  "fps": 30, "kbps": 220},
+    {"itag": 694, "mime": "video/mp4",  "codec": "AV1",  "codecs": "av01.0.00M.08", "w": 256,  "h": 144,  "fps": 30, "kbps": 100},
+    {"itag": 315, "mime": "video/webm", "codec": "VP9",  "codecs": "vp9",           "w": 3840, "h": 2160, "fps": 60, "kbps": 18000},
+    {"itag": 308, "mime": "video/webm", "codec": "VP9",  "codecs": "vp9",           "w": 2560, "h": 1440, "fps": 60, "kbps": 9000},
+    {"itag": 303, "mime": "video/webm", "codec": "VP9",  "codecs": "vp9",           "w": 1920, "h": 1080, "fps": 60, "kbps": 3400},
+    {"itag": 302, "mime": "video/webm", "codec": "VP9",  "codecs": "vp9",           "w": 1280, "h": 720,  "fps": 60, "kbps": 2200},
+    {"itag": 244, "mime": "video/webm", "codec": "VP9",  "codecs": "vp9",           "w": 854,  "h": 480,  "fps": 30, "kbps": 900},
+    {"itag": 243, "mime": "video/webm", "codec": "VP9",  "codecs": "vp9",           "w": 640,  "h": 360,  "fps": 30, "kbps": 500},
+    {"itag": 242, "mime": "video/webm", "codec": "VP9",  "codecs": "vp9",           "w": 426,  "h": 240,  "fps": 30, "kbps": 250},
+    {"itag": 278, "mime": "video/webm", "codec": "VP9",  "codecs": "vp9",           "w": 256,  "h": 144,  "fps": 30, "kbps": 120},
+    {"itag": 299, "mime": "video/mp4",  "codec": "H264", "codecs": "avc1.64002a",   "w": 1920, "h": 1080, "fps": 60, "kbps": 5000},
+    {"itag": 137, "mime": "video/mp4",  "codec": "H264", "codecs": "avc1.640028",   "w": 1920, "h": 1080, "fps": 30, "kbps": 3800},
+    {"itag": 298, "mime": "video/mp4",  "codec": "H264", "codecs": "avc1.4d4020",   "w": 1280, "h": 720,  "fps": 60, "kbps": 3500},
+    {"itag": 136, "mime": "video/mp4",  "codec": "H264", "codecs": "avc1.4d401f",   "w": 1280, "h": 720,  "fps": 30, "kbps": 2000},
+    {"itag": 135, "mime": "video/mp4",  "codec": "H264", "codecs": "avc1.4d401f",   "w": 854,  "h": 480,  "fps": 30, "kbps": 1000},
+    {"itag": 134, "mime": "video/mp4",  "codec": "H264", "codecs": "avc1.4d401e",   "w": 640,  "h": 360,  "fps": 30, "kbps": 600},
+    {"itag": 133, "mime": "video/mp4",  "codec": "H264", "codecs": "avc1.4d4015",   "w": 426,  "h": 240,  "fps": 30, "kbps": 300},
+    {"itag": 160, "mime": "video/mp4",  "codec": "H264", "codecs": "avc1.4d400c",   "w": 256,  "h": 144,  "fps": 30, "kbps": 110},
+    {"itag": 337, "mime": "video/webm", "codec": "VP9",  "codecs": "vp09.02.51.10.01.09.16.09.00", "w": 3840, "h": 2160, "fps": 60, "kbps": 16000, "hdr": true},
+    {"itag": 335, "mime": "video/webm", "codec": "VP9",  "codecs": "vp09.02.40.10.01.09.16.09.00", "w": 1920, "h": 1080, "fps": 60, "kbps": 3600,  "hdr": true}
+  ],
+  "muxed": [
+    {"itag": 18, "mime": "video/mp4", "codec": "H264", "codecs": "avc1.42001E, mp4a.40.2", "w": 640, "h": 360, "fps": 30, "kbps": 600, "ranges": false}
+  ],
+  "audio": [
+    {"itag": 140, "mime": "audio/mp4",  "codec": "AAC",  "codecs": "mp4a.40.2", "kbps": 128, "rate": 44100, "ch": 2, "lang": "en"},
+    {"itag": 139, "mime": "audio/mp4",  "codec": "AAC",  "codecs": "mp4a.40.5", "kbps": 48,  "rate": 22050, "ch": 2, "lang": "en"},
+    {"itag": 251, "mime": "audio/webm", "codec": "OPUS", "codecs": "opus",      "kbps": 138, "rate": 48000, "ch": 2, "lang": "en"},
+    {"itag": 250, "mime": "audio/webm", "codec": "OPUS", "codecs": "opus",      "kbps": 70,  "rate": 48000, "ch": 2, "lang": "en"},
+    {"itag": 249, "mime": "audio/webm", "codec": "OPUS", "codecs": "opus",      "kbps": 50,  "rate": 48000, "ch": 2, "lang": "en"}
+  ]
+}

@@ -1,0 +1,185 @@
+[
+  {
+    "header": "YouTube",
+    "title": "Watched How to plane a board by hand",
+    "titleUrl": "https://www.youtube.com/watch?v=PMTLnz_VWNA",
+    "subtitles": [
+      {
+        "name": "Northern Lights Workshop",
+        "url": "https://www.youtube.com/channel/UCDVWqyfkrFAZd6_6X-yZl_D"
+      }
+    ],
+    "time": "2026-10-15T08:30:00.123Z",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube watch history"
+    ]
+  },
+  {
+    "header": "YouTube",
+    "title": "Watched Folding paper, scissors & stone",
+    "titleUrl": "https://www.youtube.com/watch?v=LYXTU2z_kIu",
+    "subtitles": [
+      {
+        "name": "Paper, Scissors & Stone",
+        "url": "https://www.youtube.com/channel/UCcI08WoHmiXWnhREl-Asie_"
+      }
+    ],
+    "time": "2026-10-14T21:05:09Z",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube watch history"
+    ]
+  },
+  {
+    "header": "YouTube",
+    "title": "Watched A slow stew, \"the long way\"",
+    "titleUrl": "https://www.youtube.com/watch?v=i-I1oJLJIJ0",
+    "subtitles": [
+      {
+        "name": "Cooking \"Slow\", Daily",
+        "url": "https://www.youtube.com/channel/UCys64KT2rumOT-zNtTKjCSF"
+      }
+    ],
+    "time": "2026-10-14T12:00:00Z",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube watch history"
+    ]
+  },
+  {
+    "header": "YouTube",
+    "title": "Watched Workshop tour part 2",
+    "titleUrl": "https://www.youtube.com/watch?v=FUFF6FDzV-n",
+    "subtitles": [
+      {
+        "name": "Northern Lights Workshop",
+        "url": "https://www.youtube.com/channel/UCDVWqyfkrFAZd6_6X-yZl_D"
+      }
+    ],
+    "time": "2026-10-13T17:00:00+00:00",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube watch history"
+    ]
+  },
+  {
+    "header": "YouTube",
+    "title": "Watched How to plane a board by hand",
+    "titleUrl": "https://www.youtube.com/watch?v=PMTLnz_VWNA",
+    "subtitles": [
+      {
+        "name": "Northern Lights Workshop",
+        "url": "https://www.youtube.com/channel/UCDVWqyfkrFAZd6_6X-yZl_D"
+      }
+    ],
+    "time": "2026-10-12T08:00:00Z",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube watch history"
+    ]
+  },
+  {
+    "header": "YouTube",
+    "title": "Watched Sharpening chisels",
+    "titleUrl": "https://www.youtube.com/watch?v=oXkv2frcyHl",
+    "subtitles": [
+      {
+        "name": "Northern Lights Workshop",
+        "url": "https://www.youtube.com/channel/UCDVWqyfkrFAZd6_6X-yZl_D"
+      }
+    ],
+    "time": "2026-10-11T08:00:00Z",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube watch history"
+    ]
+  },
+  {
+    "header": "YouTube",
+    "title": "Watched An advert that has details",
+    "titleUrl": "https://www.youtube.com/watch?v=m76KlqTiOek",
+    "subtitles": [
+      {
+        "name": "Some Brand",
+        "url": "https://www.youtube.com/channel/UCC-8tWpn5q4l8YU6Cgzg5on"
+      }
+    ],
+    "time": "2026-10-10T08:00:00Z",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube watch history"
+    ],
+    "details": [
+      {
+        "name": "From Google Ads"
+      }
+    ]
+  },
+  {
+    "header": "YouTube",
+    "title": "Watched a video that has been removed",
+    "time": "2026-10-09T08:00:00Z",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube watch history"
+    ]
+  },
+  {
+    "header": "YouTube Music",
+    "title": "Watched A song",
+    "titleUrl": "https://music.youtube.com/watch?v=rUjDeOCLTPi",
+    "subtitles": [
+      {
+        "name": "Some Artist - Topic",
+        "url": "https://www.youtube.com/channel/UCcrRXpMSPUa-AhewwR34pkz"
+      }
+    ],
+    "time": "2026-10-08T08:00:00Z",
+    "products": [
+      "YouTube"
+    ]
+  },
+  {
+    "header": "YouTube",
+    "title": "Searched for wood",
+    "titleUrl": "https://www.youtube.com/results?search_query=wood",
+    "time": "2026-10-07T08:00:00Z",
+    "products": [
+      "YouTube"
+    ]
+  },
+  {
+    "header": "YouTube",
+    "title": "Watched No channel link",
+    "titleUrl": "https://www.youtube.com/watch?v=oS3uuGXt3im",
+    "subtitles": [
+      {
+        "name": "Unlinked channel"
+      }
+    ],
+    "time": "2026-10-06T08:00:00Z",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube watch history"
+    ]
+  }
+]

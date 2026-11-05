@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">可视化</string>
+    <string name="player_visuals_close">关闭可视化</string>
+    <string name="player_visuals_artwork">封面</string>
+    <string name="player_visuals_pulse">脉动</string>
+    <string name="player_visuals_waveform">波形</string>
+    <string name="player_visuals_waiting">在此设备上播放音频以查看可视化效果。</string>
+</resources>

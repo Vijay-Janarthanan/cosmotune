@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">Visuals</string>
+    <string name="player_visuals_close">Close visuals</string>
+    <string name="player_visuals_artwork">Artwork</string>
+    <string name="player_visuals_pulse">Pulse</string>
+    <string name="player_visuals_waveform">Waveform</string>
+    <string name="player_visuals_waiting">Play audio on this device to see the visualization.</string>
+</resources>

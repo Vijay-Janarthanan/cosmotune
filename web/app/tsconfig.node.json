@@ -1,0 +1,26 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2023",
+      "DOM"
+    ],
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "signalsmith-stretch": ["./src/playback/automix/engine/stretch-types.d.ts"],
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "vite.config.ts",
+    "src/vite-env.d.ts",
+    "src/playback/automix/analysis/essentia.d.ts",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
+}

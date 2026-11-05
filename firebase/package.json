@@ -1,0 +1,15 @@
+{
+  "name": "cosmotune-firebase",
+  "private": true,
+  "type": "module",
+  "description": "Security rules and rules tests for Cosmotune accounts, sync and rooms",
+  "scripts": {
+    "build:rules": "node rules/database.rules.src.mjs",
+    "test": "node rules/database.rules.src.mjs && firebase emulators:exec --only database,firestore \"node --test tests/rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0",
+    "firebase-tools": "^15.19.0"
+  }
+}

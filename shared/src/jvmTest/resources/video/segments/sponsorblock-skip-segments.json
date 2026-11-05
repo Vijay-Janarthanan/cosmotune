@@ -1,0 +1,114 @@
+[
+  {
+    "videoID": "otherVid001",
+    "hash": "5f6bd1a2c4e8f0a1b2c3d4e5f60718293a4b5c6d7e8f9012a3b4c5d6e7f80910",
+    "segments": [
+      {
+        "category": "sponsor",
+        "actionType": "skip",
+        "segment": [5.0, 30.0],
+        "UUID": "sb-other-0001",
+        "videoDuration": 300.0,
+        "locked": 0,
+        "votes": 1,
+        "description": ""
+      }
+    ]
+  },
+  {
+    "videoID": "dQw4w9WgXcQ",
+    "hash": "5f6b0b4e201f2a7e66927abb5cadeec81624dcc8efe6644b78aa182213f653a2",
+    "segments": [
+      {
+        "category": "sponsor",
+        "actionType": "skip",
+        "segment": [12.5, 45.2],
+        "UUID": "sb-0001-sponsor",
+        "videoDuration": 212.0,
+        "locked": 1,
+        "votes": 12,
+        "description": ""
+      },
+      {
+        "category": "sponsor",
+        "actionType": "skip",
+        "segment": [40.0, 50.0],
+        "UUID": "sb-0002-sponsor-overlap",
+        "videoDuration": 212.0,
+        "locked": 0,
+        "votes": 2,
+        "description": ""
+      },
+      {
+        "category": "selfpromo",
+        "actionType": "skip",
+        "segment": [60.0, 75.5],
+        "UUID": "sb-0003-selfpromo",
+        "videoDuration": 212.3,
+        "locked": 0,
+        "votes": 3,
+        "description": ""
+      },
+      {
+        "category": "intro",
+        "actionType": "mute",
+        "segment": [0.0, 6.5],
+        "UUID": "sb-0004-intro-mute",
+        "videoDuration": 0,
+        "locked": 0,
+        "votes": 0,
+        "description": "Spoken intro"
+      },
+      {
+        "category": "interaction",
+        "actionType": "skip",
+        "segment": [100.0, 100.4],
+        "UUID": "sb-0005-too-short",
+        "videoDuration": 212.0,
+        "locked": 0,
+        "votes": 1,
+        "description": ""
+      },
+      {
+        "category": "poi_highlight",
+        "actionType": "poi",
+        "segment": [150.25, 150.25],
+        "UUID": "sb-0006-highlight",
+        "videoDuration": 212.0,
+        "locked": 0,
+        "votes": 7,
+        "description": ""
+      },
+      {
+        "category": "exclusive_access",
+        "actionType": "full",
+        "segment": [0, 0],
+        "UUID": "sb-0007-exclusive",
+        "videoDuration": 0,
+        "locked": 0,
+        "votes": 4,
+        "description": ""
+      },
+      {
+        "category": "future_category",
+        "actionType": "skip",
+        "segment": [170.0, 180.0],
+        "UUID": "sb-0008-unknown-category",
+        "videoDuration": 212.0,
+        "locked": 0,
+        "votes": 1,
+        "description": ""
+      },
+      {
+        "category": "outro",
+        "actionType": "skip",
+        "segment": [190.0, 212.0],
+        "UUID": "sb-0009-reupload",
+        "videoDuration": 245.0,
+        "locked": 0,
+        "votes": 1,
+        "description": ""
+      }
+    ]
+  }
+]

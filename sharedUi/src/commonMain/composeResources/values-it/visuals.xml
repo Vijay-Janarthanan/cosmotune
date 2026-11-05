@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">Visualizzazioni</string>
+    <string name="player_visuals_close">Chiudi visualizzazioni</string>
+    <string name="player_visuals_artwork">Copertina</string>
+    <string name="player_visuals_pulse">Pulsazione</string>
+    <string name="player_visuals_waveform">Forma d’onda</string>
+    <string name="player_visuals_waiting">Riproduci audio su questo dispositivo per vedere la visualizzazione.</string>
+</resources>

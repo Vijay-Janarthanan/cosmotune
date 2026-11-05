@@ -1,0 +1,796 @@
+package com.cosmotune.music.desktop
+
+import com.cosmotune.music.data.model.SearchFilter
+import com.cosmotune.music.data.model.SearchResult
+import com.cosmotune.music.data.model.Song
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withTimeoutOrNull
+
+/** What playback got to start with, and what is still being looked for. */
+internal class DesktopLiveResolution(
+    val stream: DesktopStream,
+    /**
+     * The substitution search that had not finished when sound started, or null when nothing is
+     * outstanding.
+     */
+    val pendingSubstitute: Deferred<DesktopStream?>? = null,
+)
+
+internal data class DesktopSourceDescriptor(
+    val id: String,
+    val name: String,
+    val detail: String,
+    val kind: DesktopSourceKind,
+    val configured: Boolean,
+    val enabled: Boolean,
+    val supportsLossless: Boolean,
+    /** Enabled, but the ceiling in force will not let it answer a stream. */
+    val skippedByQuality: Boolean = false,
+)
+
+/** Desktop counterpart of Android's SourceRegistry. */
+internal object DesktopSourceRegistry {
+    private interface SourceAdapter {
+        val config: DesktopSourceConfig
+        val descriptor: DesktopSourceDescriptor
+        suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?>
+        /** [resolve] for a row this source owns, played as itself rather than as a match. */
+        suspend fun resolveOwned(song: Song, quality: String?): Result<DesktopStream?> = resolve(song, quality)
+        /** Every copy this source holds of [song], most confident first. */
+        suspend fun matches(song: Song): List<Song> = emptyList()
+
+        suspend fun match(song: Song): Song? = matches(song).firstOrNull()
+        fun owns(song: Song): Boolean = false
+    }
+
+    private class AddonAdapter(
+        override val config: DesktopSourceConfig,
+    ) : SourceAdapter {
+        override val descriptor: DesktopSourceDescriptor
+            get() = config.descriptor()
+
+        override fun owns(song: Song): Boolean =
+            DesktopAddonSource.parseTrack(song.videoId)?.sourceId == config.id
+
+        override suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?> =
+            DesktopAddonSource.stream(config, song, quality)
+
+        override suspend fun resolveOwned(song: Song, quality: String?): Result<DesktopStream?> =
+            DesktopAddonSource.stream(config, song, quality, picked = true)
+
+        override suspend fun matches(song: Song): List<Song> = DesktopAddonSource.matches(config, song)
+    }
+
+    private class ModuleAdapter(
+        override val config: DesktopSourceConfig,
+    ) : SourceAdapter {
+        override val descriptor: DesktopSourceDescriptor
+            get() = config.descriptor()
+
+        override fun owns(song: Song): Boolean =
+            DesktopModuleSource.parseTrack(song.videoId)?.let { ref ->
+                ref.sourceId == null || ref.sourceId == config.id
+            } == true
+
+        override suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?> =
+            DesktopModuleSource.stream(config, song, quality)
+
+        override suspend fun matches(song: Song): List<Song> = DesktopModuleSource.matches(config, song)
+    }
+
+    private class JioAdapter(
+        override val config: DesktopSourceConfig,
+    ) : SourceAdapter {
+        override val descriptor: DesktopSourceDescriptor
+            get() = config.descriptor()
+
+        override fun owns(song: Song): Boolean = song.videoId.startsWith("jiosaavn:")
+
+        override suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?> =
+            DesktopJioSaavn.stream(song.videoId)
+
+        override suspend fun matches(song: Song): List<Song> = DesktopJioSaavn.matches(song)
+    }
+
+    /** The listener's own Subsonic/OpenSubsonic server: its rows play as themselves, and it can stand in for others. */
+    private class SubsonicAdapter(
+        override val config: DesktopSourceConfig,
+        private val catalogue: com.cosmotune.providers.SubsonicCatalogue,
+    ) : SourceAdapter {
+        override val descriptor: DesktopSourceDescriptor
+            get() = config.descriptor()
+
+        override fun owns(song: Song): Boolean = catalogue.owns(song.videoId) != null
+
+        override suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?> = runCatching {
+            val trackId = catalogue.owns(song.videoId) ?: return@runCatching null
+            val stream = catalogue.stream(trackId)
+            // The address carries the credential: it goes to the decoder and nowhere else.
+            DesktopStream(
+                stream.url,
+                DesktopStreamFormat(codec = stream.codec, kbps = stream.kbps, sampleRateHz = stream.sampleRateHz, bitDepth = stream.bitDepth),
+                sourceId = config.id,
+                durationSec = stream.durationSec,
+            )
+        }
+
+        override suspend fun matches(song: Song): List<Song> {
+            if (song.title.isBlank() || song.isVideo) return emptyList()
+            for (query in DesktopTrackMatcher.queries(song)) {
+                val candidates = runCatching { catalogue.searchSongs(query, 25) }.getOrDefault(emptyList())
+                DesktopTrackMatcher.ranked(candidates, song).ifEmpty { null }?.let { return it }
+            }
+            return emptyList()
+        }
+    }
+
+    /** A catalogue for a stored Subsonic source, or null while it lacks an address or credential. */
+    fun subsonic(config: DesktopSourceConfig): com.cosmotune.providers.SubsonicCatalogue? =
+        if (config.kind != DesktopSourceKind.SUBSONIC) null
+        else com.cosmotune.providers.SubsonicCatalogue.forSource(config.id, config.baseUrl, config.userSettings, com.cosmotune.music.data.Http.client)
+
+    private class PackageAdapter(private val install: com.cosmotune.providers.ProviderInstall) : SourceAdapter {
+        override val config = DesktopSourceConfig("sflx-${install.manifest.name}", DesktopSourceKind.ADDON, install.manifest.title)
+        override val descriptor = DesktopSourceDescriptor(config.id, config.label, "Provider package", config.kind, true, true, true)
+        override fun owns(song: Song) = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.first == config.id
+        override suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?> = runCatching {
+            val id = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.takeIf { it.first == config.id }?.second ?: return@runCatching null
+            val policy = providerRequest(quality, false)
+            val stream = com.cosmotune.providers.ProviderHub.state.value.manager?.stream(install.manifest.name, id, policy.first, policy.second) ?: return@runCatching null
+            DesktopStream(stream.url, DesktopStreamFormat(stream.codec, stream.kbps, stream.sampleRateHz, stream.bitDepth),
+                sourceId = config.id, durationSec = stream.durationMs?.div(1000)?.toInt())
+        }
+        override suspend fun matches(song: Song): List<Song> {
+            if (song.title.isBlank() || song.isVideo) return emptyList()
+            val manager = com.cosmotune.providers.ProviderHub.state.value.manager ?: return emptyList()
+            for (query in DesktopTrackMatcher.queries(song)) {
+                val rows = manager.search(install.manifest.name, query, 25).map { it.song() }
+                val ranked = DesktopTrackMatcher.ranked(rows, song)
+                val matches = ranked.take(STREAM_ATTEMPTS).map { candidate ->
+                    if (candidate.durationText != null) candidate else {
+                        val id = com.cosmotune.music.data.sources.SourceTrackKeys.parse(candidate.videoId)?.second
+                        id?.let { manager.track(install.manifest.name, it)?.song() } ?: candidate
+                    }
+                }.filter { DesktopTrackMatcher.withinSeconds(it, song, SAME_RECORDING_SEC) }
+                if (matches.isNotEmpty()) return matches
+            }
+            return emptyList()
+        }
+    }
+
+    private class YouTubeAdapter(
+        override val config: DesktopSourceConfig,
+    ) : SourceAdapter {
+        override val descriptor: DesktopSourceDescriptor
+            get() = config.descriptor()
+
+        override suspend fun resolve(song: Song, quality: String?): Result<DesktopStream?> =
+            DesktopStreamClient.resolve(song, youtubeCeiling(quality)).map { it.copy(sourceId = config.id) }
+
+        /** Allows an unavailable module/Jio stream to fall back by identity. */
+        override suspend fun matches(song: Song): List<Song> = youTubeMatches(song)
+    }
+
+    /** YouTube Music's copies of [song], most confident first, found by title and artist. */
+    private suspend fun youTubeMatches(song: Song): List<Song> {
+        if (song.title.isBlank() || song.isVideo) return emptyList()
+        for (query in DesktopTrackMatcher.queries(song)) {
+            val candidates = DesktopSearchClient.search(query, SearchFilter.SONGS)
+                .getOrDefault(emptyList())
+                .mapNotNull { (it as? SearchResult.Track)?.song }
+            DesktopTrackMatcher.ranked(candidates, song).ifEmpty { null }?.let { return it }
+        }
+        return emptyList()
+    }
+
+    /**
+     * The YouTube upload Automix measures [song] on: the row itself when it is one, else the best
+     * YouTube Music match for an addon, module or JioSaavn row. Android's
+     * `TrackAnalyzer.analysisUriFor` does the same.
+     */
+    suspend fun youTubeIdentity(song: Song): Song? = when {
+        hasYouTubeOriginal(song) -> song
+        // A row picked from the Addons search is that addon's or nothing — no YouTube search and
+        // Opus fetch behind it just to measure it. Left unmeasured, as in a party.
+        DesktopAddonSource.parseTrack(song.videoId) != null -> null
+        else -> youTubeMatches(song).firstOrNull()
+    }
+
+    /**
+     * Whether resolving [song] could ask an addon for it — an addon's own row, or a YouTube row
+     * with an addon ranked above YouTube to substitute it.
+     *
+     * Such a track is not read ahead: an addon is only asked for a stream once the track is about
+     * to play, as on Android, whose read-ahead only warms sources that are
+     * `worthPrefetching`.
+     */
+    fun mayServeFromAddon(song: Song): Boolean {
+        val addons = playbackAdapters(null).filterIsInstance<AddonAdapter>()
+        if (addons.isEmpty()) return false
+        if (DesktopAddonSource.parseTrack(song.videoId) != null) return true
+        return hasYouTubeOriginal(song) && !song.isVideo && !DesktopOriginalVersion.isPinned(song.videoId)
+    }
+
+    private fun DesktopSourceConfig.descriptor() = DesktopSourceDescriptor(
+        id = id,
+        name = displayName,
+        detail = if (kind.needsServer && baseUrl.isBlank()) "Setup required" else kind.detail,
+        kind = kind,
+        configured = isComplete,
+        enabled = enabled,
+        supportsLossless = kind.supportsLossless,
+        skippedByQuality = enabled && !qualitySource().permits(kind),
+    )
+
+    /** Where the stored source list comes from; tests hand in their own list instead of the user's preferences. */
+    internal var configSource: () -> List<DesktopSourceConfig> = { DesktopPersistence().sourceConfigs() }
+
+    /** The stored stream ceiling; replaced by tests for the same reason as [configSource]. */
+    internal var qualitySource: () -> DesktopAudioQuality = { DesktopPersistence().audioQuality() }
+
+    private fun configs(): List<DesktopSourceConfig> = configSource()
+
+    /**
+     * The sources a *stream* may come from: enabled, complete, and permitted by the ceiling in
+     * force.
+     */
+    private fun playbackAdapters(quality: String?, forDownload: Boolean = false): List<SourceAdapter> {
+        val ceiling = ceiling(quality)
+        return adapters(forDownload).filter { ceiling.permits(it.config.kind) }
+    }
+
+    /**
+     * For a download, minus any addon whose manifest says `allowDownloads: 0`, so the next source
+     * in line serves the file.
+     */
+    private fun adapters(forDownload: Boolean = false): List<SourceAdapter> =
+        configs()
+            .inSourceOrder()
+            .filter { it.enabled && it.isComplete }
+            .filterNot { forDownload && it.kind == DesktopSourceKind.ADDON && !DesktopAddonSource.allowsDownloads(it) }
+            .mapNotNull { config ->
+                when (config.kind) {
+                    DesktopSourceKind.ADDON -> AddonAdapter(config)
+                    DesktopSourceKind.SUBSONIC -> subsonic(config)?.let { SubsonicAdapter(config, it) }
+                    DesktopSourceKind.CUSTOM_MODULE,
+                    DesktopSourceKind.MODULE,
+                    -> ModuleAdapter(config)
+                    DesktopSourceKind.JIOSAAVN -> JioAdapter(config)
+                    DesktopSourceKind.YOUTUBE -> YouTubeAdapter(config)
+                }
+            }.plus(com.cosmotune.providers.ProviderHub.state.value.manager?.store?.state?.value?.installed.orEmpty()
+                .filter { it.enabled && "download_provider" in it.manifest.type }.map(::PackageAdapter))
+                .sortedBy { it.config.kind.rank }
+
+    fun descriptors(): List<DesktopSourceDescriptor> = configs()
+        .inSourceOrder()
+        .map { it.descriptor() }
+
+    fun isEnabled(sourceId: String): Boolean = configs().firstOrNull { it.id == sourceId }?.enabled == true
+
+    /** The Search page's YouTube Music source; the Add-ons source asks [addonSearchSources] instead. */
+    suspend fun search(query: String, filter: SearchFilter): Result<List<SearchResult>> =
+        DesktopSearchClient.search(query, filter)
+
+    /**
+     * The Search page's Add-ons source (BC-31): YouTube Music's anonymous song search (asked only for "All"), then every
+     * enabled, complete source in source order — HTTP add-ons, Subsonic servers, module indexes and JioSaavn — then the enabled
+     * provider packages, each asked through its own search call (so its settings and credentials go only to it, as for its
+     * streams).
+     */
+    fun addonSearchSources(): List<com.cosmotune.music.data.search.AddonSearchSource> =
+        listOf(com.cosmotune.music.data.search.youTubeMusicSearchSource(DesktopStrings["search_source_youtube_music", "YouTube Music"])) +
+            addonSearchSources(configs(), com.cosmotune.providers.ProviderHub.state.value.manager?.addonSearchSources().orEmpty())
+
+    /** Which configured sources the Add-ons search asks; the built-in YouTube entry is [DesktopSourceKind.YOUTUBE]'s and is left out. */
+    internal fun searchesInAddons(config: DesktopSourceConfig): Boolean = config.enabled && config.isComplete && when (config.kind) {
+        DesktopSourceKind.ADDON, DesktopSourceKind.SUBSONIC, DesktopSourceKind.CUSTOM_MODULE, DesktopSourceKind.MODULE,
+        DesktopSourceKind.JIOSAAVN -> true
+        DesktopSourceKind.YOUTUBE -> false
+    }
+
+    /** One configured source's own search, as the Add-ons search asks it. */
+    private suspend fun searchConfigured(config: DesktopSourceConfig, query: String, limit: Int): List<Song> {
+        fun Result<List<SearchResult>>.songs() = getOrThrow().mapNotNull { (it as? SearchResult.Track)?.song ?: (it as? SearchResult.TopTrack)?.song }
+        return when (config.kind) {
+            DesktopSourceKind.ADDON -> DesktopAddonSource.search(config, query, limit).songs()
+            DesktopSourceKind.SUBSONIC -> checkNotNull(subsonic(config)) { "Finish this server's settings first" }.searchSongs(query, limit)
+            DesktopSourceKind.CUSTOM_MODULE, DesktopSourceKind.MODULE -> DesktopModuleSource.search(config, query, limit).songs()
+            DesktopSourceKind.JIOSAAVN -> DesktopJioSaavn.search(query, limit).songs()
+            DesktopSourceKind.YOUTUBE -> emptyList()
+        }
+    }
+
+    /** [addonSearchSources] over the given [configs], with [search] standing in for the sources' own calls in a test. */
+    internal fun addonSearchSources(
+        configs: List<DesktopSourceConfig>,
+        providers: List<com.cosmotune.music.data.search.AddonSearchSource>,
+        search: suspend (DesktopSourceConfig, String, Int) -> List<Song> = { config, query, limit -> searchConfigured(config, query, limit) },
+    ): List<com.cosmotune.music.data.search.AddonSearchSource> =
+        configs.inSourceOrder()
+            .filter { searchesInAddons(it) }
+            .map { config ->
+                com.cosmotune.music.data.search.AddonSearchSource(config.displayName, id = config.id) { query, limit -> search(config, query, limit) }
+            } +
+            providers
+
+    suspend fun resolve(
+        song: Song,
+        quality: String?,
+        excludedSourceId: String? = null,
+        /** A download: addons that said `allowDownloads: 0` are left out, see [adapters]. */
+        forDownload: Boolean = false,
+    ): Result<DesktopStream> = runCatching {
+        if (song.videoId.startsWith("podio:")) {
+            check(excludedSourceId?.startsWith("podio:") != true) { "This Podio stream could not be played" }
+            com.cosmotune.podio.YouTubePodcasts.videoId(song.videoId)?.let { videoId ->
+                return@runCatching DesktopStreamClient.resolve(song.copy(videoId = videoId), youtubeCeiling(quality))
+                    .getOrThrow().copy(sourceId = "podio:youtube")
+            }
+            val source = when {
+                song.videoId.startsWith("podio:radio:") -> "podio:radio"
+                else -> "podio:publisher"
+            }
+            val url = requireNotNull(com.cosmotune.podio.PodioCatalogue.httpUrl(song.localUri.orEmpty()))
+            if (forDownload) {
+                require(com.cosmotune.podio.PodioDownloads.isEpisode(song.videoId)) { "Live radio cannot be downloaded as an episode." }
+                val format = com.cosmotune.podio.PodioDownloads.inspect(url)
+                return@runCatching DesktopStream(url, DesktopStreamFormat(codec = format.extension), sourceId = source)
+            }
+            return@runCatching DesktopStream(url, sourceId = source)
+        }
+        val providerTrack = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.takeIf { it.first.startsWith("sflx-") }
+        if (providerTrack != null) {
+            check(excludedSourceId != providerTrack.first) { "The selected provider already failed for this recording" }
+            val manager = requireNotNull(com.cosmotune.providers.ProviderHub.state.value.manager) { "Provider storage is unavailable" }
+            val policy = providerRequest(quality, forDownload)
+            val stream = manager.stream(providerTrack.first.removePrefix("sflx-"), providerTrack.second,
+                maxKbps = policy.first, lossless = policy.second, forDownload = forDownload)
+            return@runCatching DesktopStream(stream.url, DesktopStreamFormat(stream.codec, stream.kbps, stream.sampleRateHz, stream.bitDepth),
+                sourceId = providerTrack.first, durationSec = stream.durationMs?.div(1000)?.toInt())
+        }
+        val available = playbackAdapters(quality, forDownload)
+        val moduleReference = DesktopModuleSource.parseTrack(song.videoId)
+        val addonReference = DesktopAddonSource.parseTrack(song.videoId)
+        val subsonicOwner = subsonicOwnerOf(song)
+        if (subsonicOwner != null) {
+            val owner = available.firstOrNull { it.config.id == subsonicOwner.id }
+                ?: error("The source for this track is disabled or no longer configured")
+            check(owner.config.id != excludedSourceId) { "The selected source already failed for this recording" }
+            DesktopTrackLog.log("resolving '${song.title}' — this row belongs to ${subsonicOwner.displayName}")
+            return@runCatching owner.resolveOwned(song, quality).getOrThrow()
+                ?: error("${subsonicOwner.displayName} did not return an audio stream")
+        }
+        val owned = when {
+            addonReference != null -> available.firstOrNull { it.config.id == addonReference.sourceId }
+            moduleReference?.sourceId != null -> available.firstOrNull { it.config.id == moduleReference.sourceId }
+            moduleReference != null -> available.firstOrNull {
+                it.config.kind == DesktopSourceKind.CUSTOM_MODULE || it.config.kind == DesktopSourceKind.MODULE
+            }
+            song.videoId.startsWith("jiosaavn:") -> available.firstOrNull { it.config.kind == DesktopSourceKind.JIOSAAVN }
+            else -> null
+        }
+
+        // A row from an addon that is out of the walk only for policy — a download from one whose
+        // manifest says `allowDownloads: 0` — is looked up elsewhere, like any other track, rather
+        // than refused the way a disabled source's row is.
+        val heldBack = addonReference != null && owned == null &&
+            configs().any { it.id == addonReference.sourceId && it.enabled && it.isComplete }
+        if (!heldBack && (addonReference != null || moduleReference != null || song.videoId.startsWith("jiosaavn:"))) {
+            if (owned == null) error("The source for this track is disabled or no longer configured")
+            // This path has nothing to race.
+            DesktopTrackLog.log(
+                "resolving '${song.title}' — this row belongs to ${owned.descriptor.name}" +
+                    ", asking at the ${(quality ?: qualitySource().name).lowercase()} rung",
+            )
+            if (owned.config.id != excludedSourceId) {
+                owned.resolveOwned(song, quality).getOrNull()
+                    ?.takeIf { playableHere(owned, it) }
+                    ?.let {
+                        DesktopTrackLog.log(
+                            "  ${owned.descriptor.name} served it at " +
+                                it.format.summary.ifBlank { "an unstated format" },
+                        )
+                        return@runCatching it
+                    }
+                DesktopTrackLog.log("  ${owned.descriptor.name} had no usable stream for it")
+            }
+            // Android walks on to other active sources when the pinned source cannot produce a
+            // stream.
+            // Never YouTube under an addon's own row: its Opus is not the copy that was picked.
+            for (fallback in available.filter {
+                it !== owned && it.config.id != excludedSourceId &&
+                    !(addonReference != null && it.config.kind == DesktopSourceKind.YOUTUBE)
+            }) {
+                val matched = fallback.match(song) ?: continue
+                fallback.resolve(matched, quality).getOrNull()
+                    ?.takeIf { playableHere(fallback, it) }
+                    ?.let {
+                        DesktopTrackLog.log(
+                            "  fell through to ${fallback.descriptor.name} at " +
+                                it.format.summary.ifBlank { "an unstated format" },
+                        )
+                        return@runCatching it
+                    }
+            }
+            error("${owned.descriptor.name} did not return an audio stream")
+        }
+
+        // A normal YouTube row is offered to every higher-priority source first so a configured
+        // FLAC/module or JioSaavn copy is used when available.
+        for (source in available.filter {
+            it.config.kind != DesktopSourceKind.YOUTUBE &&
+                it.config.id != excludedSourceId &&
+                !DesktopOriginalVersion.isPinned(song.videoId)
+        }) {
+            val matched = source.match(song) ?: continue
+            source.resolve(matched, quality).getOrNull()
+                ?.takeIf { playableHere(source, it) }
+                ?.let { return@runCatching it }
+        }
+        val youtube = available.firstOrNull {
+            it.config.kind == DesktopSourceKind.YOUTUBE && it.config.id != excludedSourceId
+        }
+            // YouTube is the non-removable fallback and is force-enabled on read.
+            ?: error(
+                if (excludedSourceId != null) {
+                    "No other source has a copy of this track"
+                } else {
+                    "No enabled music source is configured"
+                },
+            )
+        // A held-back addon row carries that addon's id, which means nothing to YouTube.
+        val target = if (heldBack) youtube.match(song) ?: error("No other source has a copy of this track") else song
+        youtube.resolve(target, quality).fold(
+            onSuccess = { it ?: error("${youtube.descriptor.name} did not return an audio stream") },
+            onFailure = { throw it },
+        )
+    }
+
+    /**
+     * Resolves a track for immediate playback, racing the sources ranked above YouTube against
+     * YouTube itself.
+     */
+    suspend fun resolveLive(
+        song: Song,
+        quality: String?,
+        excludedSourceId: String? = null,
+    ): Result<DesktopLiveResolution> = runCatching {
+        if (song.videoId.startsWith("podio:")) return@runCatching DesktopLiveResolution(resolve(song, quality, excludedSourceId).getOrThrow())
+        val available = playbackAdapters(quality)
+        val owned = song.videoId.startsWith("src:sflx-") || subsonicOwnerOf(song) != null || available.any { it.owns(song) } ||
+            DesktopModuleSource.parseTrack(song.videoId) != null ||
+            song.videoId.startsWith("jiosaavn:")
+        if (owned) {
+            val direct = resolve(song, quality, excludedSourceId)
+            direct.getOrNull()?.let { return@runCatching DesktopLiveResolution(it) }
+            val failure = direct.exceptionOrNull() ?: error("No stream")
+            // A row from a provider package is played by that package alone, and a package whose own service
+            // is down (YouTube Music's answers api_error for every recording) would leave the song silent
+            // although other sources hold the same recording. The song is looked up by title and artist on
+            // the sources that are left, the failed package excluded.
+            val failedPackage = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.first?.takeIf { it.startsWith("sflx-") }
+                ?: throw failure
+            DesktopTrackLog.log("'${song.title}' could not be played by ${com.cosmotune.providers.ProviderHub.sourceName(failedPackage) ?: failedPackage}: ${failure.message}; looking for it elsewhere")
+            val stand = available.firstOrNull { it.config.kind == DesktopSourceKind.YOUTUBE }?.match(song)
+                ?: throw failure
+            return@runCatching resolveLive(stand, quality, failedPackage).getOrThrow()
+        }
+
+        val youtube = available.firstOrNull {
+            it.config.kind == DesktopSourceKind.YOUTUBE && it.config.id != excludedSourceId
+        }
+        val higher = if (DesktopOriginalVersion.isPinned(song.videoId)) {
+            // Sent back to YouTube's own upload by hand.
+            DesktopTrackLog.log("'${song.title}' is pinned to YouTube's original by the listener")
+            emptyList()
+        } else {
+            available.filter {
+                it.config.kind != DesktopSourceKind.YOUTUBE && it.config.id != excludedSourceId
+            }
+        }
+        // Nothing outranks YouTube, so there is no race to run — this is the plain resolve.
+        if (higher.isEmpty() || youtube == null) {
+            return@runCatching DesktopLiveResolution(resolve(song, quality, excludedSourceId).getOrThrow())
+        }
+
+        // Both legs are parented to the registry's own scope rather than the caller's.
+        DesktopTrackLog.log(
+            "resolving '${song.title}' by '${song.artist}' — racing " +
+                higher.joinToString { it.descriptor.name } + " against YouTube",
+        )
+        if (song.isVideo) {
+            // A video upload is another recording, and can be another song altogether — the sources
+            // are never asked to stand in for one.
+            DesktopTrackLog.log("  this row is a video upload, so no source will be asked to match it")
+        } else {
+            DesktopTrackLog.log(
+                "  asking for: " + DesktopTrackMatcher.queries(song).joinToString(" | ").ifBlank { "(nothing)" },
+            )
+        }
+        val lookup = scope.async {
+            firstSubstitute(higher, song, quality)
+        }
+        val fallback = scope.async { youtube.resolve(song, quality).getOrNull() }
+
+        val quick: DesktopStream? = select {
+            lookup.onAwait { it }
+            // A YouTube leg that finished without a URL has not won anything.
+            fallback.onAwait { stream -> if (stream != null) null else lookup.await() }
+        }
+
+        if (quick != null) {
+            fallback.cancel()
+            DesktopTrackLog.log(
+                "substituted: '${song.title}' served by ${sourceNameFor(quick)} over YouTube" +
+                    " at ${quick.format.summary.ifBlank { "an unstated format" }}",
+            )
+            // Winning the race is not the same as being the best copy.
+            return@runCatching DesktopLiveResolution(quick, betterThan(quick, higher, song, quality))
+        }
+
+        val youtubeStream = fallback.await()
+            ?: lookup.await()
+            ?: error("No enabled music source could play this track")
+        // Still running means it lost the race rather than ran out of answers.
+        val pending = lookup.takeIf { it.isActive }
+        if (pending != null) {
+            DesktopTrackLog.log("'${song.title}' started on YouTube while the other sources keep looking")
+        }
+        DesktopLiveResolution(youtubeStream, pending)
+    }
+
+    /**
+     * A patient second look for a copy that beats the one now playing, or null when nothing could.
+     */
+    private fun betterThan(
+        playing: DesktopStream,
+        candidates: List<SourceAdapter>,
+        song: Song,
+        quality: String?,
+    ): Deferred<DesktopStream?>? {
+        val winnerRank = configs().firstOrNull { it.id == playing.sourceId }?.kind?.rank
+            ?: DesktopSourceKind.YOUTUBE.rank
+        val better = candidates.filter { it.config.id != playing.sourceId }
+        if (better.isEmpty()) return null
+        DesktopTrackLog.log(
+            "still looking for a better copy of '${song.title}' from " +
+                better.joinToString { it.descriptor.name },
+        )
+        // The registry's own scope, like both legs of the race above: this outlives the call that
+        // started it by design.
+        return scope.async { firstSubstitute(better, song, quality, playing.format, UPGRADE_TIMEOUT_MS) }
+    }
+
+    /** The first usable stream from any of [sources], each asked in parallel. */
+    private suspend fun firstSubstitute(
+        sources: List<SourceAdapter>,
+        song: Song,
+        quality: String?,
+        playing: DesktopStreamFormat? = null,
+        timeoutMs: Long = SUBSTITUTE_TIMEOUT_MS,
+    ): DesktopStream? = awaitSourceOffer(
+        requests = sources.map { source -> suspend { openBest(source, song, quality) } },
+        timeoutMs = timeoutMs,
+        better = { previous, next -> betterOf(previous, next) },
+        ready = { offer ->
+            if (playing != null) worthSwapping(offer.format, playing)
+            else true // The initial race starts playback; the patient retry requires an actual upgrade.
+        },
+    )
+
+    /** Whether a copy found after the fact is worth interrupting playback for. */
+    internal fun worthSwapping(candidate: DesktopStreamFormat, playing: DesktopStreamFormat?): Boolean {
+        if (playing?.isDolbyAtmos == true && !candidate.isDolbyAtmos) return false
+        if (candidate.isLossless) return true
+        if (playing?.isLossless == true) return false
+        return com.cosmotune.audio.LossyUpgradePolicy.worthReplacing(candidate.codec, candidate.kbps, playing?.codec, playing?.kbps, UPGRADE_MIN_GAIN_KBPS)
+    }
+
+    /**
+     * A second look, asked from scratch once the first one has settled for nothing better.
+     *
+     * The live race deliberately takes the first copy that beats YouTube, so a slower lossless
+     * source can still be searching when a lossy one wins — and a source that answered HTTP 502
+     * that minute may well answer properly now. Mirrors Android's `SourceResolver.upgradeFor`.
+     */
+    suspend fun upgradeFor(
+        song: Song,
+        playing: DesktopStream?,
+        quality: String? = null,
+    ): DesktopStream? {
+        // This is an explicit second look. Empty catalogue answers and failed/expired stream URLs
+        // from the first pass must not make the retry a cache hit.
+        DesktopAddonSource.clearCompletedTrackCalls()
+        val playingRank = configs().firstOrNull { it.id == playing?.sourceId }?.kind?.rank
+            ?: DesktopSourceKind.YOUTUBE.rank
+        val better = playbackAdapters(quality).filter {
+            it.config.kind != DesktopSourceKind.YOUTUBE && it.config.id != playing?.sourceId
+        }
+        if (better.isEmpty()) return null
+        DesktopTrackLog.log(
+            "asking ${better.joinToString { it.descriptor.name }} again for a better copy of " +
+                "'${song.title}'",
+        )
+        return firstSubstitute(better, song, quality, playing?.format, UPGRADE_TIMEOUT_MS)
+    }
+
+    /** Whether a stream a source handed back can actually be played here. */
+    /**
+     * The best copy [source] can actually serve for [song], or null when it has none.
+     *
+     * More than one row is opened, because a catalogue that holds a track can still fail on the
+     * particular row matched first — and rows advertising the tier being asked for go first.
+     */
+    private suspend fun openBest(source: SourceAdapter, song: Song, quality: String?): DesktopStream? {
+        val ticket = com.cosmotune.music.data.sources.AudioSourceComparisons.start(
+            com.cosmotune.music.data.sources.TrackMatcher.targetOf(song), source.config.id, source.descriptor.name)
+        try {
+            var hadMatches = false
+            val result = openBestUnreported(source, song, quality, ticket) { hadMatches = true }
+            val format = result?.format?.let { com.cosmotune.music.data.sources.StreamFormat(it.codec, it.kbps, it.sampleRateHz, it.bitDepth) }
+            com.cosmotune.music.data.sources.AudioSourceComparisons.finish(ticket,
+                if (result != null) com.cosmotune.music.data.sources.AudioSourceComparisons.Status.AVAILABLE
+                else if (hadMatches) com.cosmotune.music.data.sources.AudioSourceComparisons.Status.UNAVAILABLE
+                else com.cosmotune.music.data.sources.AudioSourceComparisons.Status.NO_MATCH, listOfNotNull(format))
+            return result
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            com.cosmotune.music.data.sources.AudioSourceComparisons.finish(ticket,
+                if (cancelled is kotlinx.coroutines.TimeoutCancellationException) com.cosmotune.music.data.sources.AudioSourceComparisons.Status.TIMEOUT
+                else com.cosmotune.music.data.sources.AudioSourceComparisons.Status.CANCELLED)
+            throw cancelled
+        } catch (error: Exception) {
+            com.cosmotune.music.data.sources.AudioSourceComparisons.failed(ticket, error)
+            return null
+        }
+    }
+
+    private suspend fun openBestUnreported(
+        source: SourceAdapter,
+        song: Song,
+        quality: String?,
+        ticket: com.cosmotune.music.data.sources.AudioSourceComparisons.Ticket,
+        onMatched: () -> Unit,
+    ): DesktopStream? {
+        val matches = source.matches(song)
+        if (matches.isEmpty()) {
+            // A leg cancelled by a sibling winning the race has not missed anything.
+            if (currentCoroutineContext().isActive) {
+                DesktopTrackLog.log("${source.descriptor.name} has no copy of '${song.title}'")
+            }
+            return null
+        }
+        onMatched()
+        val wantsLossless = ceiling(quality) == DesktopAudioQuality.LOSSLESS
+        var settleFor: DesktopStream? = null
+        for (match in preferred(matches, song, wantsLossless).take(STREAM_ATTEMPTS)) {
+            val stream = source.resolve(match, quality).onFailure { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                com.cosmotune.music.data.sources.AudioSourceComparisons.failed(ticket, error)
+                val status = Regex("(?i)\\bHTTP\\s+(\\d{3})\\b").find(error.message.orEmpty())?.groupValues?.get(1)
+                DesktopTrackLog.log("${source.descriptor.name} stream failed for '${match.title}': ${error.javaClass.simpleName}" +
+                    (status?.let { " · HTTP $it" } ?: ""))
+            }.getOrNull() ?: continue
+            if (!playableHere(source, stream)) continue
+            val served = stream.format
+            if (!wantsLossless || served.isLossless || served.isDolbyAtmos) {
+                DesktopTrackLog.log(
+                    "${source.descriptor.name} matched '${match.title}' by '${match.artist}'" +
+                        " → ${served.summary.ifBlank { "an unstated format" }}",
+                )
+                return stream
+            }
+            DesktopTrackLog.log(
+                "${source.descriptor.name} offered ${served.summary.ifBlank { "an unstated format" }}" +
+                    " for '${match.title}'; looking further",
+            )
+            // The floor is the best of what was refused, not the first of it.
+            settleFor = betterOf(settleFor, stream)
+        }
+        if (settleFor == null && currentCoroutineContext().isActive) {
+            DesktopTrackLog.log("${source.descriptor.name} matched '${song.title}' but returned no stream")
+        }
+        return settleFor
+    }
+
+    /** The matching rows in the order they are worth opening. */
+    internal fun preferred(matches: List<Song>, target: Song, wantsLossless: Boolean): List<Song> {
+        val sameLength = matches.filter { DesktopTrackMatcher.withinSeconds(it, target, SAME_RECORDING_SEC) }
+        val eligible = sameLength.ifEmpty { matches }
+        if (!wantsLossless) return eligible
+        // Stable, so the confidence order the matcher produced survives inside each tier.
+        return eligible.sortedByDescending { it.sourceQuality == DesktopModuleSource.LOSSLESS }
+    }
+
+    /** Which of two renditions of the same recording is the better one. */
+    private fun betterOf(current: DesktopStream?, candidate: DesktopStream): DesktopStream {
+        val held = current ?: return candidate
+        fun DesktopStreamFormat.shared() = com.cosmotune.music.data.sources.StreamFormat(codec, kbps, sampleRateHz, bitDepth)
+        return if (com.cosmotune.music.data.sources.StreamQualityPolicy.better(candidate.format.shared(), held.format.shared())) candidate else held
+    }
+
+    private fun playableHere(source: SourceAdapter, stream: DesktopStream): Boolean {
+        if (stream.isDolbyAtmos && !DesktopCodecs.supportsDolbyAtmos) {
+            DesktopTrackLog.log(
+                "${source.descriptor.name} offered a Dolby Atmos rendition, " +
+                    "which this build has no E-AC-3 decoder for",
+            )
+            return false
+        }
+        if (stream.isDolbyAtmos && !DesktopAddonSettings.dolbyAtmosEnabled) {
+            DesktopTrackLog.log(
+                "${source.descriptor.name} offered a Dolby Atmos rendition, which is switched off",
+            )
+            return false
+        }
+        return true
+    }
+
+    /** The configured Subsonic source a `src:<id>::<track>` row came from, enabled or not. */
+    private fun subsonicOwnerOf(song: Song): DesktopSourceConfig? {
+        val id = com.cosmotune.music.data.sources.SourceTrackKeys.parse(song.videoId)?.first ?: return null
+        if (id.startsWith("sflx-")) return null
+        return configs().firstOrNull { it.id == id && it.kind == DesktopSourceKind.SUBSONIC }
+    }
+
+    /** Whether this row has a YouTube upload behind it to go back to. */
+    fun hasYouTubeOriginal(song: Song): Boolean =
+        subsonicOwnerOf(song) == null &&
+        DesktopAddonSource.parseTrack(song.videoId) == null &&
+            DesktopModuleSource.parseTrack(song.videoId) == null &&
+            !song.videoId.startsWith("jiosaavn:") && !song.videoId.startsWith("src:sflx-") &&
+            !song.videoId.startsWith("file:") && !song.videoId.startsWith("content:") && !song.videoId.startsWith("local:") &&
+            song.videoId.isNotBlank()
+
+    /** The configured source a stream came from, for a log line. */
+    internal fun sourceNameFor(stream: DesktopStream): String =
+        stream.sourceId?.takeIf { it.startsWith("podio:") }?.let { com.cosmotune.podio.podioSourceName(it) }
+            ?: configs().firstOrNull { it.id == stream.sourceId }?.displayName
+            ?: com.cosmotune.providers.ProviderHub.sourceName(stream.sourceId) ?: "a configured source"
+
+    internal fun providerRequest(quality: String?, forDownload: Boolean): Pair<Int?, Boolean> {
+        if (forDownload) return when ((quality ?: DesktopPersistence().string("download_quality", "LOSSLESS")).uppercase()) {
+            "STANDARD" -> 128 to false
+            "HIGH" -> null to false
+            else -> null to true
+        }
+        val policy = ceiling(quality)
+        return policy.maxKbps.takeIf { it != Int.MAX_VALUE } to (policy == DesktopAudioQuality.LOSSLESS)
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** How long the live path waits on the sources before starting on whatever YouTube has. */
+    private const val SUBSTITUTE_TIMEOUT_MS = 20_000L
+
+    /**
+     * The patient second look's budget. Longer than the race's, because nobody is waiting on the
+     * first note by then and a cold addon routinely needs more than one call to settle.
+     */
+    private const val UPGRADE_TIMEOUT_MS = 90_000L
+
+    /** How many matched rows are opened before a source is written off. */
+    private const val STREAM_ATTEMPTS = 3
+
+    /** The runtime agreement that says two rows are the same recording. */
+    private const val SAME_RECORDING_SEC = 2
+
+    /** The smallest bitrate gain worth a break in the audio for. */
+    private const val UPGRADE_MIN_GAIN_KBPS = 96
+
+    /** The ceiling a call is made under: an explicit override, else the stored rung. */
+    internal fun ceiling(qualityOverride: String?): DesktopAudioQuality =
+        qualityOverride?.let { override ->
+            DesktopAudioQuality.entries.firstOrNull { it.name.equals(override, ignoreCase = true) }
+        } ?: qualitySource()
+
+    private fun youtubeCeiling(qualityOverride: String?): Int = ceiling(qualityOverride).maxKbps
+}

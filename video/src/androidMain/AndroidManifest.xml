@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Video mode's two services. The app declares the same two permissions; they are repeated here so the module stays
+      self-contained (the manifest merger folds the duplicates into one).
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <application>
+
+        <!-- The player: kept alive in the background, reachable by system controllers and headsets (Y-11). -->
+        <service
+            android:name="com.cosmotune.video.player.android.VideoPlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+
+        <!-- Downloads that outlive the screen they were asked from (Y-24). -->
+        <service
+            android:name="com.cosmotune.video.downloads.android.VideoDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+    </application>
+</manifest>

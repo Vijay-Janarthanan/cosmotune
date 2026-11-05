@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">視覺效果</string>
+    <string name="player_visuals_close">關閉視覺效果</string>
+    <string name="player_visuals_artwork">封面</string>
+    <string name="player_visuals_pulse">脈動</string>
+    <string name="player_visuals_waveform">波形</string>
+    <string name="player_visuals_waiting">在此裝置上播放音訊以查看視覺效果。</string>
+</resources>

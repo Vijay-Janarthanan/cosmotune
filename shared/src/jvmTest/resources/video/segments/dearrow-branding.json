@@ -1,0 +1,62 @@
+{
+  "otherVid001": {
+    "titles": [
+      {
+        "title": ">tHiS stays unformatted",
+        "original": false,
+        "votes": -2,
+        "locked": false,
+        "UUID": "da-other-title"
+      }
+    ],
+    "thumbnails": [
+      {
+        "timestamp": 10.0,
+        "original": false,
+        "votes": -3,
+        "locked": false,
+        "UUID": "da-other-thumb"
+      }
+    ],
+    "casualVotes": [],
+    "randomTime": 0.5,
+    "videoDuration": null
+  },
+  "dQw4w9WgXcQ": {
+    "titles": [
+      {
+        "title": "Rick Astley sings >never gonna give you up",
+        "original": false,
+        "votes": 4,
+        "locked": false,
+        "UUID": "da-title-1"
+      },
+      {
+        "title": "Rick Astley - Never Gonna Give You Up (Official Video)",
+        "original": true,
+        "votes": 1,
+        "locked": false,
+        "UUID": "da-title-2"
+      }
+    ],
+    "thumbnails": [
+      {
+        "timestamp": 43.457,
+        "original": false,
+        "votes": 2,
+        "locked": false,
+        "UUID": "da-thumb-1"
+      },
+      {
+        "timestamp": null,
+        "original": true,
+        "votes": 0,
+        "locked": false,
+        "UUID": "da-thumb-2"
+      }
+    ],
+    "casualVotes": [],
+    "randomTime": 0.31,
+    "videoDuration": 212.1
+  }
+}

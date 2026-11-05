@@ -1,0 +1,14 @@
+<!--
+  Cosmotune themed-icon layer (Android 13+): the V6 silhouette in one colour, the C and the
+  bitten o as separate shapes, so both survive the system's tint. Same placement as the
+  foreground (48 dp circle inside the 66 dp safe zone).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M72.27,38.59 A21.928,21.928 0 1,0 76.462,62.338 A0.748,0.748 0 0,0 75.565,61.326 A10.964,10.964 0 0,1 66.22,59.761 A0.498,0.498 0 0,0 65.512,59.906 A10.964,11.463 0 1,1 62.916,44.481 A0.498,0.498 0 0,0 63.629,44.381 A10.964,10.964 0 0,1 71.777,39.851 A0.748,0.748 0 0,0 72.27,38.59 Z M61.914,48.025 A6.853,6.853 0 1,0 63.504,57.02 A10.964,10.964 0 0,1 61.914,48.025 Z"
+        android:fillColor="#FFFFFFFF" />
+</vector>

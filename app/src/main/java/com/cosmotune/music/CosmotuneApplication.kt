@@ -1,0 +1,304 @@
+package com.cosmotune.music
+
+import android.app.Application
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.disk.directory
+import coil3.memory.MemoryCache
+import coil3.request.crossfade
+import com.cosmotune.music.auth.AuthStore
+import com.cosmotune.music.data.DebugLog
+import com.cosmotune.music.data.lyrics.LyricsTranslation
+import androidx.appcompat.app.AppCompatDelegate
+import com.cosmotune.music.ui.player.AndroidPlayerHost
+import com.cosmotune.music.ui.player.PlayerPlatform
+import com.cosmotune.music.data.canvas.CanvasCache
+import com.cosmotune.music.data.canvas.OpenCanvasProvider
+import com.cosmotune.music.data.smb.SmbCoverFetcher
+import com.cosmotune.music.data.webdav.WebDavCoilAuth
+import com.cosmotune.music.data.canvas.SpotifyToken
+import com.cosmotune.music.data.spotify.SpotifyLibrary
+import com.cosmotune.music.playback.AudioCache
+import com.cosmotune.music.playback.LastPlayed
+import com.cosmotune.music.playback.OriginalVersion
+import com.cosmotune.music.data.innertube.Innertube
+import com.cosmotune.music.data.innertube.AndroidStreamHooks
+import com.cosmotune.music.data.listentogether.ListenTogether
+import com.cosmotune.music.data.scrobbling.LastFM
+import com.cosmotune.music.data.settings.AppSettings
+import com.cosmotune.music.data.settings.SearchHistory
+import com.cosmotune.music.data.sources.SourceRegistry
+import com.cosmotune.music.data.stats.ArtistFacts
+import com.cosmotune.music.data.stats.ListeningStats
+import com.cosmotune.music.download.Downloads
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlin.concurrent.thread
+
+class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
+
+    @OptIn(UnstableApi::class)
+    override fun onCreate() {
+        super.onCreate()
+        if (android.os.Build.VERSION.SDK_INT >= 28 && Application.getProcessName().let { it.endsWith(":provider_auth") || it.endsWith(":mangaverification") }) return
+        com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
+        // First, before any store is opened: copies what was kept under the names before the rename.
+        LegacyDataMigration.run(this)
+        // The player is drawn by the shared UI module; this is what it reads
+        // underneath — settings, the Canvas decoder, outputs, the party.
+        AndroidStreamHooks.installEarly()
+        PlayerPlatform.install(AndroidPlayerHost(this))
+        // Measured local loudness from Listening tools; loaded off the main thread.
+        com.cosmotune.audio.LibraryLoudness.attach(com.cosmotune.audio.LibraryAnalysisStore.beside(java.io.File(filesDir, "cosmotune-listening.json")))
+        com.cosmotune.ui.pages.ArtistVisualSettings.install(AppSettings.signatureApiEnabled, AppSettings.signatureApiUrl,
+            java.io.File(filesDir, "artist-visuals"))
+        com.cosmotune.music.ui.AppUi.install(com.cosmotune.music.ui.AndroidAppUiHost)
+        // The shared data layer (lyrics, the YouTube Music client) logs to
+        // logcat on debug builds only, as the app's own DebugLog always has.
+        if (BuildConfig.DEBUG) {
+            DebugLog.sink = DebugLog.Sink { level, tag, message, error ->
+                when (level) {
+                    'D' -> android.util.Log.d(tag, message, error)
+                    'I' -> android.util.Log.i(tag, message, error)
+                    'W' -> android.util.Log.w(tag, message, error)
+                    else -> android.util.Log.e(tag, message, error)
+                }
+            }
+        }
+        // The Spotify library and import live in the shared module; the tokens are the WebView's.
+        SpotifyLibrary.auth = SpotifyLibrary.Auth {
+            SpotifyToken.accessToken()?.let { SpotifyLibrary.Tokens(it, SpotifyToken.clientToken()) }
+        }
+        // The per-app language picker, which YouTube Music's `hl` follows.
+        // Full tag (zh-Hant / zh-Hans preserved); Innertube maps to hl/gl.
+        Innertube.appLanguage = { AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag() }
+        migrateScriptOnlyAppLocale()
+        LyricsTranslation.cacheDir = cacheDir
+        com.cosmotune.music.data.recommendations.LocalRecommendations.configure(
+            java.io.File(cacheDir, "recommendations"), java.io.File(filesDir, "recommendations"))
+        com.cosmotune.providers.ProviderAuthCallbackBridge.configure(this)
+        com.cosmotune.providers.ProviderHub.configure(java.io.File(filesDir, "providers"), cache = java.io.File(cacheDir, "provider-artwork"))
+        // PlaybackService shares this process, so seeding the cookie here means
+        // stream resolution is authenticated from the first play onwards.
+        authStore = AuthStore(this)
+        // Opened off the main thread, alongside everything below: none of these
+        // reads a setting or the session, and between them they are the slowest
+        // opens at startup — SourceRegistry's encrypted store most of all.
+        // Started only once [AuthStore] exists, because both encrypted stores
+        // share one keystore master key and a first launch must not have two
+        // threads racing to create it. Joined before onCreate returns, so
+        // nothing that runs after startup can see any of them half open.
+        val backgroundInit = thread(name = "startup-init") {
+            SourceRegistry.init(this)
+            AndroidStreamHooks.initInnerTubeX(this)
+            // Its own directory: canvas clips are looping video, not audio, and
+            // belong in a cache AudioCache's own limit and eviction policy were
+            // never sized for. See CanvasCache's doc for why this one exists at
+            // all — it is the fix for canvas clips re-fetching the same few
+            // seconds of video from the network on every loop.
+            CanvasCache.init(this)
+            // Where the music-video canvas keeps the song-to-video maps it measured, so a song it has
+            // seen before starts at once.
+            OpenCanvasProvider.configure(java.io.File(filesDir, "opencanvas"))
+        }
+        // Migration-safe: an old single cookie becomes the first encrypted
+        // session, while newer installs restore the profile the listener chose.
+        val restoredSession = authStore.activeSession
+        if (restoredSession != null && authStore.activeAccountId == null) {
+            authStore.select(restoredSession.accountId, restoredSession.activeProfileId)
+        }
+        authStore.cookie = restoredSession?.cookie
+        // Where a renewed session is kept, and when it is renewed: see AndroidYouTubeSession.
+        com.cosmotune.music.auth.AndroidYouTubeSession.install(this, authStore)
+        Innertube.cookie = restoredSession?.cookie
+        com.cosmotune.youtube.account.YouTubeSession.shared.installGoogle(restoredSession?.googleCookie)
+        // Which account that cookie actually acts as. Read here rather than on
+        // demand so the answer is usually in hand before the first request needs
+        // it: a play registered under the wrong account is indistinguishable, to
+        // the listener, from one that was never registered at all. Fire and
+        // forget — every caller works without it, just less precisely.
+        if (restoredSession != null) {
+            // After the cookie, never before: setting the cookie clears any
+            // channel the last session was acting as, so restoring the choice
+            // first would restore it into the value about to be wiped.
+            restoredSession.profiles.firstOrNull { it.profileId == restoredSession.activeProfileId }
+                ?.let { Innertube.selectChannel(it.pageId, it.dataSyncId, it.authUser) }
+            CoroutineScope(Dispatchers.IO).launch { Innertube.ensureSessionScope() }
+        }
+        AppSettings.init(this, authStore)
+        // Before anything resolves a track: an addon with `checkValidLossless`
+        // is gated on this, and the gate reads "no" until it has looked.
+        com.cosmotune.music.playback.audio.LosslessOutput.init(this)
+        // The audio cache's index is read from disk when it opens, which grows with the cache and was the longest single wait on the
+        // main thread here. It needs the settings (its size limit) and nothing below needs it, so it opens beside them and is joined
+        // before the first thing that uses it, the version-update wipe.
+        val audioCacheOpen = openInBackground("startup-audio-cache") { AudioCache.init(this) }
+        // Restores a party this device is still a member of, so a process death
+        // mid-session is something the rest of the party never sees. The socket
+        // and the clock offset are not restored — both are re-established on
+        // the next connect, which is the only way to be sure they are current.
+        ListenTogether.init(this)
+        // Rooms on Firebase, which Listen together now runs on. Builds nothing and sends nothing until a room is created or joined.
+        com.cosmotune.music.data.room.PhoneRooms.install(this)
+        SearchHistory.init(this)
+        LastPlayed.init(this)
+        // Both queue stores are used by PlaybackService, including an empty
+        // service being stopped when the listener switches to Video or Manga.
+        com.cosmotune.music.playback.BoundedContextPersistence.init(this)
+        com.cosmotune.music.playback.PartyPersonalQueueStash.init(this)
+        // Which tracks the listener has reverted to YouTube's own upload. Read
+        // by [Song.toMediaItem], so it has to be open before the restart
+        // snapshot below is turned back into queue items.
+        OriginalVersion.init(this)
+        // What's already saved to Downloads, so the song menu can say so
+        // without a media-store query per row.
+        Downloads.init(this)
+        com.cosmotune.music.download.PlaylistDownloadScheduler.init(this)
+        // The device's own listening record. Opened here rather than in
+        // PlaybackService because the Replay page reads it from the UI side and
+        // both live in this process — one owner, one directory.
+        ListeningStats.init(this)
+        // After AppSettings, whose switch decides whether half of it runs.
+        ArtistFacts.init(this)
+        // The offscreen WebView that mints a Spotify access token from the
+        // listener's own session cookie needs a Context, and nothing in the
+        // suspend call chain that reaches it (a track's canvas lookup) has
+        // one to hand — see SpotifyToken's doc for why.
+        SpotifyToken.init(this)
+        // One cache directory can only be opened once per process, and PlaybackService shares this one, so it is opened here, not
+        // there; the open started above is finished before anything touches the cache.
+        audioCacheOpen.join()
+        // A sideloaded update is just a new APK over the old one, so app data —
+        // including whatever the old build left in these caches — survives it
+        // untouched. Wipe both on the first launch of a higher versionCode so a
+        // format or key change between builds can't serve stale or mismatched
+        // bytes from a cache the new code didn't write.
+        if (AppSettings.consumeVersionUpdate(BuildConfig.VERSION_CODE)) {
+            AudioCache.clear()
+            SingletonImageLoader.get(this).let { loader ->
+                loader.memoryCache?.clear()
+                loader.diskCache?.clear()
+            }
+        }
+        // Initialize LastFM with saved settings if available
+        initLastfm()
+        // Playlists synced across the listener's devices. After AppSettings, which opens the playlist store it watches; the account
+        // itself opens off the main thread and the first sync waits a few seconds, so neither costs startup anything.
+        com.cosmotune.music.data.cloud.AndroidCloud.install(this)
+        // LK-06: the Last.fm radio feed exists only while the listener opted in and is signed in.
+        CoroutineScope(Dispatchers.Default).launch {
+            kotlinx.coroutines.flow.combine(
+                AppSettings.lastfmRecommendations, AppSettings.lastfmSessionKey, AppSettings.lastfmUsername,
+                AppSettings.lastfmApiKey, AppSettings.lastfmEndpoint,
+            ) { optedIn, session, user, key, endpoint ->
+                com.cosmotune.music.data.recommendations.LastFmDiscovery.configured(optedIn, session, user, key,
+                    endpoint.takeIf { it.isNotBlank() && it != LastFM.DEFAULT_API_ENDPOINT })
+            }.collect { com.cosmotune.music.data.recommendations.LocalRecommendations.useLastFm(it) }
+        }
+        // The public "apps open right now" count; see Presence.
+        com.cosmotune.music.data.presence.AndroidPresence.install(this)
+        backgroundInit.join()
+    }
+
+    /**
+     * Artwork loading, which was previously left entirely on Coil's defaults.
+     *
+     * The defaults aren't unreasonable, but the disk cache is sized at 2% of
+     * free space — which on a full phone is the 10MB floor, a few screens of
+     * covers, and covers are exactly the thing worth still having tomorrow.
+     * Naming a directory alongside it keeps that cache somewhere identifiable
+     * rather than in the process's temp dir.
+     */
+    override fun newImageLoader(context: PlatformContext): ImageLoader =
+        ImageLoader.Builder(context)
+            // Covers on the WebDAV server need the credential or every one
+            // of them 401s — which reads as "this track has no artwork".
+            // Coil's own transport never sees Http.client's interceptor, so
+            // the header is attached per request instead. See WebDavCoilAuth.
+            .components {
+                add(coil3.svg.SvgDecoder.Factory()); add(com.cosmotune.ui.providers.CatalogueArtworkFetcher.Factory())
+                add(WebDavCoilAuth())
+                // Covers filed on the SMB share; anything else falls
+                // through to Coil's own fetchers. See SmbCoverFetcher.
+                add(SmbCoverFetcher.Factory())
+            }
+            .memoryCache {
+                MemoryCache.Builder()
+                    .maxSizePercent(context, 0.20)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(100L * 1024 * 1024)
+                    .build()
+            }
+            // Covers arriving with a hard cut read as the list flickering as
+            // it scrolls; a short fade reads as them developing.
+            .crossfade(200)
+            .build()
+
+    private fun initLastfm() {
+        val sessionKey = AppSettings.lastfmSessionKey.value
+        if (sessionKey.isBlank()) return
+        val endpoint = AppSettings.lastfmEndpoint.value.ifBlank { LastFM.DEFAULT_API_ENDPOINT }
+        val apiKey = AppSettings.lastfmApiKey.value.trim()
+        val secret = AppSettings.lastfmSecret.value.trim()
+        if (apiKey.isBlank() || secret.isBlank()) return
+        LastFM.configure(
+            endpoint = endpoint,
+            apiKey = apiKey,
+            secret = secret,
+            sessionKey = sessionKey,
+        )
+    }
+
+    /**
+     * Runs [work] on its own thread and hands back a handle whose [Joiner.join] waits for it, and throws what it threw: the work was
+     * on the main thread before, where a failure ended the process, and moving it must not turn that into a silent half-started app.
+     */
+    private fun openInBackground(name: String, work: () -> Unit): Joiner {
+        var failure: Throwable? = null
+        val thread = thread(name = name) { try { work() } catch (e: Throwable) { failure = e } }
+        return Joiner {
+            thread.join()
+            failure?.let { throw it }
+        }
+    }
+
+    private fun interface Joiner {
+        fun join()
+    }
+
+    companion object {
+        lateinit var authStore: AuthStore
+            private set
+
+        /**
+         * One-time move from region-less script tags to regional ones.
+         *
+         * Early builds of the Simplified/Traditional picker stored `zh-Hant` /
+         * `zh-Hans`. Android Views resolve those (script qualifiers), but the
+         * shared Compose resources only match language + region — so Settings
+         * read Traditional while the player read Simplified. Regional tags
+         * match on both systems. Bare `zh` is left alone: it historically
+         * meant Simplified.
+         */
+        private fun migrateScriptOnlyAppLocale() {
+            val current = AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag()
+            val replacement = when (current) {
+                "zh-Hant" -> "zh-TW"
+                "zh-Hans" -> "zh-CN"
+                else -> return
+            }
+            AppCompatDelegate.setApplicationLocales(
+                androidx.core.os.LocaleListCompat.forLanguageTags(replacement),
+            )
+        }
+    }
+}

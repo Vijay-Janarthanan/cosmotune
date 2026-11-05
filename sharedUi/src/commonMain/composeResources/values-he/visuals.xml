@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">אפקטים חזותיים</string>
+    <string name="player_visuals_close">סגירת האפקטים</string>
+    <string name="player_visuals_artwork">עטיפה</string>
+    <string name="player_visuals_pulse">פעימה</string>
+    <string name="player_visuals_waveform">צורת גל</string>
+    <string name="player_visuals_waiting">יש להפעיל שמע במכשיר הזה כדי לראות את האפקטים החזותיים.</string>
+</resources>

@@ -1,0 +1,8 @@
+<resources>
+    <string name="player_visuals">Visualizações</string>
+    <string name="player_visuals_close">Fechar visualizações</string>
+    <string name="player_visuals_artwork">Capa</string>
+    <string name="player_visuals_pulse">Pulsação</string>
+    <string name="player_visuals_waveform">Forma de onda</string>
+    <string name="player_visuals_waiting">Reproduza áudio neste dispositivo para ver a visualização.</string>
+</resources>

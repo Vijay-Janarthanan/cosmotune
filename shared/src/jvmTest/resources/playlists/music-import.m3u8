@@ -1,0 +1,8 @@
+#EXTM3U
+#PLAYLIST:Road trip
+#EXTINF:240,The Coast - Evening light
+music/song.flac
+${FILE_URI}
+https://music.youtube.com/watch?v=dQw4w9WgXcQ
+https://media.invalid/live.m3u8
+../../ungranted/song.flac
