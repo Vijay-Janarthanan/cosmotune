@@ -90,6 +90,9 @@ import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.archivo_variable
 import com.cosmotune.music.ui.components.PullToRefresh
 import com.cosmotune.music.ui.components.SignInBanner
+import com.cosmotune.music.ui.components.contextClick
+import com.cosmotune.music.ui.components.longPressMenuClickable
+import androidx.compose.ui.platform.testTag
 import com.cosmotune.music.ui.components.feedMoreSkeleton
 import com.cosmotune.music.ui.components.feedSkeleton
 import com.cosmotune.music.ui.components.recentlyPlayedSkeleton
@@ -170,11 +173,17 @@ fun OrbitHome(
 
                 if (currentSong != null || shelves.isNotEmpty()) item(key = "orbit:hero") {
                     val hero = rememberHero(shelves, currentSong, isPlaying)
+                    // A hold on the card or its play button opens the menu of what it shows, as a hold on any other card of
+                    // the feed does: the song that plays, or the item it starts from.
+                    val heroHeld = hero.item ?: currentSong?.takeIf { hero.isCurrent }?.let {
+                        ShelfItem(it.title, it.artist, it.thumbnailUrl, it.videoId, null, song = it)
+                    }
                     val heroCard: @Composable (Modifier) -> Unit = { m ->
                         OrbitHero(
                             hero = hero, fonts = fonts, look = look, playbackTime = playbackTime.takeIf { hero.isCurrent },
                             onBite = { if (hero.isCurrent) onPlayPause?.invoke() else hero.item?.let { onItemClick(it, hero.shelfTitle) } },
                             onCard = { if (!hero.isCurrent) hero.item?.let { onItemClick(it, hero.shelfTitle) } else onPlayPause?.invoke() },
+                            onHold = heroHeld?.let { held -> onItemLongPress?.let { open -> { open(held) } } },
                             modifier = m,
                         )
                     }
@@ -293,14 +302,18 @@ private fun rememberHero(shelves: List<HomeShelf>, current: Song?, playing: Bool
 }
 
 @Composable
-private fun OrbitHero(hero: Hero, fonts: OrbitFonts, look: OrbitLook, playbackTime: (() -> Pair<Long, Long>)?, onBite: () -> Unit, onCard: () -> Unit, modifier: Modifier) {
+private fun OrbitHero(
+    hero: Hero, fonts: OrbitFonts, look: OrbitLook, playbackTime: (() -> Pair<Long, Long>)?, onBite: () -> Unit, onCard: () -> Unit,
+    onHold: (() -> Unit)?, modifier: Modifier,
+) {
     val (fill, ink) = coverFill(hero.cover, hero.title)
     BoxWithConstraints(modifier) {
         val disc = if (maxWidth < 380.dp) 124.dp else 148.dp
         Box(
             Modifier.fillMaxSize().clip(HeroBite)
                 .background(Brush.linearGradient(listOf(fill, fill.copy(alpha = 0.82f).compositeOver(Color.Black))))
-                .clickable(onClick = onCard),
+                .longPressMenuClickable(onClick = onCard, onLongClick = onHold).contextClick(onHold)
+                .testTag("music:home:hero"),
         ) {
             Text(hero.label, style = fonts.label, color = ink.copy(alpha = 0.72f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = 22.dp, top = 22.dp, end = disc + 40.dp))
@@ -323,7 +336,8 @@ private fun OrbitHero(hero: Hero, fonts: OrbitFonts, look: OrbitLook, playbackTi
         }
         Box(
             Modifier.align(Alignment.BottomEnd).padding(13.dp).size(66.dp).clip(CircleShape)
-                .background(if (look.dark) PEACH else Color(0xFF1D1416)).clickable(onClick = onBite),
+                .background(if (look.dark) PEACH else Color(0xFF1D1416)).longPressMenuClickable(onClick = onBite, onLongClick = onHold)
+                .testTag("music:home:hero:play"),
             contentAlignment = Alignment.Center,
         ) {
             Icon(if (hero.isCurrent && hero.playing) CosmoIcons.Pause else CosmoIcons.Play, contentDescription = if (hero.playing) "Pause" else "Play",
