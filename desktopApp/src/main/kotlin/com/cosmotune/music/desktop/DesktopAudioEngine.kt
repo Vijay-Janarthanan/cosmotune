@@ -1632,6 +1632,7 @@ class DesktopPlaybackEngine(
         (incomingSourceFrames * 1_000_000.0 / sink.format.sampleRate.coerceAtLeast(1)).toLong()
 
     private fun publishTrack(track: Track, isPlaying: Boolean, positionUs: Long = track.startUs) {
+        DesktopExtras.offerAudioForLyricsOffset(track.song.videoId, track.stream)
         _state.value = DesktopPlaybackState(
             song = track.song,
             isPlaying = isPlaying,

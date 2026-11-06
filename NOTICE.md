@@ -98,6 +98,9 @@ its Mochy source in its comment, and the list below is kept up to date with `UPS
   (`shared/.../music/data/NetworkPolicy.kt`, `shared/.../settings/ExtrasSettings.kt`).
 - "About this album" from Wikipedia, after Mochy's `utils/Wikipedia.kt` (`shared/.../music/data/about/WikipediaAbout.kt`).
   The summaries are Wikipedia's text under CC BY-SA 4.0, read over the network and credited where they are shown.
+- Lyrics auto offset: Mochy's `lyrics/VocalActivity.kt`, `lyrics/LyricsAligner.kt` and `lyrics/Fft.kt`, ported with
+  their algorithm unchanged (float input instead of 16-bit, Cosmotune's lyric lines instead of Mochy's), and the thresholds of
+  its `lyrics/LyricsAutoSync.kt` (`shared/.../lyrics/autosync/`). Those files' headers name their source.
 
 ## Video mode
 

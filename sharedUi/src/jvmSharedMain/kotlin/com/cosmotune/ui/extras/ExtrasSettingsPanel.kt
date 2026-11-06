@@ -98,6 +98,26 @@ fun ColumnScope.ExtrasSettingsPanel(settings: ExtrasSettings, extraRows: @Compos
     )
     extraRows()
 
+    ExtrasHeader("Lyrics")
+    val autoOffset by settings.autoLyricsOffset.collectAsState()
+    val autoState by com.cosmotune.lyrics.autosync.LyricsAutoOffset.state.collectAsState()
+    ExtrasSwitch(
+        title = "Automatic lyrics offset",
+        detail = "Listens to each song once, in the background, and moves timed lyrics onto the singing when the match is " +
+            "clear. The manual offset still applies on top." + when (val shown = autoState) {
+                is com.cosmotune.lyrics.autosync.LyricsAutoOffset.State.Listening -> " Listening to the current song…"
+                is com.cosmotune.lyrics.autosync.LyricsAutoOffset.State.Synced ->
+                    " Last song: moved ${shown.offsetMs} ms" + (shown.driftMs?.let { ", drifting $it ms over the song" } ?: "") + "."
+                is com.cosmotune.lyrics.autosync.LyricsAutoOffset.State.Failed -> " Last song: ${shown.reason}"
+                null -> ""
+            },
+        checked = autoOffset,
+        onChange = settings::setAutoLyricsOffset,
+    )
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        TextButton(onClick = { com.cosmotune.lyrics.autosync.LyricsAutoOffset.forgetAll() }) { Text("Forget measured offsets") }
+    }
+
     ExtrasHeader("Network")
     ExtrasSwitch(
         title = "Offline mode",

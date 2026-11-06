@@ -5,6 +5,7 @@ import com.cosmotune.settings.Extras
 import com.cosmotune.settings.KeyValueStore
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.net.Proxy
 import java.util.prefs.Preferences
@@ -29,6 +30,50 @@ internal object DesktopExtras {
         if (com.cosmotune.desktop.TorConnection.active) NetworkPolicy.lockedBy = "Tor"
         NetworkPolicy.installAsDefault()
         Extras.install(Store(Preferences.userRoot().node("com.cosmotune.desktop").node("extras")))
+        com.cosmotune.lyrics.autosync.LyricsAutoOffset.configure(DesktopMediaCache.directory.resolve("lyrics").toFile())
+    }
+
+    /**
+     * Tells lyrics auto offset how to read [videoId]'s audio: a second decode of [stream], asked for as stereo at the
+     * analyser's own 16 kHz so FFmpeg does the resampling. Only for PCM streams; DoP and the like are left alone.
+     */
+    fun offerAudioForLyricsOffset(videoId: String, stream: DesktopStream) {
+        if (videoId.isBlank() || stream.isDolbyAtmos) return
+        com.cosmotune.lyrics.autosync.LyricsAutoOffset.audioReady(videoId) { feed ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val decoder = DesktopAudioDecoder()
+                val rate = 16_000
+                val opened = decoder.open(
+                    url = stream.url,
+                    headers = stream.headers,
+                    requested = DesktopPcmFormat(rate, channels = 2, bytesPerSample = 4, isFloat = true),
+                    windowed = stream.windowedReads,
+                    transport = stream.transport,
+                )
+                if (opened.isFailure) {
+                    decoder.close()
+                    return@withContext false
+                }
+                try {
+                    var frames = 0L
+                    var left = FloatArray(0)
+                    var right = FloatArray(0)
+                    while (true) {
+                        ensureActive()
+                        val block = decoder.readSamples() ?: break
+                        val count = decoder.sampleCount / 2
+                        if (count <= 0) continue
+                        if (left.size < count) { left = FloatArray(count); right = FloatArray(count) }
+                        for (i in 0 until count) { left[i] = block[2 * i]; right[i] = block[2 * i + 1] }
+                        feed(left, right, count, rate, frames * 1_000_000L / rate)
+                        frames += count
+                    }
+                    frames > 0
+                } finally {
+                    decoder.close()
+                }
+            }
+        }
     }
 
     /**

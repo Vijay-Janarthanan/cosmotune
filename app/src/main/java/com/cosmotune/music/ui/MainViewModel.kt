@@ -383,6 +383,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * is on disk — and one that fails outright with the connection off, which
      * is what made a downloaded song show nothing offline.
      */
+    private var autoOffsetJob: Job? = null
+
+    /**
+     * Shows [lines] moved by their saved automatic offset, and asks lyrics auto offset for one when none is saved yet: the
+     * song is then listened to in the background and, on a clear match, the lines move once more. The manual offset still
+     * applies on top. See [com.cosmotune.lyrics.autosync.LyricsAutoOffset].
+     */
+    private fun publishLyrics(videoId: String, lines: List<com.cosmotune.music.data.lyrics.LyricLine>?) {
+        autoOffsetJob?.cancel()
+        val autoOffset = com.cosmotune.lyrics.autosync.LyricsAutoOffset
+        _lyrics.value = lines?.let { autoOffset.applied(videoId, it) }
+        if (lines == null || autoOffset.savedOffset(videoId, lines) != null) return
+        val generation = lyricsGeneration
+        autoOffsetJob = viewModelScope.launch {
+            val offset = autoOffset.sync(videoId, lines) ?: return@launch
+            if (generation == lyricsGeneration) _lyrics.value = autoOffset.shift(lines, offset)
+        }
+    }
+
     fun loadLyrics(
         videoId: String,
         title: String,
@@ -434,7 +453,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // this exact file, for this exact recording.
             if (localUri != null) {
                 EmbeddedLyrics.forUri(getApplication(), localUri)?.let { embedded ->
-                    _lyrics.value = embedded
+                    publishLyrics(videoId, embedded)
                     // No source to name: what the file records is the lyrics,
                     // not which of the eight services they came from months ago.
                     _lyricsSource.value = null
@@ -457,7 +476,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 onSourceCancelled = { source -> providerCancelled(generation, source) },
             )
             val selected = selectedLyricsSource?.let(lyricsProviderResults::get) ?: found
-            _lyrics.value = selected?.lines
+            publishLyrics(videoId, selected?.lines)
             _lyricsSource.value = selected?.source
             _lyricsChecked.value = true
         }
@@ -549,7 +568,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun showLyricsResult(result: LyricsRepository.Result) {
-        _lyrics.value = result.lines
+        val videoId = currentLyricsRequest?.videoId
+        if (videoId != null) publishLyrics(videoId, result.lines) else _lyrics.value = result.lines
         _lyricsSource.value = result.source
         _lyricsChecked.value = true
     }

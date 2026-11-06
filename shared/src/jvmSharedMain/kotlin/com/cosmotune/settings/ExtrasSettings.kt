@@ -19,6 +19,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val pitchFlow = MutableStateFlow(clampPitch(store.getInt(KEY_PITCH, 0)))
     private val offlineFlow = MutableStateFlow(store.getBoolean(KEY_OFFLINE, false))
     private val proxyFlow = MutableStateFlow(readProxy())
+    private val autoLyricsOffsetFlow = MutableStateFlow(store.getBoolean(KEY_AUTO_LYRICS_OFFSET, true))
 
     /** The loudest the app plays, in percent of full scale; 100 is no cap. Applied after every other stage. */
     val maxVolumePercent: StateFlow<Int> = maxVolumeFlow.asStateFlow()
@@ -32,8 +33,19 @@ class ExtrasSettings(private val store: KeyValueStore) {
     /** The listener's own proxy; see [ProxySetting]. */
     val proxy: StateFlow<ProxySetting> = proxyFlow.asStateFlow()
 
+    /**
+     * Lyrics auto offset: the song is listened to once, in the background, and timed lyrics are moved onto its singing
+     * (see `com.cosmotune.lyrics.autosync.LyricsAutoOffset`). Applied only when the match is clear; the manual offset stays.
+     */
+    val autoLyricsOffset: StateFlow<Boolean> = autoLyricsOffsetFlow.asStateFlow()
+
     init {
         publishNetwork()
+    }
+
+    fun setAutoLyricsOffset(value: Boolean) {
+        autoLyricsOffsetFlow.value = value
+        store.putBoolean(KEY_AUTO_LYRICS_OFFSET, value)
     }
 
     fun setMaxVolumePercent(value: Int) {
@@ -93,6 +105,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_PROXY_ADDRESS = "extras_proxy_address"
         const val KEY_PROXY_USER = "extras_proxy_user"
         const val KEY_PROXY_PASSWORD = "extras_proxy_password"
+        const val KEY_AUTO_LYRICS_OFFSET = "extras_auto_lyrics_offset"
 
         const val MIN_VOLUME_PERCENT = 10
 

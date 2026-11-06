@@ -2037,11 +2037,18 @@ fun CosmotuneDesktopApp() {
             return@LaunchedEffect
         }
         lyricsLoading = true
-        DesktopLyricsClient.lookup(current, length, only = lyricsOnly).fold(
-            onSuccess = { lyrics = it },
+        val found = DesktopLyricsClient.lookup(current, length, only = lyricsOnly)
+        found.fold(
+            // Moved by their saved automatic offset, if any (Extras: lyrics auto offset).
+            onSuccess = { lyrics = it.copy(lines = com.cosmotune.lyrics.autosync.LyricsAutoOffset.applied(current.videoId, it.lines)) },
             onFailure = { lyricsError = it.message ?: "Lyrics unavailable" },
         )
         lyricsLoading = false
+        // None saved yet: the song is listened to in the background, and on a clear match the lines move once more.
+        val raw = found.getOrNull() ?: return@LaunchedEffect
+        if (com.cosmotune.lyrics.autosync.LyricsAutoOffset.savedOffset(current.videoId, raw.lines) != null) return@LaunchedEffect
+        val offset = com.cosmotune.lyrics.autosync.LyricsAutoOffset.sync(current.videoId, raw.lines) ?: return@LaunchedEffect
+        lyrics = raw.copy(lines = com.cosmotune.lyrics.autosync.LyricsAutoOffset.shift(raw.lines, offset))
     }
 
     LaunchedEffect(selectedSong?.videoId, animatedCanvas) {

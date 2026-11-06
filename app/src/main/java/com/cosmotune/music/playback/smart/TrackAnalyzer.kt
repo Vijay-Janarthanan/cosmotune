@@ -1265,6 +1265,43 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         duration = durationSeconds,
     )
 
+    /**
+     * The readable copy of [trackId] decoded from the start, [WINDOW_SECONDS] at a time, as planar stereo for lyrics auto
+     * offset ([com.cosmotune.lyrics.autosync.LyricsAutoOffset]). Reads the same copy analysis would, so it only works once
+     * the song is cached or on the device; false when there is no copy yet or it will not decode.
+     */
+    fun readStereo(
+        trackId: String,
+        uri: Uri,
+        durationSeconds: Double,
+        abort: () -> Boolean,
+        onBlock: (left: FloatArray, right: FloatArray, count: Int, sampleRate: Int, presentationUs: Long) -> Unit,
+    ): Boolean {
+        val copy = copyToRead(trackId, uri, durationSeconds) ?: return false
+        var duration = durationSeconds
+        if (!duration.isFinite() || duration <= 0) duration = copy.open()?.use(AudioDecoder::containerDurationSeconds) ?: 0.0
+        if (duration <= 0) return false
+        var at = 0.0
+        var fed = 0
+        while (at < duration) {
+            if (abort()) return false
+            val end = minOf(duration, at + WINDOW_SECONDS)
+            val decoded = copy.open()?.use { AudioDecoder.decodeRegionStereo(it, at, end, abort) } ?: break
+            val (pcm, realStart) = decoded
+            val rate = pcm.sampleRate.toInt().coerceAtLeast(1)
+            // The extractor starts at the sync sample at or before [at]; what came before it was fed already.
+            val skip = ((at - realStart) * rate).toInt().coerceIn(0, pcm.left.size)
+            // And nothing past [end], which the next window starts from: overlap would add up to drift over a song.
+            val count = minOf(pcm.left.size - skip, ((end - at) * rate).toInt())
+            if (count > 0) {
+                onBlock(pcm.left.copyOfRange(skip, skip + count), pcm.right.copyOfRange(skip, skip + count), count, rate, (at * 1_000_000).toLong())
+                fed++
+            }
+            at = end
+        }
+        return fed > 0
+    }
+
     fun release() {
         executor.shutdownNow()
         sourceResolutionScope.cancel()
@@ -1285,6 +1322,9 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
 
     private companion object {
         const val TAG = "CosmotuneTrackAnalyzer"
+
+        /** How much [readStereo] decodes at once: a stereo window at 48 kHz is under 8 MB. */
+        const val WINDOW_SECONDS = 20.0
 
         /**
          * What an unmeasured instant reads as. Below the policy's VOCAL_ACTIVE_THRESHOLD by

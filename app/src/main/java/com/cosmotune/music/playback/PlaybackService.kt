@@ -3447,6 +3447,7 @@ class PlaybackService : MediaLibraryService() {
         // The entry this track is read from now counts as played — the only
         // kind the Cached songs folder lists. See [AudioCache.Origin].
         mediaItem?.let { AudioCache.notePlayed(it.toSong(), it.localConfiguration?.uri) }
+        mediaItem?.let(::offerAudioForLyricsOffset)
         scheduleForeignCachePurge()
         mediaItem?.mediaId?.let { id ->
             resolveLocalBitrate(id, mediaItem)
@@ -6375,6 +6376,25 @@ class PlaybackService : MediaLibraryService() {
      * idle right now is the one the next transition will start a song on, so it
      * cannot be left on stale settings.
      */
+    /**
+     * Tells lyrics auto offset how to read [item]'s audio: the copy Automix analysis reads (cached or on the device),
+     * decoded on the offset's own thread when the lyrics screen asks. See [com.cosmotune.lyrics.autosync.LyricsAutoOffset].
+     */
+    private fun offerAudioForLyricsOffset(item: MediaItem) {
+        val uri = item.localConfiguration?.uri ?: return
+        val id = item.mediaId
+        com.cosmotune.lyrics.autosync.LyricsAutoOffset.audioReady(id) { feed ->
+            val seconds = withContext(Dispatchers.Main) {
+                player?.takeIf { it.currentMediaItem?.mediaId == id }?.duration?.takeIf { it > 0 }?.div(1000.0) ?: 0.0
+            }
+            withContext(Dispatchers.IO) {
+                trackAnalyzer.readStereo(id, uri, seconds, abort = { false }) { left, right, count, rate, at ->
+                    feed(left, right, count, rate, at)
+                }
+            }
+        }
+    }
+
     /** The listener's pitch from Extras, on top of whatever speed [player] runs at. */
     private fun applyPitch(player: ExoPlayer) {
         val pitch = com.cosmotune.settings.Extras.settings.pitchFactor
