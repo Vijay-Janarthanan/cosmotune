@@ -30,6 +30,10 @@ import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.orbit.PEACH
 import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.theme.LocalCosmoColors
+import com.cosmotune.ui.theme.LocalCosmoType
+import com.cosmotune.ui.theme.rememberCosmoType
+import com.cosmotune.ui.theme.rememberDarkChromeColors
 
 /*
  * The TV in the Orbit language (Canvas repo, docs/superpowers/plans/2026-11-06-cosmotune-orbit-revamp.md; board batch-be section E):
@@ -202,6 +206,13 @@ fun CosmotuneTvTheme(
         // Anything clickable that is not the TV's own lifted piece (the kit's chips and buttons, Watch's pages) shows focus as a ring.
         LocalIndication provides TvFocusIndication,
     ) {
-        MaterialTheme(colorScheme = colorScheme, content = content)
+        // The shared Orbit kit's pieces (Disc, CoverImage) read the Cosmo look's colours and type, which only the phone's and the
+        // desktop's CosmoLookTheme provides; the TV is dark only, so it gives them the dark chrome palette.
+        CompositionLocalProvider(
+            LocalCosmoColors provides rememberDarkChromeColors(),
+            LocalCosmoType provides rememberCosmoType(),
+        ) {
+            MaterialTheme(colorScheme = colorScheme, content = content)
+        }
     }
 }
