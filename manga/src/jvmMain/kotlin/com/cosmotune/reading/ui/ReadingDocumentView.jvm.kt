@@ -1,5 +1,6 @@
 package com.cosmotune.reading.ui
 
+import com.cosmotune.manga.ui.ReadTextButton
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -117,8 +118,8 @@ import kotlin.coroutines.resumeWithException
     Column(modifier) {
         if (searchQuery.isNotBlank()) Text("$matches matches in this section", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium)
         if (!preferences.scrollMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { scope.launch { controller.fx { engine.executeScript("window.scrollBy(0,-window.innerHeight*0.88)") } } }) { Text("Previous screen") }
-            TextButton(onClick = { scope.launch { controller.fx { engine.executeScript("window.scrollBy(0,window.innerHeight*0.88)") } } }) { Text("Next screen") }
+            ReadTextButton("Previous screen", { scope.launch { controller.fx { engine.executeScript("window.scrollBy(0,-window.innerHeight*0.88)") } } })
+            ReadTextButton("Next screen", { scope.launch { controller.fx { engine.executeScript("window.scrollBy(0,window.innerHeight*0.88)") } } })
         }
         SwingPanel(factory = { controller.panel }, modifier = Modifier.fillMaxSize())
     }

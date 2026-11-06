@@ -10,7 +10,7 @@ import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.OutlinedTextField
+import com.cosmotune.ui.orbit.OrbitInputField
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.cosmotune.design.AppMode
 import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.ui.player.PlayerBackHandler
@@ -260,7 +261,10 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     if (m.addFeed) com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = { m.addFeed = false },
         title = "Open a podcast",
-        content = { OutlinedTextField(m.feedAddress, { m.feedAddress = it }, label = { Text("Podcast feed or show link") }, supportingText = { Text("RSS, Spotify or YouTube Music") }, singleLine = true) },
+        content = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrbitInputField(m.feedAddress, { m.feedAddress = it }, "Podcast feed or show link", modifier = Modifier.fillMaxWidth())
+            Text("RSS, Spotify or YouTube Music", style = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 16.sp), color = look.dim)
+        } },
         confirmLabel = "Open podcast",
         onConfirm = { m.openLink(m.feedAddress) { if (section == PodioSection.RADIO) chooseSection(PodioSection.PODCASTS) } },
         dismissLabel = "Cancel",
@@ -271,8 +275,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         title = "Import podcast subscriptions",
         content = { Column {
             Text("Paste an OPML export from your podcast player. Existing follows and listening positions are kept.")
-            OutlinedTextField(m.opmlText, { m.opmlText = it; m.opmlError = null }, label = { Text("OPML document") }, minLines = 5, maxLines = 10,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+            OrbitInputField(m.opmlText, { m.opmlText = it; m.opmlError = null }, "OPML document", singleLine = false, minLines = 5,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp).padding(top = 12.dp))
             m.opmlError?.let { Text(it, color = Color(palette.danger)) }
         } },
         confirmLabel = "Import subscriptions",
