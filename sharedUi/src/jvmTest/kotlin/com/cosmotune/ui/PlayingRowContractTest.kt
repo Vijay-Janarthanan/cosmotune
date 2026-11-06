@@ -30,7 +30,7 @@ class PlayingRowContractTest {
     private val shelves = listOf(
         "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/screens/HomeScreen.kt",
         "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/blocks/CosmoCards.kt",
-        "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/home/CosmoHome.kt",
+        "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/home/OrbitHome.kt",
     )
 
     @Test fun everySongListAsksTheMatcherAndNoRowLightsByNameAlone() {

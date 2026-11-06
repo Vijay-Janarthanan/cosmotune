@@ -19,7 +19,9 @@ import coil3.compose.LocalPlatformContext
 import com.cosmotune.theme.PaletteChoice
 import com.cosmotune.ui.components.FocusModalityRoot
 import com.cosmotune.ui.settings.rememberCosmoLookSettings
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** The new look's state while the switch is on; null while it is off, so old call sites keep the old chrome. */
 val LocalCosmoShell = staticCompositionLocalOf<CosmoShellState?> { null }
@@ -130,10 +132,18 @@ private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Bool
         val animate = showedCover
         if (fresh != null) showedCover = true
         lastAlbum = album
-        if (next != null) shell.coverPalette.show(next, dark, reducedNow, animate) else shell.coverPalette.finishFade(reducedNow, animate)
+        // The whole app follows the cover too while "Colours follow the cover" is on and something has a cover; with nothing
+        // playing, or the setting off, the chrome is the theme's neutral One palette. Both fade together.
+        val chrome = if (missing) com.cosmotune.theme.OnePalette.of(dark, amoled) else next
+        coroutineScope {
+            launch { if (next != null) shell.coverPalette.show(next, dark, reducedNow, animate) else shell.coverPalette.finishFade(reducedNow, animate) }
+            launch { if (chrome != null) shell.palette.show(chrome, dark, reducedNow, animate) else shell.palette.finishFade(reducedNow, animate) }
+        }
     }
-    // The chrome: the One palette of the theme, never the cover's (DESIGN_SYSTEM.md 2.1, 2.3). A theme or AMOLED flip snaps.
-    LaunchedEffect(dark, amoled) { shell.palette.show(com.cosmotune.theme.OnePalette.of(dark, amoled), dark, reducedNow, animate = false) }
+    // The old look, or a theme or AMOLED flip with the colours not following the cover: the One palette, at once.
+    LaunchedEffect(newLook, coverColours, dark, amoled) {
+        if (!newLook || !coverColours) shell.palette.show(com.cosmotune.theme.OnePalette.of(dark, amoled), dark, reducedNow, animate = false)
+    }
     val nextUrl = shell.nextCoverUrl
     LaunchedEffect(newLook, coverColours, dark, amoled, nextUrl, intensity) {
         // Warms the cache, so the next fade starts with the audio, not after the cover loads.

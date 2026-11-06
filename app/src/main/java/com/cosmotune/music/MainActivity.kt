@@ -3219,6 +3219,8 @@ private fun CosmotuneApp(
                             listState = homeListState,
                             currentSong = player.song,
                             isPlaying = player.isPlaying,
+                            onPlayPause = togglePlayPause,
+                            playbackTime = { player.position.positionMs to player.durationMs },
                             title = stringResource(R.string.listen_now),
                             browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { viewModel.openMoodGenre(it); selectedTab = TAB_EXPLORE }, onRetry = viewModel::loadExplore),
                             quickLinks = listOfNotNull(

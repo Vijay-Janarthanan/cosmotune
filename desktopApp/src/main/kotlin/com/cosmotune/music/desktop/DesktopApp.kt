@@ -4732,6 +4732,8 @@ fun CosmotuneDesktopApp() {
                             // draws it: the old one never had it on the desktop, and with the look off nothing changes.
                             currentSong = playback.song.takeIf { cosmoShell != null },
                             isPlaying = cosmoShell != null && playback.isPlaying,
+                            onPlayPause = ::togglePlayPauseFromUser,
+                            playbackTime = { playback.positionMs to playback.durationMs },
                         )
                         destination == DesktopDestination.RELEASES -> com.cosmotune.ui.listening.CosmoReleasesPage(
                             file = com.cosmotune.desktop.desktopListeningFile(),

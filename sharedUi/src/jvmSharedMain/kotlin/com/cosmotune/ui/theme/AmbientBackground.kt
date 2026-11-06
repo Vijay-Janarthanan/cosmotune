@@ -2,6 +2,9 @@ package com.cosmotune.ui.theme
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -34,13 +37,23 @@ fun DrawScope.drawEllipseGlow(stops: Array<Pair<Float, Color>>, cx: Float, cy: F
 @Composable
 fun Modifier.cosmoAmbientGround(artwork: Boolean = false): Modifier {
     val colors = LocalCosmoColors.current
+    // While the app follows a cover (the palette is a cover's, not the neutral One palette), every page wears that cover's colour
+    // as a wash from the top, fading into the ground; it comes and goes with the palette instead of snapping.
+    val wash by animateFloatAsState(if (colors.palette.isFallback) 0f else 1f, tween(600), label = "wash")
     return drawWithCache {
         // Live colours are read here, so the cache is rebuilt only while a fade runs.
         val linear = Brush.verticalGradient(
             0f to colors.live(CoverField.BACKGROUND_TOP), 0.46f to colors.live(CoverField.BACKGROUND_MID),
             0.82f to colors.live(CoverField.BACKGROUND_BOTTOM), endY = size.height,
         )
-        if (!artwork) return@drawWithCache onDrawBehind { drawRect(linear) }
+        if (!artwork) {
+            // The cover's accent (its strongest colour), moved toward black or white only as far as the page's text needs.
+            val tint = readableBehind(colors.live(CoverField.ACCENT), colors.live(CoverField.TEXT_PRIMARY))
+            val cover = Brush.verticalGradient(
+                0f to tint.copy(alpha = wash), 0.35f to tint.copy(alpha = 0.55f * wash), 0.8f to tint.copy(alpha = 0f), endY = size.height,
+            )
+            return@drawWithCache onDrawBehind { drawRect(linear); if (wash > 0f) drawRect(cover) }
+        }
         val bottom = colors.live(CoverField.BACKGROUND_BOTTOM)
         val fade = Brush.verticalGradient(
             0f to readableBehind(colors.live(CoverField.ACCENT_CONTAINER), colors.live(CoverField.TEXT_PRIMARY)),

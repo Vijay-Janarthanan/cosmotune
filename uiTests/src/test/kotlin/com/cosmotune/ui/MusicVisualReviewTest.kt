@@ -24,7 +24,7 @@ import com.cosmotune.music.ui.AppUiHost
 import com.cosmotune.music.ui.player.PlayerHost
 import com.cosmotune.music.ui.player.PlayerPlatform
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.home.CosmoHome
+import com.cosmotune.ui.home.OrbitHome
 import com.cosmotune.ui.home.HomeQuickLink
 import com.cosmotune.ui.library.CosmoLibrary
 import com.cosmotune.ui.listening.CosmoReleasesPage
@@ -107,7 +107,7 @@ class MusicVisualReviewTest {
             Triple("dark", OneTestPalette.dark(), true),
         )) {
             page(palette, dark) {
-                CosmoHome(
+                OrbitHome(
                     state = UiState.Success(listOf(
                         HomeShelf("Recents", items("Recent", 6, art)),
                         HomeShelf("Your mixes", items("Mix", 6, art), subtitle = "Made for you"),
@@ -115,7 +115,7 @@ class MusicVisualReviewTest {
                     )),
                     listState = rememberLazyListState(),
                     onItemClick = { _, _ -> }, onRetry = {}, refreshing = false, onRefresh = {}, pullState = rememberPullToRefreshState(),
-                    contentPadding = PaddingValues(top = 56.dp), title = null,
+                    contentPadding = PaddingValues(top = 56.dp),
                     quickLinks = listOf(HomeQuickLink("Liked songs", CosmoIcons.Heart) {}, HomeQuickLink("Downloads", CosmoIcons.Download) {}),
                 )
             }

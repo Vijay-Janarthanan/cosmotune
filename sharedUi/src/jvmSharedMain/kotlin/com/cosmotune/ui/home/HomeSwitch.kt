@@ -62,6 +62,8 @@ fun HomeSwitch(
     discoveryLikedIds: Set<String> = emptySet(),
     followedArtists: List<com.cosmotune.listening.WatchedArtist> = emptyList(),
     quickLinks: List<HomeQuickLink> = emptyList(),
+    onPlayPause: (() -> Unit)? = null,
+    playbackTime: (() -> Pair<Long, Long>)? = null,
 ) {
     val region by com.cosmotune.music.data.recommendations.DiscoveryPreferences.state.collectAsState()
     val learning by com.cosmotune.music.data.recommendations.LocalPreferenceLearning.status.collectAsState()
@@ -92,7 +94,7 @@ fun HomeSwitch(
             currentSong, { playlistOpen = false }, saveGeneratedPlaylist)
     }
     if (LocalCosmoShell.current != null) {
-        CosmoHome(
+        OrbitHome(
             state = shownState,
             listState = listState,
             onItemClick = onItemClick,
@@ -102,19 +104,19 @@ fun HomeSwitch(
             pullState = pullState,
             modifier = modifier,
             contentPadding = contentPadding,
-            title = title,
             signedIn = signedIn,
             onSignIn = onSignIn,
             onItemLongPress = onItemLongPress,
             onLoadMore = onLoadMore,
             loadingMore = loadingMore,
             recentlyPlayedLoading = recentlyPlayedLoading,
-            leadHero = leadHero,
             currentSong = currentSong,
             isPlaying = isPlaying,
-            browse = browse,
             discoveryControls = controls,
+            browse = browse,
             quickLinks = quickLinks,
+            onPlayPause = onPlayPause,
+            playbackTime = playbackTime,
         )
     } else {
         HomeScreen(
