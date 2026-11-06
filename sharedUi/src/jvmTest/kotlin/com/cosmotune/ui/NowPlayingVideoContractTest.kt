@@ -37,7 +37,7 @@ class NowPlayingVideoContractTest {
         assertTrue(cinema.contains("CINEMA_CHROME_MS = 3_000L"))
         assertTrue(cinema.contains("PointerEventType.Move"), "a movement of the pointer brings the chrome back")
         assertTrue(cinema.contains("onDoubleTap = onLeave"))
-        assertTrue(screen.contains("PlayerBackHandler(enabled = cinemaShown) { cinema = false }"), "Esc and back leave Cinema")
+        assertTrue(screen.contains("PlayerBackHandler(enabled = cinemaShown) { leaveCinema() }"), "Esc and back leave Cinema")
     }
 
     @Test fun theKeptViewIsTheLookSettingsAndTheMenuOffersEveryView() {

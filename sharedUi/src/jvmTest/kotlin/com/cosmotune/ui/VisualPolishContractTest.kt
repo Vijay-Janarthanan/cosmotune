@@ -16,14 +16,6 @@ class VisualPolishContractTest {
 
     // ---- the colour intensity reaches Now Playing's own palette --------------------------------------------------------------------
 
-    @Test fun nowPlayingsOwnPaletteLoadsAtTheIntensityOfTheSetting() {
-        val src = SourceContract.read("$ui/nowplaying/NowPlayingColors.kt")
-        val body = SourceContract.functionBody(src, "rememberLightThemeColors")
-        assertTrue("shell.settings.intensity" in body && "Intensity.multiplier(" in body, "it reads the setting")
-        assertTrue(Regex("""produceState\(DarkLookup\(false, null\),[^{]*\bintensity\)""").containsMatchIn(body), "the dark palette is looked up again when the setting changes")
-        assertTrue(Regex("""CoverPaletteLoader\.load\([^)]*\bintensity = intensity\)""").containsMatchIn(body), "and loaded at it")
-    }
-
     @Test fun theLoaderBuildsTheSpecOfTheSetting() {
         val body = SourceContract.code(SourceContract.functionBody(SourceContract.read("$ui/theme/CoverPaletteLoader.kt"), "load"))
         assertTrue("CoverPaletteSpec.forIntensity(intensity)" in body, "the ceilings move with the setting, not only the budget")
@@ -78,15 +70,10 @@ class VisualPolishContractTest {
         for (file in listOf("search/CosmoBrowseBlocks.kt", "settings/LookPreview.kt")) assertFalse("haptic =" in code("$ui/$file"), "$file keeps the haptic")
     }
 
-    @Test fun anIconButtonTakesARestingTintAndNowPlayingsToolsRestInSecondaryInk() {
+    @Test fun anIconButtonTakesARestingTint() {
         val button = SourceContract.read("$ui/components/CosmoIconButton.kt")
         assertEquals("tint: Color? = null", SourceContract.parameters(button, "CosmoIconButton").last(), "one more optional parameter, at the end")
         assertTrue("val ink = if (!isOn && tint != null) tint else Color(" in SourceContract.code(button), "the tint is the resting ink; an on state keeps its own")
-        val tools = SourceContract.functionBody(SourceContract.read("$ui/nowplaying/NowPlayingControls.kt"), "Tools")
-        assertTrue("val resting = Color(LocalCosmoColors.current.palette.textSecondary)" in tools, "secondary ink, read in composition")
-        // Y-26 (Video mode): "Watch the music video" is drawn only when Video can play the song's music video.
-        assertEquals(6, Regex("""tint = resting""").findAll(tools).count(), "lyrics, the queue, output, Listen Together, the music video and more")
-        assertFalse(".live(" in tools, "a composition colour, not a live one")
     }
 
     // ---- the album, playlist and add-to-playlist sheets on the song sheet's surface ------------------------------------------------

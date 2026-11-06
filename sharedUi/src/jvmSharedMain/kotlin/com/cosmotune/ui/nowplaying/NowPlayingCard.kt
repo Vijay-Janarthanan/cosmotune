@@ -195,11 +195,15 @@ internal fun NowPlayingSongCard(
                     OrbitProgressLine(t::progress, ink, onSeek = t::seek)
                 }
                 Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth().padding(end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CardButtons(buttons, ink, fill, buttonSize, 8.dp)
-                    if (volume) {
-                        Spacer(Modifier.weight(1f))
-                        OrbitVolume(ink, Modifier.padding(start = 12.dp))
+                androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(end = 70.dp)) {
+                    // The volume only where it fits beside the buttons.
+                    val roomForVolume = maxWidth >= buttonSize * buttons.size + 8.dp * buttons.size + VOLUME_WIDTH
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        CardButtons(buttons, ink, fill, buttonSize, 8.dp)
+                        if (volume && roomForVolume) {
+                            Spacer(Modifier.weight(1f))
+                            OrbitVolume(ink, Modifier.padding(start = 12.dp))
+                        }
                     }
                 }
             }
@@ -215,6 +219,9 @@ private fun CardTitle(t: NowPlayingTransport, fonts: OrbitFonts, ink: Color, siz
         modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = t.onOpenArtist),
     )
 }
+
+/** What the volume takes beside the buttons: the speaker, the gap and the line. */
+private val VOLUME_WIDTH = 150.dp
 
 /** The slim card's bite: in the middle of its end edge (Cinema, board section 2). */
 private val SlimBite = BiteShape(corner = 30.dp, bite = 38.dp, inset = 56.dp)

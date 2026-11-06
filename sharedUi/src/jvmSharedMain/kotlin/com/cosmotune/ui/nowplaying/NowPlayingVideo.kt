@@ -165,7 +165,8 @@ private const val PINCH_STEP = 1.12f
 /**
  * The record (no video, board section 3): the cover as a large disc with its shadow, and round it the orbit of the song: the ring
  * is the progress ([progress], read in draw), the moon in [moon] at the current second. Dragging round the ring moves the moon,
- * and letting go seeks there ([onSeek]). [disc] is the disc's side; the ring is [RECORD_RING_GAP] wider all round. [onPlaced]
+ * and letting go seeks there ([onSeek]). With [loop] (the cover's animated loop) the loop plays inside the disc, cut round,
+ * over the still cover. [disc] is the disc's side; the ring is [RECORD_RING_GAP] wider all round. [onPlaced]
  * gets the disc's rectangle in root coordinates.
  */
 @Composable
@@ -179,16 +180,22 @@ internal fun NowPlayingRecord(
     onSeek: ((Float) -> Unit)?,
     modifier: Modifier = Modifier,
     onPlaced: ((Rect) -> Unit)? = null,
+    loop: (@Composable (Modifier) -> Unit)? = null,
 ) {
     var drag by remember { mutableStateOf<Float?>(null) }
     val seek by rememberUpdatedState(onSeek)
     val ring = disc + RECORD_RING_GAP * 2
     Box(modifier.size(ring), contentAlignment = Alignment.Center) {
-        Disc(
-            coverUrl, disc,
-            Modifier.shadow(36.dp, CircleShape, clip = false, ambientColor = Color.Black.copy(alpha = 0.5f), spotColor = Color.Black.copy(alpha = 0.6f))
-                .then(if (onPlaced != null) Modifier.onGloballyPositioned { onPlaced(it.boundsInRoot()) } else Modifier),
-        )
+        Box(
+            Modifier.size(disc)
+                .shadow(36.dp, CircleShape, clip = false, ambientColor = Color.Black.copy(alpha = 0.5f), spotColor = Color.Black.copy(alpha = 0.6f))
+                .then(if (onPlaced != null) Modifier.onGloballyPositioned { onPlaced(it.boundsInRoot()) } else Modifier)
+                .clip(CircleShape),
+        ) {
+            Disc(coverUrl, disc)
+            // The cover's own loop, silent, inside the disc and nowhere else.
+            loop?.invoke(Modifier.fillMaxSize())
+        }
         OrbitRing(
             ring, ink, progress = { drag ?: progress() }, spinning = playing,
             stroke = 2.5.dp, moon = 8.dp, moonColor = moon,
@@ -206,6 +213,22 @@ internal fun NowPlayingRecord(
             },
         )
     }
+}
+
+/**
+ * The cover's animated loop (a short clip that does not follow the song), cut to fill the box it is given, which the record
+ * clips round. It fades in over the still cover as [reveal] comes up, through the clip's own alpha.
+ */
+@Composable
+internal fun NowPlayingCoverLoop(canvas: CanvasArtwork, isPlaying: Boolean, reveal: State<Float>, onRenderedChanged: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    CanvasArtworkPlayer(
+        canvas = canvas,
+        isPlaying = isPlaying,
+        modifier = modifier,
+        contentMode = CanvasContentMode.CROP,
+        onRenderedChanged = onRenderedChanged,
+        presentationAlpha = { reveal.value.coerceIn(0f, 1f) },
+    )
 }
 
 /** Gone as far as [reveal] has come in: the record under a video that is arriving. Read in the layer, so nothing recomposes. */

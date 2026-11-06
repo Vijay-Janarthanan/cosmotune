@@ -50,8 +50,8 @@ class NowPlayingWideContractTest {
 
     @Test fun theVideoIsRounded34AndWithoutOneTheRecordIsTheProgress() {
         val src = screen
-        val media = src.substring(src.indexOf("media = { m ->"), src.indexOf("card = { m, wideCard ->"))
-        assertTrue(media.contains("radius = 34.dp"), "the video is rounded 34")
+        assertTrue(src.contains("media = { m -> pageMedia(m, 34.dp, 440.dp, false) }"), "the video is rounded 34")
+        val media = src.substring(src.indexOf("val pageMedia"), src.indexOf("val likeButton"))
         assertTrue(media.contains("onDoubleTap = { cinema = true }"), "a double click enters Cinema")
         assertTrue(media.contains("RecordBox("), "without a video, the record")
         val record = SourceContract.functionBody(code(nowPlaying("NowPlayingVideo.kt")), "NowPlayingRecord")
@@ -67,7 +67,7 @@ class NowPlayingWideContractTest {
         assertTrue(body.contains("OrbitProgressLine(t::progress, ink"), "the seek line")
         assertTrue(card.contains("\"NOW ORBITING\""), "the mono label")
         val call = screen.substring(screen.indexOf("card = { m, wideCard ->"), screen.indexOf("panel = { m ->"))
-        for (b in listOf("CosmoIcons.Shuffle", "CosmoIcons.Repeat", "CosmoIcons.Previous", "CosmoIcons.Next", "CosmoIcons.Heart", "screenButton")) {
+        for (b in listOf("CosmoIcons.Shuffle", "CosmoIcons.Repeat", "previousButton", "nextButton", "likeButton", "screenButton")) {
             assertTrue(call.contains(b), "$b is on the card")
         }
         assertTrue(call.contains("volume = true"), "the desktop's volume is on the card: there is no bar inside the player")
@@ -96,6 +96,6 @@ class NowPlayingWideContractTest {
     @Test fun fEntersCinemaOnTheWidePage() {
         val src = screen
         assertTrue(src.contains("event.key == Key.F"))
-        assertTrue(src.contains("modifier = Modifier.cinemaKey(enabled = canvas != null && !videoHidden) { cinema = true }"))
+        assertTrue(src.contains("modifier = Modifier.cinemaKey(enabled = musicVideo && !videoHidden) { cinema = true }"))
     }
 }
