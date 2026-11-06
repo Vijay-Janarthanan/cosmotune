@@ -3,6 +3,8 @@ package com.cosmotune.ui.orbit
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -35,16 +37,47 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.components.CosmoIcons
 
-/** The play / pause button: peach with a dark glyph in dark, near-black with a peach glyph in light. Lives in a bite. */
+/**
+ * The play / pause button: peach with a dark glyph in dark, near-black with a peach glyph in light. Lives in a bite. A [touch]
+ * larger than [size] (the dock's 48 dp) is the button's touch target round the drawn circle, overhanging what the row lays out
+ * ([orbitTouchOverhang]), so the look stays as drawn.
+ */
 @Composable
-fun OrbitPlayButton(playing: Boolean, onClick: () -> Unit, look: OrbitLook, modifier: Modifier = Modifier, size: Dp = 66.dp) {
-    Box(
-        modifier.size(size).clip(CircleShape).background(if (look.dark) PEACH else Color(0xFF1D1416)).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
+fun OrbitPlayButton(playing: Boolean, onClick: () -> Unit, look: OrbitLook, modifier: Modifier = Modifier, size: Dp = 66.dp, touch: Dp = 0.dp) {
+    val fill = if (look.dark) PEACH else Color(0xFF1D1416)
+    val glyph: @Composable () -> Unit = {
         Icon(if (playing) CosmoIcons.Pause else CosmoIcons.Play, contentDescription = if (playing) "Pause" else "Play",
             tint = if (look.dark) Color(0xFF2A100A) else PEACH, modifier = Modifier.size(size * 0.38f))
     }
+    if (touch > size) {
+        val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        Box(
+            modifier.orbitTouchOverhang(size, touch).size(touch)
+                .clickable(interactionSource = interaction, indication = null, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                Modifier.size(size).clip(CircleShape).background(fill).indication(interaction, androidx.compose.foundation.LocalIndication.current),
+                contentAlignment = Alignment.Center,
+            ) { glyph() }
+        }
+        return
+    }
+    Box(
+        modifier.size(size).clip(CircleShape).background(fill).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { glyph() }
+}
+
+/**
+ * Lays out a [target]-square box (a button's touch target) as [visible]-square, centred on it: the row round it keeps the drawn
+ * size and spacing, while the box, its click and its semantics keep the full [target], overhanging by the difference.
+ */
+fun Modifier.orbitTouchOverhang(visible: Dp, target: Dp): Modifier = layout { measurable, _ ->
+    val t = target.roundToPx()
+    val v = visible.roundToPx()
+    val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(t, t))
+    layout(v, v) { placeable.place((v - t) / 2, (v - t) / 2) }
 }
 
 /** The round tonal button of a card or a bar (previous, next, like, the screen button): [ink] at 12 %, or solid when [on]. */
@@ -59,8 +92,32 @@ fun OrbitRoundButton(
     on: Boolean = false,
     onInk: Color = Color(0xFF1B1416),
     enabled: Boolean = true,
+    /** A touch target larger than [size] round the drawn circle (see [OrbitPlayButton]); 0 is the circle itself. */
+    touch: Dp = 0.dp,
 ) {
     val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    if (touch > size) {
+        Box(
+            modifier.alpha(if (enabled) 1f else 0.45f).orbitTouchOverhang(size, touch).size(touch)
+                .clickable(
+                    interactionSource = interaction,
+                    indication = null,
+                    enabled = enabled,
+                    role = androidx.compose.ui.semantics.Role.Button,
+                    onClickLabel = label,
+                    onClick = onClick,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                Modifier.size(size).cosmoFocusRing(interaction, size / 2).clip(CircleShape)
+                    .background(if (on) ink else ink.copy(alpha = 0.12f))
+                    .indication(interaction, androidx.compose.foundation.LocalIndication.current),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, contentDescription = label, tint = if (on) onInk else ink, modifier = Modifier.size(size * 0.45f)) }
+        }
+        return
+    }
     Box(
         modifier.alpha(if (enabled) 1f else 0.45f).size(size).cosmoFocusRing(interaction, size / 2).clip(CircleShape)
             .background(if (on) ink else ink.copy(alpha = 0.12f))

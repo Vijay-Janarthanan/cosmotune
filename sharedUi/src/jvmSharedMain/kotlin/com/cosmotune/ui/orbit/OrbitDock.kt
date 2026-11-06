@@ -54,6 +54,8 @@ internal object OrbitMiniMetrics {
     const val BITE_DP = 28f
     const val BITE_INSET_DP = 34f
     const val PLAY_DP = 46f
+    /** The touch target of the small player's buttons and play: 48 dp round the drawn circles. */
+    const val TOUCH_DP = 48f
 
     /** What the row keeps clear at its end: the bite and 6 dp before it. */
     const val END_PAD_DP = BITE_INSET_DP + BITE_DP + 6f
@@ -125,8 +127,8 @@ internal fun OrbitDockTab(
     }
 }
 
-/** A 36 dp round button of the small player, in its card's [ink]. */
+/** A 36 dp round button of the small player, in its card's [ink], with a 48 dp touch target round it. */
 @Composable
 internal fun OrbitMiniButton(icon: ImageVector, label: String, ink: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    OrbitRoundButton(icon, label, ink, onClick, modifier, size = OrbitMiniMetrics.BUTTON_DP.dp)
+    OrbitRoundButton(icon, label, ink, onClick, modifier, size = OrbitMiniMetrics.BUTTON_DP.dp, touch = OrbitMiniMetrics.TOUCH_DP.dp)
 }

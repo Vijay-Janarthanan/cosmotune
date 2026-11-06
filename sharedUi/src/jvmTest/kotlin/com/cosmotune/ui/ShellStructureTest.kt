@@ -163,7 +163,7 @@ class ShellStructureTest {
         assertTrue("Spacer(Modifier.height(DOCK_GAP))" in body, "the board's two pieces, 8 dp apart")
         val mini = SourceContract.functionBody(chrome, "MiniCapsule")
         assertTrue("coverFill(coverUrl, song.videoId)" in mini && ".clip(OrbitMiniMetrics.shape)" in mini, "the desktop bar's colour card with the bite at its end")
-        assertTrue("OrbitPlayButton(isPlaying, onPlayPause, look, size = OrbitMiniMetrics.PLAY_DP.dp)" in mini, "play stands in the bite")
+        assertTrue("OrbitPlayButton(isPlaying, onPlayPause, look, size = OrbitMiniMetrics.PLAY_DP.dp, touch = OrbitMiniMetrics.TOUCH_DP.dp)" in mini, "play stands in the bite, with a 48 dp touch target")
     }
 
     @Test fun theChosenTabIsASolidChipWithItsNameAndEveryTabIsNamed() {

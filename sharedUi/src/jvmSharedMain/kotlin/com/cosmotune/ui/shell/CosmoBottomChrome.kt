@@ -422,7 +422,7 @@ private fun MiniCapsule(
             contentAlignment = Alignment.Center,
         ) {
             if (isLoading) OrbitRing((OrbitMiniMetrics.BITE_DP * 2).dp, look.accent, progress = null, spinning = true, stroke = 1.5.dp, moon = 3.dp)
-            OrbitPlayButton(isPlaying, onPlayPause, look, size = OrbitMiniMetrics.PLAY_DP.dp)
+            OrbitPlayButton(isPlaying, onPlayPause, look, size = OrbitMiniMetrics.PLAY_DP.dp, touch = OrbitMiniMetrics.TOUCH_DP.dp)
         }
     }
 }
