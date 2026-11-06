@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInRoot
@@ -178,14 +179,20 @@ fun CosmoBottomChrome(
             .animateContentSize(moveSpec),
     ) {
         notices()
-        if (song != null) {
-            MiniCapsule(song, isPlaying, isLoading, position, durationMs, onPlayPause, onNext, onPrevious, onExpand, controlsLocked, onBlockedControl, onClose, ownMedia)
-            if (showTabs) Spacer(Modifier.height(DOCK_GAP))
-        } else if (miniPlayer != null) {
-            Box(Modifier.fillMaxWidth().clip(DOCK_SHAPE).background(orbitDockFill(look))) { miniPlayer() }
-            if (showTabs) Spacer(Modifier.height(DOCK_GAP))
+        // The small player and the tabs stand on one rounded slab of the page's ground: the gap between them and the small player's
+        // bite show that ground, never the page scrolling under the dock.
+        val ground = Color(LocalCosmoColors.current.palette.backgroundBottom)
+        val backed = showTabs && (song != null || miniPlayer != null)
+        Column(if (backed) Modifier.fillMaxWidth().background(ground, DOCK_SHAPE) else Modifier.fillMaxWidth()) {
+            if (song != null) {
+                MiniCapsule(song, isPlaying, isLoading, position, durationMs, onPlayPause, onNext, onPrevious, onExpand, controlsLocked, onBlockedControl, onClose, ownMedia)
+                if (showTabs) Spacer(Modifier.height(DOCK_GAP))
+            } else if (miniPlayer != null) {
+                Box(Modifier.fillMaxWidth().clip(DOCK_SHAPE).background(orbitDockFill(look))) { miniPlayer() }
+                if (showTabs) Spacer(Modifier.height(DOCK_GAP))
+            }
+            if (showTabs) FloatingTabBar(tabs, selectedIndex, onTabSelected)
         }
-        if (showTabs) FloatingTabBar(tabs, selectedIndex, onTabSelected)
     }
     }
 }
