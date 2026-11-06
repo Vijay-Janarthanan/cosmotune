@@ -93,7 +93,6 @@ internal fun DesktopRoomView(onClose: (() -> Unit)? = null) {
     var positionMs by remember { mutableStateOf(DesktopRooms.positionMs()) }
     var picking by remember { mutableStateOf(false) }
     var options by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     val actions = remember { DesktopRoomActions(openSongPicker = { picking = true }, playbackOptions = { options = true }) }
     val item = room?.playback?.track
 
@@ -108,45 +107,22 @@ internal fun DesktopRoomView(onClose: (() -> Unit)? = null) {
         onDispose { DesktopRooms.setViewVisible(false) }
     }
 
-    Column(Modifier.fillMaxSize()) {
-        // The desktop's own strip over the shared screen: which room this is, its code to copy, and the way out.
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Rounded.Groups, null, tint = DesktopSecondary, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Room ${room?.code ?: DesktopRooms.code.orEmpty()}", fontWeight = FontWeight.SemiBold)
-                Text(roomConnectionLine(connection), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
-            }
-            val code = room?.code ?: DesktopRooms.code
-            if (code != null) {
-                TextButton(onClick = { actions.copyInviteCode(code) }) { Text("Copy code") }
-                TextButton(onClick = { actions.shareInvite(code) }) { Text("Copy invite link") }
-            }
-            TextButton(onClick = { scope.launch { DesktopRooms.leave() } }) {
-                Text("Leave room", color = DesktopDestructive)
-            }
-            if (onClose != null) {
-                // Back to the page, whichever mode it is in; the room keeps playing.
-                IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, "Close the room") }
-            }
-        }
-        // Video's settings menu opens under the strip, at its end (it is a popup aligned to the box that holds it).
-        if (options && item?.kind == PartyTrack.KIND_VIDEO) {
-            Box(Modifier.fillMaxWidth().padding(end = 24.dp), contentAlignment = Alignment.TopEnd) {
-                Box { DesktopRoomVideoOptions(onDismiss = { options = false }) }
-            }
-        }
-        HorizontalDivider(color = DesktopCardEdge)
+    Box(Modifier.fillMaxSize()) {
+        // The shared screen draws the room's own top: the way back ([onClose]), the code, and copy, share and leave in its menu.
         RoomScreen(
             state = DesktopRooms.uiState(room, connection, local, voice, positionMs),
             actions = actions,
             wide = true,
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier.fillMaxSize(),
             media = rememberRoomVideoMedia(item),
+            onClose = onClose,
         )
+        // Video's settings menu opens at the top end, under the room's own top (it is a popup aligned to the box that holds it).
+        if (options && item?.kind == PartyTrack.KIND_VIDEO) {
+            Box(Modifier.fillMaxWidth().padding(top = 56.dp, end = 28.dp), contentAlignment = Alignment.TopEnd) {
+                Box { DesktopRoomVideoOptions(onDismiss = { options = false }) }
+            }
+        }
     }
     // Options asked for while the room plays a song, a station or an episode: there are none of this device's own to open.
     LaunchedEffect(options, item?.kind) {
@@ -162,15 +138,6 @@ internal fun DesktopRoomView(onClose: (() -> Unit)? = null) {
             onDismiss = { picking = false },
         )
     }
-}
-
-private fun roomConnectionLine(connection: com.cosmotune.room.RoomConnection): String = when (connection) {
-    com.cosmotune.room.RoomConnection.LIVE -> "Everyone hears the same song at the same moment"
-    com.cosmotune.room.RoomConnection.CONNECTING -> "Connecting..."
-    com.cosmotune.room.RoomConnection.RECONNECTING -> "Reconnecting... your music keeps playing"
-    com.cosmotune.room.RoomConnection.ENDED -> "This room has ended"
-    com.cosmotune.room.RoomConnection.REMOVED -> "You were removed from this room"
-    com.cosmotune.room.RoomConnection.IDLE -> "Not connected"
 }
 
 /** Making a room or finding one by its code. A code is looked up first, so the person sees who is inside before joining. */

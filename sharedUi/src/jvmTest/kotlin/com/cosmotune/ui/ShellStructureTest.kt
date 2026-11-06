@@ -123,7 +123,7 @@ class ShellStructureTest {
         val at = reads.single()
         val capsuleStart = text.indexOf("private fun MiniCapsule(")
         assertTrue(capsuleStart in 0 until at, "and it is in the mini capsule")
-        assertTrue(text.lastIndexOf(".drawBehind {", at) > capsuleStart, "inside its drawBehind block, so a tick of the song recomposes nothing")
+        assertTrue(text.lastIndexOf("progress = {", at) > capsuleStart, "inside the orbit's progress lambda, read while the orbit draws, so a tick of the song recomposes nothing")
     }
 
     @Test fun theOverlayKeepsItsLayerUntilTheCapsuleIsBackAndStopsTheSpringAtItsEnds() {
@@ -142,7 +142,7 @@ class ShellStructureTest {
     }
 
     @Test fun theTabBarIsASelectableGroupOfTabs() {
-        assertTrue("selectableGroup()" in chrome && "Role.Tab" in chrome, "the bar is a group and each tab has the tab role")
+        assertTrue("selectableGroup()" in chrome && "role = Role.Tab" in read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitDock.kt"), "the bar is a group and each tab (OrbitDockTab) has the tab role")
         assertTrue("Haptic.Select" in chrome, "a tab plays the select haptic")
     }
 
@@ -154,21 +154,26 @@ class ShellStructureTest {
 
     // ---- The dock (revamp) ----
 
-    @Test fun theMiniPlayerAndTheTabsAreOneGlassSurface() {
+    @Test fun theSmallPlayerIsAColourCardOverTheTabBarAndNothingIsGlass() {
         val code = SourceContract.code(chrome)
-        assertEquals(1, Regex("""\.cosmoGlass\(""").findAll(code).count(), "one glass layer (one blur) for the whole dock")
+        assertEquals(0, Regex("""\.cosmoGlass\(""").findAll(code).count(), "Orbit rule 4: the dock is flat, no glass")
         val body = SourceContract.functionBody(chrome, "CosmoBottomChrome")
-        assertTrue(body.indexOf("MiniCapsule(") in 0 until body.indexOf("FloatingTabBar("), "the mini player sits on top of the tabs, inside the dock")
+        assertTrue(body.indexOf("MiniCapsule(") in 0 until body.indexOf("FloatingTabBar("), "the small player sits over the tabs")
         assertTrue("miniPlayer()" in body, "Video's own mini player stands in the same place")
-        assertTrue("Spacer(Modifier.height(ShellMetrics.CAPSULE_GAP_DP.dp))" !in code, "no gap: the two are not stacked cards any more")
+        assertTrue("Spacer(Modifier.height(DOCK_GAP))" in body, "the board's two pieces, 8 dp apart")
+        val mini = SourceContract.functionBody(chrome, "MiniCapsule")
+        assertTrue("coverFill(coverUrl, song.videoId)" in mini && ".clip(OrbitMiniMetrics.shape)" in mini, "the desktop bar's colour card with the bite at its end")
+        assertTrue("OrbitPlayButton(isPlaying, onPlayPause, look, size = OrbitMiniMetrics.PLAY_DP.dp)" in mini, "play stands in the bite")
     }
 
-    @Test fun everyTabIsLabelledAndTheSelectionPillSlidesInTheDrawPhase() {
-        val tab = SourceContract.functionBody(chrome, "TabPill")
-        assertTrue("if (selected) Text(" !in tab && "Text(" in tab, "a tab shows its label whether chosen or not")
+    @Test fun theChosenTabIsASolidChipWithItsNameAndEveryTabIsNamed() {
+        val dock = read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitDock.kt")
+        val tab = SourceContract.functionBody(dock, "OrbitDockTab")
+        assertTrue("if (selected) {" in tab && "Text(label" in tab, "the chosen tab shows its name")
+        assertTrue("Modifier.semantics { contentDescription = label }" in tab, "the others are named for a screen reader")
+        assertTrue("role = Role.Tab" in tab, "each is a tab")
         val bar = SourceContract.functionBody(chrome, "FloatingTabBar")
-        assertTrue("pill.animateTo(selectedIndex.toFloat(), CosmoMotion.move(reduced))" in bar, "the pill moves on the move spring (a fade with reduced motion)")
-        assertTrue(bar.indexOf("pill.value") > bar.indexOf(".drawBehind {"), "and is read while drawing only")
+        assertTrue("OrbitDockMetrics.BAR_DP" in bar && "orbitDockFill(look)" in bar, "the board's 60 dp bar on a solid ground")
     }
 
     @Test fun aSidewaysSwipeSkipsAndAnUpwardOneOpensThePlayer() {
@@ -180,13 +185,9 @@ class ShellStructureTest {
         assertTrue("if (!reduced) translationX" in mini, "the row does not follow the finger with reduced motion")
     }
 
-    @Test fun theProgressIsAnAccentLineOnAHairlineAndTheCardStaysNeutral() {
+    @Test fun theProgressIsTheOrbitRoundTheDisc() {
         val mini = SourceContract.functionBody(chrome, "MiniCapsule")
-        val draw = mini.substring(mini.indexOf(".drawBehind {"))
-        assertTrue("CoverField.ACCENT" in draw && "PROGRESS_TRACK_ALPHA" in draw, "a 2 dp accent line on a hairline track (DESIGN_SYSTEM.md 4.16)")
-        assertTrue("Size(width, size.height)" !in draw, "the card is not tinted")
-        val bar = SourceContract.functionBody(chrome, "FloatingTabBar")
-        assertTrue("CoverField.SURFACE_VARIANT" in bar && "ACCENT_CONTAINER" !in bar, "the tab selection is neutral, never the accent")
+        assertTrue("OrbitRing(" in mini && "position.positionMs.toFloat() / durationMs" in mini, "the orbit is the progress (Orbit rule 2)")
         assertTrue("enabled = onPrevious != null" in mini, "the sideways swipe is opt-in")
     }
 

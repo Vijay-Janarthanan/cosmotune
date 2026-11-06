@@ -88,6 +88,8 @@ import com.cosmotune.ui.orbit.OrbitChipRow
 import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitLabel
 import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitMenu
+import com.cosmotune.ui.orbit.OrbitMenuItem
 import com.cosmotune.ui.orbit.OrbitPageHeading
 import com.cosmotune.ui.orbit.OrbitPlayButton
 import com.cosmotune.ui.orbit.OrbitPortrait
@@ -357,15 +359,18 @@ private fun LibraryChips(chip: LibraryChip, onChip: (LibraryChip) -> Unit, sort:
             Box {
                 OrbitSelectChip(sortLabel(sort), selected = false, fonts = page.fonts, look = page.look, onClick = { sortOpen = true },
                     modifier = Modifier.testTag("music:library:sort"), icon = CosmoIcons.Sort)
-                DropdownMenu(expanded = sortOpen, onDismissRequest = { sortOpen = false }) {
-                    LibrarySort.entries.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(sortLabel(option)) },
-                            onClick = { AppUi.host.setLibrarySort(option); sortOpen = false },
-                            trailingIcon = if (option == sort) { { Icon(CosmoIcons.Check, contentDescription = null) } } else null,
-                        )
-                    }
-                }
+                // The sort menu is the kit's popover (board batch-a, section 4): the order in force is solid ink.
+                OrbitMenu(
+                    open = sortOpen,
+                    onDismiss = { sortOpen = false },
+                    items = LibrarySort.entries.map { option ->
+                        OrbitMenuItem(sortLabel(option), selected = option == sort) { AppUi.host.setLibrarySort(option) }
+                    },
+                    fonts = page.fonts,
+                    look = page.look,
+                    header = "Sort by",
+                    width = 240.dp,
+                )
             }
             if (chip != LibraryChip.SONGS) {
                 OrbitRoundButton(

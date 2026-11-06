@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,104 +27,61 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag as testTagProperty
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.sharedui.resources.*
 import com.cosmotune.music.ui.haptics.Haptic
 import com.cosmotune.music.ui.haptics.rememberHaptics
-import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.cosmoFocusRing
-import com.cosmotune.ui.kit.KitButton
-import com.cosmotune.ui.kit.KitButtonKind
-import com.cosmotune.ui.kit.KitTextButton
-import com.cosmotune.ui.theme.CosmoRadii
-import com.cosmotune.ui.theme.CosmoSpacing
-import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoType
+import com.cosmotune.ui.orbit.OrbitChip
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitNotice
+import com.cosmotune.ui.orbit.OrbitPillButton
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitTalkButton
+import com.cosmotune.ui.orbit.orbitActionFill
+import com.cosmotune.ui.orbit.orbitActionInk
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.orbit.orbitTalking
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * The bar under every page (design section 7): deafen at the start, the big microphone in the middle, Leave at the end. Everyone
- * joins muted, and the mic is one tap from live with no host involved.
+ * The voice row under the pages in Orbit (board batch-a, section 3): the big round mic ("Tap to talk", peach) with its two lines, and
+ * the voices chip at the end (every voice on or silenced on this device). Everyone joins muted, and the mic is one tap from live
+ * with no host involved.
  *
- * Until voice calls exist ([RoomUiState.voiceAvailable] false) the mic is still there, so the bar does not change shape the day voice
+ * Until voice calls exist ([RoomUiState.voiceAvailable] false) the mic is still there, so the row does not change shape the day voice
  * ships, but a tap only explains that voice is coming: it never calls [RoomActions.setMicLive] and never shows a live state, so
  * nobody believes the room can hear them. When the permission was refused for good ([RoomUiState.micBlocked]) the mic looks
- * switched off and a tap opens the system settings instead, with a line above the bar saying why. The mode comes from [roomMicMode].
+ * switched off and a tap opens the system settings instead, with a notice above the row saying why. The mode comes from [roomMicMode].
  */
 @Composable
-internal fun RoomVoiceBar(state: RoomUiState, actions: RoomActions) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+internal fun RoomVoiceBar(state: RoomUiState, actions: RoomActions, modifier: Modifier = Modifier) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
     var explaining by remember { mutableStateOf(false) }
     val mode = roomMicMode(state)
-    Column(Modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (mode == RoomMicMode.BLOCKED) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = CosmoSpacing.margin, vertical = 4.dp)
-                    .clip(RoundedCornerShape(CosmoRadii.rMd))
-                    .background(Color(palette.surface))
-                    .padding(start = 14.dp, end = 4.dp)
-                    .testTag(RoomTags.MIC_BLOCKED)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(Res.string.cosmo_room_mic_blocked_note),
-                    style = type.meta,
-                    color = Color(palette.textPrimary),
-                    modifier = Modifier.weight(1f).padding(vertical = 10.dp),
-                )
-                KitTextButton(stringResource(Res.string.cosmo_room_open_settings), actions::openMicSettings, Modifier.testTag(RoomTags.MIC_SETTINGS))
+            OrbitNotice(stringResource(Res.string.cosmo_room_mic_blocked_note), fonts, look, Modifier.fillMaxWidth().testTag(RoomTags.MIC_BLOCKED), icon = RoomIcons.MicOff) {
+                OrbitPillButton(stringResource(Res.string.cosmo_room_open_settings), actions::openMicSettings, fonts, look, Modifier.testTag(RoomTags.MIC_SETTINGS), height = 36.dp)
             }
         }
         if (explaining && mode == RoomMicMode.UNAVAILABLE) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = CosmoSpacing.margin, vertical = 4.dp)
-                    .clip(RoundedCornerShape(CosmoRadii.rMd))
-                    .background(Color(palette.surface))
-                    .padding(start = 14.dp, end = 4.dp)
-                    .testTag(RoomTags.VOICE_NOTE)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(Res.string.cosmo_room_voice_coming),
-                    style = type.meta,
-                    color = Color(palette.textPrimary),
-                    modifier = Modifier.weight(1f).padding(vertical = 10.dp),
-                )
-                CosmoIconButton(CosmoIcons.Close, stringResource(Res.string.cosmo_room_dismiss), { explaining = false }, size = 40.dp)
+            OrbitNotice(stringResource(Res.string.cosmo_room_voice_coming), fonts, look, Modifier.fillMaxWidth().testTag(RoomTags.VOICE_NOTE)) {
+                OrbitRoundButton(CosmoIcons.Close, stringResource(Res.string.cosmo_room_dismiss), look.ink, { explaining = false }, size = 36.dp)
             }
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(palette.textPrimary).copy(alpha = 0.08f)))
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                CosmoIconButton(
-                    if (state.deafened) RoomIcons.HeadphonesOff else RoomIcons.Headphones,
-                    stringResource(if (state.deafened) Res.string.cosmo_room_undeafen else Res.string.cosmo_room_deafen),
-                    { actions.setDeafened(!state.deafened) },
-                    on = state.deafened,
-                    modifier = Modifier.testTag(RoomTags.DEAFEN),
-                )
-            }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             MicButton(
                 mode = mode,
                 // Your own level shows only while the room hears you speaking; the host puts you in speakingUids then.
@@ -137,33 +94,33 @@ internal fun RoomVoiceBar(state: RoomUiState, actions: RoomActions) {
                         RoomMicMode.LIVE -> actions.setMicLive(false)
                     }
                 },
+                fonts = fonts,
+                look = look,
+                modifier = Modifier.weight(1f),
             )
-            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                KitButton(
-                    stringResource(Res.string.cosmo_room_leave),
-                    actions::leave,
-                    kind = KitButtonKind.QUIET,
-                    icon = RoomIcons.Leave,
-                    dense = true,
-                    modifier = Modifier.testTag(RoomTags.LEAVE),
-                )
-            }
+            Spacer(Modifier.width(12.dp))
+            val voicesLabel = stringResource(if (state.deafened) Res.string.cosmo_room_undeafen else Res.string.cosmo_room_deafen)
+            OrbitChip(
+                if (state.deafened) "Voices off" else "Voices on", fonts, look,
+                onClick = { actions.setDeafened(!state.deafened) },
+                modifier = Modifier.testTag(RoomTags.DEAFEN).semantics { contentDescription = voicesLabel },
+                selected = state.deafened,
+                leading = { Icon(if (state.deafened) RoomIcons.HeadphonesOff else RoomIcons.Volume, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            )
         }
     }
 }
 
 /**
- * The microphone: a 64 dp circle, the accent when live and the quiet `surfaceHigh` otherwise, with its state written under it so it
- * is not told by colour alone ("Mic on", "Muted", "Blocked", "Voice soon"). A screen reader hears the state and what a tap will do
- * ("Microphone muted, tap to unmute"). While live and speaking, a small three-bar meter of [meterLevel] sits on the circle's corner.
+ * The microphone: a 64 dp disc and its two lines in one button. Peach while muted ("Tap to talk": it is the one thing to do here),
+ * green while live, the quiet chip while voice is not offered or the mic is blocked. Its state is written beside it so it is not told
+ * by colour alone, and a screen reader hears the state and what a tap will do ("Microphone muted, tap to unmute"). While live and
+ * speaking, a small three-bar meter of [meterLevel] sits on the disc's corner.
  */
 @Composable
-private fun MicButton(mode: RoomMicMode, meterLevel: Float?, onClick: () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+private fun MicButton(mode: RoomMicMode, meterLevel: Float?, onClick: () -> Unit, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
     val haptics = rememberHaptics()
     val interaction = remember { MutableInteractionSource() }
-    val live = mode == RoomMicMode.LIVE
     val description = stringResource(
         when (mode) {
             RoomMicMode.UNAVAILABLE -> Res.string.cosmo_room_mic_soon_action
@@ -180,69 +137,59 @@ private fun MicButton(mode: RoomMicMode, meterLevel: Float?, onClick: () -> Unit
             RoomMicMode.MUTED -> Res.string.cosmo_room_mic_muted
         },
     )
-    Column(
-        Modifier
-            .clip(RoundedCornerShape(CosmoRadii.rMd))
+    val (title, subtitle) = when (mode) {
+        RoomMicMode.MUTED -> "Tap to talk" to "You join muted · your mic is off"
+        RoomMicMode.LIVE -> "You are talking" to "The room hears you · tap to mute"
+        RoomMicMode.UNAVAILABLE -> "Voice soon" to "Talk to the room in the chat for now"
+        RoomMicMode.BLOCKED -> "Microphone blocked" to "Allow it in the system settings"
+    }
+    val fill = when (mode) {
+        RoomMicMode.MUTED -> orbitActionFill(look)
+        RoomMicMode.LIVE -> orbitTalking(look)
+        else -> look.chip
+    }
+    val iconInk = when (mode) {
+        RoomMicMode.MUTED -> orbitActionInk(look)
+        RoomMicMode.LIVE -> look.ground
+        else -> look.dim
+    }
+    OrbitTalkButton(
+        icon = if (mode == RoomMicMode.LIVE || mode == RoomMicMode.MUTED) RoomIcons.Mic else RoomIcons.MicOff,
+        fill = fill,
+        iconInk = iconInk,
+        title = title,
+        subtitle = subtitle,
+        fonts = fonts,
+        look = look,
+        titleInk = if (mode == RoomMicMode.LIVE) orbitTalking(look) else look.ink,
+        badge = if (meterLevel != null) ({ MicMeter(meterLevel, look) }) else null,
+        modifier = modifier
+            .cosmoFocusRing(interaction, 32.dp)
+            .clip(RoundedCornerShape(32.dp))
             .clickable(interactionSource = interaction, indication = ripple(), role = Role.Button) { haptics.play(Haptic.Select); onClick() }
             .semantics(mergeDescendants = true) {
                 contentDescription = description
                 stateDescription = label
             }
-            .padding(horizontal = 12.dp, vertical = 4.dp)
             .testTag(RoomTags.MIC),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(Modifier.size(MIC_DP.dp)) {
-            Box(
-                Modifier
-                    .size(MIC_DP.dp)
-                    .cosmoFocusRing(interaction, (MIC_DP / 2).dp)
-                    .clip(CircleShape)
-                    .background(Color(if (live) palette.accent else palette.surfaceHigh)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (live) RoomIcons.Mic else RoomIcons.MicOff,
-                    contentDescription = null,
-                    tint = Color(
-                        when (mode) {
-                            RoomMicMode.LIVE -> palette.onAccent
-                            RoomMicMode.MUTED -> palette.textPrimary
-                            else -> palette.textTertiary
-                        },
-                    ),
-                    modifier = Modifier.size(28.dp),
-                )
-            }
-            if (meterLevel != null) MicMeter(meterLevel, Modifier.align(Alignment.BottomEnd))
-        }
-        Spacer(Modifier.height(2.dp))
-        // Already said by the button's state description; read once, not twice.
-        Text(
-            label,
-            style = type.caption,
-            color = Color(if (live) palette.accentStrong else palette.textSecondary),
-            maxLines = 1,
-            modifier = Modifier.clearAndSetSemantics {},
-        )
-    }
+    )
 }
 
 /**
- * Three short bars on a `surface` disc ringed in the ground colour, lit in the accent from the left as [level] rises
- * ([roomMicMeterBars]). It follows the level the host feeds; nothing animates on its own, so reduced motion needs nothing more.
- * Decorative: "Mic on" already says the room hears you.
+ * Three short bars on a disc of the ground, lit in the green from the left as [level] rises ([roomMicMeterBars]). It follows the
+ * level the host feeds; nothing animates on its own, so reduced motion needs nothing more. Decorative: the state already says the
+ * room hears you.
  */
 @Composable
-private fun MicMeter(level: Float, modifier: Modifier) {
-    val palette = LocalCosmoColors.current.palette
+private fun BoxScope.MicMeter(level: Float, look: OrbitLook) {
     val lit = roomMicMeterBars(level)
     Row(
-        modifier
+        Modifier
+            .align(Alignment.BottomEnd)
             .size(METER_DP.dp)
             .clip(CircleShape)
-            .background(Color(palette.surface))
-            .border(2.dp, Color(palette.backgroundBottom), CircleShape)
+            .background(look.ground)
+            .border(2.dp, orbitTalking(look), CircleShape)
             .clearAndSetSemantics { testTagProperty = RoomTags.MIC_METER },
         horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
@@ -253,12 +200,11 @@ private fun MicMeter(level: Float, modifier: Modifier) {
                     .width(3.dp)
                     .height(METER_BAR_DP[bar].dp)
                     .clip(RoundedCornerShape(50))
-                    .background(if (bar < lit) Color(palette.accent) else Color(palette.textPrimary).copy(alpha = 0.18f)),
+                    .background(if (bar < lit) orbitTalking(look) else look.ink.copy(alpha = 0.18f)),
             )
         }
     }
 }
 
-private const val MIC_DP = 64
 private const val METER_DP = 24
 private val METER_BAR_DP = intArrayOf(6, 10, 8)

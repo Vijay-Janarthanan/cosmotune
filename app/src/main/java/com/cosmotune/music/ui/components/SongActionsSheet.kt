@@ -223,6 +223,9 @@ fun SongActionsSheet(
     // A local file or a finished download has no YouTube identity behind it to
     // rate, save, queue into a playlist, fetch again, or share a link for.
     val isOffline = song.localUri != null
+    // Orbit: the sheet leads with its main actions as chips (Play next, Queue, the heart), and the rows below leave them out.
+    val orbitChips = !menu && com.cosmotune.ui.theme.LocalCosmoShell.current != null
+    val likeable = signedIn && !isOffline || com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)
 
     val rows: @Composable ColumnScope.() -> Unit = {
         // Leads the list whenever it's available: which recording is playing
@@ -271,8 +274,8 @@ fun SongActionsSheet(
         }
 
         com.cosmotune.ui.home.MusicFeedbackActions(song)
-        if (signedIn && !isOffline || com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)) {
-            ActionRow(
+        if (likeable) {
+            if (!orbitChips) ActionRow(
                 icon = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                 label = if (liked) stringResource(R.string.remove_from_liked) else stringResource(R.string.like),
                 tint = if (liked) palette.accent else null,
@@ -314,18 +317,20 @@ fun SongActionsSheet(
             accent = palette.accent,
             onClick = onStartRadio,
         )
-        ActionRow(
-            icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
-            label = stringResource(R.string.play_next),
-            accent = palette.accent,
-            onClick = onPlayNext,
-        )
-        ActionRow(
-            icon = Icons.AutoMirrored.Rounded.QueueMusic,
-            label = stringResource(R.string.add_to_queue),
-            accent = palette.accent,
-            onClick = onAddToQueue,
-        )
+        if (!orbitChips) {
+            ActionRow(
+                icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
+                label = stringResource(R.string.play_next),
+                accent = palette.accent,
+                onClick = onPlayNext,
+            )
+            ActionRow(
+                icon = Icons.AutoMirrored.Rounded.QueueMusic,
+                label = stringResource(R.string.add_to_queue),
+                accent = palette.accent,
+                onClick = onAddToQueue,
+            )
+        }
         when (val id = song.albumId) {
             null -> if (resolvingLinks) {
                 LoadingActionRow(Icons.Rounded.Album, stringResource(R.string.open_album), palette)
@@ -405,7 +410,23 @@ fun SongActionsSheet(
         }
 
         SheetTrackHeader(song, subtitleColor = palette.onBackgroundVariant)
-        HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
+        if (orbitChips) {
+            com.cosmotune.ui.sheets.CosmoSheetChips(
+                listOfNotNull(
+                    com.cosmotune.ui.orbit.OrbitSheetChip(stringResource(R.string.play_next), Icons.AutoMirrored.Rounded.PlaylistPlay, stringResource(R.string.play_next), primary = true, onClick = onPlayNext),
+                    com.cosmotune.ui.orbit.OrbitSheetChip("Queue", Icons.AutoMirrored.Rounded.QueueMusic, stringResource(R.string.add_to_queue), onClick = onAddToQueue),
+                    if (likeable) com.cosmotune.ui.orbit.OrbitSheetChip(
+                        null,
+                        if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        if (liked) stringResource(R.string.remove_from_liked) else stringResource(R.string.like),
+                        on = liked,
+                        onClick = onToggleLike,
+                    ) else null,
+                ),
+            )
+        } else {
+            HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
+        }
         rows()
         Spacer(Modifier.height(24.dp))
     }
