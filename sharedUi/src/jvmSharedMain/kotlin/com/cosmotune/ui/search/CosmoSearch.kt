@@ -6,9 +6,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -17,25 +16,28 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -54,25 +56,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.design.SearchHighlight
 import com.cosmotune.design.Springs
-import com.cosmotune.ui.blocks.CosmoListRow
-import com.cosmotune.ui.blocks.CosmoOverline
-import com.cosmotune.ui.blocks.CosmoRowLeading
-import com.cosmotune.ui.blocks.CosmoSearchField
-import com.cosmotune.ui.blocks.CosmoSongRow
 import com.cosmotune.ui.browse.CosmoBrowse
-import com.cosmotune.ui.components.CosmoButton
-import com.cosmotune.ui.components.CosmoButtonKind
-import com.cosmotune.ui.components.CosmoButtonSize
-import com.cosmotune.ui.components.CosmoChip
 import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.Disc
+import com.cosmotune.ui.orbit.OrbitChipRow
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitSearchPill
+import com.cosmotune.ui.orbit.OrbitSelectChip
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.orbit.orbitRecordGrid
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.music.data.model.BrowseItem
-import com.cosmotune.music.data.model.EntityType
 import com.cosmotune.music.data.model.SearchFilter
 import com.cosmotune.music.data.model.SearchHistoryEntity
 import com.cosmotune.music.data.model.SearchResult
@@ -80,11 +83,8 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
 import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.sharedui.resources.Res
-import com.cosmotune.music.sharedui.resources.clear
-import com.cosmotune.music.sharedui.resources.cosmo_search_top_hits
 import com.cosmotune.music.sharedui.resources.cosmo_search_use
 import com.cosmotune.music.sharedui.resources.recent_search_remove
-import com.cosmotune.music.sharedui.resources.recent_searches
 import com.cosmotune.music.sharedui.resources.search_empty
 import com.cosmotune.music.sharedui.resources.search_hint
 import com.cosmotune.music.sharedui.resources.search_library_hint
@@ -94,12 +94,13 @@ import com.cosmotune.music.ui.components.songListSkeleton
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Search in the new look, with Explore inside it: one page that is, by what the field holds, the idle page (moods, genres and
- * recent searches), the suggestions while typing, or the results. It takes [SearchSwitch]'s parameters, [browse] being Explore's
- * moods and genres that the root hands over; without it the idle page has recent searches only.
+ * Search in Orbit, with Explore inside it (Canvas repo, design/cosmotune/pages-orbit/board.html, section 3): one page that is,
+ * by what the field holds, the idle page (recent searches as chips, then Explore's moods and genres as colour tiles), the
+ * suggestions while typing, or the results. It takes [SearchSwitch]'s parameters, [browse] being Explore's moods and genres that
+ * the root hands over; without it the idle page has recent searches only.
  *
- * A fixed column stands above the list: the field (when [showField]; the phone's is in its top bar), the Library switcher while
- * nothing is typed, and the filter chips once there is a result set to narrow. The list under it takes the bottom of
+ * A fixed column stands above the list: the big search pill (when [showField]), the source switcher while nothing is typed, the
+ * "Search in" chips, and the filter chips once there is a result set to narrow. The list under it takes the bottom of
  * [contentPadding].
  */
 @Composable
@@ -155,6 +156,8 @@ fun CosmoSearch(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val reduced = LocalReducedMotion.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
 
     // The three effects and the two flags that follow are the old screen's (`com.cosmotune.music.ui.screens.SearchScreen`), copied
     // as they are: what they do is the page's behaviour, and the new look only changes how it is drawn.
@@ -202,13 +205,16 @@ fun CosmoSearch(
     )
     BoxWithConstraints(modifier.fillMaxSize()) {
         val wide = maxWidth.value >= WIDE_SEARCH_DP
-        val wideWidthDp = if (wide) maxWidth.value else null
+        val side = if (wide) 28.dp else 16.dp
+        val (columns, cell) = orbitRecordGrid(maxWidth, side)
+        val page = SearchPage(fonts, look, side, wide, columns, cell)
+        val tiles = tileColumns(maxWidth.value, side.value)
         Column(Modifier.fillMaxSize()) {
-            // The field, the Library switcher and the filter chips stay fixed at the top, outside the scrolling list, so they are
+            // The pill, the source switcher and the filter chips stay fixed at the top, outside the scrolling list, so they are
             // always reachable rather than scrolling away with the results or the recent searches beneath them.
             Column(Modifier.padding(top = topPadding)) {
                 if (showField) {
-                    CosmoSearchField(
+                    OrbitSearchPill(
                         query = query,
                         onQueryChange = onQueryChange,
                         onSubmit = onSubmit,
@@ -219,8 +225,10 @@ fun CosmoSearch(
                                 else -> Res.string.search_hint
                             },
                         ),
-                        modifier = Modifier.padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, bottom = 4.dp),
+                        fonts = fonts,
+                        look = look,
                         focusRequester = focusRequester,
+                        modifier = Modifier.padding(start = side, end = side, top = 14.dp, bottom = 10.dp),
                     )
                 }
                 if (sourceSwitcher != null) {
@@ -229,7 +237,7 @@ fun CosmoSearch(
                         enter = if (reduced) fadeIn(tween(Springs.REDUCED_MS)) else fadeIn() + expandVertically(),
                         exit = if (reduced) fadeOut(tween(Springs.REDUCED_MS)) else fadeOut() + shrinkVertically(),
                     ) {
-                        Box(Modifier.padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, bottom = 4.dp)) {
+                        Box(Modifier.padding(start = side, end = side, bottom = 4.dp)) {
                             sourceSwitcher()
                         }
                     }
@@ -241,7 +249,7 @@ fun CosmoSearch(
                 // search too, or picking a filter that finds nothing would take away the control needed to leave it. They are
                 // YouTube's categories, so the Library source has none.
                 if (results != null && !suggesting && !searchingLibrary && !searchingAddons) {
-                    SearchFilterChips(filter = filter, onFilterChange = onFilterChange)
+                    SearchFilterChips(filter = filter, onFilterChange = onFilterChange, fonts = fonts, look = look, side = side)
                 }
             }
 
@@ -259,20 +267,24 @@ fun CosmoSearch(
                         onSongClick = onLibrarySongClick,
                         onSongLongPress = onSongLongPress,
                         onSongSwipe = onSongSwipe,
+                        page = page,
                     )
                     searchingAddons -> if (addonResults == null && query.isBlank() && addonHistory.isNotEmpty()) {
-                        addonRecentRows(addonHistory, onAddonHistoryClick, onAddonHistoryRemove, onAddonHistoryClear)
+                        addonRecentChips(addonHistory, onAddonHistoryClick, onAddonHistoryRemove, onAddonHistoryClear, page)
                     } else if (searchIn?.progress != null) {
                         // Source by source, each with its own state, as the answers come in.
                         addonSourceSections(searchIn.progress, searchIn, "addon", cosmo = true) { tracks, index, song ->
                             val current = playingRowMatcher(tracks, currentSong)(song)
-                            CosmoSongRow(
+                            OrbitSongRow(
                                 song = song,
+                                fonts = fonts,
+                                look = look,
                                 onClick = { onAddonSongClick(tracks, index) },
+                                modifier = Modifier.padding(horizontal = side, vertical = 4.dp),
                                 onLongPress = { onSongLongPress(song) },
-                                onSwipeToQueue = { onSongSwipe(song) },
-                                isCurrent = current,
-                                isPlaying = isPlaying && current,
+                                onSwipe = { onSongSwipe(song) },
+                                now = current,
+                                playing = isPlaying && current,
                                 showSourceQuality = true,
                             )
                         }
@@ -285,6 +297,7 @@ fun CosmoSearch(
                             onSongClick = onAddonSongClick,
                             onSongLongPress = onSongLongPress,
                             onSongSwipe = onSongSwipe,
+                            page = page,
                             addons = true,
                         )
                     }
@@ -304,16 +317,16 @@ fun CosmoSearch(
                                 typeaheadResults = typeaheadResults,
                                 actions = actions,
                                 onTypeaheadLongPress = onTypeaheadLongPress,
+                                page = page,
                             )
                         }
                     }
                     results == null -> idleRows(
                         browse = browse,
                         lists = lists,
-                        wideWidthDp = wideWidthDp,
+                        page = page,
+                        columns = tiles,
                         history = history,
-                        currentSong = currentSong,
-                        isPlaying = isPlaying,
                         onHistoryClick = onHistoryClick,
                         onHistoryRemove = onHistoryRemove,
                         onHistoryClear = onHistoryClear,
@@ -324,7 +337,7 @@ fun CosmoSearch(
                         rows = results.data,
                         query = query,
                         filter = filter,
-                        wide = wide,
+                        page = page,
                         loadingMore = loadingMore,
                         actions = actions,
                     )
@@ -337,22 +350,19 @@ fun CosmoSearch(
 // ---------------------------------------------------------------------------------------------------------------------------
 // the filters
 
+/** The order of the filter chips: the board's (All, Songs, Albums, Artists, Playlists, Videos); a filter added later goes last. */
+private val FILTER_ORDER = listOf(SearchFilter.ALL, SearchFilter.SONGS, SearchFilter.ALBUMS, SearchFilter.ARTISTS, SearchFilter.PLAYLISTS, SearchFilter.VIDEOS)
+
 /**
- * The filters as chips in a row that scrolls sideways, the gutter inside the scroll so it scrolls with them. The chip plays the
- * select haptic itself, so a tap on the chip that is already selected buzzes as well (the old pill did not).
+ * The filters as Orbit chips in a row that scrolls sideways, every filter the search offers. The chip plays the select haptic
+ * itself, so only a tap that changes the filter buzzes.
  */
 @Composable
-private fun SearchFilterChips(filter: SearchFilter, onFilterChange: (SearchFilter) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(start = CosmoSpacing.margin, top = 6.dp, end = CosmoSpacing.margin, bottom = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SearchFilter.entries.forEach { entry ->
-            CosmoChip(label = entry.label, selected = entry == filter, onClick = { onFilterChange(entry) }, haptic = entry != filter)
+private fun SearchFilterChips(filter: SearchFilter, onFilterChange: (SearchFilter) -> Unit, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
+    val entries = remember { SearchFilter.entries.sortedBy { FILTER_ORDER.indexOf(it).let { i -> if (i < 0) Int.MAX_VALUE else i } } }
+    OrbitChipRow(side, Modifier.padding(top = 4.dp, bottom = 10.dp)) {
+        entries.forEach { entry ->
+            OrbitSelectChip(entry.label, selected = entry == filter, fonts = fonts, look = look, onClick = { onFilterChange(entry) }, haptic = entry != filter)
         }
     }
 }
@@ -361,101 +371,92 @@ private fun SearchFilterChips(filter: SearchFilter, onFilterChange: (SearchFilte
 // idle
 
 /**
- * Nothing searched yet (`V2.search`, `searchIdle`): "Browse by mood" with the moods grid, "Genres" with the genre chips, then the
- * recent searches. Without [browse] there are no moods or genres. When there is nothing at all to show the old sentence stands in.
+ * Nothing searched yet: the recent searches as chips, then Explore's moods and genres as colour tiles. Without [browse] there are
+ * no tiles. When there is nothing at all to show the old sentence stands in.
  */
 private fun LazyListScope.idleRows(
     browse: CosmoBrowse?,
     lists: BrowseLists?,
-    wideWidthDp: Float?,
+    page: SearchPage,
+    columns: Int,
     history: List<SearchHistoryEntity>,
-    currentSong: Song?,
-    isPlaying: Boolean,
     onHistoryClick: (SearchHistoryEntity) -> Unit,
     onHistoryRemove: (String) -> Unit,
     onHistoryClear: () -> Unit,
 ) {
-    val browsing = browse != null && browseBlocks(state = browse.state, lists = lists, onOpen = browse.onOpen, onRetry = browse.onRetry, wideWidthDp = wideWidthDp)
-    if (history.isNotEmpty()) {
-        recentRows(history, currentSong, isPlaying, onHistoryClick, onHistoryRemove, onHistoryClear)
-    } else if (!browsing) {
+    if (history.isNotEmpty()) recentChips(history, onHistoryClick, onHistoryRemove, onHistoryClear, page)
+    val browsing = browse != null &&
+        browseTiles(state = browse.state, lists = lists, onOpen = browse.onOpen, onRetry = browse.onRetry, columns = columns, side = page.side, fonts = page.fonts, look = page.look, together = true)
+    if (history.isEmpty() && !browsing) {
         item(key = "idle:empty") { MessageState(stringResource(Res.string.search_empty)) }
     }
 }
 
-/** What was searched for before: the heading with "Clear", then a row for each, with a button that removes it. */
-private fun LazyListScope.recentRows(
+/** The mono "Recent" label with Clear at its end. */
+private fun LazyListScope.recentHeader(key: String, onClear: () -> Unit, page: SearchPage) {
+    item(key = key) {
+        Row(Modifier.fillMaxWidth().padding(start = page.side + 6.dp, end = page.side, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            OrbitLabel("Recent", page.fonts, page.look.dim, Modifier.weight(1f))
+            Text("Clear", style = page.fonts.chip.copy(fontSize = 13.sp), color = page.look.ink,
+                modifier = Modifier.clip(CircleShape).clickable(onClick = onClear).padding(horizontal = 12.dp, vertical = 8.dp))
+        }
+    }
+}
+
+/** What was searched for before, as chips: the cover as a small disc (a clock for words alone), the name, and a cross that removes it. */
+private fun LazyListScope.recentChips(
     history: List<SearchHistoryEntity>,
-    currentSong: Song?,
-    isPlaying: Boolean,
     onClick: (SearchHistoryEntity) -> Unit,
     onRemove: (String) -> Unit,
     onClear: () -> Unit,
+    page: SearchPage,
 ) {
-    item(key = "recent:header") {
-        CosmoOverline(
-            text = stringResource(Res.string.recent_searches),
-            trailing = {
-                CosmoButton(
-                    text = stringResource(Res.string.clear),
-                    onClick = onClear,
-                    kind = CosmoButtonKind.TEXT,
-                    size = CosmoButtonSize.SMALL,
-                )
-            },
-        )
-    }
-    items(history, key = { "recent:${it.id}" }) { entity ->
-        CosmoListRow(
-            title = entity.title,
-            onClick = { onClick(entity) },
-            subtitle = entity.subtitle.ifBlank { typeLabel(entity.entityType.name) },
-            leading = CosmoRowLeading.Cover(entity.artworkUrl, circle = entity.entityType == EntityType.ARTIST),
-            isCurrent = entity.entityType == EntityType.TRACK && entity.id == currentSong?.videoId,
-            isPlaying = isPlaying,
-            trailing = {
-                CosmoIconButton(
-                    icon = CosmoIcons.Close,
-                    contentDescription = stringResource(Res.string.recent_search_remove, entity.title),
-                    onClick = { onRemove(entity.id) },
-                    style = CosmoIconButtonStyle.PLAIN,
-                    size = 40.dp,
-                )
-            },
-        )
+    recentHeader("recent:header", onClear, page)
+    item(key = "recent:chips") {
+        OrbitChipRow(page.side, Modifier.padding(top = 6.dp)) {
+            history.forEach { entity ->
+                key("recent:${entity.id}") {
+                    RecentChip(entity.title, entity.artworkUrl, page, onClick = { onClick(entity) }, onRemove = { onRemove(entity.id) })
+                }
+            }
+        }
     }
 }
 
 /** The Add-ons source's recents: the words searched before (no entity behind them), each searched again by a tap. */
-private fun LazyListScope.addonRecentRows(
+private fun LazyListScope.addonRecentChips(
     history: List<String>,
     onClick: (String) -> Unit,
     onRemove: (String) -> Unit,
     onClear: () -> Unit,
+    page: SearchPage,
 ) {
-    item(key = "addon-recent:header") {
-        CosmoOverline(
-            text = stringResource(Res.string.recent_searches),
-            trailing = {
-                CosmoButton(text = stringResource(Res.string.clear), onClick = onClear, kind = CosmoButtonKind.TEXT, size = CosmoButtonSize.SMALL)
-            },
-        )
+    recentHeader("addon-recent:header", onClear, page)
+    item(key = "addon-recent:chips") {
+        OrbitChipRow(page.side, Modifier.padding(top = 6.dp)) {
+            history.forEach { term ->
+                key("addon-recent:$term") { RecentChip(term, null, page, onClick = { onClick(term) }, onRemove = { onRemove(term) }) }
+            }
+        }
     }
-    items(history, key = { "addon-recent:$it" }) { term ->
-        CosmoListRow(
-            title = term,
-            onClick = { onClick(term) },
-            leading = CosmoRowLeading.Icon(CosmoIcons.Clock),
-            trailing = {
-                CosmoIconButton(
-                    icon = CosmoIcons.Close,
-                    contentDescription = stringResource(Res.string.recent_search_remove, term),
-                    onClick = { onRemove(term) },
-                    style = CosmoIconButtonStyle.PLAIN,
-                    size = 40.dp,
-                )
-            },
-        )
+}
+
+@Composable
+private fun RecentChip(title: String, artwork: String?, page: SearchPage, onClick: () -> Unit, onRemove: () -> Unit) {
+    val look = page.look
+    Row(
+        Modifier.height(40.dp).clip(CircleShape).background(look.chip).clickable(onClick = onClick).padding(start = 8.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+            if (artwork != null) Disc(artwork, 24.dp) else Icon(CosmoIcons.Clock, contentDescription = null, tint = look.dim, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(title, style = page.fonts.chip, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
+        Box(
+            Modifier.padding(start = 4.dp).size(32.dp).clip(CircleShape).clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) { Icon(CosmoIcons.Close, contentDescription = stringResource(Res.string.recent_search_remove, title), tint = look.dim, modifier = Modifier.size(14.dp)) }
     }
 }
 
@@ -554,6 +555,7 @@ private val FillArrow: ImageVector by lazy {
     }.build()
 }
 
+
 /**
  * Live media hits under the suggestions, while the user is still typing, as "Top hits": songs play on a tap and open the song
  * menu on a hold, the rest open their page.
@@ -562,8 +564,9 @@ private fun LazyListScope.typeaheadRows(
     typeaheadResults: List<SearchResult>,
     actions: SearchRowActions,
     onTypeaheadLongPress: ((Song) -> Unit)?,
+    page: SearchPage,
 ) {
-    item(key = "typeahead:title") { CosmoOverline(stringResource(Res.string.cosmo_search_top_hits)) }
+    item(key = "typeahead:title") { OrbitLabel("Top hits", page.fonts, page.look.dim, Modifier.padding(start = page.side + 6.dp, top = 18.dp, bottom = 8.dp)) }
     val isCurrentRow = playingRowMatcher(
         typeaheadResults.mapNotNull { (it as? SearchResult.Track)?.song ?: (it as? SearchResult.TopTrack)?.song },
         actions.currentSong,
@@ -575,21 +578,25 @@ private fun LazyListScope.typeaheadRows(
             is SearchResult.TopTrack -> "ta:top:${result.song.videoId}"
         }
     }) { result ->
+        val m = Modifier.padding(horizontal = page.side, vertical = 4.dp)
         when (result) {
-            is SearchResult.Track -> TypeaheadSong(result.song, actions, onTypeaheadLongPress, isCurrentRow(result.song))
-            is SearchResult.TopTrack -> TypeaheadSong(result.song, actions, onTypeaheadLongPress, isCurrentRow(result.song))
-            is SearchResult.Browse -> BrowseListRow(item = result.item, onClick = { actions.onBrowseClick(result.item) }, onLongPress = null)
+            is SearchResult.Track -> TypeaheadSong(result.song, actions, onTypeaheadLongPress, isCurrentRow(result.song), page, m)
+            is SearchResult.TopTrack -> TypeaheadSong(result.song, actions, onTypeaheadLongPress, isCurrentRow(result.song), page, m)
+            is SearchResult.Browse -> BrowseListRow(item = result.item, onClick = { actions.onBrowseClick(result.item) }, onLongPress = null, page = page, modifier = m)
         }
     }
 }
 
 @Composable
-private fun TypeaheadSong(song: Song, actions: SearchRowActions, onLongPress: ((Song) -> Unit)?, current: Boolean) {
-    CosmoSongRow(
+private fun TypeaheadSong(song: Song, actions: SearchRowActions, onLongPress: ((Song) -> Unit)?, current: Boolean, page: SearchPage, modifier: Modifier) {
+    OrbitSongRow(
         song = song,
+        fonts = page.fonts,
+        look = page.look,
         onClick = { actions.onTopResultPlay(song) },
+        modifier = modifier,
         onLongPress = onLongPress?.let { held -> { held(song) } },
-        isCurrent = current,
-        isPlaying = actions.isPlaying && current,
+        now = current,
+        playing = actions.isPlaying && current,
     )
 }

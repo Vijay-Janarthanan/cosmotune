@@ -1,10 +1,6 @@
 package com.cosmotune.ui.search
 
-import com.cosmotune.ui.theme.CosmoRadii
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,32 +8,30 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.browse.BrowseSplit
-import com.cosmotune.design.BlockMetrics
-import com.cosmotune.ui.blocks.CosmoMoodTile
-import com.cosmotune.ui.blocks.CosmoOverline
-import com.cosmotune.ui.kit.KitChip
-import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.music.data.model.MoodGenre
 import com.cosmotune.music.data.model.MoodGenreSection
 import com.cosmotune.music.data.model.UiState
 import com.cosmotune.music.sharedui.resources.Res
-import com.cosmotune.music.sharedui.resources.cosmo_search_genres
-import com.cosmotune.music.sharedui.resources.cosmo_search_moods
 import com.cosmotune.music.sharedui.resources.retry
 import com.cosmotune.music.ui.components.MessageState
 import com.cosmotune.music.ui.components.ShimmerBox
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitMoodTile
+import com.cosmotune.ui.orbit.OrbitSectionHeader
 import org.jetbrains.compose.resources.stringResource
 
 /*
- * The moods grid and the genre chips of Explore, as Search shows them: the idle page of Search and the browse page (the Explore
- * destination of the desktop) are both made of these (`V2.search`, `v2/v2.js:68-75`; `screens-v2.css` `.moodgrid`, `.chips-row`).
+ * Explore's moods and genres as Orbit colour tiles (Canvas repo, design/cosmotune/pages-orbit/board.html, section 3): the idle
+ * page of Search and the Explore page are both made of these.
  */
 
 /** Explore's buttons split the way the page shows them: the first section is the moods, every other section is a genre. */
@@ -51,138 +45,95 @@ internal class BrowseLists(val moods: List<MoodGenre>, val genres: List<MoodGenr
 internal fun rememberBrowseLists(state: UiState<List<MoodGenreSection>>?): BrowseLists? =
     remember(state) { (state as? UiState.Success)?.data?.let { BrowseLists(BrowseSplit.moods(it), BrowseSplit.genres(it)) } }
 
-/** The skeleton of the grid stands for this many tiles (the brief: six). */
-private const val SKELETON_TILES = 6
+/** The narrowest a tile is let get on a wide page, in dp, and the space between two tiles. */
+internal const val TILE_MIN_DP = 200f
+internal const val TILE_GAP_DP = 12f
 
 /**
- * Adds the blocks of the browse part of a page to the list: "Browse by mood" with the moods grid, then "Genres" with the genre
- * chips. While [state] loads the grid is six skeleton tiles; after an error it is the message with a retry button. Tapping a
- * mood or a genre calls [onOpen]. Returns whether it added anything: a success with no moods and no genres adds nothing, and the
- * idle page then has to say what it has instead. [wideWidthDp] is the width of the page when it is wide (see [moodGridRows]), null on the phone.
+ * How many tiles stand in a row on a page [widthDp] wide with [sideDp] gutters: two on the phone, and from 600 dp on as many
+ * [TILE_MIN_DP] tiles as fit, three to six.
  */
-internal fun LazyListScope.browseBlocks(
+internal fun tileColumns(widthDp: Float, sideDp: Float): Int =
+    if (widthDp < 600f) 2 else ((widthDp - 2 * sideDp + TILE_GAP_DP) / (TILE_MIN_DP + TILE_GAP_DP)).toInt().coerceIn(3, 6)
+
+/** The skeleton stands for this many tiles. */
+private const val SKELETON_TILES = 8
+
+/**
+ * Adds Explore's tiles to the list: with [together] one section, "Moods and genres" (Search's idle page), otherwise "Moods" and
+ * "Genres" (the Explore page). While [state] loads they are skeleton tiles; after an error the message with Retry. A tap calls
+ * [onOpen]. Returns whether it added anything: a success with no moods and no genres adds nothing, and the page then says what
+ * it has instead.
+ */
+internal fun LazyListScope.browseTiles(
     state: UiState<List<MoodGenreSection>>,
     lists: BrowseLists?,
     onOpen: (MoodGenre) -> Unit,
     onRetry: () -> Unit,
-    wideWidthDp: Float? = null,
+    columns: Int,
+    side: Dp,
+    fonts: OrbitFonts,
+    look: OrbitLook,
+    together: Boolean,
 ): Boolean {
+    val firstTitle = if (together) "Moods and genres" else "Moods"
     when (state) {
         UiState.Loading -> {
-            moodsTitle()
-            skeletonRows(wideWidthDp)
+            header("browse:moods-title", firstTitle, side, fonts, look)
+            itemsIndexed((0 until SKELETON_TILES).chunked(columns), key = { index, _ -> "browse:skeleton:$index" }) { index, row ->
+                TileRow(index, row.size, columns, side) { ShimmerBox(Modifier.weight(1f).height(110.dp), RoundedCornerShape(26.dp)) }
+            }
             return true
         }
         is UiState.Error -> {
-            moodsTitle()
-            item(key = "browse:error") {
-                MessageState(state.message, actionLabel = stringResource(Res.string.retry), onAction = onRetry)
-            }
+            header("browse:moods-title", firstTitle, side, fonts, look)
+            item(key = "browse:error") { MessageState(state.message, actionLabel = stringResource(Res.string.retry), onAction = onRetry) }
             return true
         }
         is UiState.Success -> {
             if (lists == null || lists.isEmpty) return false
-            if (lists.moods.isNotEmpty()) {
-                moodsTitle()
-                moodRows(lists.moods, onOpen, wideWidthDp)
-            }
-            if (lists.genres.isNotEmpty()) {
-                item(key = "browse:genres-title") { CosmoOverline(stringResource(Res.string.cosmo_search_genres)) }
-                item(key = "browse:genres") { GenreChips(lists.genres, onOpen) }
+            if (together) {
+                header("browse:moods-title", firstTitle, side, fonts, look)
+                tiles("browse:tile", lists.moods + lists.genres, onOpen, columns, side, fonts, look)
+            } else {
+                if (lists.moods.isNotEmpty()) {
+                    header("browse:moods-title", firstTitle, side, fonts, look)
+                    tiles("browse:mood", lists.moods, onOpen, columns, side, fonts, look)
+                }
+                if (lists.genres.isNotEmpty()) {
+                    header("browse:genres-title", "Genres", side, fonts, look)
+                    tiles("browse:genre", lists.genres, onOpen, columns, side, fonts, look)
+                }
             }
             return true
         }
     }
 }
 
-private fun LazyListScope.moodsTitle() {
-    item(key = "browse:moods-title") { CosmoOverline(stringResource(Res.string.cosmo_search_moods)) }
+private fun LazyListScope.header(key: String, title: String, side: Dp, fonts: OrbitFonts, look: OrbitLook) {
+    item(key = key) { OrbitSectionHeader(title, "", fonts, look, Modifier.padding(horizontal = side + 6.dp).padding(top = 30.dp, bottom = 14.dp)) }
 }
 
-/** One row of the mood grid: the moods from [first] on, [size] of them, [big] or not, in a row of [slots] places. */
-@Immutable
-internal class MoodGridRow(val first: Int, val size: Int, val big: Boolean, val slots: Int)
-
-/** The narrowest a tile is let get on a wide page, in dp. */
-internal const val WIDE_MOOD_TILE_MIN_DP = 220f
-
-/**
- * The rows of a grid of [count] moods. On the phone ([wideWidthDp] null) they are [BlockMetrics.moodRows]: the first two big,
- * two to a row, then three to a row. On a wide page (the desktop, a tablet) two tiles as wide as the window would be banners, so
- * every tile is the small one and the row takes as many as fit at [WIDE_MOOD_TILE_MIN_DP] each (three to six).
- */
-internal fun moodGridRows(count: Int, wideWidthDp: Float?): List<MoodGridRow> {
-    if (wideWidthDp == null) return BlockMetrics.moodRows(count).map { MoodGridRow(it.first, it.size, it.big, it.slots) }
-    val gap = BlockMetrics.MOOD_GAP_DP
-    val room = wideWidthDp - 2 * BlockMetrics.MOOD_MARGIN_DP + gap
-    val columns = (room / (WIDE_MOOD_TILE_MIN_DP + gap)).toInt().coerceIn(3, BlockMetrics.MOOD_COLUMNS)
-    return (0 until count step columns).map { first -> MoodGridRow(first, minOf(columns, count - first), big = false, slots = columns) }
-}
-
-/** The moods in [moodGridRows]. */
-private fun LazyListScope.moodRows(moods: List<MoodGenre>, onOpen: (MoodGenre) -> Unit, wideWidthDp: Float?) {
-    val rows = moodGridRows(moods.size, wideWidthDp)
-    itemsIndexed(rows, key = { _, row -> moods[row.first].let { "browse:mood-row:${it.browseId}|${it.params}" } }) { index, row ->
-        MoodGridRowContent(row = row, first = index == 0) { slot ->
-            val mood = moods[row.first + slot]
-            CosmoMoodTile(
-                label = mood.title,
-                coverUrl = mood.thumbnailUrl,
-                onClick = { onOpen(mood) },
-                modifier = Modifier.weight(1f),
-                big = row.big,
-            )
+/** [moods] as tiles, [columns] to a row; each row is one lazy item, keyed on its first tile. */
+private fun LazyListScope.tiles(prefix: String, moods: List<MoodGenre>, onOpen: (MoodGenre) -> Unit, columns: Int, side: Dp, fonts: OrbitFonts, look: OrbitLook) {
+    val rows = moods.chunked(columns.coerceAtLeast(1))
+    itemsIndexed(rows, key = { index, row -> "$prefix:${row.first().browseId}|${row.first().params}#$index" }) { index, row ->
+        TileRow(index, row.size, columns, side) { slot ->
+            val mood = row[slot]
+            OrbitMoodTile(mood.title, mood.thumbnailUrl, mood.stripeColor, fonts, look, onClick = { onOpen(mood) }, modifier = Modifier.weight(1f))
         }
     }
 }
 
-private fun LazyListScope.skeletonRows(wideWidthDp: Float?) {
-    val rows = moodGridRows(SKELETON_TILES, wideWidthDp)
-    itemsIndexed(rows, key = { index, _ -> "browse:skeleton:$index" }) { index, row ->
-        val shape = remember { RoundedCornerShape(CosmoRadii.rMd) }
-        MoodGridRowContent(row = row, first = index == 0) {
-            ShimmerBox(Modifier.weight(1f).height(BlockMetrics.moodTileHeightDp(row.big).dp), shape)
-        }
-    }
-}
-
-/**
- * One row of the grid: [MoodGridRow.slots] places 10 dp apart, 16 dp in from each side; a row that is not full keeps its last
- * places empty, so a lone tile has the width of a full row's. [tile] draws the place [slot] (0 until `size`).
- */
+/** One row of tiles: [columns] places [TILE_GAP_DP] apart; a short last row keeps its empty places, so its tiles are as wide as the rest. */
 @Composable
-private fun MoodGridRowContent(
-    row: MoodGridRow,
-    first: Boolean,
-    tile: @Composable androidx.compose.foundation.layout.RowScope.(slot: Int) -> Unit,
-) {
+private fun TileRow(index: Int, size: Int, columns: Int, side: Dp, tile: @Composable androidx.compose.foundation.layout.RowScope.(slot: Int) -> Unit) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, top = if (first) 0.dp else BlockMetrics.MOOD_GAP_DP.dp),
-        horizontalArrangement = Arrangement.spacedBy(BlockMetrics.MOOD_GAP_DP.dp),
+        Modifier.fillMaxWidth().padding(start = side, end = side, top = if (index == 0) 0.dp else TILE_GAP_DP.dp),
+        horizontalArrangement = Arrangement.spacedBy(TILE_GAP_DP.dp),
     ) {
-        for (slot in 0 until row.slots) {
-            if (slot < row.size) tile(slot) else Spacer(Modifier.weight(1f))
-        }
-    }
-}
-
-/**
- * The genres as chips that wrap (`.chips-row`: gap 8, 16 dp in from each side). A chip's touch target is 48 dp tall though the
- * chip is 36, so the rows stand 48 dp apart with no gap added: the visible space between two rows is 12 dp.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun GenreChips(genres: List<MoodGenre>, onOpen: (MoodGenre) -> Unit) {
-    FlowRow(
-        Modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        for (genre in genres) {
-            key("${genre.browseId}|${genre.params}") {
-                KitChip(label = genre.title, selected = false, onClick = { onOpen(genre) })
-            }
+        for (slot in 0 until columns) {
+            if (slot < size) tile(slot) else Spacer(Modifier.weight(1f))
         }
     }
 }

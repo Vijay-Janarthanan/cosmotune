@@ -1,7 +1,8 @@
 package com.cosmotune.ui
 
 import com.cosmotune.ui.search.SearchSectionKind
-import com.cosmotune.ui.search.moodGridRows
+import com.cosmotune.ui.search.searchTop
+import com.cosmotune.ui.search.tileColumns
 import com.cosmotune.ui.search.searchSections
 import com.cosmotune.music.data.model.BrowseItem
 import com.cosmotune.music.data.model.BrowseType
@@ -118,7 +119,8 @@ class SearchContractTest {
             "browse = com.cosmotune.ui.browse.CosmoBrowse(exploreState, onOpen = { selectDestination(DesktopDestination.EXPLORE); openMoodGenre(it) }, onRetry = { exploreReloads++ })," in desktop,
             "the desktop hands over the Explore state; selecting the destination clears the mood, so it comes first",
         )
-        assertTrue(desktop.indexOf("showField = false,") < desktop.indexOf("browse = com.cosmotune.ui.browse.CosmoBrowse("))
+        assertTrue(desktop.indexOf("showField = true,") in 0 until desktop.indexOf("browse = com.cosmotune.ui.browse.CosmoBrowse("), "the desktop draws the page's search pill")
+        assertTrue("showField = cosmoShell != null," in phone, "the phone draws the pill with Orbit on; the old look keeps the bar's field")
         assertTrue(desktop.indexOf("browse = com.cosmotune.ui.browse.CosmoBrowse(") < desktop.indexOf("destination == DesktopDestination.LIBRARY"), "the argument is inside the Search call")
     }
 
@@ -152,11 +154,12 @@ class SearchContractTest {
     @Test fun theFilterChipsAreTheOldFiltersAndComeUnderTheOldConditions() {
         val new = SourceContract.code(search("CosmoSearch"))
         assertTrue("if (results != null && !suggesting && !searchingLibrary && !searchingAddons) {" in new)
-        assertTrue("SearchFilter.entries.forEach { entry ->" in new)
+        assertTrue("SearchFilter.entries.sortedBy { FILTER_ORDER.indexOf(it)" in new, "every filter the search offers, in the board's order")
         // P4-19: the chip that is already chosen does not buzz again
-        assertTrue("CosmoChip(label = entry.label, selected = entry == filter, onClick = { onFilterChange(entry) }, haptic = entry != filter)" in new)
+        assertTrue("OrbitSelectChip(entry.label, selected = entry == filter, fonts = fonts, look = look, onClick = { onFilterChange(entry) }, haptic = entry != filter)" in new)
         assertTrue("visible = query.isEmpty()," in new, "the Library switcher is up only while nothing is typed, as the old")
         assertTrue("contentPadding.calculateBottomPadding()" in new, "the list takes the bottom of contentPadding")
+        assertTrue("if (showField) {" in new && "OrbitSearchPill(" in new, "the big search pill heads the page")
     }
 
     @Test fun theSuggestionsAreTheOldOnesAndTheTypedPartIsBold() {
@@ -170,17 +173,16 @@ class SearchContractTest {
         assertTrue("heightIn(min = 48.dp)" in new)
     }
 
-    @Test fun theIdlePageIsMoodsGenresThenRecentsAndFallsBackToTheOldSentence() {
+    @Test fun theIdlePageIsRecentsThenTheTilesAndFallsBackToTheOldSentence() {
         val new = SourceContract.code(search("CosmoSearch"))
-        val idle = new.substringAfter("private fun LazyListScope.idleRows(").substringBefore("private fun LazyListScope.recentRows(")
-        assertTrue(idle.indexOf("browseBlocks(") in 0 until idle.indexOf("recentRows("), "the browse blocks come before the recent searches")
+        val idle = new.substringAfter("private fun LazyListScope.idleRows(").substringBefore("private fun LazyListScope.recentHeader(")
+        assertTrue(idle.indexOf("recentChips(") in 0 until idle.indexOf("browseTiles("), "the recent searches come before the moods and genres (the board)")
         assertTrue("Res.string.search_empty" in idle, "nothing to show: the old sentence")
+        assertTrue("together = true" in idle, "one section, Moods and genres")
         val blocks = SourceContract.code(search("CosmoBrowseBlocks"))
-        assertTrue("BlockMetrics.moodRows(" in blocks)
-        assertTrue("CosmoMoodTile(" in blocks && "KitChip(label = genre.title, selected = false" in blocks)
-        assertTrue("Res.string.cosmo_search_moods" in blocks && "Res.string.cosmo_search_genres" in blocks)
+        assertTrue("OrbitMoodTile(" in blocks && "mood.stripeColor" in blocks, "the tiles are Orbit's, in the stripe colour")
         assertTrue("BrowseSplit.moods(" in blocks && "BrowseSplit.genres(" in blocks)
-        assertTrue("CosmoButtonKind.TEXT" in new && "onHistoryClear" in new && "Res.string.recent_search_remove" in new)
+        assertTrue("onHistoryClear" in new && "Res.string.recent_search_remove" in new, "the recents can be removed one by one and cleared")
     }
 
     // ---- the pure part: which sections a result page has ----
@@ -219,27 +221,27 @@ class SearchContractTest {
         for (kind in SearchSectionKind.entries) assertEquals(kind != SearchSectionKind.PLAIN, kind.title != null, "$kind")
     }
 
-    // ---- the mood grid ----
+    // ---- the tiles ----
 
-    @Test fun onThePhoneTheMoodGridIsTheBriefsTwoBigThenThreeToARow() {
-        val rows = moodGridRows(count = 8, wideWidthDp = null)
-        assertEquals(listOf(2, 3, 3), rows.map { it.size })
-        assertEquals(listOf(true, false, false), rows.map { it.big })
-        assertEquals(listOf(2, 3, 3), rows.map { it.slots })
-        assertEquals(listOf(0, 2, 5), rows.map { it.first })
-        assertTrue(moodGridRows(0, null).isEmpty())
+    @Test fun thePhoneHasTwoTilesToARowAndAWidePageAsManyAsFitUpToSix() {
+        assertEquals(2, tileColumns(360f, 16f))
+        assertEquals(2, tileColumns(599f, 16f))
+        assertEquals(3, tileColumns(700f, 28f), "never fewer than three once wide")
+        assertEquals(4, tileColumns(960f, 28f))
+        assertEquals(6, tileColumns(3000f, 28f))
     }
 
-    @Test fun aWidePageFillsItsRowsWithSmallTilesAndNeverMakesBanners() {
-        // 220 dp a tile, 10 dp between, 16 dp each side: 840 dp fits three, 1040 dp four, a very wide window stops at six
-        assertEquals(3, moodGridRows(12, 840f).first().slots)
-        assertEquals(4, moodGridRows(12, 1040f).first().slots)
-        assertEquals(6, moodGridRows(12, 3000f).first().slots)
-        val rows = moodGridRows(11, 1040f)
-        assertEquals(listOf(4, 4, 3), rows.map { it.size }, "the last row is short and keeps the width of a full one (slots stay 4)")
-        assertTrue(rows.all { it.slots == 4 && !it.big })
-        assertEquals(listOf(0, 4, 8), rows.map { it.first })
-        assertTrue(moodGridRows(0, 1040f).isEmpty())
+    // ---- the top result ----
+
+    @Test fun theTopResultIsThePromotedCardOfAllAndLeavesItsSection() {
+        val artist = browse("ar1", BrowseType.ARTIST)
+        val rows = listOf(artist, track("t1"), browse("ar2", BrowseType.ARTIST))
+        assertEquals(artist, searchTop(rows, SearchFilter.ALL), "an artist card at the head is the top result")
+        assertEquals(null, searchTop(rows, SearchFilter.ARTISTS), "a filtered page has none")
+        assertEquals(listOf("ar2"), searchSections(rows, SearchFilter.ALL, artist).first { it.kind == SearchSectionKind.ARTISTS }.rows.map { (it as SearchResult.Browse).item.browseId })
+        val top = SearchResult.TopTrack(Song(videoId = "top", title = "top", artist = "a", thumbnailUrl = null))
+        assertEquals(top, searchTop(listOf(top, track("t1")), SearchFilter.ALL))
+        assertEquals(null, searchTop(listOf(track("t1")), SearchFilter.ALL), "a page that leads with a plain song has no card")
     }
 
     // ---- the rules the new pages were written under ----
@@ -305,16 +307,16 @@ class SearchContractTest {
         }
     }
 
-    @Test fun theResultPageUsesTheNewBlocksTheBriefNames() {
+    @Test fun theResultPageUsesTheOrbitPiecesTheBoardNames() {
         val results = SourceContract.code(search("CosmoSearchResults"))
         for (needle in listOf(
-            "CosmoSongRow(", "CosmoListRow(", "CosmoOverline(", "CosmoCard(", "CosmoShelf(", "PlayMorphButton(", "cosmoTile(shape)",
-            "RoundedCornerShape(CosmoRadii.rMd)", "type.titleMedium", "type.titleLarge", "size = 56.dp", "CosmoIcons.Plus", "CosmoIconButtonStyle.TONAL",
-            "Res.string.playlist_action", "Res.string.cosmo_search_no_results_hint", "WIDE_SEARCH_DP", "weight(0.9f)", "weight(1.4f)",
-            "height(WIDE_TILE_DP.dp)", "width = 96.dp", "cardWidth = 150.dp", "spacedBy(20.dp)", "Res.string.search_library_no_results", "Res.string.search_library_empty",
-            "songListSkeleton(count = 3, keyPrefix = \"skeleton:search:more\"",
+            "OrbitBiteCard(", "OrbitPlayButton(", "coverFill(cover, title)", "OrbitLabel(\"Top result · \$kind\"", "OrbitArtistDisc(", "OrbitSongRow(",
+            "OrbitRecord(", "OrbitPortrait(", "CosmoIcons.Plus", "Res.string.playlist_action", "Res.string.cosmo_search_no_results_hint", "WIDE_SEARCH_DP",
+            "Res.string.search_library_no_results", "Res.string.search_library_empty", "songListSkeleton(count = 3, keyPrefix = \"skeleton:search:more\"",
         )) assertTrue(needle in results, "CosmoSearchResults has $needle")
         assertEquals(840f, com.cosmotune.design.NowPlayingLayout.WIDE_MIN_DP, "the wide page starts where the wide Now Playing does")
         assertTrue("const val WIDE_SEARCH_DP = 840f" in results)
+        val browse = SourceContract.code(SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitBrowse.kt"))
+        assertTrue("artistMotionPlays(animated, LocalReducedMotion.current, metered, overCellular)" in browse, "the motion portrait keeps the artist page's gating")
     }
 }

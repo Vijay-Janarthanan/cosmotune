@@ -20,7 +20,7 @@ class ShelfSnapContractTest {
 
     @Test fun theNewLookShelvesAndRailsSnap() {
         assertEquals(1, uses("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/blocks/CosmoCards.kt"), "CosmoShelf: Home, Library, the artist pages on both hosts, moods")
-        assertEquals(1, uses("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/search/CosmoSearchResults.kt"), "the wide search's artist circles")
+        assertEquals(2, uses("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/search/CosmoSearchResults.kt"), "the search's records and portraits")
     }
 
     @Test fun thePhonesArtistCarouselsSnap() {
