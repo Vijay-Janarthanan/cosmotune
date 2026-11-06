@@ -90,8 +90,15 @@ the failover message and errors. `switchStream`, `selectAudio`, `selectSubtitle(
 ## Built-in plugins
 
 `BuiltInPlugins.all`, in Plugins page order (default in brackets): iptv-org [on], Pluto TV [on], Samsung TV Plus [on],
-Plex free [on], Internet Archive [on], Free on YouTube [on], Public Domain Movies (Stremio) [off], OpenSubtitles (Stremio)
+Prasar Bharati (DD) [on], Plex free [on], Internet Archive [on], Free on YouTube [on], Public Domain Movies (Stremio) [off], OpenSubtitles (Stremio)
 [on], WatchHub (Stremio) [off]. Nothing else is built in; no torrent, debrid or site-scraper plugin exists or may be added.
+
+Prasar Bharati (DD), id `dd`, badge "DD": DD News, DD India, DD National, DD Sports, DD Kisan, DD Urdu, DD Bharati, DD Tamil
+and the regional DD channels (`c:dd:DDTamil`). Prasar Bharati publishes no open stream address (its WAVES app is
+DRM-protected), so each channel is its official YouTube channel and plays what that channel has live, through Video's
+player like Free on YouTube. A channel that only goes live for programmes carries the label "Not 24/7"; when nothing is
+live, it has no stream ("Not on your sources"). Its guide is the live video's title (on now, with an approximate end) and
+the channel's scheduled streams (next).
 
 ## Rooms ("Watch together")
 

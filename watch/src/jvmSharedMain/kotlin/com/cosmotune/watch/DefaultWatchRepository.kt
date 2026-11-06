@@ -40,6 +40,7 @@ import com.cosmotune.watch.plugins.servers.JellyfinPlugin
 import com.cosmotune.watch.plugins.servers.PlexPlugin
 import com.cosmotune.watch.plugins.stremio.StremioClient
 import com.cosmotune.watch.plugins.stremio.StremioPlugin
+import com.cosmotune.watch.plugins.youtube.PrasarBharatiPlugin
 import com.cosmotune.watch.store.StoredSource
 import com.cosmotune.watch.store.WatchState
 import com.cosmotune.watch.store.WatchStore
@@ -112,7 +113,7 @@ data class Endpoints(
 )
 
 /**
- * The real [WatchRepository]: the nine built-in plugins, the user's own sources, TMDB (or Cinemeta) for metadata, and the
+ * The real [WatchRepository]: the built-in plugins, the user's own sources, TMDB (or Cinemeta) for metadata, and the
  * sealed [WatchStore] for switches, sources, progress, My list and favourites.
  */
 class DefaultWatchRepository(
@@ -145,6 +146,7 @@ class DefaultWatchRepository(
             IptvOrgPlugin(http, e.iptvOrg, { guideUrls() }, guideCache),
             FreeServices.pluto(http, lists, device, com.cosmotune.watch.plugins.free.PlutoVod(http, BuiltInPlugins.PLUTO, device, e.plutoBoot, e.plutoVod, config.now)),
             FreeServices.samsung(http, lists),
+            PrasarBharatiPlugin(config.videoSource, config.now),
             FreeServices.plex(http, lists, device, e.plexVod, e.plexTv, e.plexEpg),
             InternetArchivePlugin(http, e.archive),
             YouTubeFreePlugin(config.videoSource),
