@@ -45,7 +45,7 @@ class WatchHttp(
     suspend fun getText(url: String, headers: Map<String, String> = emptyMap(), ttlMs: Long = DEFAULT_TTL, maxBytes: Long = MAX_TEXT): String {
         val key = cacheKey("GET", url, headers)
         memory[key]?.takeIf { ttlMs > 0 && now() - it.atMs < ttlMs }?.let { return it.body }
-        diskRead(key, ttlMs)?.let { memory[key] = Cached(it.first, it.second); return it.first }
+        diskRead(key, ttlMs)?.let { if (it.first.length <= MEMORY_MAX_CHARS) memory[key] = Cached(it.first, it.second); return it.first }
         val mine = CompletableDeferred<String>()
         val running = inFlight.putIfAbsent(key, mine)
         if (running != null) return running.await()
@@ -56,7 +56,7 @@ class WatchHttp(
                 // Offline or the server is down: an expired copy is better than nothing.
                 diskRead(key, Long.MAX_VALUE)?.first ?: memory[key]?.body ?: throw e
             }
-            if (ttlMs > 0) { memory[key] = Cached(body, now()); diskWrite(key, body) }
+            if (ttlMs > 0) { if (body.length <= MEMORY_MAX_CHARS) memory[key] = Cached(body, now()); diskWrite(key, body) }
             mine.complete(body)
             return body
         } catch (e: Throwable) {
@@ -175,6 +175,8 @@ class WatchHttp(
         const val HOUR = 3_600_000L
         const val DAY = 24 * HOUR
         const val MAX_TEXT = 32L shl 20
+        /** Bodies kept in memory as well as on disk are at most this long: a list of many MB stays on disk only. */
+        const val MEMORY_MAX_CHARS = 512 * 1024
         const val MAX_STREAM = 256L shl 20
         const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 

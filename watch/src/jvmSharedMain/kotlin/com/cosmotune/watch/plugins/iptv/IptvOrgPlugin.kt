@@ -1,9 +1,6 @@
 package com.cosmotune.watch.plugins.iptv
 
 import com.cosmotune.watch.http.WatchHttp
-import com.cosmotune.watch.http.bool
-import com.cosmotune.watch.http.str
-import com.cosmotune.watch.http.strings
 import com.cosmotune.watch.model.Channel
 import com.cosmotune.watch.model.EpgProgramme
 import com.cosmotune.watch.model.PlayTarget
@@ -15,11 +12,14 @@ import com.cosmotune.watch.plugin.Capability
 import com.cosmotune.watch.plugin.PluginKind
 import com.cosmotune.watch.plugin.WatchPlugin
 import com.cosmotune.watch.plugins.StreamGuess
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.decodeFromStream
 
 /**
  * iptv-org's public channel lists (Unlicense) through its JSON API: channels with country and categories, feeds with
@@ -46,43 +46,50 @@ class IptvOrgPlugin(
     private suspend fun load(): List<Channel> = lock.withLock {
         channelList?.let { return it }
         val ttl = WatchHttp.DAY
-        val (channels, streams, feeds, logos) = coroutineScope {
-            val c = async { http.getJson("$apiBase/channels.json", ttlMs = ttl) as JsonArray }
-            val s = async { http.getJson("$apiBase/streams.json", ttlMs = 6 * WatchHttp.HOUR) as JsonArray }
-            val f = async { runCatching { http.getJson("$apiBase/feeds.json", ttlMs = ttl) as JsonArray }.getOrNull() }
-            val l = async { runCatching { http.getJson("$apiBase/logos.json", ttlMs = ttl) as JsonArray }.getOrNull() }
-            listOf(c.await(), s.await(), f.await(), l.await())
-        }
+        // The four lists are about 26 MB of JSON. Each is read as it streams in, straight into the few fields used here,
+        // never held whole as text or as a tree of JSON objects (as trees they came to well over the 192 MB a TV gives an
+        // app, and the app closed when Watch opened). They are read one after another for the same reason.
+        val channels = list("channels", ttl, ApiChannel.serializer())
+        val streams = list("streams", 6 * WatchHttp.HOUR, ApiStream.serializer())
+        val feeds = runCatching { list("feeds", ttl, ApiFeed.serializer()) }.getOrNull()
+        val logos = runCatching { list("logos", ttl, ApiLogo.serializer()) }.getOrNull()
         val languages = HashMap<String, MutableSet<String>>()
-        feeds?.forEach { f -> f.str("channel")?.let { ch -> languages.getOrPut(ch) { mutableSetOf() } += f.strings("languages") } }
+        feeds?.forEach { f -> f.channel?.let { ch -> languages.getOrPut(ch) { mutableSetOf() } += f.languages } }
         val logoOf = HashMap<String, String>()
-        logos?.forEach { l -> val ch = l.str("channel"); val url = l.str("url"); if (ch != null && url != null && (l.str("feed") == null || ch !in logoOf)) logoOf[ch] = url }
-        val meta = channels!!.mapNotNull { c -> c.str("id")?.let { it to c } }.toMap()
+        logos?.forEach { l -> val ch = l.channel; val url = l.url; if (ch != null && url != null && (l.feed == null || ch !in logoOf)) logoOf[ch] = url }
+        val meta = channels.mapNotNull { c -> c.id?.let { it to c } }.toMap()
         val rows = HashMap<WatchKey, MutableList<Row>>()
         val named = HashMap<WatchKey, String>()
-        for (s in streams!!) {
-            val url = s.str("url")?.takeIf(StreamGuess::playableScheme) ?: continue
-            val ch = s.str("channel")
+        for (s in streams) {
+            val url = s.url?.takeIf(StreamGuess::playableScheme) ?: continue
+            val ch = s.channel
             val c = ch?.let { meta[it] }
-            if (c != null && (c.bool("is_nsfw") == true || c.str("closed") != null)) continue
+            if (c != null && (c.isNsfw == true || c.closed != null)) continue
             val key = if (ch != null) WatchKey.channel("iptv", ch) else WatchKey.channel("iptv", "x-" + Integer.toHexString(url.hashCode()))
-            if (ch == null) named[key] = s.str("title") ?: continue
-            val headers = buildMap { s.str("user_agent")?.let { put("User-Agent", it) }; s.str("referrer")?.let { put("Referer", it) } }
-            rows.getOrPut(key) { mutableListOf() } += Row(url, s.str("title"), s.str("quality"), headers, listOfNotNull(s.str("label")))
+            if (ch == null) named[key] = s.title ?: continue
+            val headers = buildMap { s.userAgent?.let { put("User-Agent", it) }; s.referrer?.let { put("Referer", it) } }
+            rows.getOrPut(key) { mutableListOf() } += Row(url, s.title, s.quality, headers, s.labels)
         }
         streamsByKey = rows
         val list = rows.map { (key, r) ->
             val ch = key.id
             val c = meta[ch]
-            Channel(key, id, c?.str("name") ?: named[key] ?: r.first().title ?: ch, logoUrl = logoOf[ch] ?: c?.str("logo"),
-                categories = c?.strings("categories")?.map { it.replaceFirstChar(Char::titlecase) }?.ifEmpty { null } ?: listOf("General"),
-                countries = listOfNotNull(c?.str("country")?.lowercase()),
-                languages = (languages[ch]?.toList() ?: c?.strings("languages").orEmpty()).map { it.lowercase() },
+            Channel(key, id, c?.name ?: named[key] ?: r.first().title ?: ch, logoUrl = logoOf[ch] ?: c?.logo,
+                categories = c?.categories?.map { it.replaceFirstChar(Char::titlecase) }?.ifEmpty { null } ?: listOf("General"),
+                countries = listOfNotNull(c?.country?.lowercase()),
+                languages = (languages[ch]?.toList() ?: c?.languages.orEmpty()).map { it.lowercase() },
                 epgId = ch.takeIf { c != null }, tvgId = ch.takeIf { c != null }, labels = r.flatMap { it.labels }.distinct())
         }.sortedBy { it.name.lowercase() }
         channelList = list
         list
     }
+
+    /** One of the API's lists ([name].json), decoded as it streams from the network or the disk cache into [item]s. */
+    @OptIn(ExperimentalSerializationApi::class)
+    private suspend fun <T> list(name: String, ttlMs: Long, item: KSerializer<T>): List<T> =
+        http.stream("$apiBase/$name.json", mapOf("Accept" to "application/json"), ttlMs = ttlMs) { input ->
+            http.json.decodeFromStream(ListSerializer(item), input)
+        }
 
     override suspend fun channels(): List<Channel> = load()
 
@@ -106,4 +113,17 @@ class IptvOrgPlugin(
     }
 
     override suspend fun health(): String? = runCatching { load(); null }.getOrElse { it.message ?: "iptv-org is unreachable" }
+
+    // The fields of the API's lists that are read; everything else in them is skipped while decoding.
+    @Serializable private class ApiChannel(
+        val id: String? = null, val name: String? = null, val country: String? = null, val categories: List<String> = emptyList(),
+        val languages: List<String> = emptyList(), @SerialName("is_nsfw") val isNsfw: Boolean? = null, val closed: String? = null,
+        val logo: String? = null,
+    )
+    @Serializable private class ApiStream(
+        val channel: String? = null, val title: String? = null, val url: String? = null, val quality: String? = null,
+        val labels: List<String> = emptyList(), @SerialName("user_agent") val userAgent: String? = null, val referrer: String? = null,
+    )
+    @Serializable private class ApiFeed(val channel: String? = null, val languages: List<String> = emptyList())
+    @Serializable private class ApiLogo(val channel: String? = null, val feed: String? = null, val url: String? = null)
 }

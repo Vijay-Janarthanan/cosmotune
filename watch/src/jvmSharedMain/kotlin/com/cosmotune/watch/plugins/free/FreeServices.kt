@@ -31,6 +31,7 @@ import com.cosmotune.watch.plugins.servers.PlexPlugin
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.json.decodeFromStream
 
 /**
  * The free live services' public channel lists (the ones Kodi's free-TV add-ons read): per region, each channel's name,
@@ -57,21 +58,25 @@ private class ServiceLive(
 
     private suspend fun load(): Loaded = lock.withLock {
         loaded?.takeIf { System.currentTimeMillis() - it.first < 3 * WatchHttp.HOUR }?.let { return it.second }
-        val root = http.getJson("${lists.base}/$service/.channels.json.gz", ttlMs = 3 * WatchHttp.HOUR)
+        // Read as it streams in, into the few fields used: a list of several MB held as a tree of JSON objects (while other
+        // plugins' lists were read beside it) took the TV past its memory.
+        val root = http.stream("${lists.base}/$service/.channels.json.gz", ttlMs = 3 * WatchHttp.HOUR) { input ->
+            @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+            http.json.decodeFromStream(ServiceLists.serializer(), input)
+        }
         val wanted = lists.regions().map { it.lowercase() }
-        val regions = root.child("regions").obj.orEmpty()
-        val entries = LinkedHashMap<String, Pair<JsonElement, String>>()
+        val entries = LinkedHashMap<String, Pair<ServiceChannel, String>>()
         for (r in wanted) {
-            regions[r].child("channels").obj?.forEach { (cid, c) -> entries.putIfAbsent(cid, c to r) }
-            root.child("channels").obj?.forEach { (cid, c) -> if (r in c.strings("regions")) entries.putIfAbsent(cid, c to r) }
+            root.regions[r]?.channels?.forEach { (cid, c) -> entries.putIfAbsent(cid, c to r) }
+            root.channels.forEach { (cid, c) -> if (r in c.regions) entries.putIfAbsent(cid, c to r) }
         }
         val channels = mutableListOf<Channel>()
         val programmes = HashMap<String, List<EpgProgramme>>()
         for ((cid, pair) in entries) {
             val (c, region) = pair
-            channels += Channel(WatchKey.channel(id, cid), id, c.str("name") ?: continue, c.int("chno"), c.str("logo"),
-                listOf(c.str("group") ?: "General"), listOf(region), epgId = cid)
-            val starts = c.list("programs").mapNotNull { p ->
+            channels += Channel(WatchKey.channel(id, cid), id, c.name ?: continue, c.chno?.content?.toDoubleOrNull()?.toInt(), c.logo,
+                listOf(c.group ?: "General"), listOf(region), epgId = cid)
+            val starts = c.programs.mapNotNull { p ->
                 val a = p as? JsonArray ?: return@mapNotNull null
                 val start = (a.getOrNull(0) as? JsonPrimitive)?.content?.toLongOrNull() ?: return@mapNotNull null
                 start * 1000 to ((a.getOrNull(1) as? JsonPrimitive)?.content ?: "Programme")
@@ -80,7 +85,7 @@ private class ServiceLive(
                 EpgProgramme(cid, start, starts.getOrNull(i + 1)?.first ?: (start + WatchHttp.HOUR), title)
             }
         }
-        Loaded(channels.sortedBy { it.number ?: Int.MAX_VALUE }, programmes, root.str("slug"), root.child("headers").str("user-agent"))
+        Loaded(channels.sortedBy { it.number ?: Int.MAX_VALUE }, programmes, root.slug, root.headers["user-agent"])
             .also { loaded = System.currentTimeMillis() to it }
     }
 
@@ -103,6 +108,28 @@ private class ServiceLive(
 
     override suspend fun health(): String? = runCatching { if (load().channels.isEmpty()) "Not offered in your region" else null }.getOrElse { it.message }
 }
+
+/** The parts of a service's channel list that are read; the rest (descriptions, artwork) is skipped while decoding. */
+@kotlinx.serialization.Serializable
+private class ServiceLists(
+    val slug: String? = null,
+    val headers: Map<String, String> = emptyMap(),
+    val regions: Map<String, ServiceRegion> = emptyMap(),
+    val channels: Map<String, ServiceChannel> = emptyMap(),
+)
+
+@kotlinx.serialization.Serializable
+private class ServiceRegion(val channels: Map<String, ServiceChannel> = emptyMap())
+
+@kotlinx.serialization.Serializable
+private class ServiceChannel(
+    val name: String? = null,
+    val chno: JsonPrimitive? = null,
+    val logo: String? = null,
+    val group: String? = null,
+    val regions: List<String> = emptyList(),
+    val programs: List<JsonArray> = emptyList(),
+)
 
 /** Live channels from [live] and on-demand films and series from the other parts, as one plugin with one switch. */
 class LiveAndVodPlugin(
