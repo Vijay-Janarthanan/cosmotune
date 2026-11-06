@@ -104,24 +104,23 @@ class NowPlayingPanelsContractTest {
         assertTrue(src.contains("val Portrait = LyricsStyle(LyricsMetrics.PORTRAIT_BASE_STEP, LyricsMetrics.PORTRAIT_CURRENT_SCALE, LyricsMetrics.PORTRAIT_PAST_SCALE)"))
     }
 
-    // ---- the queue ------------------------------------------------------------------------------------------------------
+    // ---- Up next ------------------------------------------------------------------------------------------------------
 
-    @Test fun theQueueIsADarkCardOfTwentyEightFilledWithTheScrimInBothThemes() {
-        val src = code(nowPlaying("CosmoQueuePanel.kt"))
-        assertTrue(src.contains("RoundedCornerShape(CosmoRadii.rLg)"), "the token's corners")
-        assertTrue(src.contains("const val QUEUE_SCRIM_ALPHA = 0.9f"))
-        val draw = src.indexOf("drawBehind {")
-        assertTrue(draw > 0 && src.indexOf(".live(CoverField.SCRIM)") > draw, "the scrim is read in the draw phase")
-        assertEquals(1, Regex("""\.live\(""").findAll(src).count())
-        assertFalse(src.contains("dark"), "no theme branch: the same card in both")
+    @Test fun upNextIsHomesRowsOnThePagesGroundInBothThemes() {
+        val src = code(nowPlaying("NowPlayingUpNext.kt"))
+        assertTrue(src.contains("OrbitSongRow("), "Home's song rows")
+        assertFalse(src.contains("Color.White"), "no white text: the rows take the page's ink, light or dark")
+        assertFalse(src.contains(".live("))
+        assertTrue(src.contains("splitQueue(queue, queueIndex, showHistory)"), "the old queue's groups")
+        assertTrue(src.contains("rememberQueueDrag(listState, tracks, onMove, onDragActiveChange)"), "and its drag")
     }
 
-    @Test fun theQueueCardHoldsTheInlineQueueWithEveryHandlerPassedOn() {
-        val src = code(nowPlaying("CosmoQueuePanel.kt"))
+    @Test fun theScreenHandsUpNextEveryHandler() {
+        val src = code(nowPlaying("CosmoNowPlaying.kt"))
         for (arg in listOf(
-            "queue = queue", "currentIndex = queueIndex", "autoplayEnabled = autoplayEnabled", "controlsLocked = controlsLocked",
+            "queue = queue", "queueIndex = queueIndex", "autoplayEnabled = autoplayEnabled", "controlsLocked = controlsLocked",
             "onJumpTo = onJumpTo", "onRemove = onRemoveFromQueue", "onMove = onMoveInQueue", "onClear = onClearQueue",
-            "onDragActiveChange = onQueueDragActiveChange",
+            "onToggleAutoplay = onToggleAutoplay", "onDragActiveChange = onQueueDragActiveChange",
         )) assertTrue(src.contains(arg), arg)
     }
 
@@ -132,7 +131,7 @@ class NowPlayingPanelsContractTest {
         val handlers = Regex("""PlayerBackHandler\(enabled = ([\w.]+)""").findAll(src).map { it.groupValues[1] }.toList()
         // a later call is the one back reaches first: the lyrics, the queue, then the sheets
         assertEquals(
-            listOf("panels.lyricsOpen", "panels.queueOpen", "flags.output", "flags.providers", "flags.members", "flags.details", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
+            listOf("panels.lyricsOpen", "panels.queueOpen", "panels.relatedOpen", "cinemaShown", "flags.output", "flags.providers", "flags.members", "flags.details", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
             handlers,
         )
         assertTrue(src.indexOf("PlayerBackHandler(enabled = panels.queueOpen && !wide)") in 0 until src.indexOf("NowPlayingSheets(\n                song"), "the panels register before the sheets")
@@ -146,44 +145,32 @@ class NowPlayingPanelsContractTest {
             assertTrue(call.contains("hazeState = hazeState"), "$sheet takes the player's haze state")
         }
         assertTrue(src.contains("currentSource = lyricsSource") && src.contains("states = lyricsProviderStates") && src.contains("onSelect = onSelectLyricsProvider"))
-        assertTrue(src.contains("KeepScreenOn(enabled = if (wide) !panels.queueOpen else panels.lyricsOpen)"))
+        assertTrue(src.contains("KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown)"))
         assertTrue(src.contains("flags.providers = true") || src.contains("sheets.providers = true"), "the lyrics status opens the provider sheet")
-        assertTrue(code(nowPlaying("NowPlayingMedia.kt")).contains("Box(modifier.hazeSource(hazeState))"), "portrait: the ground and the video are what the sheets blur")
-        assertTrue(code(nowPlaying("NowPlayingLandscape.kt")).contains(".hazeSource(hazeState)"), "landscape: the ground and the media are")
+        for (page in listOf("NowPlayingPhone.kt", "NowPlayingWide.kt")) {
+            assertTrue(code(nowPlaying(page)).contains("Box(modifier.fillMaxSize().hazeSource(hazeState))"), "$page: the page is what the sheets blur")
+        }
     }
 
-    // ---- the page -------------------------------------------------------------------------------------------------------
+    // ---- the phone ------------------------------------------------------------------------------------------------------
 
-    @Test fun theLyricsAndTheQueueFillTheRoomBetweenTheTopBarAndTheStack() {
+    @Test fun onThePhoneAChipOpensItsPanelInTheMediasPlaceAndTheCardStays() {
         val src = code(nowPlaying("CosmoNowPlaying.kt"))
-        assertTrue(src.contains("TOP_BAR_BELOW_STATUS_DP.dp.roundToPx()"))
-        assertTrue(src.contains("constraints.maxHeight - stackHeightPx.value"), "the stack's height is read in the layout phase")
+        assertTrue(src.contains("media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, 26.dp, 300.dp, true) }"))
+        assertTrue(src.contains("panelOpen -> PhoneMedia.ROOM"), "a panel takes all the room above the card")
         assertTrue(src.contains("LyricsStyle.Portrait"))
-        assertTrue(src.contains("alpha = coverShown.value"), "the large cover goes while a panel has the page")
+        assertTrue(src.contains("showLine = wantVideo || panelOpen"), "the seek line whenever the record's ring is not there")
+        val phone = code(nowPlaying("NowPlayingPhone.kt"))
+        assertTrue(phone.contains("closable = true"), "a tap on the open chip closes it")
+        assertTrue(phone.contains("val cardPlaced = measurables[1].measure("), "the card is laid out first; the media takes the rest")
     }
 
-    @Test fun theStackStepsTheTitleDownFoldsForTheQueueAndKeepsOnlyThreeReadsOfThePlayhead() {
-        val raw = nowPlaying("NowPlayingControls.kt")
-        val src = code(raw)
-        assertTrue(src.contains("if (lyricsOpen) type.titleLarge else type.playerTitle"), "the title steps down while the lyrics have the page")
-        assertTrue(src.contains("if (if (landscape) panel != null else queueOpen) 1f else 0f"), "a panel folds away what its card covers")
-        // Y-26 (Video mode): the fourth is the "Watch the music video" action, read only when the tool is pressed.
-        assertEquals(4, Regex("""position\.positionMs""").findAll(src).count())
-        assertTrue(src.contains("playSize = if (landscape) LandscapeMetrics.PLAY_BUTTON_DP.dp else 72.dp"), "DESIGN_SYSTEM.md 4.18: a 72 dp circle")
-        assertTrue(src.contains("maxLines = if (landscape) 1 else 2"), "one line in two panes")
-        assertTrue(src.contains("val arrival = remember(song.videoId)"), "the title's arrival lives in the stack: a title folded away and back does not arrive again")
-    }
-
-    @Test fun landscapeIsTwoPanesWithTheVideoCroppedAndTheCoverSizedToFit() {
-        val src = code(nowPlaying("NowPlayingLandscape.kt"))
-        assertTrue(src.contains("contentMode = CanvasContentMode.FIT_PORTRAIT"))
-        assertTrue(src.contains("presentationAlpha = { reveal.value.coerceIn(0f, 1f) }"), "the clip's own alpha, not a layer")
-        assertTrue(src.contains("LandscapeMetrics.coverSideDp(maxWidth.value, maxHeight.value)"))
-        assertTrue(src.contains("CosmoRadii.rMd"), "the token's corners")
-        assertTrue(src.contains("shell?.playerCoverBounds = it.boundsInRoot()"))
-        assertFalse(src.contains(".live("))
-        val screen = code(nowPlaying("CosmoNowPlaying.kt"))
-        assertTrue(screen.contains("NowPlayingLayout.LANDSCAPE -> landscapePage()"))
-        assertTrue(screen.contains("stack(Modifier.weight(1f), true,"), "the lyrics or the queue replace the title block; the transport stays")
+    @Test fun thePhonesVideoIsWholeAcrossTheTopFillTakesTheRoomAndAPinchSwitches() {
+        val src = code(nowPlaying("CosmoNowPlaying.kt"))
+        assertTrue(src.contains("keptView == VideoView.FILL -> PhoneMedia.ROOM"))
+        assertTrue(src.contains("else -> PhoneMedia.WHOLE"))
+        assertTrue(src.contains("onPinch = if (phone) setView else null"), "a pinch on the phone's video switches Whole and Fill")
+        val phone = code(nowPlaying("NowPlayingPhone.kt"))
+        assertTrue(phone.contains("PhoneMedia.WHOLE -> (width / (if (aspect > 0f) aspect else com.cosmotune.design.VideoView.DEFAULT_ASPECT)).toInt()"), "whole: as tall as the width gives its shape")
     }
 }

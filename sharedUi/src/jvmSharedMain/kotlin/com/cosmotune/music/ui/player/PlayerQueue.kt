@@ -536,7 +536,7 @@ fun edgeScrollSpeed(
 }
 
 @Composable
-private fun rememberQueueDrag(
+internal fun rememberQueueDrag(
     listState: LazyListState,
     tracks: QueueTracks,
     onMove: (Int, Int) -> Unit,
@@ -581,7 +581,7 @@ private fun rememberQueueDrag(
  * neighbour, and the row itself is drawn at [heldTop] by an overlay — never
  * from its own slot, which jumps a whole row the frame a swap lands.
  */
-private class QueueDrag(private val listState: LazyListState) {
+internal class QueueDrag(private val listState: LazyListState) {
     var tracks = QueueTracks.EMPTY
     var onMove: (Int, Int) -> Unit = { _, _ -> }
 

@@ -2,6 +2,7 @@ package com.cosmotune.settings
 
 import com.cosmotune.CosmoConfig
 import com.cosmotune.design.AppMode
+import com.cosmotune.design.VideoView
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -38,6 +39,17 @@ class CosmoLookSettingsTest {
         val again = CosmoLookSettings(store)
         assertEquals(false, again.newLook.value)
         assertEquals(false, again.coverColours.value)
+    }
+
+    @Test fun theVideoViewStartsWholeAndKeepsWholeOrFillOnly() {
+        val store = MapStore()
+        val settings = CosmoLookSettings(store)
+        assertEquals(VideoView.WHOLE, settings.videoView.value, "Whole is the default")
+        settings.setVideoView(VideoView.FILL)
+        assertEquals(VideoView.FILL, CosmoLookSettings(store).videoView.value, "Fill is kept")
+        settings.setVideoView(VideoView.CINEMA)
+        assertEquals(VideoView.WHOLE, CosmoLookSettings(store).videoView.value, "Cinema is entered per visit, never kept")
+        assertEquals(VideoView.WHOLE, CosmoLookSettings(BooleansOnlyStore()).videoView.value)
     }
 
     @Test fun intensityStartsBalancedAndRemembersTheChoice() {

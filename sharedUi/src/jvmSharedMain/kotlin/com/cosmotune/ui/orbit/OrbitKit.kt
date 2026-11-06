@@ -150,8 +150,10 @@ internal fun orbitFonts(): OrbitFonts {
 internal class OrbitLook(val dark: Boolean, val ink: Color, val dim: Color, val chip: Color, val row: Color, val accent: Color, val ground: Color)
 
 @Composable
-internal fun orbitLook(): OrbitLook {
-    val colors = LocalCosmoColors.current
+internal fun orbitLook(): OrbitLook = orbitLook(LocalCosmoColors.current)
+
+/** The look for [colors] (a screen that provides its own colours reads them before providing them). */
+internal fun orbitLook(colors: com.cosmotune.ui.theme.CosmoColors): OrbitLook {
     val dark = colors.dark
     val ink = Color(colors.palette.textPrimary)
     return OrbitLook(
@@ -234,7 +236,7 @@ internal fun Disc(url: String?, size: Dp, modifier: Modifier = Modifier) {
  * (a song that is not the playing one) a playing disc's moon circles slowly instead; a paused one shows the track alone.
  */
 @Composable
-internal fun OrbitRing(size: Dp, color: Color, progress: (() -> Float?)?, spinning: Boolean, modifier: Modifier = Modifier, stroke: Dp = 2.dp, moon: Dp = 5.dp) {
+internal fun OrbitRing(size: Dp, color: Color, progress: (() -> Float?)?, spinning: Boolean, modifier: Modifier = Modifier, stroke: Dp = 2.dp, moon: Dp = 5.dp, moonColor: Color = color) {
     val spin = if (progress == null && spinning) {
         rememberInfiniteTransition(label = "orbit").animateFloat(0f, 1f, infiniteRepeatable(tween(14_000, easing = LinearEasing)), label = "moon")
     } else null
@@ -249,7 +251,7 @@ internal fun OrbitRing(size: Dp, color: Color, progress: (() -> Float?)?, spinni
         val at = p ?: spin?.value
         if (at != null) {
             val a = Math.toRadians(360.0 * at - 90.0)
-            drawCircle(color, moon.toPx(), center + Offset((r * cos(a)).toFloat(), (r * sin(a)).toFloat()))
+            drawCircle(moonColor, moon.toPx(), center + Offset((r * cos(a)).toFloat(), (r * sin(a)).toFloat()))
         }
     }
 }
@@ -263,14 +265,32 @@ internal fun Color.compositeOver(under: Color): Color {
 internal fun clock(ms: Long): String { val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60) }
 
 @Composable
-internal fun OrbitChip(title: String, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit, leading: @Composable () -> Unit) {
+/**
+ * A chip: 40 dp, ink at 8 %; [selected] makes it solid ink with ground-coloured text (a tab that is showing). [leading] is
+ * optional (null: the title alone, padded evenly).
+ */
+internal fun OrbitChip(
+    title: String,
+    fonts: OrbitFonts,
+    look: OrbitLook,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    leading: (@Composable () -> Unit)?,
+) {
+    val text = if (selected) look.ground else look.ink
     Row(
-        Modifier.height(40.dp).clip(CircleShape).background(look.chip).clickable(onClick = onClick).padding(start = 8.dp, end = 16.dp),
+        modifier.height(40.dp).clip(CircleShape).background(if (selected) look.ink else look.chip).clickable(onClick = onClick)
+            .padding(start = if (leading != null) 8.dp else 16.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { leading() }
-        Spacer(Modifier.width(8.dp))
-        Text(title, style = fonts.chip, color = look.ink, maxLines = 1)
+        if (leading != null) {
+            Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides text) { leading() }
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(title, style = fonts.chip, color = text, maxLines = 1)
     }
 }
 

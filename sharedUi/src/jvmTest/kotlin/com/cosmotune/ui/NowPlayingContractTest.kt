@@ -93,67 +93,65 @@ class NowPlayingContractTest {
     // ---- the rules ------------------------------------------------------------------------------------------------------
 
     @Test fun livePaletteColoursAreReadOnlyWhileDrawing() {
-        for (name in listOf("CosmoNowPlaying.kt", "NowPlayingControls.kt", "NowPlayingColors.kt", "NowPlayingSwitch.kt")) {
+        for (name in listOf("CosmoNowPlaying.kt", "NowPlayingSwitch.kt", "NowPlayingCard.kt", "NowPlayingPhone.kt", "NowPlayingWide.kt", "NowPlayingTopRow.kt")) {
             assertFalse(code(nowPlaying(name)).contains(".live("), "$name reads no live colour in composition")
         }
-        val media = code(nowPlaying("NowPlayingMedia.kt"))
-        val cache = media.indexOf("drawWithCache {")
-        assertTrue(cache > 0)
-        for (hit in Regex("""\.live\(""").findAll(media)) assertTrue(hit.range.first > cache, "a live colour at ${hit.range.first} is inside the draw cache")
+        val video = code(nowPlaying("NowPlayingVideo.kt"))
+        for (hit in Regex("""\.live\(""").findAll(video)) {
+            assertTrue(video.lastIndexOf("drawBehind {", hit.range.first) > 0, "a live colour at ${hit.range.first} is read while drawing")
+        }
     }
 
     @Test fun theRevealIsAStateReadOnlyInLambdasAndTheClipsAlphaGoesThroughPresentationAlpha() {
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
         assertTrue(screen.contains("val reveal = animateFloatAsState("), "reveal is the State itself, not a delegated value")
-        for (line in screen.lines().filter { it.contains("reveal.value") }) {
-            assertTrue(line.contains("derivedStateOf"), "the screen reads reveal.value only inside a derived state: $line")
-        }
-        val media = code(nowPlaying("NowPlayingMedia.kt"))
-        assertTrue(media.contains("presentationAlpha = { reveal.value"), "the clip's alpha is its own parameter (a Compose layer over a TextureView is not reliable)")
-        assertFalse(media.substringAfter("CanvasArtworkPlayer(").substringBefore("if (scrimsShown").contains("graphicsLayer"), "no Compose layer around the clip")
+        assertFalse(screen.contains("reveal.value"), "the screen hands reveal on; it is read in layers and draws")
+        assertTrue(screen.contains("Modifier.fadedBy(reveal)"), "the record fades in its layer as the video comes in")
+        val video = code(nowPlaying("NowPlayingVideo.kt"))
+        assertFalse(video.substringAfter("Modifier.offset(box[0].dp").substringBefore("CanvasArtworkPlayer(").contains("graphicsLayer"), "no Compose layer around the clip")
     }
 
     @Test fun theVideoIsWantedOnlyOnceTheMorphHasSettledAndStartsHiddenUnderReducedMotion() {
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
         assertTrue(screen.contains("derivedStateOf { shell?.playerSettled != false }"), "the settled flag is read in a derived state")
-        assertTrue(screen.contains("val wantVideo = canvas != null && !videoHidden && settled"))
+        assertTrue(screen.contains("val wantVideo = musicVideo && !videoHidden && settled"))
+        assertTrue(screen.contains("val wantLoop = coverLoop && !videoHidden && settled"), "the cover loop is gated the same way")
         assertTrue(screen.contains("rememberSaveable { mutableStateOf(reduced) }"), "reduced motion: no autoplay")
+        assertTrue(screen.contains("if (wantVideo && !cinemaShown && canvas != null)"), "the page's clip is not mounted while Cinema shows its own")
     }
 
-    @Test fun theTitleFadesAndTheRowMeasuresInTheLayoutPhase() {
-        val controls = code(nowPlaying("NowPlayingControls.kt"))
-        // DESIGN_SYSTEM.md 3.6 bans font-axis motion: the title fades in, in `playerTitle`.
-        assertFalse(controls.contains("NowPlayingMetrics.titleStep("), "the title does not step through instances")
-        assertTrue(controls.contains("type.playerTitle"), "it is the token")
-        assertTrue(controls.contains("graphicsLayer { alpha = arrival.value.coerceIn(0f, 1f) }"), "and fades in in the layer phase")
-        assertTrue(controls.contains("NowPlayingMetrics.chipSlotDp(reveal.value)"), "the chip slot opens in the layout phase")
-        assertTrue(controls.contains("fraction = { scrub.shown(position.positionMs, durationMs) }"), "the scrubber reads the playhead only while drawing")
-    }
-
-    @Test fun onlyTheTimesReadThePlayhead() {
-        val controls = code(nowPlaying("NowPlayingControls.kt"))
-        val reads = Regex("""position\.positionMs""").findAll(controls).map { it.range.first }.toList()
-        // the scrubber's lambda, the restart-point derived state, the times, and (Y-26, Video mode) the "Watch the music video"
-        // action, which reads it only when the tool is pressed
-        assertEquals(4, reads.size, "four reads of the playhead")
-        assertTrue("musicVideoLink(links, canvas, song.title, song.artist) { position.positionMs }" in controls, "the fourth is the tool's action, never composition")
+    @Test fun onlyTheLabelTheLineAndTheRingReadThePlayhead() {
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
-        assertFalse(screen.contains("position.positionMs"), "the screen itself never reads the playhead")
+        val reads = Regex("""position\.positionMs""").findAll(screen).toList()
+        assertEquals(1, reads.size, "the screen reads the playhead once")
+        assertTrue("musicVideoLink(links, canvas, song.title, song.artist) { position.positionMs }" in screen, "and only in the music video action, never in composition")
+        val card = code(nowPlaying("NowPlayingCard.kt"))
+        assertTrue(card.contains("fun progress(): Float = scrub.shown(position.positionMs, durationMs)"), "the line and the ring read it while drawing")
+        assertEquals(2, Regex("""position\.positionMs""").findAll(card).count(), "the progress and the NOW ORBITING label")
     }
 
-    @Test fun theCoverTellsTheShellWhereItRests() {
-        val media = code(nowPlaying("NowPlayingMedia.kt"))
-        assertTrue(media.contains("shell?.playerCoverBounds = bounds"))
-        // the box that reports it is outside the layer that travels, so the rectangle is the resting one
-        assertTrue(media.indexOf("onGloballyPositioned") < media.indexOf("graphicsLayer {\n                        val progress"))
-    }
-
-    @Test fun eachLayoutHasItsOwnPageAndTheWideOneIsNotTheStubAnyMore() {
+    @Test fun theRecordOrTheVideoTellsTheShellWhereTheCoverRests() {
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
-        assertTrue(screen.contains("NowPlayingLayout.PORTRAIT -> page()"))
-        assertTrue(screen.contains("NowPlayingLayout.LANDSCAPE -> landscapePage()"))
+        assertTrue(screen.contains("val coverPlaced: (Rect) -> Unit = { shell?.playerCoverBounds = it }"))
+        assertTrue(screen.contains("onPlaced = coverPlaced") && screen.contains("onFramePlaced = coverPlaced"))
+    }
+
+    @Test fun aCoverLoopPlaysInsideTheRecordsDiscAndAMusicVideoIsShownAsItsViewSays() {
+        val screen = code(nowPlaying("CosmoNowPlaying.kt"))
+        assertTrue(screen.contains("val musicVideo = canvas != null && canvas.syncMap != null"))
+        assertTrue(screen.contains("val coverLoop = canvas != null && canvas.syncMap == null"))
+        assertTrue(screen.contains("NowPlayingCoverLoop(canvas, isPlaying, reveal"), "the loop is handed to the record")
+        val record = SourceContract.functionBody(code(nowPlaying("NowPlayingVideo.kt")), "NowPlayingRecord")
+        assertTrue(record.contains(".clip(CircleShape)") && record.indexOf("loop?.invoke(") > record.indexOf("Disc(coverUrl, disc)"), "inside the disc, cut round, over the still cover")
+        assertTrue(record.indexOf("OrbitRing(") > record.indexOf("loop?.invoke("), "the orbit still round it")
+    }
+
+    @Test fun eachLayoutHasItsOwnPage() {
+        val screen = code(nowPlaying("CosmoNowPlaying.kt"))
+        assertTrue(screen.contains("NowPlayingLayout.PORTRAIT -> phonePage()"))
+        assertTrue(screen.contains("NowPlayingLayout.LANDSCAPE -> phoneLandscapePage()"))
         assertTrue(screen.contains("NowPlayingLayout.WIDE -> widePage()"), "wide is its own page")
-        assertFalse(screen.contains("NowPlayingLayout.WIDE -> page()"), "no longer the portrait page")
         assertTrue(screen.contains("NowPlayingLayout.choose(windowWidth.value, windowHeight.value)"), "one chooser decides, from the window")
+        assertTrue(screen.contains("(cinema || (landscape && !leftTurnedCinema)) && wantVideo"), "a phone on its side shows its video in Cinema")
     }
 }

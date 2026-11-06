@@ -139,7 +139,13 @@ import org.jetbrains.compose.resources.stringResource
  * changes the font size from line to line; this is a deliberate departure from it).
  */
 @Immutable
-data class LyricsStyle(val baseStep: Int, val currentScale: Float, val pastScale: Float) {
+data class LyricsStyle(
+    val baseStep: Int,
+    val currentScale: Float,
+    val pastScale: Float,
+    /** The face the lines are set in; null keeps the type's own (the wide Now Playing sets them in the Orbit heading face). */
+    val fontFamily: androidx.compose.ui.text.font.FontFamily? = null,
+) {
     companion object {
         /** A phone held upright: title-l, the line being sung 1.2 times as big, the lines already sung 0.86. */
         val Portrait = LyricsStyle(LyricsMetrics.PORTRAIT_BASE_STEP, LyricsMetrics.PORTRAIT_CURRENT_SCALE, LyricsMetrics.PORTRAIT_PAST_SCALE)
@@ -316,7 +322,7 @@ private fun LyricsList(
     }
 
     // ---- the lines -------------------------------------------------------------------------------------------------------
-    val baseStyle = remember(type, style.baseStep) { type.title(style.baseStep) }
+    val baseStyle = remember(type, style.baseStep, style.fontFamily) { type.title(style.baseStep).let { t -> style.fontFamily?.let { t.copy(fontFamily = it) } ?: t } }
     val subStyle = remember(type) {
         TextStyle(
             fontFamily = type.textFamily,
