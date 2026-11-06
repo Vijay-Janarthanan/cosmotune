@@ -225,7 +225,7 @@ class BatchAVisualReviewTest {
         SettingsCategory.DOWNLOADS to ("Downloads and storage" to "Where, how much"),
         SettingsCategory.INTEGRATIONS to ("Rooms and services" to "Microphone, who can join"),
         SettingsCategory.PRIVACY to ("Privacy" to "History, scrobbling"),
-        SettingsCategory.ABOUT to ("About" to "Version 1.0.16, credits"),
+        SettingsCategory.ABOUT to ("About" to "Version 1.0.17, credits"),
     ).map { (category, text) -> SettingsCategoryEntry(category, text.first, text.second, category.icon) }
 
     @Composable

@@ -6726,7 +6726,7 @@ private fun DesktopSettingsScreen(
     }
     val settingsQuery = query
     val searching = settingsQuery.isNotBlank()
-    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.16" }
+    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.17" }
     val highlight = remember { com.cosmotune.ui.settings.SettingsHighlight() }
     // The pages the desktop has: a category with none of its settings here (backup is the phone's) is left out of the list.
     val pages = remember {
@@ -7286,7 +7286,7 @@ private fun DesktopSettingsScreen(
                         // question, and a setting that silently did not take is worse than one that
                         // says so.
                         Text(
-                            "Playing at $outputSummary",
+                            if (outputSummary == "Not started") "Not playing yet" else "Playing at $outputSummary",
                             color = DesktopSecondary,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -7858,7 +7858,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.16" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.17" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )
