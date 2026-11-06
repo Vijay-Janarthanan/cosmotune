@@ -111,7 +111,7 @@ class PodioInteractionTest {
             // The phone's Radio page: the stations as discs, the Globe chip, the dock's four labelled tabs.
             compose.onNodeWithTag("podio:radio").assertExists()
             compose.onNodeWithText("Globe").assertExists()
-            listOf("Radio", "Podcasts", "Following", "Downloads").forEach { compose.onNode(hasText(it) and isSelectable()).assertExists() }
+            listOf("Radio", "Podcasts", "Following", "Downloads").forEach { compose.onNode(podioTab(it)).assertExists() }
             snapshot("podio-phone-radio.png")
             compose.onNodeWithContentDescription("Search").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test Radio").fetchSemanticsNodes().isNotEmpty() }
@@ -139,10 +139,10 @@ class PodioInteractionTest {
             compose.onNodeWithText("Globe").performClick()
             compose.onNodeWithTag("podio:radio-full").assertExists()
             compose.onNodeWithTag("podio:sheet").assertExists()
-            compose.onNode(hasText("Following") and isSelectable()).assertDoesNotExist()
+            compose.onNode(podioTab("Following")).assertDoesNotExist()
             compose.onNodeWithContentDescription("Close full screen map").performClick()
             // Following: the newest episodes of the followed shows.
-            compose.onNode(hasText("Following") and isSelectable()).performClick()
+            compose.onNode(podioTab("Following")).performClick()
             compose.waitUntil(20_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }
             snapshot("podio-phone-episodes.png")
             compose.onNodeWithText("A real episode").performClick()
@@ -170,7 +170,7 @@ class PodioInteractionTest {
             assertEquals(2, calls.get())
             compose.onNodeWithContentDescription("Refresh").performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(5_000) { calls.get() == 3 }
-            compose.onNode(hasText("Radio") and isSelectable()).performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.onNode(podioTab("Radio")).performSemanticsAction(SemanticsActions.OnClick) { it() }
             // Let the delayed response finish: it must not replace the newly selected Radio page.
             Thread.sleep(500)
             compose.waitForIdle()
@@ -179,7 +179,7 @@ class PodioInteractionTest {
         }
     }
     /** The Podcasts tab of the dock or the rail (the page's own title says "Podcasts" too). */
-    private fun podcastsTab() = compose.onNode(hasText("Podcasts") and isSelectable() and hasAnyAncestor(hasTestTag("podio:root")) and !hasAnyAncestor(hasTestTag("podio:search")))
+    private fun podcastsTab() = compose.onNode(podioTab("Podcasts") and hasAnyAncestor(hasTestTag("podio:root")) and !hasAnyAncestor(hasTestTag("podio:search")))
 
     private fun snapshot(name: String) {
         val path = File("build/podio-previews/$name").apply { parentFile.mkdirs() }

@@ -52,7 +52,8 @@ class MangaVerificationInteractionTest {
                 }
             }
             compose.onNode(hasText("Browse") and isSelectable()).performClick()
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Verification source", substring = true).fetchSemanticsNodes().isNotEmpty() }
+            // The source's name shows first on Browse's discovery shelf; wait for its row (the one that opens the catalogue) as well.
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Verification source", substring = true) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
             compose.onNode(hasText("Verification source", substring = true) and hasClickAction()).performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("manga:verify:${config.id}").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("manga:verify:${config.id}").performClick()

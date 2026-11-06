@@ -22,7 +22,7 @@ class PodioToolsInteractionTest {
     @get:Rule val compose = createComposeRule()
     @get:Rule val temporary = TemporaryFolder()
 
-    private fun libraryTab() = compose.onNode(hasText("Following") and isSelectable())
+    private fun libraryTab() = compose.onNode(podioTab("Following"))
 
     @Test fun nativeFileCallbacksDownloadsAndOfflineEpisodesUseTheSameIdentity() {
         MockWebServer().use { server ->
@@ -65,7 +65,7 @@ class PodioToolsInteractionTest {
             compose.onNodeWithContentDescription("Episode downloaded").assertIsNotEnabled()
             // Back from the show, then Downloads lists the saved episodes.
             compose.onNodeWithContentDescription("Back").performClick()
-            compose.onNode(hasText("Downloads", substring = false) and isSelectable()).performClick()
+            compose.onNode(podioTab("Downloads")).performClick()
             compose.onNodeWithText("Downloaded episodes").assertIsDisplayed()
             compose.onNodeWithText("First story").performClick()
             compose.runOnIdle {

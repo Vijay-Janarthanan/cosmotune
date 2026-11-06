@@ -175,7 +175,7 @@ class PodioVisualReviewTest {
     }
 
     private fun tab(size: Size, section: String) {
-        if (size.phone) compose.onNode(hasText(section) and isSelectable()).performClick() else ModeNav.podioTab.value = section
+        if (size.phone) compose.onNode(podioTab(section)).performClick() else ModeNav.podioTab.value = section
         compose.waitForIdle()
     }
 
