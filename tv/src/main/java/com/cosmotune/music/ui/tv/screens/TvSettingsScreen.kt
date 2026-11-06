@@ -131,8 +131,9 @@ fun TvSettingsScreen(
             modifier = Modifier
                 .weight(0.58f)
                 .fillMaxHeight(),
-            contentPadding = PaddingValues(end = TvDimensions.SafeMarginHorizontal, bottom = 38.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            // Room round each row for the focus ring (its gap, its width and the lift), so a focused row never rings into the next.
+            contentPadding = PaddingValues(start = 10.dp, end = TvDimensions.SafeMarginHorizontal, top = 10.dp, bottom = 38.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item { TvListHeader("Account") }
             item {

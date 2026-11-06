@@ -5,6 +5,7 @@
 package com.cosmotune.music.ui.tv.dialogs
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -153,7 +154,9 @@ fun TvSongActionMenuDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 288.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            // Room inside the scrolling list for the focused row's ring, and between the rows.
+            contentPadding = PaddingValues(vertical = 10.dp, horizontal = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
                 TvListRow(
@@ -327,7 +330,9 @@ fun TvAddToPlaylistDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 272.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                // Room inside the scrolling list for the focused row's ring, and between the rows.
+                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 item {
                     TvListRow(
@@ -372,7 +377,7 @@ fun TvSleepTimerDialog(onDismiss: () -> Unit) {
     val active = deadline != null || afterTrack
 
     TvDialog(title = "Sleep Timer", message = "Stop playing music after", onDismissRequest = onDismiss) {
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             listOf(15, 30, 45, 60).forEachIndexed { index, minutes ->
                 TvListRow(
                     title = "$minutes Minutes",

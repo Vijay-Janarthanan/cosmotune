@@ -20,6 +20,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -185,7 +186,9 @@ fun TvEqualizerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 240.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                // Room inside the scrolling list for the focused row's ring, and between the rows.
+                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 items(presets) { (preset, label) ->
                     val selected = if (preset == EqualizerPreset.FLAT) {
