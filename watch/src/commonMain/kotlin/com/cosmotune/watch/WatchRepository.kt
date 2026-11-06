@@ -208,7 +208,7 @@ interface WatchRepository {
     // Live now: matches and live specials
     /**
      * The "Live now" strip's events: cricket and football matches in play, about to start (the next 24 hours) or just
-     * finished (the last 12 hours), and big live shows on DD or an official YouTube channel. Emits what is cached at once,
+     * finished (started in the last 16 hours), and big live shows on DD or an official YouTube channel. Emits what is cached at once,
      * then again after each poll for as long as it is collected (about every minute while something is live, every ten
      * minutes otherwise). Ranked: live first, then upcoming by start, then finished; within each, the viewer's country and
      * language first (`WatchPlace`). Each event's [LiveEvent.watchOptions] are free streams our plugins can play; a source

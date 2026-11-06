@@ -56,8 +56,25 @@ whole score on one line, null before the start), `statusText` ("India need 4 run
 `status` (`LIVE`, `UPCOMING`, `FINISHED`; `isLive`), `startMs`, `countries`, `languages`, `imageUrl`, `watchOptions`,
 `source` (the attribution line: "CricketData.org", "football-data.org", "TheSportsDB", "YouTube") and `updatedAtMs`.
 
-Order: live first, then upcoming by start time, then finished; inside each, the viewer's country and language first
-(`WatchPlace`, the same as Live TV).
+Window: everything live; upcoming in the next 24 hours; finished matches that started in the last 16 hours.
+
+Order: live first, then upcoming, then finished; inside each, the viewer's country and language first (`WatchPlace`, the
+same as Live TV: an India match or an IPL game for a viewer in India, a Tamil show for a Tamil viewer), then events with a
+watch option, then upcoming by start time and the rest newest first.
+
+Where the data comes from (all free, all read-only; a missing key leaves that service out, never fails):
+
+| Sport | With a key | Key (local.properties or environment) | Without a key |
+| :-- | :-- | :-- | :-- |
+| Cricket | CricketData.org `currentMatches`: internationals and the major leagues (IPL, WPL, Big Bash, PSL, SA20, The Hundred, ICC events) with runs, wickets, overs and the status line; kept 15 minutes (the free key allows 100 calls a day) | `CRICKETDATA_API_KEY` (free at cricketdata.org) | TheSportsDB: the IPL's next match and last result |
+| Football | football-data.org `/v4/matches`: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie, Primeira Liga, Championship, Brasileirão, Champions League, Euros, World Cup, with the running score; kept 2 minutes | `FOOTBALL_DATA_API_KEY` (free at football-data.org/client/register) | TheSportsDB: each top league's and the ISL's next match and last result, no running score |
+| Shows | DD National's and DD Sports' live videos, and DD News' and DD India's live specials beside their 24x7 streams, from the DD plugin (when it is on) | none | |
+
+TheSportsDB uses its public test key unless `THESPORTSDB_API_KEY` is set. The desktop passes the keys as
+`-Dcosmotune.cricketdata.key`, `-Dcosmotune.footballdata.key`, `-Dcosmotune.thesportsdb.key`; the phone and TV as
+`BuildConfig` fields of the same names as the keys. `DefaultWatchRepository.liveEventsNow()` answers once without polling.
+
+A match's watch option is found, not assumed: a live video on DD Sports or DD National whose title names both sides.
 
 `watchOptions` lists only free streams our own plugins play (DD Sports or another DD channel, an official broadcaster's
 YouTube live), best first: `WatchOption(label, target, channel, badge)`. Play one with `player.open(option.target, null)`;

@@ -40,6 +40,15 @@ import com.cosmotune.watch.plugins.servers.JellyfinPlugin
 import com.cosmotune.watch.plugins.servers.PlexPlugin
 import com.cosmotune.watch.plugins.stremio.StremioClient
 import com.cosmotune.watch.plugins.stremio.StremioPlugin
+import com.cosmotune.watch.live.CricketDataScores
+import com.cosmotune.watch.live.FootballDataScores
+import com.cosmotune.watch.live.LiveChannelNow
+import com.cosmotune.watch.live.LiveEventsHub
+import com.cosmotune.watch.live.LiveScoreKeys
+import com.cosmotune.watch.live.ScoreSource
+import com.cosmotune.watch.live.SportsDbScores
+import com.cosmotune.watch.model.LiveEvent
+import com.cosmotune.watch.plugins.youtube.OfficialLivePlugin
 import com.cosmotune.watch.plugins.youtube.PrasarBharatiPlugin
 import com.cosmotune.watch.plugins.youtube.YouTubeLivePlugin
 import com.cosmotune.watch.store.StoredSource
@@ -95,6 +104,8 @@ data class WatchConfig(
     val timeoutMs: Long = 15_000,
     /** The viewer's country and language (Music's discovery preferences): their channels and chips come first. */
     val place: () -> WatchPlace = WatchPlace::current,
+    /** The free score services' keys for the Live now strip (`CRICKETDATA_API_KEY`, `FOOTBALL_DATA_API_KEY`); blank leaves one out. */
+    val scoreKeys: LiveScoreKeys = LiveScoreKeys(),
 )
 
 data class Endpoints(
@@ -111,6 +122,9 @@ data class Endpoints(
     val publicDomain: String = BuiltInPlugins.PUBLIC_DOMAIN_URL,
     val openSubtitles: String = BuiltInPlugins.OPENSUBTITLES_URL,
     val watchHub: String = BuiltInPlugins.WATCHHUB_URL,
+    val cricketData: String = "https://api.cricapi.com/v1",
+    val footballData: String = "https://api.football-data.org/v4",
+    val theSportsDb: String = "https://www.thesportsdb.com/api/v1/json",
 )
 
 /**
@@ -475,6 +489,36 @@ class DefaultWatchRepository(
         }
     }
 
+    // ── Live events ──────────────────────────────────────────────────────
+
+    /** The score services the keys allow: CricketData.org and football-data.org with a key, TheSportsDB for a sport without one. */
+    private fun scoreSources(): List<ScoreSource> {
+        val keys = config.scoreKeys
+        val e = config.endpoints
+        val fallback = (if (keys.cricket == null) SportsDbScores.CRICKET else emptyList()) + (if (keys.football == null) SportsDbScores.FOOTBALL else emptyList())
+        return listOfNotNull(
+            keys.cricket?.let { CricketDataScores(http, it, e.cricketData) },
+            keys.football?.let { FootballDataScores(http, it, e.footballData) },
+            fallback.takeIf { it.isNotEmpty() }?.let { SportsDbScores(http, keys.sportsDb, it, e.theSportsDb) },
+        )
+    }
+
+    /** The DD and YouTube channels whose live videos can be a special or carry a match, of the plugins that are on. */
+    private suspend fun eventChannels(): List<LiveChannelNow> = coroutineScope {
+        activePlugins().filterIsInstance<OfficialLivePlugin>().flatMap { p -> p.channelList.filter { it.slug in EVENT_CHANNELS }.map { p to it } }.map { (p, def) ->
+            async {
+                runCatching { p.liveOf(def) }.getOrNull()?.let { LiveChannelNow(p.channelOf(def), p.badge, def.allDay, it.lives, it.upcoming) }
+            }
+        }.awaitAll().filterNotNull()
+    }
+
+    private val liveEventsHub = LiveEventsHub(::scoreSources, ::eventChannels, config.place, config.now, config.timeoutMs)
+
+    override fun liveEvents(): Flow<List<LiveEvent>> = liveEventsHub.flow()
+
+    /** The events once, without polling (tests and a pull-to-refresh). */
+    suspend fun liveEventsNow(): List<LiveEvent> = liveEventsHub.current()
+
     // ── Pages ────────────────────────────────────────────────────────────
 
     override suspend fun title(key: WatchKey): Title? {
@@ -717,6 +761,8 @@ class DefaultWatchRepository(
         /** The built-in plugins that play films for free, asked for the featured card. */
         private val FREE_FILM_PLUGINS = setOf(BuiltInPlugins.PLUTO, BuiltInPlugins.PLEX, BuiltInPlugins.YOUTUBE, BuiltInPlugins.ARCHIVE, BuiltInPlugins.PUBLIC_DOMAIN)
         private const val FEATURED_PROBE_MS = 6_000L
+        /** The DD channels whose live videos are events or carry matches: DD National's and DD Sports' lives, DD News' and DD India's specials. */
+        private val EVENT_CHANNELS = setOf("DDNational", PrasarBharatiPlugin.DD_SPORTS, "DDNews", "DDIndia")
         fun hash(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.trim().lowercase().toByteArray()).take(5).joinToString("") { "%02x".format(it) }
     }
 }

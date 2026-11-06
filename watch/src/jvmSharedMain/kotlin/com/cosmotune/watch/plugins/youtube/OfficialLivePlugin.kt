@@ -42,8 +42,11 @@ data class OfficialLiveChannel(
     val number: Int? = null,
 )
 
-/** What a channel has on now and next on YouTube: its live video, and the streams it has scheduled. */
-data class LiveOnYouTube(val live: VideoItem?, val upcoming: List<VideoItem>, val atMs: Long)
+/**
+ * What a channel has on now and next on YouTube: its live video (the first its Live tab lists, its main stream), every video
+ * it has live ([lives]: a news channel often runs a special beside its 24x7 stream), and the streams it has scheduled.
+ */
+data class LiveOnYouTube(val live: VideoItem?, val upcoming: List<VideoItem>, val atMs: Long, val lives: List<VideoItem> = listOfNotNull(live))
 
 /**
  * Live TV from broadcasters' official YouTube channels, through Video mode's own source (InnerTube with NewPipe behind it):
@@ -103,7 +106,8 @@ open class OfficialLivePlugin(
         val items = src.channelTab(def.youTubeId, ChannelTab.LIVE).items.mapNotNull { (it as? ListItem.Video)?.item }
             // Only the broadcaster's own videos; a tab never holds others, but a collaboration or a mistake must not play under its name.
             .filter { it.channelId == null || it.channelId == def.youTubeId }
-        val result = LiveOnYouTube(items.firstOrNull { it.isLive }, items.filter { it.isUpcoming }.sortedBy { it.uploadedAtMs ?: Long.MAX_VALUE }, t)
+        val lives = items.filter { it.isLive }
+        val result = LiveOnYouTube(lives.firstOrNull(), items.filter { it.isUpcoming }.sortedBy { it.uploadedAtMs ?: Long.MAX_VALUE }, t, lives)
         lookups[def.youTubeId] = result
         return result
     }

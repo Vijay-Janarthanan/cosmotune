@@ -15,7 +15,8 @@ import java.io.File
 /**
  * Watch mode on the phone: one repository and one store per process. The store is `files/watch/watch.json`, sealed with
  * the Android Keystore; the HTTP cache is under the cache folder. The TMDB key is `BuildConfig.TMDB_API_KEY` (from
- * `TMDB_API_KEY` in local.properties or the environment); blank falls back to Cinemeta.
+ * `TMDB_API_KEY` in local.properties or the environment); blank falls back to Cinemeta. The live scores' keys come the same
+ * way (`CRICKETDATA_API_KEY`, `FOOTBALL_DATA_API_KEY`, optional `THESPORTSDB_API_KEY`).
  */
 object AndroidWatch {
     @Volatile private var storeRef: WatchStore? = null
@@ -35,6 +36,7 @@ object AndroidWatch {
                 cacheDir = File(app.cacheDir, "watch"),
                 tmdbKey = BuildConfig.TMDB_API_KEY,
                 videoSource = { androidVideoGraph(app).source },
+                scoreKeys = com.cosmotune.watch.live.LiveScoreKeys(BuildConfig.CRICKETDATA_API_KEY, BuildConfig.FOOTBALL_DATA_API_KEY, BuildConfig.THESPORTSDB_API_KEY),
             ),
             store(app),
         )
