@@ -310,8 +310,10 @@ internal fun DesktopSpotifyImportDialog(
 
     fun start() {
         if (working) return
-        val id = SpotifyImporter.extractPlaylistId(link) ?: run {
-            status = DesktopStrings["spotify_import_invalid", "That isn't a Spotify playlist link."]
+        val id = SpotifyImporter.extractPlaylistId(link)
+        // Apple Music and Deezer links are read the same way (PlaylistLinkImport) and matched exactly.
+        if (id == null && com.cosmotune.music.data.spotify.PlaylistLinkImport.serviceOf(link) == null) {
+            status = DesktopStrings["spotify_import_invalid", "That isn't a Spotify playlist link."] + " Apple Music and Deezer links work too."
             failed = true
             return
         }
@@ -320,10 +322,17 @@ internal fun DesktopSpotifyImportDialog(
         status = DesktopStrings["spotify_import_fetching", "Reading the Spotify playlist…"]
         scope.launch {
             try {
-                val (name, tracks) = SpotifyImporter.fetchPlaylistTracks(id)
-                val (songs, missed) = SpotifyImporter.resolveToSongs(tracks) { done, total ->
+                val progress: (Int, Int) -> Unit = { done, total ->
                     status = DesktopStrings.format("spotify_import_matching", done, total, fallback = "Matching songs %1\$d of %2\$d")
                 }
+                val (name, matched) = if (id != null) {
+                    val (name, tracks) = SpotifyImporter.fetchPlaylistTracks(id)
+                    name to SpotifyImporter.resolveToSongs(tracks, progress)
+                } else {
+                    val playlist = com.cosmotune.music.data.spotify.PlaylistLinkImport.read(link)
+                    playlist.name to com.cosmotune.music.data.spotify.PlaylistLinkImport.match(playlist.tracks, progress)
+                }
+                val (songs, missed) = matched
                 if (songs.isEmpty()) {
                     error(DesktopStrings["spotify_import_none", "None of those songs were found on YouTube Music."])
                 }

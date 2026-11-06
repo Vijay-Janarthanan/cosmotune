@@ -108,6 +108,8 @@ its Mochy source in its comment, and the list below is kept up to date with `UPS
   request and answer of its `providers/shazamkit/.../Shazam.kt`. The signature format is Shazam's, as worked out by the
   SongRec project (https://github.com/marin-m/SongRec, GPL-3.0). It is sent to Shazam's unofficial endpoint, only when the
   listener has turned the feature on; Cosmotune is not affiliated with Shazam or Apple.
+- Apple Music and Deezer playlist links: the page and API readers of Mochy's `importer/LinkImporter.kt`
+  (`shared/.../music/data/spotify/PlaylistLinkImport.kt`); the matching is Cosmotune's own `TrackMatcher`.
 
 ## Video mode
 
