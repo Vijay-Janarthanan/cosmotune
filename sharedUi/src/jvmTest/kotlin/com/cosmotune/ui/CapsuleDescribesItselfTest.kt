@@ -3,6 +3,7 @@ package com.cosmotune.ui
 import com.cosmotune.design.CapsuleGeometry
 import com.cosmotune.design.PlayerBarMetrics
 import com.cosmotune.design.ShellMetrics
+import com.cosmotune.ui.orbit.OrbitBarMetrics
 import com.cosmotune.ui.shell.COVER_SIZE
 import com.cosmotune.ui.theme.CapsuleLabel
 import com.cosmotune.ui.theme.CosmoRadii
@@ -37,10 +38,12 @@ class CapsuleDescribesItselfTest {
     }
 
     @Test fun theDesktopBarsGeometryIsTheBarsTokens() {
-        val g = PlayerBarMetrics.capsuleGeometry(PlayerBarMetrics.planFor(PlayerBarMetrics.Tier.FULL), 908f)
-        assertEquals(CosmoRadii.coverDesktopBar.value, g.coverRadiusDp, 0f, "the cover's corner is the bar cover's")
-        assertEquals(CosmoRadii.coverDesktopBar.value, PlayerBarMetrics.COVER_RADIUS_DP, 0f)
-        assertEquals(PlayerBarMetrics.COVER_DP, g.coverSizeDp, 0f)
+        val g = OrbitBarMetrics.geometry(OrbitBarMetrics.planFor(PlayerBarMetrics.Tier.FULL), 908f)
+        assertEquals(OrbitBarMetrics.DISC_DP / 2f, g.coverRadiusDp, 0f, "the cover is a disc")
+        assertEquals(OrbitBarMetrics.DISC_DP, g.coverSizeDp, 0f)
+        assertEquals(OrbitBarMetrics.RADIUS_DP, g.cornerRadiusDp, 0f)
+        assertEquals((OrbitBarMetrics.HEIGHT_DP - OrbitBarMetrics.DISC_DP) / 2f, g.coverInsetTopDp, 0f, "centred in the bar's height")
+        assertEquals(OrbitBarMetrics.PAD_START_DP + OrbitBarMetrics.RING_DP + OrbitBarMetrics.GAP_DP, g.textStartDp, 0f, "the words start after the orbit")
     }
 
     @Test fun aLabelThatSaysNothingIsThePhonesAsItAlwaysWas() {
@@ -61,9 +64,9 @@ class CapsuleDescribesItselfTest {
 
     @Test fun theDesktopBarSaysItsOwnGeometryAtItsOwnWidthAndPlan() {
         val src = code(shell("CosmoPlayerBar.kt"))
-        assertTrue(src.contains("PlayerBarMetrics.capsuleGeometry(plan, maxWidth.value)"))
-        assertTrue(src.contains("remember(song.title, song.artist, coverUrl, plan, maxWidth, type)"), "a new width or plan is a new label")
-        assertTrue(src.contains("type.forText(barTitleStyle(type.textFamily), song.title)"), "the words travel in the styles they sit in")
+        assertTrue(src.contains("OrbitBarMetrics.geometry(plan, maxWidth.value)"))
+        assertTrue(src.contains("remember(song.title, song.artist, coverUrl, plan, maxWidth, titleStyle, artistStyle)"), "a new width or plan is a new label")
+        assertTrue(src.contains("type.forText(barTitleStyle(fonts), song.title)"), "the words travel in the styles they sit in")
     }
 
     @Test fun theOverlayTakesEverythingAboutTheCapsuleFromTheCapsule() {

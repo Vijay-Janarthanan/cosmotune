@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import com.cosmotune.design.SliderMetrics
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.theme.LocalCosmoColors
@@ -36,7 +37,8 @@ import com.cosmotune.ui.theme.LocalCosmoColors
  * [value] is 0 to 1. The slider is 44 dp tall and has a 48 dp touch area; a tap jumps, a drag follows, the arrow keys, Page
  * Up and Down, Home and End step it (desktop), and screen readers get its [contentDescription], its range and a progress
  * action. [onValueChangeFinished] is called when the pointer lets go (or after every key), so a caller can save then.
- * Colours are read while drawing, so a palette fade redraws the slider without recomposing it.
+ * Colours are read while drawing, so a palette fade redraws the slider without recomposing it. A [compact] slider given an [ink]
+ * (one on a colour card) is drawn in that ink alone.
  */
 @Composable
 fun CosmoSlider(
@@ -46,6 +48,7 @@ fun CosmoSlider(
     onValueChangeFinished: () -> Unit = {},
     contentDescription: String? = null,
     compact: Boolean = false,
+    ink: Color? = null,
 ) {
     val colors = LocalCosmoColors.current
     val interaction = remember { MutableInteractionSource() }
@@ -72,10 +75,11 @@ fun CosmoSlider(
                 val centre = radius + shown * (size.width - 2 * radius).coerceAtLeast(0f)
                 val mid = size.height / 2f
                 val track = 3.dp.toPx()
-                val ink = colors.live(CoverField.TEXT_PRIMARY)
-                drawRoundRect(ink.copy(alpha = SliderMetrics.trackAlpha(colors.dark)), Offset(radius, mid - track / 2), Size((size.width - 2 * radius).coerceAtLeast(0f), track), CornerRadius(track / 2))
-                drawRoundRect(colors.live(CoverField.ACCENT), Offset(radius, mid - track / 2), Size((centre - radius).coerceAtLeast(0f), track), CornerRadius(track / 2))
-                drawCircle(ink, radius, Offset(centre, mid))
+                // A slider on a colour card ([ink] given) is drawn in the card's ink alone: track, played part and handle.
+                val line = ink ?: colors.live(CoverField.TEXT_PRIMARY)
+                drawRoundRect(line.copy(alpha = if (ink != null) 0.24f else SliderMetrics.trackAlpha(colors.dark)), Offset(radius, mid - track / 2), Size((size.width - 2 * radius).coerceAtLeast(0f), track), CornerRadius(track / 2))
+                drawRoundRect(ink ?: colors.live(CoverField.ACCENT), Offset(radius, mid - track / 2), Size((centre - radius).coerceAtLeast(0f), track), CornerRadius(track / 2))
+                drawCircle(line, radius, Offset(centre, mid))
                 return@Canvas
             }
             val width = size.width

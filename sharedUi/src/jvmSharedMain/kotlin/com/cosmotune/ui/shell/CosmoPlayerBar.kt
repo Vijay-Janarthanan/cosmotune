@@ -1,10 +1,7 @@
 package com.cosmotune.ui.shell
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -16,8 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -27,11 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -40,32 +36,12 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.cosmotune.design.NowPlayingMetrics
 import com.cosmotune.design.PlayerBarMetrics
-import com.cosmotune.design.SliderMetrics
-import com.cosmotune.theme.CoverField
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
-import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.components.CosmoSlider
-import com.cosmotune.ui.components.CoverImage
-import com.cosmotune.ui.components.PlayMorphButton
-import com.cosmotune.ui.components.SuperellipseShape
-import com.cosmotune.ui.components.CosmoSeekBar
-import com.cosmotune.ui.components.cosmoGlass
-import com.cosmotune.ui.theme.CapsuleLabel
-import com.cosmotune.ui.theme.CosmoRadii
-import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoShell
-import com.cosmotune.ui.theme.LocalCosmoType
-import com.cosmotune.ui.theme.tabular
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.sharedui.resources.Res
@@ -86,35 +62,50 @@ import com.cosmotune.music.ui.player.PlayerPlatform
 import com.cosmotune.music.ui.player.PlayerScrub
 import com.cosmotune.music.ui.player.RepeatModes
 import com.cosmotune.music.ui.player.rememberPlayerScrub
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.components.CosmoSlider
+import com.cosmotune.ui.orbit.Disc
+import com.cosmotune.ui.orbit.OrbitBarMetrics
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitPlayButton
+import com.cosmotune.ui.orbit.OrbitProgressLine
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.clock
+import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.theme.CapsuleLabel
+import com.cosmotune.ui.theme.LocalCosmoShell
+import com.cosmotune.ui.theme.LocalCosmoType
 import dev.chrisbanes.haze.HazeState
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * The desktop's player capsule (layer C of the B+C system; `V2.deskPlayer`, `screens-v2.css:225-233`): an 80 dp glass
- * capsule with superellipse corners of 28 dp, 16 dp of padding and 12 dp between its parts. From the left: the song's
- * cover (48 dp) and title over artist (14.5 sp weight 700, 12.5 sp, at most 220 dp wide; a click on either expands the
- * player), the like button, the middle column (the transport over the two times and a [com.cosmotune.ui.components.CosmoSeekBar], at most 560 dp wide)
- * and, on the right, lyrics, queue, output and the volume bar ([CosmoSlider] on the host's volume).
+ * The desktop's player bar in Orbit (board v2, section 6): Home's colour card made slim, the full width of the content beside the
+ * navigation, filled with the playing cover's deep colour ([coverFill], light ink, in both themes), corners of 30 dp and play in a
+ * round bite cut out of its end ([OrbitBarMetrics.shape]). From the start: the cover as a [Disc] in an [OrbitRing] (the played part
+ * and a moon at the current second) and the title over the artist (a click on either expands the player), the like button, then
+ * the middle column: shuffle, previous, next and repeat, the mono "m:ss / m:ss", and lyrics, queue, output and the volume at its
+ * end, over the [OrbitProgressLine] (tap or drag to seek). Play / pause is the [OrbitPlayButton] standing in the bite; while the
+ * song loads a moon circles it there.
  *
- * It sits in the window, not in the page: [DesktopPlayerBarHost][com.cosmotune.desktop] puts it 14 dp above the bottom,
- * clear of the sidebar and of the lyrics or queue column. Like the phone's mini capsule it reports where it is
- * ([com.cosmotune.ui.theme.CosmoShellState.capsuleBounds]) and what it shows ([CapsuleLabel]) for the player that grows out of
- * it, and draws nothing while that player stands in its place.
+ * It sits in the window, not in the page: [DesktopPlayerBarHost][com.cosmotune.desktop] puts it 14 dp above the bottom, clear of the
+ * sidebar and of the lyrics or queue column. It reports where it is ([com.cosmotune.ui.theme.CosmoShellState.capsuleBounds]) and
+ * what it shows ([CapsuleLabel], with [OrbitBarMetrics.geometry]) for the player that grows out of it, and draws nothing while that
+ * player stands in its place.
  *
- * The board draws one arrangement for a window 1440 dp wide; a narrower capsule (a window with the lyrics or the queue
- * column open) follows [PlayerBarMetrics.plan]: first the volume bar goes, then shuffle and repeat, then the scrubber (a
- * 3 dp progress line along the foot takes its place) and the like and output buttons. Lyrics and queue stay, since they put the
- * column away again. Every control is floating (C): glass and ink, with the cover's tint when it is on.
+ * A narrower bar follows [OrbitBarMetrics.plan]: first the volume goes, then shuffle and repeat, then the middle column (the orbit
+ * round the disc is the progress then) with the like and output buttons. Lyrics and queue stay, since they put the column away.
+ * A live radio station has no previous, next, shuffle, repeat, length or lyrics: the bar keeps play, the name, the heart and LIVE.
  *
- * [controlsLocked] is a party whose host has taken the controls: previous, next and the scrubber then answer with
- * [onBlockedControl] and are drawn a little dimmer. [volumeLabel] names the volume bar for a screen reader (the desktop has
- * the word in its own catalogue; a host that wraps the player in [LocalPlayerVolumeLabel] names the bar of the one inside the
- * player too). Nothing here reads the playhead in composition except the elapsed time, alone: the wave and the progress line
- * read it while drawing.
+ * [controlsLocked] is a party whose host has taken the controls: previous, next and the seek line then answer with
+ * [onBlockedControl] and are drawn a little dimmer. [volumeLabel] names the volume bar for a screen reader. The playhead is read in
+ * composition only by the clock, alone; the orbit and the seek line read it while drawing. [hazeState] is kept for the callers:
+ * an Orbit card is flat, so nothing is blurred behind it.
  *
- * [embedded] is the same bar drawn inside the open player (the wide Now Playing, `NowPlayingWide`) rather than as the capsule the
- * player grows out of: it neither reports its bounds nor publishes what it shows (the capsule's are the ones the player grows from
- * and shrinks back to), is not hidden while the player stands open, and has no click that expands the player (it is expanded).
+ * [embedded] is the same bar drawn inside the open player rather than as the capsule the player grows out of: it neither reports
+ * its bounds nor publishes what it shows, is not hidden while the player stands open, and has no click that expands the player.
  */
 @Composable
 fun CosmoPlayerBar(
@@ -148,123 +139,135 @@ fun CosmoPlayerBar(
 ) {
     val shell = LocalCosmoShell.current
     val capsuleShell = if (embedded) null else shell
-    val shape = remember { SuperellipseShape(PlayerBarMetrics.RADIUS_DP.dp) }
     val coverUrl = PlayerPlatform.host.rememberRemoteArtworkUrl(song)
     val scrub = rememberPlayerScrub(song.videoId, position, durationMs)
     val type = LocalCosmoType.current
-    // A live radio station has no previous, next, shuffle, repeat, length or lyrics: the bar keeps play, the name, the heart and LIVE.
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val (fill, ink) = coverFill(coverUrl, song.videoId)
     val live = song.videoId.startsWith("podio:radio:")
+    val bar = BarInk(fill, ink)
 
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .height(PlayerBarMetrics.HEIGHT_DP.dp)
+            .height(OrbitBarMetrics.HEIGHT_DP.dp)
             // Invisible while the player stands in its place: decided in the draw phase, where the overlay decides its card.
             .drawWithContent { if (capsuleShell?.capsuleHidden != true) drawContent() }
-            .onGloballyPositioned { capsuleShell?.capsuleBounds = it.boundsInRoot() }
-            .cosmoGlass(hazeState, shape),
+            .onGloballyPositioned { capsuleShell?.capsuleBounds = it.boundsInRoot() },
     ) {
-        val plan = remember(maxWidth) { PlayerBarMetrics.plan(maxWidth.value) }
+        val plan = remember(maxWidth) { OrbitBarMetrics.plan(maxWidth.value) }
+        val titleStyle = remember(fonts, type, song.title) { type.forText(barTitleStyle(fonts), song.title) }
+        val artistStyle = remember(fonts, type, song.artist) { type.forText(barArtistStyle(fonts), song.artist) }
 
-        // What the morph copies: the words and the picture, and how this bar is built at this width and plan (its corners, where
-        // the cover and the words sit, their styles), published as a value so an unchanged song at an unchanged width writes
-        // nothing (the phone's capsule does the same).
+        // What the morph copies: the words and the picture, and how this bar is built at this width and plan, published as a value
+        // so an unchanged song at an unchanged width writes nothing.
         if (capsuleShell != null) {
-            val label = remember(song.title, song.artist, coverUrl, plan, maxWidth, type) {
-                CapsuleLabel(
-                    song.title, song.artist, coverUrl,
-                    PlayerBarMetrics.capsuleGeometry(plan, maxWidth.value),
-                    type.forText(barTitleStyle(type.textFamily), song.title),
-                    type.forText(barArtistStyle(type.textFamily), song.artist),
-                )
+            val label = remember(song.title, song.artist, coverUrl, plan, maxWidth, titleStyle, artistStyle) {
+                CapsuleLabel(song.title, song.artist, coverUrl, OrbitBarMetrics.geometry(plan, maxWidth.value), titleStyle, artistStyle)
             }
             SideEffect { capsuleShell.capsuleLabel = label }
             DisposableEffect(capsuleShell) { onDispose { capsuleShell.capsuleBounds = null; capsuleShell.capsuleLabel = null } }
         }
-        Row(
-            Modifier.fillMaxSize().padding(horizontal = PlayerBarMetrics.PADDING_DP.dp),
-            horizontalArrangement = Arrangement.spacedBy(PlayerBarMetrics.GAP_DP.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SongBlock(song, coverUrl, plan, onExpand.takeUnless { embedded })
-            if (plan.like) {
-                CosmoIconButton(
-                    if (liked) CosmoIcons.HeartFill else CosmoIcons.Heart,
-                    stringResource(if (liked) Res.string.remove_from_liked else Res.string.like),
-                    onToggleLike,
-                    style = CosmoIconButtonStyle.TONAL, size = PlayerBarMetrics.BUTTON_DP.dp, on = liked, accentWhenOn = true, floating = true,
+
+        Box(Modifier.matchParentSize().clip(OrbitBarMetrics.shape).background(fill)) {
+            Row(
+                Modifier.fillMaxSize().padding(start = OrbitBarMetrics.PAD_START_DP.dp, end = OrbitBarMetrics.END_PAD_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(OrbitBarMetrics.GAP_DP.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SongBlock(
+                    song, coverUrl, plan, titleStyle, artistStyle, bar,
+                    progress = { if (live || durationMs <= 0L) null else scrub.shown(position.positionMs, durationMs) },
+                    spinning = isPlaying, onExpand = onExpand.takeUnless { embedded },
                 )
-            }
-            if (live) {
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    PlayMorphButton(isPlaying, isLoading, onPlayPause, size = PlayerBarMetrics.PLAY_DP.dp, floating = true)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (plan.like) {
+                    OrbitRoundButton(
+                        if (liked) CosmoIcons.HeartFill else CosmoIcons.Heart,
+                        stringResource(if (liked) Res.string.remove_from_liked else Res.string.like),
+                        ink, onToggleLike, size = BUTTON, on = liked, onInk = fill,
+                    )
+                }
+                when {
+                    live -> Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFE5484D)))
-                        Text("LIVE", style = type.label, color = Color(LocalCosmoColors.current.palette.textSecondary))
+                        Spacer(Modifier.width(8.dp))
+                        Text("LIVE", style = fonts.label, color = ink.copy(alpha = 0.8f))
+                        Spacer(Modifier.weight(1f))
+                        Tools(live, plan, bar, lyricsOn, queueOn, onLyrics, onQueue, onOutput, volumeLabel)
                     }
-                }
-            } else if (plan.scrubber) {
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Transport(
-                        plan.shuffleRepeat, isPlaying, isLoading, shuffle, repeatMode, controlsLocked,
-                        onPlayPause, onPrevious, onNext, onToggleShuffle, onCycleRepeat, onBlockedControl,
-                    )
-                    ScrubRow(position, durationMs, scrub, isPlaying, controlsLocked, onSeekFraction, onBlockedControl)
-                }
-            } else {
-                // Too narrow for the middle column: the play button alone, and a progress line along the foot (below).
-                PlayMorphButton(isPlaying, isLoading, onPlayPause, size = PlayerBarMetrics.PLAY_DP.dp, floating = true)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (!live) {
-                    CosmoIconButton(
-                        CosmoIcons.Lyrics, stringResource(Res.string.open_lyrics), onLyrics,
-                        style = CosmoIconButtonStyle.PLAIN, size = PlayerBarMetrics.BUTTON_DP.dp, on = lyricsOn, floating = true,
-                    )
-                    CosmoIconButton(
-                        CosmoIcons.Queue, stringResource(Res.string.queue), onQueue,
-                        style = CosmoIconButtonStyle.PLAIN, size = PlayerBarMetrics.BUTTON_DP.dp, on = queueOn, floating = true,
-                    )
-                }
-                if (plan.output) {
-                    CosmoIconButton(
-                        CosmoIcons.Devices, stringResource(Res.string.audio_output), onOutput,
-                        style = CosmoIconButtonStyle.PLAIN, size = PlayerBarMetrics.BUTTON_DP.dp, floating = true,
-                    )
-                }
-                if (plan.volume) {
-                    Spacer(Modifier.width(PlayerBarMetrics.VOLUME_MARGIN_DP.dp))
-                    VolumeBar(volumeLabel ?: LocalPlayerVolumeLabel.current)
+                    plan.scrubber -> Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Transport(
+                                plan.shuffleRepeat, shuffle, repeatMode, controlsLocked, bar,
+                                onPrevious, onNext, onToggleShuffle, onCycleRepeat, onBlockedControl,
+                            )
+                            Spacer(Modifier.width(OrbitBarMetrics.CLOCK_GAP_DP.dp))
+                            Clock(position, durationMs, scrub, fonts, ink)
+                            Spacer(Modifier.weight(1f))
+                            Tools(live, plan, bar, lyricsOn, queueOn, onLyrics, onQueue, onOutput, volumeLabel)
+                        }
+                        OrbitProgressLine(
+                            progress = { scrub.shown(position.positionMs, durationMs) },
+                            ink = ink,
+                            modifier = Modifier.graphicsLayer { alpha = if (controlsLocked) LOCKED_ALPHA else 1f },
+                            onSeek = { fraction -> if (controlsLocked) onBlockedControl() else { scrub.drag(fraction); scrub.release(onSeekFraction) } },
+                            moon = 5.dp,
+                        )
+                    }
+                    // Too narrow for the middle column: the tools alone; the orbit round the disc is the progress.
+                    else -> Tools(live, plan, bar, lyricsOn, queueOn, onLyrics, onQueue, onOutput, volumeLabel)
                 }
             }
         }
-        if (!plan.scrubber && !live) ProgressLine(position, durationMs, Modifier.matchParentSize())
+        Box(
+            Modifier.align(Alignment.CenterEnd).padding(end = (OrbitBarMetrics.BITE_INSET_DP - OrbitBarMetrics.BITE_DP).dp)
+                .size((OrbitBarMetrics.BITE_DP * 2).dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            // While the song loads a moon circles the button in the bite's clear ring.
+            if (isLoading) OrbitRing((OrbitBarMetrics.BITE_DP * 2).dp, look.accent, progress = null, spinning = true, stroke = 1.5.dp, moon = 3.dp)
+            OrbitPlayButton(isPlaying, onPlayPause, look, size = OrbitBarMetrics.PLAY_DP.dp)
+        }
     }
 }
 
+/** The bar's two colours: the card's deep fill and its light ink (a button that is on is solid ink with the fill as its glyph). */
+private class BarInk(val fill: Color, val ink: Color)
+
 /**
- * The cover and the title over the artist: one click target that expands the player. The column is
- * [PlayerBarMetrics.Plan.textDp] wide (the board's `minmax(0, 220px)`), so the like button stays where it is whatever the title
- * says; in the narrowest plan it takes what the row leaves.
+ * The disc in its orbit and the title over the artist: one click target that expands the player. The words are the plan's
+ * [PlayerBarMetrics.Plan.textDp] wide, so the controls stay where they are whatever the title says; in the narrowest plan they take
+ * what the row leaves.
  */
 @Composable
-private fun RowScope.SongBlock(song: Song, coverUrl: String?, plan: PlayerBarMetrics.Plan, onExpand: (() -> Unit)?) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val title = remember(type, song.title) { type.forText(barTitleStyle(type.textFamily), song.title) }
-    val artist = remember(type, song.artist) { type.forText(barArtistStyle(type.textFamily), song.artist) }
+private fun RowScope.SongBlock(
+    song: Song,
+    coverUrl: String?,
+    plan: PlayerBarMetrics.Plan,
+    titleStyle: TextStyle,
+    artistStyle: TextStyle,
+    bar: BarInk,
+    progress: () -> Float?,
+    spinning: Boolean,
+    onExpand: (() -> Unit)?,
+) {
     val nowPlaying = stringResource(Res.string.now_playing)
-    val size = if (plan.tier == PlayerBarMetrics.Tier.MINIMAL) Modifier.weight(1f) else Modifier.width((PlayerBarMetrics.COVER_DP + PlayerBarMetrics.GAP_DP + plan.textDp).dp)
+    val width = if (plan.tier == PlayerBarMetrics.Tier.MINIMAL) Modifier.weight(1f)
+    else Modifier.width((OrbitBarMetrics.RING_DP + OrbitBarMetrics.GAP_DP + plan.textDp).dp)
     Row(
-        // Inside the open player (no [onExpand]) the cover and the words are just that: nothing to expand.
-        if (onExpand == null) size else size.pointerHoverIcon(PointerIcon.Hand).clickable(onClickLabel = nowPlaying, role = Role.Button, onClick = onExpand),
-        horizontalArrangement = Arrangement.spacedBy(PlayerBarMetrics.GAP_DP.dp),
+        // Inside the open player (no [onExpand]) the disc and the words are just that: nothing to expand.
+        if (onExpand == null) width else width.clip(CircleShape).pointerHoverIcon(PointerIcon.Hand).clickable(onClickLabel = nowPlaying, role = Role.Button, onClick = onExpand),
+        horizontalArrangement = Arrangement.spacedBy(OrbitBarMetrics.GAP_DP.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CoverImage(coverUrl, PlayerBarMetrics.COVER_DP.dp, CosmoRadii.coverDesktopBar, shadow = false)
+        Box(Modifier.size(OrbitBarMetrics.RING_DP.dp), contentAlignment = Alignment.Center) {
+            Disc(coverUrl, OrbitBarMetrics.DISC_DP.dp)
+            OrbitRing(OrbitBarMetrics.RING_DP.dp, bar.ink, progress = progress, spinning = spinning, stroke = 2.dp, moon = 4.dp)
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text(song.title, style = title, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(song.artist, style = artist, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(song.title, style = titleStyle, color = bar.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(song.artist, style = artistStyle, color = bar.ink.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -275,56 +278,38 @@ private fun RowScope.SongBlock(song: Song, coverUrl: String?, plan: PlayerBarMet
  */
 val LocalPlayerVolumeLabel = staticCompositionLocalOf<String?> { null }
 
-/** The title: 14.5 sp, weight 700. */
-private fun barTitleStyle(family: FontFamily) =
-    TextStyle(fontFamily = family, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp)
+/** The title: 14.5 sp, weight 800, the Orbit text face. */
+private fun barTitleStyle(fonts: OrbitFonts) = fonts.title.copy(fontSize = 14.5.sp, fontWeight = FontWeight(800), lineHeight = 18.sp)
 
 /** The artist: 12.5 sp. */
-private fun barArtistStyle(family: FontFamily) =
-    TextStyle(fontFamily = family, fontSize = 12.5.sp, lineHeight = 16.sp)
+private fun barArtistStyle(fonts: OrbitFonts) = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 16.sp)
 
-/**
- * Shuffle, previous, play, next and repeat (or just the three in the middle): 40 dp plain buttons round the 48 dp play button,
- * 8 dp apart on the board. A 40 dp button takes 48 dp of the row (its touch target), which is 8 dp between two of them, so the
- * row has no spacing of its own and 4 dp more on each side of the play button.
- */
+/** Shuffle, previous, next and repeat (or just previous and next): the kit's 36 dp round buttons, 4 dp apart. */
 @Composable
 private fun Transport(
     withShuffleAndRepeat: Boolean,
-    isPlaying: Boolean,
-    isLoading: Boolean,
     shuffle: Boolean,
     repeatMode: Int,
     locked: Boolean,
-    onPlayPause: () -> Unit,
+    bar: BarInk,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onBlockedControl: () -> Unit,
 ) {
-    val button = PlayerBarMetrics.BUTTON_DP.dp
     val dimmed = Modifier.graphicsLayer { alpha = if (locked) LOCKED_ALPHA else 1f }
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(horizontalArrangement = Arrangement.spacedBy(OrbitBarMetrics.BUTTON_GAP_DP.dp), verticalAlignment = Alignment.CenterVertically) {
         if (withShuffleAndRepeat) {
-            CosmoIconButton(
-                CosmoIcons.Shuffle, stringResource(if (shuffle) Res.string.shuffle_on else Res.string.shuffle_off), onToggleShuffle,
-                style = CosmoIconButtonStyle.PLAIN, size = button, on = shuffle, floating = true,
+            OrbitRoundButton(
+                CosmoIcons.Shuffle, stringResource(if (shuffle) Res.string.shuffle_on else Res.string.shuffle_off),
+                bar.ink, onToggleShuffle, size = BUTTON, on = shuffle, onInk = bar.fill,
             )
         }
-        CosmoIconButton(
-            CosmoIcons.Previous, stringResource(Res.string.widget_previous), { if (locked) onBlockedControl() else onPrevious() },
-            modifier = dimmed, style = CosmoIconButtonStyle.PLAIN, size = button, floating = true,
-        )
-        Spacer(Modifier.width((PlayerBarMetrics.TRANSPORT_GAP_DP / 2).dp))
-        PlayMorphButton(isPlaying, isLoading, onPlayPause, size = PlayerBarMetrics.PLAY_DP.dp, floating = true)
-        Spacer(Modifier.width((PlayerBarMetrics.TRANSPORT_GAP_DP / 2).dp))
-        CosmoIconButton(
-            CosmoIcons.Next, stringResource(Res.string.widget_next), { if (locked) onBlockedControl() else onNext() },
-            modifier = dimmed, style = CosmoIconButtonStyle.PLAIN, size = button, floating = true,
-        )
+        OrbitRoundButton(CosmoIcons.Previous, stringResource(Res.string.widget_previous), bar.ink, { if (locked) onBlockedControl() else onPrevious() }, dimmed, size = BUTTON)
+        OrbitRoundButton(CosmoIcons.Next, stringResource(Res.string.widget_next), bar.ink, { if (locked) onBlockedControl() else onNext() }, dimmed, size = BUTTON)
         if (withShuffleAndRepeat) {
-            CosmoIconButton(
+            OrbitRoundButton(
                 if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat,
                 stringResource(
                     when (repeatMode) {
@@ -333,92 +318,63 @@ private fun Transport(
                         else -> Res.string.repeat_all
                     },
                 ),
-                onCycleRepeat, style = CosmoIconButtonStyle.PLAIN, size = button, on = repeatMode != RepeatModes.OFF, floating = true,
+                bar.ink, onCycleRepeat, size = BUTTON, on = repeatMode != RepeatModes.OFF, onInk = bar.fill,
             )
         }
     }
 }
 
-/**
- * The elapsed time, the wave and the song's length (`.d2-p-scrub`): 44 dp time columns with 8 dp between, at most 560 dp
- * wide. The wave draws 16 dp tall; its touch area is 48 dp tall whatever it draws, so the row holds it to 24 dp, which still
- * leaves a hand a comfortable band round the line, and the whole middle column fits the 80 dp capsule. While the controls are
- * locked a drag is not taken up: it answers with [onBlockedControl] when it lets go.
- */
+/** Lyrics and queue (not for a live station), output and the volume: the end of the middle column's top row. */
 @Composable
-private fun ScrubRow(
-    position: PlaybackPosition,
-    durationMs: Long,
-    scrub: PlayerScrub,
-    isPlaying: Boolean,
-    locked: Boolean,
-    onSeekFraction: (Float) -> Unit,
-    onBlockedControl: () -> Unit,
+private fun Tools(
+    live: Boolean,
+    plan: PlayerBarMetrics.Plan,
+    bar: BarInk,
+    lyricsOn: Boolean,
+    queueOn: Boolean,
+    onLyrics: () -> Unit,
+    onQueue: () -> Unit,
+    onOutput: () -> Unit,
+    volumeLabel: String?,
 ) {
-    Row(
-        Modifier.widthIn(max = PlayerBarMetrics.SCRUB_MAX_DP.dp).fillMaxWidth().height(SCRUB_ROW_HEIGHT),
-        horizontalArrangement = Arrangement.spacedBy(PlayerBarMetrics.SCRUB_GAP_DP.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Elapsed(position, durationMs, scrub, Modifier.width(PlayerBarMetrics.TIME_DP.dp))
-        CosmoSeekBar(
-            fraction = { scrub.shown(position.positionMs, durationMs) },
-            onScrub = { if (!locked) scrub.drag(it) },
-            onRelease = { if (locked) onBlockedControl() else scrub.release(onSeekFraction) },
-            modifier = Modifier.weight(1f),
-        )
-        TimeText(NowPlayingMetrics.formatTime(durationMs), Modifier.width(PlayerBarMetrics.TIME_DP.dp), TextAlign.End)
+    Row(horizontalArrangement = Arrangement.spacedBy(OrbitBarMetrics.BUTTON_GAP_DP.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (!live) {
+            OrbitRoundButton(CosmoIcons.Lyrics, stringResource(Res.string.open_lyrics), bar.ink, onLyrics, size = BUTTON, on = lyricsOn, onInk = bar.fill)
+            OrbitRoundButton(CosmoIcons.Queue, stringResource(Res.string.queue), bar.ink, onQueue, size = BUTTON, on = queueOn, onInk = bar.fill)
+        }
+        if (plan.output) OrbitRoundButton(CosmoIcons.Devices, stringResource(Res.string.audio_output), bar.ink, onOutput, size = BUTTON)
+        if (plan.volume) {
+            Spacer(Modifier.width(OrbitBarMetrics.VOLUME_GAP_DP.dp))
+            VolumeBar(volumeLabel ?: LocalPlayerVolumeLabel.current, bar.ink)
+        }
     }
 }
 
-/** Where the song is (where the handle is, while it is dragged). It reads the playhead itself, so it alone recomposes with it. */
-@Composable
-private fun Elapsed(position: PlaybackPosition, durationMs: Long, scrub: PlayerScrub, modifier: Modifier) {
-    val shownMs = (scrub.shown(position.positionMs, durationMs) * durationMs).toLong()
-    TimeText(NowPlayingMetrics.formatTime(shownMs), modifier, TextAlign.Start)
-}
-
-/** A time: 12 sp, tabular figures, secondary ink. */
-@Composable
-private fun TimeText(text: String, modifier: Modifier, align: TextAlign) {
-    val type = LocalCosmoType.current
-    val style = remember(type) { TextStyle(fontFamily = type.textFamily, fontSize = 12.sp, fontWeight = FontWeight(500)).tabular() }
-    Text(text, modifier, color = Color(LocalCosmoColors.current.palette.textSecondary), style = style, maxLines = 1, textAlign = align)
-}
-
-/** The volume bar: a 92 dp [CosmoSlider] on the host's system volume (the desktop's own, kept by its window). */
-@Composable
-private fun VolumeBar(label: String?) {
-    val volume = PlayerPlatform.host.volume
-    val level by volume.level.collectAsStateWithLifecycle()
-    CosmoSlider(level, onValueChange = volume::set, modifier = Modifier.width(PlayerBarMetrics.VOLUME_DP.dp), contentDescription = label, compact = true)
-}
-
 /**
- * The narrowest capsule's progress: the phone capsule's line, 3 dp tall, 4 dp from the bottom and 18 dp in from both sides.
- * The playhead is read here, in the draw block, and nowhere else, so a tick of the song redraws a line and recomposes nothing.
+ * Where the song is over its length, "1:52 / 4:05", in the mono label face (where the line's moon was dropped, until the player
+ * gets there). It reads the playhead itself, so it alone recomposes with it.
  */
 @Composable
-private fun ProgressLine(position: PlaybackPosition, durationMs: Long, modifier: Modifier) {
-    val colors = LocalCosmoColors.current
-    Box(
-        modifier.drawBehind {
-            val inset = PROGRESS_INSET.toPx()
-            val thickness = PROGRESS_HEIGHT.toPx()
-            val width = size.width - 2f * inset
-            if (width <= 0f) return@drawBehind
-            val top = size.height - PROGRESS_BOTTOM.toPx() - thickness
-            val ink = colors.live(CoverField.TEXT_PRIMARY)
-            val round = CornerRadius(thickness / 2f)
-            drawRoundRect(ink.copy(alpha = SliderMetrics.trackAlpha(colors.dark)), Offset(inset, top), Size(width, thickness), round)
-            val played = if (durationMs > 0L) (position.positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
-            if (played > 0f) drawRoundRect(ink, Offset(inset, top), Size(width * played, thickness), round)
-        },
+private fun Clock(position: PlaybackPosition, durationMs: Long, scrub: PlayerScrub, fonts: OrbitFonts, ink: Color) {
+    val shownMs = (scrub.shown(position.positionMs, durationMs) * durationMs).toLong()
+    Text(
+        "${clock(shownMs)} / ${clock(durationMs)}",
+        style = fonts.label.copy(letterSpacing = 0.8.sp),
+        color = ink.copy(alpha = 0.75f),
+        maxLines = 1,
+        modifier = Modifier.width(OrbitBarMetrics.CLOCK_DP.dp),
     )
 }
 
-private val SCRUB_ROW_HEIGHT = 24.dp
-private val PROGRESS_INSET = 18.dp
-private val PROGRESS_BOTTOM = 4.dp
-private val PROGRESS_HEIGHT = 3.dp
+/** The volume: its glyph and a 92 dp compact [CosmoSlider] in the card's ink, on the host's system volume. */
+@Composable
+private fun VolumeBar(label: String?, ink: Color) {
+    val volume = PlayerPlatform.host.volume
+    val level by volume.level.collectAsStateWithLifecycle()
+    Icon(if (level < 0.5f) CosmoIcons.VolumeLow else CosmoIcons.Volume, contentDescription = null, tint = ink, modifier = Modifier.size(OrbitBarMetrics.VOLUME_ICON_DP.dp))
+    Spacer(Modifier.width(OrbitBarMetrics.VOLUME_GAP_DP.dp))
+    CosmoSlider(level, onValueChange = volume::set, modifier = Modifier.width(OrbitBarMetrics.VOLUME_DP.dp), contentDescription = label, compact = true, ink = ink)
+}
+
+private val BUTTON = OrbitBarMetrics.BUTTON_DP.dp
 private const val LOCKED_ALPHA = 0.5f

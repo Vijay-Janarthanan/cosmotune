@@ -3,6 +3,7 @@ package com.cosmotune.ui
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -74,18 +75,20 @@ class DesktopChromeStructureTest {
         assertTrue("val capsuleShell = if (embedded) null else shell" in text, "an embedded bar reports nothing and is never hidden")
     }
 
-    @Test fun thePlayerBarIsGlassWithTheBoardsShapeAndHeight() {
+    @Test fun thePlayerBarIsAnOrbitColourCardWithPlayInTheBiteAtItsEnd() {
         val text = bar
-        assertTrue("SuperellipseShape(PlayerBarMetrics.RADIUS_DP.dp)" in text && ".cosmoGlass(hazeState, shape)" in text, "a 28 dp superellipse of glass")
-        assertTrue(".height(PlayerBarMetrics.HEIGHT_DP.dp)" in text, "80 dp tall")
-        assertTrue("CosmoRadii.coverDesktopBar" in text, "the cover has the desktop bar's radius")
+        assertTrue("coverFill(coverUrl, song.videoId)" in text && ".clip(OrbitBarMetrics.shape).background(fill)" in text, "a flat card in the cover's deep colour, cut by the end bite")
+        assertTrue("cosmoGlass" !in text && "SuperellipseShape" !in text, "no glass: Orbit cards are flat")
+        assertTrue(".height(OrbitBarMetrics.HEIGHT_DP.dp)" in text, "the shell's 80 dp")
+        assertTrue("Disc(coverUrl, OrbitBarMetrics.DISC_DP.dp)" in text && "OrbitRing(OrbitBarMetrics.RING_DP.dp" in text, "the cover is a disc in its orbit")
+        assertTrue("OrbitPlayButton(isPlaying, onPlayPause, look, size = OrbitBarMetrics.PLAY_DP.dp)" in text && "Alignment.CenterEnd" in text, "play stands in the bite at the end")
+        assertTrue("OrbitProgressLine(" in text && "scrub.release(onSeekFraction)" in text, "the kit's seek line, holding where it was dropped")
     }
 
-    @Test fun everyControlInTheBarIsAFloatingOne() {
+    @Test fun everyControlInTheBarIsAKitPiece() {
         val text = bar
-        val calls = Regex("""(CosmoIconButton|PlayMorphButton)\(""").findAll(text).count()
-        val floating = Regex("""floating = true""").findAll(text).count()
-        assertTrue(calls > 0 && floating >= calls, "a control on glass is C: $calls controls, $floating floating flags")
+        assertFalse(Regex("""(CosmoIconButton|PlayMorphButton)\(""").containsMatchIn(text), "no old-look buttons in the Orbit bar")
+        assertTrue(Regex("""OrbitRoundButton\(""").findAll(text).count() >= 8, "shuffle, previous, next, repeat, like, lyrics, queue and output are the kit's round buttons")
     }
 
     @Test fun noBrushOrLiveColourIsRememberedAtCreation() {
@@ -110,22 +113,20 @@ class DesktopChromeStructureTest {
         }
     }
 
-    @Test fun thePlayheadIsReadByTheTimeTheWaveAndTheProgressLineOnly() {
+    @Test fun thePlayheadIsReadByTheClockTheOrbitAndTheSeekLineOnly() {
         val text = bar
         val reads = Regex("""position\.positionMs""").findAll(text).map { it.range.first }.toList()
-        assertEquals(3, reads.size, "the elapsed time, the wave's fraction lambda and the narrow capsule's line: no other place reads the playhead")
-        val elapsed = text.indexOf("private fun Elapsed(")
-        val progress = text.indexOf("private fun ProgressLine(")
-        assertTrue(reads.any { it > elapsed && it < text.indexOf("private fun TimeText(") }, "one is in Elapsed, which recomposes alone")
-        assertTrue(reads.any { it > progress && text.lastIndexOf("drawBehind {", it) > progress }, "one is in the progress line's drawBehind block")
-        assertTrue(reads.any { text.lastIndexOf("fraction = {", it) > text.lastIndexOf("\n", it) - 80 }, "one is in the wave's fraction lambda, read when drawing")
+        assertEquals(3, reads.size, "the clock, the orbit's progress lambda and the seek line's: no other place reads the playhead")
+        val clock = text.indexOf("private fun Clock(")
+        assertTrue(reads.any { it > clock && it < text.indexOf("private fun VolumeBar(") }, "one is in Clock, which recomposes alone")
+        assertEquals(2, reads.count { text.lastIndexOf("progress = {", it) > text.lastIndexOf("\n", it) }, "the other two are progress lambdas, read when drawing")
     }
 
     @Test fun theNarrowPlanKeepsLyricsAndQueueAndTheVolumeIsTheHostsOwn() {
         val text = bar
         assertTrue("if (plan.volume)" in text && "PlayerPlatform.host.volume" in text && "volume::set" in text, "the volume bar drives the host's system volume")
         assertTrue("if (plan.output)" in text, "the output button is the narrow plans' first loss after the volume")
-        assertTrue(!Regex("""if \(plan\.\w*\) \{\s*CosmoIconButton\(\s*CosmoIcons\.(Lyrics|Queue)""").containsMatchIn(text), "lyrics and queue are in every plan")
+        assertTrue(!Regex("""if \(plan\.\w*\) \{?\s*OrbitRoundButton\(\s*CosmoIcons\.(Lyrics|Queue)""").containsMatchIn(text), "lyrics and queue are in every plan")
     }
 
     // ---- The desktop chrome ----
