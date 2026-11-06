@@ -68,6 +68,8 @@ kotlin {
 
         commonMain.dependencies {
             api(project(":shared"))
+            // Watch mode's data layer (films, series, live TV): the models, plugins and WatchRepository the Watch pages call.
+            api(project(":watch"))
             api("org.jetbrains.compose.runtime:runtime:$cmp")
             api("org.jetbrains.compose.foundation:foundation:$cmp")
             api("org.jetbrains.compose.animation:animation:$cmp")

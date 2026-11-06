@@ -52,6 +52,8 @@ import com.cosmotune.music.sharedui.resources.cosmo_mode_podio
 import com.cosmotune.music.sharedui.resources.cosmo_mode_read
 import com.cosmotune.music.sharedui.resources.cosmo_mode_switch
 import com.cosmotune.music.sharedui.resources.cosmo_mode_video
+import com.cosmotune.music.sharedui.resources.cosmo_mode_watch
+import androidx.compose.material.icons.rounded.Movie
 import com.cosmotune.music.sharedui.resources.library
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.theme.CosmoRadii
@@ -75,6 +77,7 @@ fun modeIcon(mode: AppMode): ImageVector = when (mode) {
     AppMode.READ -> CosmoIcons.List
     AppMode.MANGA -> CosmoIcons.Grid
     AppMode.LIBRARY -> CosmoIcons.Library
+    AppMode.WATCH -> androidx.compose.material.icons.Icons.Rounded.Movie
 }
 
 /** A mode's name. */
@@ -87,6 +90,7 @@ fun modeName(mode: AppMode): String = stringResource(
         AppMode.READ -> Res.string.cosmo_mode_read
         AppMode.MANGA -> Res.string.cosmo_mode_manga
         AppMode.LIBRARY -> Res.string.library
+        AppMode.WATCH -> Res.string.cosmo_mode_watch
     },
 )
 

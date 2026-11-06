@@ -374,6 +374,8 @@
     <string name="cosmo_settings_section_more">Connections &amp; more</string>
     <string name="cosmo_mode_read">Read</string>
     <string name="cosmo_mode_read_summary">Books and documents, with your shelves and bookmarks</string>
+    <string name="cosmo_mode_watch">Watch</string>
+    <string name="cosmo_mode_watch_summary">Films, series and live TV</string>
     <string name="cosmo_mode_switch">Switch mode</string>
     <string name="cosmo_mode_manage">Manage modes</string>
     <string name="cosmo_home">Home</string>

@@ -117,6 +117,8 @@ import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.ui.theme.tabular
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.cosmo_close
+import com.cosmotune.music.sharedui.resources.cosmo_mode_watch
+import com.cosmotune.music.sharedui.resources.cosmo_mode_watch_summary
 import com.cosmotune.music.sharedui.resources.cosmo_mode
 import com.cosmotune.music.sharedui.resources.cosmo_mode_later
 import com.cosmotune.music.sharedui.resources.cosmo_mode_read
@@ -451,9 +453,9 @@ private fun ModeSwitch(onChosen: () -> Unit, onLater: (AppMode) -> Unit) {
             val available = AppModes.available(mode)
             if (!available) continue
             ModeRow(
-                icon = when (mode) { AppMode.MUSIC, AppMode.PODIO -> CosmoIcons.Waveform; AppMode.VIDEO -> CosmoIcons.Video; AppMode.MANGA, AppMode.READ, AppMode.LIBRARY -> CosmoIcons.Library },
-                title = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music; AppMode.VIDEO -> Res.string.cosmo_mode_video; AppMode.MANGA -> Res.string.cosmo_mode_manga; AppMode.PODIO -> Res.string.cosmo_mode_podio; AppMode.READ -> Res.string.cosmo_mode_read; AppMode.LIBRARY -> Res.string.library }),
-                summary = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music_summary; AppMode.VIDEO -> Res.string.cosmo_mode_video_summary; AppMode.MANGA -> Res.string.cosmo_mode_manga_summary; AppMode.PODIO -> Res.string.cosmo_mode_podio_summary; AppMode.READ -> Res.string.cosmo_mode_read_summary; AppMode.LIBRARY -> Res.string.cosmo_mode_library_summary }),
+                icon = when (mode) { AppMode.MUSIC, AppMode.PODIO -> CosmoIcons.Waveform; AppMode.VIDEO -> CosmoIcons.Video; AppMode.MANGA, AppMode.READ, AppMode.LIBRARY -> CosmoIcons.Library; AppMode.WATCH -> CosmoIcons.Video },
+                title = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music; AppMode.VIDEO -> Res.string.cosmo_mode_video; AppMode.MANGA -> Res.string.cosmo_mode_manga; AppMode.PODIO -> Res.string.cosmo_mode_podio; AppMode.READ -> Res.string.cosmo_mode_read; AppMode.LIBRARY -> Res.string.library; AppMode.WATCH -> Res.string.cosmo_mode_watch }),
+                summary = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music_summary; AppMode.VIDEO -> Res.string.cosmo_mode_video_summary; AppMode.MANGA -> Res.string.cosmo_mode_manga_summary; AppMode.PODIO -> Res.string.cosmo_mode_podio_summary; AppMode.READ -> Res.string.cosmo_mode_read_summary; AppMode.LIBRARY -> Res.string.cosmo_mode_library_summary; AppMode.WATCH -> Res.string.cosmo_mode_watch_summary }),
                 // A mode that does not work never becomes the selected one.
                 selected = available && mode == current,
                 later = !available,

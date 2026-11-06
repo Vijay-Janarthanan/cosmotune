@@ -7,6 +7,9 @@ import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.outlined.Podcasts
 import androidx.compose.material.icons.outlined.Radio
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.Tv
+import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -114,6 +117,7 @@ internal fun CosmoDesktopSidebar(
     onSearchFocused: () -> Unit,
 ) {
     if (com.cosmotune.video.host.desktopVideoShown()) return VideoSidebar(focusSearch = focusSearch, onSearchFocused = onSearchFocused)
+    if (com.cosmotune.video.host.desktopWatchShown()) return WatchSidebar()
     if (com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown()) {
         // Podio and Manga keep the shape of Music's and Video's sidebar: the window caption, then rows. Which mode is open is chosen from the
         // profile menu, as everywhere else, so no row here switches mode.
@@ -235,6 +239,47 @@ internal fun CosmoDesktopSidebar(
             OrbitNavRoomCard(Modifier.padding(top = 8.dp))
             Spacer(Modifier.height(6.dp))
             OrbitNavRow(CosmoIcons.Settings, DesktopStrings["settings", "Settings"], null, settingsSelected, onOpenSettings)
+        }
+    }
+}
+
+/**
+ * Watch's sidebar (board, every section): the mode chip, then Home, Films, Series, Live TV, Search, My list and Downloads as chips,
+ * and under "Sources" the Plugins chip with how many are on. The page listens to [com.cosmotune.ui.watch.WatchNav].
+ */
+@Composable
+private fun WatchSidebar() {
+    val tab by com.cosmotune.ui.watch.WatchNav.tab.collectAsState()
+    val stack by com.cosmotune.ui.watch.WatchNav.stack.collectAsState()
+    val repository = com.cosmotune.ui.watch.LocalWatchRepository.current ?: com.cosmotune.ui.watch.WatchBackend.repository
+    val plugins by repository.plugins.collectAsState()
+    val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
+    val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
+    // A page opened over a tab lights the tab it was opened from, as the board's film page lights Films.
+    val lit = if (stack.isEmpty()) tab else stack.firstNotNullOfOrNull { (it as? com.cosmotune.ui.watch.WatchRoute.Page)?.summary?.type }
+        ?.let { if (it == com.cosmotune.watch.model.TitleType.SERIES) com.cosmotune.ui.watch.WatchTab.SERIES else com.cosmotune.ui.watch.WatchTab.FILMS } ?: tab
+    Column(Modifier.width(ShellMetrics.DESKTOP_SIDEBAR_DP.dp).fillMaxHeight()) {
+        if (inlineCaption) SidebarCaption()
+        Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp, bottom = ShellMetrics.DESKTOP_BAR_MARGIN_DP.dp)) {
+            OrbitNavModeChip()
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(NAV_LIST_GAP)) {
+                fun go(t: com.cosmotune.ui.watch.WatchTab) = com.cosmotune.ui.watch.WatchNav.go(t)
+                val icons = androidx.compose.material.icons.Icons.Outlined
+                OrbitNavRow(CosmoIcons.Home, "Home", null, lit == com.cosmotune.ui.watch.WatchTab.HOME) { go(com.cosmotune.ui.watch.WatchTab.HOME) }
+                OrbitNavRow(icons.Movie, "Films", null, lit == com.cosmotune.ui.watch.WatchTab.FILMS) { go(com.cosmotune.ui.watch.WatchTab.FILMS) }
+                OrbitNavRow(icons.Tv, "Series", null, lit == com.cosmotune.ui.watch.WatchTab.SERIES) { go(com.cosmotune.ui.watch.WatchTab.SERIES) }
+                OrbitNavRow(icons.LiveTv, "Live TV", null, lit == com.cosmotune.ui.watch.WatchTab.LIVE) { go(com.cosmotune.ui.watch.WatchTab.LIVE) }
+                OrbitNavRow(CosmoIcons.Search, "Search", null, lit == com.cosmotune.ui.watch.WatchTab.SEARCH) { go(com.cosmotune.ui.watch.WatchTab.SEARCH) }
+                OrbitNavRow(icons.BookmarkBorder, "My list", null, lit == com.cosmotune.ui.watch.WatchTab.MY_LIST) { go(com.cosmotune.ui.watch.WatchTab.MY_LIST) }
+                OrbitNavRow(CosmoIcons.Download, "Downloads", null, lit == com.cosmotune.ui.watch.WatchTab.DOWNLOADS) { go(com.cosmotune.ui.watch.WatchTab.DOWNLOADS) }
+            }
+            OrbitNavSectionLabel("Sources", Modifier.padding(start = 12.dp, end = 2.dp, top = 20.dp, bottom = 6.dp))
+            OrbitNavRow(CosmoIcons.Settings, "Plugins", "${plugins.count { it.enabled }} on", lit == com.cosmotune.ui.watch.WatchTab.PLUGINS) {
+                com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.PLUGINS)
+            }
+            Spacer(Modifier.weight(1f))
+            OrbitNavRoomCard(Modifier.padding(top = 8.dp))
         }
     }
 }
