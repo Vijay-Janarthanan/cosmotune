@@ -43,18 +43,54 @@ data class PartyTrack(
      * Always https; a device refuses anything else.
      */
     val url: String? = null,
+    /**
+     * For [KIND_WATCH]: what identifies the film, episode or channel apart from its key in [videoId] (`m:tmdb:603`,
+     * `e:tmdb:1399:1:2`, `c:iptv:BBCOne.uk`), and a hint of the host's release so each member's own sources pick the same cut.
+     * Never a stream address, a server or a credential; only [url] may carry a public https stream.
+     */
+    val watch: PartyWatch? = null,
 ) {
-    /** A live stream has no playhead: nothing to seek, and everyone is simply "now". */
-    val isLive: Boolean get() = kind == KIND_RADIO
+    /** A live stream has no playhead: nothing to seek, and everyone is simply "now". A Watch channel is live too. */
+    val isLive: Boolean get() = kind == KIND_RADIO || (kind == KIND_WATCH && videoId.startsWith("c:"))
+
+    /** A kind from a newer app: this version neither plays it nor reads it as music, and says to update instead. */
+    val needsUpdate: Boolean get() = kind !in KINDS
 
     companion object {
         const val KIND_MUSIC = "music"
         const val KIND_VIDEO = "video"
         const val KIND_RADIO = "radio"
         const val KIND_PODCAST = "podcast"
-        val KINDS = setOf(KIND_MUSIC, KIND_VIDEO, KIND_RADIO, KIND_PODCAST)
+        /** A film, an episode or a live channel from Watch mode, which each member finds in their own plugins. */
+        const val KIND_WATCH = "watch"
+        val KINDS = setOf(KIND_MUSIC, KIND_VIDEO, KIND_RADIO, KIND_PODCAST, KIND_WATCH)
     }
 }
+
+/**
+ * The small object a Watch room item carries beside its key: external ids (so a member without TMDB, or an add-on keyed by
+ * IMDb, can find it), season and episode, and the host's release (runtime, file size, file name, binge group, the plugin's
+ * kind) so a member's own copy is chosen to match and a different cut is noticed. Every field is optional and short.
+ */
+@Serializable
+data class PartyWatch(
+    val tmdb: Int? = null,
+    val imdb: String? = null,
+    val season: Int? = null,
+    val episode: Int? = null,
+    val year: Int? = null,
+    val runtimeMin: Int? = null,
+    /** The host's copy: its size in bytes, its file name and its length. */
+    val size: Long? = null,
+    val name: String? = null,
+    val durationMs: Long? = null,
+    val binge: String? = null,
+    /** The kind of plugin the host played from ("jellyfin", "stremio", "archive"); never its address. */
+    val plugin: String? = null,
+    /** A channel's iptv-org id and name, so a member's own playlist can find it. */
+    val tvgId: String? = null,
+    val channel: String? = null,
+)
 
 /** One signed-in device in the party, as every other device sees it. */
 @Serializable

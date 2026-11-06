@@ -47,7 +47,7 @@ internal object DesktopRoomPlayback {
     enum class Player { MUSIC, VIDEO }
 
     /** Which player opens [track]: Video mode's for a video, the music player for a song, a station or an episode. */
-    fun playerFor(track: PartyTrack): Player = if (track.kind == PartyTrack.KIND_VIDEO) Player.VIDEO else Player.MUSIC
+    fun playerFor(track: PartyTrack): Player = if (track.kind == PartyTrack.KIND_VIDEO || track.kind == PartyTrack.KIND_WATCH) Player.VIDEO else Player.MUSIC
 
     /**
      * Whether this device can try [track] at all. A station or an episode needs its https address (or, for an episode from YouTube
@@ -59,6 +59,8 @@ internal object DesktopRoomPlayback {
         PartyTrack.KIND_RADIO -> track.videoId.startsWith(RADIO_PREFIX) && streamUrlOf(track) != null
         PartyTrack.KIND_PODCAST -> track.videoId.startsWith(EPISODE_PREFIX) &&
             (streamUrlOf(track) != null || com.cosmotune.podio.YouTubePodcasts.videoId(track.videoId) != null)
+        // Found in this device's own Watch plugins (or the room's public stream), in Watch's player.
+        PartyTrack.KIND_WATCH -> com.cosmotune.watch.WatchRoom.canPlay(track)
         else -> false
     }
 

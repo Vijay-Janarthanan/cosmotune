@@ -27,6 +27,9 @@ import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_FORMAT_STRING
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.DoubleByReference
 import com.sun.jna.ptr.LongByReference
+import com.sun.jna.ptr.PointerByReference
+import com.cosmotune.video.player.EngineTrack
+import com.cosmotune.video.player.TrackType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.Locale
@@ -490,6 +493,29 @@ internal class MpvPlayer(
                 clockRunning = run
                 clockSpeed = speed.toDouble()
             }
+        }
+    }
+
+    /** A string property (`mpv_get_property` with [MPV_FORMAT_STRING]), freed after reading; null when mpv has none. */
+    fun string(name: String): String? {
+        val ref = PointerByReference()
+        if (mpv.mpv_get_property(handle, name, MPV_FORMAT_STRING, ref) < 0) return null
+        val pointer = ref.value ?: return null
+        return try { pointer.getString(0, "UTF-8") } finally { mpv.mpv_free(pointer) }
+    }
+
+    /** The loaded file's tracks (`track-list`): audio, subtitles (embedded and added) and video, with mpv's ids. */
+    fun tracks(): List<EngineTrack> {
+        val count = int64("track-list/count") ?: return emptyList()
+        return (0 until count.toInt()).mapNotNull { i ->
+            val type = when (string("track-list/$i/type")) { "audio" -> TrackType.AUDIO; "sub" -> TrackType.TEXT; "video" -> TrackType.VIDEO; else -> return@mapNotNull null }
+            val id = string("track-list/$i/id") ?: return@mapNotNull null
+            val language = string("track-list/$i/lang")
+            val title = string("track-list/$i/title")
+            val codec = string("track-list/$i/codec")
+            EngineTrack(id, type, language, title ?: language ?: "${type.name.lowercase().replaceFirstChar(Char::titlecase)} $id", codec,
+                int64("track-list/$i/demux-channel-count")?.toInt(), string("track-list/$i/selected") == "yes",
+                string("track-list/$i/external") == "yes")
         }
     }
 

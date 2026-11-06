@@ -72,6 +72,18 @@ class DesktopRoomKindsTest {
         assertEquals(Player.MUSIC, DesktopRoomPlayback.playerFor(song))
         assertEquals(Player.MUSIC, DesktopRoomPlayback.playerFor(station))
         assertEquals(Player.MUSIC, DesktopRoomPlayback.playerFor(episode))
+        // A Watch item is a picture too: Watch's player, through the same steps as a room video.
+        assertEquals(Player.VIDEO, DesktopRoomPlayback.playerFor(PartyTrack("m:tmdb:603", "The Matrix", kind = PartyTrack.KIND_WATCH)))
+    }
+
+    @Test
+    fun `a Watch item is tried by its key and a kind from a newer app never plays as a song`() {
+        assertTrue(DesktopRoomPlayback.playableHere(PartyTrack("e:tmdb:1399:1:2", "Game of Thrones", kind = PartyTrack.KIND_WATCH)))
+        assertFalse(DesktopRoomPlayback.playableHere(PartyTrack("dQw4w9WgXcQ", "Not a key", kind = PartyTrack.KIND_WATCH)))
+        val newer = song.copy(kind = "hologram")
+        assertTrue(newer.needsUpdate)
+        assertEquals(Player.MUSIC, DesktopRoomPlayback.playerFor(newer))
+        assertFalse(DesktopRoomPlayback.playableHere(newer))
     }
 
     @Test

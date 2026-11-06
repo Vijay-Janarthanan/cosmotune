@@ -1773,7 +1773,7 @@ fun CosmotuneDesktopApp() {
                 }
                 personalQueueStash = null
             },
-            video = DesktopRoomVideo,
+            video = DesktopRoomMedia,
             holdSeed = { DesktopRooms.startingWithItem },
         )
     }

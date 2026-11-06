@@ -113,8 +113,15 @@ internal object DesktopRoomVideo : RoomVideoPlayer {
  */
 @Composable
 internal fun rememberRoomVideoMedia(track: PartyTrack?): (@Composable () -> Unit)? {
-    if (track?.kind != PartyTrack.KIND_VIDEO) return null
+    if (track?.kind != PartyTrack.KIND_VIDEO && track?.kind != PartyTrack.KIND_WATCH) return null
     val graph = com.cosmotune.video.graph.desktopVideoGraph(build = false) ?: return null
+    if (track.kind == PartyTrack.KIND_WATCH) {
+        // Watch plays on the same engine, so the picture is the same surface, once this device holds the room's item.
+        val surface = graph.surface ?: return null
+        val held = DesktopRoomWatch.local().videoId == track.videoId
+        val media: @Composable () -> Unit = remember(surface) { { surface.Surface(Modifier.fillMaxSize(), com.cosmotune.video.player.VideoScale.FIT) } }
+        return media.takeIf { held }
+    }
     val state by graph.playback.state.collectAsState()
     val surface = graph.surface ?: return null
     val media: @Composable () -> Unit = remember(surface) { { surface.Surface(Modifier.fillMaxSize(), com.cosmotune.video.player.VideoScale.FIT) } }

@@ -138,6 +138,22 @@ test('a shared item can be a video, a live station or an episode, and its link m
   await assertFails(set(ref(db('host'), `rooms/${CODE}/state`), { ...withKind({ kind: 'movie' }), seq: 3 }))
 })
 
+test('a Watch item carries its key and a short watch object, and nothing else', async () => {
+  await createRoom()
+  const watchItem = (watch, extra = {}) => ({ ...track, videoId: 'e:tmdb:1399:1:2', title: 'Game of Thrones', kind: 'watch', watch, ...extra })
+  const release = { tmdb: 1399, imdb: 'tt0944947', season: 1, episode: 2, year: 2011, runtimeMin: 56, size: 2254857830, name: 'GoT.S01E02.1080p.mkv', durationMs: 3360000, binge: 'release-1080p', plugin: 'jellyfin' }
+  await assertSucceeds(set(ref(db('host'), `rooms/${CODE}/state`), stateAt(1, { track: watchItem(release) })))
+  // a public stream may travel, https only
+  await assertSucceeds(set(ref(db('host'), `rooms/${CODE}/state`), stateAt(2, { track: watchItem({ tvgId: 'BBCOne.uk', channel: 'BBC One' }, { videoId: 'c:iptv:BBCOne.uk', url: 'https://cdn.example.org/bbc.m3u8' }) })))
+  await assertFails(set(ref(db('host'), `rooms/${CODE}/state`), stateAt(3, { track: watchItem({}, { url: 'http://192.168.1.2:8096/Videos/1/stream' }) })))
+  // no server address, token or anything unknown inside the watch object
+  await assertFails(set(ref(db('host'), `rooms/${CODE}/state`), stateAt(3, { track: watchItem({ ...release, server: 'http://nas:8096' }) })))
+  await assertFails(set(ref(db('host'), `rooms/${CODE}/state`), stateAt(3, { track: watchItem({ ...release, name: 'x'.repeat(201) }) })))
+  await assertFails(set(ref(db('host'), `rooms/${CODE}/state`), stateAt(3, { track: watchItem({ ...release, tmdb: '1399' }) })))
+  // the queue takes the same items
+  await assertSucceeds(set(ref(db('host'), `rooms/${CODE}/queue`), { seq: 1, items: { 0: watchItem(release) } }))
+})
+
 test('the queue holds 26 tracks at most', async () => {
   await createRoom()
   const items = (n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [i, { videoId: `id${String(i).padStart(9, '0')}`, title: `Song ${i}` }]))

@@ -441,7 +441,12 @@ internal class DesktopRoomLauncher(
             // The same control as the room screen's "Play now"; every device, this one too, opens it in its own player. A video
             // already playing here ("Watch together" on its own watch page) goes on from where it is rather than from the top.
             DesktopRoomPlayback.Launch.PLAY -> {
-                val here = DesktopRoomVideo.local().takeIf { item.kind == PartyTrack.KIND_VIDEO && it.videoId == item.videoId }
+                val here = when (item.kind) {
+                    PartyTrack.KIND_VIDEO -> DesktopRoomVideo.local()
+                    // A film already playing in Watch here ("Watch together" from its player) goes on from where it is.
+                    PartyTrack.KIND_WATCH -> DesktopRoomWatch.local().takeIf { !item.isLive }
+                    else -> null
+                }?.takeIf { it.videoId == item.videoId }
                 DesktopRooms.control(RoomControl.SetTrack(item, positionMs = here?.positionMs?.coerceAtLeast(0) ?: 0))
             }
         }

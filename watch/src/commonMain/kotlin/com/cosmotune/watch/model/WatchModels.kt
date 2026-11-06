@@ -7,6 +7,7 @@ import kotlin.jvm.JvmInline
  * The canonical key of everything Watch shows, the same on every device (progress, My list, rooms):
  * - `m:tmdb:603` a film, `s:tmdb:1399` a series, `e:tmdb:1399:1:1` an episode (series id, season, episode);
  * - `m:imdb:tt0133093` / `s:imdb:tt0944947` / `e:imdb:tt0944947:1:1` when TMDB is not configured (Cinemeta ids);
+ * - `m:<plugin>:<id>` / `s:<plugin>:<id>` a film or series only one plugin knows (plugin ids never hold a colon);
  * - `c:<plugin>:<channelId>` a live channel (`c:iptv:BBCOne.uk`, `c:pluto:5ca...`);
  * - `a:<plugin>:<itemId>` an item a plugin holds with no TMDB match (`a:ia:night_of_the_living_dead`).
  * Keys stay under 64 characters, the room's `videoId` limit.
@@ -19,8 +20,9 @@ value class WatchKey(val value: String) {
     }
     /** The namespace after the kind: `tmdb`, `imdb`, a plugin id. */
     val namespace: String get() = value.split(':').getOrNull(1).orEmpty()
-    /** The id inside the namespace (for an episode, the series id). */
-    val id: String get() = value.split(':').getOrNull(2).orEmpty()
+    /** The id inside the namespace (for an episode, the series id). Ids of other kinds may themselves hold colons. */
+    val id: String get() = if (kind == Kind.EPISODE) value.split(':').getOrNull(2).orEmpty()
+        else value.substringAfter(':', "").substringAfter(':', "")
     val season: Int? get() = if (kind == Kind.EPISODE) value.split(':').getOrNull(3)?.toIntOrNull() else null
     val episode: Int? get() = if (kind == Kind.EPISODE) value.split(':').getOrNull(4)?.toIntOrNull() else null
     /** The series of an episode key (`e:tmdb:1399:1:1` gives `s:tmdb:1399`). */

@@ -476,6 +476,8 @@
     <string name="cosmo_room_kind_video">Video</string>
     <string name="cosmo_room_kind_radio">Live radio</string>
     <string name="cosmo_room_kind_podcast">Podcast episode</string>
+    <string name="cosmo_room_kind_watch">From Watch · found in your own plugins</string>
+    <string name="cosmo_room_needs_update">Update Cosmotune to play this</string>
     <string name="cosmo_room_live_badge">LIVE</string>
     <string name="cosmo_room_live_note">Everyone hears the station live</string>
     <string name="cosmo_room_playback_options">Playback options</string>

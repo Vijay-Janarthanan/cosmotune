@@ -18,8 +18,11 @@ object BuiltInPlugins {
     const val OPENSUBTITLES = "opensubtitles"
     const val WATCHHUB = "watchhub"
 
-    /** The Stremio-protocol add-ons the built-ins use (read-only HTTP JSON). */
-    const val PUBLIC_DOMAIN_URL = "https://pdm.strem.fun/manifest.json"
+    /**
+     * The Stremio-protocol add-ons the built-ins use (read-only HTTP JSON). Public Domain Movies' own streams are torrents,
+     * which Watch drops: it contributes its catalogue, and the Internet Archive plays the films.
+     */
+    const val PUBLIC_DOMAIN_URL = "https://caching.stremio.net/publicdomainmovies.now.sh/manifest.json"
     const val OPENSUBTITLES_URL = "https://opensubtitles-v3.strem.io/manifest.json"
     const val WATCHHUB_URL = "https://watchhub.strem.io/manifest.json"
 

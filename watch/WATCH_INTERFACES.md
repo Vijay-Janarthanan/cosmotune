@@ -68,3 +68,19 @@ the failover message and errors. `switchStream`, `selectAudio`, `selectSubtitle(
 `BuiltInPlugins.all`, in Plugins page order (default in brackets): iptv-org [on], Pluto TV [on], Samsung TV Plus [on],
 Plex free [on], Internet Archive [on], Free on YouTube [on], Public Domain Movies (Stremio) [off], OpenSubtitles (Stremio)
 [on], WatchHub (Stremio) [off]. Nothing else is built in; no torrent, debrid or site-scraper plugin exists or may be added.
+
+## Rooms ("Watch together")
+
+`roomWatchItem(target, summary, stream, durationMs)` (in `com.cosmotune.ui.room`, the same as `WatchRoom.trackOf`) builds the
+room item; hand it to `LocalRoomLauncher.current.playInRoom(item)` as the other kinds do. Its kind is `watch` and its
+`videoId` the key; each member's device finds its own copy (the host's release first) and the room keeps time. A member
+whose copy differs in length by more than a minute sees `WatchPlayerState.lengthNote`. A member on a version that does not
+know a kind sees "Update Cosmotune to play this" instead of it being played as a song.
+
+## Install links, packs, directories
+
+`WatchLinks.pending` holds a link opened from outside (`stremio://...`, `cosmotune://watch/addon?url=...`,
+`cosmotune://watch/pack?d=...`): show the Install sheet (`previewInstallLink`) or the pack sheet (`readPluginPack`), then call
+`WatchLinks.handled()`. To offer one's add-ons to a room, post `WatchRoom.packOffer(exportPluginPack(), name)` as a chat
+message; `WatchRoom.packIn(message.text)` finds the link in a received message for an "Import" button. The hosts expose the real repository as `DesktopWatch.repository` / `AndroidWatch.repository(context)`
+and the player as `DesktopWatch.player` / `AndroidWatch.player(context)`.

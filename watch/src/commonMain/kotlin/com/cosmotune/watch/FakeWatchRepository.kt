@@ -61,9 +61,9 @@ class FakeWatchRepository(
     private val titles: Map<WatchKey, TitleSummary> = (films + series).associateBy { it.key }
 
     private val pluginsState = MutableStateFlow(BuiltInPlugins.all.map { BuiltInPlugins.info(it) } + listOf(
-        PluginInfo("jellyfin:home", PluginKind.JELLYFIN, "My Jellyfin (home)", "Films, series · signed in", "JF", builtIn = false,
+        PluginInfo("jf-home", PluginKind.JELLYFIN, "My Jellyfin (home)", "Films, series · signed in", "JF", builtIn = false,
             enabled = true, defaultEnabled = true, capabilities = setOf(Capability.CATALOG, Capability.STREAMS, Capability.SEARCH), status = "signed in"),
-        PluginInfo("xtream:family", PluginKind.XTREAM, "Family playlist", "Xtream · 340 channels · guide", "M3U", builtIn = false,
+        PluginInfo("xt-family", PluginKind.XTREAM, "Family playlist", "Xtream · 340 channels · guide", "M3U", builtIn = false,
             enabled = true, defaultEnabled = true, capabilities = setOf(Capability.LIVE, Capability.EPG), status = "340 channels"),
     ))
     override val plugins: StateFlow<List<PluginInfo>> = pluginsState.asStateFlow()
@@ -181,10 +181,10 @@ class FakeWatchRepository(
             else -> listOf(
                 Stream(StreamSource("plex", "Plex", "PLEX"), "Free with ads", "1080p · English, Hindi audio · 12 subtitles", sample,
                     StreamProtocol.HLS, height = 1080, audioLanguages = listOf("eng", "hin"), hasAds = true),
-                Stream(StreamSource("jellyfin:home", "My Jellyfin (home)", "JF"), "Direct play · HEVC", "4K HDR · 58 GB · MKV",
+                Stream(StreamSource("jf-home", "My Jellyfin (home)", "JF"), "Direct play · HEVC", "4K HDR · 58 GB · MKV",
                     "https://example.invalid/Videos/1/stream?static=true", StreamProtocol.PROGRESSIVE, Container.MKV, height = 2160,
                     hdr = "HDR10", videoCodec = "hevc", sizeBytes = 58L shl 30, filename = "Ember.Road.2021.2160p.mkv"),
-                Stream(StreamSource("stremio:addon", "An add-on you installed", "ADD"), "720p", "MP4",
+                Stream(StreamSource("st-addon", "An add-on you installed", "ADD"), "720p", "MP4",
                     "https://example.invalid/ember-road-720p.mp4", StreamProtocol.PROGRESSIVE, Container.MP4, height = 720),
             )
         }
@@ -265,7 +265,7 @@ class FakeWatchRepository(
             is UserSourceSpec.Xtream -> PluginKind.XTREAM to "M3U"
             is UserSourceSpec.LocalFolder -> PluginKind.LOCAL_FOLDER to "DIR"
         }
-        val info = PluginInfo("${kind.name.lowercase()}:${pluginsState.value.size}", kind, spec.label.ifBlank { kind.name.lowercase() }, "Added",
+        val info = PluginInfo("${kind.name.lowercase()}-${pluginsState.value.size}", kind, spec.label.ifBlank { kind.name.lowercase() }, "Added",
             badge, builtIn = false, enabled = true, defaultEnabled = true, capabilities = setOf(Capability.STREAMS))
         pluginsState.value = pluginsState.value + info
         return AddSourceResult.Added(info)

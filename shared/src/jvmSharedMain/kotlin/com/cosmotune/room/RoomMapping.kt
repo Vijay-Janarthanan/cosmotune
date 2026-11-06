@@ -5,6 +5,7 @@ import com.cosmotune.music.data.listentogether.PartyPlayback
 import com.cosmotune.music.data.listentogether.PartyQueue
 import com.cosmotune.music.data.listentogether.PartySnapshot
 import com.cosmotune.music.data.listentogether.PartyTrack
+import com.cosmotune.music.data.listentogether.PartyWatch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -32,10 +33,35 @@ internal object RoomMapping {
         thumbnailUrl = o.text("thumbnailUrl"),
         durationMs = o.long("durationMs"),
         fromAutoplay = o.flag("fromAutoplay") ?: false,
-        // an unknown kind is read as music, and a link that is not https is dropped: another member's device fetches it
-        kind = o.text("kind")?.takeIf { it in PartyTrack.KINDS } ?: PartyTrack.KIND_MUSIC,
+        // A kind from a newer app is kept as it is, never read as music (an old version once played `m:tmdb:603` as a song): every
+        // player sits it out and the room says to update. A link that is not https is dropped: another member's device fetches it.
+        kind = o.text("kind")?.takeIf { it.isNotBlank() }?.take(16) ?: PartyTrack.KIND_MUSIC,
         url = o.text("url")?.takeIf { it.startsWith("https://") },
+        watch = o.obj("watch")?.let(::watchOf),
     )
+
+    private fun watchOf(o: JsonObject): PartyWatch = PartyWatch(
+        tmdb = o.long("tmdb")?.toInt(), imdb = o.text("imdb")?.take(16), season = o.long("season")?.toInt(), episode = o.long("episode")?.toInt(),
+        year = o.long("year")?.toInt(), runtimeMin = o.long("runtimeMin")?.toInt(), size = o.long("size"), name = o.text("name")?.take(200),
+        durationMs = o.long("durationMs"), binge = o.text("binge")?.take(100), plugin = o.text("plugin")?.take(32),
+        tvgId = o.text("tvgId")?.take(64), channel = o.text("channel")?.take(80),
+    )
+
+    fun watchJson(w: PartyWatch): JsonObject = buildJsonObject {
+        w.tmdb?.let { put("tmdb", it) }
+        w.imdb?.let { put("imdb", it.take(16)) }
+        w.season?.let { put("season", it) }
+        w.episode?.let { put("episode", it) }
+        w.year?.let { put("year", it) }
+        w.runtimeMin?.let { put("runtimeMin", it) }
+        w.size?.let { put("size", it) }
+        w.name?.let { put("name", it.take(200)) }
+        w.durationMs?.let { put("durationMs", it) }
+        w.binge?.let { put("binge", it.take(100)) }
+        w.plugin?.let { put("plugin", it.take(32)) }
+        w.tvgId?.let { put("tvgId", it.take(64)) }
+        w.channel?.let { put("channel", it.take(80)) }
+    }
 
     fun trackJson(t: PartyTrack): JsonObject = buildJsonObject {
         put("videoId", t.videoId)
@@ -46,6 +72,7 @@ internal object RoomMapping {
         if (t.fromAutoplay) put("fromAutoplay", true)
         if (t.kind != PartyTrack.KIND_MUSIC) put("kind", t.kind)
         t.url?.takeIf { it.startsWith("https://") }?.let { put("url", it.take(500)) }
+        t.watch?.takeIf { t.kind == PartyTrack.KIND_WATCH }?.let { put("watch", watchJson(it)) }
     }
 
     /** Children are keyed by index (seats, queue positions) or by push id (chat); either way they come back in key order. */

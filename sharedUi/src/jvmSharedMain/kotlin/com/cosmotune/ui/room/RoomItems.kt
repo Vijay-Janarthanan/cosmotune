@@ -108,6 +108,14 @@ fun roomEpisodeItem(episodeId: String, title: String, show: String, enclosureUrl
     )
 }
 
+/**
+ * A Watch film, episode or channel for the room ("Watch together"): its key, titles, ids and the release playing here, and an
+ * https address only for a public stream. Each member finds their own copy. See [com.cosmotune.watch.WatchRoom].
+ */
+fun roomWatchItem(target: com.cosmotune.watch.model.PlayTarget, summary: com.cosmotune.watch.model.TitleSummary?,
+    stream: com.cosmotune.watch.model.Stream?, durationMs: Long? = null): PartyTrack =
+    com.cosmotune.watch.WatchRoom.trackOf(target, summary, stream, durationMs)
+
 /** A Podio station as a room item. */
 fun RadioStation.roomItem(): PartyTrack? = roomStationItem(id, name, placeLine().ifBlank { country }, url, artwork)
 

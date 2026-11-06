@@ -1263,6 +1263,8 @@
     <string name="room_voice_mic_unavailable">The microphone is not available</string>
     <string name="room_voice_unavailable">Voice is not available on this device</string>
     <string name="room_item_skipped">Can\'t play %1$s on this device. You will join in again on the next one.</string>
+    <string name="room_item_needs_update">Update Cosmotune to play this. You will join in again on the next one.</string>
+    <string name="room_item_not_in_watch">%1$s is not in your Watch plugins. You will join in again on the next one.</string>
     <string name="room_code_copied">Code copied</string>
     <string name="room_share_text">Listen with me on Cosmotune — room code %1$s</string>
     <string name="room_minimise">Minimise the room</string>
