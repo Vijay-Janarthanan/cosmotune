@@ -110,6 +110,7 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
                 TitleCard(
                     shown, page, series, fonts, look, fill, ink, frame.wide, inList, nextUp, resume?.takeIf { !it.completed && it.positionMs > 60_000 },
                     sources?.best, onPlay = play, onMyList = { actions.setInMyList(shown, it) }, watchTogether = actions.watchTogetherReady,
+                    onWatchTogether = { actions.watchTogether(shown, page, sources?.best) },
                     modifier = Modifier.padding(horizontal = side).padding(top = 18.dp),
                 )
             }
@@ -180,6 +181,7 @@ private fun TitleCard(
     onPlay: () -> Unit,
     onMyList: (Boolean) -> Unit,
     watchTogether: Boolean,
+    onWatchTogether: () -> Unit,
     modifier: Modifier,
 ) {
     var more by remember { mutableStateOf(false) }
@@ -206,7 +208,7 @@ private fun TitleCard(
             ) {
                 if (!series) WatchCardChip(resume?.let { "Resume ${longClock(it.positionMs)}" } ?: "Play", ink, fonts, onPlay, icon = CosmoIcons.Play, solid = true, onSolid = fill)
                 WatchCardChip(if (inList) "In my list" else "My list", ink, fonts, onClick = { onMyList(!inList) }, icon = if (inList) CosmoIcons.Check else CosmoIcons.Plus)
-                WatchCardChip("Watch together", ink, fonts, onClick = {}, icon = CosmoIcons.Together, enabled = watchTogether)
+                WatchCardChip("Watch together", ink, fonts, onClick = onWatchTogether, icon = CosmoIcons.Together, enabled = watchTogether)
                 Box {
                     WatchRoundButton(CosmoIcons.More, "More", look, onClick = { more = true }, ink = ink)
                     OrbitMenu(

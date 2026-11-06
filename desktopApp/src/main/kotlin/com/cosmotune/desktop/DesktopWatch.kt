@@ -42,6 +42,14 @@ object DesktopWatch {
             stopOthers = { runCatching { graph.playback.stop() } })
     }
 
+    /**
+     * Watch's downloads (direct files only), kept in the user's Videos folder under Cosmotune, where any player can open them
+     * too.
+     */
+    val downloads: com.cosmotune.watch.WatchDownloads by lazy {
+        com.cosmotune.watch.WatchDownloads(File(File(System.getProperty("user.home"), "Videos"), "Cosmotune"), Http.client)
+    }
+
     /** Whether [player] has been built in this process. */
     @Volatile var playerBuilt: Boolean = false
         private set

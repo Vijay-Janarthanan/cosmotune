@@ -40,6 +40,16 @@ object AndroidWatch {
         )
     }.also { repositoryRef = it }
 
+    @Volatile private var downloadsRef: com.cosmotune.watch.WatchDownloads? = null
+
+    /** Watch's downloads (direct files only), in the app's own Movies folder (no storage permission), else its files. */
+    @Synchronized
+    fun downloads(context: Context): com.cosmotune.watch.WatchDownloads = downloadsRef ?: run {
+        val app = context.applicationContext
+        val dir = app.getExternalFilesDir(android.os.Environment.DIRECTORY_MOVIES)?.let { File(it, "Watch") } ?: File(File(app.filesDir, "watch"), "downloads")
+        com.cosmotune.watch.WatchDownloads(dir, Http.client)
+    }.also { downloadsRef = it }
+
     /** Whether [player] has been built in this process. */
     val playerBuilt: Boolean get() = playerRef != null
 

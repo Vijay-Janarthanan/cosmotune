@@ -73,11 +73,17 @@ fun ProvideWatch(
     playback: WatchPlayback? = null,
     qrCode: (@Composable (String, Dp) -> Unit)? = null,
     clock: (() -> Long)? = null,
+    downloads: com.cosmotune.watch.WatchDownloads? = null,
+    roomPacks: WatchRoomPacks? = null,
+    linkHandler: WatchLinkHandler? = null,
     content: @Composable () -> Unit,
 ) {
     CompositionLocalProvider(
         LocalWatchRepository provides repository,
         LocalWatchPlayback provides playback,
+        LocalWatchDownloads provides downloads,
+        LocalWatchRoomPacks provides roomPacks,
+        LocalWatchLinkHandler provides linkHandler,
         LocalWatchQrCode provides qrCode,
         LocalWatchClock provides (clock ?: System::currentTimeMillis),
         content = content,
@@ -137,14 +143,16 @@ object WatchNav {
         stack.value = below + WatchRoute.Play(target, summary, attached = true)
     }
 
-    /** Hosts call this for a one-tap install link that reached the app. */
-    fun openInstallLink(link: String) { pendingInstall.value = link }
+    /**
+     * Hosts call this for a one-tap install link that reached the app (`stremio://…`, `cosmotune://watch/addon?url=…`, an https
+     * manifest, or a `cosmotune://watch/pack?d=…` plugin pack): it waits in [com.cosmotune.watch.WatchLinks.pending] for its sheet.
+     * False when it is not a Watch link.
+     */
+    fun openInstallLink(link: String): Boolean = com.cosmotune.watch.WatchLinks.offer(link)
 
-    /** Whether [link] is one the install sheet reads. */
-    fun isInstallLink(link: String): Boolean {
-        val l = link.trim().lowercase()
-        return l.startsWith("stremio://") || l.startsWith("cosmotune://watch/addon") || (l.startsWith("https://") && l.endsWith("/manifest.json"))
-    }
+    /** Whether [link] is one the install or pack sheet reads. */
+    fun isInstallLink(link: String): Boolean =
+        com.cosmotune.watch.InstallLinks.isInstallLink(link) || com.cosmotune.watch.InstallLinks.isPackLink(link)
 }
 
 /** A channel as a summary card, so the player has a title to show. */

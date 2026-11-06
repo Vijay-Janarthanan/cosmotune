@@ -55,11 +55,14 @@ fun WatchApp(contentPadding: PaddingValues = PaddingValues(0.dp), showNavigation
     val tab by WatchNav.tab.collectAsState()
     val stack by WatchNav.stack.collectAsState()
     val pending by WatchNav.pendingInstall.collectAsState()
+    val opened by com.cosmotune.watch.WatchLinks.pending.collectAsState()
     val fonts = orbitFonts()
     val look = orbitLook()
     val repository = watchRepository()
     val scope = rememberCoroutineScope()
-    val actions = remember(repository, scope) { WatchActions(repository, scope) }
+    val room = com.cosmotune.ui.room.LocalRoomLauncher.current
+    val downloads = LocalWatchDownloads.current
+    val actions = remember(repository, scope, room, downloads) { WatchActions(repository, scope, room, downloads) }
     BoxWithConstraints(modifier.fillMaxSize()) {
         val wide = maxWidth >= 840.dp
         val top = stack.lastOrNull()
@@ -83,19 +86,33 @@ fun WatchApp(contentPadding: PaddingValues = PaddingValues(0.dp), showNavigation
                 WatchTab.LIVE -> WatchLivePage(actions, fonts, look, frame)
                 WatchTab.SEARCH -> WatchSearchPage(actions, fonts, look, frame)
                 WatchTab.MY_LIST -> WatchMyListPage(actions, fonts, look, frame)
-                WatchTab.DOWNLOADS -> WatchDownloadsPage(fonts, look, frame)
+                WatchTab.DOWNLOADS -> WatchDownloadsPage(actions, fonts, look, frame)
                 WatchTab.PLUGINS -> WatchPluginsPage(fonts, look, frame)
             }
         }
         pending?.let { link -> WatchInstallSheet(link, fonts, look, onDone = { WatchNav.pendingInstall.value = null }) }
+        // A link opened from outside (an intent, the system's URL handler, a second launch): its Install or pack sheet.
+        when (val link = opened) {
+            is com.cosmotune.watch.WatchLinks.Link.Install -> WatchInstallSheet(link.raw, fonts, look, onDone = { com.cosmotune.watch.WatchLinks.handled() })
+            is com.cosmotune.watch.WatchLinks.Link.Pack -> ImportPackDialog(repository, fonts, look, initialLink = link.raw) { com.cosmotune.watch.WatchLinks.handled() }
+            null -> Unit
+        }
     }
 }
 
 /** How a page is laid out: wide or stacked, the side gutter, the host's padding and the phone's header (null on the desktop). */
 internal class WatchFrame(val wide: Boolean, val side: Dp, val padding: PaddingValues, val header: (@Composable () -> Unit)?)
 
-/** What every page does with a title, an episode or a channel; the room's entry stays off until the room knows Watch items. */
-internal class WatchActions(val repository: WatchRepository, private val scope: CoroutineScope) {
+/**
+ * What every page does with a title, an episode or a channel: open, play, keep, download, and play for the room ("Watch together")
+ * through the host's [com.cosmotune.ui.room.RoomLauncher], each member's app then finding its own copy.
+ */
+internal class WatchActions(
+    val repository: WatchRepository,
+    private val scope: CoroutineScope,
+    private val room: com.cosmotune.ui.room.RoomLauncher? = null,
+    val downloads: com.cosmotune.watch.WatchDownloads? = null,
+) {
     fun open(summary: TitleSummary) = WatchNav.openTitle(summary)
 
     /** Play: a film at once (resumed), a series at its next episode. */
@@ -127,10 +144,32 @@ internal class WatchActions(val repository: WatchRepository, private val scope: 
     fun launch(block: suspend CoroutineScope.() -> Unit) { scope.launch(block = block) }
 
     /**
-     * "Watch together" is drawn but off: the room's [com.cosmotune.music.data.listentogether.PartyTrack] has no Watch kind yet,
-     * so nothing here may hand a Watch item to [com.cosmotune.ui.room.RoomLauncher.playInRoom].
+     * "Watch together" works where the host offers rooms: outside a room it asks to make or join one first, inside it plays for
+     * everyone, and it is drawn off only in a room whose host keeps the controls to themselves.
      */
-    val watchTogetherReady: Boolean get() = false
+    val watchTogetherReady: Boolean get() = room != null && (!room.inRoom || room.canControl)
+
+    /** Plays [target] for the room: the room item carries its key, ids and this device's release (never a server or a token). */
+    fun watchTogether(target: PlayTarget, summary: TitleSummary?, stream: Stream? = null, durationMs: Long? = null) {
+        val launcher = room ?: return
+        launcher.playInRoom(com.cosmotune.ui.room.roomWatchItem(target, summary, stream, durationMs))
+    }
+
+    /** "Watch together" on a film's or a series' page: the film with its best copy, a series at its next (or first) episode. */
+    fun watchTogether(summary: TitleSummary, page: Title?, best: Stream?) {
+        if (summary.type == TitleType.FILM) { watchTogether(repository.targetOf(summary), summary, best); return }
+        scope.launch {
+            val episode = runCatching { repository.nextUp(summary.key)?.episode }.getOrNull()
+                ?: runCatching {
+                    val season = page?.seasons?.map { it.number }?.filter { it > 0 }?.minOrNull() ?: 1
+                    repository.episodes(summary.key, season).firstOrNull()
+                }.getOrNull()
+                ?: return@launch
+            val target = page?.let { repository.targetOf(it, episode) }
+                ?: PlayTarget.EpisodeOf(episode.key, summary.ids, summary.name, episode.season, episode.number, episode.ids, episode.name, summary.year)
+            watchTogether(target, summary)
+        }
+    }
 }
 
 /** The top wash of a page (board `.wash`): its colour strong at the top, gone by three quarters down the window. */

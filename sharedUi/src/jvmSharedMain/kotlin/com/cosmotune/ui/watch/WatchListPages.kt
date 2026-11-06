@@ -29,6 +29,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.orbit.OrbitPageHeading
@@ -148,19 +149,76 @@ internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
     }
 }
 
-/** Downloads: the data layer keeps no downloads yet, so the page says what it will hold. */
+/** What can be downloaded, said on the Downloads page and wherever a copy cannot be. */
+internal const val WATCH_DOWNLOAD_RULE = "Direct files only: MP4, MKV and WebM from your servers, your add-ons and the free libraries. Live channels and HLS or DASH streams can't be downloaded."
+
+/**
+ * Downloads: the films and episodes kept on this device, newest first, with how far each has come; a finished one plays from
+ * the file (no network), a stopped one starts again, and any can be removed with its file.
+ */
 @Composable
-internal fun WatchDownloadsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
+internal fun WatchDownloadsPage(actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
     val side = frame.side
+    val downloads = actions.downloads
+    val list = downloads?.items?.collectAsState()?.value.orEmpty()
     Box(Modifier.fillMaxSize()) {
         WatchWash(Color(0xFF4E3C12), look)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = frame.padding) {
             frame.header?.let { header -> item(key = "dl:header") { header() } }
-            item(key = "dl:heading") { OrbitPageHeading("Downloads", "On this device", fonts, look, Modifier.padding(start = side + 6.dp, end = side, top = if (frame.wide) 24.dp else 18.dp)) }
-            item(key = "dl:empty") {
-                WatchMessage("Downloads", "Nothing downloaded", "Films and episodes you download to watch offline will be here. Downloading is not ready yet.", fonts, look,
-                    Modifier.padding(horizontal = side).padding(top = 22.dp))
+            item(key = "dl:heading") {
+                val done = list.count { it.status == com.cosmotune.watch.WatchDownload.Status.DONE }
+                OrbitPageHeading("Downloads", if (list.isEmpty()) "On this device" else "On this device · $done kept", fonts, look, Modifier.padding(start = side + 6.dp, end = side, top = if (frame.wide) 24.dp else 18.dp))
             }
+            if (downloads == null || list.isEmpty()) item(key = "dl:empty") {
+                WatchMessage("Downloads", "Nothing downloaded",
+                    if (downloads == null) "Downloading is not available on this device." else "Use Download on a film's player or its page to keep it here and watch it offline. $WATCH_DOWNLOAD_RULE",
+                    fonts, look, Modifier.padding(horizontal = side).padding(top = 22.dp))
+            } else {
+                item(key = "dl:rule") {
+                    androidx.compose.material3.Text(WATCH_DOWNLOAD_RULE, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim,
+                        modifier = Modifier.padding(horizontal = side + 6.dp).padding(top = 14.dp))
+                }
+                itemsIndexed(list, key = { _, d -> "dl:" + d.id }) { _, d ->
+                    DownloadRow(d, downloads, actions, fonts, look, Modifier.padding(horizontal = side).padding(top = 10.dp))
+                }
+            }
+            item(key = "dl:end") { Spacer(Modifier.height(40.dp)) }
         }
     }
+}
+
+@Composable
+private fun DownloadRow(d: com.cosmotune.watch.WatchDownload, downloads: com.cosmotune.watch.WatchDownloads, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
+    val done = d.status == com.cosmotune.watch.WatchDownload.Status.DONE
+    val play = { d.target?.let { t -> WatchNav.open(WatchRoute.Play(t, d.summary, downloads.streamOf(d))) }; Unit }
+    com.cosmotune.ui.orbit.WatchRowFrame(look, modifier, height = 84.dp, onClick = if (done) play else null) {
+        com.cosmotune.ui.orbit.WatchPicture(d.summary?.backdropUrl ?: d.summary?.posterUrl, d.key.value, Modifier.padding(start = 4.dp).size(96.dp, 56.dp), radius = 14.dp)
+        Column(Modifier.weight(1f)) {
+            androidx.compose.material3.Text(d.title, style = fonts.title, color = look.ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            val status = when (d.status) {
+                com.cosmotune.watch.WatchDownload.Status.DONE -> listOfNotNull(d.line, sizeText(d.totalBytes ?: d.bytes)).joinToString(" · ")
+                com.cosmotune.watch.WatchDownload.Status.DOWNLOADING -> "Downloading · " + (d.fraction?.let { "${(it * 100).toInt()}%" } ?: sizeText(d.bytes))
+                com.cosmotune.watch.WatchDownload.Status.FAILED -> d.error ?: "Stopped"
+            }
+            androidx.compose.material3.Text(status, style = fonts.body, color = look.dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            if (d.status == com.cosmotune.watch.WatchDownload.Status.DOWNLOADING) {
+                com.cosmotune.ui.orbit.OrbitProgressLine({ d.fraction ?: 0f }, look.accent, Modifier.padding(top = 6.dp, end = 12.dp))
+            }
+        }
+        when (d.status) {
+            com.cosmotune.watch.WatchDownload.Status.DONE -> com.cosmotune.ui.orbit.WatchCardChip("Play", look.ink, fonts, onClick = play, icon = com.cosmotune.ui.components.CosmoIcons.Play)
+            com.cosmotune.watch.WatchDownload.Status.FAILED -> com.cosmotune.ui.orbit.WatchCardChip("Try again", look.ink, fonts, onClick = {
+                if (!downloads.retry(d.id)) d.summary?.let { actions.open(it) }
+            })
+            else -> Unit
+        }
+        com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.Close, if (done) "Remove ${d.title}" else "Stop ${d.title}", look, onClick = { downloads.remove(d.id) }, size = 36.dp)
+    }
+}
+
+/** "1.4 GB", "820 MB". */
+internal fun sizeText(bytes: Long?): String? = when {
+    bytes == null || bytes <= 0 -> null
+    bytes >= 1_000_000_000 -> "%.1f GB".format(bytes / 1e9)
+    else -> "${(bytes / 1_000_000).coerceAtLeast(1)} MB"
 }

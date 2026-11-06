@@ -40,17 +40,33 @@ internal object DesktopRoomWatch : RoomVideoPlayer {
 
     override fun shown(): Boolean = openedKey != null
 
-    /** Whether the room opened [key] in Watch's player here (the player page then leaves it to the room). */
-    fun holds(key: String): Boolean = openedKey == key
+    /** Whether the room opened [key] in Watch's player here, or plays it now (the player page then leaves it to the room). */
+    fun holds(key: String): Boolean = openedKey == key ||
+        (DesktopRooms.joined.value && DesktopRooms.room.value?.playback?.track?.let { it.kind == PartyTrack.KIND_WATCH && it.videoId == key } == true)
+
+    /** The mode the room took the person from when it opened a Watch item, to go back to when the room moves on. */
+    @Volatile private var modeBefore: com.cosmotune.design.AppMode? = null
 
     override fun open(track: PartyTrack, startMs: Long): Boolean {
         if (!WatchRoom.canPlay(track)) return false
         val p = player ?: return false
         openedKey = track.videoId
         p.roomDurationMs = track.watch?.durationMs ?: track.durationMs
+        // Watch comes up with the item's player page, from wherever the person is (as a room video brings up Video).
+        DesktopRoomVideo.look?.let { settings ->
+            val mode = settings.mode.value
+            if (mode != com.cosmotune.design.AppMode.WATCH && com.cosmotune.design.AppModes.available(com.cosmotune.design.AppMode.WATCH)) {
+                modeBefore = mode
+                settings.setMode(com.cosmotune.design.AppMode.WATCH)
+            }
+        }
         scope.launch {
             val target = WatchRoom.targetOf(track, DesktopWatch.repository) ?: return@launch
-            p.open(target, WatchRoom.summaryOf(track), startMs = startMs.coerceAtLeast(0), hint = WatchRoom.hintOf(track), fallback = WatchRoom.fallbackOf(track))
+            val summary = WatchRoom.summaryOf(track)
+            val here = p.state.value.target?.key?.value == track.videoId && p.state.value.status !in setOf(WatchPlayerStatus.IDLE, WatchPlayerStatus.ERROR, WatchPlayerStatus.NOT_FOUND)
+            // Already playing here ("Watch together" from this player): it goes on as it is; the room's position aligns it.
+            if (!here) p.open(target, summary, startMs = startMs.coerceAtLeast(0), hint = WatchRoom.hintOf(track), fallback = WatchRoom.fallbackOf(track))
+            com.cosmotune.ui.watch.WatchNav.showPlaying(target, p.state.value.summary ?: summary)
         }
         DesktopTrackLog.log("room: finding ${track.videoId} in this device's Watch plugins at ${startMs}ms")
         return true
@@ -64,6 +80,11 @@ internal object DesktopRoomWatch : RoomVideoPlayer {
         if (openedKey == null) return
         openedKey = null
         player?.let { it.roomDurationMs = null; it.stop() }
+        // The room's player page goes, and the person goes back to where the room took them from if they are still in Watch.
+        com.cosmotune.ui.watch.WatchNav.stack.value = com.cosmotune.ui.watch.WatchNav.stack.value.filterNot { it is com.cosmotune.ui.watch.WatchRoute.Play && it.attached }
+        val before = modeBefore
+        modeBefore = null
+        DesktopRoomVideo.look?.let { if (before != null && it.mode.value == com.cosmotune.design.AppMode.WATCH) it.setMode(before) }
     }
 }
 

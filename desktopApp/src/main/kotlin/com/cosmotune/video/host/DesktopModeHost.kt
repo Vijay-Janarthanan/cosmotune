@@ -101,7 +101,19 @@ fun desktopMangaShown(): Boolean {
 fun DesktopWatchPage(contentPadding: PaddingValues) {
     val repository = remember { com.cosmotune.desktop.DesktopWatch.repository.also(com.cosmotune.ui.watch.WatchBackend::install) }
     val playback = rememberDesktopWatchPlayback()
-    com.cosmotune.ui.watch.ProvideWatch(repository = repository, playback = playback, qrCode = { payload, size -> com.cosmotune.music.desktop.DesktopQrCode(payload, size) }) {
+    val downloads = remember { com.cosmotune.desktop.DesktopWatch.downloads }
+    // In a room, the Plugins page offers this member's add-ons in its chat and lists the packs the others offered.
+    val joined by com.cosmotune.music.desktop.DesktopRooms.joined.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val roomPacks = if (joined) remember(scope) {
+        com.cosmotune.ui.watch.WatchRoomPacks.of(com.cosmotune.music.desktop.DesktopRooms.room, { com.cosmotune.music.desktop.DesktopRooms.selfUid() },
+            { text -> com.cosmotune.music.desktop.DesktopRooms.sendChat(text) }, scope)
+    } else null
+    val linkHandler = remember {
+        if (com.cosmotune.desktop.DesktopWatchLinks.available) com.cosmotune.ui.watch.WatchLinkHandler(com.cosmotune.desktop.DesktopWatchLinks::isSet, com.cosmotune.desktop.DesktopWatchLinks::set) else null
+    }
+    com.cosmotune.ui.watch.ProvideWatch(repository = repository, playback = playback, downloads = downloads, roomPacks = roomPacks, linkHandler = linkHandler,
+        qrCode = { payload, size -> com.cosmotune.music.desktop.DesktopQrCode(payload, size) }) {
         // A compact window has no sidebar: the page then carries its own tabs, as on the phone.
         androidx.compose.foundation.layout.BoxWithConstraints {
             val compact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
