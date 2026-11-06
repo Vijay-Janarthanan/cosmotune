@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -194,7 +195,7 @@ internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 
 /**
  * A one-line field of a settings page (the proxy's address, user and password): the chip's pill (radius 22, at least 48 dp), the
  * [placeholder] in the dim ink while it is empty, the words in the body face and the ink. [error] rings it in the theme's error
- * colour; [secret] hides what is typed.
+ * colour; [secret] hides what is typed; [enabled] false fades it and takes no typing.
  */
 @Composable
 internal fun OrbitTextField(
@@ -206,17 +207,20 @@ internal fun OrbitTextField(
     modifier: Modifier = Modifier,
     error: Boolean = false,
     secret: Boolean = false,
+    enabled: Boolean = true,
 ) {
     val shape = RoundedCornerShape(22.dp)
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         singleLine = true,
         textStyle = fonts.body.copy(color = look.ink),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         keyboardOptions = if (secret) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password) else androidx.compose.foundation.text.KeyboardOptions.Default,
         modifier = modifier
+            .then(if (enabled) Modifier else Modifier.alpha(0.45f))
             .heightIn(min = 48.dp)
             .clip(shape)
             .background(look.chip)
