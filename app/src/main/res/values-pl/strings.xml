@@ -1465,4 +1465,6 @@
     <string name="room_open">Open the room</string>
     <string name="room_size_subtitle">Choose 2–8 listeners</string>
     <string name="room_guest_footer">No account needed: you join as a guest, or with your Google sign-in from Account &amp; sync. Your library isn’t synced by joining.</string>
+    <string name="room_item_needs_update">Update Cosmotune to play this. You will join in again on the next one.</string>
+    <string name="room_item_not_in_watch">%1$s is not in your Watch plugins. You will join in again on the next one.</string>
 </resources>

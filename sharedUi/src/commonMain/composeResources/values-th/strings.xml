@@ -476,4 +476,17 @@
     <string name="cosmo_room_entry_label_unread">Room, %1$d people, unread messages. Open</string>
     <string name="cosmo_room_entry_label_one">Room, 1 person. Open</string>
     <string name="cosmo_room_entry_label_one_unread">Room, 1 person, unread messages. Open</string>
+    <string name="watch_output">Watch</string>
+    <string name="watch_output_subtitle">Play on your watch’s speaker or headphones</string>
+    <string name="previously_played">Previously played</string>
+    <string name="search_addons_hint">Search your addons</string>
+    <string name="search_addons_empty">Search every enabled addon at once. Tracks play straight from the addon.</string>
+    <string name="search_addons_no_results">No addon has “%1$s”.</string>
+    <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="music_feedback_less_like_this">Less like this</string>
+    <string name="music_feedback_show_again">Show this again</string>
+    <string name="cosmo_mode_watch">Watch</string>
+    <string name="cosmo_mode_watch_summary">Films, series and live TV</string>
+    <string name="cosmo_room_kind_watch">From Watch · found in your own plugins</string>
+    <string name="cosmo_room_needs_update">Update Cosmotune to play this</string>
 </resources>
