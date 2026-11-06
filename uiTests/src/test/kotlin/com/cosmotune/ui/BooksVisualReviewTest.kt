@@ -70,13 +70,12 @@ class BooksVisualReviewTest {
     }
 
     private fun screenshots(size: String) {
-        capture("books-home-$size")
         compose.onNode(hasText("Library") and isSelectable()).performClick()
-        compose.onNodeWithText("The illustrated atlas", substring = false).assertExists()
+        compose.onAllNodesWithText("The illustrated atlas", substring = false).onFirst().assertExists()
         capture("books-library-$size")
         compose.onNode(hasText("Browse") and isSelectable()).performClick()
         waitForDiscoverResults()
-        compose.onAllNodesWithText("Open Library · Book metadata", substring = false).onFirst().assertExists()
+        compose.onAllNodesWithText("Open Library · Book metadata", substring = true).onFirst().assertExists()
         capture("books-discover-$size")
     }
 

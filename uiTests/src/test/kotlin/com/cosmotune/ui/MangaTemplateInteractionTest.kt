@@ -16,7 +16,14 @@ class MangaTemplateInteractionTest {
     @get:Rule val temporary = TemporaryFolder()
     @Test fun customWebsiteCanBeAddedEditedDisabledAndRemovedWithoutChangingItsIdentity() {
         val repository = MangaRepository(MangaStore(temporary.newFolder()))
-        compose.setContent { MaterialTheme { Column { MangaTemplateControls(repository) } } }
+        val colors = com.cosmotune.ui.theme.CosmoColors::class.java.getConstructor(com.cosmotune.ui.theme.CosmoPaletteState::class.java)
+            .newInstance(com.cosmotune.ui.theme.CosmoPaletteState(com.cosmotune.ui.theme.CosmoBrandPalettes.of(true), true))
+        compose.setContent {
+            MaterialTheme {
+                androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.theme.LocalCosmoColors provides colors,
+                    com.cosmotune.ui.theme.LocalCosmoType provides com.cosmotune.ui.theme.rememberCosmoType()) { Column { MangaTemplateControls(repository) } }
+            }
+        }
         compose.onNodeWithText("Custom websites and templates").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Add website").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Add website").performClick()

@@ -1,19 +1,15 @@
 package com.cosmotune.manga.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -21,51 +17,36 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CollectionsBookmark
-import androidx.compose.material.icons.outlined.Explore
-import androidx.compose.material.icons.outlined.NewReleases
-import androidx.compose.material.icons.rounded.CollectionsBookmark
-import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.manga.data.*
 import com.cosmotune.ui.blocks.ModeNav
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.kit.KitButton
-import com.cosmotune.ui.kit.KitButtonKind
-import com.cosmotune.ui.kit.KitEmptyState
-import com.cosmotune.ui.kit.KitErrorState
-import com.cosmotune.ui.kit.KitIconButton
-import com.cosmotune.ui.kit.KitPill
-import com.cosmotune.ui.kit.KitSectionHeader
 import com.cosmotune.ui.kit.KitSheet
-import com.cosmotune.ui.kit.collapseFraction
-import com.cosmotune.ui.shell.CosmoTab
-import com.cosmotune.ui.theme.LocalCosmoColors
+import com.cosmotune.ui.orbit.OrbitCardChip
+import com.cosmotune.ui.orbit.OrbitCoverTitleCard
+import com.cosmotune.ui.orbit.orbitLook
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * The Manga mode (DESIGN_SYSTEM.md 6.4): Home, Browse, Updates and Library in the dock (a rail from 600 dp; the desktop's sidebar
- * when [showNavigation] is false), pushed pages for a source's catalogue, search, history, downloads, sources and a series, and
- * the reader over everything. [showLeave] adds a way back to Music where the host has no account button; [showHeader] false
- * leaves the account slot to a host that draws its own. Music keeps playing underneath: nothing here touches playback.
+ * The Manga mode (Canvas repo, design/cosmotune/batch-be/board.html, section D): Library, Updates, Browse, Sources and History as
+ * the page's chips on a phone (the desktop's sidebar when [showNavigation] is false), pushed pages for a source's catalogue,
+ * search, downloads and a series, and the reader over everything. [showLeave] adds a way back to Music where the host has no
+ * account button; [showHeader] false leaves the account slot to a host that draws its own. Music keeps playing underneath:
+ * nothing here touches playback.
  */
 @Composable
 fun MangaApp(
@@ -82,8 +63,8 @@ fun MangaApp(
     val ready = initialized.getOrNull()
     if (ready == null) {
         Column(Modifier.fillMaxSize().padding(contentPadding)) {
-            ReadTopBar("Manga", collapse = { 0f }, leading = LocalReadModeSwitcher.current, actions = { if (showHeader) ReadAccountAction(onMusic.takeIf { showLeave }) })
-            KitErrorState("Check available disk space and file access, then try again.", onRetry = { retry++ }, title = "Storage is unavailable")
+            ReadPageHead(mangaText("Manga"), mangaText("Storage"))
+            ReadError(mangaText("Check available disk space and file access, then try again."), onRetry = { retry++ }, title = mangaText("Storage is unavailable"))
         }
     } else MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
 }
@@ -107,21 +88,19 @@ internal class MangaNavigation(tab: String, book: MangaBook?, chapter: MangaChap
 
     fun select(next: String) { tab = next; source = null; page = null; book = null }
 
-    /** One step back (DESIGN_SYSTEM.md 5.3): the series, then a page, then a catalogue, then Home. False when there is nothing to undo. */
+    /** One step back: the series, then a page, then a catalogue, then the Library. False when there is nothing to undo. */
     fun back(): Boolean = when {
         book != null -> { book = null; true }
         page != null -> { page = null; true }
         source != null -> { source = null; true }
-        tab != MangaTabs.HOME -> { tab = MangaTabs.HOME; true }
+        tab != MangaTabs.LIBRARY -> { tab = MangaTabs.LIBRARY; true }
         else -> false
     }
 }
 
 internal object MangaPages {
     const val SEARCH = "search"
-    const val HISTORY = "history"
     const val DOWNLOADS = "downloads"
-    const val SOURCES = "sources"
 }
 
 /** The pieces every page of the mode is handed. */
@@ -132,11 +111,18 @@ internal class MangaScope(
     val updates: MangaUpdateCheck,
     val onMusic: (() -> Unit)?,
     val showAccount: Boolean,
-    val bottom: androidx.compose.ui.unit.Dp,
+    val bottom: Dp,
     val action: (suspend () -> Unit) -> Job,
     val openBook: (MangaBook) -> Unit,
     val onError: (String?) -> Unit,
-)
+) {
+    /** Opens [book] at the chapter it continues with (the reader), or its page while its chapters are not known yet. */
+    fun continueReading(book: MangaBook, state: MangaLibraryState) {
+        val target = mangaContinue(book, state).chapter
+        if (target == null) openBook(book)
+        else action { repository.store.save(book); navigation.book = book; navigation.chapter = target }
+    }
+}
 
 @Composable
 private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, repository: MangaRepository, showAccount: Boolean,
@@ -144,7 +130,7 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
     MangaBackgroundUpdates(repository)
     val state by repository.store.state.collectAsState()
     val scope = rememberCoroutineScope()
-    var savedTab by rememberSaveable { mutableStateOf(MangaTabs.HOME) }
+    var savedTab by rememberSaveable { mutableStateOf(MangaTabs.LIBRARY) }
     val navigation = remember {
         val book = state.books.find { it.id == state.activeBookId }
         MangaNavigation(savedTab, book, book?.chapters?.find { it.id == state.activeChapterId })
@@ -199,7 +185,7 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
             finally { busy = false }
         }
     }
-    MangaBackHandler(navigation.chapter == null && (!navigation.atRoot || navigation.tab != MangaTabs.HOME)) { navigation.back() }
+    MangaBackHandler(navigation.chapter == null && (!navigation.atRoot || navigation.tab != MangaTabs.LIBRARY)) { navigation.back() }
 
     // Pages keep their filters and scroll while a series, a page or the reader stands over them.
     val holder = rememberSaveableStateHolder()
@@ -207,52 +193,41 @@ private fun MangaContent(contentPadding: PaddingValues, onMusic: (() -> Unit)?, 
     if (current != null) {
         val book = navigation.book
         val next = book?.nextChapter(current)
-        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().testTag("manga:root")) {
-            MangaReader(repository, current, seriesTitle = book?.title.orEmpty(), hasNext = next != null, onBack = { navigation.chapter = null }, onNext = { navigation.chapter = next })
+        Box(Modifier.fillMaxSize().testTag("manga:root")) {
+            MangaReader(repository, current, book = book, hasNext = next != null, onBack = { navigation.chapter = null }, onNext = { navigation.chapter = next })
         }
         return
     }
-    val tabs = mangaTabs()
-    ReadModeScaffold(tabs, MangaTabs.all.indexOf(navigation.tab), { navigation.select(MangaTabs.all[it]) }, showNavigation, showTabs = true,
-        modifier = Modifier.testTag("manga:root")) { chrome ->
+    ReadModeFrame(MangaTabs.all, navigation.tab, { navigation.select(it) }, showNavigation && navigation.atRoot, onMusic, showAccount,
+        modifier = Modifier.testTag("manga:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
         val pageScope = MangaScope(repository, navigation, transfer, updates, onMusic, showAccount, bottom, ::action, ::openBook) { error = it }
-        Column(Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
+        Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.padding(top = 8.dp), onDismiss = { error = null }) }
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = Color(LocalCosmoColors.current.palette.accent))
+            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = orbitLook().accent)
             Box(Modifier.weight(1f)) {
                 val book = navigation.book
                 when {
                     book != null -> MangaDetails(pageScope, book, onRefresh = { openBook(book) }, onRead = { chapter -> pageScope.action { repository.store.save(book); navigation.chapter = chapter } })
-                    navigation.page == MangaPages.SOURCES -> MangaSources(repository, onDismiss = { navigation.page = null })
                     navigation.page == MangaPages.SEARCH -> MangaSearchPage(pageScope)
-                    navigation.page == MangaPages.HISTORY -> MangaHistoryPage(pageScope)
                     navigation.page == MangaPages.DOWNLOADS -> MangaDownloadsPage(pageScope)
                     navigation.source != null -> { val source = requireNotNull(navigation.source); holder.SaveableStateProvider("source:$source") { MangaSourcePage(pageScope, source) } }
                     navigation.tab == MangaTabs.BROWSE -> holder.SaveableStateProvider("tab:browse") { MangaBrowse(pageScope) }
                     navigation.tab == MangaTabs.UPDATES -> holder.SaveableStateProvider("tab:updates") { MangaUpdatesPage(pageScope) }
-                    navigation.tab == MangaTabs.LIBRARY -> holder.SaveableStateProvider("tab:library") { MangaLibrary(pageScope, busy = busy, onBusy = { busy = it }) }
-                    else -> holder.SaveableStateProvider("tab:home") { MangaHome(pageScope) }
+                    navigation.tab == MangaTabs.SOURCES -> holder.SaveableStateProvider("tab:sources") { MangaSources(repository, bottom) }
+                    navigation.tab == MangaTabs.HISTORY -> holder.SaveableStateProvider("tab:history") { MangaHistoryPage(pageScope) }
+                    else -> holder.SaveableStateProvider("tab:library") { MangaLibrary(pageScope, busy = busy, onBusy = { busy = it }) }
                 }
             }
         }
     }
 }
 
-@Composable
-private fun mangaTabs(): List<CosmoTab> = listOf(
-    CosmoTab(mangaText("Home"), CosmoIcons.Home, CosmoIcons.HomeFill),
-    CosmoTab(mangaText("Browse"), Icons.Outlined.Explore, Icons.Rounded.Explore),
-    CosmoTab(mangaText("Updates"), Icons.Outlined.NewReleases, Icons.Rounded.NewReleases),
-    CosmoTab(mangaText("Library"), Icons.Outlined.CollectionsBookmark, Icons.Rounded.CollectionsBookmark),
-)
-
-/** The trailing actions every root page carries, in the design system's order: the page's own, then Search, then the account. */
+/** The round actions every tab's heading carries: the page's own, then Search. */
 @Composable
 internal fun androidx.compose.foundation.layout.RowScope.MangaRootActions(scope: MangaScope, page: @Composable () -> Unit = {}) {
     page()
-    KitIconButton(CosmoIcons.Search, mangaText("Search"), { scope.navigation.page = MangaPages.SEARCH })
-    if (scope.showAccount) ReadAccountAction(scope.onMusic)
+    ReadIconButton(CosmoIcons.Search, "Search", { scope.navigation.page = MangaPages.SEARCH })
 }
 
 /** The cover of a series: its address, the first page of a local comic, or a signed cover fetched through its source. */
@@ -271,114 +246,41 @@ internal fun rememberMangaCover(repository: MangaRepository, book: MangaBook): A
     return cover
 }
 
-/** A series as a 2:3 card, with the library's badges: unread count, all chapters downloaded, reading progress. */
+/** The address of a series' cover when it is a plain one, for the colour of its card. */
+internal fun MangaBook.colourUrl(): String? = coverUrl?.takeIf { it.startsWith("http") && !sourceId.startsWith("template:") && !sourceId.startsWith("komga:") }
+
+/**
+ * A series as a tall cover. In the library ([inLibrary]) its line says what is unread or new and whether every chapter is on this
+ * device, the reading line shows how far into the chapter, and the "continue" moon off the corner opens the reader where it left
+ * off; a tap opens the series.
+ */
 @Composable
-internal fun MangaBookCard(scope: MangaScope, book: MangaBook, meta: String?, modifier: Modifier = Modifier, width: androidx.compose.ui.unit.Dp? = null, inLibrary: Boolean = false) {
+internal fun MangaBookCard(scope: MangaScope, book: MangaBook, meta: String?, modifier: Modifier = Modifier, width: Dp? = null, inLibrary: Boolean = false) {
     val state by scope.repository.store.state.collectAsState()
     val cover = rememberMangaCover(scope.repository, book)
-    val badges = if (!inLibrary) ReadCoverBadges() else {
-        val unread = book.chapters.count { it.id !in state.readChapters }
-        val fresh = book.chapters.count { it.id in state.newChapters }
-        val progress = state.progress[book.id]?.takeIf { !it.finished && it.pageCount > 0 }?.let { (it.page + 1f) / it.pageCount }
-        ReadCoverBadges(
-            count = if (fresh > 0) "NEW $fresh" else unread.takeIf { it > 0 }?.toString(),
-            done = book.sourceId != "local" && book.chapters.isNotEmpty() && book.chapters.all { state.downloads.containsKey(it.id) },
-            progress = progress,
-        )
-    }
-    ReadPosterCard(book.title, meta, cover, onClick = { scope.openBook(book) }, modifier = modifier, badges = badges, width = width)
+    val progress = if (inLibrary) state.progress[book.id]?.takeIf { !it.finished && it.pageCount > 0 }?.let { (it.page + 1f) / it.pageCount } else null
+    val downloaded = inLibrary && book.sourceId != "local" && book.chapters.isNotEmpty() && book.chapters.all { state.downloads.containsKey(it.id) }
+    val line = listOfNotNull(meta, mangaText("Downloaded").takeIf { downloaded }).joinToString(" · ").ifBlank { null }
+    ReadCoverCard(book.title, line, cover, onClick = { scope.openBook(book) }, modifier = modifier, width = width, progress = progress, key = book.id,
+        onContinue = if (inLibrary && book.chapters.isNotEmpty()) ({ scope.continueReading(book, state) }) else null)
 }
 
-@Composable
-private fun MangaHome(scope: MangaScope) {
-    val state by scope.repository.store.state.collectAsState()
-    val list = rememberLazyListState()
-    val threshold = rememberCollapseThreshold()
-    val continuing = state.books.filter { book -> state.progress[book.id]?.let { !it.finished || mangaContinue(book, state).resumes } == true }
-        .sortedByDescending { state.progress[it.id]?.updatedAtMs ?: 0L }.take(12)
-    val recent = state.books.filter { it.id !in state.progress }.sortedByDescending { it.addedAtMs }.take(12)
-    val updates = mangaUpdates(state).take(5)
-    val discovery = state.sources.firstOrNull { it.enabled && MangaSourcePolicy.allowed(it) }
-    Column(Modifier.fillMaxSize()) {
-        ReadTopBar(mangaText("Home"), collapse = { collapseFraction(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset, threshold) },
-            leading = LocalReadModeSwitcher.current, actions = { MangaRootActions(scope) })
-        LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("manga:home"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
-            if (continuing.isNotEmpty()) item(key = "continue") {
-                KitSectionHeader(mangaText("Continue reading"))
-                LazyRow(contentPadding = PaddingValues(horizontal = ReadMargin), horizontalArrangement = Arrangement.spacedBy(ReadGutter)) {
-                    items(continuing, key = { "continue:${it.id}" }) { book ->
-                        val progress = state.progress[book.id]
-                        val chapter = book.chapters.find { it.id == progress?.chapterId }
-                        MangaBookCard(scope, book, chapter?.let { listOf(chapterName(it).replaceFirstChar(Char::uppercase), progress?.takeIf { p -> p.pageCount > 0 }?.let { p -> "page ${p.page + 1}" }).filterNotNull().joinToString(" · ") }, width = 112.dp, inLibrary = true)
-                    }
-                }
-            }
-            if (updates.isNotEmpty()) {
-                item(key = "updates:header") { KitSectionHeader(mangaText("New chapters"), onSeeAll = { scope.navigation.select(MangaTabs.UPDATES) }) }
-                items(updates, key = { "update:${it.chapter.id}" }) { entry -> MangaUpdateRow(scope, entry) }
-            }
-            if (recent.isNotEmpty()) item(key = "recent") {
-                KitSectionHeader(mangaText("Recently added"), onSeeAll = { scope.navigation.select(MangaTabs.LIBRARY) })
-                LazyRow(contentPadding = PaddingValues(horizontal = ReadMargin), horizontalArrangement = Arrangement.spacedBy(ReadGutter)) {
-                    items(recent, key = { "recent:${it.id}" }) { book -> MangaBookCard(scope, book, mangaLibraryLine(book, state), width = 112.dp, inLibrary = true) }
-                }
-            }
-            if (discovery != null) item(key = "discover:${discovery.id}") { MangaDiscoverShelf(scope, discovery) }
-            if (state.books.isEmpty() && discovery == null) item(key = "empty") {
-                KitEmptyState(mangaText("Your next story starts here"), mangaText("Import a comic from Library, or browse a source to find a series."),
-                    icon = Icons.Outlined.Explore, actionLabel = mangaText("Browse sources"), onAction = { scope.navigation.select(MangaTabs.BROWSE) })
-            }
-        }
-    }
-}
-
-/** The first page of an enabled catalogue, as a shelf on Home: discovery without a provider prompt or a search. */
-@Composable
-private fun MangaDiscoverShelf(scope: MangaScope, source: MangaSourceConfig) {
-    val catalogue = rememberSourceCatalogue(scope.repository, source.id, "")
-    KitSectionHeader(mangaText("Popular on") + " " + source.name, onSeeAll = { scope.navigation.source = source.id })
-    when {
-        catalogue.results.isNotEmpty() -> LazyRow(contentPadding = PaddingValues(horizontal = ReadMargin), horizontalArrangement = Arrangement.spacedBy(ReadGutter)) {
-            items(catalogue.results.take(15), key = { "discover:${it.id}" }) { book -> MangaBookCard(scope, book, null, width = 112.dp) }
-        }
-        catalogue.loading -> ReadSkeletonGrid(rows = 1)
-        catalogue.error != null -> ReadInlineBanner(requireNotNull(catalogue.error), actionLabel = mangaText("Open source"), onAction = { scope.navigation.source = source.id })
-    }
-}
-
-/** A new chapter of a library series (Updates, Home): the cover, the series, the chapter, its download state. Tap reads it. */
+/** A new chapter of a library series (Updates, Library): the cover, the series, the chapter, its download. Tap reads it. */
 @Composable
 internal fun MangaUpdateRow(scope: MangaScope, entry: MangaUpdateEntry) {
     val state by scope.repository.store.state.collectAsState()
-    val palette = LocalCosmoColors.current.palette
     val cover = rememberMangaCover(scope.repository, entry.book)
     val chapter = entry.chapter
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 72.dp)
-            .clickable(role = Role.Button) { scope.action { scope.repository.store.save(entry.book); scope.navigation.book = entry.book; scope.navigation.chapter = chapter } }
-            .padding(start = ReadMargin, end = 4.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ReadCover(cover, entry.book.title, Modifier.width(40.dp))
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
-            Text(entry.book.title, style = ReadType.rowTitle(), color = Color(palette.textPrimary), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text(chapter.title, style = ReadType.meta(), color = Color(palette.textSecondary), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        }
-        MangaDownloadButton(scope, entry.book, chapter, state)
-    }
+    ReadCoverRow(entry.book.title, chapter.title, cover, key = entry.book.id, modifier = Modifier.padding(horizontal = ReadMargin, vertical = 4.dp),
+        onClick = { scope.action { scope.repository.store.save(entry.book); scope.navigation.book = entry.book; scope.navigation.chapter = chapter } },
+        trailing = { MangaDownloadButton(scope, entry.book, chapter, state) })
 }
 
-/** The download glyph of one chapter: start, progress, or remove. Local comics have nothing to download. */
+/** The download of one chapter: start, progress, or remove. Local comics have nothing to download. */
 @Composable
 internal fun MangaDownloadButton(scope: MangaScope, book: MangaBook, chapter: MangaChapter, state: MangaLibraryState) {
-    when (mangaDownloadState(scope, chapter, state)) {
-        ReadDownload.NONE -> Spacer(Modifier.width(8.dp))
-        ReadDownload.RUNNING -> Box(Modifier.width(48.dp).height(48.dp), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.CircularProgressIndicator(Modifier.width(20.dp).height(20.dp), strokeWidth = 2.dp, color = Color(LocalCosmoColors.current.palette.textSecondary))
-        }
-        ReadDownload.AVAILABLE -> KitIconButton(CosmoIcons.Download, mangaText("Download"), { mangaDownload(scope, book, listOf(chapter)) })
-        ReadDownload.DONE -> KitIconButton(CosmoIcons.Downloaded, mangaText("Remove download"), { scope.action { scope.repository.removeDownload(chapter.id) } })
+    ReadDownloadButton(mangaDownloadState(scope, chapter, state)) {
+        if (state.downloads.containsKey(chapter.id)) scope.action { scope.repository.removeDownload(chapter.id) } else mangaDownload(scope, book, listOf(chapter))
     }
 }
 
@@ -405,12 +307,29 @@ internal fun mangaDownload(scope: MangaScope, book: MangaBook, chapters: List<Ma
     }
 }
 
+/** The mono line of a series' card: "MANGA · 142 CHAPTERS · ONGOING". */
+internal fun mangaCardLabel(book: MangaBook): String = listOfNotNull(
+    "Manga",
+    book.chapters.size.takeIf { it > 0 }?.let { if (it == 1) "1 chapter" else "$it chapters" },
+    book.parserData?.state?.takeIf { it.isNotBlank() }?.lowercase(),
+).joinToString(" · ")
+
+/** "Next: Chapter 87 · The comet road", or where the reader stands in it ("Page 6 of 22 · …"). */
+internal fun mangaNextLine(book: MangaBook, state: MangaLibraryState): String? {
+    val chapter = mangaContinue(book, state).chapter ?: return null
+    val progress = state.progress[book.id]?.takeIf { it.chapterId == chapter.id && !it.finished && it.pageCount > 0 }
+    return (if (progress != null) "Page ${progress.page + 1} of ${progress.pageCount} · " else "Next: ") + chapter.title
+}
+
+/**
+ * Library (board D): the series being read as the colour card with Continue in its bite and its next chapters as rows (the next
+ * one peach), the others in progress as covers, the new chapters, then the collections as chips over the grid of every series.
+ */
 @Composable
 private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> Unit) {
     val repository = scope.repository
     val state by repository.store.state.collectAsState()
     val grid = rememberLazyGridState()
-    val threshold = rememberCollapseThreshold()
     var collection by rememberSaveable { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf("recent") }
     var unreadOnly by rememberSaveable { mutableStateOf(false) }
@@ -432,40 +351,65 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
             "unread" -> list.sortedByDescending { book -> book.chapters.count { it.id !in state.readChapters } }
             else -> list.sortedByDescending { state.progress[it.id]?.updatedAtMs ?: it.addedAtMs }
         } }
-    Column(Modifier.fillMaxSize()) {
-        ReadTopBar(mangaText("Library"), collapse = { collapseFraction(grid.firstVisibleItemIndex, grid.firstVisibleItemScrollOffset, threshold) },
-            leading = LocalReadModeSwitcher.current, actions = { MangaRootActions(scope) {
-                KitIconButton(Icons.Rounded.Tune, mangaText("Library options"), { options = true }, Modifier.testTag("manga:options"))
-            } })
-        LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.weight(1f).fillMaxWidth().testTag("manga:library"), state = grid,
-            contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
-            horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item(key = "shortcuts", span = { GridItemSpan(maxLineSpan) }) {
-                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    KitPill(mangaText("History"), icon = Icons.Rounded.History, onClick = { scope.navigation.page = MangaPages.HISTORY }, modifier = Modifier.testTag("manga:history"))
-                    KitPill(mangaText("Downloads"), icon = CosmoIcons.Downloaded, onClick = { scope.navigation.page = MangaPages.DOWNLOADS }, modifier = Modifier.testTag("manga:downloads"))
+    val reading = state.books.filter { book -> state.progress[book.id]?.let { !it.finished || mangaContinue(book, state).resumes } == true }
+        .sortedByDescending { state.progress[it.id]?.updatedAtMs ?: 0L }
+    val hero = reading.firstOrNull()
+    val fresh = mangaUpdates(state).take(3)
+    val discovery = state.sources.firstOrNull { it.enabled && MangaSourcePolicy.allowed(it) }
+    val unread = state.books.sumOf { book -> book.chapters.count { it.id !in state.readChapters } }
+    LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().testTag("manga:library"), state = grid,
+        contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
+        horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        item(key = "heading", span = { GridItemSpan(maxLineSpan) }) {
+            ReadPageHead(mangaText("Library"), if (state.books.isEmpty()) mangaText("Your series") else "${state.books.size} series · $unread unread", Modifier.readBleed()) {
+                ReadIconButton(Icons.Rounded.Tune, "Library options", { options = true }, Modifier.testTag("manga:options"))
+                MangaRootActions(scope)
+            }
+        }
+        if (hero != null) item(key = "hero:${hero.id}", span = { GridItemSpan(maxLineSpan) }) { MangaHero(scope, hero, state) }
+        if (reading.size > 1) item(key = "continue", span = { GridItemSpan(maxLineSpan) }) {
+            Column(Modifier.readBleed()) {
+                ReadSection("Continue")
+                LazyRow(contentPadding = PaddingValues(horizontal = ReadMargin), horizontalArrangement = Arrangement.spacedBy(ReadGutter)) {
+                    items(reading.drop(1).take(12), key = { "continue:${it.id}" }) { book ->
+                        MangaBookCard(scope, book, mangaNextLine(book, state)?.removePrefix("Next: "), width = 112.dp, inLibrary = true)
+                    }
                 }
             }
-            item(key = "collections", span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.readBleed()) { MangaCollections(repository, collection) { collection = it } }
-            }
-            if (books.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
-                if (state.books.isEmpty()) KitEmptyState(mangaText("Your library is empty"), mangaText("Your next story starts here. Import a comic or add a series from Browse."),
-                    actionLabel = mangaText("Browse sources"), onAction = { scope.navigation.select(MangaTabs.BROWSE) })
-                else KitEmptyState(mangaText("Nothing here"), mangaText(if (unreadOnly) "Every series in this view is read." else "No series in this collection yet."))
-            }
-            items(books, key = { it.id }) { book -> MangaBookCard(scope, book, mangaLibraryLine(book, state), inLibrary = true) }
         }
+        if (fresh.isNotEmpty()) item(key = "fresh", span = { GridItemSpan(maxLineSpan) }) {
+            Column(Modifier.readBleed()) {
+                ReadSection("New chapters", onSeeAll = { scope.navigation.select(MangaTabs.UPDATES) })
+                fresh.forEach { entry -> MangaUpdateRow(scope, entry) }
+            }
+        }
+        item(key = "collections", span = { GridItemSpan(maxLineSpan) }) {
+            Column(Modifier.readBleed(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ReadSection("All series", subtitle = mangaText(sortLabel(sort)) + if (unreadOnly) " · " + mangaText("unread only") else "")
+                MangaCollections(repository, collection) { collection = it }
+                ReadChipRow {
+                    ReadPill(mangaText("Downloads"), icon = CosmoIcons.Downloaded, onClick = { scope.navigation.page = MangaPages.DOWNLOADS }, modifier = Modifier.testTag("manga:downloads"))
+                    ReadPill(mangaText("History"), icon = CosmoIcons.Replay, onClick = { scope.navigation.select(MangaTabs.HISTORY) }, modifier = Modifier.testTag("manga:history"))
+                }
+            }
+        }
+        if (books.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+            Column(Modifier.readBleed()) {
+                if (state.books.isEmpty()) ReadEmpty("Your library is empty", "Your next story starts here. Import a comic or add a series from Browse.",
+                    actionLabel = "Browse sources", onAction = { scope.navigation.select(MangaTabs.BROWSE) })
+                else ReadEmpty("Nothing here", if (unreadOnly) "Every series in this view is read." else "No series in this collection yet.")
+                if (state.books.isEmpty() && discovery != null) MangaDiscoverShelf(scope, discovery)
+            }
+        }
+        items(books, key = { it.id }) { book -> MangaBookCard(scope, book, mangaLibraryLine(book, state), inLibrary = true) }
     }
     if (options) KitSheet(onDismiss = { options = false }, title = mangaText("Library")) {
         ReadSheetRow(mangaText("Import comic"), CosmoIcons.Plus, { options = false; pick() }, enabled = !busy)
         ReadSheetRow(mangaText("Image folder"), Icons.Rounded.Folder, { options = false; pickFolder() }, enabled = !busy)
-        ReadSheetRow(mangaText("Manage sources"), CosmoIcons.Settings, { options = false; scope.navigation.page = MangaPages.SOURCES })
+        ReadSheetRow(mangaText("Manage sources"), CosmoIcons.Settings, { options = false; scope.navigation.select(MangaTabs.SOURCES) })
         ReadSheetSection(mangaText("Sort by")) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("recent" to "Last read", "title" to "Title", "added" to "Added", "unread" to "Unread").forEach { (value, label) ->
-                    ReadChip(mangaText(label), sort == value, { sort = value })
-                }
+            ReadChipRow(inset = 0.dp) {
+                listOf("recent", "title", "added", "unread").forEach { value -> ReadChip(mangaText(sortLabel(value)), sort == value, { sort = value }) }
             }
         }
         ReadSheetSection(mangaText("Filter")) { ReadChip(mangaText("Unread only"), unreadOnly, { unreadOnly = !unreadOnly }) }
@@ -473,3 +417,63 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
     }
 }
 
+private fun sortLabel(sort: String): String = when (sort) { "title" -> "Title"; "added" -> "Added"; "unread" -> "Unread"; else -> "Last read" }
+
+/** The series being read: its colour card with Continue in the bite, then its next three chapters as rows, the next one peach. */
+@Composable
+private fun MangaHero(scope: MangaScope, book: MangaBook, state: MangaLibraryState) {
+    val cover = rememberMangaCover(scope.repository, book)
+    val next = mangaContinue(book, state).chapter
+    val ordered = book.listedChapters()
+    val start = next?.let { n -> ordered.indexOfFirst { it.id == n.id } }?.coerceAtLeast(0) ?: 0
+    val upcoming = ordered.drop(start).take(3)
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OrbitCoverTitleCard(
+            cover = cover, colourUrl = book.colourUrl(), key = book.id, label = mangaCardLabel(book), title = book.title,
+            line = mangaNextLine(book, state), onContinue = { scope.continueReading(book, state) }, onClick = { scope.openBook(book) },
+            modifier = Modifier.testTag("manga:hero"),
+            chips = { colors ->
+                OrbitCardChip(mangaText("Chapters"), colors, onClick = { scope.openBook(book) }, icon = CosmoIcons.List)
+                val pending = if (book.sourceId == "local") emptyList() else ordered.drop(start).filter { it.id !in state.readChapters && !state.downloads.containsKey(it.id) }.take(10)
+                if (scope.transfer.active) Box(Modifier.height(40.dp).width(40.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.width(18.dp).height(18.dp), strokeWidth = 2.dp, color = colors.ink)
+                } else if (pending.isNotEmpty()) OrbitCardChip(mangaText("Download"), colors, onClick = { mangaDownload(scope, book, pending) }, icon = CosmoIcons.Download)
+            },
+        )
+        Spacer(Modifier.height(8.dp))
+        upcoming.forEach { chapter ->
+            val read = chapter.id in state.readChapters
+            ReadChapterRow(
+                title = chapter.title,
+                meta = if (chapter.id == next?.id) mangaText("Next") + chapterLength(state, book, chapter) else chapterSubtitle(chapter, state.progress[book.id], read),
+                read = read, fresh = chapter.id in state.newChapters, download = mangaDownloadState(scope, chapter, state),
+                onClick = { scope.action { scope.repository.store.save(book); scope.navigation.book = book; scope.navigation.chapter = chapter } },
+                onLongClick = { scope.openBook(book) },
+                onDownload = { if (state.downloads.containsKey(chapter.id)) scope.action { scope.repository.removeDownload(chapter.id) } else mangaDownload(scope, book, listOf(chapter)) },
+                next = chapter.id == next?.id,
+            )
+        }
+    }
+}
+
+/** " · 22 pages" when the chapter's pages are known (downloaded or part read), else nothing. */
+internal fun chapterLength(state: MangaLibraryState, book: MangaBook, chapter: MangaChapter): String {
+    val pages = state.downloads[chapter.id]?.size ?: state.progress[book.id]?.takeIf { it.chapterId == chapter.id }?.pageCount ?: 0
+    return if (pages > 0) " · $pages pages" else ""
+}
+
+/** The first page of an enabled catalogue, as a shelf: discovery without a provider prompt or a search. */
+@Composable
+internal fun MangaDiscoverShelf(scope: MangaScope, source: MangaSourceConfig) {
+    val catalogue = rememberSourceCatalogue(scope.repository, source.id, "")
+    Column(Modifier.fillMaxWidth()) {
+        ReadSection(mangaText("Popular on") + " " + source.name, onSeeAll = { scope.navigation.source = source.id })
+        when {
+            catalogue.results.isNotEmpty() -> LazyRow(contentPadding = PaddingValues(horizontal = ReadMargin), horizontalArrangement = Arrangement.spacedBy(ReadGutter)) {
+                items(catalogue.results.take(15), key = { "discover:${it.id}" }) { book -> MangaBookCard(scope, book, null, width = 112.dp) }
+            }
+            catalogue.loading -> ReadSkeletonGrid(rows = 1)
+            catalogue.error != null -> ReadInlineBanner(requireNotNull(catalogue.error), actionLabel = mangaText("Open source"), onAction = { scope.navigation.source = source.id })
+        }
+    }
+}

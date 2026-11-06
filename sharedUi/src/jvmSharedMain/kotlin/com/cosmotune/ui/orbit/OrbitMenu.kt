@@ -36,7 +36,7 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 
 /** One line of an [OrbitMenu]: a title, an optional line under it, an optional icon; [selected] is the one in force. */
-internal class OrbitMenuItem(
+class OrbitMenuItem(
     val title: String,
     val detail: String? = null,
     val icon: ImageVector? = null,
@@ -54,7 +54,7 @@ internal class OrbitMenuItem(
  * it (unless the item says [OrbitMenuItem.keepOpen]); a tap outside or back closes it too.
  */
 @Composable
-internal fun OrbitMenu(
+fun OrbitMenu(
     open: Boolean,
     onDismiss: () -> Unit,
     items: List<OrbitMenuItem>,

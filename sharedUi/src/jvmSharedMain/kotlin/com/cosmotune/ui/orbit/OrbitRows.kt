@@ -45,7 +45,7 @@ import com.cosmotune.music.ui.components.longPressMenuClickable
  * the library's rows end in a button and give 6 dp).
  */
 @Composable
-internal fun OrbitSongRow(
+fun OrbitSongRow(
     title: String,
     subtitle: String,
     cover: String?,

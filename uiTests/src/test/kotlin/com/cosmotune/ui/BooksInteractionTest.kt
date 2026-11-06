@@ -88,7 +88,7 @@ class BooksInteractionTest {
     @Test fun largeTextKeepsLibrarySearchAndShelvesUsable() {
         library(fontScale = 2f)
         compose.onNode(hasText("Library") and isSelectable()).performClick()
-        compose.onNodeWithTag("books:library-search").performTextInput("Ravi")
+        compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("books:library-search"))).performTextInput("Ravi")
         compose.onNodeWithText("Field notes", substring = false).assertExists()
         compose.onNodeWithText("The illustrated atlas", substring = false).assertDoesNotExist()
         compose.onNodeWithTag("books:shelf:Downloaded").performScrollTo().performClick()

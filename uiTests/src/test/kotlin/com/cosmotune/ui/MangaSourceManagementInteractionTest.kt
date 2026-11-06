@@ -43,13 +43,14 @@ class MangaSourceManagementInteractionTest {
         compose.onNodeWithTag("manga:options").performClick()
         compose.onNodeWithText("Manage sources", useUnmergedTree = true).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("manga:sources:list").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("manga:sources:query").performScrollTo().performTextInput("MANGA Plus")
+        compose.onNodeWithTag("manga:sources:list").performScrollToNode(hasTestTag("manga:sources:query"))
+        compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("manga:sources:query"))).performTextInput("MANGA Plus")
         compose.onNodeWithTag("manga:sources:language").performScrollTo().performTextInput("en")
         compose.onNodeWithTag("manga:sources:list").performScrollToNode(hasTestTag("manga:source:${source.id}"))
         compose.onNodeWithTag("manga:source:${source.id}").assertContentDescriptionEquals("MANGA Plus English (en)").assertIsToggleable().performClick()
         compose.waitUntil(10_000) { repository.store.state.value.sources.any { it.id == source.id && it.enabled } }
         compose.onNodeWithTag("manga:source:${source.id}").assertIsOn()
-        compose.onNodeWithText("Done").assertIsDisplayed().performClick()
+        compose.onNode(hasText("Library") and isSelectable()).performClick()
         assertTrue(MangaStore(repository.store.root).state.value.sources.any { it.id == source.id && it.enabled })
     }
 }

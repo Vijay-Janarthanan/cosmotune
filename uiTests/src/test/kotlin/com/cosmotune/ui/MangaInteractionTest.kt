@@ -73,17 +73,27 @@ class MangaInteractionTest {
         return repository to book
     }
 
-    @Test fun theDockHidesForMangaPagesAndTheReaderReturnsToTheChapterList() {
+    /** The reader shows nothing over the pages until a tap on the middle third brings up its card. */
+    private fun showReaderCard() {
+        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Manga page").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("manga:reader").performTouchInput { click(center) }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("manga:reader:card").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test fun theTabsHideForMangaPagesAndTheReaderReturnsToTheChapterList() {
         show()
-        compose.onNode(hasText("Home") and isSelectable()).assertExists()
+        compose.onNode(hasText("Library") and isSelectable()).assertExists()
         compose.onNodeWithText("Evening story", substring = false).performClick()
+        compose.onNode(hasText("Library") and isSelectable()).assertDoesNotExist()
         compose.onNode(hasText("Read", substring = false) and hasClickAction()).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("Manga page").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNode(hasText("Home") and isSelectable()).assertDoesNotExist()
         compose.onNodeWithTag("manga:reader").assertExists()
+        compose.onNodeWithTag("manga:reader:card").assertDoesNotExist()
+        showReaderCard()
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag("manga:chapters").assertExists()
-        compose.onNode(hasText("Home") and isSelectable()).assertExists()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNode(hasText("Library") and isSelectable()).assertExists()
     }
 
     @Test fun globalSearchKeepsWorkingSourcesAndOpensTheSeriesOnItsOwnSource() {
@@ -106,9 +116,9 @@ class MangaInteractionTest {
         }
         show(repositoryOverride = repository)
         compose.onNode(hasText("Browse") and isSelectable()).performClick()
-        compose.onNodeWithText("Search all sources").performTextInput("Tamil")
+        compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("manga:browse:search"))).performTextInput("Tamil")
         compose.waitUntil(10_000) { compose.onAllNodesWithText("A searched series").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Working source", substring = false).assertExists()
+        compose.onAllNodesWithText("Working source", substring = false).onFirst().assertExists()
         // Each source's answer arrives on its own, so the failed one's note can come after the working one's series.
         compose.waitUntil(10_000) { compose.onAllNodesWithText("1 sources unavailable.", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("1 sources unavailable.", substring = true).assertExists()
@@ -122,12 +132,15 @@ class MangaInteractionTest {
         compose.onNodeWithText("Evening story").performClick()
         compose.onNodeWithText("Read").performClick()
         compose.waitUntil(10000) { repository.store.state.value.progress[book.id] != null }
+        showReaderCard()
         compose.onNodeWithContentDescription("Next").performClick()
         compose.waitUntil(10000) { repository.store.state.value.progress[book.id]?.page == 1 }
         screenshot("reader")
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithText("Read").performClick()
-        compose.waitUntil(10000) { compose.onAllNodesWithText("2 / 3").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10000) { compose.onAllNodesWithContentDescription("Manga page").fetchSemanticsNodes().isNotEmpty() }
+        showReaderCard()
+        compose.waitUntil(10000) { compose.onAllNodesWithText("PAGE 2 OF 3", substring = true).fetchSemanticsNodes().isNotEmpty() }
         val restored = MangaStore(repository.store.root)
         assertEquals(1, restored.state.value.progress[book.id]?.page, restored.recoveryMessage ?: "Library file missing")
     }
@@ -147,13 +160,13 @@ class MangaInteractionTest {
         } }
         show(repositoryOverride = repository)
         compose.onNodeWithText("My library", substring = false).assertDoesNotExist()
-        // Home browses the enabled catalogue's first page: no search, no source to choose first.
+        compose.onNodeWithText("Import comic").assertDoesNotExist()
+        // Browse shows the enabled catalogue's first page: no search, no source to choose first.
+        compose.onNode(hasText("Browse") and isSelectable()).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("A story to discover").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(listOf(""), calls)
         compose.onNodeWithText("Enter at least two characters", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("Import comic").assertDoesNotExist()
-        compose.onNode(hasText("Browse") and isSelectable()).performClick()
-        compose.onNodeWithText("Reading catalogue", substring = true).assertIsDisplayed()
+        compose.onAllNodesWithText("Reading catalogue", substring = true).onFirst().assertIsDisplayed()
         compose.onNode(hasText("Library") and isSelectable()).performClick()
         compose.onNodeWithTag("manga:options").assertIsDisplayed()
     }
@@ -166,6 +179,7 @@ class MangaInteractionTest {
         compose.onNodeWithText("No sources are enabled.", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Manage sources").assertIsDisplayed().performClick()
         compose.onNodeWithTag("manga:sources:list").assertExists()
+        compose.onNode(hasText("Sources") and isSelectable()).assertIsSelected()
         assertFalse(store.state.value.sources.single().enabled)
     }
 
@@ -176,7 +190,8 @@ class MangaInteractionTest {
         compose.onNodeWithText("Import comic").assertIsDisplayed()
         compose.onNodeWithText("Image folder").assertIsDisplayed()
         compose.onNodeWithText("Manage sources").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Done").performClick()
+        compose.onNode(hasText("Library") and isSelectable()).performScrollTo().performClick()
+        compose.onNodeWithTag("manga:library").performScrollToNode(hasText("Evening story"))
         compose.onNodeWithText("Evening story").assertIsDisplayed()
         screenshot("library-narrow-large-text")
     }
@@ -192,12 +207,15 @@ class MangaInteractionTest {
         }
         assertFalse(repository.store.state.value.progress.getValue(book.id).finished)
         assertFalse(book.chapters.single().id in repository.store.state.value.readChapters)
+        showReaderCard()
         compose.onNodeWithContentDescription("Next").performClick()
         compose.waitUntil(10_000) { (repository.store.state.value.progress[book.id]?.pageOffsetPx ?: 0) > 0 }
         val offset = repository.store.state.value.progress.getValue(book.id).pageOffsetPx
         assertFalse(repository.store.state.value.progress.getValue(book.id).finished)
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithText("Read").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("manga:webtoon").fetchSemanticsNodes().isNotEmpty() }
+        showReaderCard()
         compose.waitUntil(10_000) {
             compose.onAllNodesWithTag("manga:webtoon").fetchSemanticsNodes().singleOrNull()?.config
                 ?.get(SemanticsProperties.VerticalScrollAxisRange)?.value?.invoke()?.let { it > 0f } == true &&
@@ -220,6 +238,7 @@ class MangaInteractionTest {
         val fitted = compose.onAllNodesWithContentDescription("Manga page").onFirst().getUnclippedBoundsInRoot()
         assertTrue(fitted.bottom - fitted.top <= reader.bottom - reader.top + 1.dp, "fit page keeps the whole page on screen")
         // The scale lives in the reading-mode sheet.
+        showReaderCard()
         compose.onNodeWithContentDescription("Reading mode").performClick()
         compose.onNode(hasText("Fit page") and isSelectable()).assertIsSelected()
         compose.onNodeWithText("Fit width").performClick()
@@ -253,6 +272,7 @@ class MangaInteractionTest {
         compose.waitUntil(10_000) { cached() == 3 }
         Thread.sleep(500); compose.waitForIdle()
         assertTrue(cached() == 3, "the current page and the next two only, not ${cached()}")
+        showReaderCard()
         compose.onNodeWithContentDescription("Next").performClick()
         compose.waitUntil(10_000) { cached() == 4 }
     }

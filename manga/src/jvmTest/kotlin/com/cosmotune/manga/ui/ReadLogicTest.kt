@@ -103,12 +103,13 @@ class ReadLogicTest {
     }
 
     @Test fun tabsMapEveryChannelValueOntoTheirMode() {
-        assertEquals(listOf("Home", "Browse", "Updates", "Library"), MangaTabs.all)
-        assertEquals(listOf("Home", "Browse", "Bookmarks", "Library"), BookTabs.all)
+        assertEquals(listOf("Library", "Updates", "Browse", "Sources", "History"), MangaTabs.all)
+        assertEquals(listOf("Library", "Browse", "Bookmarks"), BookTabs.all)
         assertEquals(MangaTabs.BROWSE, MangaTabs.of("Discover"))
-        assertEquals(MangaTabs.HOME, MangaTabs.of("Bookmarks"))
+        assertEquals(MangaTabs.LIBRARY, MangaTabs.of("Bookmarks"))
+        assertEquals(MangaTabs.LIBRARY, MangaTabs.of("Home"))
         assertEquals(BookTabs.BOOKMARKS, BookTabs.of("Updates"))
-        assertEquals(BookTabs.HOME, BookTabs.of("History"))
+        assertEquals(BookTabs.LIBRARY, BookTabs.of("History"))
         assertEquals(BookTabs.BROWSE, BookTabs.of("Discover"))
         assertEquals("just now", agoLabel(1_000, 30_000))
         assertEquals("2 h ago", agoLabel(0, 2 * 3_600_000L + 5))

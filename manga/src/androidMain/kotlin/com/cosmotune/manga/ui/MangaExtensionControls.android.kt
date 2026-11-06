@@ -42,12 +42,12 @@ import kotlinx.coroutines.launch
         }
     }
     DisposableEffect(Unit) { onDispose { review?.stagedFile?.delete() } }
-    TextButton(enabled = !loading, onClick = { import.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream")) }) { Text("Import source extension APK") }
-    TextButton(enabled = !loading, onClick = { storePicker = true }) { Text("Browse extension stores") }
+    ReadButton(mangaText("Import source extension APK"), { import.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream")) }, kind = ReadKind.TONAL, enabled = !loading)
+    ReadButton(mangaText("Browse extension stores"), { storePicker = true }, kind = ReadKind.TONAL, enabled = !loading)
     if (storePicker) MangaExtensionStorePicker(repository, manager, onDismiss = { storePicker = false }, onReview = { review = it })
     if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
     val extensions = state.sources.filter { it.kind == "mihon" }.groupBy { it.settings["package"].orEmpty() }
-    if (extensions.isNotEmpty()) TextButton(onClick = { installedPicker = true }) { Text("Installed extensions (${extensions.size})") }
+    if (extensions.isNotEmpty()) ReadButton(mangaText("Installed extensions") + " (${extensions.size})", { installedPicker = true }, kind = ReadKind.TONAL)
     if (installedPicker) AlertDialog(onDismissRequest = { installedPicker = false }, title = { Text("Installed extensions") },
         confirmButton = { TextButton(onClick = { installedPicker = false }) { Text("Done") } }, text = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
         extensions.forEach { (packageName, configs) ->

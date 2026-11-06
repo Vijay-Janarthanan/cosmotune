@@ -83,13 +83,17 @@ class MangaSeriesInteractionTest {
 
         // Mark the first English chapter read, then hide read chapters.
         compose.onNodeWithTag("manga:chapter:fixture:multi:book:ta:c1en").performTouchInput { longClick() }
-        compose.onNodeWithText("Mark read").performClick()
+        // The sheet's row is pressed through its click action: an injected tap on the closing sheet can land on the chapter under it.
+        compose.waitForIdle()
+        compose.onNodeWithText("Mark read").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
         compose.waitUntil(5_000) { "fixture:multi:book:ta:c1en" in store.state.value.readChapters }
+        compose.onNodeWithTag("manga:chapters").performScrollToNode(hasText("Unread only"))
         compose.onNodeWithText("Unread only").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Chapter 1 English").fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithText("2 of 3 chapters · 2 unread").assertExists()
 
         // Newest first puts chapter 2 above chapter 1.
+        compose.onNodeWithTag("manga:chapters").performScrollToNode(hasText("Oldest first"))
         compose.onNodeWithText("Oldest first").performClick()
         waitText("Newest first")
         val newer = compose.onNodeWithText("Chapter 2 English").getUnclippedBoundsInRoot().top

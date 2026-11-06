@@ -150,10 +150,10 @@ fun orbitFonts(): OrbitFonts {
 class OrbitLook(val dark: Boolean, val ink: Color, val dim: Color, val chip: Color, val row: Color, val accent: Color, val ground: Color)
 
 @Composable
-internal fun orbitLook(): OrbitLook = orbitLook(LocalCosmoColors.current)
+fun orbitLook(): OrbitLook = orbitLook(LocalCosmoColors.current)
 
 /** The look for [colors] (a screen that provides its own colours reads them before providing them). */
-internal fun orbitLook(colors: com.cosmotune.ui.theme.CosmoColors): OrbitLook {
+fun orbitLook(colors: com.cosmotune.ui.theme.CosmoColors): OrbitLook {
     val dark = colors.dark
     val ink = Color(colors.palette.textPrimary)
     return OrbitLook(
@@ -168,10 +168,10 @@ internal fun orbitLook(colors: com.cosmotune.ui.theme.CosmoColors): OrbitLook {
 }
 
 /** One deep colour from a cover and the ink that reads on it; always the dark palette, so the card is deep in both themes. */
-internal class CoverTint(val fill: Color, val ink: Color)
+class CoverTint(val fill: Color, val ink: Color)
 
 @Composable
-internal fun rememberCoverTint(url: String?): CoverTint? {
+fun rememberCoverTint(url: String?): CoverTint? {
     val context = LocalPlatformContext.current
     val follow = LocalCosmoShell.current?.settings?.coverColours?.value != false
     val tint by produceState<CoverTint?>(null, url, follow) {
@@ -202,7 +202,7 @@ internal fun vivid(argb: Int): CoverTint {
 }
 
 /** Deep colours a card wears until its cover's colour is known, picked by the item so a row is not a run of grey. */
-internal val STAND_INS = listOf(0xFF5E2A1C, 0xFF1C4C49, 0xFF2E2758, 0xFF4E3C12, 0xFF44203F, 0xFF1D3656, 0xFF3F4A16).map { Color(it) }
+val STAND_INS = listOf(0xFF5E2A1C, 0xFF1C4C49, 0xFF2E2758, 0xFF4E3C12, 0xFF44203F, 0xFF1D3656, 0xFF3F4A16).map { Color(it) }
 
 /** The fill and ink of a card for [url]: the stand-in for [key] first, then the cover's colour fading in. */
 @Composable
@@ -343,7 +343,7 @@ internal fun OrbitRoomCard(room: RoomLauncher, fonts: OrbitFonts, modifier: Modi
 // ---- sections -------------------------------------------------------------------------------------------------------------------
 
 @Composable
-internal fun OrbitSectionHeader(title: String, subtitle: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
+fun OrbitSectionHeader(title: String, subtitle: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
     Column(modifier.fillMaxWidth()) {
         Text(title, style = fonts.section, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))

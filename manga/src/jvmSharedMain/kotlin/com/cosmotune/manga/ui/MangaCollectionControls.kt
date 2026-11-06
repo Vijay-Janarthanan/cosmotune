@@ -16,10 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.cosmotune.manga.data.*
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.kit.KitButton
-import com.cosmotune.ui.kit.KitButtonKind
 import com.cosmotune.ui.kit.KitSheet
-import com.cosmotune.ui.kit.KitTextButton
 import com.cosmotune.ui.theme.LocalCosmoColors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -50,9 +47,9 @@ import kotlinx.coroutines.launch
         ReadSheetHeader(mangaText("Collections"), onDone = onDismiss)
         Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(name, { name = it.take(80) }, singleLine = true, label = { Text(mangaText("Collection name")) }, modifier = Modifier.fillMaxWidth().testTag("manga:collection:name"))
-            KitButton(mangaText(if (editing == null) "Create collection" else "Save name"), {
+            ReadButton(mangaText(if (editing == null) "Create collection" else "Save name"), {
                 action { val id = editing; if (id == null) repository.store.createCollection(name) else repository.store.renameCollection(id, name); name = ""; editing = null }
-            }, kind = KitButtonKind.TONAL, modifier = Modifier.testTag("manga:collection:save"))
+            }, kind = ReadKind.TONAL, modifier = Modifier.testTag("manga:collection:save"))
             error?.let { Text(it, style = ReadType.body(), color = Color(palette.danger)) }
             state.collections.forEach { collection ->
                 Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -60,8 +57,8 @@ import kotlinx.coroutines.launch
                         Text(collection.name, style = ReadType.rowTitle(), color = Color(palette.textPrimary))
                         Text(if (collection.bookIds.size == 1) "1 series" else "${collection.bookIds.size} series", style = ReadType.meta(), color = Color(palette.textSecondary))
                     }
-                    KitTextButton(mangaText("Rename"), { editing = collection.id; name = collection.name }, Modifier.testTag("manga:collection:rename:${collection.id}"))
-                    KitTextButton(mangaText("Delete"), { deleting = collection }, Modifier.testTag("manga:collection:delete:${collection.id}"))
+                    ReadTextButton(mangaText("Rename"), { editing = collection.id; name = collection.name }, Modifier.testTag("manga:collection:rename:${collection.id}"))
+                    ReadTextButton(mangaText("Delete"), { deleting = collection }, Modifier.testTag("manga:collection:delete:${collection.id}"))
                 }
                 ReadHairline(start = 0.dp)
             }
@@ -74,15 +71,15 @@ import kotlinx.coroutines.launch
         dismissButton = { TextButton(onClick = { deleting = null }) { Text(mangaText("Cancel")) } }) }
 }
 
-/** The series page's "In library" button (the collections it belongs to) and its sheet of collections to tick. */
-@Composable internal fun MangaCollectionAssignment(repository: MangaRepository, bookId: String) {
+/** The series card's "In library" chip (the collections it belongs to) and its sheet of collections to tick. */
+@Composable internal fun MangaCollectionAssignment(repository: MangaRepository, bookId: String, colors: com.cosmotune.ui.orbit.OrbitCardColors) {
     val state by repository.store.state.collectAsState()
     val palette = LocalCosmoColors.current.palette
     var open by remember(bookId) { mutableStateOf(false) }
     var error by remember(bookId) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val count = state.collections.count { bookId in it.bookIds }
-    KitButton(mangaText("In library") + if (count > 0) " · $count" else "", { open = true }, kind = KitButtonKind.TONAL, icon = CosmoIcons.HeartFill,
+    com.cosmotune.ui.orbit.OrbitCardChip(mangaText("In library") + if (count > 0) " · $count" else "", colors, onClick = { open = true }, icon = CosmoIcons.HeartFill,
         modifier = Modifier.testTag("manga:collection:assign"))
     if (open) KitSheet(onDismiss = { open = false }) {
         ReadSheetHeader(mangaText("Assign collections"), onDone = { open = false })

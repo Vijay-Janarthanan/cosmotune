@@ -1,5 +1,9 @@
 package com.cosmotune.manga.ui
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import com.cosmotune.ui.components.CosmoIcons
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,33 +27,34 @@ internal class MangaBackupTransfer(val export: (ByteArray) -> Unit, val restore:
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { message = failure.message ?: "Library backup could not be opened" } }
     }, { result -> message = result.exceptionOrNull()?.message ?: "Library backup saved" })
-    Column {
-        FlowRow {
-            TextButton(enabled = !busy, modifier = Modifier.testTag("manga:backup:export"), onClick = { scope.launch {
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReadButton(mangaText("Export library backup"), enabled = !busy, kind = ReadKind.TONAL, icon = CosmoIcons.Download, modifier = Modifier.testTag("manga:backup:export"), onClick = { scope.launch {
                 busy = true
                 try { transfer.export(withContext(Dispatchers.IO) { MangaLibraryBackup.from(state).encode() }) }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (failure: Exception) { message = failure.message }
                 finally { busy = false }
-            } }) { Text(mangaText("Export library backup")) }
-            TextButton(onClick = transfer.restore, modifier = Modifier.testTag("manga:backup:restore")) { Text(mangaText("Restore library backup")) }
+            } })
+            ReadButton(mangaText("Restore library backup"), transfer.restore, kind = ReadKind.TONAL, icon = CosmoIcons.Replay, modifier = Modifier.testTag("manga:backup:restore"))
         }
-        Text("Backups contain reading history, collections and source URLs. Source credentials, browser sessions and comic files are excluded. Reimport local comics before restoring their collections.", style = MaterialTheme.typography.bodySmall)
-        Text("Automatic chapter updates", style = MaterialTheme.typography.titleSmall)
-        FlowRow {
+        Text("Backups contain reading history, collections and source URLs. Source credentials, browser sessions and comic files are excluded. Reimport local comics before restoring their collections.", style = ReadType.meta(), color = look.dim)
+        Text(mangaText("Automatic chapter updates"), style = ReadType.rowTitle(), color = look.ink, modifier = Modifier.padding(top = 8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(0 to "Off", 24 to "Daily", 168 to "Weekly").forEach { (hours, label) ->
-                FilterChip(selected = state.updateIntervalHours == hours, onClick = { scope.launch {
+                ReadChip(mangaText(label), state.updateIntervalHours == hours, { scope.launch {
                     try { repository.store.updateSchedule(hours) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (failure: Exception) { message = failure.message }
-                } }, label = { Text(mangaText(label)) }, modifier = Modifier.testTag("manga:updates:$hours"))
+                } }, Modifier.testTag("manga:updates:$hours"))
             }
         }
-        Text("Checks saved series on enabled sources; no automatic downloads. Android uses connected, battery-safe background work. Desktop checks while the app is open.", style = MaterialTheme.typography.bodySmall)
+        Text("Checks saved series on enabled sources; no automatic downloads. Android uses connected, battery-safe background work. Desktop checks while the app is open.", style = ReadType.meta(), color = look.dim)
         if (state.lastUpdateAttemptMs > 0) Text(if (state.lastUpdateCompletedMs >= state.lastUpdateAttemptMs)
             "Last check: ${state.lastUpdateNewChapters} new chapters · ${state.lastUpdateFailures} unavailable series"
-            else "The last check did not finish; use Check for updates to retry.", style = MaterialTheme.typography.bodySmall)
-        message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            else "The last check did not finish; use Check for updates to retry.", style = ReadType.meta(), color = look.dim)
+        message?.let { Text(it, style = ReadType.meta(), color = look.ink) }
     }
     pending?.let { backup -> AlertDialog(onDismissRequest = { pending = null }, title = { Text(mangaText("Restore Manga library?")) },
         text = { Text("Merge ${backup.books.size} online series and ${backup.collections.size} collections? Existing series and reading positions are kept. Sources must be configured separately.") },

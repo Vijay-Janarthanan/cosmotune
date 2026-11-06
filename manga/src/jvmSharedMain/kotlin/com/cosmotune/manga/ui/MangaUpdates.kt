@@ -29,9 +29,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cosmotune.manga.data.*
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.kit.KitEmptyState
-import com.cosmotune.ui.kit.KitIconButton
-import com.cosmotune.ui.kit.collapseFraction
 import com.cosmotune.ui.theme.LocalCosmoColors
 import java.time.Instant
 import java.time.ZoneId
@@ -65,19 +62,21 @@ internal fun MangaUpdatesPage(scope: MangaScope) {
     val palette = LocalCosmoColors.current.palette
     val check = scope.updates
     val list = rememberLazyListState()
-    val threshold = rememberCollapseThreshold()
     val online = state.books.any { it.sourceId != "local" }
     val days = mangaUpdateDays(state)
+    val count = days.sumOf { it.entries.size }
     Column(Modifier.fillMaxSize()) {
-        ReadTopBar(mangaText("Updates"), collapse = { collapseFraction(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset, threshold) },
-            leading = LocalReadModeSwitcher.current, actions = { MangaRootActions(scope) {
-                if (online) {
-                    if (check.running) KitIconButton(CosmoIcons.Close, mangaText("Stop"), { check.job?.cancel() })
-                    else KitIconButton(CosmoIcons.Replay, mangaText("Check for updates"), { check.start(scope) }, Modifier.testTag("manga:updates:check"))
-                }
-            } })
         PullToRefreshBox(isRefreshing = check.running, onRefresh = { if (online) check.start(scope) }, modifier = Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(Modifier.fillMaxSize().testTag("manga:updates"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
+                item(key = "heading") {
+                    ReadPageHead(mangaText("Updates"), if (count == 1) mangaText("1 new chapter") else "$count " + mangaText("new chapters")) {
+                        if (online) {
+                            if (check.running) ReadIconButton(CosmoIcons.Close, mangaText("Stop"), { check.job?.cancel() })
+                            else ReadIconButton(CosmoIcons.Replay, mangaText("Check for updates"), { check.start(scope) }, Modifier.testTag("manga:updates:check"))
+                        }
+                        MangaRootActions(scope)
+                    }
+                }
                 item(key = "status") {
                     val report = check.report
                     val lines = listOfNotNull(
@@ -85,13 +84,13 @@ internal fun MangaUpdatesPage(scope: MangaScope) {
                         report?.let { updateReportLine(it, check.running) },
                         if (state.lastUpdateAttemptMs > state.lastUpdateCompletedMs && !check.running && report == null) "The last check did not finish; check again to retry." else null,
                     )
-                    if (lines.isNotEmpty()) Column(Modifier.padding(horizontal = ReadMargin, vertical = 4.dp)) {
+                    if (lines.isNotEmpty()) Column(Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 4.dp)) {
                         lines.forEach { Text(it, style = ReadType.meta(), color = Color(palette.textSecondary)) }
                     }
                 }
                 if (days.isEmpty()) item(key = "empty") {
-                    if (online) KitEmptyState(mangaText("No new chapters"), mangaText("Pull down, or use Check for updates, to look for new chapters of your series."), icon = Icons.Outlined.NewReleases)
-                    else KitEmptyState(mangaText("Nothing to check yet"), mangaText("Updates appear for the series you add to your library from online sources."), icon = Icons.Outlined.NewReleases)
+                    if (online) ReadEmpty(mangaText("No new chapters"), mangaText("Pull down, or use Check for updates, to look for new chapters of your series."))
+                    else ReadEmpty(mangaText("Nothing to check yet"), mangaText("Updates appear for the series you add to your library from online sources."))
                 }
                 days.forEach { day ->
                     item(key = "day:${day.label}") { ReadOverline(day.label) }
@@ -108,39 +107,33 @@ internal fun MangaHistoryPage(scope: MangaScope) {
     val state by scope.repository.store.state.collectAsState()
     val palette = LocalCosmoColors.current.palette
     val list = rememberLazyListState()
-    val threshold = rememberCollapseThreshold()
     val days = mangaHistory(state)
     val time = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
     Column(Modifier.fillMaxSize()) {
-        ReadTopBar(mangaText("History"), collapse = { collapseFraction(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset, threshold) },
-            onBack = { scope.navigation.page = null }, backLabel = mangaText("Back"))
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("manga:history:list"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
+            item(key = "heading") {
+                ReadPageHead(mangaText("History"), mangaText("The last chapter of each series you read")) { MangaRootActions(scope) }
+            }
             if (days.isEmpty()) item(key = "empty") {
-                KitEmptyState(mangaText("Nothing read yet"), mangaText("The series you read appear here, the latest first."), icon = Icons.Rounded.History)
+                ReadEmpty(mangaText("Nothing read yet"), mangaText("The series you read appear here, the latest first."))
             }
             days.forEach { day ->
                 item(key = "day:${day.label}") { ReadOverline(day.label) }
                 items(day.entries, key = { "history:${it.book.id}" }) { entry ->
                     val cover = rememberMangaCover(scope.repository, entry.book)
                     val at = time.format(Instant.ofEpochMilli(entry.progress.updatedAtMs).atZone(ZoneId.systemDefault()))
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 76.dp).clickable(role = Role.Button) {
+                    val position = entry.progress.takeIf { it.pageCount > 0 && !it.finished }?.let { "page ${it.page + 1} of ${it.pageCount}" } ?: if (entry.progress.finished) "finished" else null
+                    ReadCoverRow(entry.book.title, listOfNotNull(entry.chapter?.title, position, at).joinToString(" · "), cover, key = entry.book.id,
+                        modifier = Modifier.padding(horizontal = ReadMargin, vertical = 4.dp),
+                        onClick = {
                             val chapter = entry.chapter
                             if (chapter != null) { scope.navigation.book = entry.book; scope.navigation.chapter = chapter } else scope.openBook(entry.book)
-                        }.padding(start = ReadMargin, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ReadCover(cover, entry.book.title, Modifier.width(40.dp))
-                        Spacer(Modifier.width(16.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(entry.book.title, style = ReadType.rowTitle(), color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            val position = entry.progress.takeIf { it.pageCount > 0 && !it.finished }?.let { "page ${it.page + 1} of ${it.pageCount}" } ?: if (entry.progress.finished) "finished" else null
-                            Text(listOfNotNull(entry.chapter?.title, position, at).joinToString(" · "), style = ReadType.meta(), color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        KitIconButton(CosmoIcons.Close, mangaText("Remove from history"), {
-                            scope.action { scope.repository.store.update { it.copy(progress = it.progress - entry.book.id) } }
+                        },
+                        trailing = {
+                            ReadIconButton(CosmoIcons.Close, mangaText("Remove from history"), {
+                                scope.action { scope.repository.store.update { it.copy(progress = it.progress - entry.book.id) } }
+                            })
                         })
-                    }
                 }
             }
         }
@@ -153,29 +146,31 @@ internal fun MangaDownloadsPage(scope: MangaScope) {
     val state by scope.repository.store.state.collectAsState()
     val palette = LocalCosmoColors.current.palette
     val list = rememberLazyListState()
-    val threshold = rememberCollapseThreshold()
     val groups = state.books.mapNotNull { book -> book.listedChapters().filter { state.downloads.containsKey(it.id) }.takeIf { it.isNotEmpty() }?.let { book to it } }
     Column(Modifier.fillMaxSize()) {
-        ReadTopBar(mangaText("Downloads"), collapse = { collapseFraction(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset, threshold) },
-            onBack = { scope.navigation.page = null }, backLabel = mangaText("Back"))
+        ReadBackHead("Library", onBack = { scope.navigation.page = null })
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
+            item(key = "heading") {
+                val count = groups.sumOf { it.second.size }
+                ReadPageHead(mangaText("Downloads"), if (count == 1) mangaText("1 chapter on this device") else "$count " + mangaText("chapters on this device"))
+            }
             if (scope.transfer.active) item(key = "running") {
-                Text(scope.transfer.progress, style = ReadType.meta(), color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = ReadMargin, vertical = 8.dp))
+                Text(scope.transfer.progress, style = ReadType.meta(), color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 8.dp))
             }
             if (groups.isEmpty()) item(key = "empty") {
-                KitEmptyState(mangaText("No downloads"), mangaText("Download chapters from a series page to read them without a connection."), icon = CosmoIcons.Download)
+                ReadEmpty(mangaText("No downloads"), mangaText("Download chapters from a series page to read them without a connection."))
             }
             groups.forEach { (book, chapters) ->
                 item(key = "series:${book.id}") { ReadOverline(book.title) }
                 items(chapters, key = { "download:${it.id}" }) { chapter ->
-                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button) { scope.navigation.book = book; scope.navigation.chapter = chapter }
-                        .padding(start = ReadMargin, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(chapter.title, style = ReadType.rowTitle(), color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${state.downloads[chapter.id]?.size ?: 0} pages", style = ReadType.meta(), color = Color(palette.textSecondary))
-                        }
-                        KitIconButton(CosmoIcons.Downloaded, mangaText("Remove download"), { scope.action { scope.repository.removeDownload(chapter.id) } })
-                    }
+                    ReadChapterRow(
+                        title = chapter.title, meta = "${state.downloads[chapter.id]?.size ?: 0} " + mangaText("pages"),
+                        read = chapter.id in state.readChapters, fresh = chapter.id in state.newChapters, download = ReadDownload.DONE,
+                        onClick = { scope.navigation.book = book; scope.navigation.chapter = chapter },
+                        onLongClick = { scope.openBook(book) },
+                        onDownload = { scope.action { scope.repository.removeDownload(chapter.id) } },
+                        modifier = Modifier.padding(horizontal = ReadMargin, vertical = 4.dp),
+                    )
                 }
             }
         }
