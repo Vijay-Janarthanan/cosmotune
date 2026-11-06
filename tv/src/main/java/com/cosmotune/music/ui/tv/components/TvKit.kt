@@ -398,23 +398,28 @@ fun TvArtwork(
     glyph: ImageVector = Icons.Rounded.MusicNote,
 ) {
     val model = remember(url, px) { url.artworkAt(px) ?: url }
+    // The glyph stands in only until the picture arrives: a logo with clear parts would otherwise show the note through it.
+    var loaded by remember(model) { mutableStateOf(false) }
     Box(
         modifier = modifier
             .clip(shape)
             .background(TvGlass.Placeholder),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = glyph,
-            contentDescription = null,
-            tint = TvGlass.Ink.copy(alpha = 0.22f),
-            modifier = Modifier.fillMaxSize(0.34f),
-        )
+        if (!loaded) {
+            Icon(
+                imageVector = glyph,
+                contentDescription = null,
+                tint = TvGlass.Ink.copy(alpha = 0.22f),
+                modifier = Modifier.fillMaxSize(0.34f),
+            )
+        }
         if (!model.isNullOrBlank()) {
             AsyncImage(
                 model = model,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                onSuccess = { loaded = true },
                 modifier = Modifier.fillMaxSize(),
             )
         }

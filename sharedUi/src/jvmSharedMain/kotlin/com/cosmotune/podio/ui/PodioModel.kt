@@ -293,9 +293,9 @@ internal class PodioModel(
  * near them rather than on the directory's most clicked worldwide. [country] is ISO alpha-2 upper case, [language] the English name
  * Radio Browser uses ("Tamil"); either may be empty.
  */
-internal data class PodioPlace(val country: String, val language: String)
+data class PodioPlace(val country: String, val language: String)
 
-internal object PodioLocal {
+object PodioLocal {
     fun current(): PodioPlace {
         val region = runCatching { com.cosmotune.music.data.recommendations.DiscoveryPreferences.state.value }.getOrNull()
         val country = (region?.country ?: java.util.Locale.getDefault().country).takeIf { it != "ZZ" }.orEmpty().uppercase()
