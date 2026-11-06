@@ -38,13 +38,13 @@ import androidx.compose.ui.unit.sp
  */
 
 /** A menu's, a dialog's and a problem toast's ground: a deep plum of its own in dark, a warm paper in light. */
-internal fun orbitFloatGround(look: OrbitLook): Color = if (look.dark) Color(0xFF1C1418) else Color(0xFFFBF6F2)
+fun orbitFloatGround(look: OrbitLook): Color = if (look.dark) Color(0xFF1C1418) else Color(0xFFFBF6F2)
 
 /** A sheet's ground, a shade under the menu's so a menu opened from a sheet stands off it. */
-internal fun orbitSheetGround(look: OrbitLook): Color = if (look.dark) Color(0xFF1A1215) else Color(0xFFF7EFE9)
+fun orbitSheetGround(look: OrbitLook): Color = if (look.dark) Color(0xFF1A1215) else Color(0xFFF7EFE9)
 
 /** The edge round a floating card: the ink at 8 %. */
-internal fun orbitFloatEdge(look: OrbitLook): Color = look.ink.copy(alpha = 0.08f)
+fun orbitFloatEdge(look: OrbitLook): Color = look.ink.copy(alpha = 0.08f)
 
 /** The one action of a dialog or a toast: peach with a dark word in dark, the deep peach with white in light. */
 internal fun orbitActionFill(look: OrbitLook): Color = if (look.dark) PEACH else PEACH_INK
@@ -59,7 +59,7 @@ internal val SHEET_GRAB_HEIGHT = 5.dp
  * 40 %. [icon] goes before the word.
  */
 @Composable
-internal fun OrbitPillButton(
+fun OrbitPillButton(
     label: String,
     onClick: () -> Unit,
     fonts: OrbitFonts,

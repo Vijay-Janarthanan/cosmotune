@@ -194,10 +194,12 @@ internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 
 /**
  * A one-line field of a settings page (the proxy's address, user and password): the chip's pill (radius 22, at least 48 dp), the
  * [placeholder] in the dim ink while it is empty, the words in the body face and the ink. [error] rings it in the theme's error
- * colour; [secret] hides what is typed.
+ * colour; [secret] hides what is typed. [onSubmit] is Enter (a dialog's Save, a room code's look-up; an [imeAction] of Next moves on to
+ * the field after it instead), [textStyle] is laid over the body face (a room code's wide tracking), and [trailing] sits at the
+ * field's end (a clear button).
  */
 @Composable
-internal fun OrbitTextField(
+fun OrbitTextField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
@@ -206,16 +208,27 @@ internal fun OrbitTextField(
     modifier: Modifier = Modifier,
     error: Boolean = false,
     secret: Boolean = false,
+    enabled: Boolean = true,
+    onSubmit: (() -> Unit)? = null,
+    imeAction: androidx.compose.ui.text.input.ImeAction? = null,
+    textStyle: androidx.compose.ui.text.TextStyle? = null,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(22.dp)
+    val words = fonts.body.merge(textStyle)
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         singleLine = true,
-        textStyle = fonts.body.copy(color = look.ink),
+        textStyle = words.copy(color = if (enabled) look.ink else look.dim),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = if (secret) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password) else androidx.compose.foundation.text.KeyboardOptions.Default,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = if (secret) androidx.compose.ui.text.input.KeyboardType.Password else androidx.compose.ui.text.input.KeyboardType.Text,
+            imeAction = imeAction ?: if (onSubmit != null) androidx.compose.ui.text.input.ImeAction.Done else androidx.compose.ui.text.input.ImeAction.Default,
+        ),
+        keyboardActions = if (onSubmit != null) androidx.compose.foundation.text.KeyboardActions(onDone = { onSubmit() }) else androidx.compose.foundation.text.KeyboardActions.Default,
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(shape)
@@ -223,9 +236,19 @@ internal fun OrbitTextField(
             .then(if (error) Modifier.border(1.5.dp, androidx.compose.material3.MaterialTheme.colorScheme.error, shape) else Modifier)
             .semantics { contentDescription = placeholder },
         decorationBox = { inner ->
-            Box(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
-                if (value.isEmpty()) Text(placeholder, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                inner()
+            if (trailing == null) {
+                Box(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) Text(placeholder, style = words, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    inner()
+                }
+            } else {
+                Row(Modifier.padding(start = 18.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).padding(vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
+                        if (value.isEmpty()) Text(placeholder, style = words, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        inner()
+                    }
+                    trailing()
+                }
             }
         },
     )
