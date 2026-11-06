@@ -2136,13 +2136,19 @@ class PlaybackService : MediaLibraryService() {
                     0L
                 }
 
+                // The same song still playing, by the item rather than its
+                // index: a row removed or added ahead of it moves the index,
+                // and is no reason to drop the swap.
                 if (player !== activePlayer ||
-                    activePlayer.currentMediaItemIndex != currentIndex ||
+                    !QueueHandover.sameItem(activePlayer.currentMediaItem, currentItem) ||
                     activePlayer.currentMediaItem?.mediaId != sourceSong.videoId
                 ) {
                     swappingMediaId = null
                     return@launch
                 }
+                // Where the song stands now, and where it stands in the
+                // standby's copy of the queue.
+                val swapIndex = activePlayer.currentMediaItemIndex
 
                 val standbyPlayer = spare
                 // Crossfade is unconditional: the setting that used to gate it
@@ -2154,8 +2160,8 @@ class PlaybackService : MediaLibraryService() {
                 if (!canCrossfade || standbyPlayer == null) {
                     val pos = (activePlayer.currentPosition + alignmentOffsetMs).coerceAtLeast(0L)
                     val wasPlaying = activePlayer.playWhenReady
-                    activePlayer.replaceMediaItem(currentIndex, targetMediaItem)
-                    activePlayer.seekTo(currentIndex, pos)
+                    activePlayer.replaceMediaItem(swapIndex, targetMediaItem)
+                    activePlayer.seekTo(swapIndex, pos)
                     if (wasPlaying) activePlayer.play()
                     onSwapCommitted?.invoke()
                     refreshCustomLayouts()
@@ -2165,7 +2171,7 @@ class PlaybackService : MediaLibraryService() {
 
                 // Build replacement playlist for standby player
                 val newItems = (0 until activePlayer.mediaItemCount).map { i ->
-                    if (i == currentIndex) targetMediaItem else activePlayer.getMediaItemAt(i)
+                    if (i == swapIndex) targetMediaItem else activePlayer.getMediaItemAt(i)
                 }
                 val wasPlaying = activePlayer.playWhenReady
                 val alignedStartPos = (activePlayer.currentPosition + alignmentOffsetMs).coerceAtLeast(0L)
@@ -2182,7 +2188,7 @@ class PlaybackService : MediaLibraryService() {
             standbyPlayer.setPlaybackSpeed(AppSettings.playbackSpeed.value)
             applyPitch(standbyPlayer)
             standbyPlayer.volume = 0f
-            standbyPlayer.setMediaItems(newItems, currentIndex, alignedStartPos)
+            standbyPlayer.setMediaItems(newItems, swapIndex, alignedStartPos)
             spareLoudness().track(mediaId, nextMediaIdOf(standbyPlayer))
             standbyPlayer.playWhenReady = false
             standbyPlayer.prepare()
@@ -2192,7 +2198,7 @@ class PlaybackService : MediaLibraryService() {
             var isReady = false
             while (isActive && SystemClock.elapsedRealtime() < timeoutAt) {
                 if (player !== activePlayer ||
-                    activePlayer.currentMediaItemIndex != currentIndex
+                    !QueueHandover.sameItem(activePlayer.currentMediaItem, currentItem)
                 ) {
                     // Active player moved to another track or was changed
                     standbyPlayer.stop()
@@ -2219,8 +2225,11 @@ class PlaybackService : MediaLibraryService() {
                 standbyPlayer.volume = 1f
                 swappingMediaId = null
                 val pos = (activePlayer.currentPosition + alignmentOffsetMs).coerceAtLeast(0L)
-                activePlayer.replaceMediaItem(currentIndex, targetMediaItem)
-                activePlayer.seekTo(currentIndex, pos)
+                // Its index now: the queue may have been edited while the
+                // standby tried.
+                val liveIndex = activePlayer.currentMediaItemIndex
+                activePlayer.replaceMediaItem(liveIndex, targetMediaItem)
+                activePlayer.seekTo(liveIndex, pos)
                 if (wasPlaying) activePlayer.play()
                 onSwapCommitted?.invoke()
                 onTrackBecameCurrent(
@@ -2236,7 +2245,7 @@ class PlaybackService : MediaLibraryService() {
             // Sync playback position with exact live position right before starting playback on standby
             val livePos = activePlayer.currentPosition
             val targetLivePos = (livePos + alignmentOffsetMs).coerceAtLeast(0L)
-            standbyPlayer.seekTo(currentIndex, targetLivePos)
+            standbyPlayer.seekTo(swapIndex, targetLivePos)
 
             val willPlay = wasPlaying && activePlayer.playWhenReady
             if (willPlay) {
@@ -2258,7 +2267,7 @@ class PlaybackService : MediaLibraryService() {
                     // the drift accumulated above collapses to this seek's own
                     // resume time, which is the one part that cannot go.
                     standbyPlayer.seekTo(
-                        currentIndex,
+                        swapIndex,
                         (activePlayer.currentPosition + alignmentOffsetMs).coerceAtLeast(0L),
                     )
                     val resyncTimeout = SystemClock.elapsedRealtime() + 300L
@@ -2288,7 +2297,7 @@ class PlaybackService : MediaLibraryService() {
                     val elapsed = SystemClock.elapsedRealtime() - fadeStart
                     val progress = (elapsed.toFloat() / swapCrossfadeMs).coerceIn(0f, 1f)
 
-                    if (player !== activePlayer || activePlayer.currentMediaItemIndex != currentIndex) {
+                    if (player !== activePlayer || !QueueHandover.sameItem(activePlayer.currentMediaItem, currentItem)) {
                         standbyPlayer.stop()
                         standbyPlayer.clearMediaItems()
                         standbyPlayer.volume = 1f
@@ -2316,7 +2325,11 @@ class PlaybackService : MediaLibraryService() {
                     delay(16)
                 }
 
-                // Adopt incoming player cleanly
+                // Adopt incoming player cleanly, with the queue as it is now:
+                // the standby was given a copy of it up to seven seconds ago,
+                // and every edit the listener made since went to the player
+                // being faded out. See [QueueHandover].
+                QueueHandover.versionSwap(activePlayer, standbyPlayer)
                 adoptPlayerForVersionSwap(outgoing = activePlayer, incoming = standbyPlayer)
                 onSwapCommitted?.invoke()
             } finally {

@@ -245,14 +245,6 @@ class CrossfadeController(
     private var handedOff = false
 
     /**
-     * How many items the queue held when the standby was loaded with a copy of
-     * it. AutoPlay appending mid-transition is explicitly allowed, so the
-     * difference is reconciled onto the standby before the swap rather than
-     * being allowed to lose the appended tracks — see [reconcileQueue].
-     */
-    private var queuedItemCount = 0
-
-    /**
      * The outgoing player, while it is held at the end of its own track — see
      * [holdAtEnd]. Null when nothing is held.
      */
@@ -637,6 +629,19 @@ class CrossfadeController(
         }
 
         override fun onPlayerError(error: PlaybackException) = bail()
+
+        // The listener taking the song fading in out of the queue, before the
+        // handoff: it is not what plays next any more, so the blend into it is
+        // dropped now rather than heard. Any other edit is carried across at
+        // the handoff — see [reconcileQueue].
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            if (reason != Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED || handedOff) return
+            if (phase != Phase.ARMING && phase != Phase.FADING) return
+            val out = outgoing ?: return
+            val playingNext = incoming?.currentMediaItem ?: return
+            val live = List(out.mediaItemCount) { out.getMediaItemAt(it) }
+            if (QueueHandover.incomingIndex(live, out.currentMediaItemIndex, playingNext) < 0) bail()
+        }
 
         // The session reached the end of a track [holdAtEnd] is holding, before
         // the handoff took it off that track. Only ever a late handoff, or a
@@ -1225,7 +1230,6 @@ class CrossfadeController(
         val t0 = SystemClock.elapsedRealtimeNanos()
         val items = (0 until out.mediaItemCount).map { out.getMediaItemAt(it) }
         val copyDurationUs = (SystemClock.elapsedRealtimeNanos() - t0) / 1000L
-        queuedItemCount = items.size
         val perTrackUs = if (items.isNotEmpty()) copyDurationUs.toDouble() / items.size else 0.0
         Log.d(
             TAG,
@@ -1471,11 +1475,15 @@ class CrossfadeController(
      */
     private fun handOff(out: ExoPlayer, into: ExoPlayer) {
         if (handedOff) return
-        // AutoPlay may have appended to the queue since the standby was loaded
-        // with a copy of it — during arming or the first half of the blend,
-        // both of which the outgoing player owned — and those tracks would
-        // otherwise be lost at the swap.
-        reconcileQueue(out, into)
+        // The queue may have been edited since the standby was loaded with a
+        // copy of it — during arming or the first half of the blend, both of
+        // which the outgoing player owned — and those edits would otherwise be
+        // lost at the swap. A song fading in that the listener has taken out
+        // of the queue is not handed to: the blend is dropped instead.
+        if (!reconcileQueue(out, into)) {
+            bail()
+            return
+        }
 
         Log.d(TAG, "handoff at in=${into.currentPosition}ms out=${out.currentPosition}ms")
 
@@ -1508,26 +1516,26 @@ class CrossfadeController(
     }
 
     /**
-     * Copies onto the standby anything appended to the queue while it was
-     * arming.
+     * Gives the standby the outgoing player's queue as it is now, around the
+     * song it is fading in.
      *
-     * AutoPlay extending the queue mid-transition is explicitly allowed — it
-     * doesn't change the playing item, so it has never been a reason to drop a
-     * blend. Under the old design that was free, because only one player ever
-     * held the queue. Now the standby is carrying a copy taken at arm time, and
-     * that copy is what survives the swap, so the difference has to be carried
-     * across or the appended tracks simply vanish when the roles change.
+     * Editing the queue mid-transition is allowed — AutoPlay's top-up, a row
+     * removed or dragged, Play next, Add to queue — as none of it changes the
+     * playing item. Under the old design that was free, because only one player
+     * ever held the queue. Now the standby is carrying a copy taken at arm
+     * time, and that copy is what survives the swap, so every edit made since
+     * has to be carried across or it simply vanishes when the roles change.
+     * Only appends used to be, and a removed or moved row came back at the
+     * handoff. See [QueueHandover].
      *
-     * Only a pure append is reconciled. Anything else — a queue replaced, an
-     * item removed or moved — changes what the incoming track *is*, and
-     * [listener] has already bailed the transition for it.
+     * False when the song fading in is no longer in the queue at all; the
+     * caller drops the blend rather than hand to it.
      */
-    private fun reconcileQueue(out: ExoPlayer, into: ExoPlayer) {
-        val appended = (queuedItemCount until out.mediaItemCount).map { out.getMediaItemAt(it) }
-        if (appended.isEmpty()) return
-        into.addMediaItems(appended)
-        queuedItemCount = out.mediaItemCount
-        Log.d(TAG, "reconciled ${appended.size} appended item(s) onto the incoming player")
+    private fun reconcileQueue(out: ExoPlayer, into: ExoPlayer): Boolean {
+        val carried = QueueHandover.crossfade(out, into)
+        if (carried) Log.d(TAG, "carried the live queue (${out.mediaItemCount} items) onto the incoming player")
+        else Log.d(TAG, "the incoming track left the queue during the blend")
+        return carried
     }
 
     /**
@@ -1875,7 +1883,6 @@ class CrossfadeController(
         incoming = null
         handedOff = false
         outgoingItemIndex = C.INDEX_UNSET
-        queuedItemCount = 0
         incomingCueTimeMs = 0L
         incomingPlaybackRate = 1.0
         outgoingPlaybackRate = 1.0
