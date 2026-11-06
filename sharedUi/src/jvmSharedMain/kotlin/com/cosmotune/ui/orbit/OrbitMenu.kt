@@ -64,7 +64,7 @@ internal fun OrbitMenu(
     width: Dp = 260.dp,
 ) {
     if (!open) return
-    val ground = if (look.dark) Color(0xFF1C1418) else Color(0xFFFBF6F2)
+    val ground = orbitFloatGround(look)
     Popup(popupPositionProvider = OrbitMenuPosition, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         Column(
             Modifier.width(width).heightIn(max = 520.dp)

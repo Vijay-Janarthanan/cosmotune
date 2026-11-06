@@ -52,7 +52,11 @@ class SheetsContractTest {
         )
         assertEquals(listOf("text: String"), SourceContract.parameters(sheet("CosmoSheetHeader"), "CosmoSheetHeading"))
         assertEquals(listOf("menu: Boolean"), SourceContract.parameters(sheet("CosmoActionRow"), "CosmoSheetGap"))
-        assertEquals(listOf("message: String", "modifier: Modifier = Modifier"), SourceContract.parameters(sheet("CosmoToast"), "CosmoToast"))
+        // the brief's two, then the one action Orbit's toast may carry (board batch-a, section 4), all optional
+        assertEquals(
+            listOf("message: String", "modifier: Modifier = Modifier", "actionLabel: String? = null", "actionIcon: ImageVector? = null", "onAction: (() -> Unit)? = null", "alert: Boolean = false"),
+            SourceContract.parameters(sheet("CosmoToast"), "CosmoToast"),
+        )
         assertEquals(
             listOf("onDismiss: () -> Unit", "maxWidth: Dp", "hazeState: HazeState? = null", "content: @Composable ColumnScope.() -> Unit"),
             SourceContract.parameters(sheet("CosmoDialogCard"), "CosmoDialogCard"),
@@ -207,7 +211,7 @@ class SheetsContractTest {
     @Test fun theDesktopSongMenuTakesTheMenuSurfaceAndTheHazeIsVisibleToTheDialogFiles() {
         val code = flat(songMenu)
         assertTrue(
-            ".widthIn(min = 232.dp, max = 300.dp) .then($look Modifier.cosmoMenuSurface() else Modifier.clip(shape).desktopCard(shape).padding(vertical = 6.dp))" in code,
+            ".widthIn(min = 232.dp, max = 340.dp) .then($look Modifier.cosmoMenuSurface() else Modifier.clip(shape).desktopCard(shape).padding(vertical = 6.dp))" in code,
             "the menu's card takes cosmoMenuSurface while the look is on",
         )
         assertTrue(".heightIn(max = 460.dp) .verticalScroll(rememberScrollState())" in code, "the menu still scrolls under its cap")
@@ -217,14 +221,14 @@ class SheetsContractTest {
 
     // ---- E7, the draw phase, the colours ---------------------------------------------------------------------------------
 
-    @Test fun theSheetTheMenuAndTheToastNeverTakeAHazeStateAndOnlyTheDialogPassesOneThrough() {
-        for (name in listOf("CosmoSheetSurface", "CosmoMenuSurface", "CosmoToast")) {
+    @Test fun theSheetTheMenuTheToastAndTheDialogAreFlatAndOnlyTheDialogTakesAHazeState() {
+        for (name in listOf("CosmoSheetSurface", "CosmoMenuSurface", "CosmoToast", "CosmoDialogCard")) {
             val src = code(sheet(name))
-            assertFalse("HazeState" in src, "$name takes no HazeState (E7)")
-            assertTrue("cosmoGlass(hazeState = null" in src, "$name draws the solid glass")
+            assertFalse("cosmoGlass(" in src, "$name draws no glass (Orbit rule 4)")
         }
+        for (name in listOf("CosmoSheetSurface", "CosmoMenuSurface", "CosmoToast")) assertFalse("HazeState" in code(sheet(name)), "$name takes no HazeState (E7)")
         val dialog = code(sheet("CosmoDialogCard"))
-        assertTrue("hazeState: HazeState? = null" in dialog && "cosmoGlass(hazeState = hazeState" in dialog, "the dialog passes the caller's backdrop (the desktop's) to the glass")
+        assertTrue("hazeState: HazeState? = null" in dialog, "the dialog keeps the callers' backdrop parameter, and blurs nothing with it")
         // the desktop's dialogs are the only callers, and they pass the window's backdrop
         for (src in listOf(surfaces, playlistUi)) assertTrue("hazeState = LocalDesktopHaze.current" in flat(src))
         assertFalse(Regex("""\bHazeState\b""").containsMatchIn(code(songSheet)), "no phone sheet takes a HazeState")
@@ -278,51 +282,52 @@ class SheetsContractTest {
 
     // ---- the numbers of the spec -----------------------------------------------------------------------------------------
 
-    @Test fun theSheetIsDetachedAndTheSpecsNumbersAreTheOnesInTheSources() {
+    @Test fun theSheetStandsOnTheBottomWithTheBoardsNumbers() {
         val surface = flat(sheet("CosmoSheetSurface"))
-        assertTrue("SuperellipseShape(CosmoRadii.sheet)" in surface, "36 dp corners on every corner")
-        assertTrue("start = CosmoRadii.sheetInset, end = CosmoRadii.sheetInset, bottom = CosmoRadii.sheetInset" in surface, "8 dp from the sides and from the bottom")
+        assertTrue("SHEET_CORNER = 32.dp" in surface && "CornerRadius(corner)" in surface, "32 dp top corners (board batch-a, section 4)")
+        assertTrue("orbitSheetGround(orbitLook())" in surface, "its own flat ground")
+        assertTrue("size.height + SHEET_GROUND_RUN.toPx()" in surface, "the ground runs on under the navigation bar")
         assertTrue("SHEET_MAX_HEIGHT_SHARE = 0.85f" in surface && "heightIn(max = windowHeight * SHEET_MAX_HEIGHT_SHARE)" in surface, "at most 85 % of the window")
         assertTrue("CosmoSheetHandle(" in surface && "verticalScroll(" in surface && "weight(1f, fill = false)" in surface, "the grabber stays, the rows scroll below it")
         assertTrue(surface.indexOf("CosmoSheetHandle(") < surface.indexOf("verticalScroll("), "the grabber is above the rows")
     }
 
-    @Test fun theRowsHaveTheNumbersOfTheSheetAndTheMenu() {
+    @Test fun theRowsHaveTheBoardsNumbers() {
         val row = flat(sheet("CosmoActionRow"))
         for (number in listOf(
-            "SHEET_ROW_HEIGHT = 54.dp", "SHEET_ROW_RADIUS = 18.dp", "SHEET_ROW_INSET = 8.dp", "SHEET_ROW_PADDING = 14.dp", "SHEET_ROW_GAP = 16.dp", "SHEET_ICON = 24.dp",
-            "SHEET_LABEL_SP = 15.5f", "MENU_ROW_HEIGHT = 44.dp", "MENU_ROW_RADIUS = 14.dp", "MENU_ROW_PADDING = 12.dp", "MENU_ROW_GAP = 12.dp", "MENU_ICON = 20.dp",
-            "MENU_ICON_ALPHA = 0.85f", "MENU_LABEL_SP = 14.5f", "LABEL_WEIGHT = 500", "VALUE_SP = 13f", "DISABLED_ALPHA = 0.38f", "STATE_LAYER_ALPHA = 0.12f",
-            "SHEET_GAP = 6.dp", "MENU_RULE_HEIGHT = 1.dp", "MENU_RULE_MARGIN_V = 4.dp", "MENU_RULE_MARGIN_H = 8.dp",
+            "SHEET_ROW_HEIGHT = 46.dp", "MENU_ROW_HEIGHT = 42.dp", "ROW_RADIUS = 16.dp", "SHEET_ROW_INSET = 4.dp", "ROW_PADDING = 12.dp", "ROW_GAP = 12.dp", "ROW_ICON = 20.dp",
+            "LABEL_SP = 14f", "VALUE_SP = 12f", "DISABLED_ALPHA = 0.38f", "STATE_LAYER_ALPHA = 0.08f",
+            "SHEET_GAP = 6.dp", "MENU_RULE_HEIGHT = 1.dp", "MENU_RULE_MARGIN_V = 4.dp", "MENU_RULE_MARGIN_H = 12.dp",
         )) assertTrue(number in row, "the row has $number")
-        assertTrue("Color(palette.textSecondary)" in row && "Color(palette.textTertiary)" in row && "Color(palette.textPrimary)" in row, "icon, value and label colours")
+        assertTrue("fonts.title.copy(fontSize = LABEL_SP.sp" in row, "the label is the Orbit title face")
+        assertTrue("Color(palette.textSecondary)" in row && "Color(palette.textPrimary)" in row, "value and label colours")
         assertTrue("role = Role.Button" in row && "contentDescription = null" in row, "one button for assistive technology, the icon decorative")
-        assertTrue("cosmoFocusRing(interaction, radius, floating = true)" in row, "a visible focus ring")
+        assertTrue("cosmoFocusRing(interaction, ROW_RADIUS, floating = true)" in row, "a visible focus ring")
         assertTrue("collectIsPressedAsState" in row && "collectIsHoveredAsState" in row, "press and hover show the state layer")
         assertTrue("enabled = enabled" in row, "a disabled row does not answer a tap")
+        assertTrue("fun CosmoSheetChips(chips: List<OrbitSheetChip>, modifier: Modifier = Modifier)" in row, "the sheet's chips")
     }
 
-    @Test fun theHeaderTheHeadingTheToastTheMenuAndTheDialogHaveTheNumbersOfTheSpec() {
+    @Test fun theHeaderTheHeadingTheToastTheMenuAndTheDialogHaveTheBoardsNumbers() {
         val header = flat(sheet("CosmoSheetHeader"))
         for (number in listOf(
-            "HEAD_PADDING_H = 20.dp", "HEAD_PADDING_BOTTOM = 16.dp", "HEAD_GAP = 14.dp", "HEAD_COVER = 56.dp", "HEAD_COVER_RADIUS = 14.dp", "HEAD_TITLE_SP = 17f", "HEAD_SUBTITLE_SP = 13.5f",
-            "HEADING_PADDING_H = 22.dp", "HEADING_PADDING_TOP = 16.dp", "HEADING_PADDING_BOTTOM = 4.dp", "HEADING_SP = 12f",
+            "HEAD_PADDING_H = 14.dp", "HEAD_PADDING_BOTTOM = 16.dp", "HEAD_GAP = 14.dp", "HEAD_COVER = 64.dp", "HEAD_TITLE_SP = 16f", "HEAD_SUBTITLE_SP = 13f",
+            "HEADING_PADDING_H = 18.dp", "HEADING_PADDING_TOP = 16.dp", "HEADING_PADDING_BOTTOM = 4.dp",
         )) assertTrue(number in header, "the header has $number")
-        assertTrue("CoverImage(imageUrl, HEAD_COVER, HEAD_COVER_RADIUS)" in header, "a 56 dp cover of radius 14")
-        assertTrue("heading()" in header, "the overline is a heading")
+        assertTrue("Disc(imageUrl, HEAD_COVER)" in header, "the cover is a 64 dp disc (Orbit rule 1)")
+        assertTrue("heading()" in header && "orbitFonts().label" in header, "the overline is a mono heading")
         val toast = flat(sheet("CosmoToast"))
-        for (number in listOf(
-            "TOAST_MIN_HEIGHT = 52.dp", "TOAST_PADDING_START = 18.dp", "TOAST_PADDING_OTHER = 8.dp", "TOAST_SP = 14.5f", "TOAST_WEIGHT = 500", "TOAST_RISE = 16.dp", "TOAST_LIFT = 8.dp",
-            "RoundedCornerShape(percent = 50)",
-        )) assertTrue(number in toast, "the toast has $number")
+        for (number in listOf("TOAST_RISE = 16.dp", "TOAST_LIFT = 8.dp")) assertTrue(number in toast, "the toast has $number")
+        assertTrue("OrbitToastPill(" in toast, "the kit's ink pill")
         assertTrue("CosmoMotion.move(reduced)" in toast, "it rises on the move spring")
         assertTrue("CosmoSpacing.margin" in toast, "16 dp from the sides")
         val menu = flat(sheet("CosmoMenuSurface"))
-        assertTrue("SuperellipseShape(CosmoRadii.lg)" in menu && "MENU_PADDING = 6.dp" in menu, "radius 22, padding 6")
+        assertTrue("RoundedCornerShape(24.dp)" in menu && "MENU_PADDING = 8.dp" in menu && "orbitFloatGround(look)" in menu, "OrbitMenu's card: radius 24, padding 8, the floating ground")
         val dialog = flat(sheet("CosmoDialogCard"))
-        assertTrue("Color.Black.copy(alpha = 0.40f)" in dialog && "SuperellipseShape(CosmoRadii.sheet)" in dialog, "a 40 % scrim and 36 dp corners")
+        assertTrue("Color.Black.copy(alpha = 0.55f)" in dialog && "RoundedCornerShape(32.dp)" in dialog && "orbitFloatGround(look)" in dialog, "a 55 % scrim and the dark 32 dp card")
         assertTrue("onClick = onDismiss" in dialog && "onClick = {}" in dialog, "the scrim closes the dialog, the card swallows its own clicks")
         assertTrue(dialog.indexOf("onClick = {}") > dialog.indexOf("onClick = onDismiss"), "the swallowing layer is in the card, behind its content")
+        assertTrue("OrbitPillButton(confirmLabel, onConfirm, fonts, look, primary = true" in dialog, "a dialog's body has one peach action")
     }
 
     // ---- the fork table ---------------------------------------------------------------------------------------------------
