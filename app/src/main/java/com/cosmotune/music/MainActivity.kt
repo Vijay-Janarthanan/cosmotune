@@ -3141,7 +3141,11 @@ private fun CosmotuneApp(
                                 }
                             },
                             onSectionItemClick = { item ->
-                                item.browseId?.let { id ->
+                                // A video off an artist's feed (music videos, live performances) plays; the rest open.
+                                val video = item.takeIf { it.browseId == null }?.let(shelfSong)
+                                if (video != null) {
+                                    playRadio(video, QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId))
+                                } else item.browseId?.let { id ->
                                     viewModel.openDetail(
                                         browseId = id,
                                         title = item.title,
@@ -3217,6 +3221,7 @@ private fun CosmotuneApp(
                                     },
                                 )
                             }.takeIf { !page.browseId.startsWith("local:") },
+                            onStartRadio = startRadio,
                         )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> com.cosmotune.ui.home.HomeSwitch(

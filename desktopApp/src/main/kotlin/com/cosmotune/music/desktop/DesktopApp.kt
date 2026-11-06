@@ -4647,6 +4647,8 @@ fun CosmotuneDesktopApp() {
                             // the button.
                             onToggleSubscription = if (youtubeSignedIn) ::toggleSubscription else null,
                             contentPadding = contentPadding,
+                            artistId = openedArtist?.browseId,
+                            onStartRadio = ::startRadio,
                         )
                         openedCollection?.loading == true -> DesktopPageScaffold(contentPadding) {
                             Box(Modifier.fillMaxSize()) {
@@ -5894,8 +5896,11 @@ private fun DesktopArtistPage(
     /** Null for a guest: a channel subscription is the account's. */
     onToggleSubscription: ((SubscriptionState) -> Unit)?,
     contentPadding: PaddingValues,
+    /** The channel and a station from a song: only the Orbit page uses them (More's "Copy link", Radio). */
+    artistId: String? = null,
+    onStartRadio: ((Song) -> Unit)? = null,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopArtistPage(state = state, fallbackName = fallbackName, onRetry = onRetry, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onOpenMenu = onOpenMenu, onShelfItemClick = onShelfItemClick, onToggleSubscription = onToggleSubscription, contentPadding = contentPadding, nowPlaying = LocalNowPlaying.current)
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopArtistPage(state = state, fallbackName = fallbackName, onRetry = onRetry, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onOpenMenu = onOpenMenu, onShelfItemClick = onShelfItemClick, onToggleSubscription = onToggleSubscription, contentPadding = contentPadding, artistId = artistId, onStartRadio = onStartRadio, nowPlaying = LocalNowPlaying.current)
     DesktopPageScaffold(contentPadding) {
         when (state) {
             UiState.Loading -> Box(Modifier.fillMaxSize()) {

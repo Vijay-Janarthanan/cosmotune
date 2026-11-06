@@ -207,10 +207,9 @@ class PolishContractTest {
         val page = SourceContract.read("${shared}pages/CosmoArtistPage.kt")
         assertEquals("onPlayPause: (() -> Unit)? = null", SourceContract.parameters(page, "CosmoArtistPage").last(), "the last parameter is the optional toggle")
         val code = SourceContract.code(page).replace(Regex("\\s+"), " ")
-        assertTrue(code.contains("val artistPlaying = ArtistPlay.showsPause(songs, currentSong, isPlaying)"), "the button reads as pause by the shared rule")
+        assertTrue(code.contains("playing = ArtistPlay.showsPause(songs, currentSong, isPlaying)"), "the bite reads as pause by the shared rule")
         assertTrue(code.contains("ArtistPlay.tap(songs, currentSong, canToggle = onPlayPause != null)"), "the tap asks the shared rule")
-        assertTrue(code.contains("ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()") && code.contains("ArtistPlay.Tap.PLAY_LIST -> onSongClick(songs, 0)"), "a toggle toggles, otherwise the list plays from the top")
-        assertTrue(code.contains("onPlayPause = onPlayPause"), "the page hands the toggle down to the list")
+        assertTrue(code.contains("ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()") && code.contains("ArtistPlay.Tap.PLAY_LIST -> if (songs.isNotEmpty()) onSongClick(songs, 0)"), "a toggle toggles, otherwise the list plays from the top")
     }
 
     @Test fun theDetailSwitchPassesTheRootsToggleToTheArtistPageOnlyAndKeepsTheOldCallAsItWas() {

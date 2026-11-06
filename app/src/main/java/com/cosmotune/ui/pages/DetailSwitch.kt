@@ -36,7 +36,7 @@ import com.cosmotune.music.ui.screens.DetailScreen
  * screen while it is off.
  *
  * The parameter list is [DetailScreen]'s, name for name, with the same defaults and in the same order, plus the new pages' own at
- * the end ([onPlayPause], [onDownloadAll]), which the old screen never reads; and the old branch passes every argument of [DetailScreen] by name. That is the seam: when upstream adds a parameter to [DetailScreen] the old branch stops compiling (or the contract
+ * the end ([onPlayPause], [onDownloadAll], [onStartRadio]), which the old screen never reads; and the old branch passes every argument of [DetailScreen] by name. That is the seam: when upstream adds a parameter to [DetailScreen] the old branch stops compiling (or the contract
  * test fails), and this file is where the new parameter has to be decided on instead of silently going missing from the new pages.
  * With the new look off nothing here runs but the old call.
  *
@@ -73,8 +73,9 @@ fun DetailSwitch(
     // A parameter the old screen does not have: the root's play/pause, for the bite of the artist and release cards while one of
     // their songs is loaded (the old screen never needed it). Not passed on to [DetailScreen].
     onPlayPause: (() -> Unit)? = null,
-    // The Orbit release card's Download, which the old screen never had.
+    // The Orbit pages' own actions, which the old screen never had: Download on a release's card, Radio on an artist's.
     onDownloadAll: ((List<Song>) -> Unit)? = null,
+    onStartRadio: ((Song) -> Unit)? = null,
 ) {
     if (LocalCosmoShell.current != null) {
         if (page.type == BrowseType.ARTIST) {
@@ -99,6 +100,7 @@ fun DetailSwitch(
                 onToggleReleaseLibrary = onToggleReleaseLibrary,
                 modifier = modifier,
                 onPlayPause = onPlayPause,
+                onStartRadio = onStartRadio,
             )
         } else {
             val raw = (page.songs as? UiState.Success)?.data.orEmpty()

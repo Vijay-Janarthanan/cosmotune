@@ -42,7 +42,7 @@ class DesktopPagesContractTest {
         assertEquals(
             listOf(
                 "state", "fallbackName", "onRetry", "onPlaySongs", "onShuffle", "onOpenMenu", "onShelfItemClick", "onToggleSubscription",
-                "contentPadding",
+                "contentPadding", "artistId", "onStartRadio",
             ),
             SourceContract.names(SourceContract.parameters(src, "DesktopArtistPage")),
         )
@@ -150,23 +150,15 @@ class DesktopPagesContractTest {
         assertTrue("import com.cosmotune.ui.bridge.DropdownMenu\n" in SourceContract.read(collectionFile), "the menu is the bridge's")
     }
 
-    @Test fun theArtistPageHasTheBannerTheColumnsAndTheShelves() {
+    @Test fun theArtistPageIsTheSharedOrbitPage() {
         val page = SourceContract.code(SourceContract.read(artistFile))
-        assertTrue(Regex("""BANNER_HEIGHT = 400\.dp""").containsMatchIn(page), "the banner is 400 dp")
-        assertTrue(Regex("""BANNER_TEXT_START = 32\.dp""").containsMatchIn(page) && Regex("""BANNER_TEXT_BOTTOM = 22\.dp""").containsMatchIn(page), "the words are 32 in and 22 up")
-        assertTrue("blendMode = BlendMode.DstIn" in page && Regex("""BANNER_FADE_FROM = 0\.5f""").containsMatchIn(page), "the picture is clear to 50 % and then fades into the page, by an alpha mask")
-        assertTrue("type.headline" in page, "the name is `headline`, a detail title (DESIGN_SYSTEM.md 3.2)")
-        assertTrue(Regex("""PlayMorphButton\(.*?size = 56\.dp""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(page), "Play is the 56 dp morph button")
-        assertTrue(Regex("""kind = CosmoButtonKind\.TONAL,\s*size = CosmoButtonSize\.SMALL""").containsMatchIn(page), "Follow is TONAL SMALL")
-        assertTrue("onToggleSubscription != null" in page, "Follow only when the account can")
-        assertTrue(Regex("""POPULAR_WEIGHT = 1\.4f""").containsMatchIn(page) && Regex("""ABOUT_WEIGHT = 1f""").containsMatchIn(page), "columns 1.4 to 1")
-        assertTrue(Regex("""COLUMNS_GAP = 28\.dp""").containsMatchIn(page) && Regex("""COLUMNS_PADDING = ShellMetrics\.DESKTOP_PAGE_MARGIN_DP\.dp""").containsMatchIn(page), "gap 28, padding 0 28: the desktop page margin, not the older board's 32 (P4-22)")
-        assertTrue("fontSize = 14.sp, lineHeight = 14.sp * 1.6f" in page, "About is 14 sp on lines 1.6 tall")
-        assertTrue("CosmoShelf(" in page && "cardWidth = SHELF_CARD" in page && Regex("""SHELF_CARD = 150\.dp""").containsMatchIn(page), "the shelves are CosmoShelf with 150 dp cards")
-        assertTrue("onShelfItemClick(it, shelf.title)" in page, "a card calls onShelfItemClick(item, the shelf's title)")
-        assertTrue("onOpenMenu(song)" in page && "CosmoIcons.MoreVertical" in page, "the dots on a popular row open the song's menu")
-        assertTrue("UiState.Loading ->" in page && "CosmoLoadingBlob(" in page, "loading is the blob")
-        assertTrue("is UiState.Error -> MessageState(" in page && "onAction = onRetry" in page, "an error is a MessageState with a retry")
+        assertTrue("OrbitArtistPage(" in page, "the artist page is the one both hosts share")
+        assertTrue("onToggleFollow = subscription?.let" in page && "onToggleSubscription != null" in page, "Follow only when the account can")
+        assertTrue("onRadio = onStartRadio?.let" in page, "Radio starts a station from the first top song")
+        assertTrue("onItemClick = { item, shelf -> onShelfItemClick(item, shelf.title) }" in page, "a card calls onShelfItemClick(item, the shelf's title)")
+        assertTrue("onSongMore = onOpenMenu" in page && "onSongLongPress = onOpenMenu" in page, "the dots on a top song, and a right click, open the song's menu")
+        assertTrue("loading = state is UiState.Loading" in page, "while it loads the card stands over a skeleton")
+        assertTrue("MessageState(message = state.message" in page && "onAction = onRetry" in page, "an error is a MessageState with a retry")
     }
 
     @Test fun theOldPagesBehaviourIsKept() {

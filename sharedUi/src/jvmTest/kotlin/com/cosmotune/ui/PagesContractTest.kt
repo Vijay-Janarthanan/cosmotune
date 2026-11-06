@@ -81,11 +81,11 @@ class PagesContractTest {
         val old = parameters(SourceContract.read(screenPath), "DetailScreen")
         val switch = parameters(SourceContract.read(switchPath), "DetailSwitch")
         assertEquals(23, old.size, "DetailScreen has 23 parameters; if this changed, DetailSwitch has to decide about the new one")
-        // P4-20 and Orbit: more at the end, defaulted, that the old call does not pass: the root's play/pause toggle and the release
-        // card's Download
+        // P4-20 and Orbit: more at the end, defaulted, that the old call does not pass: the root's play/pause toggle, the release card's
+        // Download and the artist card's Radio
         assertEquals(old, switch.take(old.size), "DetailSwitch starts with DetailScreen's parameters: same names, types, defaults and order")
         assertEquals(
-            listOf("onPlayPause: (() -> Unit)? = null", "onDownloadAll: ((List<Song>) -> Unit)? = null"),
+            listOf("onPlayPause: (() -> Unit)? = null", "onDownloadAll: ((List<Song>) -> Unit)? = null", "onStartRadio: ((Song) -> Unit)? = null"),
             switch.drop(old.size), "and has the extras of P4-20 and Orbit",
         )
     }
@@ -140,7 +140,7 @@ class PagesContractTest {
             listOf(
                 "page", "heroUrl", "currentSong", "isPlaying", "listState", "contentPadding", "activeShelf", "onActiveShelfChange", "onSongClick",
                 "onSongLongPress", "onSongSwipe", "onShuffle", "onSectionItemClick", "onSectionItemLongPress", "onToggleSubscription",
-                "releaseLibrary", "onLoadReleaseLibrary", "onToggleReleaseLibrary", "modifier", "onPlayPause",
+                "releaseLibrary", "onLoadReleaseLibrary", "onToggleReleaseLibrary", "modifier", "onStartRadio", "onPlayPause",
             ),
             names(page("CosmoArtistPage"), "CosmoArtistPage"),
         )
@@ -205,7 +205,6 @@ class PagesContractTest {
                 assertTrue(inDraw || inDrawScopeFunction(code, at), "$name: live( at line ${code.take(at).count { it == '\n' } + 1} is neither in a draw lambda nor in a DrawScope function")
             }
         }
-        assertTrue(seen >= 2, "the pages read the live palette in the banner and its scrim ($seen found)")
     }
 
     @Test fun noColourIsPickedByHandNoBrushIsRememberedAndNoPageHasABackgroundOfItsOwn() {
@@ -232,29 +231,20 @@ class PagesContractTest {
                 assertTrue("key =" in args, "$name: ${match.value} at line ${code.take(match.range.first).count { it == '\n' } + 1} has no key")
             }
         }
-        assertTrue(seen >= 14, "the lists of the pages were found ($seen)")
+        assertTrue(seen >= 10, "the lists of the pages were found ($seen)")
     }
 
     // ---- roles, targets and text ----
 
-    @Test fun theArtistLineAndTheLatestReleaseAreButtonsOf48DpAndTheFormerNeverMergesTheLatterWithItsToggle() {
-        val parts = page("PageParts")
-        assertTrue("Role.Button" in parts && "heightIn(min = 48.dp)" in parts, "the artist line is a 48 dp button")
-        val artist = page("CosmoArtistPage")
-        assertTrue("role = Role.Button" in artist && "mergeDescendants = true" in artist && "longPressMenuClickable(" in artist && "contextClick(" in artist, "the latest release opens and holds like a card")
-        // the toggle is a sibling of the region that merges, not inside it
-        val region = artist.substringAfter("mergeDescendants = true").substringBefore("if (saved != null && onToggleSaved != null)")
-        assertTrue("CosmoIconButton(" !in region, "the save toggle is outside the merged region of the tile")
-    }
-
-    @Test fun theBannerRunsUnderTheBarAndTheReleaseListKeepsTheCallersPadding() {
-        val artist = SourceContract.code(page("CosmoArtistPage"))
-        assertTrue("PaddingValues(bottom = contentPadding.calculateBottomPadding())" in artist, "only the foot of the padding is the artist list's")
+    @Test fun thePagesAreBuiltOfTheOrbitKitAndKeepTheCallersPaddingAndState() {
         val release = SourceContract.code(page("CosmoReleasePage"))
         assertTrue("OrbitReleaseCard(" in release && "OrbitTrackRow(" in release, "the release is the colour card and Home's rows")
         assertTrue("motion = albumCanvas" in release, "the album's animated cover plays in the card's disc")
         assertTrue("top = contentPadding.calculateTopPadding() + PageMetrics.COVER_TOP_DP.dp" in release, "the card stands below the bar")
-        assertTrue("state = listState" in release && "state = listState" in artist, "both lists use the caller's state")
+        val artist = SourceContract.code(page("CosmoArtistPage"))
+        assertTrue("OrbitArtistPage(" in artist && "contentPadding = contentPadding" in artist, "the artist page is the shared Orbit page, with the caller's padding")
+        assertTrue("OrbitLatestRelease(" in artist && "onToggleSaved = onToggleReleaseLibrary" in artist, "the latest release keeps its save toggle")
+        assertTrue("state = listState" in release && "listState = listState" in artist, "both lists use the caller's state")
     }
 
     @Test fun everyStringTheSharedPagesSayIsAKeyThatExists() {
@@ -277,26 +267,10 @@ class PagesContractTest {
         // these are internal to the pages: read from the source, so a change shows up here
         val metrics = SourceContract.code(page("PageParts"))
         fun const(name: String): String = Regex("""const val $name\s*=\s*([0-9.]+f?)""").find(metrics)?.groupValues?.get(1) ?: fail("PageMetrics.$name is not there")
-        assertEquals("220f", const("COVER_DP"))
-        assertEquals("240f", const("COVER_WIDE_DP"))
         assertEquals("8f", const("COVER_TOP_DP"))
-        assertEquals("320f", const("HEADER_GRADIENT_DP"))
-        assertEquals("280f", const("BANNER_DP"))
-        assertEquals("5", const("POPULAR_COUNT"))
-        assertEquals("64f", const("LATEST_COVER_DP"))
-        assertEquals("5", const("SHELF_PREVIEW_ITEMS"))
-        assertEquals("3", const("ABOUT_LINES"))
         assertEquals("2", const("SEARCH_ITEM_INDEX"))
         assertTrue("TRACK_ROW_DP = BlockMetrics.TRACK_ROW_DP" in metrics, "the track rows are the 60 dp of the blocks")
         assertEquals(60f, BlockMetrics.TRACK_ROW_DP)
-    }
-
-    @Test fun theBannerFadeIsTheBlueprintsInThePalettesGround() {
-        val metrics = SourceContract.code(page("PageParts"))
-        assertTrue("BANNER_SCRIM_CLEAR_AT = 0.60f" in metrics, "DESIGN_SYSTEM.md 6.1: clear to 60 %, fading over the bottom 40 %")
-        val artist = SourceContract.code(page("CosmoArtistPage"))
-        assertTrue("CoverField.BACKGROUND_TOP" in artist, "the scrim is the palette's ground")
-        assertTrue("1f to ground" in artist, "and ends solid")
     }
 
     // ---- the filter and the shelves (pure) ----
