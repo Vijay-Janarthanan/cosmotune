@@ -22,7 +22,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.blocks.CosmoSearchField
+import com.cosmotune.ui.orbit.OrbitSearchPill
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.video.account.AccountState
@@ -92,27 +94,32 @@ internal fun VideoDesktopHeader(modifier: Modifier = Modifier) {
             Box(Modifier.size(BUTTON))
         }
         Box(Modifier.weight(1f).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-            CosmoSearchField(
+            // Orbit's search pill, as Music's and Watch's pages have it.
+            OrbitSearchPill(
                 query = DesktopVideoState.query,
                 onQueryChange = { DesktopVideoState.query = it; openSidebarSuggestions(navigator, it) },
                 onSubmit = { submitSidebarSearch(navigator, DesktopVideoState.query) },
                 placeholder = stringResource(Res.string.video_search_hint),
-                modifier = Modifier.widthIn(max = FIELD_MAX).fillMaxWidth(),
+                fonts = orbitFonts(),
+                look = orbitLook(),
                 focusRequester = focusRequester,
+                modifier = Modifier.widthIn(max = FIELD_MAX).fillMaxWidth(),
                 height = FIELD_HEIGHT,
                 keyHint = if (IS_MAC) null else "Ctrl K",
                 onFocusChanged = { searchFocused = it },
             )
         }
-        Box(
+        // The account's own picture once signed in; signed out there is nothing here (the app's account button stands beside it,
+        // and Video's sign-in is in its Library and settings), never an empty circle.
+        if (signedIn != null) Box(
             Modifier
                 .size(BUTTON)
                 .clip(CircleShape)
                 .clickable(role = Role.Button, onClickLabel = stringResource(Res.string.video_account)) { sheet = true },
             contentAlignment = Alignment.Center,
         ) {
-            ChannelAvatar(signedIn?.avatarUrl, AVATAR, name = signedIn?.displayName)
-        }
+            ChannelAvatar(signedIn.avatarUrl, AVATAR, name = signedIn.displayName)
+        } else Box(Modifier.size(BUTTON))
     }
     if (sheet) {
         VideoAccountSheet(
@@ -129,6 +136,6 @@ private val HEADER_HEIGHT = 56.dp
 private val HEADER_SIDE = 16.dp
 private val BUTTON = 40.dp
 private val AVATAR = 32.dp
-private val FIELD_HEIGHT = 40.dp
+private val FIELD_HEIGHT = 44.dp
 private val FIELD_MAX = 640.dp
 private val IS_MAC = System.getProperty("os.name").orEmpty().contains("Mac", ignoreCase = true)

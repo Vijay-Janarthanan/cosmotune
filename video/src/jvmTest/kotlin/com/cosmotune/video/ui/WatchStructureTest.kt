@@ -175,7 +175,7 @@ class WatchStructureTest {
         val layer = flat(file("FullWindowLayer"))
         assertTrue("VideoFullWindow(onExit = onExit) { FullWindowContent(playback, surface, title, onExit, onBoundsChanged) }" in layer)
         assertTrue(".onPreviewKeyEvent {" in layer && "onFullWindowKey(name," in layer)
-        assertTrue("layout = PlayerLayout.WINDOW," in layer && "desktopFullWindow = true," in layer)
+        assertTrue("WatchCinema(" in layer && "layout = PlayerLayout.WINDOW," in layer, "the full window is Cinema: the video and the slim colour card")
         assertTrue("Res.string.video_exit_full_window" in layer, "\"Esc to exit full window\"")
         assertTrue("HINT_TOP = 20.dp" in layer && "HINT_END = 24.dp" in layer && "HINT_SP = 12.5f" in layer, "12.5 sp at the top right")
     }
@@ -217,8 +217,11 @@ class WatchStructureTest {
     @Test fun fullScreenDrawsOnlyThePlayerInItsOwnWindow() {
         val page = file("WatchPage")
         val content = flat(VideoSourceContract.functionBody(page, "FullscreenContent"))
-        assertEquals(1, Regex("VideoPlayerBox\\(").findAll(content).count())
-        assertTrue("layout = PlayerLayout.FULLSCREEN," in content && "onToggleFullscreen = onExit," in content)
+        assertTrue("WatchCinema(" in content && "layout = PlayerLayout.FULLSCREEN," in content && "onExit = onExit," in content, "full screen is Cinema")
+        val cinema = flat(file("WatchCinema"))
+        assertEquals(1, Regex("VideoPlayerBox\\(").findAll(cinema).count())
+        assertTrue("controls = false," in cinema && "WatchTransportCard(" in cinema, "nothing on the video; the slim colour card floats under it")
+        assertTrue("delay(VideoMetrics.HIDE_AFTER_MS)" in cinema, "the card goes 3 s after the last movement")
         val window = flat(VideoSourceContract.functionBody(page, "WatchFullscreen"))
         assertTrue("VideoFullWindow(onExit = onExit) {" in window)
         assertTrue("fullscreen -> WatchFullscreen(" in flat(page), "full screen takes the page's place")

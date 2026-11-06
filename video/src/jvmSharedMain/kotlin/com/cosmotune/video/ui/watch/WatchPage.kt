@@ -548,7 +548,10 @@ private fun WatchFullscreen(
     }
 }
 
-/** What the full-screen window holds: only the player, in its full-screen layout. */
+/**
+ * What the full-screen window holds: Cinema ([WatchCinema]), the video alone with the slim colour card floating at its foot and
+ * hiding three seconds after the last touch, as Now Playing's.
+ */
 @Composable
 internal fun FullscreenContent(
     playback: VideoPlayback,
@@ -558,15 +561,14 @@ internal fun FullscreenContent(
     onEnterPip: (() -> Unit)?,
     onBoundsChanged: (Rect) -> Unit,
 ) {
-    VideoPlayerBox(
+    WatchCinema(
         playback = playback,
         surface = surface,
-        layout = PlayerLayout.FULLSCREEN,
-        modifier = Modifier.fillMaxSize(),
-        onToggleFullscreen = onExit,
-        onEnterPip = onEnterPip,
-        onBoundsChanged = onBoundsChanged,
         title = title,
+        layout = PlayerLayout.FULLSCREEN,
+        onExit = onExit,
+        onBoundsChanged = onBoundsChanged,
+        onEnterPip = onEnterPip,
     )
 }
 

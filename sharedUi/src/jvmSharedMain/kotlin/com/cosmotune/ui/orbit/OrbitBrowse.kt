@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -93,7 +94,10 @@ import kotlin.math.abs
 
 // ---- the search pill ---------------------------------------------------------------------------------------------------------
 
-/** The page's search field: a 60 dp pill in ink at 8 %, the magnifier, the text, and a round clear button once something is typed. */
+/**
+ * The page's search field: a 60 dp pill in ink at 8 %, the magnifier, the text, and a round clear button once something is typed.
+ * A header's pill is lower ([height]) and may show its shortcut ([keyHint], "Ctrl K") while empty; [onFocusChanged] follows the field.
+ */
 @Composable
 fun OrbitSearchPill(
     query: String,
@@ -104,12 +108,15 @@ fun OrbitSearchPill(
     look: OrbitLook,
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
+    height: Dp = 60.dp,
+    keyHint: String? = null,
+    onFocusChanged: ((Boolean) -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val text = fonts.body.copy(fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight(500))
     Row(
-        modifier.fillMaxWidth().height(60.dp).clip(CircleShape).background(look.chip).clickable { focusRequester.requestFocus() }
+        modifier.fillMaxWidth().height(height).clip(CircleShape).background(look.chip).clickable { focusRequester.requestFocus() }
             .padding(start = 22.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -125,11 +132,15 @@ fun OrbitSearchPill(
                 cursorBrush = SolidColor(look.accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSubmit(); keyboard?.hide(); focusManager.clearFocus() }),
-                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
+                    .then(if (onFocusChanged != null) Modifier.onFocusChanged { onFocusChanged(it.isFocused) } else Modifier),
             )
         }
         if (query.isNotEmpty()) {
-            OrbitRoundButton(CosmoIcons.Close, "Clear", look.ink, onClick = { onQueryChange("") }, size = 40.dp)
+            OrbitRoundButton(CosmoIcons.Close, "Clear", look.ink, onClick = { onQueryChange("") }, size = minOf(40.dp, height - 8.dp))
+        } else if (keyHint != null) {
+            OrbitLabel(keyHint, fonts, look.dim, Modifier.clip(CircleShape).background(look.chip).padding(horizontal = 10.dp, vertical = 5.dp))
+            Spacer(Modifier.width(6.dp))
         } else Spacer(Modifier.width(12.dp))
     }
 }

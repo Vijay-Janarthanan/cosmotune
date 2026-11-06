@@ -111,6 +111,8 @@ fun VideoPlayerBox(
     controls: Boolean = true,
     scale: VideoScale? = null,
     ground: Color = Color.Black,
+    /** With [controls] false: what a single tap does (Cinema shows its card); null plays or pauses. */
+    onTap: (() -> Unit)? = null,
 ) {
     val state by playback.state.collectAsState()
     val settings by LocalVideoGraph.current.settings.settings.collectAsState()
@@ -133,7 +135,7 @@ fun VideoPlayerBox(
             return@Box
         }
         if (!controls) {
-            PagePlayerLayer(playback, state, settings, layout, onCollapse, onToggleFullscreen, captionSp)
+            PagePlayerLayer(playback, state, settings, layout, onCollapse, onToggleFullscreen, captionSp, onTap)
             return@Box
         }
         PlayerChrome(playback, state, settings, layout, desktopFullWindow, title, onCollapse, onToggleFullscreen, onEnterPip, captionSp) {
@@ -156,6 +158,7 @@ private fun BoxScope.PagePlayerLayer(
     onCollapse: (() -> Unit)?,
     onToggleFullscreen: () -> Unit,
     captionSp: Float,
+    onTap: (() -> Unit)? = null,
 ) {
     val feedback = remember { GestureFeedback() }
     val platform = rememberPlayerPlatform(playback)
@@ -176,7 +179,7 @@ private fun BoxScope.PagePlayerLayer(
                 feedback = feedback,
                 stepSeconds = settings.doubleTapSeconds,
                 live = state.live,
-                onTap = { playback.togglePlayPause() },
+                onTap = { if (onTap != null) onTap() else playback.togglePlayPause() },
                 onInput = {},
                 onCollapse = onCollapse,
                 onToggleFullscreen = onToggleFullscreen,

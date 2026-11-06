@@ -453,7 +453,8 @@ class ShellStructureTest {
         val src = VideoSourceContract.code(desktop("VideoDesktopSidebarContent"))
         assertTrue("if (collapsed) RAIL_WIDTH else ShellMetrics.DESKTOP_SIDEBAR_DP.dp" in src && "Modifier.width(width)" in src, "220 dp, 72 dp folded")
         val header = VideoSourceContract.code(desktop("VideoDesktopHeader"))
-        assertTrue("private val FIELD_HEIGHT = 40.dp" in header && "keyHint = if (IS_MAC) null else \"Ctrl K\"" in header, "the search field is in the page's header: 40 dp, rounded")
+        assertTrue("OrbitSearchPill(" in header && "private val FIELD_HEIGHT = 44.dp" in header && "keyHint = if (IS_MAC) null else \"Ctrl K\"" in header,
+            "the search field is in the page's header: Orbit's pill, 44 dp")
         assertTrue("private val RAIL_WIDTH = 72.dp" in src && "private const val COLLAPSED_CHANNELS = 7" in src)
         assertTrue("private val NAV_HEIGHT = 44.dp" in src && "private val NAV_RADIUS = CosmoRadii.rMd" in src)
         assertTrue("private val AVATAR = 36.dp" in src, "36 dp avatar circles")

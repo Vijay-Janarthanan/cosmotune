@@ -56,10 +56,9 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 
 /*
- * The desktop's full window (spec 5.4, after the `np-fullwindow` board): the window is the video on black, the controls in the C glass
- * bar at the bottom (the player box's `desktopFullWindow`: 80 dp, radius 28, 20 dp from the bottom, at most 720 dp wide), and "Esc to
- * exit full window" in 12.5 sp at the top right (20 dp from the top, 24 from the right, as the board places it), which fades with the
- * controls 3 s after the pointer last moved. Escape, F and the bar's button close it; the other keys of `PlayerKeyMap` are the
+ * The desktop's full window (Cinema): the window is the video on near black with the watch page's slim colour card floating at its
+ * foot ([WatchCinema], as Now Playing's Cinema), and "Esc to exit full window" in 12.5 sp at the top right (20 dp from the top, 24
+ * from the right), which fades with the card 3 s after the pointer last moved. Escape, F and the bar's button close it; the other keys of `PlayerKeyMap` are the
  * player's. It is a window of its own over the whole app ([VideoFullWindow]: a popup on the desktop, as the profile drawer's).
  */
 
@@ -87,7 +86,7 @@ internal fun FullWindowLayer(
 }
 
 /**
- * What the full window holds: `VideoPlayerBox(layout = WINDOW, desktopFullWindow = true)` on black and the Escape hint. It takes the
+ * What the full window holds: [WatchCinema] (`layout = PlayerLayout.WINDOW`) and the Escape hint. It takes the
  * focus as it opens and handles the keys first ([onFullWindowKey]); a pointer move shows the hint again.
  */
 @Composable
@@ -124,15 +123,15 @@ internal fun FullWindowContent(
                 }
             },
     ) {
-        VideoPlayerBox(
+        // Cinema, as Now Playing's: the video alone, the slim colour card at its foot; both go with the hint 3 s after the pointer stops.
+        WatchCinema(
             playback = playback,
             surface = surface,
-            layout = PlayerLayout.WINDOW,
-            modifier = Modifier.fillMaxSize(),
-            onToggleFullscreen = onExit,
-            onBoundsChanged = onBoundsChanged,
             title = title,
-            desktopFullWindow = true,
+            layout = PlayerLayout.WINDOW,
+            onExit = onExit,
+            onBoundsChanged = onBoundsChanged,
+            onStir = { hint.poke() },
         )
         EscToExit(hint, Modifier.align(Alignment.TopEnd).padding(top = HINT_TOP, end = HINT_END))
     }
