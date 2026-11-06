@@ -17,7 +17,14 @@ import kotlin.test.assertTrue
 class DesktopSleepTimerTest {
 
     @AfterTest
-    fun tearDown() = DesktopSleepTimer.cancel()
+    fun tearDown() {
+        DesktopSleepTimer.cancel()
+        DesktopSleepTimer.nanoTime = System::nanoTime
+    }
+
+    private var now = 5_000_000_000L
+    private fun useTestClock() { DesktopSleepTimer.nanoTime = { now } }
+    private fun advanceMinutes(minutes: Long) { now += minutes * 60L * 1_000_000_000L }
 
     @Test
     fun nothingIsSetUntilSomethingStartsIt() {
@@ -71,5 +78,58 @@ class DesktopSleepTimerTest {
     fun everyPresetIsAUsableDuration() {
         assertEquals(listOf(15, 30, 45, 60), DesktopSleepTimer.presets)
         DesktopSleepTimer.presets.forEach { DesktopSleepTimer.start(it) }
+    }
+
+    @Test
+    fun theTimerExpiresAtItsDeadlineAndNotBefore() {
+        useTestClock()
+        DesktopSleepTimer.start(15)
+        advanceMinutes(14)
+        assertFalse(DesktopSleepTimer.isExpired())
+        assertEquals(60_000L, DesktopSleepTimer.remainingMs())
+        advanceMinutes(1)
+        assertTrue(DesktopSleepTimer.isExpired())
+    }
+
+    @Test
+    fun extendAddsToWhatIsLeft() {
+        useTestClock()
+        DesktopSleepTimer.start(30)
+        advanceMinutes(10)
+        DesktopSleepTimer.extend()
+        assertEquals(35 * 60_000L, DesktopSleepTimer.remainingMs())
+        assertEquals(45, DesktopSleepTimer.minutes.value)
+    }
+
+    @Test
+    fun extendingEndOfTrackOrNothingStartsATimedTimer() {
+        useTestClock()
+        DesktopSleepTimer.startAfterTrack()
+        DesktopSleepTimer.extend()
+        assertFalse(DesktopSleepTimer.afterTrack.value)
+        assertEquals(15 * 60_000L, DesktopSleepTimer.remainingMs())
+        DesktopSleepTimer.cancel()
+        DesktopSleepTimer.extend()
+        assertEquals(15 * 60_000L, DesktopSleepTimer.remainingMs())
+    }
+
+    @Test
+    fun endOfThisTrackPreparesNoBlendIntoTheNext() {
+        // The bug: with Crossfade or Automix on, the next track was opened and
+        // blended in, the current one never ended, and the timer that waits for
+        // that end never paused anything.
+        assertTrue(DesktopSleepTimer.preparesNext(repeatOne = false, afterTrack = false))
+        assertFalse(DesktopSleepTimer.preparesNext(repeatOne = false, afterTrack = true))
+        assertFalse(DesktopSleepTimer.preparesNext(repeatOne = true, afterTrack = false))
+    }
+
+    @Test
+    fun onlyALoadedVideoIsPaused() {
+        // mpv keeps its pause between files: pausing an idle player would start
+        // the next video paused.
+        assertFalse(DesktopSleepTimer.videoIsLoaded(com.cosmotune.video.player.PlayerStatus.IDLE))
+        assertFalse(DesktopSleepTimer.videoIsLoaded(com.cosmotune.video.player.PlayerStatus.ENDED))
+        assertTrue(DesktopSleepTimer.videoIsLoaded(com.cosmotune.video.player.PlayerStatus.READY))
+        assertTrue(DesktopSleepTimer.videoIsLoaded(com.cosmotune.video.player.PlayerStatus.BUFFERING))
     }
 }
