@@ -17,7 +17,7 @@ the call.
 | Watch home (1) | `home(HomeFilter.ALL / FILMS / SERIES / LIVE)` | `WatchHome`: `featured` (`Featured`: summary, badges, progress), `continueWatching`, `liveNow`, `rows` (`HomeRow`: id, title, subtitle, items, `wide`, `pageable`), `empty` |
 | A row scrolled to the end | `rowPage(row.id, skip = row.items.size)` | more `TitleSummary` |
 | Continue watching (live) | `continueWatching: StateFlow<List<ContinueItem>>` | `ContinueItem`: `summary`, `episode`, `episodeLabel` ("S2 E4"), `remainingMin`, `progress.fraction` |
-| Live now | `liveNow(limit)` | `LiveNowItem(channel, now, next)`; `now.progressAt(nowMs)` for the line |
+| Live now | `liveNow(limit)` | `LiveNowItem(channel, now, next)`; `now.progressAt(nowMs)` for the line. Ranked by the viewer's country and language (`WatchPlace`: Tamil news first for a Tamil viewer in India); a DD or Live on YouTube channel appears only while it has something live |
 | Live now strip: matches and live shows | `liveEvents()` | `Flow<List<LiveEvent>>`, see "Live events" below |
 | Film page (2) | `title(key)` | `Title`: `summary` (name, year, runtimeMin, rating, genres, overview, posterUrl, backdropUrl, logoUrl), `certification`, `cast`, `moreLikeThis`, `trailers` (YouTube keys), `whereToWatch` |
 | "Play from" list, best first (2) | `sources(targetOf(summary))` | `Flow<SourcesState>`: `streams` (ranked, `best` is first), `pending` plugins still answering, `errors`, `notFound`, `whereToWatch` |

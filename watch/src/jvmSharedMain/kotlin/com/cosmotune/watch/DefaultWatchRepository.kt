@@ -480,13 +480,20 @@ class DefaultWatchRepository(
     override suspend fun liveNow(limit: Int): List<LiveNowItem> {
         val all = channelsByKey()
         val order = ChannelRank.order(store.state.value.favourites, config.place()) { all[it.key].orEmpty() }
-        val picked = all.values.map(::merged).sortedWith(order).take(limit)
+        val ranked = all.values.map(::merged).sortedWith(order)
         val t = config.now()
-        val window = guide(picked, t - 6 * WatchHttp.HOUR, t + 12 * WatchHttp.HOUR)
-        return window.rows.map { row ->
-            val i = row.programmes.indexOfFirst { it.isOnAt(t) }
-            LiveNowItem(row.channel, row.programmes.getOrNull(i), if (i >= 0) row.programmes.getOrNull(i + 1) else row.programmes.firstOrNull { it.startMs > t })
+        // A channel played from a YouTube live (DD, Live on YouTube) is only "live now" while it has something live; the row
+        // looks a little further down the ranking (a few pages at most) to stay full.
+        val out = mutableListOf<LiveNowItem>()
+        for (page in ranked.chunked(limit.coerceAtLeast(1)).take(LIVE_NOW_PAGES)) {
+            val window = guide(page, t - 6 * WatchHttp.HOUR, t + 12 * WatchHttp.HOUR)
+            out += window.rows.map { row ->
+                val i = row.programmes.indexOfFirst { it.isOnAt(t) }
+                LiveNowItem(row.channel, row.programmes.getOrNull(i), if (i >= 0) row.programmes.getOrNull(i + 1) else row.programmes.firstOrNull { it.startMs > t })
+            }.filter { it.now != null || it.channel.pluginId !in LIVE_ON_YOUTUBE }
+            if (out.size >= limit) break
         }
+        return out.take(limit)
     }
 
     // ── Live events ──────────────────────────────────────────────────────
@@ -761,6 +768,9 @@ class DefaultWatchRepository(
         /** The built-in plugins that play films for free, asked for the featured card. */
         private val FREE_FILM_PLUGINS = setOf(BuiltInPlugins.PLUTO, BuiltInPlugins.PLEX, BuiltInPlugins.YOUTUBE, BuiltInPlugins.ARCHIVE, BuiltInPlugins.PUBLIC_DOMAIN)
         private const val FEATURED_PROBE_MS = 6_000L
+        /** The plugins whose channels play a YouTube live, so have nothing to play when nothing is live. */
+        private val LIVE_ON_YOUTUBE = setOf(BuiltInPlugins.PRASAR_BHARATI, BuiltInPlugins.YOUTUBE_LIVE)
+        private const val LIVE_NOW_PAGES = 3
         /** The DD channels whose live videos are events or carry matches: DD National's and DD Sports' lives, DD News' and DD India's specials. */
         private val EVENT_CHANNELS = setOf("DDNational", PrasarBharatiPlugin.DD_SPORTS, "DDNews", "DDIndia")
         fun hash(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.trim().lowercase().toByteArray()).take(5).joinToString("") { "%02x".format(it) }
