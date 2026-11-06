@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +52,7 @@ import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_badge_live
 import com.cosmotune.video.resources.video_captions
 import com.cosmotune.video.resources.video_download
+import com.cosmotune.video.resources.video_go_live
 import com.cosmotune.video.resources.video_next
 import com.cosmotune.video.resources.video_player_settings
 import com.cosmotune.video.resources.video_previous
@@ -71,7 +73,10 @@ import com.cosmotune.video.resources.video_watch_theatre_detail
 import com.cosmotune.video.resources.video_watch_whole
 import com.cosmotune.video.resources.video_watch_whole_detail
 import com.cosmotune.video.ui.VideoIcons
+import com.cosmotune.video.ui.player.Playhead
 import com.cosmotune.video.ui.player.PlayerScrubber
+import com.cosmotune.video.ui.player.goToLive
+import com.cosmotune.video.ui.player.showsGoLive
 import com.cosmotune.video.ui.player.PlayerSettingsMenu
 import com.cosmotune.video.ui.player.PlayerSettingsSheet
 import com.cosmotune.video.ui.player.PlayerStatsSwitch
@@ -158,14 +163,14 @@ internal fun WatchTransportCard(
                     Spacer(Modifier.width(16.dp))
                     Box(Modifier.padding(end = 70.dp)) { buttons() }
                 }
-                WatchSegmentChips(playback, state, ink, fill, fonts, Modifier.padding(top = 10.dp))
+                WatchSegmentChips(playback, state, playhead, ink, fill, fonts, Modifier.padding(top = 10.dp))
                 line(Modifier.padding(top = 6.dp, end = 70.dp))
             }
         } else {
             Column(Modifier.fillMaxWidth().padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 18.dp)) {
                 WatchCardLabel(state, playhead.second.longValue, fonts, ink)
                 WatchCardTitle(title, fonts, ink, 21, 2, onTitle, Modifier.padding(top = 10.dp))
-                WatchSegmentChips(playback, state, ink, fill, fonts, Modifier.padding(top = 10.dp))
+                WatchSegmentChips(playback, state, playhead, ink, fill, fonts, Modifier.padding(top = 10.dp))
                 line(Modifier.padding(top = 8.dp, end = 74.dp))
                 Box(Modifier.padding(top = 6.dp, end = 70.dp)) { buttons() }
             }
@@ -262,11 +267,12 @@ private fun WatchCardButtons(
 }
 
 /**
- * SponsorBlock on the card: "Skip sponsor" (solid, while a segment waits to be skipped) and "Skipped sponsor · Undo" (for the
- * controller's last skip, a few seconds), as chips in the card's ink. Nothing when neither is there.
+ * The card's chips: "Go to live" (solid, while a live stream plays more than 10 s behind its live edge; the overlay's pill before
+ * the controls moved to the card), and SponsorBlock's "Skip sponsor" (solid, while a segment waits to be skipped) and "Skipped
+ * sponsor · Undo" (for the controller's last skip, a few seconds), in the card's ink. Nothing when none is there.
  */
 @Composable
-private fun WatchSegmentChips(playback: VideoPlayback, state: PlaybackUiState, ink: Color, fill: Color, fonts: OrbitFonts, modifier: Modifier) {
+private fun WatchSegmentChips(playback: VideoPlayback, state: PlaybackUiState, playhead: Playhead, ink: Color, fill: Color, fonts: OrbitFonts, modifier: Modifier) {
     var skipped by remember { mutableStateOf(state.lastSkip) }
     LaunchedEffect(state.lastSkip?.uuid) {
         skipped = state.lastSkip
@@ -277,8 +283,14 @@ private fun WatchSegmentChips(playback: VideoPlayback, state: PlaybackUiState, i
     }
     val pending = state.pendingSkip
     val last = skipped
-    if (pending == null && last == null) return
+    val duration = state.durationMs
+    val behind by remember(playhead, duration, state.live) { derivedStateOf { state.live && showsGoLive(playhead.second.longValue * 1000, duration) } }
+    if (pending == null && last == null && !behind) return
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (behind) {
+            WatchCardChip(stringResource(Res.string.video_go_live), ink, fonts, { goToLive(playback, state); playhead.refresh() }, Modifier.testTag("video:watch:go-live"),
+                icon = VideoIcons.Live, solid = true, onSolid = fill)
+        }
         if (pending != null) {
             val text = stringResource(Res.string.video_skip_segment, stringResource(segmentName(pending.category)))
             WatchCardChip(text, ink, fonts, { playback.skipPending() }, Modifier.testTag("video:watch:skip"), icon = VideoIcons.SkipSegment, solid = true, onSolid = fill)

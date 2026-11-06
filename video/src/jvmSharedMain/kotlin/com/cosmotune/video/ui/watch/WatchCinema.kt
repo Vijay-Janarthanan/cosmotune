@@ -113,6 +113,8 @@ internal fun WatchCinema(
             scale = if (WatchSession.fill) VideoScale.FILL else VideoScale.FIT,
             ground = CINEMA_GROUND,
             onTap = { stir++ },
+            // A pinch fills or fits the picture, as it did before the controls moved to the card: the screen menu's Whole or Fill.
+            onPinch = { WatchSession.fill = it == VideoScale.FILL },
         )
         AnimatedVisibility(chrome, Modifier.fillMaxSize(), enter = fadeIn(tween(220)), exit = fadeOut(tween(420))) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {

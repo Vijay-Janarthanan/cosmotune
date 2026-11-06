@@ -504,4 +504,21 @@ class WatchStructureTest {
             assertTrue("Res.string.$label" in card, "the card's $label button is labelled")
         }
     }
+
+    @Test fun theCardTakesALiveStreamBackToItsLiveEdge() {
+        // The overlay's "Go to live" went with the controls when they moved to the card; the card carries it now.
+        val card = flat(file("WatchCard"))
+        assertTrue("state.live && showsGoLive(playhead.second.longValue * 1000, duration)" in card, "shown only while a live stream is more than 10 s behind")
+        assertTrue("stringResource(Res.string.video_go_live), ink, fonts, { goToLive(playback, state); playhead.refresh() }" in card, "it seeks to the live edge")
+        assertTrue(card.indexOf("WatchSegmentChips(playback, state, playhead,") >= 0, "the card's chip row is given the playhead")
+        val live = VideoSourceContract.code(read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/player/GoLivePill.kt"))
+        assertTrue("playback.seekTo(LiveWindow.liveEdgeMs(state.durationMs))" in live)
+    }
+
+    @Test fun aPinchInCinemaFillsOrFitsAsTheScreenMenuDoes() {
+        val cinema = flat(file("WatchCinema"))
+        assertTrue("onPinch = { WatchSession.fill = it == VideoScale.FILL }" in cinema, "Cinema's pinch sets the page's Whole or Fill")
+        val box = flat(read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/player/VideoPlayerBox.kt"))
+        assertTrue("onScale = { onPinch?.invoke(it) }" in box, "the control-less player hands the pinch on")
+    }
 }

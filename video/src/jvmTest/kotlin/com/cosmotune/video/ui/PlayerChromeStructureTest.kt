@@ -51,6 +51,7 @@ class PlayerChromeStructureTest {
                 "onCollapse: (() -> Unit)? = null", "onToggleFullscreen: () -> Unit", "onEnterPip: (() -> Unit)? = null",
                 "onBoundsChanged: (Rect) -> Unit = {}", "title: String? = null", "desktopFullWindow: Boolean = false", "chrome: Boolean = true",
                 "controls: Boolean = true", "scale: VideoScale? = null", "ground: Color = Color.Black", "onTap: (() -> Unit)? = null",
+                "onPinch: ((VideoScale) -> Unit)? = null",
             ),
             VideoSourceContract.parameters(file("VideoPlayerBox"), "VideoPlayerBox"),
         )
