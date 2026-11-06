@@ -45,6 +45,12 @@ import com.cosmotune.music.data.model.SearchHistoryEntity
 import com.cosmotune.music.data.settings.LibrarySort
 import com.cosmotune.music.data.settings.LibraryViewType
 import com.cosmotune.music.ui.AppUiHost
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitMenu
+import com.cosmotune.ui.orbit.OrbitMenuItem
+import com.cosmotune.ui.orbit.OrbitPageButton
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.builtins.ListSerializer
@@ -215,11 +221,30 @@ internal fun <T : Any> DesktopPointerMenuHost(
     }
 }
 
-/** The phone's sort for a Library "Show all" grid: the one thing its cards carry is a title. */
+/**
+ * The phone's sort for a Library "Show all" grid: the one thing its cards carry is a title. With the new look the button is the
+ * page's round Orbit button and the choices an [OrbitMenu], the one in force solid ink.
+ */
 @Composable
 internal fun DesktopLibrarySortMenu() {
     val sort by DesktopAppUiHost.librarySort.collectAsState()
     var open by remember { mutableStateOf(false) }
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        Box {
+            OrbitPageButton(CosmoIcons.Sort, DesktopStrings["sort_library", "Sort library"], onClick = { open = true }, on = open)
+            OrbitMenu(
+                open = open,
+                onDismiss = { open = false },
+                items = LibrarySort.entries.map { option ->
+                    OrbitMenuItem(librarySortLabel(option), selected = option == sort) { DesktopAppUiHost.setLibrarySort(option) }
+                },
+                fonts = orbitFonts(),
+                look = orbitLook(),
+                width = 240.dp,
+            )
+        }
+        return
+    }
     Box {
         DesktopToolbarButton(onClick = { open = true }) {
             Icon(Icons.AutoMirrored.Rounded.Sort, DesktopStrings["sort_library", "Sort library"], tint = Color.White)
@@ -227,15 +252,7 @@ internal fun DesktopLibrarySortMenu() {
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             LibrarySort.entries.forEach { option ->
                 DropdownMenuItem(
-                    text = {
-                        Text(
-                            when (option) {
-                                LibrarySort.DEFAULT -> DesktopStrings["sort_default", "Default order"]
-                                LibrarySort.TITLE_ASC -> DesktopStrings["sort_title_ascending", "Alphabetical (A to Z)"]
-                                LibrarySort.TITLE_DESC -> DesktopStrings["sort_title_descending", "Alphabetical (Z to A)"]
-                            },
-                        )
-                    },
+                    text = { Text(librarySortLabel(option)) },
                     trailingIcon = if (option == sort) {
                         { Icon(Icons.Rounded.Check, contentDescription = null) }
                     } else {
@@ -249,6 +266,13 @@ internal fun DesktopLibrarySortMenu() {
             }
         }
     }
+}
+
+/** A sort's name, as the phone's menu gives it. */
+private fun librarySortLabel(option: LibrarySort): String = when (option) {
+    LibrarySort.DEFAULT -> DesktopStrings["sort_default", "Default order"]
+    LibrarySort.TITLE_ASC -> DesktopStrings["sort_title_ascending", "Alphabetical (A to Z)"]
+    LibrarySort.TITLE_DESC -> DesktopStrings["sort_title_descending", "Alphabetical (Z to A)"]
 }
 
 /**

@@ -53,6 +53,10 @@ import androidx.compose.ui.unit.toSize
 import com.cosmotune.music.playback.EqLayout
 import com.cosmotune.music.playback.EqualizerPreset
 import com.cosmotune.music.ui.icons.CosmotuneIcons
+import com.cosmotune.ui.orbit.OrbitPillButton
+import com.cosmotune.ui.orbit.OrbitSwitch
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.CosmoRadii
 import java.util.Locale
 import kotlin.math.abs
@@ -103,11 +107,15 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
                     color = DesktopSecondary,
                 )
             }
-            Switch(
-                checked = enabled,
-                onCheckedChange = DesktopEqualizerSettings::setEnabled,
-                colors = desktopSwitchColors(),
-            )
+            if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+                OrbitSwitch(enabled, DesktopEqualizerSettings::setEnabled, orbitLook(), DesktopStrings["equalizer", "Equalizer"])
+            } else {
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = DesktopEqualizerSettings::setEnabled,
+                    colors = desktopSwitchColors(),
+                )
+            }
         }
 
         // Off, the apparatus below reads as unavailable rather than merely idle: dimmed, and it
@@ -129,7 +137,11 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
                     Text("Compensates the full estimated peak instead of half. The limiter still handles transients.",
                         style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
                 }
-                Switch(headroom, DesktopEqualizerSettings::setFullHeadroom, enabled = enabled)
+                if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+                    OrbitSwitch(headroom, DesktopEqualizerSettings::setFullHeadroom, orbitLook(), "Full boost headroom", enabled = enabled)
+                } else {
+                    Switch(headroom, DesktopEqualizerSettings::setFullHeadroom, enabled = enabled)
+                }
             }
 
             when (mode) {
@@ -408,8 +420,16 @@ private fun ManualTab() {
             color = DesktopSecondary,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = { DesktopEqualizerSettings.setPreset(EqualizerPreset.FLAT) }) {
-            Text(DesktopStrings["equalizer_reset", "Reset all bands"], color = DesktopAccent)
+        if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+            Spacer(Modifier.width(12.dp))
+            OrbitPillButton(
+                DesktopStrings["equalizer_reset", "Reset all bands"], { DesktopEqualizerSettings.setPreset(EqualizerPreset.FLAT) },
+                orbitFonts(), orbitLook(), height = 40.dp,
+            )
+        } else {
+            TextButton(onClick = { DesktopEqualizerSettings.setPreset(EqualizerPreset.FLAT) }) {
+                Text(DesktopStrings["equalizer_reset", "Reset all bands"], color = DesktopAccent)
+            }
         }
     }
 }

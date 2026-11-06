@@ -18,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import com.cosmotune.ui.bridge.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.ui.icons.CosmotuneIcons
+import com.cosmotune.ui.orbit.OrbitProgressLine
+import com.cosmotune.ui.orbit.OrbitSwitch
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.CosmoRadii
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -639,7 +641,11 @@ private fun PanelSwitchRow(
             }
         }
         Spacer(Modifier.width(10.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled, colors = desktopSwitchColors())
+        if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+            OrbitSwitch(checked, onCheckedChange, orbitLook(), title, enabled = enabled)
+        } else {
+            Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled, colors = desktopSwitchColors())
+        }
     }
 }
 
@@ -685,13 +691,37 @@ private fun PanelSliderRow(
             }
             Text(readout, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
         }
-        DesktopBareSlider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = range,
-            steps = steps,
-            modifier = Modifier.fillMaxWidth().height(26.dp),
-        )
+        if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+            // The Orbit line with its moon; a drag moves the value as it goes, on the slider's own steps. The seek is remembered so
+            // the line's gesture is not restarted by the recomposition each new value brings.
+            val span = range.endInclusive - range.start
+            val latest = androidx.compose.runtime.rememberUpdatedState(onValueChange)
+            val seek: (Float) -> Unit = androidx.compose.runtime.remember(range, steps) {
+                { fraction ->
+                    val raw = range.start + fraction * span
+                    val stepped = if (steps > 0) {
+                        val step = span / (steps + 1)
+                        range.start + ((raw - range.start) / step).roundToInt() * step
+                    } else raw
+                    latest.value(stepped.coerceIn(range.start, range.endInclusive))
+                }
+            }
+            OrbitProgressLine(
+                progress = { if (span == 0f) 0f else ((value - range.start) / span).coerceIn(0f, 1f) },
+                ink = orbitLook().ink,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                onSeek = seek,
+                live = true,
+            )
+        } else {
+            DesktopBareSlider(
+                value = value,
+                onValueChange = onValueChange,
+                valueRange = range,
+                steps = steps,
+                modifier = Modifier.fillMaxWidth().height(26.dp),
+            )
+        }
     }
 }
 

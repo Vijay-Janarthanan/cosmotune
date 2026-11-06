@@ -36,6 +36,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.Disc
+import com.cosmotune.ui.orbit.OrbitPillButton
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 
 /**
  * What the download queue is doing, and the two things that can be done to it.
@@ -63,7 +71,13 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
                     color = if (failed > 0 && !busy) DesktopDestructive else DesktopSecondary,
                 )
             }
-            if (busy) {
+            if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+                if (busy) {
+                    OrbitPillButton(DesktopStrings["cancel_all", "Cancel all"], DesktopDownloadQueue::cancelAll, orbitFonts(), orbitLook(), height = 36.dp)
+                } else if (items.isNotEmpty()) {
+                    OrbitPillButton(DesktopStrings["clear", "Clear"], DesktopDownloadQueue::clearFinished, orbitFonts(), orbitLook(), height = 36.dp)
+                }
+            } else if (busy) {
                 TextButton(onClick = DesktopDownloadQueue::cancelAll) {
                     Text(DesktopStrings["cancel_all", "Cancel all"], color = DesktopSecondary)
                 }
@@ -82,7 +96,7 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
         } else {
             LazyColumn(
                 Modifier.fillMaxWidth().heightIn(max = 360.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 8.dp else 2.dp),
             ) {
                 items(items, key = { it.song.videoId }) { item -> DownloadRow(item) }
             }
@@ -94,6 +108,7 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun DownloadRow(item: DesktopDownloadItem) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return OrbitDownloadRow(item)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -172,6 +187,48 @@ private fun DownloadRow(item: DesktopDownloadItem) {
         IconButton(onClick = { DesktopDownloadQueue.cancel(item.song.videoId) }) {
             Icon(Icons.Rounded.Close, DesktopStrings["cancel", "Cancel"], tint = DesktopSecondary, modifier = Modifier.size(18.dp))
         }
+    }
+}
+
+/**
+ * A download with the new look, as the kit's song row: the cover as a disc whose orbit is the download's progress (its moon circling
+ * while the length is not yet known), what it is doing under the title, and retry and cancel as round buttons at its end.
+ */
+@Composable
+private fun OrbitDownloadRow(item: DesktopDownloadItem) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val state = item.state
+    val line = when (state) {
+        is DesktopDownloadState.Queued -> DesktopStrings["queued", "Queued"]
+        is DesktopDownloadState.Running -> if (state.fraction > 0f) "Downloading · ${(state.fraction * 100).toInt()}%" else "Downloading"
+        is DesktopDownloadState.Failed -> state.reason
+    }
+    OrbitSongRow(
+        title = item.song.title,
+        subtitle = line,
+        cover = item.song.thumbnailUrl,
+        fonts = fonts,
+        look = look,
+        onClick = null,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        height = 64.dp,
+        endPadding = 8.dp,
+        discContent = {
+            Disc(item.song.thumbnailUrl, 44.dp)
+            if (state is DesktopDownloadState.Running) {
+                OrbitRing(52.dp, look.ink, progress = if (state.fraction > 0f) ({ state.fraction }) else null, spinning = true, stroke = 1.5.dp, moon = 3.dp)
+            }
+        },
+        subtitleLeading = if (state is DesktopDownloadState.Failed) {
+            { Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp)) }
+        } else null,
+    ) {
+        if (state is DesktopDownloadState.Failed) {
+            OrbitRoundButton(Icons.Rounded.Refresh, DesktopStrings["retry", "Retry"], look.ink, { DesktopDownloadQueue.retry(item.song.videoId) }, size = 36.dp)
+            Spacer(Modifier.width(6.dp))
+        }
+        OrbitRoundButton(CosmoIcons.Close, DesktopStrings["cancel", "Cancel"], look.ink, { DesktopDownloadQueue.cancel(item.song.videoId) }, size = 36.dp)
     }
 }
 

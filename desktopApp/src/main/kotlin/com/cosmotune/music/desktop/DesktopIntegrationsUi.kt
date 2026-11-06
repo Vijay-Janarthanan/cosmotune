@@ -49,6 +49,12 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.spotify.SpotifyImportTrack
 import com.cosmotune.music.data.spotify.SpotifyImporter
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitPillButton
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitTextField
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.CosmoRadii
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -201,9 +207,7 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
             Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
             horizontalArrangement = Arrangement.Start,
         ) {
-            TextButton(onClick = { DesktopExternalLinks.open("https://open.spotify.com/") }) {
-                Text(DesktopStrings["d_open_spotify", "Open Spotify"], color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
-            }
+            DialogLink(DesktopStrings["d_open_spotify", "Open Spotify"]) { DesktopExternalLinks.open("https://open.spotify.com/") }
         }
         DialogActions(
             confirm = DesktopStrings["save", "Save"],
@@ -250,9 +254,7 @@ internal fun DesktopListenBrainzTokenDialog(onDismiss: () -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
             horizontalArrangement = Arrangement.Start,
         ) {
-            TextButton(onClick = { DesktopExternalLinks.open("https://listenbrainz.org/settings/") }) {
-                Text(DesktopStrings["d_open_listenbrainz", "Open ListenBrainz"], color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
-            }
+            DialogLink(DesktopStrings["d_open_listenbrainz", "Open ListenBrainz"]) { DesktopExternalLinks.open("https://listenbrainz.org/settings/") }
         }
         DialogActions(
             confirm = DesktopStrings["save", "Save"],
@@ -461,6 +463,26 @@ private fun DialogField(
     imeAction: ImeAction = ImeAction.Done,
     onSubmit: () -> Unit = {},
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        // The Orbit field (the chip's pill) with the round clear button at its end once something is typed.
+        val look = orbitLook()
+        OrbitTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = placeholder,
+            fonts = orbitFonts(),
+            look = look,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)).then(modifier),
+            secret = isPassword,
+            enabled = enabled,
+            onSubmit = onSubmit,
+            imeAction = imeAction,
+            trailing = if (value.isNotEmpty() && enabled) {
+                { OrbitRoundButton(CosmoIcons.Close, DesktopStrings["clear", "Clear"], look.ink, { onValueChange("") }, size = 32.dp) }
+            } else null,
+        )
+        return
+    }
     Row(
         Modifier
             .fillMaxWidth()
@@ -494,6 +516,18 @@ private fun DialogField(
             ) {
                 Icon(Icons.Rounded.Close, DesktopStrings["clear", "Clear"], tint = DesktopSecondary, modifier = Modifier.size(16.dp))
             }
+        }
+    }
+}
+
+/** A way out to the service's own page under a field ("Open Spotify"): the quiet Orbit pill with the look, a text button without. */
+@Composable
+private fun DialogLink(label: String, onClick: () -> Unit) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        OrbitPillButton(label, onClick, orbitFonts(), orbitLook(), Modifier.padding(top = 10.dp), height = 36.dp)
+    } else {
+        TextButton(onClick = onClick) {
+            Text(label, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
