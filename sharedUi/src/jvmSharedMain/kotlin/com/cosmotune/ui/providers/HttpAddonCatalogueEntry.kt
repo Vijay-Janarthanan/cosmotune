@@ -1,9 +1,10 @@
 package com.cosmotune.ui.providers
 
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.providers.*
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitBusyRing
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.*
 
@@ -13,7 +14,7 @@ fun HttpAddonCatalogueEntry(identity: String, title: String, enabled: Boolean, r
     load: suspend (resource: String, id: String, force: Boolean) -> JsonObject,
     song: (ProviderTrack) -> Song, onPlay: (List<Song>, Int) -> Unit) {
     var open by remember(identity) { mutableStateOf(false) }
-    TextButton(onClick = { open = true }, enabled = enabled) { Text("Browse $title") }
+    ProviderButton("Browse $title", { open = true }, enabled = enabled, icon = CosmoIcons.Explore)
     if (!open) return
     var access by remember(identity, revision) { mutableStateOf<CatalogueBrowserAccess?>(null) }
     var error by remember(identity, revision) { mutableStateOf(false) }
@@ -69,6 +70,6 @@ fun HttpAddonCatalogueEntry(identity: String, title: String, enabled: Boolean, r
         onConfirm = { attempt++ },
         dismissLabel = "Close",
         onDismiss = { open = false },
-        content = if (error) null else ({ LinearProgressIndicator() }),
+        content = if (error) null else ({ OrbitBusyRing() }),
     )
 }

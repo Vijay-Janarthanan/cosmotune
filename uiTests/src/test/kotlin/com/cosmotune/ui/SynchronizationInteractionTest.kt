@@ -30,7 +30,7 @@ class SynchronizationInteractionTest {
             syncLibraryReady = true, syncPlaylists = listOf(SyncPlaylist("mix", "Evening mix", listOf(SyncTrack("original", "Original song", "Singer")))),
             applySyncedPlaylists = { records, _ -> applied = records }, queuePlaylistAdditions = { rows, _ -> queued += rows.map { it.videoId } },
             fetchPlaylist = { _, _ -> RemotePlaylist("Evening", listOf(RemoteTrack(original), RemoteTrack(original.copy(videoId = "new", title = "New song")))) })
-        compose.setContent { MaterialTheme { ListeningTools(true, host, {}) } }
+        compose.setContent { PodioTestTheme { ListeningTools(true, host, {}) } }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("listening:tab:DEVICE_SYNC").fetchSemanticsNodes().isNotEmpty() }
         return file
     }

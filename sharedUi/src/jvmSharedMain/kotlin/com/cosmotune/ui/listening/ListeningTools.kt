@@ -6,7 +6,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.*
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,16 +18,18 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.unit.sp
 import com.cosmotune.listening.*
-import com.cosmotune.ui.components.CosmoButton
-import com.cosmotune.ui.components.CosmoButtonKind
-import com.cosmotune.ui.theme.CosmoRadii
-import com.cosmotune.ui.theme.LocalCosmoShell
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitBusyRing
+import com.cosmotune.ui.orbit.OrbitNotice
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.sheets.CosmoDialog
+import com.cosmotune.ui.sheets.CosmoDialogHeading
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -118,25 +123,26 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
         setupDismissed = true
         onDismiss()
     }
-    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
-            Surface(Modifier.widthIn(max = maxWidth).fillMaxWidth().fillMaxHeight(0.94f).testTag("listening:panel"), shape = androidx.compose.foundation.shape.RoundedCornerShape(CosmoRadii.rLg), tonalElevation = 4.dp) {
-                Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Your listening", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
-                        TextButton(onClick = close, modifier = Modifier.testTag("listening:close")) { Text("Close") }
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    // Orbit's dialog card, as tall as the window allows: the heading and Close, the pages as chips, then the page.
+    CosmoDialog(onDismiss = close, maxWidth = maxWidth) {
+        CompositionLocalProvider(LocalContentColor provides look.ink, LocalTextStyle provides fonts.body) {
+                Column(Modifier.fillMaxWidth().fillMaxHeight(0.94f).testTag("listening:panel").padding(start = 24.dp, end = 20.dp, top = 22.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                        CosmoDialogHeading(null, "Your listening", "Keep the queue. Find your next favourite.", Modifier.weight(1f))
+                        OrbitRoundButton(CosmoIcons.Close, "Close", look.ink, onClick = close, modifier = Modifier.testTag("listening:close"))
                     }
-                    Text("Keep the queue. Find your next favourite.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ToolChipRow(Modifier.padding(top = 10.dp, bottom = 8.dp)) {
                         ListeningTab.entries.filter { it != ListeningTab.REMOTE || host.remote != null }.forEach { destination ->
-                            FilterChip(selected = tab == destination, onClick = { tab = destination; notice = null },
-                                label = { Text(destination.label) }, modifier = Modifier.testTag("listening:tab:${destination.name}"))
+                            ToolChip(destination.label, selected = tab == destination, onClick = { tab = destination; notice = null },
+                                modifier = Modifier.testTag("listening:tab:${destination.name}"))
                         }
                     }
-                    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().testTag("listening:busy"))
+                    if (busy) OrbitBusyRing(Modifier.padding(vertical = 4.dp).testTag("listening:busy"))
                     notice?.let {
-                        Text(it, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(vertical = 8.dp).semantics { liveRegion = LiveRegionMode.Polite })
+                        val live = Modifier.padding(vertical = 6.dp).semantics { liveRegion = LiveRegionMode.Polite }
+                        if (error) ToolError(it, live) else OrbitNotice(it, fonts, look, live.fillMaxWidth())
                     }
                     if (loaded == null) {
                         Text("Opening your listening library…", Modifier.padding(vertical = 24.dp))
@@ -169,7 +175,6 @@ fun ListeningTools(open: Boolean, host: ListeningToolsHost, onDismiss: () -> Uni
                         ListeningTab.DOWNLOAD_UPDATES -> DownloadUpdatesPage(state, host, updates, busy, run)
                     }
                 }
-            }
         }
     }
 }
@@ -180,10 +185,10 @@ private fun ColumnScope.SessionsPage(state: ListeningState, host: ListeningTools
     var name by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf<String?>(null) }
-    LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
             Heading("Pick up where you left off", "Save your queue, position, repeat and shuffle settings. Opening a session replaces the current queue and leaves playback paused.")
-            OutlinedTextField(name, { name = it.take(80) }, label = { Text("Session name") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("listening:session:name"))
+            ToolField(name, { name = it.take(80) }, "Session name", Modifier.fillMaxWidth(), tag = "listening:session:name", enabled = !busy)
             ToolButton(if (editing == null) "Save current queue" else "Save name", enabled = !busy && name.isNotBlank(), tag = "listening:session:save", onClick = {
                 run {
                     val q = host.queue()
@@ -197,11 +202,11 @@ private fun ColumnScope.SessionsPage(state: ListeningState, host: ListeningTools
         }
         if (state.sessions.isEmpty()) item { EmptyHint("No saved sessions", "Add a few songs to the queue, then give this session a name.", host.findMusic, close) }
         items(state.sessions, key = { it.id }) { session ->
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(session.name, style = MaterialTheme.typography.titleMedium)
-                Text("${session.tracks.size} tracks · ${session.tracks[session.index].title} · ${stamp(session.savedAt)}", style = MaterialTheme.typography.bodySmall)
+            ToolCard {
+                ToolTitle(session.name)
+                ToolNote("${session.tracks.size} tracks · ${session.tracks[session.index].title} · ${stamp(session.savedAt)}")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToolButton("Open session", enabled = !busy, onClick = {
+                    ToolButton("Open session", kind = ToolKind.QUIET, enabled = !busy, onClick = {
                         run {
                             val available = withContext(Dispatchers.IO) { session.playable(host.available) }
                                 ?: error("These local files are unavailable on this device. Your saved session is unchanged.")
@@ -210,14 +215,13 @@ private fun ColumnScope.SessionsPage(state: ListeningState, host: ListeningTools
                             if (missing > 0) "$missing unavailable tracks skipped. Session opened paused." else "Session opened paused"
                         }
                     })
-                    ToolButton("Rename", { editing = session.id; name = session.name }, kind = CosmoButtonKind.TEXT, enabled = !busy)
+                    ToolButton("Rename", { editing = session.id; name = session.name }, kind = ToolKind.QUIET, enabled = !busy)
                     ToolButton(if (confirmDelete == session.id) "Confirm delete" else "Delete", {
                         if (confirmDelete != session.id) confirmDelete = session.id else run {
                             withContext(Dispatchers.IO) { store.deleteSession(session.id) }; confirmDelete = null; "Session deleted"
                         }
-                    }, kind = CosmoButtonKind.TEXT, enabled = !busy)
+                    }, kind = ToolKind.QUIET, enabled = !busy)
                 }
-                HorizontalDivider()
             }
         }
     }
@@ -230,62 +234,62 @@ private fun ColumnScope.SmartPage(state: ListeningState, host: ListeningToolsHos
     var preview by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<String?>(null) }
     val songs = remember(draft, host.library) { draft.songs(host.library) }
-    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
             Heading("A library that keeps up", "Rules update from the music already in your library and recent history. Export a snapshot to keep a fixed playlist.")
-            OutlinedTextField(draft.name, { draft = draft.copy(name = it.take(80)) }, label = { Text("Playlist name") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("listening:smart:name"))
+            ToolField(draft.name, { draft = draft.copy(name = it.take(80)) }, "Playlist name", Modifier.fillMaxWidth(), tag = "listening:smart:name")
             ToggleRow("Liked tracks", draft.likedOnly) { draft = draft.copy(likedOnly = it) }
             ToggleRow("Downloaded on this device", draft.downloadedOnly) { draft = draft.copy(downloadedOnly = it) }
             ToggleRow("Not in recent history", draft.excludeRecent) { draft = draft.copy(excludeRecent = it, recentOnly = if (it) false else draft.recentOnly) }
             ToggleRow("Only recent history", draft.recentOnly) { draft = draft.copy(recentOnly = it, excludeRecent = if (it) false else draft.excludeRecent) }
-            OutlinedTextField(draft.artistContains, { draft = draft.copy(artistContains = it.take(200)) }, label = { Text("Artist contains") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("listening:smart:artist"))
-            OutlinedTextField(draft.albumContains, { draft = draft.copy(albumContains = it.take(200)) }, label = { Text("Album contains") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("listening:smart:album"))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ToolField(draft.artistContains, { draft = draft.copy(artistContains = it.take(200)) }, "Artist contains", Modifier.fillMaxWidth(), tag = "listening:smart:artist")
+            ToolField(draft.albumContains, { draft = draft.copy(albumContains = it.take(200)) }, "Album contains", Modifier.fillMaxWidth(), tag = "listening:smart:album")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
                 SmartDuration.entries.forEach { length ->
-                    FilterChip(draft.duration == length, { draft = draft.copy(duration = length) }, modifier = Modifier.testTag("listening:smart:duration:${length.name}"),
-                        label = { Text(when (length) { SmartDuration.ANY -> "Any length"; SmartDuration.SHORT -> "Under 3 min"; SmartDuration.MEDIUM -> "3–6 min"; SmartDuration.LONG -> "Over 6 min" }) })
+                    ToolChip(when (length) { SmartDuration.ANY -> "Any length"; SmartDuration.SHORT -> "Under 3 min"; SmartDuration.MEDIUM -> "3–6 min"; SmartDuration.LONG -> "Over 6 min" },
+                        draft.duration == length, { draft = draft.copy(duration = length) }, Modifier.testTag("listening:smart:duration:${length.name}"))
                 }
             }
             ToggleRow("Added in the last 30 days", draft.addedWithinDays != null) { draft = draft.copy(addedWithinDays = if (it) 30 else null) }
             ToggleRow("Hide explicit tracks", draft.excludeExplicit) { draft = draft.copy(excludeExplicit = it) }
             ToggleRow("Lossless files only", draft.losslessOnly) { draft = draft.copy(losslessOnly = it) }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
                 SmartOrder.entries.forEach { order ->
-                    FilterChip(draft.order == order, { draft = draft.copy(order = order) }, label = { Text(when(order) {
+                    ToolChip(when (order) {
                         SmartOrder.TITLE -> "Title"; SmartOrder.ARTIST -> "Artist"; SmartOrder.RECENTLY_ADDED -> "Recently added"
-                        SmartOrder.SHUFFLE -> "Shuffled"; SmartOrder.LONGEST -> "Longest first"; SmartOrder.SHORTEST -> "Shortest first" }) })
+                        SmartOrder.SHUFFLE -> "Shuffled"; SmartOrder.LONGEST -> "Longest first"; SmartOrder.SHORTEST -> "Shortest first" },
+                        draft.order == order, { draft = draft.copy(order = order) })
                 }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
                 listOf(null, 25, 50, 100).forEach { cap ->
-                    FilterChip(draft.limit == cap, { draft = draft.copy(limit = cap) }, label = { Text(cap?.let { "Up to $it" } ?: "No limit") }, modifier = Modifier.testTag("listening:smart:limit:${cap ?: 0}"))
+                    ToolChip(cap?.let { "Up to $it" } ?: "No limit", draft.limit == cap, { draft = draft.copy(limit = cap) }, Modifier.testTag("listening:smart:limit:${cap ?: 0}"))
                 }
             }
-            Text("${songs.size} matching tracks", Modifier.padding(vertical = 8.dp).testTag("listening:smart:count"))
+            ToolTitle("${songs.size} matching tracks", Modifier.padding(vertical = 8.dp).testTag("listening:smart:count"))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToolButton("Preview", { preview = !preview }, kind = CosmoButtonKind.TONAL)
+                ToolButton("Preview", { preview = !preview }, kind = ToolKind.QUIET)
                 ToolButton("Save rules", enabled = !busy && draft.name.isNotBlank(), tag = "listening:smart:save", onClick = { run {
                     withContext(Dispatchers.IO) { store.saveSmart(draft) }; draft = SmartPlaylist(name = ""); "Smart playlist saved"
                 } })
             }
-            if (preview) songs.take(10).forEach { Text("${it.title} · ${it.artist}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 4.dp)) }
+            if (preview) songs.take(10).forEach { ToolNote("${it.title} · ${it.artist}", Modifier.padding(vertical = 4.dp)) }
         }
         if (state.smartPlaylists.isEmpty()) item { EmptyHint("Your first smart playlist", "Choose a rule, preview its tracks, then save it. No account is needed.", host.findMusic, close) }
         items(state.smartPlaylists.sortedByDescending { it.pinned }, key = { it.id }) { rule ->
             val matching = remember(rule, host.library) { rule.songs(host.library) }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text((if (rule.pinned) "Pinned · " else "") + rule.name, style = MaterialTheme.typography.titleMedium)
-                Text("${matching.size} matching tracks", style = MaterialTheme.typography.bodySmall)
+            ToolCard {
+                ToolTitle((if (rule.pinned) "Pinned · " else "") + rule.name)
+                ToolNote("${matching.size} matching tracks")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToolButton("Play", { run { host.play(matching); close(); null } }, enabled = !busy && matching.isNotEmpty())
-                    ToolButton("Save as playlist", enabled = !busy && matching.isNotEmpty(), kind = CosmoButtonKind.TONAL, onClick = { run { host.createPlaylist(rule.name, matching); "Playlist saved to your library" } })
-                    ToolButton("Edit", { draft = rule; preview = true }, kind = CosmoButtonKind.TEXT, enabled = !busy)
-                    ToolButton(if (rule.pinned) "Unpin" else "Pin", kind = CosmoButtonKind.TEXT, enabled = !busy, onClick = { run { withContext(Dispatchers.IO) { store.saveSmart(rule.copy(pinned = !rule.pinned)) }; null } })
-                    ToolButton(if (deleting == rule.id) "Confirm delete" else "Delete", kind = CosmoButtonKind.TEXT, enabled = !busy, onClick = {
+                    ToolButton("Play", { run { host.play(matching); close(); null } }, enabled = !busy && matching.isNotEmpty(), kind = ToolKind.QUIET)
+                    ToolButton("Save as playlist", enabled = !busy && matching.isNotEmpty(), kind = ToolKind.QUIET, onClick = { run { host.createPlaylist(rule.name, matching); "Playlist saved to your library" } })
+                    ToolButton("Edit", { draft = rule; preview = true }, kind = ToolKind.QUIET, enabled = !busy)
+                    ToolButton(if (rule.pinned) "Unpin" else "Pin", kind = ToolKind.QUIET, enabled = !busy, onClick = { run { withContext(Dispatchers.IO) { store.saveSmart(rule.copy(pinned = !rule.pinned)) }; null } })
+                    ToolButton(if (deleting == rule.id) "Confirm delete" else "Delete", kind = ToolKind.QUIET, enabled = !busy, onClick = {
                         if (deleting != rule.id) deleting = rule.id else run { withContext(Dispatchers.IO) { store.deleteSmart(rule.id) }; deleting = null; "Smart playlist deleted" }
                     })
                 }
-                HorizontalDivider()
             }
         }
     }
@@ -296,22 +300,22 @@ private fun ColumnScope.ReplayPage(host: ListeningToolsHost, busy: Boolean, run:
     var period by remember { mutableStateOf(ReplayWindow.MONTH) }
     var result by remember { mutableStateOf<ReplayTracks?>(null) }
     var created by remember { mutableStateOf<Set<String>>(emptySet()) }
-    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Heading("Your favourites, on repeat", "Make a local playlist from the tracks you listened to most this month or this year.")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReplayWindow.entries.forEach { window -> FilterChip(period == window, { period = window; result = null }, label = { Text(if (window == ReplayWindow.MONTH) "This month" else "This year") }) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
+                ReplayWindow.entries.forEach { window -> ToolChip(if (window == ReplayWindow.MONTH) "This month" else "This year", period == window, { period = window; result = null }) }
             }
             ToolButton("Load listening history", enabled = !busy, tag = "listening:replay:load", onClick = { run { result = withContext(Dispatchers.IO) { host.replay(period) }; if (result!!.songs.isEmpty()) "Play some music first. This period has no listening history yet." else null } })
         }
         result?.let { replay ->
             item {
-                Text("${replay.title} · ${replay.songs.size} tracks", style = MaterialTheme.typography.titleMedium)
+                ToolSection("${replay.title} · ${replay.songs.size} tracks")
                 ToolButton(if (replay.title in created) "Playlist saved" else "Create playlist", enabled = !busy && replay.songs.isNotEmpty() && replay.title !in created, tag = "listening:replay:create", onClick = { run {
                     host.createPlaylist(replay.title, replay.songs.distinctBy { it.videoId }); created = created + replay.title; "Playlist saved to your library"
                 } })
             }
-            items(replay.songs.take(50), key = { it.videoId }) { song -> Text("${song.title} · ${song.artist}", style = MaterialTheme.typography.bodyMedium) }
+            items(replay.songs.take(50), key = { it.videoId }) { song -> Text("${song.title} · ${song.artist}") }
         }
     }
 }
@@ -322,17 +326,16 @@ private fun ColumnScope.ReleasesPage(state: ListeningState, host: ListeningTools
     var query by remember { mutableStateOf("") }
     var found by remember { mutableStateOf<List<WatchedArtist>>(emptyList()) }
     var searched by remember { mutableStateOf(false) }
-    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
             Heading("Stay close to your artists", "Follow artists here to check for newly discovered albums and singles. The first successful check sets a baseline. Checks run only when you ask.")
-            OutlinedTextField(query, { query = it; searched = false; found = emptyList() }, label = { Text("Find an artist") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            ToolField(query, { query = it; searched = false; found = emptyList() }, "Find an artist", Modifier.fillMaxWidth())
             ToolButton("Search artists", enabled = !busy && query.trim().length >= 2, onClick = { run { found = ListeningNetwork.artists(query); searched = true; if (found.isEmpty()) "No matching artists. Try a different spelling." else null } })
         }
         if (searched) items(found, key = { "search:${it.id}" }) { artist ->
             val watched = state.artists.any { it.id == artist.id }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(artist.name, Modifier.weight(1f))
-                ToolButton(if (watched) "Following" else "Follow", enabled = !busy && !watched, onClick = { run {
+            ToolLine(artist.name) {
+                ToolButton(if (watched) "Following" else "Follow", enabled = !busy && !watched, kind = ToolKind.QUIET, onClick = { run {
                     withContext(Dispatchers.IO) { store.watchArtist(artist.id, artist.name) }
                     val releases = host.releases(artist)
                     withContext(Dispatchers.IO) { store.acceptReleases(artist.id, releases) }
@@ -342,11 +345,10 @@ private fun ColumnScope.ReleasesPage(state: ListeningState, host: ListeningTools
         }
         val suggestions = libraryArtists(host.library.songs, state.artists, limit = 12)
         if (suggestions.isNotEmpty() && state.artists.size < 50) {
-            item { Text("From your library", style = MaterialTheme.typography.titleMedium) }
+            item { ToolSection("From your library") }
             items(suggestions, key = { "library:${it.first.id}" }) { (artist, count) ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${artist.name} · $count tracks", Modifier.weight(1f))
-                    ToolButton("Follow", enabled = !busy, kind = CosmoButtonKind.TONAL, tag = "listening:releases:library:${artist.id}", onClick = { run {
+                ToolLine("${artist.name} · $count tracks") {
+                    ToolButton("Follow", enabled = !busy, kind = ToolKind.QUIET, tag = "listening:releases:library:${artist.id}", onClick = { run {
                         withContext(Dispatchers.IO) { store.watchArtist(artist.id, artist.name) }
                         val releases = host.releases(artist)
                         withContext(Dispatchers.IO) { store.acceptReleases(artist.id, releases) }
@@ -365,18 +367,18 @@ private fun ColumnScope.ReleasesPage(state: ListeningState, host: ListeningTools
             } })
         }
         items(state.artists, key = { "artist:${it.id}" }) { artist ->
-            Column {
-                Text(artist.name, style = MaterialTheme.typography.titleMedium)
-                Text(artist.checkedAt?.let { "Last checked ${stamp(it)}" } ?: "First check pending", style = MaterialTheme.typography.bodySmall)
-                ToolButton("Stop following", kind = CosmoButtonKind.TEXT, enabled = !busy, onClick = { run { withContext(Dispatchers.IO) { store.unwatchArtist(artist.id) }; "Artist removed from this inbox" } })
+            ToolCard {
+                ToolTitle(artist.name)
+                ToolNote(artist.checkedAt?.let { "Last checked ${stamp(it)}" } ?: "First check pending")
+                ToolButton("Stop following", kind = ToolKind.QUIET, enabled = !busy, onClick = { run { withContext(Dispatchers.IO) { store.unwatchArtist(artist.id) }; "Artist removed from this inbox" } })
             }
         }
-        if (state.inbox.isEmpty()) item { Text("No newly discovered releases yet. Your saved inbox will stay available offline.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (state.inbox.isEmpty()) item { Text("No newly discovered releases yet. Your saved inbox will stay available offline.", color = orbitLook().dim) }
         items(state.inbox, key = { "release:${it.artistId}:${it.id}" }) { release ->
-            Column {
-                Text((if (!release.read) "New · " else "") + release.title, style = MaterialTheme.typography.titleMedium)
-                Text(release.artist, style = MaterialTheme.typography.bodySmall)
-                ToolButton("Open release", enabled = !busy, onClick = { run {
+            ToolCard {
+                ToolTitle((if (!release.read) "New · " else "") + release.title)
+                ToolNote(release.artist)
+                ToolButton("Open release", enabled = !busy, kind = ToolKind.QUIET, onClick = { run {
                     withContext(Dispatchers.IO) { store.markRead(release.id) }; host.openRelease(release.id, release.title); close(); null
                 } })
             }
@@ -387,10 +389,10 @@ private fun ColumnScope.ReleasesPage(state: ListeningState, host: ListeningTools
 @Composable
 private fun ColumnScope.ConnectionPage(state: ListeningState, host: ListeningToolsHost, store: ListeningStore, busy: Boolean, run: (suspend () -> String?) -> Unit) {
     val diagnostics = state.diagnostics
-    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Heading("Know what is getting through", "Test catalogue search and a short media read separately. This contacts the music provider and media host. It does not change playback.")
-            if (host.sourceSummary.isNotBlank()) Text(host.sourceSummary, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (host.sourceSummary.isNotBlank()) Text(host.sourceSummary, color = orbitLook().dim)
             ToolButton("Run connection checks", enabled = !busy, tag = "listening:diagnostics:run", onClick = { run {
                 val queue = host.queue()
                 val result = host.connectionCheck(queue.songs.getOrNull(queue.index))
@@ -399,16 +401,18 @@ private fun ColumnScope.ConnectionPage(state: ListeningState, host: ListeningToo
             } })
         }
         diagnostics?.let { report ->
-            item { Text("Last checked ${stamp(report.checkedAt)}", style = MaterialTheme.typography.bodySmall) }
+            item { ToolNote("Last checked ${stamp(report.checkedAt)}") }
             items(report.checks, key = { it.name }) { check ->
-                Column {
-                    Text("${check.name} · ${if (check.ok) "Connected" else "Needs attention"}", style = MaterialTheme.typography.titleMedium, color = if (check.ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                    Text(check.detail)
+                ToolCard {
+                    ToolTitle("${check.name} · ${if (check.ok) "Connected" else "Needs attention"}", color = if (check.ok) orbitLook().ink else MaterialTheme.colorScheme.error)
+                    Text(check.detail, color = orbitLook().dim)
                 }
             }
             item {
-                Text("Report preview", style = MaterialTheme.typography.titleMedium)
-                SelectionContainer { Text(report.report(), style = MaterialTheme.typography.bodySmall) }
+                ToolSection("Report preview")
+                ToolCard(Modifier.padding(vertical = 8.dp), raised = true) {
+                    SelectionContainer { Text(report.report(), style = orbitFonts().body.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp)) }
+                }
                 ToolButton("Save this report", enabled = !busy, onClick = { run {
                     if (host.exportFile("cosmotune-connection.txt", report.report())) "Report saved" else null
                 } })
@@ -423,82 +427,73 @@ private fun ColumnScope.SetupPage(preferences: ListeningPreferences, languageCho
     var local by remember { mutableStateOf(preferences.preferLocal) }
     var lowData by remember { mutableStateOf(false) }
     var language by remember { mutableStateOf(preferences.contentLanguage) }
-    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Heading("Make room for your music", "Start without an account. These choices stay on this device and can be changed in Settings.")
             ToggleRow("Open local music after setup", local) { local = it }
-            Text("App language", style = MaterialTheme.typography.titleMedium)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ToolSection("App language")
+            ToolChipRow {
                 languageChoices.forEach { (tag, label) ->
-                    FilterChip(language == tag, { language = tag }, label = { Text(label) })
+                    ToolChip(label, language == tag, { language = tag })
                 }
             }
             ToggleRow("Use less data", lowData) { lowData = it }
-            if (lowData) Text("Apply lower streaming quality and turn off animated canvas. Download quality stays unchanged.", style = MaterialTheme.typography.bodySmall)
+            if (lowData) ToolNote("Apply lower streaming quality and turn off animated canvas. Download quality stays unchanged.")
             ToolButton("Apply choices", enabled = !busy, onClick = { run { onComplete(ListeningPreferences(true, language, local), lowData); "Your choices are saved" } })
-            TextButton(onClick = onImport, enabled = !busy) { Text("Import an existing music library") }
-            TextButton(onClick = { run { onSkip(); "You can return here anytime" } }, enabled = !busy) { Text("Skip setup") }
+            ToolButton("Import an existing music library", onImport, enabled = !busy, kind = ToolKind.QUIET)
+            ToolButton("Skip setup", { run { onSkip(); "You can return here anytime" } }, enabled = !busy, kind = ToolKind.QUIET)
         }
     }
 }
 
 @Composable
 private fun ColumnScope.BackupPage(host: ListeningToolsHost, store: ListeningStore, busy: Boolean, run: (suspend () -> String?) -> Unit) {
-    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Heading("Take your listening with you", "Transfer saved sessions, smart-playlist rules and your release inbox between Android, Windows, Linux and macOS. This file includes track metadata and local file paths, so choose where you save it. Account credentials and audio files are excluded.")
             ToolButton("Export listening backup", enabled = !busy, onClick = { run {
                 val data = withContext(Dispatchers.IO) { store.export() }
                 if (host.exportFile("cosmotune-listening.json", data)) "Backup saved" else null
             } })
-            ToolButton("Import listening backup", enabled = !busy, kind = CosmoButtonKind.TONAL, onClick = { run {
+            ToolButton("Import listening backup", enabled = !busy, kind = ToolKind.QUIET, onClick = { run {
                 val data = host.importFile() ?: return@run null
                 withContext(Dispatchers.IO) { store.import(data) }
                 "Backup merged. Existing local entries were kept. Missing local files are skipped when you open a session."
             } })
-            Text("Listening backups add missing entries by identity; importing the same backup again does not duplicate them. Local edits take precedence.", style = MaterialTheme.typography.bodySmall)
+            ToolNote("Listening backups add missing entries by identity; importing the same backup again does not duplicate them. Local edits take precedence.")
+            Spacer(Modifier.height(12.dp))
             MusicPlaylistImportPanel(host, busy, run)
+            Spacer(Modifier.height(12.dp))
             Heading("Local playlists", "Export local audio files as a UTF-8 M3U8 playlist. File order and repeated tracks are preserved. Online-only songs, missing files and device-only content links are skipped; no stream addresses or account credentials are exported.")
-            ToolButton("Export local queue to M3U8", enabled = !busy, tag = "listening:m3u8:queue", onClick = { run {
+            ToolButton("Export local queue to M3U8", enabled = !busy, kind = ToolKind.QUIET, tag = "listening:m3u8:queue", onClick = { run {
                 val songs = host.queue().songs
                 val export = withContext(Dispatchers.IO) { exportLocalM3u8("Queue", songs, localLibrary = host.library.songs) }
                 if (host.exportFile("cosmotune-queue.m3u8", export.text)) "Playlist saved: ${export.included} local tracks, ${export.skipped} skipped" else null
             } })
-            ToolButton("Export local library to M3U8", enabled = !busy, tag = "listening:m3u8:library", onClick = { run {
+            ToolButton("Export local library to M3U8", enabled = !busy, kind = ToolKind.QUIET, tag = "listening:m3u8:library", onClick = { run {
                 val export = withContext(Dispatchers.IO) { exportLocalM3u8("Library", host.library.songs) }
                 if (host.exportFile("cosmotune-library.m3u8", export.text)) "Playlist saved: ${export.included} local tracks, ${export.skipped} skipped" else null
             } })
-            Text("The playlist refers to the current file locations. Copy the music and adjust paths when moving it to another device. Keep a listening backup for source metadata and sessions.", style = MaterialTheme.typography.bodySmall)
+            ToolNote("The playlist refers to the current file locations. Copy the music and adjust paths when moving it to another device. Keep a listening backup for source metadata and sessions.")
         }
     }
 }
 
+/** A line with its words at the start and [action] at the end, on the quiet card. */
 @Composable
-private fun Heading(title: String, detail: String) {
-    Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
-        Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f)); Switch(checked, onChange)
+internal fun ToolLine(text: String, modifier: Modifier = Modifier, action: @Composable RowScope.() -> Unit) {
+    ToolCard(modifier) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(text, Modifier.weight(1f), style = orbitFonts().title, color = orbitLook().ink)
+            action()
+        }
     }
 }
 
 @Composable
 private fun EmptyHint(title: String, detail: String, action: () -> Unit, close: () -> Unit) {
     Heading(title, detail)
-    ToolButton("Find music", { close(); action() }, kind = CosmoButtonKind.TONAL)
-}
-
-@Composable
-internal fun ToolButton(text: String, onClick: () -> Unit, enabled: Boolean = true, kind: CosmoButtonKind = CosmoButtonKind.PRIMARY, tag: String = "") {
-    val modifier = Modifier.padding(vertical = 4.dp).then(if (tag.isNotBlank()) Modifier.testTag(tag) else Modifier)
-    if (LocalCosmoShell.current != null) CosmoButton(text, onClick, modifier, kind, enabled = enabled)
-    else Button(onClick = onClick, enabled = enabled, modifier = modifier) { Text(text) }
+    ToolButton("Find music", { close(); action() }, kind = ToolKind.QUIET)
 }
 
 private fun stamp(millis: Long): String = DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(millis))

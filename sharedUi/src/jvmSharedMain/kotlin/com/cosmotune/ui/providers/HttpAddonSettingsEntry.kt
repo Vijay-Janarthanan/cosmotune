@@ -3,10 +3,14 @@ package com.cosmotune.ui.providers
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.dp
 import com.cosmotune.providers.ProviderSetting
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitBusyRing
+import com.cosmotune.ui.orbit.OrbitErrorText
+import com.cosmotune.ui.sheets.CosmoDialogQuietButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
@@ -17,7 +21,7 @@ fun HttpAddonSettingsEntry(title: String, values: Map<String, String>, enabled: 
     onSave: (Map<String, String>) -> Unit,
     launcher: (@Composable (open: () -> Unit, enabled: Boolean) -> Unit)? = null) {
     var open by remember(title) { mutableStateOf(false) }
-    if (launcher == null) TextButton(onClick = { open = true }, enabled = enabled) { Text("Source settings") }
+    if (launcher == null) ProviderButton("Source settings", { open = true }, enabled = enabled, icon = CosmoIcons.Settings)
     else launcher({ open = true }, enabled)
     if (!open) return
     val scope = rememberCoroutineScope()
@@ -50,13 +54,15 @@ fun HttpAddonSettingsEntry(title: String, values: Map<String, String>, enabled: 
         scroll = false,
         content = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (loading) item { LinearProgressIndicator() }
+            if (loading) item { OrbitBusyRing() }
             if (failed) item {
-                Text("The source settings could not be loaded. Check its connection and retry.", color = MaterialTheme.colorScheme.error)
-                TextButton(onClick = { attempt++ }) { Text("Retry") }
+                androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OrbitErrorText("The source settings could not be loaded. Check its connection and retry.")
+                    CosmoDialogQuietButton("Retry", { attempt++ })
+                }
             }
             if (schema?.isEmpty() == true) item { Text("This source does not declare configurable settings.") }
-            if (saveFailed) item { Text("The settings could not be saved. Your edits are still here.", color = MaterialTheme.colorScheme.error) }
+            if (saveFailed) item { OrbitErrorText("The settings could not be saved. Your edits are still here.") }
             items(schema.orEmpty(), key = { it.key }) { field ->
                 ProviderSettingField(field, fields[field.key] ?: field.default,
                     change = { fields = JsonObject(fields + (field.key to it)) }, busy = loading || saving)
