@@ -35,6 +35,19 @@ actual fun StatusBarIcons(dark: Boolean) {
 }
 
 @Composable
+actual fun SystemBarGlyphs(dark: Boolean) {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    val window = findWindow(view) ?: return
+    SideEffect {
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = dark
+            isAppearanceLightNavigationBars = dark
+        }
+    }
+}
+
+@Composable
 actual fun HideStatusBar(hidden: Boolean) {
     val view = LocalView.current
     if (view.isInEditMode) return
