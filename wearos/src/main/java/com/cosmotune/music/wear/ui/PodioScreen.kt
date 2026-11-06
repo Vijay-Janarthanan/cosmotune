@@ -3,7 +3,9 @@ package com.cosmotune.music.wear.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,12 +52,12 @@ fun PodioScreen(link: PhoneLink, onPlayer: () -> Unit, onOutput: () -> Unit) {
     val page = state.page?.takeIf { it.request.kind == kind && it.request.parent == parent && it.request.offset == offset }
     ScreenScaffold(scrollState = scroll) { padding ->
         ScalingLazyColumn(state = scroll, contentPadding = padding, verticalArrangement = Arrangement.spacedBy(5.dp),
-            modifier = Modifier.background(Color.Black)) {
+            modifier = Modifier.background(WearOrbit.Ground)) {
             item("title") {
                 Text(detail?.title ?: when (kind) {
                     W.Kind.SAVED_RADIO -> "Saved radio"; W.Kind.POPULAR_RADIO -> "Popular radio"
                     W.Kind.PODCASTS -> "Podcasts"; W.Kind.EPISODES -> "Episodes"; null -> "Podio"
-                }, style = WearType.header, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                }, style = WearType.header, color = WearOrbit.Ink, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp))
             }
             if (kind == null) {
@@ -86,7 +88,7 @@ fun PodioScreen(link: PhoneLink, onPlayer: () -> Unit, onOutput: () -> Unit) {
                     }).filter(String::isNotBlank).joinToString("\n")) }
                     item("play") { PodioCell(if (selected.resumeMs > 0) "Resume" else "Play",
                         if (watchOutput) "On this watch through your phone" else "On the phone's selected output",
-                        enabled = !state.actionBusy && connection == Link.Connected) {
+                        enabled = !state.actionBusy && connection == Link.Connected, play = true) {
                         queued = false; playRequest = link.selectPodio(selected, enqueue = false)
                     } }
                     item("enqueue") { PodioCell("Add to Up Next", "Keep current playback", enabled = !state.actionBusy && connection == Link.Connected) {
@@ -102,7 +104,8 @@ fun PodioScreen(link: PhoneLink, onPlayer: () -> Unit, onOutput: () -> Unit) {
                         else if (kind == W.Kind.PODCASTS) "Follow a podcast in Podio on your phone to browse its episodes here."
                         else "No playable items in this page.") }
                     items(page?.rows.orEmpty(), key = { it.id }) { row ->
-                        PodioCell(row.title, row.subtitle) {
+                        PodioCell(row.title, row.subtitle, mark = row.title,
+                            heard = if (row.kind == W.RowKind.EPISODE && row.durationMs > 0 && row.resumeMs > 0) row.resumeMs.toFloat() / row.durationMs else null) {
                             if (row.kind == W.RowKind.SHOW) open(W.Kind.EPISODES, row.id) else detail = row
                         }
                     }
@@ -117,16 +120,50 @@ fun PodioScreen(link: PhoneLink, onPlayer: () -> Unit, onOutput: () -> Unit) {
     }
 }
 
-@Composable private fun PodioCell(title: String, subtitle: String = "", enabled: Boolean = true, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(20.dp))
-        .background(Color.White.copy(alpha = if (enabled) .08f else .035f))
-        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(title, style = WearType.row, color = Color.White.copy(alpha = if (enabled) 1f else .4f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (subtitle.isNotBlank()) Text(subtitle, style = WearType.rowSub, color = Secondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+/**
+ * A Podio row in Orbit (rule 8): radius 22 on the ink fill. A station, show or episode has a disc at the start with its first
+ * letters inside (the board's "FM 98" discs; the watch is sent no logos), and an episode already begun wears the orbit round it
+ * for how much is heard ([heard]). [play] is the peach Play / Resume of an item's page.
+ */
+@Composable private fun PodioCell(
+    title: String,
+    subtitle: String = "",
+    enabled: Boolean = true,
+    mark: String? = null,
+    heard: Float? = null,
+    play: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val fill = when {
+        play && enabled -> WearOrbit.Peach
+        enabled -> WearOrbit.Row
+        else -> WearOrbit.Ink.copy(alpha = .035f)
+    }
+    val ink = if (play && enabled) WearOrbit.OnPeach else WearOrbit.Ink
+    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(22.dp)).background(fill)
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        .padding(start = if (mark != null) 8.dp else 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        if (mark != null) {
+            Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(32.dp).clip(CircleShape).background(WearOrbit.Round), contentAlignment = Alignment.Center) {
+                    Text(initials(mark), style = WearType.label.copy(fontSize = 8.sp, letterSpacing = 0.4.sp), color = WearOrbit.Ink, maxLines = 1)
+                }
+                if (heard != null) WearOrbitRing(38.dp, fraction = heard, color = WearOrbit.Ink, stroke = 1.5.dp)
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, style = WearType.row, color = ink.copy(alpha = if (enabled) 1f else .4f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotBlank()) Text(subtitle, style = WearType.rowSub, color = if (play && enabled) WearOrbit.OnPeach.copy(alpha = 0.7f) else WearOrbit.Dim, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
+
+/** The first letters of a name, for a disc with no logo. */
+private fun initials(name: String): String =
+    name.split(' ', '-', '.').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(if (it.any(Char::isDigit)) 4 else 1) }.uppercase().take(4)
 @Composable private fun PodioHint(text: String) {
-    Text(text, style = WearType.rowSub, color = Secondary, textAlign = TextAlign.Center,
+    Text(text, style = WearType.rowSub, color = WearOrbit.Dim, textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp))
 }
