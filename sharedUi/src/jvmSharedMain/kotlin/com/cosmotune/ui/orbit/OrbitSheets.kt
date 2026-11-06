@@ -59,7 +59,7 @@ internal val SHEET_GRAB_HEIGHT = 5.dp
  * 40 %. [icon] goes before the word.
  */
 @Composable
-internal fun OrbitPillButton(
+fun OrbitPillButton(
     label: String,
     onClick: () -> Unit,
     fonts: OrbitFonts,

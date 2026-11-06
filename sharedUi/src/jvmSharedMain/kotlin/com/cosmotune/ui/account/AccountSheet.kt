@@ -61,7 +61,6 @@ import com.cosmotune.ui.kit.KitButtonKind
 import com.cosmotune.ui.kit.KitDivider
 import com.cosmotune.ui.kit.KitGroup
 import com.cosmotune.ui.kit.KitSettingsRow
-import com.cosmotune.ui.kit.KitSheet
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
@@ -117,7 +116,7 @@ object AccountSheetTags {
     fun choice(id: String) = "account-sheet-choice-$id"
 }
 
-/** [AccountSheetContent] in the kit's bottom sheet. */
+/** [AccountSheetContent] in the Orbit sheet, under its title. */
 @Composable
 fun AccountSheet(
     model: AccountSheetModel,
@@ -129,7 +128,9 @@ fun AccountSheet(
     statusText: String? = null,
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
-    KitSheet(onDismiss = onDismiss, title = stringResource(Res.string.cosmo_account_title)) {
+    // The Orbit sheet (the song sheet's flat surface and grabber), not the kit's glass sheet.
+    com.cosmotune.ui.orbit.OrbitPickerSheet(onDismiss = onDismiss) {
+        com.cosmotune.ui.orbit.OrbitSheetTitle(stringResource(Res.string.cosmo_account_title))
         AccountSheetContent(model, onSignIn, onSwitch, onSignOut, onDismiss, onAddAccount, statusText, extra)
     }
 }

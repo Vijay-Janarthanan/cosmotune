@@ -56,6 +56,7 @@ import com.cosmotune.music.sharedui.resources.cosmo_mode_watch
 import androidx.compose.material.icons.rounded.Movie
 import com.cosmotune.music.sharedui.resources.library
 import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.components.cosmoFocusRing
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoShell
@@ -95,36 +96,40 @@ fun modeName(mode: AppMode): String = stringResource(
 )
 
 /**
- * The mode pill: 40 dp (a 48 dp target), `surface2`, the mode's glyph, its name and a chevron; [collapsed] (a scrolled bar, the
- * tablet rail) shows the glyph and the chevron only. A tap is [onClick] (open the mode sheet).
+ * The mode pill as an Orbit chip: 40 dp (a 48 dp target), round, the chip fill, the mode's glyph, its name in the chip face and a
+ * chevron in the dim ink; [collapsed] (a scrolled bar, the tablet rail) shows the glyph and the chevron only. A tap is [onClick]
+ * (open the mode sheet).
  */
 @Composable
 fun KitModePill(mode: AppMode, onClick: () -> Unit, modifier: Modifier = Modifier, collapsed: Boolean = false) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
     val name = modeName(mode)
     val switchLabel = stringResource(Res.string.cosmo_mode_switch)
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Row(
         modifier
             .minimumInteractiveComponentSize()
             .height(40.dp)
-            .clip(RoundedCornerShape(50))
-            .background(Color(palette.surfaceHigh))
-            .clickable(role = Role.Button, onClickLabel = switchLabel, onClick = onClick)
+            .cosmoFocusRing(interaction, 20.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(look.chip)
+            .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClickLabel = switchLabel, onClick = onClick)
             .semantics { contentDescription = "$name, $switchLabel" }
-            .padding(start = 12.dp, end = 10.dp),
+            .padding(start = 12.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(modeIcon(mode), contentDescription = null, tint = Color(palette.textPrimary), modifier = Modifier.size(20.dp))
-        if (!collapsed) Text(name, style = type.control, color = Color(palette.textPrimary), maxLines = 1)
-        Icon(CosmoIcons.ChevronDown, contentDescription = null, tint = Color(palette.textSecondary), modifier = Modifier.size(18.dp))
+        Icon(modeIcon(mode), contentDescription = null, tint = look.ink, modifier = Modifier.size(20.dp))
+        if (!collapsed) Text(name, style = fonts.chip, color = look.ink, maxLines = 1)
+        Icon(CosmoIcons.ChevronDown, contentDescription = null, tint = look.dim, modifier = Modifier.size(16.dp))
     }
 }
 
 /**
- * The mode sheet: a three-column grid of the shown modes, each tile 96 dp with its glyph, name and [status] line ("Playing ·
- * Golden Hour", "3 new chapters"); the [current] mode on `surface3` with a check. [onManage] adds "Manage modes" at the foot.
+ * The mode sheet as an Orbit sheet (the song sheet's surface): the mono "Mode" label over "Switch mode", then the shown modes as
+ * Orbit rows, each with its glyph, its name and its [status] line ("Playing · Golden Hour", "3 new chapters"), the [current] one
+ * solid ink with the peach dot. [onManage] adds "Manage modes" at the foot.
  */
 @Composable
 fun KitModeSheet(
@@ -134,39 +139,33 @@ fun KitModeSheet(
     status: (AppMode) -> String? = { null },
     onManage: (() -> Unit)? = null,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    KitSheet(onDismiss = onDismiss, title = stringResource(Res.string.cosmo_mode_switch)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (row in AppModes.shown().chunked(3)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (mode in row) {
-                        val selected = mode == current
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .heightIn(min = 96.dp)
-                                .clip(RoundedCornerShape(CosmoRadii.rMd))
-                                .background(Color(if (selected) palette.surfaceVariant else palette.surface))
-                                .selectable(selected = selected, role = Role.RadioButton, onClick = { onSelect(mode); onDismiss() })
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(modeIcon(mode), contentDescription = null, tint = Color(palette.textPrimary), modifier = Modifier.size(28.dp))
-                                Spacer(Modifier.weight(1f))
-                                if (selected) Icon(CosmoIcons.Check, contentDescription = null, tint = Color(palette.textPrimary), modifier = Modifier.size(18.dp))
-                            }
-                            Text(modeName(mode), style = type.rowTitle, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            status(mode)?.let { Text(it, style = type.meta, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                        }
-                    }
-                    repeat(3 - row.size) { Box(Modifier.weight(1f)) }
-                }
-            }
-            if (onManage != null) {
-                KitSettingsRow(stringResource(Res.string.cosmo_mode_manage), icon = CosmoIcons.Settings, onClick = { onDismiss(); onManage() })
-            }
+    com.cosmotune.ui.orbit.OrbitPickerSheet(onDismiss = onDismiss) {
+        KitModeSheetContent(current, onSelect, onDismiss, status, onManage)
+    }
+}
+
+/** What [KitModeSheet] holds, on its own so a render can draw it without the sheet's window. */
+@Composable
+fun KitModeSheetContent(
+    current: AppMode,
+    onSelect: (AppMode) -> Unit,
+    onDismiss: () -> Unit,
+    status: (AppMode) -> String? = { null },
+    onManage: (() -> Unit)? = null,
+) {
+    com.cosmotune.ui.orbit.OrbitSheetTitle(stringResource(Res.string.cosmo_mode_switch), label = "Mode")
+    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp).selectableGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (mode in AppModes.shown()) {
+            com.cosmotune.ui.orbit.OrbitPickRow(
+                title = modeName(mode),
+                detail = status(mode),
+                icon = modeIcon(mode),
+                selected = mode == current,
+                onClick = { onSelect(mode); onDismiss() },
+            )
+        }
+        if (onManage != null) {
+            com.cosmotune.ui.orbit.OrbitSheetAction(CosmoIcons.Settings, stringResource(Res.string.cosmo_mode_manage), onClick = { onDismiss(); onManage() })
         }
     }
 }

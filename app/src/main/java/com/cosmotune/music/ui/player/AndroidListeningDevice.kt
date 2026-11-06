@@ -24,7 +24,12 @@ import com.cosmotune.ui.nowplaying.ListeningDeviceSheet
 fun AndroidListeningDeviceEntry() {
     var open by remember { mutableStateOf(false) }
     // Inset like the rows around it: edge to edge it touched the card's sides.
-    OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) { Text("Listening device · profile and connection") }
+    com.cosmotune.ui.orbit.OrbitPillButton(
+        "Listening device · profile and connection", { open = true },
+        com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook(),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        icon = com.cosmotune.ui.components.CosmoIcons.Devices,
+    )
     if (open) AndroidListeningDeviceDialog { open = false }
 }
 

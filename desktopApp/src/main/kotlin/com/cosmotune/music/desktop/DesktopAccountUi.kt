@@ -1,6 +1,7 @@
 package com.cosmotune.music.desktop
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -54,8 +55,7 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.Disc
 import com.cosmotune.ui.orbit.OrbitAccountCard
 import com.cosmotune.ui.orbit.OrbitLabel
-import com.cosmotune.ui.orbit.PEACH
-import com.cosmotune.ui.orbit.PEACH_INK
+import com.cosmotune.ui.orbit.OrbitPillButton
 import com.cosmotune.ui.orbit.orbitFloatEdge
 import com.cosmotune.ui.orbit.orbitFloatGround
 import com.cosmotune.ui.orbit.orbitFonts
@@ -112,7 +112,7 @@ internal fun DesktopAccountButton(
  * The account switcher as an Orbit popover (the kit's float card, as [com.cosmotune.ui.orbit.OrbitMenu] draws it) under the toolbar's
  * account button: the account card at its head (Settings' own, compact: the active profile's picture as a disc, its name or "Sign
  * in", its handle), then every login this app holds with the channels under it as Orbit rows (the picture disc, the name, the handle;
- * the one in use solid ink with the peach dot), then the actions that change the set (add an account, manage them, Settings) as
+ * the one in use solid ink with a check in its own ink), then the actions that change the set (add an account, manage them, Settings) as
  * rows. "Manage accounts" turns the profile rows into "Sign out" rows. A click outside closes it.
  */
 @Composable
@@ -132,7 +132,9 @@ internal fun DesktopAccountSelector(
     val fonts = orbitFonts()
     val activeAccount = accounts.firstOrNull { it.accountId == activeAccountId }
     val activeProfile = activeAccount?.profiles?.firstOrNull { it.profileId == activeProfileId }
-    Box(Modifier.fillMaxSize()) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        // The popover never runs past the window: everything in it scrolls inside it, the actions at its foot included.
+        val room = (maxHeight - 64.dp - 24.dp).coerceAtLeast(160.dp)
         // The scrim is its own layer rather than a modifier on the container.
         Box(
             Modifier
@@ -151,12 +153,14 @@ internal fun DesktopAccountSelector(
                 .padding(top = 64.dp, end = 24.dp)
                 .widthIn(max = 380.dp)
                 .fillMaxWidth()
+                .heightIn(max = room)
                 .shadow(24.dp, shape, clip = false)
                 .clip(shape)
                 .background(orbitFloatGround(look))
                 .border(1.dp, orbitFloatEdge(look), shape)
                 // Clicks on the card's own background stay on the card.
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+                .verticalScroll(androidx.compose.foundation.rememberScrollState())
                 .padding(8.dp),
         ) {
             OrbitAccountCard(
@@ -179,9 +183,9 @@ internal fun DesktopAccountSelector(
                 OrbitLabel(if (accounts.isEmpty()) "Accounts" else "Switch account", fonts, look.dim, Modifier.weight(1f))
                 if (busy) CircularProgressIndicator(color = look.accent, modifier = Modifier.size(16.dp))
             }
-            LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 accounts.forEach { account ->
-                    item(key = "header-${account.accountId}") {
+                    run {
                         Text(
                             account.email.ifBlank { account.name.ifBlank { "Account" } },
                             style = fonts.body.copy(fontSize = 12.sp),
@@ -191,8 +195,7 @@ internal fun DesktopAccountSelector(
                             modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 2.dp),
                         )
                     }
-                    items(account.profiles.size, key = { "p-${account.accountId}-$it" }) { index ->
-                        val profile = account.profiles[index]
+                    account.profiles.forEach { profile ->
                         DesktopProfileRow(
                             profile = profile,
                             selected = account.accountId == activeAccountId &&
@@ -203,14 +206,14 @@ internal fun DesktopAccountSelector(
                         )
                     }
                 }
-                item { Spacer(Modifier.height(6.dp)) }
-                item { DesktopSelectorAction(CosmotuneIcons.Plus, "Add account", onAddAccount) }
+                Spacer(Modifier.height(6.dp))
+                DesktopSelectorAction(CosmotuneIcons.Plus, "Add account", onAddAccount)
                 if (accounts.isNotEmpty()) {
-                    item {
+                    run {
                         DesktopSelectorAction(Icons.Rounded.ManageAccounts, if (managing) "Done managing" else "Manage accounts", onClick = { managing = !managing }, on = managing)
                     }
                 }
-                item { DesktopSelectorAction(CosmoIcons.Settings, "Settings", onOpenSettings) }
+                DesktopSelectorAction(CosmoIcons.Settings, "Settings", onOpenSettings)
             }
         }
     }
@@ -218,7 +221,7 @@ internal fun DesktopAccountSelector(
 
 /**
  * A channel of an account as an Orbit row: 60 dp, radius 22, the picture as a 40 dp disc (the user glyph on a faint disc without
- * one), the name over the handle. The one in use is solid ink with the ground's colour for its words and the peach dot; while
+ * one), the name over the handle. The one in use is solid ink with the ground's colour for its words and a check in that colour; while
  * [managing] the row says "Sign out" in red and a click signs the account out.
  */
 @Composable
@@ -262,10 +265,8 @@ private fun DesktopProfileRow(
         }
         when {
             managing -> Text(DesktopStrings["sign_out", "Sign out"], color = DesktopDestructive, style = fonts.chip.copy(fontSize = 13.sp))
-            selected -> Box(
-                Modifier.size(7.dp).clip(CircleShape).background(if (look.dark) PEACH_INK else PEACH)
-                    .semantics { contentDescription = DesktopStrings["selected", "Selected"] },
-            )
+            // A check in the row's own ink, not peach: peach is "playing now" alone.
+            selected -> Icon(CosmoIcons.Check, DesktopStrings["selected", "Selected"], tint = ink, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -344,8 +345,9 @@ internal fun DesktopSignInDialog(
             confirmLabel = if (pasting) DesktopStrings["sign_in", "Sign in"] else null,
             onConfirm = { onPaste(pasted.trim()) },
             confirmEnabled = pasted.isNotBlank() && busy == null,
-            dismissLabel = if (pasting) DesktopStrings["back", "Back"] else DesktopStrings["close", "Close"],
-            onDismiss = { if (pasting) pasting = false else onDismiss() },
+            // Close alone would be the dialog's one peach action; it is a quiet button of its own below instead.
+            dismissLabel = if (pasting) DesktopStrings["back", "Back"] else null,
+            onDismiss = { pasting = false },
             extra = {
                 error?.let {
                     Text(it, style = fonts.body, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 10.dp))
@@ -395,6 +397,11 @@ internal fun DesktopSignInDialog(
                 }
             },
         )
+        if (!pasting) {
+            Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 8.dp), horizontalArrangement = Arrangement.End) {
+                OrbitPillButton(DesktopStrings["close", "Close"], onDismiss, fonts, look)
+            }
+        }
     }
 }
 

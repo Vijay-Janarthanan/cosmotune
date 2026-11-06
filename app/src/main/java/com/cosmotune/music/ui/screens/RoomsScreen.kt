@@ -218,7 +218,8 @@ internal fun RoomEntrySheets(entry: RoomEntry, landing: Boolean, onJoined: () ->
         entry.sheet = null
         onJoined()
     }
-    ModalBottomSheet(
+    // The Orbit sheet (the song sheet's flat surface and grabber) in the new look; the sheet the bridge draws otherwise.
+    com.cosmotune.ui.sheets.SurfaceSheetSwitch(
         onDismissRequest = dismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,

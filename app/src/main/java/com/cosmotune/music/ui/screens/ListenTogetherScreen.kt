@@ -164,7 +164,7 @@ fun ListenTogetherScreen(
     // Hoisted so a sheet can be *animated* away rather than dropped out of the
     // composition, which is the only way one sheet can hand over to another:
     // see the invite that follows a create.
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     /**
      * Hands the create sheet over to the invite sheet, with the party page
@@ -320,7 +320,8 @@ fun ListenTogetherScreen(
     }
 
     sheet?.let { open ->
-        ModalBottomSheet(
+        // The Orbit sheet in the new look (the song sheet's surface); the bridge's otherwise.
+        com.cosmotune.ui.sheets.SurfaceSheetSwitch(
             onDismissRequest = {
                 sheet = null
                 // Closed with the message unread is still read: leaving it set
