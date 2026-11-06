@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 /*
  * Focus on the TV in Orbit (board batch-be section E): a thick peach ring a little outside whatever has focus, the ground showing
  * between the two. Every TV piece that takes focus shows it this way: the TV's own lifted pieces through [tvLift], the kit's chips
- * and buttons through [tvFocusRing], and anything else clickable (Watch's pages) through [TvFocusIndication].
+ * and buttons through [tvFocusRing], Watch's pages through [tvRingHost], and anything else clickable through [TvFocusIndication].
  */
 
 /** The ring's thickness and its distance from the thing in focus. */
@@ -74,6 +74,7 @@ fun Modifier.tvFocusRing(shape: Shape, gap: Dp = RingGap, onFocus: ((Boolean) ->
 /**
  * The indication for anything clickable that is not one of the TV's own pieces: the peach ring just inside its edge while it has
  * focus (the shape is not known here, so the ring rounds its corners up to a pill). No press ripple: on a TV the ring is the answer.
+ * Beneath a [tvRingHost] (Watch's pages) it draws nothing, the host ringing the piece from outside instead.
  */
 object TvFocusIndication : IndicationNodeFactory {
     override fun create(interactionSource: InteractionSource): DelegatableNode = RingNode(interactionSource)
@@ -84,6 +85,8 @@ object TvFocusIndication : IndicationNodeFactory {
         private val alpha = Animatable(0f)
 
         override fun onAttach() {
+            // Under a [tvRingHost] the host draws the TV's ring outside the piece; this one would be a second, thinner ring inside.
+            if (isUnderRingHost()) return
             coroutineScope.launch {
                 var focus = 0
                 source.interactions.collect { interaction ->
