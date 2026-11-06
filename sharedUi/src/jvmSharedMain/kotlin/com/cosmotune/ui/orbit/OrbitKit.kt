@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -184,7 +185,8 @@ class CoverTint(val fill: Color, val ink: Color)
 @Composable
 fun rememberCoverTint(url: String?): CoverTint? {
     val context = LocalPlatformContext.current
-    val follow = LocalCosmoShell.current?.settings?.coverColours?.value != false
+    // Collected, not read once: turning "Colours follow the cover" off (or on) recolours the cards that are already showing.
+    val follow = LocalCosmoShell.current?.settings?.coverColours?.collectAsState()?.value != false
     val tint by produceState<CoverTint?>(null, url, follow) {
         value = if (!follow || url == null) null else CoverPaletteLoader.load(context, url, dark = true)?.let { vivid(it.seed) }
     }

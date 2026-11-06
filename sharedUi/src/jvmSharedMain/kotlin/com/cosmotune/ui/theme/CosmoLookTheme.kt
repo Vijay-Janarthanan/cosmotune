@@ -116,6 +116,9 @@ private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Bool
     var showedCover by remember { mutableStateOf(false) }
     var lastAlbum by remember { mutableStateOf<String?>(null) }
     var shownIntensity by remember { mutableStateOf(intensity) }
+    // Whether the palette on screen stands for "no cover" (the setting off, or nothing with a cover): the next cover is then
+    // shown as it is, not held to the settle threshold against the stand-in it replaces.
+    var showedMissing by remember { mutableStateOf(false) }
     LaunchedEffect(newLook, coverColours, dark, amoled, brand, url, intensity) {
         if (!newLook) return@LaunchedEffect
         // No address yet: give it time, unless the palette on screen is the other theme's, which cannot wait.
@@ -124,7 +127,9 @@ private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Bool
         val fresh = if (missing) null else CoverPaletteLoader.load(context, url!!, dark, amoled = amoled, intensity = intensity)
         val sameAlbum = album != null && album == lastAlbum
         // The intensity changed since the palette on screen was made: its twin for this cover is shown even though it is close.
-        val next = if (fresh != null && shownIntensity != intensity) fresh
+        // After the stand-in (the setting turned on again, say) the cover is shown whatever it is close to: the system accent
+        // standing in for a blue cover was kept, and the whole app stayed neutral with "Colours follow the cover" on.
+        val next = if (fresh != null && (shownIntensity != intensity || showedMissing)) fresh
         else PaletteChoice.next(shell.coverPalette.target, shell.coverPalette.targetDark == dark, fresh, missing, brand, sameAlbum)
         if (fresh != null) shownIntensity = intensity
         // The first cover after launch snaps; after that every change fades. Both flags are set before the fade, which a
@@ -132,6 +137,7 @@ private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Bool
         val animate = showedCover
         if (fresh != null) showedCover = true
         lastAlbum = album
+        showedMissing = missing || (showedMissing && fresh == null)
         // The whole app follows the cover too while "Colours follow the cover" is on and something has a cover; with nothing
         // playing, or the setting off, the chrome is the theme's neutral One palette. Both fade together.
         val chrome = if (missing) com.cosmotune.theme.OnePalette.of(dark, amoled) else next
