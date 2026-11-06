@@ -211,7 +211,7 @@ class LibraryContractTest {
     @Test fun everyPlaylistRowHasTheMoreButtonAndAHoldThatOpenTheSameMenu() {
         val code = SourceContract.code(lib("CosmoLibrary"))
         assertTrue("MoreButton(page) { onLongPress(item) }" in code, "the more button opens what a hold opens")
-        assertTrue("onLongPress = { onLongPress(item) }" in code, "a hold on a row opens the menu")
+        assertTrue("onLongClick = { onLongPress(item) }" in code, "a hold on a row opens the menu")
         assertTrue("contentDescription = stringResource(Res.string.more)" in code, "the more button is named")
         assertTrue("contentDescription = stringResource(Res.string.pinned)" in code, "the pin mark is named")
     }

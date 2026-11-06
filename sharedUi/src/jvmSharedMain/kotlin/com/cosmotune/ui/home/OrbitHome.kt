@@ -469,7 +469,7 @@ private fun OrbitRanked(shelf: HomeShelf, wide: Boolean, fonts: OrbitFonts, look
     val rows: @Composable (List<IndexedValue<ShelfItem>>, Modifier) -> Unit = { part, m ->
         Column(m) {
             part.forEach { (i, item) ->
-                OrbitRankedRow(i + 1, item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, onLongPress = onLongPress?.let { { it(item) } })
+                OrbitRankedRow(i + 1, item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, onLongClick = onLongPress?.let { { it(item) } })
             }
         }
     }

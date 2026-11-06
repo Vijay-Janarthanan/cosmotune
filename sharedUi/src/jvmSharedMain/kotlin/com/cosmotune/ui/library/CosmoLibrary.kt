@@ -560,7 +560,7 @@ private fun LazyListScope.songsSegment(
                 else onShelfItemClick(ShelfItem(song.title, song.artist, song.thumbnailUrl, song.videoId, null, song = song))
             },
             modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp),
-            onLongPress = onSongLongPress?.let { held -> { held(song) } },
+            onLongClick = onSongLongPress?.let { held -> { held(song) } },
             now = current,
             playing = isPlaying && current,
         )
@@ -678,7 +678,7 @@ private fun RecordRail(items: List<ShelfItem>, onClick: (ShelfItem) -> Unit, onL
 @Composable
 private fun LibraryRecord(item: ShelfItem, onClick: (ShelfItem) -> Unit, onLongPress: (ShelfItem) -> Unit, page: LibraryLook, size: Dp, portrait: Boolean) {
     if (portrait) {
-        OrbitPortrait(item.title, item.thumbnailUrl, size, page.fonts, page.look, onClick = { onClick(item) }, onLongPress = { onLongPress(item) })
+        OrbitPortrait(item.title, item.thumbnailUrl, size, page.fonts, page.look, onClick = { onClick(item) }, onLongClick = { onLongPress(item) })
     } else {
         OrbitRecord(
             title = item.title,

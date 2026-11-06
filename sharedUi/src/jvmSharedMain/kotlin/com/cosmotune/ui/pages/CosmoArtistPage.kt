@@ -131,7 +131,7 @@ fun CosmoArtistPage(
                             year = ReleaseMeta.releaseYear(item),
                             saved = item.browseId?.let { releaseLibrary[it]?.saved },
                             onClick = { onSectionItemClick(item) },
-                            onLongPress = onSectionItemLongPress?.let { held -> { held(item) } },
+                            onLongClick = onSectionItemLongPress?.let { held -> { held(item) } },
                             onToggleSaved = onToggleReleaseLibrary?.let { toggle -> item.browseId?.let { id -> { toggle(id) } } },
                         )
                     }

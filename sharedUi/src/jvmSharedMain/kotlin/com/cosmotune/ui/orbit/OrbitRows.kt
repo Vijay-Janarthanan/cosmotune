@@ -33,6 +33,9 @@ import com.cosmotune.music.ui.components.longPressMenuClickable
  * [now] row (the song that plays) has the peach gradient, a peach title and the orbit round its disc, which moves with [progress]
  * when given and circles slowly while [playing] otherwise.
  *
+ * [discSize] is the disc (its box and orbit are 8 dp wider), [gap] the space after it; [radius] rounds the row, and [plain] takes away its
+ * fill and its peach wash (a ranking's rows, whose rank goes in [leading]).
+ *
  * [leading] goes before the disc (a drag handle). [discContent] replaces the disc (a selection mark, a spinner, a logo) and with it
  * the orbit. [icon] stands in for a cover (an artist, an album). [titleContent] replaces the title line (an explicit mark) and
  * [subtitleLeading] goes before the subtitle (a quality pill). A hold, or a right click on the desktop, is [onLongClick]; a null
@@ -56,6 +59,10 @@ internal fun OrbitSongRow(
     height: Dp = 68.dp,
     icon: ImageVector? = null,
     endPadding: Dp = 16.dp,
+    discSize: Dp = 44.dp,
+    gap: Dp = 12.dp,
+    radius: Dp = 22.dp,
+    plain: Boolean = false,
     titleContent: (@Composable () -> Unit)? = null,
     subtitleLeading: (@Composable () -> Unit)? = null,
     leading: (@Composable RowScope.() -> Unit)? = null,
@@ -64,8 +71,8 @@ internal fun OrbitSongRow(
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     Row(
-        modifier.height(height).clip(RoundedCornerShape(22.dp))
-            .background(if (now) Brush.horizontalGradient(listOf(look.accent.copy(alpha = 0.28f), look.row)) else Brush.linearGradient(listOf(look.row, look.row)))
+        modifier.height(height).clip(RoundedCornerShape(radius))
+            .then(if (plain) Modifier else Modifier.background(if (now) Brush.horizontalGradient(listOf(look.accent.copy(alpha = 0.28f), look.row)) else Brush.linearGradient(listOf(look.row, look.row))))
             .then(
                 if (onClick != null || onLongClick != null) Modifier.longPressMenuClickable(onClick = { onClick?.invoke() }, onLongClick = onLongClick, enabled = enabled)
                 else Modifier,
@@ -75,22 +82,22 @@ internal fun OrbitSongRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading?.invoke(this)
-        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(discSize + 8.dp), contentAlignment = Alignment.Center) {
             when {
                 discContent != null -> discContent()
                 icon != null -> {
-                    Box(Modifier.size(44.dp).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(discSize).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
                         Icon(icon, null, tint = look.ink, modifier = Modifier.size(20.dp))
                     }
-                    if (now) OrbitRing(52.dp, look.accent, progress = progress, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
+                    if (now) OrbitRing(discSize + 8.dp, look.accent, progress = progress, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
                 }
                 else -> {
-                    Disc(cover, 44.dp)
-                    if (now) OrbitRing(52.dp, look.accent, progress = progress, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
+                    Disc(cover, discSize)
+                    if (now) OrbitRing(discSize + 8.dp, look.accent, progress = progress, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
                 }
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(gap))
         Column(Modifier.weight(1f)) {
             if (titleContent != null) titleContent()
             else Text(title, style = fonts.title, color = if (now) look.accent else look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)

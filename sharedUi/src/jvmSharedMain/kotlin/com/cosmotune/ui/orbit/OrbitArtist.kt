@@ -229,7 +229,7 @@ private const val TOP_SHOWN = 5
 @Composable
 private fun TopSongs(
     songs: List<Song>, current: Song?, isPlaying: Boolean, fonts: OrbitFonts, look: OrbitLook,
-    onClick: (Int) -> Unit, onLongPress: (Song) -> Unit, onSwipe: ((Song) -> Unit)?, onMore: ((Song) -> Unit)?, modifier: Modifier,
+    onClick: (Int) -> Unit, onLongClick: (Song) -> Unit, onSwipe: ((Song) -> Unit)?, onMore: ((Song) -> Unit)?, modifier: Modifier,
 ) {
     var all by rememberSaveable(songs.size) { mutableStateOf(false) }
     val shown = if (all) songs else songs.take(TOP_SHOWN)
@@ -243,7 +243,7 @@ private fun TopSongs(
                 OrbitRankedRow(
                     rank = index + 1, title = song.title, subtitle = song.albumName?.takeIf { it.isNotBlank() } ?: song.artist,
                     cover = song.thumbnailUrl, fonts = fonts, look = look, onClick = { onClick(index) }, modifier = m,
-                    now = now, playing = now && isPlaying, onLongPress = { onLongPress(song) },
+                    now = now, playing = now && isPlaying, onLongClick = { onLongClick(song) },
                     trailing = {
                         song.durationText?.let { Text(it, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp)) }
                         if (onMore != null) OrbitRoundButton(CosmoIcons.MoreVertical, "More", look.ink, { onMore(song) }, Modifier.padding(start = 8.dp), size = 36.dp)

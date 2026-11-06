@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SwipeToDismissBox
@@ -52,6 +53,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -66,6 +69,7 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.isMatchMissing
 import com.cosmotune.music.data.model.isMatchPending
 import com.cosmotune.music.ui.AppUi
+import com.cosmotune.music.ui.components.DownloadedBadge
 import com.cosmotune.music.ui.components.ExplicitSongTitle
 import com.cosmotune.music.ui.components.contextClick
 import com.cosmotune.music.ui.components.longPressMenuClickable
@@ -198,11 +202,12 @@ internal fun OrbitLabel(text: String, fonts: OrbitFonts, color: Color, modifier:
 // ---- rows ----------------------------------------------------------------------------------------------------------------------
 
 /**
- * A [Song] as [OrbitSongRow] (Home's row): its cover, the title with the explicit mark, the artist (led by the source's offered tier with
- * [showSourceQuality]), the length. A tap plays, a hold or a right click opens the song's menu, and with [onSwipe] a swipe either
- * way queues it (or plays it next), as the old rows did; the row springs back.
+ * A [Song] as [OrbitSongRow] (Home's row): its cover, the title with the explicit mark, [subtitle] (the artist; led by the source's
+ * offered tier with [showSourceQuality]), and the length (after a downloaded mark when [downloadedTint] is set; [trailing] replaces
+ * both). A tap plays, a hold or a right click opens the song's menu, and with [onSwipe] a swipe either way queues it (or plays it
+ * next) and the row springs back ([OrbitSwipeToQueue]). A song still being matched shows a spinner for its disc; one with no match is
+ * dimmed and does nothing. [selected] (not null while choosing) puts a check in the disc's place.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun OrbitSongRowFor(
     song: Song,
@@ -210,69 +215,45 @@ internal fun OrbitSongRowFor(
     look: OrbitLook,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onLongPress: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     onSwipe: (() -> Unit)? = null,
     now: Boolean = false,
     playing: Boolean = false,
     showSourceQuality: Boolean = false,
+    cover: String? = rememberRemoteArtworkUrl(song) ?: song.thumbnailUrl,
+    subtitle: String = song.artist,
+    selected: Boolean? = null,
+    downloadedTint: Color? = null,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
-    val cover = rememberRemoteArtworkUrl(song) ?: song.thumbnailUrl
+    val pending = song.isMatchPending
+    val missing = song.isMatchMissing
     val quality = if (showSourceQuality) song.catalogueQualityBadge() else null
-    val faded = if (song.isMatchMissing) Modifier.alpha(0.45f) else Modifier
     val row: @Composable (Modifier) -> Unit = { m ->
         OrbitSongRow(
-            title = song.title,
-            subtitle = song.artist,
-            cover = cover,
-            fonts = fonts,
-            look = look,
-            onClick = onClick,
-            modifier = m.fillMaxWidth(),
-            onLongClick = onLongPress.takeIf { !song.isMatchPending && !song.isMatchMissing },
-            now = now,
-            playing = playing,
-            trailingText = song.durationText,
-            titleContent = { ExplicitSongTitle(song = song, style = fonts.title, color = if (now) look.accent else look.ink) },
+            title = song.title, subtitle = subtitle, cover = cover, fonts = fonts, look = look, onClick = onClick,
+            modifier = m.fillMaxWidth(), now = now, playing = playing,
+            onLongClick = onLongClick.takeUnless { pending || missing },
+            enabled = !missing,
+            titleContent = { ExplicitSongTitle(song, style = fonts.title, color = if (now) look.accent else look.ink) },
             subtitleLeading = quality?.let { badge -> { QualityPill(badge, compact = true) } },
+            discContent = when {
+                selected != null -> { { OrbitCheckMark(selected, look) } }
+                pending -> { { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = look.dim) } }
+                else -> null
+            },
+            trailing = trailing ?: {
+                if (downloadedTint != null) DownloadedBadge(song.videoId, if (downloadedTint == Color.Unspecified) look.dim else downloadedTint, Modifier.padding(start = 8.dp))
+                song.durationText?.let { Text(it, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp)) }
+                Unit
+            },
         )
     }
-    if (onSwipe == null) { row(modifier.then(faded)); return }
-
-    val haptics = rememberHaptics()
-    var width by remember { mutableFloatStateOf(0f) }
-    val swipe by rememberUpdatedState(onSwipe)
-    val holder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled) {
-                val offset = runCatching { holder.value?.requireOffset() ?: 0f }.getOrDefault(0f)
-                if (abs(offset) >= width * BlockMetrics.SWIPE_COMMIT) { haptics.play(Haptic.Select); swipe() }
-            }
-            false
-        },
-        positionalThreshold = { it * BlockMetrics.SWIPE_POSITIONAL_THRESHOLD },
-    )
-    holder.value = state
-    SwipeToDismissBox(
-        state = state,
-        modifier = modifier.then(faded).onSizeChanged { width = it.width.toFloat() },
-        backgroundContent = { SwipeUnder(state, fonts, look) },
-    ) { row(Modifier) }
-}
-
-/** What a swipe uncovers, only while the row is moving (the row's fill is see-through): what letting go does, on the side it shows. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SwipeUnder(state: SwipeToDismissBoxState, fonts: OrbitFonts, look: OrbitLook) {
-    val direction = state.dismissDirection
-    if (direction == SwipeToDismissBoxValue.Settled) return
-    val playNext by AppUi.host.swipeToPlayNext.collectAsStateWithLifecycle()
-    Box(Modifier.fillMaxSize().clip(RoundedCornerShape(22.dp)).background(look.chip).padding(horizontal = 20.dp)) {
-        Text(
-            if (playNext) "Play next" else "Add to queue", style = fonts.chip, color = look.ink,
-            modifier = Modifier.align(if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd),
-        )
-    }
+    val base = modifier
+        .then(if (missing) Modifier.alpha(0.45f) else Modifier)
+        .then(if (selected == true) Modifier.semantics { this.selected = true } else Modifier)
+    if (onSwipe == null || selected != null || pending || missing) row(base)
+    else OrbitSwipeToQueue(onSwipe, look, fonts, base) { row(Modifier) }
 }
 
 // ---- records and portraits -----------------------------------------------------------------------------------------------
@@ -295,10 +276,10 @@ internal fun OrbitPortrait(
     look: OrbitLook,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onLongPress: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Column(
-        modifier.width(size).clip(RoundedCornerShape(18.dp)).longPressMenuClickable(onClick = onClick, onLongClick = onLongPress).contextClick(onLongPress),
+        modifier.width(size).clip(RoundedCornerShape(16.dp)).longPressMenuClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Disc(cover, size)
@@ -309,11 +290,43 @@ internal fun OrbitPortrait(
 
 // ---- mood and genre tiles --------------------------------------------------------------------------------------------------
 
+/** The two shapes of the colour tile: a playlist's tall card, and a mood's or genre's short tile. */
+internal enum class OrbitTile(val height: Dp, val radius: Dp, val disc: Dp, val discX: Dp, val discY: Dp, val titleTop: Dp, val titleLines: Int, val bareWithoutCover: Boolean) {
+    CARD(224.dp, 28.dp, 124.dp, 30.dp, 30.dp, 18.dp, 3, false),
+    MOOD(110.dp, 26.dp, 76.dp, 20.dp, 22.dp, 14.dp, 2, true),
+}
+
 /**
- * A mood or a genre as a colour tile: radius 26, 110 dp tall, filled with the deep form of YouTube's stripe colour for it (or
- * the colour of its cover while there is none), the title in the wide face at the top (two lines at most), and its cover as a
- * disc peeking out of the bottom-end corner, below the title.
+ * A title (and the [subtitle] under it) on a tile filled with the colour of its cover (or the deep form of YouTube's [stripe] colour
+ * when there is one), the cover as a disc peeking out of the bottom-end corner. [kind] sets the size: [OrbitTile.CARD] for a
+ * playlist, [OrbitTile.MOOD] for a mood or a genre (two title lines, an inked circle in place of a missing cover).
  */
+@Composable
+internal fun OrbitColourTile(
+    title: String,
+    subtitle: String,
+    cover: String?,
+    kind: OrbitTile,
+    fonts: OrbitFonts,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    stripe: Long? = null,
+) {
+    val (fill, ink) = if (stripe != null) vivid(stripe.toInt()).let { it.fill to it.ink } else coverFill(cover, title)
+    Box(modifier.height(kind.height).clip(RoundedCornerShape(kind.radius)).background(fill).longPressMenuClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick)) {
+        // Above the disc: the words never stand on the cover.
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = kind.titleTop)) {
+            Text(title, style = fonts.section.copy(fontSize = 17.sp, lineHeight = 20.sp), color = ink, maxLines = kind.titleLines, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body.copy(fontSize = 12.sp), color = ink.copy(alpha = 0.72f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+        }
+        val disc = Modifier.align(Alignment.BottomEnd).offset(x = kind.discX, y = kind.discY)
+        if (cover != null || !kind.bareWithoutCover) Disc(cover, kind.disc, disc)
+        else Box(disc.size(kind.disc).clip(CircleShape).background(ink.copy(alpha = 0.16f)))
+    }
+}
+
+/** A mood or a genre as a colour tile ([OrbitColourTile], [OrbitTile.MOOD]). */
 @Composable
 internal fun OrbitMoodTile(
     title: String,
@@ -323,19 +336,7 @@ internal fun OrbitMoodTile(
     look: OrbitLook,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-) {
-    val (fill, ink) = if (stripe != null) vivid(stripe.toInt()).let { it.fill to it.ink } else coverFill(cover, title)
-    Box(modifier.height(110.dp).clip(RoundedCornerShape(26.dp)).background(fill).clickable(onClick = onClick)) {
-        // Two lines at most, above the disc: the words never stand on the cover.
-        Text(
-            title, style = fonts.section.copy(fontSize = 17.sp, lineHeight = 20.sp), color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp),
-        )
-        val disc = Modifier.align(Alignment.BottomEnd).offset(x = 20.dp, y = 22.dp)
-        if (cover != null) Disc(cover, 76.dp, disc)
-        else Box(disc.size(76.dp).clip(CircleShape).background(ink.copy(alpha = 0.16f)))
-    }
-}
+) = OrbitColourTile(title, "", cover, OrbitTile.MOOD, fonts, onClick, modifier, stripe = stripe)
 
 // ---- the artist's disc -----------------------------------------------------------------------------------------------------
 

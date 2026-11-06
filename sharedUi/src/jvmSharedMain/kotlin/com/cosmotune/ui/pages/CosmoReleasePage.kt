@@ -297,7 +297,7 @@ fun CosmoReleasePage(
                             song = song,
                             cover = cover,
                             onClick = { if (selecting) toggle(entry) else onSongClick(queue, position) },
-                            onLongPress = { if (selecting) toggle(entry) else onSongLongPress(song) },
+                            onLongClick = { if (selecting) toggle(entry) else onSongLongPress(song) },
                             onSwipe = if (selecting) null else { { onSongSwipe(song) } },
                             selected = if (selecting) MusicSongList.occurrence(entry) in selection else null,
                             modifier = Modifier.padding(horizontal = side, vertical = 4.dp).fillMaxWidth().testTag("music:release:row:${MusicSongList.occurrence(entry)}"),
@@ -325,7 +325,7 @@ fun CosmoReleasePage(
                     OrbitTrackRow(
                         song = song,
                         onClick = { onSongClick(suggested, index) },
-                        onLongPress = { onSongLongPress(song) },
+                        onLongClick = { onSongLongPress(song) },
                         now = isCurrent,
                         playing = isCurrent && isPlaying,
                         modifier = Modifier.padding(horizontal = side, vertical = 4.dp).fillMaxWidth(),

@@ -57,10 +57,9 @@ import com.cosmotune.ui.components.CosmoIcons
 // ---- rows -----------------------------------------------------------------------------------------------------------------------
 
 /**
- * A row of a ranking (a chart, an artist's top songs): the place as a big narrow number, the first in peach, then a 48 dp disc and
- * the two lines. No fill of its own; the playing row ([now]) has its title in peach and the orbit round its disc.
+ * A row of a ranking (a chart, an artist's top songs): [OrbitSongRow] with no fill of its own, the place as a big narrow number in
+ * its [leading] (the first in peach) and a 48 dp disc. The playing row ([now]) has its title in peach and the orbit round its disc.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun OrbitRankedRow(
     rank: Int,
@@ -73,29 +72,20 @@ internal fun OrbitRankedRow(
     modifier: Modifier = Modifier,
     now: Boolean = false,
     playing: Boolean = false,
-    onLongPress: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     trailingText: String? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
-    Row(
-        modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(18.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
-            .contextClick(onLongPress)
-            .padding(horizontal = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("$rank", style = fonts.number.copy(fontSize = 40.sp, lineHeight = 40.sp), color = if (rank == 1) look.accent else look.ink.copy(alpha = 0.3f), modifier = Modifier.width(52.dp))
-        Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-            Disc(cover, 48.dp)
-            if (now) OrbitRing(56.dp, look.accent, progress = null, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
-        }
-        Column(Modifier.weight(1f).padding(start = 6.dp)) {
-            Text(title, style = fonts.title, color = if (now) look.accent else look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        if (trailing != null) trailing()
-        else trailingText?.let { Text(it, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp)) }
-    }
+    OrbitSongRow(
+        title, subtitle, cover, fonts, look, onClick, modifier.fillMaxWidth(), now = now, playing = playing, onLongClick = onLongClick,
+        height = 66.dp, discSize = 48.dp, gap = 6.dp, radius = 18.dp, plain = true, endPadding = 6.dp, trailingText = trailingText, trailing = trailing,
+        leading = {
+            Text(
+                "$rank", style = fonts.number.copy(fontSize = 40.sp, lineHeight = 40.sp), color = if (rank == 1) look.accent else look.ink.copy(alpha = 0.3f),
+                modifier = Modifier.padding(start = 2.dp).width(52.dp),
+            )
+        },
+    )
 }
 
 // ---- shelves --------------------------------------------------------------------------------------------------------------------
@@ -153,20 +143,19 @@ internal fun OrbitRecordRow(
     look: OrbitLook,
     side: Dp,
     onClick: (ShelfItem) -> Unit,
-    onLongPress: ((ShelfItem) -> Unit)? = null,
+    onLongClick: ((ShelfItem) -> Unit)? = null,
     onPlay: (ShelfItem) -> Unit = onClick,
     size: Dp = 152.dp,
 ) {
     OrbitShelfRow(side + 4.dp, 18.dp) {
         itemsIndexed(items, key = { i, it -> shelfItemKey(it, i) }) { _, item ->
             OrbitRecord(item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, onPlay = { onPlay(item) },
-                onLongClick = onLongPress?.let { { it(item) } }, size = size)
+                onLongClick = onLongClick?.let { { it(item) } }, size = size)
         }
     }
 }
 
 /** Artists as plain round portraits with the name under them: no play moon, a tap opens them. */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun OrbitPortraitRow(
     items: List<ShelfItem>,
@@ -174,40 +163,25 @@ internal fun OrbitPortraitRow(
     look: OrbitLook,
     side: Dp,
     onClick: (ShelfItem) -> Unit,
-    onLongPress: ((ShelfItem) -> Unit)? = null,
+    onLongClick: ((ShelfItem) -> Unit)? = null,
     size: Dp = 84.dp,
 ) {
     OrbitShelfRow(side + 6.dp, 16.dp) {
         itemsIndexed(items, key = { i, it -> shelfItemKey(it, i) }) { _, item ->
-            Column(
-                Modifier.width(size + 4.dp).clip(RoundedCornerShape(16.dp))
-                    .combinedClickable(onClick = { onClick(item) }, onLongClick = onLongPress?.let { { it(item) } }),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Disc(item.thumbnailUrl, size)
-                Text(item.title, style = fonts.body.copy(fontWeight = FontWeight(600)), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-            }
+            OrbitPortrait(item.title, item.thumbnailUrl, size, fonts, look, onClick = { onClick(item) }, onLongClick = onLongClick?.let { { it(item) } }, modifier = Modifier.width(size + 4.dp))
         }
     }
 }
 
 /** Playlists: tall cards filled with their cover's colour, the title at the top and the cover as a disc rising out of the corner. */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun OrbitColourCardRow(items: List<ShelfItem>, fonts: OrbitFonts, side: Dp, onClick: (ShelfItem) -> Unit, onLongPress: ((ShelfItem) -> Unit)? = null) {
+internal fun OrbitColourCardRow(items: List<ShelfItem>, fonts: OrbitFonts, side: Dp, onClick: (ShelfItem) -> Unit, onLongClick: ((ShelfItem) -> Unit)? = null) {
     OrbitShelfRow(side, 12.dp) {
         itemsIndexed(items, key = { i, it -> shelfItemKey(it, i) }) { _, item ->
-            val (fill, ink) = coverFill(item.thumbnailUrl, item.title)
-            Box(
-                Modifier.width(172.dp).height(224.dp).clip(RoundedCornerShape(28.dp)).background(fill)
-                    .combinedClickable(onClick = { onClick(item) }, onLongClick = onLongPress?.let { { it(item) } }),
-            ) {
-                Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp)) {
-                    Text(item.title, style = fonts.section.copy(fontSize = 17.sp, lineHeight = 20.sp), color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    if (item.subtitle.isNotBlank()) Text(item.subtitle, style = fonts.body.copy(fontSize = 12.sp), color = ink.copy(alpha = 0.72f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-                }
-                Disc(item.thumbnailUrl, 124.dp, Modifier.align(Alignment.BottomEnd).offset(x = 30.dp, y = 30.dp))
-            }
+            OrbitColourTile(
+                item.title, item.subtitle, item.thumbnailUrl, OrbitTile.CARD, fonts, onClick = { onClick(item) },
+                onLongClick = onLongClick?.let { { it(item) } }, modifier = Modifier.width(172.dp),
+            )
         }
     }
 }
@@ -232,10 +206,10 @@ internal fun OrbitVideoCard(
     look: OrbitLook,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onLongPress: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     width: Dp = 300.dp,
 ) {
-    Column(modifier.width(width).combinedClickable(onClick = onClick, onLongClick = onLongPress).contextClick(onLongPress)) {
+    Column(modifier.width(width).combinedClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick)) {
         // The moon hangs 12 dp past the picture's corner, so the frame leaves that room at its end and foot.
         Box(Modifier.width(width).padding(end = 12.dp, bottom = 12.dp)) {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(24.dp)).background(look.chip)) {
@@ -264,14 +238,14 @@ internal fun OrbitVideoRow(
     look: OrbitLook,
     side: Dp,
     onClick: (ShelfItem) -> Unit,
-    onLongPress: ((ShelfItem) -> Unit)? = null,
+    onLongClick: ((ShelfItem) -> Unit)? = null,
     width: Dp = 300.dp,
 ) {
     OrbitShelfRow(side, 18.dp) {
         itemsIndexed(items, key = { i, it -> shelfItemKey(it, i) }) { _, item ->
             val meta = listOfNotNull(item.song?.durationText, item.subtitle.takeIf { it.isNotBlank() }).joinToString(" · ")
             OrbitVideoCard(item.title, meta, item.thumbnailUrl, live, fonts, look, onClick = { onClick(item) },
-                onLongPress = onLongPress?.let { { it(item) } }, width = width)
+                onLongClick = onLongClick?.let { { it(item) } }, width = width)
         }
     }
 }

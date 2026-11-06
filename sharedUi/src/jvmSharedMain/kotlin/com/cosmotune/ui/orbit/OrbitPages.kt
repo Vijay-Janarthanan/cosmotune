@@ -195,11 +195,9 @@ fun OrbitPageSection(title: String, modifier: Modifier = Modifier, subtitle: Str
 }
 
 /**
- * A song of an album or a playlist as Home's row: the round cover, the title (with its explicit mark) over [subtitle], the duration
- * at the end. The playing row ([now]) is peach with the orbit round its disc. A song still being matched shows a spinner for its
- * disc; one with no match is dimmed and does nothing. [selected] (not null while choosing) puts a check in the disc's place;
- * [showQuality] leads the second line with what the catalogue offers; [downloadedTint] marks a downloaded song. [onSwipe] lets a
- * swipe either way queue it. [trailing] replaces the end of the row (the desktop's hover actions and duration).
+ * A song of an album or a playlist as Home's row: [OrbitSongRowFor] with the page's fonts and look. [cover] and [subtitle] stand in
+ * for the song's own (a track's number, the artist and album), [showQuality] leads the second line with what the catalogue offers,
+ * [downloadedTint] marks a downloaded song, and [trailing] replaces the end of the row (the desktop's hover actions and duration).
  */
 @Composable
 fun OrbitTrackRow(
@@ -208,7 +206,7 @@ fun OrbitTrackRow(
     modifier: Modifier = Modifier,
     now: Boolean = false,
     playing: Boolean = false,
-    onLongPress: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     onSwipe: (() -> Unit)? = null,
     cover: String? = song.thumbnailUrl,
     subtitle: String = song.artist,
@@ -217,36 +215,10 @@ fun OrbitTrackRow(
     downloadedTint: Color? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
-    val fonts = orbitFonts()
-    val look = orbitLook()
-    val pending = song.isMatchPending
-    val missing = song.isMatchMissing
-    val quality = if (showQuality) song.catalogueQualityBadge() else null
-    val row: @Composable (Modifier) -> Unit = { m ->
-        OrbitSongRow(
-            title = song.title, subtitle = subtitle, cover = cover, fonts = fonts, look = look, onClick = onClick,
-            modifier = m, now = now, playing = playing,
-            onLongClick = onLongPress.takeUnless { pending || missing },
-            enabled = !missing,
-            titleContent = { ExplicitSongTitle(song, style = fonts.title, color = if (now) look.accent else look.ink) },
-            subtitleLeading = quality?.let { badge -> { QualityPill(badge, compact = true) } },
-            discContent = when {
-                selected != null -> { { OrbitCheckMark(selected, look) } }
-                pending -> { { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = look.dim) } }
-                else -> null
-            },
-            trailing = trailing ?: {
-                if (downloadedTint != null) DownloadedBadge(song.videoId, if (downloadedTint == Color.Unspecified) look.dim else downloadedTint, Modifier.padding(start = 8.dp))
-                song.durationText?.let { Text(it, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp)) }
-                Unit
-            },
-        )
-    }
-    val base = modifier
-        .then(if (missing) Modifier.alpha(0.45f) else Modifier)
-        .then(if (selected == true) Modifier.semantics { this.selected = true } else Modifier)
-    if (onSwipe == null || selected != null || pending || missing) row(base)
-    else OrbitSwipeToQueue(onSwipe, look, fonts, base) { row(Modifier) }
+    OrbitSongRowFor(
+        song, orbitFonts(), orbitLook(), onClick, modifier, onLongClick = onLongClick, onSwipe = onSwipe, now = now, playing = playing,
+        showSourceQuality = showQuality, cover = cover, subtitle = subtitle, selected = selected, downloadedTint = downloadedTint, trailing = trailing,
+    )
 }
 
 /**
@@ -318,12 +290,12 @@ internal fun OrbitSwipeToQueue(onSwipe: () -> Unit, look: OrbitLook, fonts: Orbi
  * toggle at its end when [saved] is known and saving is offered.
  */
 @Composable
-fun OrbitLatestRelease(item: ShelfItem, year: Int?, saved: Boolean?, onClick: () -> Unit, onLongPress: (() -> Unit)?, onToggleSaved: (() -> Unit)?, modifier: Modifier = Modifier) {
+fun OrbitLatestRelease(item: ShelfItem, year: Int?, saved: Boolean?, onClick: () -> Unit, onLongClick: (() -> Unit)?, onToggleSaved: (() -> Unit)?, modifier: Modifier = Modifier) {
     val fonts = orbitFonts()
     val look = orbitLook()
     OrbitSongRow(
         title = item.title, subtitle = listOfNotNull("Latest release", year?.toString()).joinToString(" · "), cover = item.thumbnailUrl,
-        fonts = fonts, look = look, onClick = onClick, modifier = modifier.fillMaxWidth(), onLongClick = onLongPress,
+        fonts = fonts, look = look, onClick = onClick, modifier = modifier.fillMaxWidth(), onLongClick = onLongClick,
         trailing = {
             if (saved != null && onToggleSaved != null) {
                 OrbitRoundButton(if (saved) CosmoIcons.HeartFill else CosmoIcons.Heart, if (saved) "Saved" else "Save", look.ink, onToggleSaved, on = saved, onInk = look.ground)

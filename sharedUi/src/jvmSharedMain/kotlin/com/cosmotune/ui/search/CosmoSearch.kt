@@ -282,7 +282,7 @@ fun CosmoSearch(
                                 look = look,
                                 onClick = { onAddonSongClick(tracks, index) },
                                 modifier = Modifier.padding(horizontal = side, vertical = 4.dp),
-                                onLongPress = { onSongLongPress(song) },
+                                onLongClick = { onSongLongPress(song) },
                                 onSwipe = { onSongSwipe(song) },
                                 now = current,
                                 playing = isPlaying && current,
@@ -596,7 +596,7 @@ private fun TypeaheadSong(song: Song, actions: SearchRowActions, onLongPress: ((
         look = page.look,
         onClick = { actions.onTopResultPlay(song) },
         modifier = modifier,
-        onLongPress = onLongPress?.let { held -> { held(song) } },
+        onLongClick = onLongPress?.let { held -> { held(song) } },
         now = current,
         playing = actions.isPlaying && current,
     )
