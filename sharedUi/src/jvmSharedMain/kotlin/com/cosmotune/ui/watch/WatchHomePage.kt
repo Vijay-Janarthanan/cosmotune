@@ -143,6 +143,7 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                                 onOpen = { actions.open(featured.summary) },
                                 onMyList = { actions.setInMyList(featured.summary, it) },
                                 watchTogether = actions.watchTogetherReady,
+                                onWatchTogether = { actions.watchTogether(featured.summary, null, null) },
                                 modifier = Modifier.padding(horizontal = side).padding(top = 22.dp),
                             )
                         }
@@ -206,6 +207,7 @@ private fun WatchFeaturedCard(
     onOpen: () -> Unit,
     onMyList: (Boolean) -> Unit,
     watchTogether: Boolean,
+    onWatchTogether: () -> Unit,
     modifier: Modifier,
 ) {
     val s = featured.summary
@@ -224,7 +226,7 @@ private fun WatchFeaturedCard(
             }
             Row(Modifier.padding(top = 16.dp, end = if (wide) 0.dp else 80.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WatchCardChip(if (inList) "In my list" else "My list", ink, fonts, onClick = { onMyList(!inList) }, icon = if (inList) CosmoIcons.Check else CosmoIcons.Plus)
-                WatchCardChip("Watch together", ink, fonts, onClick = {}, icon = CosmoIcons.Together, enabled = watchTogether)
+                WatchCardChip("Watch together", ink, fonts, onClick = onWatchTogether, icon = CosmoIcons.Together, enabled = watchTogether)
             }
         }
     }

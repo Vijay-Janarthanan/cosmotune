@@ -86,6 +86,22 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
         }
         RoomVideo.opening.value = null
     }
+    // A Watch install or pack link opened from another app ([com.cosmotune.music.watch.AndroidWatch.consume]) opens Watch, where
+    // its sheet waits.
+    val watchLink = com.cosmotune.watch.WatchLinks.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(watchLink.value != null, shell) {
+        if (watchLink.value != null && shell != null && AppModes.available(AppMode.WATCH)) shell.settings.setMode(AppMode.WATCH)
+    }
+    // A Watch item the room opens here ([com.cosmotune.music.watch.RoomWatch]): Watch becomes the mode, its player page attached.
+    val roomWatch = com.cosmotune.music.watch.RoomWatch.opening.collectAsStateWithLifecycle()
+    LaunchedEffect(roomWatch.value, shell) {
+        val (target, summary) = roomWatch.value ?: return@LaunchedEffect
+        if (shell != null && AppModes.available(AppMode.WATCH)) {
+            shell.settings.setMode(AppMode.WATCH)
+            com.cosmotune.ui.watch.WatchNav.showPlaying(target, summary)
+        }
+        com.cosmotune.music.watch.RoomWatch.opening.value = null
+    }
     // Music's way into Video: no shell (the look off) or Video not available, no links. One identity per shell, so the static local
     // changes only when the look does.
     val links = remember(shell, asked) { shell?.let { phoneModeLinks(it.settings, asked) } }
@@ -119,7 +135,19 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             androidx.activity.compose.BackHandler { if (!com.cosmotune.ui.watch.WatchNav.back()) shell.settings.setMode(AppMode.MUSIC) }
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
-            com.cosmotune.ui.watch.ProvideWatch(qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
+            val watchContext = LocalContext.current
+            val repository = remember(watchContext) { com.cosmotune.music.watch.AndroidWatch.repository(watchContext).also(com.cosmotune.ui.watch.WatchBackend::install) }
+            val playback = rememberPhoneWatchPlayback(watchContext)
+            val downloads = remember(watchContext) { com.cosmotune.music.watch.AndroidWatch.downloads(watchContext) }
+            // In a room, the Plugins page offers this member's add-ons in its chat and lists the packs the others offered.
+            val roomCode = com.cosmotune.music.data.room.PhoneRooms.code.collectAsStateWithLifecycle()
+            val packScope = androidx.compose.runtime.rememberCoroutineScope()
+            val roomPacks = if (roomCode.value != null) remember(packScope) {
+                com.cosmotune.ui.watch.WatchRoomPacks.of(com.cosmotune.music.data.room.PhoneRooms.room, { com.cosmotune.music.data.room.PhoneRooms.selfUid },
+                    { text -> com.cosmotune.music.data.room.PhoneRooms.sendChat(text) }, packScope)
+            } else null
+            com.cosmotune.ui.watch.ProvideWatch(repository = repository, playback = playback, downloads = downloads, roomPacks = roomPacks,
+                qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
                 com.cosmotune.ui.watch.WatchApp(
                     contentPadding = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues(),
                     showNavigation = true,
@@ -133,6 +161,28 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
         else holder.SaveableStateProvider("video") { PhoneVideo(videoShell, windowWidth, windowHeight, asked) }
     }
     }
+    }
+}
+
+/**
+ * Watch's player on the phone: [com.cosmotune.music.watch.AndroidWatch.player] on Video mode's Media3 engine, built the first time a
+ * player page opens, its picture drawn with the engine's own surface as Video's watch page draws it. Audio focus keeps Music and
+ * Watch from playing over each other, as it does for Video.
+ */
+@Composable
+private fun rememberPhoneWatchPlayback(context: Context): com.cosmotune.ui.watch.WatchPlayback? {
+    val stack = com.cosmotune.ui.watch.WatchNav.stack.collectAsStateWithLifecycle()
+    val wanted = stack.value.any { it is com.cosmotune.ui.watch.WatchRoute.Play }
+    val player = remember(context, wanted) {
+        if (wanted || com.cosmotune.music.watch.AndroidWatch.playerBuilt) runCatching { com.cosmotune.music.watch.AndroidWatch.player(context) }.getOrNull() else null
+    }
+    return remember(player) {
+        player?.let { p ->
+            com.cosmotune.ui.watch.WatchPlayback(p, roomHolds = { key -> com.cosmotune.music.watch.RoomWatch.holds(key.value) }) { scale, modifier ->
+                com.cosmotune.video.graph.androidVideoGraph(context.applicationContext).surface?.Surface(modifier,
+                    if (scale == com.cosmotune.ui.watch.WatchSurfaceScale.CROP) com.cosmotune.video.player.VideoScale.FILL else com.cosmotune.video.player.VideoScale.FIT)
+            }
+        }
     }
 }
 

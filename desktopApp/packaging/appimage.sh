@@ -34,11 +34,12 @@ Type=Application
 Name=Cosmotune
 GenericName=Music Player
 Comment=Music and video, in your mood
-Exec=Cosmotune
+Exec=Cosmotune %u
 Icon=cosmotune
 Categories=AudioVideo;Audio;Player;
 Terminal=false
 StartupWMClass=com-cosmotune-music-desktop-MainKt
+MimeType=x-scheme-handler/stremio;x-scheme-handler/cosmotune;
 DESKTOP
 
 # appimagetool reads the icon by the desktop entry; the desktop reads .DirIcon.

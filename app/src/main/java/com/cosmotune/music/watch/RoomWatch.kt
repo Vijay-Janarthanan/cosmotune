@@ -109,10 +109,13 @@ object RoomWatch {
                 p.roomDurationMs = null
                 p.stop()
                 roomItemOpened = null
+                closePage()
             }
             commandedPlaying = false
             return
         }
+        // Already playing here ("Watch together" from this phone's player): the room's item from now on.
+        if (loadedId == track.videoId) roomItemOpened = track.videoId
         if (loadedId == track.videoId && (state.status == WatchPlayerStatus.NOT_FOUND || state.status == WatchPlayerStatus.ERROR)) unplayable += track.videoId
         if (loadedId == track.videoId && state.status == WatchPlayerStatus.ENDED && target.isPlaying && advancedSeq != target.seq && !party.controlsLocked) {
             advancedSeq = target.seq
@@ -183,7 +186,22 @@ object RoomWatch {
         }
     }
 
-    private var roomItemOpened: String? = null
+    @Volatile private var roomItemOpened: String? = null
+
+    /** Whether the room opened [key] in Watch's player here, or plays it now (the player page then leaves it to the room). */
+    fun holds(key: String): Boolean = roomItemOpened == key ||
+        ListenTogether.state.value.let { it.inParty && it.playback.track?.let { t -> t.kind == PartyTrack.KIND_WATCH && t.videoId == key } == true }
+
+    /**
+     * A Watch item the room just opened on this phone, for [com.cosmotune.video.host.PhoneModeHost]: it makes Watch the mode and
+     * brings up the item's player page, attached to what plays; the host clears it.
+     */
+    val opening = kotlinx.coroutines.flow.MutableStateFlow<Pair<com.cosmotune.watch.model.PlayTarget, com.cosmotune.watch.model.TitleSummary?>?>(null)
+
+    /** The room's player page goes when the room's Watch item stops here. */
+    private fun closePage() {
+        com.cosmotune.ui.watch.WatchNav.stack.value = com.cosmotune.ui.watch.WatchNav.stack.value.filterNot { it is com.cosmotune.ui.watch.WatchRoute.Play && it.attached }
+    }
 
     private fun load(p: EngineWatchPlayer, track: PartyTrack, now: Long) {
         if (loadingId == track.videoId && now - loadingAtMs < LOAD_RETRY_MS) return
@@ -197,14 +215,16 @@ object RoomWatch {
         scope.launch {
             val context = app ?: return@launch
             val target = WatchRoom.targetOf(track, AndroidWatch.repository(context)) ?: return@launch
-            p.open(target, WatchRoom.summaryOf(track), startMs = start, hint = WatchRoom.hintOf(track), fallback = WatchRoom.fallbackOf(track))
+            val summary = WatchRoom.summaryOf(track)
+            p.open(target, summary, startMs = start, hint = WatchRoom.hintOf(track), fallback = WatchRoom.fallbackOf(track))
+            opening.value = target to summary
         }
     }
 
     private fun reset() {
         roomItem = null; loadingId = null; commandedPlaying = false; locallyPaused = false; alignedSeq = -1L; lastAnchor = null
         driftStrikes = 0; advancedSeq = -1L; announcedSkip = null; unplayable.clear(); startJob?.cancel()
-        roomItemOpened?.let { player?.stop() }
+        roomItemOpened?.let { player?.stop(); closePage() }
         roomItemOpened = null
     }
 }

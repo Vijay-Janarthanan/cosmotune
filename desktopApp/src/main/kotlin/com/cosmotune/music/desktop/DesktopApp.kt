@@ -3463,6 +3463,8 @@ fun CosmotuneDesktopApp() {
         val windowActions = LocalDesktopWindowActions.current
         // A room's videos open in Video mode, which the room switches to through the stored mode.
         SideEffect { DesktopRoomVideo.look = cosmoShell?.settings }
+        // A Watch install link that reached the app opens Watch, where its sheet waits.
+        com.cosmotune.desktop.FollowWatchLinks(cosmoShell?.settings)
         // The room for every page and mode: one launcher for the window ("Play in room", the room icon).
         val roomLauncher = rememberDesktopRoomLauncher(open = ::openRoom, askToJoin = ::openRoom)
         LaunchedEffect(roomJoined) {

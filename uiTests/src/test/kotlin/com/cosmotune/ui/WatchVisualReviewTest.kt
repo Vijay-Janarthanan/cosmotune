@@ -174,7 +174,7 @@ private class StillPlayer(private val repository: FakeWatchRepository) : WatchPl
     private val flow = MutableStateFlow(WatchPlayerState())
     override val state: StateFlow<WatchPlayerState> = flow
 
-    override fun open(target: PlayTarget, summary: TitleSummary?, stream: Stream?, startMs: Long?, hint: StreamHint?) {
+    override fun open(target: PlayTarget, summary: TitleSummary?, stream: Stream?, startMs: Long?, hint: StreamHint?, fallback: Stream?) {
         val streams = runBlocking { repository.sourcesNow(target).streams }
         val next = runBlocking { repository.nextEpisode(target.key) }
         flow.value = WatchPlayerState(

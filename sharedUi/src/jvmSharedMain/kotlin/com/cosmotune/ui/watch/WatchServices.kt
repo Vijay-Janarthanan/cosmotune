@@ -23,11 +23,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
  */
 
 /**
- * The repository Watch uses when the host provides none. This is the one line to change when the real repository is ready
- * (or the hosts provide theirs through [LocalWatchRepository] and this stays the stand-in for previews).
+ * The repository Watch uses when the host provides none through [LocalWatchRepository]: the host's real one once it has
+ * [install]ed it (the desktop's `DesktopWatch.repository`, the phone's `AndroidWatch.repository(context)`), else the in-memory
+ * fake, which stays for previews and render tests only.
  */
 object WatchBackend {
-    val repository: WatchRepository by lazy { FakeWatchRepository(now = System::currentTimeMillis) }
+    @Volatile private var installed: WatchRepository? = null
+    private val fake: WatchRepository by lazy { FakeWatchRepository(now = System::currentTimeMillis) }
+
+    val repository: WatchRepository get() = installed ?: fake
+
+    /** The host's real repository, set once at start-up. */
+    fun install(repository: WatchRepository) { installed = repository }
 }
 
 /** The repository the Watch screens call; null means [WatchBackend.repository]. */
@@ -41,9 +48,14 @@ enum class WatchSurfaceScale { FIT, CROP }
 
 /**
  * The Watch player and the platform's picture of its engine ([WatchPlayer.engine]): the phone's Media3 view or the desktop's
- * libmpv surface, drawn by the host the way Video mode draws it.
+ * libmpv surface, drawn by the host the way Video mode draws it. [roomHolds] is true for an item the room opened in this player
+ * (the host's room follower drives it), which the player page then neither reopens nor stops when it goes.
  */
-class WatchPlayback(val player: WatchPlayer, val surface: @Composable (scale: WatchSurfaceScale, modifier: Modifier) -> Unit)
+class WatchPlayback(
+    val player: WatchPlayer,
+    val roomHolds: (WatchKey) -> Boolean = { false },
+    val surface: @Composable (scale: WatchSurfaceScale, modifier: Modifier) -> Unit,
+)
 
 /** The player, provided by the host once it has one; null shows the player page's "not connected" card. */
 val LocalWatchPlayback = staticCompositionLocalOf<WatchPlayback?> { null }
@@ -61,11 +73,17 @@ fun ProvideWatch(
     playback: WatchPlayback? = null,
     qrCode: (@Composable (String, Dp) -> Unit)? = null,
     clock: (() -> Long)? = null,
+    downloads: com.cosmotune.watch.WatchDownloads? = null,
+    roomPacks: WatchRoomPacks? = null,
+    linkHandler: WatchLinkHandler? = null,
     content: @Composable () -> Unit,
 ) {
     CompositionLocalProvider(
         LocalWatchRepository provides repository,
         LocalWatchPlayback provides playback,
+        LocalWatchDownloads provides downloads,
+        LocalWatchRoomPacks provides roomPacks,
+        LocalWatchLinkHandler provides linkHandler,
         LocalWatchQrCode provides qrCode,
         LocalWatchClock provides (clock ?: System::currentTimeMillis),
         content = content,
@@ -82,7 +100,9 @@ enum class WatchTab(val label: String) {
 /** A page opened over a tab: a film or series page, or the player. */
 sealed interface WatchRoute {
     data class Page(val summary: TitleSummary) : WatchRoute
-    data class Play(val target: PlayTarget, val summary: TitleSummary? = null, val stream: Stream? = null, val episode: Episode? = null) : WatchRoute
+    /** [attached]: the player already holds [target] (the room opened it), so the page shows it as it is. */
+    data class Play(val target: PlayTarget, val summary: TitleSummary? = null, val stream: Stream? = null, val episode: Episode? = null,
+        val attached: Boolean = false) : WatchRoute
 }
 
 /**
@@ -111,14 +131,28 @@ object WatchNav {
         return true
     }
 
-    /** Hosts call this for a one-tap install link that reached the app. */
-    fun openInstallLink(link: String) { pendingInstall.value = link }
-
-    /** Whether [link] is one the install sheet reads. */
-    fun isInstallLink(link: String): Boolean {
-        val l = link.trim().lowercase()
-        return l.startsWith("stremio://") || l.startsWith("cosmotune://watch/addon") || (l.startsWith("https://") && l.endsWith("/manifest.json"))
+    /**
+     * The room opened [target] in this device's Watch player: its player page comes up over whatever is shown (replacing a player
+     * page that was already on top), attached to what is playing.
+     */
+    fun showPlaying(target: PlayTarget, summary: TitleSummary?) {
+        val now = stack.value
+        val top = now.lastOrNull()
+        if (top is WatchRoute.Play && top.target.key == target.key) return
+        val below = if (top is WatchRoute.Play) now.dropLast(1) else now
+        stack.value = below + WatchRoute.Play(target, summary, attached = true)
     }
+
+    /**
+     * Hosts call this for a one-tap install link that reached the app (`stremio://…`, `cosmotune://watch/addon?url=…`, an https
+     * manifest, or a `cosmotune://watch/pack?d=…` plugin pack): it waits in [com.cosmotune.watch.WatchLinks.pending] for its sheet.
+     * False when it is not a Watch link.
+     */
+    fun openInstallLink(link: String): Boolean = com.cosmotune.watch.WatchLinks.offer(link)
+
+    /** Whether [link] is one the install or pack sheet reads. */
+    fun isInstallLink(link: String): Boolean =
+        com.cosmotune.watch.InstallLinks.isInstallLink(link) || com.cosmotune.watch.InstallLinks.isPackLink(link)
 }
 
 /** A channel as a summary card, so the player has a title to show. */

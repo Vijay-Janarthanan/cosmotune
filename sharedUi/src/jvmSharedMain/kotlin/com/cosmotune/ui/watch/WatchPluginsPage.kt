@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -97,6 +99,7 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
     var adding by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
+    var importLink by remember { mutableStateOf<String?>(null) }
     val side = frame.side
 
     val builtInColumn: @Composable () -> Unit = {
@@ -119,6 +122,8 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
             }
             AddCard(fonts, look, Modifier.padding(top = 6.dp)) { adding = true }
             PackCard(fonts, look, onShare = { sharing = true }, onImport = { importing = true })
+            LocalWatchRoomPacks.current?.let { packs -> RoomPacksCard(packs, repository, fonts, look, onImport = { importLink = it }) }
+            LocalWatchLinkHandler.current?.let { handler -> LinkHandlerCard(handler, fonts, look) }
             FindPlugins(repository, fonts, look)
             if (metadata == MetadataSource.FALLBACK) {
                 Text("No TMDB key is set, so pages come from Cinemeta and your plugins.", style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim,
@@ -144,12 +149,102 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
                     Column(Modifier.padding(horizontal = side).padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(26.dp)) { builtInColumn(); yoursColumn() }
                 }
             }
+            if (metadata == MetadataSource.TMDB) item(key = "plugins:tmdb") {
+                TmdbNotice(fonts, look, Modifier.padding(horizontal = side + 6.dp).padding(top = 28.dp))
+            }
             item(key = "plugins:end") { Spacer(Modifier.height(40.dp)) }
         }
     }
     if (adding) AddSourceDialog(repository, fonts, look) { adding = false }
     if (sharing) SharePackDialog(repository, fonts, look) { sharing = false }
     if (importing) ImportPackDialog(repository, fonts, look) { importing = false }
+    importLink?.let { link -> ImportPackDialog(repository, fonts, look, initialLink = link) { importLink = null } }
+}
+
+/**
+ * In a room: offer this member's add-ons to the others as a chat message ([com.cosmotune.watch.WatchRoom.packOffer], add-on
+ * links only), and the packs the others offered, each with Import (which shows what it holds before adding anything).
+ */
+@Composable
+private fun RoomPacksCard(packs: WatchRoomPacks, repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook, onImport: (String) -> Unit) {
+    val inRoom by packs.inRoom.collectAsState()
+    if (!inRoom) return
+    val offers by packs.offers.collectAsState()
+    val scope = rememberCoroutineScope()
+    var note by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(look.row).padding(18.dp)) {
+        Text("In this room", style = fonts.title, color = look.ink)
+        Text("Offer your add-ons so the others can play the same copies. Only add-on links go in the chat.", style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim,
+            modifier = Modifier.padding(top = 4.dp))
+        Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WatchCardChip("Offer my add-ons", look.ink, fonts, icon = CosmoIcons.Together, onClick = {
+                scope.launch {
+                    val link = runCatching { repository.exportPluginPack() }.getOrNull()
+                    val message = link?.let { com.cosmotune.watch.WatchRoom.packOffer(it, packs.selfName()) }
+                    note = when {
+                        link == null -> "Could not make the pack."
+                        message == null -> "Too many add-ons for one chat message: use Share pack instead."
+                        else -> { packs.send(message); "Offered in the room's chat." }
+                    }
+                }
+            })
+        }
+        note?.let { Text(it, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, modifier = Modifier.padding(top = 10.dp)) }
+        offers.filter { !it.mine }.take(5).forEach { offer ->
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("${offer.from} shares their add-ons", style = fonts.body, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                WatchCardChip("Import", look.ink, fonts, icon = CosmoIcons.Download, onClick = { onImport(offer.link) })
+            }
+        }
+    }
+}
+
+/** The desktop's "Set as handler": makes Cosmotune the app that opens stremio:// and cosmotune://watch links, on a press only. */
+@Composable
+private fun LinkHandlerCard(handler: WatchLinkHandler, fonts: OrbitFonts, look: OrbitLook) {
+    val scope = rememberCoroutineScope()
+    var set by remember { mutableStateOf<Boolean?>(null) }
+    var note by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(handler) { set = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { handler.isSet() }.getOrDefault(false) } }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(look.row).padding(18.dp)) {
+        Text("Install links", style = fonts.title, color = look.ink)
+        Text("Open stremio:// and cosmotune:// links from a web page with Cosmotune, so an add-on installs in one tap.", style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim,
+            modifier = Modifier.padding(top = 4.dp))
+        Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WatchCardChip(if (set == true) "Cosmotune opens them" else "Set as handler", look.ink, fonts, icon = if (set == true) CosmoIcons.Check else CosmoIcons.Share,
+                enabled = set == false, onClick = {
+                    scope.launch {
+                        val problem = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { handler.set() }.getOrElse { it.message ?: "Could not set it." } }
+                        note = problem
+                        set = problem == null || runCatching { handler.isSet() }.getOrDefault(false)
+                    }
+                })
+        }
+        note?.let { Text(it, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, modifier = Modifier.padding(top = 10.dp)) }
+    }
+}
+
+/** TMDB's attribution, as its terms ask of every app that uses its API: the mark and the notice. */
+@Composable
+internal fun TmdbNotice(fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TmdbMark()
+        Text("This product uses the TMDB API but is not endorsed or certified by TMDB.", style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = look.dim,
+            modifier = Modifier.weight(1f))
+    }
+}
+
+/** TMDB's short mark: the letters in its dark blue on its green-to-blue pill. */
+@Composable
+internal fun TmdbMark(modifier: Modifier = Modifier) {
+    Box(
+        modifier.clip(RoundedCornerShape(50)).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color(0xFF90CEA1), Color(0xFF3CBEC9), Color(0xFF01B4E4))))
+            .padding(horizontal = 10.dp, vertical = 3.dp).semantics { contentDescription = "TMDB" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("TMDB", style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, letterSpacing = 1.sp),
+            color = Color(0xFF0D253F))
+    }
 }
 
 @Composable
@@ -403,15 +498,23 @@ private fun SharePackDialog(repository: WatchRepository, fonts: OrbitFonts, look
     }
 }
 
-/** Import a pack: paste its link, see what it holds with a switch each, then add the chosen ones. */
+/**
+ * Import a pack: paste its link (or arrive with one: a pack link opened from outside, or offered in a room), see what it holds
+ * with a switch each, then add the chosen ones.
+ */
 @Composable
-private fun ImportPackDialog(repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook, onDone: () -> Unit) {
+internal fun ImportPackDialog(repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook, initialLink: String? = null, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var link by remember { mutableStateOf("") }
+    var link by remember { mutableStateOf(initialLink.orEmpty()) }
     var items by remember { mutableStateOf<List<PluginPackItem>?>(null) }
     var chosen by remember { mutableStateOf<Set<String>>(emptySet()) }
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    LaunchedEffect(initialLink) {
+        val start = initialLink?.trim()?.takeIf { it.isNotEmpty() } ?: return@LaunchedEffect
+        items = runCatching { repository.readPluginPack(start) }.getOrElse { message = it.message ?: "That is not a plugin pack."; null }
+        chosen = items.orEmpty().filter { !it.alreadyInstalled }.map { it.manifestUrl }.toSet()
+    }
     WatchDialog("Import plugins", "Add a plugin pack", onDone) {
         WatchField("Pack link", link, { link = it; items = null }, fonts, look, "cosmotune://watch/pack?d=…")
         items?.let { list ->

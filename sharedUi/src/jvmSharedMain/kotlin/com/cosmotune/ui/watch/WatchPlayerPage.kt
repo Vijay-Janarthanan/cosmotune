@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -38,7 +39,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -81,6 +92,8 @@ internal class WatchPlayerControls(
     val playNext: () -> Unit,
     val cancelNext: () -> Unit,
     val close: () -> Unit,
+    /** Plays what is on for the room, from where it is. */
+    val watchTogether: () -> Unit = {},
 )
 
 /**
@@ -94,11 +107,17 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     val playback = LocalWatchPlayback.current
     if (playback == null) { WatchPlayerUnavailable(route, actions, fonts, look, frame); return }
     val player = playback.player
-    LaunchedEffect(route) { player.open(route.target, route.summary, route.stream) }
-    DisposableEffect(player) { onDispose { player.stop() } }
+    // An item the room opened here is already playing (the room follower drives it): shown as it is, and left going on the way out.
+    LaunchedEffect(route) { if (!route.attached && !playback.roomHolds(route.target.key)) player.open(route.target, route.summary, route.stream) }
+    DisposableEffect(player, route) {
+        onDispose {
+            val key = player.state.value.target?.key ?: route.target.key
+            if (!route.attached && !playback.roomHolds(key)) player.stop()
+        }
+    }
     val state by player.state.collectAsState()
     val snapshot by player.engine.snapshot.collectAsState()
-    val controls = remember(player) {
+    val controls = remember(player, actions) {
         WatchPlayerControls(
             playPause = { if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() },
             seekTo = player.engine::seekTo,
@@ -110,6 +129,10 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
             playNext = player::playNextEpisode,
             cancelNext = player::cancelNextEpisode,
             close = { WatchNav.back() },
+            watchTogether = {
+                val s = player.state.value
+                s.target?.let { t -> actions.watchTogether(t, s.summary ?: route.summary, s.stream, s.durationMs.takeIf { it > 0 } ?: player.engine.snapshot.value.durationMs) }
+            },
         )
     }
     val aspect = if (snapshot.videoWidth > 0 && snapshot.videoHeight > 0) snapshot.videoWidth.toFloat() / snapshot.videoHeight else VideoView.DEFAULT_ASPECT
@@ -160,15 +183,48 @@ internal fun WatchPlayerScreen(
     val picture: @Composable (Modifier, Dp) -> Unit = { m, radius ->
         WatchVideo(view, aspect, radius, surface, still = summary?.backdropUrl, key = summary?.key?.value ?: "watch", modifier = m, onDoubleTap = { cinema = !cinema })
     }
-    if (cinema) {
-        WatchCinema(picture, state, playing, position, durationMs, controls, view, setView, onLeave = { cinema = false }, fonts = fonts, look = look, fill = fill, ink = ink)
-        return
+    // The keyboard (the desktop's): Esc leaves Cinema, else closes the player; F goes in and out of Cinema.
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    val keys = Modifier.focusRequester(focus).focusable().onPreviewKeyEvent { e ->
+        if (e.type != KeyEventType.KeyDown || e.isCtrlPressed || e.isMetaPressed || e.isAltPressed) return@onPreviewKeyEvent false
+        when (e.key) {
+            Key.Escape -> { if (cinema) cinema = false else controls.close(); true }
+            Key.F -> { cinema = !cinema; true }
+            else -> false
+        }
     }
+    Box(Modifier.fillMaxSize().then(keys)) {
+        if (cinema) WatchCinema(picture, state, playing, position, durationMs, controls, view, setView, onLeave = { cinema = false }, fonts = fonts, look = look, fill = fill, ink = ink)
+        else WatchPlayerLayout(state, playing, position, durationMs, controls, watchTogether, view, setView, picture, onCinema = { cinema = true }, fonts, look, wide, padding, fill, ink)
+    }
+}
+
+@Composable
+private fun WatchPlayerLayout(
+    state: WatchPlayerState,
+    playing: Boolean,
+    position: () -> Long,
+    durationMs: Long,
+    controls: WatchPlayerControls,
+    watchTogether: Boolean,
+    view: VideoView,
+    setView: (VideoView) -> Unit,
+    picture: @Composable (Modifier, Dp) -> Unit,
+    onCinema: () -> Unit,
+    fonts: OrbitFonts,
+    look: OrbitLook,
+    wide: Boolean,
+    padding: PaddingValues,
+    fill: Color,
+    ink: Color,
+) {
     Box(Modifier.fillMaxSize()) {
         WatchWash(fill, look)
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 14.dp)) {
-            PlayerTopRow(state, controls, watchTogether, wide, fonts, look)
+            PlayerTopRow(state, controls, watchTogether, wide, fonts, look, downloads = LocalWatchDownloads.current)
             state.failover?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
+            state.lengthNote?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
             Spacer(Modifier.height(14.dp))
             if (state.status == WatchPlayerStatus.NOT_FOUND || state.status == WatchPlayerStatus.ERROR) {
                 WatchMessage(
@@ -185,7 +241,7 @@ internal fun WatchPlayerScreen(
             }
             Spacer(Modifier.height(14.dp))
             NextEpisodeRow(state, controls, wide, fonts, look)
-            FilmCard(state, playing, position, durationMs, controls, view, setView, onCinema = { cinema = true }, fonts = fonts, look = look, fill = fill, ink = ink, slim = false, wide = wide)
+            FilmCard(state, playing, position, durationMs, controls, view, setView, onCinema = onCinema, fonts = fonts, look = look, fill = fill, ink = ink, slim = false, wide = wide)
             if (!wide) Spacer(Modifier.weight(1f))
         }
     }
@@ -207,8 +263,10 @@ private fun WatchVideo(view: VideoView, aspect: Float, radius: Dp, surface: @Com
 }
 
 @Composable
-private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls, watchTogether: Boolean, wide: Boolean, fonts: OrbitFonts, look: OrbitLook) {
+private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls, watchTogether: Boolean, wide: Boolean, fonts: OrbitFonts, look: OrbitLook,
+    downloads: com.cosmotune.watch.WatchDownloads? = null) {
     var sources by remember { mutableStateOf(false) }
+    var download by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         WatchRoundButton(CosmoIcons.ChevronDown, "Close the player", look, onClick = controls.close)
         val from = state.stream?.source?.pluginName?.let { if (wide) "From · $it" else it } ?: when (state.status) {
@@ -226,8 +284,27 @@ private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls,
                 },
             )
         }
-        if (wide) WatchCardChip("Watch together", look.ink, fonts, onClick = {}, icon = CosmoIcons.Together, enabled = watchTogether)
-        else WatchRoundButton(CosmoIcons.Together, "Watch together", look, onClick = {}, enabled = watchTogether)
+        if (downloads != null && !state.isLive && state.target != null) Box {
+            val list by downloads.items.collectAsState()
+            val stream = state.stream
+            val target = state.target
+            val kept = if (stream != null && target != null) list.firstOrNull { it.id == downloads.find(target, stream)?.id } else null
+            WatchRoundButton(if (kept?.status == com.cosmotune.watch.WatchDownload.Status.DONE) CosmoIcons.Downloaded else CosmoIcons.Download, "Download", look, onClick = { download = true })
+            val why = stream?.let { downloads.whyNot(it) } ?: "Nothing is playing yet."
+            OrbitMenu(download, { download = false }, fonts = fonts, look = look, header = "Download", width = 320.dp, items = listOf(
+                when {
+                    stream?.protocol == com.cosmotune.watch.model.StreamProtocol.LOCAL_FILE -> OrbitMenuItem("On this device", "This copy plays from a file here", enabled = false) {}
+                    kept?.status == com.cosmotune.watch.WatchDownload.Status.DONE -> OrbitMenuItem("Downloaded", "In Downloads", CosmoIcons.Downloaded) { controls.close(); WatchNav.go(WatchTab.DOWNLOADS) }
+                    kept?.status == com.cosmotune.watch.WatchDownload.Status.DOWNLOADING -> OrbitMenuItem("Downloading", kept.fraction?.let { "${(it * 100).toInt()}%" } ?: "Starting", CosmoIcons.Download) { controls.close(); WatchNav.go(WatchTab.DOWNLOADS) }
+                    stream != null && target != null && downloads.canDownload(stream) -> OrbitMenuItem("Download this copy", listOfNotNull(stream.source.pluginName, stream.label, sizeText(stream.sizeBytes)).joinToString(" · "), CosmoIcons.Download) {
+                        downloads.start(target, state.summary, stream, state.subtitleLine ?: listOfNotNull(stream.source.pluginName, stream.label).joinToString(" · "))
+                    }
+                    else -> OrbitMenuItem("Can't download this copy", why, enabled = false) {}
+                },
+            ))
+        }
+        if (wide) WatchCardChip("Watch together", look.ink, fonts, onClick = controls.watchTogether, icon = CosmoIcons.Together, enabled = watchTogether && state.target != null)
+        else WatchRoundButton(CosmoIcons.Together, "Watch together", look, onClick = controls.watchTogether, enabled = watchTogether && state.target != null)
     }
 }
 
