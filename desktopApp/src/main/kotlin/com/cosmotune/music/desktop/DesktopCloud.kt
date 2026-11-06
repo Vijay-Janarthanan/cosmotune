@@ -125,6 +125,8 @@ internal object DesktopCloud {
                     SyncLikes.KIND -> likeSnapshot(persistence.likedIds()).also { lastSeenLikes = it }
                     // A listening store that cannot be read fails the sync, rather than reading as "every artist unfollowed".
                     SyncArtists.KIND -> artistSnapshot()
+                    // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
+                    com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
                     else -> emptyMap()
                 }
             }
@@ -145,6 +147,8 @@ internal object DesktopCloud {
                             }
                         }
                         SyncArtists.KIND -> ListeningStore(desktopListeningFile()).update { SyncArtists.apply(it, upserts, deletes) }
+                        com.cosmotune.watch.SyncWatchPlugins.KIND ->
+                            com.cosmotune.desktop.DesktopWatch.store.update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
                     }
                 }
             }
@@ -182,7 +186,7 @@ internal object DesktopCloud {
     private val account: CloudAccount by lazy {
         CloudAccount(
             CosmotuneFirebase.config, Http.client, sessionStore, source, marks,
-            listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND), scope,
+            listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND), scope,
         )
     }
 

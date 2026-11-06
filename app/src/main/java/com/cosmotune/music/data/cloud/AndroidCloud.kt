@@ -93,7 +93,7 @@ object AndroidCloud {
             sessionStore = EncryptedSessionStore(app),
             source = LibrarySource(SnapshotJournal(File(folder, "journal.json"))),
             marks = FileSyncMarks(File(folder, "marks.json")),
-            kinds = listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND),
+            kinds = listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND),
             scope = scope,
         )
     }
@@ -281,6 +281,8 @@ object AndroidCloud {
             SyncPlaylists.KIND -> CloudPlaylists.snapshot(LocalPlaylistStore.playlists.value)
             SyncLikes.KIND -> CloudLikes.snapshot(likes.likes.value)
             SyncArtists.KIND -> artistSnapshot()
+            // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
+            com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
             else -> emptyMap()
         }
 
@@ -295,6 +297,8 @@ object AndroidCloud {
                     CloudLikes.overrides(applied.first.keys, applied.second, LikeState.overrides.value).forEach(LikeState::set)
                 }
                 SyncArtists.KIND -> ListeningStore(listeningFile).update { SyncArtists.apply(it, upserts, deletes) }
+                com.cosmotune.watch.SyncWatchPlugins.KIND ->
+                    com.cosmotune.music.watch.AndroidWatch.store(app).update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
             }
         }
     }

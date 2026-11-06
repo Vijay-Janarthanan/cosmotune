@@ -29,6 +29,8 @@ val lastfmApiKey: String = (
         ?: System.getenv("LASTFM_API_KEY")
         ?: ""
     ).trim()
+// Watch mode's metadata (TMDB v3 API key or v4 read token), supplied locally and never committed; blank falls back to Cinemeta.
+val tmdbApiKey: String = (localProps.getProperty("TMDB_API_KEY") ?: System.getenv("TMDB_API_KEY") ?: "").trim()
 val lastfmSecret: String = (
     localProps.getProperty("LASTFM_SECRET")
         ?: System.getenv("LASTFM_SECRET")
@@ -89,6 +91,7 @@ android {
         // Last.fm credentials are supplied locally and never committed.
         buildConfigField("String", "LASTFM_API_KEY", "\"${lastfmApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "LASTFM_SECRET", "\"${lastfmSecret.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField(
             "String",
             "LISTEN_TOGETHER_SERVER",

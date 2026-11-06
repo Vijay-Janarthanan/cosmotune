@@ -30,6 +30,15 @@ import org.jetbrains.compose.resources.painterResource
 
 fun main(args: Array<String>) {
     if (args.contentEquals(arrayOf("--provider-auth-browser"))) { ProviderVerificationBrowserMain.run(); return }
+    // A Watch add-on link the system opened Cosmotune with (stremio://..., cosmotune://watch/...): its Install sheet waits.
+    args.firstOrNull { com.cosmotune.watch.InstallLinks.isInstallLink(it) || com.cosmotune.watch.InstallLinks.isPackLink(it) }
+        ?.let { com.cosmotune.desktop.DesktopWatch.offer(it) }
+    // macOS hands URL-scheme opens (the bundle declares stremio:// and cosmotune://) to a running app through this handler.
+    runCatching {
+        if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.APP_OPEN_URI)) {
+            java.awt.Desktop.getDesktop().setOpenURIHandler { event -> com.cosmotune.desktop.DesktopWatch.offer(event.uri.toString()) }
+        }
+    }
     val instance = com.cosmotune.desktop.DesktopSingleInstance.acquire(
         onActivate = DesktopWindowVisibility::show,
     ) ?: return

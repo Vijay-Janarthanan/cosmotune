@@ -239,6 +239,20 @@
                 <data android:scheme="${applicationId}" android:host="provider-auth" />
                 <data android:scheme="cosmotune" android:host="provider-auth" />
             </intent-filter>
+            <!-- Watch mode's one-tap add-on install links (stremio://host/manifest.json) and shared plugin packs
+                 (cosmotune://watch/pack?d=...): the Install sheet shows the add-on first; nothing installs without a tap. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="stremio" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="cosmotune" android:host="watch" />
+            </intent-filter>
             <!-- Custom scheme for Listen Together invites on custom server deployments. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

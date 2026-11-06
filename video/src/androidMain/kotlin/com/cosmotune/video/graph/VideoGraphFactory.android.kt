@@ -152,3 +152,6 @@ private object AndroidVideoProcess {
         null
     }
 }
+
+/** Video's graph for code away from its page (Watch mode plays YouTube titles and its own streams on the same player). */
+fun androidVideoGraph(application: Context): VideoGraph = AndroidVideoProcess.graph(application.applicationContext)

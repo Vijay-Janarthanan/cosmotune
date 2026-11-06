@@ -126,6 +126,9 @@ val lastfmSecret = localProperty("LASTFM_SECRET")
 // confidential, but it is still kept out of the repository and never printed; a blank id leaves sign-in off in that build.
 val googleDesktopClientId = localProperty("GOOGLE_DESKTOP_CLIENT_ID")
 val googleDesktopClientSecret = localProperty("GOOGLE_DESKTOP_CLIENT_SECRET")
+// Watch mode's metadata (TMDB v3 API key or v4 read token). Supplied locally and never committed or printed; without one
+// Watch falls back to Cinemeta and the plugins' own details.
+val tmdbApiKey = localProperty("TMDB_API_KEY")
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
@@ -530,6 +533,7 @@ val windowsPortableAssemble by tasks.registering {
     val lastfmSharedSecret = lastfmSecret
     val googleClientId = googleDesktopClientId
     val googleClientSecret = googleDesktopClientSecret
+    val tmdbKey = tmdbApiKey
     val mainClass = composeMainClass
     // Declared, not implied.
     inputs.file(appJar)
@@ -571,6 +575,7 @@ val windowsPortableAssemble by tasks.registering {
                 if (lastfmKey.isNotBlank() && lastfmSharedSecret.isNotBlank()) {
                     append(" -Dcosmotune.lastfm.key=$lastfmKey -Dcosmotune.lastfm.secret=$lastfmSharedSecret")
                 }
+                if (tmdbKey.isNotBlank()) append(" -Dcosmotune.tmdb.key=$tmdbKey")
                 if (googleClientId.isNotBlank()) {
                     append(" -Dcosmotune.google.client.id=$googleClientId -Dcosmotune.google.client.secret=$googleClientSecret")
                 }
@@ -660,6 +665,9 @@ compose.desktop {
         if (listenTogetherServer.isNotBlank()) {
             jvmArgs("-Dcosmotune.listentogether.server=$listenTogetherServer")
         }
+        if (tmdbApiKey.isNotBlank()) {
+            jvmArgs("-Dcosmotune.tmdb.key=$tmdbApiKey")
+        }
         if (googleDesktopClientId.isNotBlank()) {
             jvmArgs("-Dcosmotune.google.client.id=$googleDesktopClientId", "-Dcosmotune.google.client.secret=$googleDesktopClientSecret")
         }
@@ -727,6 +735,15 @@ compose.desktop {
                         <false/>
                         <key>NSMicrophoneUsageDescription</key>
                         <string>Cosmotune uses the microphone only when you unmute in a shared room.</string>
+                        <key>CFBundleURLTypes</key>
+                        <array>
+                            <dict>
+                                <key>CFBundleURLName</key>
+                                <string>Watch add-on install links</string>
+                                <key>CFBundleURLSchemes</key>
+                                <array><string>stremio</string><string>cosmotune</string></array>
+                            </dict>
+                        </array>
                     """.trimIndent()
                 }
                 // Read only when the bundle is signed with the hardened runtime: Compose's JVM defaults plus

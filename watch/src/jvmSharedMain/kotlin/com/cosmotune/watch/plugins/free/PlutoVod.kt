@@ -45,8 +45,14 @@ class PlutoVod(
         session?.takeIf { now() - it.atMs < 3 * WatchHttp.HOUR }?.let { return it }
         val e = http.getJson("$bootBase/v4/start?appName=web&appVersion=9.0.0&deviceVersion=120.0.0&deviceModel=web&deviceMake=chrome" +
             "&deviceType=web&clientID=${clientId.urlEncode()}&clientModelNumber=1.0.0&serverSideAds=false", ttlMs = 0)
-        Session(e.str("sessionToken") ?: error("Pluto TV gave no session"), e.child("servers").str("stitcher") ?: "https://cfd-v4-service-stitcher-dash-use1-1.prd.pluto.tv",
+        Session(e.str("sessionToken") ?: error("Pluto TV gave no session"), e.child("servers").str("stitcher") ?: "https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv",
             e.str("stitcherParams").orEmpty(), now()).also { session = it }
+    }
+
+    /** A live channel's stream on Pluto's own stitcher, with this device's session. */
+    suspend fun channelStream(channelId: String): String {
+        val s = session()
+        return "${s.stitcher}/v2/stitch/hls/channel/${channelId.urlEncode()}/master.m3u8?${s.params}&jwt=${s.token.urlEncode()}&masterJWTPassthrough=true"
     }
 
     private suspend fun auth() = mapOf("Authorization" to "Bearer ${session().token}")

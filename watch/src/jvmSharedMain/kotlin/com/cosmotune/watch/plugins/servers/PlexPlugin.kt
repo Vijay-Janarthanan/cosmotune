@@ -48,8 +48,10 @@ class PlexPlugin(
     private val lock = Mutex()
     private var cachedToken: String? = null
 
+    suspend fun token(): String = lock.withLock { cachedToken ?: token.invoke().also { cachedToken = it } }
+
     private suspend fun headers(): Map<String, String> {
-        val t = lock.withLock { cachedToken ?: token().also { cachedToken = it } }
+        val t = token()
         return mapOf("X-Plex-Token" to t, "X-Plex-Client-Identifier" to clientId, "X-Plex-Product" to "Cosmotune", "Accept" to "application/json")
     }
 

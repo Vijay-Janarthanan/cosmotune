@@ -103,6 +103,7 @@ data class Endpoints(
     val plutoVod: String = "https://service-vod.clusters.pluto.tv",
     val plexVod: String = "https://vod.provider.plex.tv",
     val plexTv: String = "https://plex.tv",
+    val plexEpg: String = "https://epg.provider.plex.tv",
     val publicDomain: String = BuiltInPlugins.PUBLIC_DOMAIN_URL,
     val openSubtitles: String = BuiltInPlugins.OPENSUBTITLES_URL,
     val watchHub: String = BuiltInPlugins.WATCHHUB_URL,
@@ -135,14 +136,14 @@ class DefaultWatchRepository(
 
     private fun defaultBuiltIns(): List<WatchPlugin> {
         val e = config.endpoints
-        val regions = { store.state.value.settings["regions"]?.split(',')?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: listOf(config.region.lowercase()) }
+        val regions = { store.state.value.settings["regions"]?.split(',')?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: listOf(config.region.lowercase().let { if (it == "uk") "gb" else it }) }
         val lists = FreeLiveLists(e.freeLists, regions)
         val device = store.state.value.deviceId
         return listOf(
             IptvOrgPlugin(http, e.iptvOrg, { guideUrls() }, guideCache),
-            FreeServices.pluto(http, lists, guideCache, device, com.cosmotune.watch.plugins.free.PlutoVod(http, BuiltInPlugins.PLUTO, device, e.plutoBoot, e.plutoVod, config.now)),
-            FreeServices.samsung(http, lists, guideCache),
-            FreeServices.plex(http, lists, guideCache, device, e.plexVod, e.plexTv),
+            FreeServices.pluto(http, lists, device, com.cosmotune.watch.plugins.free.PlutoVod(http, BuiltInPlugins.PLUTO, device, e.plutoBoot, e.plutoVod, config.now)),
+            FreeServices.samsung(http, lists),
+            FreeServices.plex(http, lists, device, e.plexVod, e.plexTv, e.plexEpg),
             InternetArchivePlugin(http, e.archive),
             YouTubeFreePlugin(config.videoSource),
             stremio(BuiltInPlugins.PUBLIC_DOMAIN, e.publicDomain),

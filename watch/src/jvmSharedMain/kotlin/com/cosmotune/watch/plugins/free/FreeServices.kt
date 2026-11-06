@@ -15,31 +15,93 @@ import com.cosmotune.watch.plugin.CatalogDef
 import com.cosmotune.watch.plugin.Capability
 import com.cosmotune.watch.plugin.PluginKind
 import com.cosmotune.watch.plugin.WatchPlugin
-import com.cosmotune.watch.plugins.iptv.GuideCache
-import com.cosmotune.watch.plugins.iptv.M3uEntry
-import com.cosmotune.watch.plugins.iptv.PlaylistPlugin
+import com.cosmotune.watch.http.child
+import com.cosmotune.watch.http.int
+import com.cosmotune.watch.http.list
+import com.cosmotune.watch.http.obj
+import com.cosmotune.watch.http.str
+import com.cosmotune.watch.http.strings
+import com.cosmotune.watch.model.StreamSource
+import com.cosmotune.watch.plugins.StreamGuess
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import com.cosmotune.watch.plugins.servers.PlexPlugin
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
 /**
- * The free live services' public per-region channel lists and guides (the same lists Kodi's free-TV add-ons read). The
- * streams themselves are the services' own; a region the service does not cover falls back to the US list.
+ * The free live services' public channel lists (the ones Kodi's free-TV add-ons read): per region, each channel's name,
+ * number, logo, group and its next programmes, from `<base>/<service>/.channels.json.gz`. The streams themselves are the
+ * services' own. Only the regions in [regions] (the device's country unless changed in the plugin's settings) are listed: a
+ * service not offered there shows no channels rather than pretending to be somewhere else.
  */
 class FreeLiveLists(
     val base: String = "https://i.mjh.nz",
-    /** ISO country codes, lower case; the first the service has is used. */
     val regions: () -> List<String> = { listOf("us") },
-) {
-    fun playlists(service: String) = (regions() + "us").distinct().take(2).map { "$base/$service/$it.m3u8" }
-    fun guides(service: String) = (regions() + "us").distinct().take(2).map { "$base/$service/$it.xml.gz" }
-}
+)
 
-/** A live plugin keyed by the service's own channel ids (`c:samsung:<id>`), whatever the list's tvg-id says. */
-private class ServiceLive(id: String, name: String, badge: String, kind: PluginKind, http: WatchHttp, lists: FreeLiveLists, service: String, cache: GuideCache) :
-    PlaylistPlugin(id, name, badge, kind, http, { lists.playlists(service) }, { lists.guides(service) }, cache, publicStreams = true) {
-    override fun keyOf(entry: M3uEntry): WatchKey = WatchKey.channel(id, (entry.tvgId ?: entry.name).replace(':', '_').take(48))
+/** How a service's channel becomes a stream: its address and headers, from the channel id (and the list's slug). */
+private typealias StreamOf = suspend (id: String, slug: String?) -> Pair<String, Map<String, String>>?
+
+private class ServiceLive(
+    override val id: String, override val displayName: String, override val badge: String, override val kind: PluginKind,
+    private val http: WatchHttp, private val lists: FreeLiveLists, private val service: String, private val streamOf: StreamOf,
+) : WatchPlugin {
+    override val capabilities = setOf(Capability.LIVE, Capability.EPG, Capability.SEARCH)
+    private class Loaded(val channels: List<Channel>, val programmes: Map<String, List<EpgProgramme>>, val slug: String?, val userAgent: String?)
+    private val lock = kotlinx.coroutines.sync.Mutex()
+    private var loaded: Pair<Long, Loaded>? = null
+
+    private suspend fun load(): Loaded = lock.withLock {
+        loaded?.takeIf { System.currentTimeMillis() - it.first < 3 * WatchHttp.HOUR }?.let { return it.second }
+        val root = http.getJson("${lists.base}/$service/.channels.json.gz", ttlMs = 3 * WatchHttp.HOUR)
+        val wanted = lists.regions().map { it.lowercase() }
+        val regions = root.child("regions").obj.orEmpty()
+        val entries = LinkedHashMap<String, Pair<JsonElement, String>>()
+        for (r in wanted) {
+            regions[r].child("channels").obj?.forEach { (cid, c) -> entries.putIfAbsent(cid, c to r) }
+            root.child("channels").obj?.forEach { (cid, c) -> if (r in c.strings("regions")) entries.putIfAbsent(cid, c to r) }
+        }
+        val channels = mutableListOf<Channel>()
+        val programmes = HashMap<String, List<EpgProgramme>>()
+        for ((cid, pair) in entries) {
+            val (c, region) = pair
+            channels += Channel(WatchKey.channel(id, cid), id, c.str("name") ?: continue, c.int("chno"), c.str("logo"),
+                listOf(c.str("group") ?: "General"), listOf(region), epgId = cid)
+            val starts = c.list("programs").mapNotNull { p ->
+                val a = p as? JsonArray ?: return@mapNotNull null
+                val start = (a.getOrNull(0) as? JsonPrimitive)?.content?.toLongOrNull() ?: return@mapNotNull null
+                start * 1000 to ((a.getOrNull(1) as? JsonPrimitive)?.content ?: "Programme")
+            }.sortedBy { it.first }
+            programmes[cid] = starts.mapIndexed { i, (start, title) ->
+                EpgProgramme(cid, start, starts.getOrNull(i + 1)?.first ?: (start + WatchHttp.HOUR), title)
+            }
+        }
+        Loaded(channels.sortedBy { it.number ?: Int.MAX_VALUE }, programmes, root.str("slug"), root.child("headers").str("user-agent"))
+            .also { loaded = System.currentTimeMillis() to it }
+    }
+
+    override suspend fun channels(): List<Channel> = load().channels
+
+    override suspend fun guide(channels: List<Channel>, fromMs: Long, toMs: Long): List<EpgProgramme> {
+        val all = load().programmes
+        return channels.filter { it.pluginId == id }.flatMap { all[it.epgId].orEmpty() }.filter { it.stopMs > fromMs && it.startMs < toMs }
+    }
+
+    override suspend fun streams(target: PlayTarget): List<Stream> {
+        val channel = (target as? PlayTarget.Live)?.channel?.takeIf { it.pluginId == id } ?: return emptyList()
+        val l = load()
+        val cid = channel.epgId ?: return emptyList()
+        val (url, headers) = streamOf(cid, l.slug?.replace("{id}", cid)) ?: return emptyList()
+        val all = buildMap { l.userAgent?.let { put("User-Agent", it) }; putAll(headers) }
+        return listOf(Stream(StreamSource(id, displayName, badge), "Live", channel.categories.firstOrNull(), url, StreamGuess.protocol(url),
+            headers = all, isLive = true, hasAds = true, isPublic = headers.isEmpty() && StreamGuess.isHttps(url)))
+    }
+
+    override suspend fun health(): String? = runCatching { if (load().channels.isEmpty()) "Not offered in your region" else null }.getOrElse { it.message }
 }
 
 /** Live channels from [live] and on-demand films and series from the other parts, as one plugin with one switch. */
@@ -71,19 +133,24 @@ class LiveAndVodPlugin(
 }
 
 object FreeServices {
-    fun samsung(http: WatchHttp, lists: FreeLiveLists, cache: GuideCache): WatchPlugin =
-        ServiceLive(BuiltInPlugins.SAMSUNG, "Samsung TV Plus", "TV+", PluginKind.SAMSUNG_TV_PLUS, http, lists, "SamsungTVPlus", cache)
+    fun samsung(http: WatchHttp, lists: FreeLiveLists): WatchPlugin =
+        ServiceLive(BuiltInPlugins.SAMSUNG, "Samsung TV Plus", "TV+", PluginKind.SAMSUNG_TV_PLUS, http, lists, "SamsungTVPlus") { cid, slug ->
+            // The list's slug names Samsung's own stream for the channel; the redirect resolves it to Samsung's address.
+            "https://jmp2.uk/${slug ?: "stvp-$cid"}" to emptyMap()
+        }
 
-    fun pluto(http: WatchHttp, lists: FreeLiveLists, cache: GuideCache, clientId: String, vod: PlutoVod = PlutoVod(http, BuiltInPlugins.PLUTO, clientId)): WatchPlugin =
+    fun pluto(http: WatchHttp, lists: FreeLiveLists, clientId: String, vod: PlutoVod = PlutoVod(http, BuiltInPlugins.PLUTO, clientId)): WatchPlugin =
         LiveAndVodPlugin(BuiltInPlugins.PLUTO, "Pluto TV", "PLUTO", PluginKind.PLUTO_TV,
-            ServiceLive(BuiltInPlugins.PLUTO, "Pluto TV", "PLUTO", PluginKind.PLUTO_TV, http, lists, "PlutoTV", cache),
+            ServiceLive(BuiltInPlugins.PLUTO, "Pluto TV", "PLUTO", PluginKind.PLUTO_TV, http, lists, "PlutoTV") { cid, _ -> vod.channelStream(cid) to emptyMap() },
             catalogsOf = vod::catalogs, pageOf = vod::page, searchOf = vod::search, titleOf = vod::title, episodesOf = vod::episodes, vodStreams = vod::streams)
 
-    fun plex(http: WatchHttp, lists: FreeLiveLists, cache: GuideCache, clientId: String, vodBase: String = "https://vod.provider.plex.tv",
-        plexTv: String = "https://plex.tv"): WatchPlugin {
+    fun plex(http: WatchHttp, lists: FreeLiveLists, clientId: String, vodBase: String = "https://vod.provider.plex.tv",
+        plexTv: String = "https://plex.tv", epgBase: String = "https://epg.provider.plex.tv"): WatchPlugin {
         val vod = PlexPlugin(BuiltInPlugins.PLEX, "Plex", "PLEX", PluginKind.PLEX_FREE, http, vodBase, { PlexPlugin.anonymousToken(http, clientId, plexTv) }, clientId)
         return LiveAndVodPlugin(BuiltInPlugins.PLEX, "Plex free", "PLEX", PluginKind.PLEX_FREE,
-            ServiceLive(BuiltInPlugins.PLEX, "Plex", "PLEX", PluginKind.PLEX_FREE, http, lists, "Plex", cache),
+            ServiceLive(BuiltInPlugins.PLEX, "Plex", "PLEX", PluginKind.PLEX_FREE, http, lists, "Plex") { cid, _ ->
+                "$epgBase/library/parts/$cid.m3u8" to mapOf("X-Plex-Token" to vod.token(), "X-Plex-Client-Identifier" to clientId)
+            },
             catalogsOf = vod::catalogs, pageOf = vod::catalogPage, searchOf = { vod.search(it, null) }, titleOf = vod::title,
             vodStreams = vod::streams)
     }
