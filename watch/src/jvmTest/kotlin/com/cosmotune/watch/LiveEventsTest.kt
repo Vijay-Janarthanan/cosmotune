@@ -65,6 +65,8 @@ class LiveEventsTest {
             assertEquals("IND 176/4 (18.2) · AUS 179/8 (20)", live.scoreText)
             assertEquals("176/4 (18.2 ov)", live.teams.first { it.name == "India" }.score)
             assertEquals("in", live.teams.first().country)
+            assertEquals(listOf(true, false), live.teams.map { it.batting }, "India's innings is the one in progress")
+            assertTrue(events[2].teams.none { it.batting }, "nobody bats in a finished match")
             assertEquals(listOf("in", "au"), live.countries)
             assertEquals("India need 4 runs in 10 balls", live.statusText)
             assertEquals(1_762_450_200_000L, live.startMs)

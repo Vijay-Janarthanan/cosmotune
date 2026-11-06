@@ -18,6 +18,8 @@ data class LiveTeam(
     val score: String? = null,
     /** ISO 3166-1 alpha-2 lower case for a national side ("in"), null for a club or franchise. */
     val country: String? = null,
+    /** Cricket: this side is batting now (the innings in progress is theirs). False when unknown, and for other sports. */
+    val batting: Boolean = false,
 )
 
 /**

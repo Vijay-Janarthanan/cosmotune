@@ -257,7 +257,7 @@ class FakeWatchRepository(
         val minute = 60_000L
         emit(listOf(
             LiveEvent("cricket:fake:ind-aus-t20-2", LiveEventKind.CRICKET, "India v Australia, 2nd T20I", "Australia tour of India",
-                listOf(LiveTeam("India", "IND", score = "176/4 (18.2 ov)", country = "in"), LiveTeam("Australia", "AUS", score = "179/8 (20 ov)", country = "au")),
+                listOf(LiveTeam("India", "IND", score = "176/4 (18.2 ov)", country = "in", batting = true), LiveTeam("Australia", "AUS", score = "179/8 (20 ov)", country = "au")),
                 scoreText = "IND 176/4 (18.2) · AUS 179/8 (20)", statusText = "India need 4 runs from 10 balls", status = LiveEventStatus.LIVE,
                 startMs = t - 190 * minute, countries = listOf("in", "au"),
                 watchOptions = listOf(WatchOption("DD Sports", PlayTarget.Live(ddSports), ddSports, "DD")), source = "CricketData.org", updatedAtMs = t),

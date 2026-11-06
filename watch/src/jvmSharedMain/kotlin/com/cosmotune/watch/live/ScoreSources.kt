@@ -123,6 +123,10 @@ class CricketDataScores(private val http: WatchHttp, private val key: String, pr
         if (league == null && nations.any { it == null }) return null
         val info = m.list("teamInfo")
         val innings = m.list("score")
+        val started = m.bool("matchStarted") == true
+        val ended = m.bool("matchEnded") == true
+        // The innings listed last is the one in progress while the match is on.
+        val battingNow = innings.lastOrNull()?.str("inning")?.let { last -> teamNames.filter { last.startsWith(it, ignoreCase = true) }.maxByOrNull { it.length } }
         val teams = teamNames.mapIndexed { i, team ->
             val ti = info.firstOrNull { it.str("name").equals(team, true) }
             val mine = innings.filter { it.str("inning")?.startsWith(team, ignoreCase = true) == true }
@@ -131,9 +135,7 @@ class CricketDataScores(private val http: WatchHttp, private val key: String, pr
                 buildString { append(r); if (w != null && w < 10) append("/").append(w); if (o != null) append(" (").append(overs(o)).append(" ov)") }
             }.ifBlank { null }
             LiveTeam(team, ti?.str("shortname"), ti?.str("img")?.takeUnless { it.contains("icon512") }, score, nations[i]?.takeIf { it.isNotEmpty() })
-        }
-        val started = m.bool("matchStarted") == true
-        val ended = m.bool("matchEnded") == true
+        }.map { it.copy(batting = started && !ended && it.name == battingNow) }
         val status = when { ended -> LiveEventStatus.FINISHED; started -> LiveEventStatus.LIVE; else -> LiveEventStatus.UPCOMING }
         val scoreText = teams.filter { it.score != null }.joinToString(" · ") { "${it.shortName ?: it.name} ${it.score!!.replace(" ov)", ")")}" }.ifBlank { null }
         val segments = fullName.split(',').map { it.trim() }

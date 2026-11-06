@@ -51,7 +51,7 @@ Sources list.
 fails: a score source that is not set up or does not answer is left out.
 
 `LiveEvent`: `id` (stable), `kind` (`CRICKET`, `FOOTBALL`, `SHOW`), `title` ("India v Australia, 2nd T20I"), `competition`
-("IPL 2027", "Premier League"), `teams` (`LiveTeam`: `name`, `shortName`, `logoUrl`, `score`, `country`), `scoreText` (the
+("IPL 2027", "Premier League"), `teams` (`LiveTeam`: `name`, `shortName`, `logoUrl`, `score`, `country`, `batting`: cricket's side batting now, false when unknown), `scoreText` (the
 whole score on one line, null before the start), `statusText` ("India need 4 runs from 10 balls", "67'", "Full time"),
 `status` (`LIVE`, `UPCOMING`, `FINISHED`; `isLive`), `startMs`, `countries`, `languages`, `imageUrl`, `watchOptions`,
 `source` (the attribution line: "CricketData.org", "football-data.org", "TheSportsDB", "YouTube") and `updatedAtMs`.
