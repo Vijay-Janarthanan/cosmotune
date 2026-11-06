@@ -213,7 +213,7 @@ class DesktopShellContractTest {
         assertTrue("val ink = if (selected) look.ground else" in code, "with the ground's colour for its words")
         assertTrue("background(if (look.dark) PEACH_INK else PEACH)" in code, "and a small peach dot")
         assertTrue("Disc(imageUrl, PLAYLIST_DISC)" in code && "private val PLAYLIST_DISC = 34.dp" in nav, "playlists are 34 dp discs")
-        assertTrue("LocalRoomLauncher.current?.takeIf { it.inRoom } ?: return" in code && "background(ROOM_FILL)" in code, "the room card is the indigo one, only in a room")
+        assertTrue("LocalRoomLauncher.current?.takeIf { it.inRoom } ?: return" in code && "val tone = roomCardColors(orbitLook())" in code && "background(tone.fill)" in code, "the room card is the room's colour card (indigo, or lavender in light), only in a room")
         assertTrue("selectable(" in code && "Role.Tab" in code && "cosmoFocusRing(" in code, "a chip is one selectable tab with a visible focus ring")
         assertTrue("forText(" in code, "names in Indian scripts get the taller line")
     }

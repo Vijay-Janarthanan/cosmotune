@@ -133,9 +133,15 @@ object MusicCandidateService {
         val songs = rows.map { it.song }
         val learned = LocalRecommendations.localScores(current.history.firstOrNull() ?: current.library.firstOrNull(), songs)
         val scores = songs.indices.associate { songs[it].videoId to learned[it] }
+        // A song shows on one of these shelves only: Rediscover used to repeat Daily mix's songs. Each shelf asks for more than it
+        // shows and leaves out what an earlier one already holds.
+        val shown = HashSet<String>()
         return listOf(MusicPlaylistKind.DAILY_MIX, MusicPlaylistKind.REDISCOVER, MusicPlaylistKind.FOLLOWED_RELEASES).mapNotNull { kind ->
-            val chosen = MusicDiscoveryRanker.select(rows, current, kind, limit = 24, hidden = LocalPreferenceLearning::lessLikeThis,
+            val chosen = MusicDiscoveryRanker.select(rows, current, kind, limit = 48, hidden = LocalPreferenceLearning::lessLikeThis,
                 adjustment = { song -> scores[song.videoId].orZero() + if (LocalPreferenceLearning.explicitlyLiked(song)) .4f else 0f })
+                .filter { MusicRecordingIdentity.key(it.song) !in shown && it.song.videoId !in shown }
+                .take(24)
+            chosen.forEach { shown += MusicRecordingIdentity.key(it.song); shown += it.song.videoId }
             if (chosen.isEmpty()) null else HomeShelf(kind.title, chosen.map { row ->
                 val song = row.song; ShelfItem(song.title, song.artist, song.thumbnailUrl, song.videoId, null, song)
             }, subtitle = when (kind) {
