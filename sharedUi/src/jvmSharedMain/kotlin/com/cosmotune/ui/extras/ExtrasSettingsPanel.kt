@@ -96,6 +96,23 @@ fun ColumnScope.ExtrasSettingsPanel(settings: ExtrasSettings, extraRows: @Compos
         steps = 23,
         onChange = { settings.setPitchSemitones(it.roundToInt()) },
     )
+    val spatialPreset by settings.spatialPreset.collectAsState()
+    val spatialSurround by settings.spatialSurround.collectAsState()
+    ExtrasChoice(
+        title = "Spatial audio style",
+        detail = "What the stereo widening switch in Settings does while it is on. ${spatialPreset.detail}.",
+        options = com.cosmotune.audio.SpatialPreset.entries,
+        selected = spatialPreset,
+        label = { it.label },
+        onSelect = settings::setSpatialPreset,
+    )
+    ExtrasSwitch(
+        title = "Binaural surround",
+        detail = "With that switch on, a 5.1 or 7.1 stream is rendered to two ears from the usual speaker positions " +
+            "instead of being folded down. For headphones; Dolby Atmos keeps Dolby's own rendering.",
+        checked = spatialSurround,
+        onChange = settings::setSpatialSurround,
+    )
     extraRows()
 
     ExtrasHeader("Lyrics")

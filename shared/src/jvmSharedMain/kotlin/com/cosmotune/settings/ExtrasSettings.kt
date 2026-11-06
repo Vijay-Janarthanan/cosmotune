@@ -1,5 +1,6 @@
 package com.cosmotune.settings
 
+import com.cosmotune.audio.SpatialPreset
 import com.cosmotune.music.data.NetworkPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,8 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val offlineFlow = MutableStateFlow(store.getBoolean(KEY_OFFLINE, false))
     private val proxyFlow = MutableStateFlow(readProxy())
     private val autoLyricsOffsetFlow = MutableStateFlow(store.getBoolean(KEY_AUTO_LYRICS_OFFSET, true))
+    private val spatialPresetFlow = MutableStateFlow(SpatialPreset.named(store.getString(KEY_SPATIAL_PRESET, SpatialPreset.DEFAULT.name)))
+    private val spatialSurroundFlow = MutableStateFlow(store.getBoolean(KEY_SPATIAL_SURROUND, false))
 
     /** The loudest the app plays, in percent of full scale; 100 is no cap. Applied after every other stage. */
     val maxVolumePercent: StateFlow<Int> = maxVolumeFlow.asStateFlow()
@@ -39,8 +42,24 @@ class ExtrasSettings(private val store: KeyValueStore) {
      */
     val autoLyricsOffset: StateFlow<Boolean> = autoLyricsOffsetFlow.asStateFlow()
 
+    /** What the spatial-audio switch (the existing one in Settings) renders while it is on; see [SpatialPreset]. */
+    val spatialPreset: StateFlow<SpatialPreset> = spatialPresetFlow.asStateFlow()
+
+    /** With the spatial switch on, a 5.1 or 7.1 stream is rendered to two ears instead of folded down. */
+    val spatialSurround: StateFlow<Boolean> = spatialSurroundFlow.asStateFlow()
+
     init {
         publishNetwork()
+    }
+
+    fun setSpatialPreset(value: SpatialPreset) {
+        spatialPresetFlow.value = value
+        store.putString(KEY_SPATIAL_PRESET, value.name)
+    }
+
+    fun setSpatialSurround(value: Boolean) {
+        spatialSurroundFlow.value = value
+        store.putBoolean(KEY_SPATIAL_SURROUND, value)
     }
 
     fun setAutoLyricsOffset(value: Boolean) {
@@ -106,6 +125,8 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_PROXY_USER = "extras_proxy_user"
         const val KEY_PROXY_PASSWORD = "extras_proxy_password"
         const val KEY_AUTO_LYRICS_OFFSET = "extras_auto_lyrics_offset"
+        const val KEY_SPATIAL_PRESET = "extras_spatial_preset"
+        const val KEY_SPATIAL_SURROUND = "extras_spatial_surround"
 
         const val MIN_VOLUME_PERCENT = 10
 

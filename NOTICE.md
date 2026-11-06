@@ -101,6 +101,9 @@ its Mochy source in its comment, and the list below is kept up to date with `UPS
 - Lyrics auto offset: Mochy's `lyrics/VocalActivity.kt`, `lyrics/LyricsAligner.kt` and `lyrics/Fft.kt`, ported with
   their algorithm unchanged (float input instead of 16-bit, Cosmotune's lyric lines instead of Mochy's), and the thresholds of
   its `lyrics/LyricsAutoSync.kt` (`shared/.../lyrics/autosync/`). Those files' headers name their source.
+- Spatial audio: the bs2b crossfeed and Brown and Duda's spherical-head renderer of Mochy's `eq/audio/SpatialAudioProcessor.kt`
+  (virtual speakers, binaural surround, mono), in `shared/.../audio/SpatialDsp.kt`, which names its source. bs2b is Boris
+  Mikhaylov's Bauer stereophonic-to-binaural filter (https://bs2b.sourceforge.net/); only its published coefficients are used.
 
 ## Video mode
 

@@ -24,24 +24,24 @@ class DesktopSpatialAudioTest {
     }
 
     @Test
-    fun `widening increases the side signal and keeps the mid`() {
+    fun `crossfeed blends the sides towards each other and keeps the mid`() {
         val spatial = DesktopSpatialAudio(2, rate).apply { enabled = true }
-        val samples = stereo(frames = 4_000)
+        val samples = stereo(frames = 20_000)
         val sideBefore = sideEnergy(samples)
         val midBefore = midEnergy(samples)
 
         spatial.process(samples, samples.size)
 
-        // The whole point: the difference between the channels grows.
-        assertTrue(sideEnergy(samples) > sideBefore * 1.5, "side did not widen")
-        // And the centre survives roughly intact — a widener that hollows out the vocal is the
-        // classic way this goes wrong.
+        // The default preset is bs2b crossfeed: a little of each side reaches the other ear, so the
+        // difference between the channels shrinks rather than grows.
+        assertTrue(sideEnergy(samples) < sideBefore * 0.95, "the sides were not blended")
+        // And the centre survives roughly intact.
         val midAfter = midEnergy(samples)
         assertTrue(midAfter > midBefore * 0.5, "mid collapsed from $midBefore to $midAfter")
     }
 
     @Test
-    fun `it declines anything that is not stereo`() {
+    fun `it declines a mono track`() {
         val spatial = DesktopSpatialAudio(1, rate).apply { enabled = true }
         val samples = FloatArray(1_000) { sin(it * 0.01).toFloat() }
         val original = samples.copyOf()

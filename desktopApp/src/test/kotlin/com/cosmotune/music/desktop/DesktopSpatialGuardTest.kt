@@ -25,7 +25,7 @@ class DesktopSpatialGuardTest {
     }
 
     @Test
-    fun `the widener leaves a mono track alone and widens a stereo one`() {
+    fun `spatial audio leaves a mono track alone and renders a stereo one`() {
         val rate = 44_100
 
         // Mono has no mid and side to widen, and Android declines it rather than mangling it — the
@@ -37,19 +37,18 @@ class DesktopSpatialGuardTest {
         mono.process(monoSamples, monoSamples.size)
         assertTrue(monoSamples.contentEquals(untouched), "a mono track was widened anyway")
 
-        // Stereo is widened: the difference between the channels grows.
+        // Stereo goes through the crossfeed: the difference between the channels changes.
         val stereo = DesktopSpatialAudio(2, rate).apply { enabled = true }
-        val samples = FloatArray(8_000) { index ->
+        val samples = FloatArray(40_000) { index ->
             val frame = index / 2
             val phase = if (index % 2 == 0) 0.0 else 0.6
             (sin(2.0 * PI * 440 * frame / rate + phase) * 0.5).toFloat()
         }
         val before = side(samples)
         stereo.process(samples, samples.size)
-        assertTrue(side(samples) > before * 1.5, "stereo was not widened")
-        // And nothing left the representable range in a way a sink would clip catastrophically —
-        // the widener has makeup attenuation for this.
-        assertTrue(samples.all { abs(it) < 2f }, "widening blew the signal up")
+        assertTrue(abs(side(samples) - before) > before * 0.05, "stereo was not processed")
+        // And nothing left the representable range in a way a sink would clip catastrophically.
+        assertTrue(samples.all { abs(it) < 2f }, "spatial audio blew the signal up")
     }
 
     private fun side(samples: FloatArray): Double {
