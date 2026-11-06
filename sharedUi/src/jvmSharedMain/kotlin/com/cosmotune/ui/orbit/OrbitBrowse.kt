@@ -279,7 +279,10 @@ internal fun orbitRecordGrid(width: Dp, side: Dp): Pair<Int, Dp> {
     return columns to (room - gap * (columns - 1)) / columns
 }
 
-/** An artist as a plain portrait: a round photo [size] wide and the name under it, centred. No play moon: a tap opens them. */
+/**
+ * An artist as a plain portrait: a round photo [size] wide and the name under it, centred. No play moon: a tap opens them. With no
+ * [onClick] (a film's cast, who have no page) it is a picture and a name, not a button.
+ */
 @Composable
 internal fun OrbitPortrait(
     title: String,
@@ -287,12 +290,13 @@ internal fun OrbitPortrait(
     size: Dp,
     fonts: OrbitFonts,
     look: OrbitLook,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
 ) {
     Column(
-        modifier.width(size).clip(RoundedCornerShape(16.dp)).longPressMenuClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick),
+        modifier.width(size).clip(RoundedCornerShape(16.dp))
+            .then(if (onClick != null) Modifier.longPressMenuClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick) else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Disc(cover, size)

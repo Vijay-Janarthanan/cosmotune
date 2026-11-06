@@ -315,7 +315,8 @@ private fun PeopleAndMore(page: Title, actions: WatchActions, fonts: OrbitFonts,
             LazyRow(contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 itemsIndexed(page.cast.take(16), key = { i, p -> p.name + i }) { _, person ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        OrbitPortrait(person.name, person.photoUrl, 96.dp, fonts, look, onClick = {})
+                        // The cast have no page of their own: the portrait is not a button that does nothing.
+                        OrbitPortrait(person.name, person.photoUrl, 96.dp, fonts, look, onClick = null)
                         person.role?.let { Text(it, style = fonts.body.copy(fontSize = 11.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(96.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                     }
                 }
