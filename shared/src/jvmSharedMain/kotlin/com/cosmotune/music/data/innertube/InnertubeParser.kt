@@ -509,6 +509,22 @@ object InnertubeParser {
         return out.values.toList()
     }
 
+    /**
+     * The day each row of the history page stands under ("Today", "Yesterday", "This week", a month): the history is a column of
+     * shelves, one per day, and [collectSongsDeep] flattens them. A song played on two days keeps the first (latest) one.
+     */
+    fun historyDays(root: JsonElement): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        for (shelf in collectRenderers(root, "musicShelfRenderer")) {
+            val day = shelf.o("title").runs().trim().takeIf { it.isNotEmpty() } ?: continue
+            for (row in collectRenderers(shelf, "musicResponsiveListItemRenderer")) {
+                val id = parseResponsiveListItem(row)?.videoId ?: continue
+                out.putIfAbsent(id, day)
+            }
+        }
+        return out
+    }
+
     /** A playlist page's own tracks, the ones YouTube suggests adding, and the token for the rest. */
     data class PlaylistShelfPage(val songs: List<Song>, val suggested: List<Song>, val continuation: String?)
 

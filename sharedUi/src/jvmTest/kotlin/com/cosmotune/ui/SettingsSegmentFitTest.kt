@@ -128,9 +128,10 @@ class SettingsSegmentFitTest {
     @Test fun theSegmentUsesTheseNumbers() {
         val src = SourceContract.code(SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/settings/CosmoSettingsBlocks.kt"))
         val segment = src.substringAfter("private fun SettingsSegment(")
-        assertTrue("val check = ControlMetrics.settingsSegmentShowsCheck(selected, compact, count)" in segment)
-        assertTrue(".padding(horizontal = ControlMetrics.SEGMENT_FILL_PADDING_DP.dp)," in segment)
-        assertTrue("Arrangement.spacedBy(ControlMetrics.SEGMENT_CHECK_GAP_DP.dp, Alignment.CenterHorizontally)" in segment)
+        // Orbit's chip (board batch-a 2) has no check mark and keeps the old ends when small, so every label has at least the room
+        // the segment gave it (the 8 dp between chips against the old 3 is less than the check it no longer draws).
+        assertTrue("ControlMetrics.settingsSegmentShowsCheck" !in segment, "no check mark in a chip")
+        assertTrue(".padding(horizontal = if (compact) ControlMetrics.SEGMENT_FILL_PADDING_DP.dp else 12.dp)," in segment)
         assertTrue("autoSize = if (compact) COMPACT_SEGMENT_FIT else SEGMENT_FIT," in segment)
         assertTrue(
             "FitLabel(ControlMetrics.settingsSegmentLabelMaxSp(compact = false), ControlMetrics.SEGMENT_LABEL_MIN_SP, 0.5f, wholeWords = false)" in src &&

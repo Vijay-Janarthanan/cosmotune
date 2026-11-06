@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -78,6 +80,8 @@ internal fun OrbitSongRow(
                 else Modifier,
             )
             .contextClick(onLongClick.takeIf { enabled })
+            // A screen reader hears which row plays, as the eye sees its peach.
+            .then(if (now) Modifier.semantics { stateDescription = "Now playing" } else Modifier)
             .padding(start = if (leading != null) 4.dp else 10.dp, end = endPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {

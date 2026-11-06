@@ -1,0 +1,184 @@
+package com.cosmotune.ui.orbit
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.cosmotune.ui.components.CosmoIcons
+
+/*
+ * The pieces of Batch A's quiet pages (Canvas repo, design/cosmotune/batch-a/board.html): the stat card a list page leads with
+ * (section 1: the space Downloads takes, with its peach bar), the account card that leads Settings (section 2: Home's colour card
+ * with the picture as a disc and the sync status, no bite because nothing plays) and the category tile of the settings home (an
+ * icon tile, the name and a one-line summary).
+ */
+
+/**
+ * One quiet stat card (board 1, the right column): ink at 8 %, radius 30, the mono [label], [title] in the wide face, a peach bar
+ * filled to [fraction] when there is one (the share of the disk the downloads take), and [line] under it in the dim ink.
+ */
+@Composable
+internal fun OrbitStatCard(
+    label: String,
+    title: String,
+    line: String?,
+    fonts: OrbitFonts,
+    look: OrbitLook,
+    modifier: Modifier = Modifier,
+    fraction: Float? = null,
+) {
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp)).background(look.chip).padding(20.dp)) {
+        OrbitLabel(label, fonts, look.dim)
+        Text(
+            title, style = fonts.heroTitle.copy(fontSize = 24.sp, lineHeight = 27.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        if (fraction != null) {
+            Box(Modifier.padding(top = 16.dp).fillMaxWidth().height(8.dp).clip(CircleShape).background(look.ink.copy(alpha = 0.12f))) {
+                Box(Modifier.fillMaxWidth(fraction.coerceIn(0.02f, 1f)).height(8.dp).clip(CircleShape).background(look.accent))
+            }
+        }
+        if (!line.isNullOrBlank()) {
+            Text(line, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+}
+
+/**
+ * The account card that leads Settings: a flat colour card from the picture ([coverFill]; a deep stand-in without one), the picture
+ * as a disc (the user glyph on a faint disc when there is none), the mono [label] ("Account · Google"), the [name] in the wide face
+ * and the [line] under it (the sync status). No bite: nothing plays here. [compact] is the phone's (a 72 dp disc).
+ */
+@Composable
+internal fun OrbitAccountCard(
+    label: String,
+    name: String,
+    line: String?,
+    pictureUrl: String?,
+    fonts: OrbitFonts,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
+    val (fill, ink) = coverFill(pictureUrl, "account:$name")
+    val disc = if (compact) 72.dp else 96.dp
+    Row(
+        modifier.fillMaxWidth().heightIn(min = if (compact) 120.dp else 150.dp).clip(RoundedCornerShape(32.dp)).background(fill)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .padding(if (compact) 18.dp else 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 14.dp else 18.dp),
+    ) {
+        Box(Modifier.size(disc).clip(CircleShape).background(ink.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Icon(CosmoIcons.User, contentDescription = null, tint = ink, modifier = Modifier.size(disc * 0.42f))
+            if (pictureUrl != null) Disc(pictureUrl, disc)
+        }
+        Column(Modifier.weight(1f)) {
+            OrbitLabel(label, fonts, ink.copy(alpha = 0.75f))
+            Text(
+                name, style = fonts.heroTitle.copy(fontSize = if (compact) 22.sp else 26.sp, lineHeight = if (compact) 25.sp else 29.sp), color = ink,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp),
+            )
+            if (!line.isNullOrBlank()) {
+                Text(line, style = fonts.body.copy(fontSize = 13.sp), color = ink.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+        if (onClick != null) Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = ink.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+    }
+}
+
+/**
+ * A category of the settings home (board 2, `.tile`): radius 26, ink at 5 %, a 44 dp icon tile in the category's [fill] with a white
+ * glyph, the [title] and the one-line [summary]. [stacked] puts the icon over the text (a narrow cell: the phone's two columns).
+ * [selected] (not null: the tile is a tab, the desktop's list beside the page) true is solid ink with the ground's colour for its text.
+ * [summaryLines] lets a search result say where it lives and what it does.
+ */
+@Composable
+internal fun OrbitSettingsTile(
+    icon: ImageVector,
+    fill: Color,
+    title: String,
+    summary: String,
+    fonts: OrbitFonts,
+    look: OrbitLook,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean? = null,
+    stacked: Boolean = false,
+    summaryLines: Int = 1,
+) {
+    val on = selected == true
+    val ink = if (on) look.ground else look.ink
+    val dim = if (on) look.ground.copy(alpha = 0.72f) else look.dim
+    Box(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(if (on) look.ink else look.row)
+            .then(if (selected != null) Modifier.selectable(selected, role = Role.Tab, onClick = onClick) else Modifier.clickable(role = Role.Button, onClick = onClick)),
+        contentAlignment = if (stacked) Alignment.TopStart else Alignment.CenterStart,
+    ) {
+        val iconTile = @Composable {
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(fill), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+            }
+        }
+        val text = @Composable { m: Modifier ->
+            Column(m) {
+                Text(title, style = fonts.title.copy(fontSize = 14.5.sp), color = ink, maxLines = if (stacked) 2 else 1, overflow = TextOverflow.Ellipsis)
+                Text(summary, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = dim, maxLines = summaryLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+        if (stacked) {
+            Column(Modifier.padding(16.dp)) {
+                iconTile()
+                Spacer(Modifier.height(12.dp))
+                text(Modifier)
+            }
+        } else {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                iconTile()
+                Spacer(Modifier.width(14.dp))
+                text(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** [count] cells in [columns] columns [gap] apart, each row as tall as its tallest cell, as the settings home lays its tiles. */
+@Composable
+internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 12.dp, columns: Int = 2, cell: @Composable (Int, Modifier) -> Unit) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(gap)) {
+        for (start in 0 until count step columns) {
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                for (i in start until start + columns) {
+                    Box(Modifier.weight(1f).fillMaxHeight()) { if (i < count) cell(i, Modifier.fillMaxHeight()) }
+                }
+            }
+        }
+    }
+}

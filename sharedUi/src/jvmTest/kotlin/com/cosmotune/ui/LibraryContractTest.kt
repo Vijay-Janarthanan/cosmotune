@@ -137,7 +137,7 @@ class LibraryContractTest {
 
     // ---- the rules ----------------------------------------------------------------------------------------------------
 
-    private val pages = listOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves")
+    private val pages = listOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves")
 
     /** The text before the `{` of every block that encloses [index], innermost first. */
     private fun enclosingHeads(code: String, index: Int): List<String> {
@@ -272,15 +272,30 @@ class LibraryContractTest {
         assertTrue("key = { index, item -> shelfKey(item, index) }" in code, "every card has a key that cannot repeat")
     }
 
-    @Test fun historyIsSongRowsWithoutDividersAndKeyedOnTheIdAndTheIndex() {
+    @Test fun historyIsOrbitRowsUnderDayLabelsKeyedOnTheIdAndTheIndex() {
         val code = SourceContract.code(lib("CosmoHistory"))
-        assertTrue("CosmoSongRow(" in code)
+        assertTrue("OrbitSongRowFor(" in code && "OrbitLabel(" in code, "Home's rows under mono day labels (board batch-a 1)")
+        assertTrue("YtMusicRepository.historyDays" in code && "historyGroups(songs, days)" in code, "the days come from the history read")
+        assertTrue("OrbitPageHeading(" in code && "title = \"History\"" in code && "OrbitStatCard(" in code, "the heading and one quiet stat card")
         assertFalse("HorizontalDivider" in code || "Divider" in code, "no dividers")
-        assertTrue("key = { \"\${songs[it].videoId}:\$it\" }" in code, "the keys of the old page")
+        assertTrue("key = { \"\${songs[group.first + it].videoId}:\${group.first + it}\" }" in code, "keyed on the id and the index")
         assertTrue("songListSkeleton(count = 10, keyPrefix = \"skeleton:history\")" in code)
         assertTrue(Regex("""MessageState\(message = state\.message, actionLabel = stringResource\(Res\.string\.retry\), onAction = onRetry\)""").containsMatchIn(code))
-        assertTrue("onClick = { onSongClick(songs, index) }" in code && "onLongPress = { onSongLongPress(song) }" in code && "onSwipeToQueue = { onSongSwipe(song) }" in code)
-        assertTrue("playingRowMatcher(songs, currentSong)" in code && "isPlaying = current && isPlaying" in code)
+        assertTrue("onClick = { onSongClick(songs, index) }" in code && "onLongClick = { onSongLongPress(song) }" in code && "onSwipe = { onSongSwipe(song) }" in code)
+        assertTrue("playingRowMatcher(songs, currentSong)" in code && "playing = current && isPlaying" in code)
+    }
+
+    @Test fun downloadsAndLocalMusicAreOnePageWithTheStatCardAndTheChips() {
+        val code = SourceContract.code(lib("CosmoDeviceMusic"))
+        assertTrue("OrbitStatCard(" in code && "fraction = if (isDownloads" in code, "Downloads shows the space used with its bar")
+        assertTrue("enum class DeviceChip" in code && "OrbitSelectChip(c.label" in code, "Songs, Artists and Albums as chips")
+        assertTrue("OrbitPortrait(" in code && "OrbitRecord(" in code && "OrbitSongRowFor(" in code, "portraits, records and Home's rows")
+        assertTrue("onDeleteSelected" in code && "onUploadSelected" in code && "PlayerBackHandler(enabled = selecting)" in code, "the selection of the old page")
+        assertTrue("LibraryColumnsBar(" in code && "LibraryColumnsLine(" in code, "the library's columns and filters")
+        val phone = SourceContract.code(SourceContract.read("app/src/main/java/com/cosmotune/music/MainActivity.kt"))
+        assertTrue("com.cosmotune.ui.library.LocalMusicSwitch(" in phone, "the phone's folders go through the switch")
+        val desktop = SourceContract.code(SourceContract.read(desktopApp))
+        assertTrue("destination == DesktopDestination.LOCAL_MUSIC && cosmoShell != null -> DesktopDeviceMusic(" in desktop && "if (cosmoShell != null) DesktopDeviceMusic(" in desktop)
     }
 
     @Test fun everyStringTheNewPagesNameExists() {
@@ -292,6 +307,6 @@ class LibraryContractTest {
             }
         }
         val files = File(SourceContract.root, library).listFiles { f -> f.extension == "kt" }.orEmpty().map { it.nameWithoutExtension }.toSet()
-        assertEquals(setOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves"), files, "the files of the library package")
+        assertEquals(setOf("CosmoLibrary", "CosmoLibraryGrid", "CosmoHistory", "CosmoDeviceMusic", "LibrarySwitch", "LibraryGridSwitch", "SourceLibraryShelves"), files, "the files of the library package")
     }
 }

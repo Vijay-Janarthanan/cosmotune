@@ -685,6 +685,7 @@ fun CosmotuneDesktopApp() {
     var listeningToolsOpen by remember { mutableStateOf(false) }
     var listeningToolsOpenOn by remember { mutableStateOf<com.cosmotune.ui.listening.ListeningTab?>(null) }
     val releasesListState = rememberLazyListState()
+    val historyListState = rememberLazyListState()
     var libraryActionTarget by remember { mutableStateOf<ShelfItem?>(null) }
     var replayPeriod by remember { mutableStateOf(DesktopReplayPeriod.ALL_TIME) }
     val replayHolder = remember { DesktopAccounts.active()?.name.orEmpty() }
@@ -4341,6 +4342,9 @@ fun CosmotuneDesktopApp() {
                             ) {
                             when (overlays.settingsPage!!) {
                                 DesktopSettingsPage.MAIN -> DesktopSettingsScreen(
+                                    accountName = activeAccount.shownName(activeProfileId),
+                                    accountAvatar = activeAccount.shownAvatar(activeProfileId),
+                                    onOpenAccounts = { overlays.accounts = true },
                                     onPlayProviderSongs = { songs, index -> playSongs(songs, index, DesktopQueueSource("Provider", PlaybackSourceType.BROWSE)) },
                                     query = settingsQuery,
                                     onQueryChange = { settingsQuery = it },
@@ -4988,6 +4992,21 @@ fun CosmotuneDesktopApp() {
                             onSongClick = { songs, index -> playSongs(songs, index, source = DesktopQueueSource(DesktopStrings["library", "Library"], PlaybackSourceType.BROWSE)) },
                             onSongLongPress = ::openMenu,
                         )
+                        // Orbit's History (board batch-a 1): the rows under their day labels, the stat card beside them.
+                        destination == DesktopDestination.HISTORY && cosmoShell != null -> {
+                            val shownHistory = remoteHistory.ifEmpty { history }
+                            com.cosmotune.ui.library.CosmoHistory(
+                                state = UiState.Success(shownHistory),
+                                listState = historyListState,
+                                onSongClick = { songs, index -> playSongs(songs, index, source = DesktopQueueSource(DesktopStrings["history", "History"], PlaybackSourceType.HISTORY)) },
+                                onSongLongPress = ::openMenu,
+                                onSongSwipe = { song -> if (DesktopAppUiHost.swipeToPlayNext.value) playNext(song) else addToQueue(song) },
+                                onRetry = {},
+                                contentPadding = sharedPagePadding,
+                                currentSong = playback.song,
+                                isPlaying = playback.isPlaying,
+                            )
+                        }
                         destination == DesktopDestination.HISTORY -> DesktopHistoryPage(
                             // The account's history when there is one, and what
                             // this computer played when there is not.
@@ -5001,7 +5020,19 @@ fun CosmotuneDesktopApp() {
                             menu = { song -> songMenu(song) },
                         )
                         destination == DesktopDestination.DOWNLOADS -> Box(Modifier.fillMaxSize()) {
-                            DesktopDownloadsPage(
+                            if (cosmoShell != null) DesktopDeviceMusic(
+                                title = DesktopStrings["downloads", "Downloads"],
+                                songs = downloads,
+                                isDownloads = true,
+                                persistenceKey = "downloaded",
+                                onSongClick = { songs, index -> playSongs(songs, index, source = DesktopQueueSource(DesktopStrings["downloads", "Downloads"], PlaybackSourceType.BROWSE)) },
+                                onSongLongPress = ::openMenu,
+                                onSongSwipe = { song -> if (DesktopAppUiHost.swipeToPlayNext.value) playNext(song) else addToQueue(song) },
+                                onFindMusic = { selectDestination(DesktopDestination.SEARCH) },
+                                contentPadding = sharedPagePadding,
+                                currentSong = playback.song,
+                                isPlaying = playback.isPlaying,
+                            ) else DesktopDownloadsPage(
                                 downloads = downloads,
                                 onFindMusic = { selectDestination(DesktopDestination.SEARCH) },
                                 onSongClick = { playSong(it, source = DesktopQueueSource(DesktopStrings["downloads", "Downloads"], PlaybackSourceType.BROWSE)) },
@@ -5020,6 +5051,19 @@ fun CosmotuneDesktopApp() {
                                 )
                             }
                         }
+                        destination == DesktopDestination.LOCAL_MUSIC && cosmoShell != null -> DesktopDeviceMusic(
+                            title = DesktopStrings["local_music", "Local Music"],
+                            songs = localSongs,
+                            isDownloads = false,
+                            persistenceKey = "local",
+                            onSongClick = { songs, index -> playSongs(songs, index, source = DesktopQueueSource(DesktopStrings["local_music", "Local Music"], PlaybackSourceType.BROWSE)) },
+                            onSongLongPress = ::openMenu,
+                            onSongSwipe = { song -> if (DesktopAppUiHost.swipeToPlayNext.value) playNext(song) else addToQueue(song) },
+                            onFindMusic = null,
+                            contentPadding = sharedPagePadding,
+                            currentSong = playback.song,
+                            isPlaying = playback.isPlaying,
+                        )
                         destination == DesktopDestination.LOCAL_MUSIC -> DesktopLocalMusicPage(
                             songs = localSongs,
                             onSongClick = { playSong(it, source = DesktopQueueSource(DesktopStrings["local_music", "Local Music"], PlaybackSourceType.BROWSE)) },
@@ -6201,6 +6245,58 @@ private fun DesktopHistoryPage(
     }
 }
 
+/**
+ * Downloads and Local Music in Orbit (board batch-a 1): the shared page, with the sort and the columns kept per folder as the old page
+ * kept them ([persistenceKey]). Shuffle plays the shown songs in a fresh order.
+ */
+@Composable
+private fun DesktopDeviceMusic(
+    title: String,
+    songs: List<Song>,
+    isDownloads: Boolean,
+    persistenceKey: String,
+    onSongClick: (List<Song>, Int) -> Unit,
+    onSongLongPress: (Song) -> Unit,
+    onSongSwipe: (Song) -> Unit,
+    onFindMusic: (() -> Unit)?,
+    contentPadding: PaddingValues,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    val persistence = remember { DesktopPersistence() }
+    var sort by remember(persistenceKey) {
+        mutableStateOf(runCatching { DesktopLibrarySort.valueOf(persistence.string("${persistenceKey}_sort", "TITLE_ASC")) }.getOrDefault(DesktopLibrarySort.TITLE_ASC))
+    }
+    var columns by remember(persistenceKey) {
+        mutableStateOf(com.cosmotune.listening.LibraryViewOptions.decode(persistence.string("${persistenceKey}_columns", "").ifBlank { null }))
+    }
+    val sorted = remember(songs, sort) { songs.sortedForDesktopLibrary(sort) }
+    com.cosmotune.ui.library.CosmoDeviceMusic(
+        title = title,
+        songs = sorted,
+        onSongClick = onSongClick,
+        onSongLongPress = onSongLongPress,
+        contentPadding = contentPadding,
+        isDownloads = isDownloads,
+        onSongSwipe = onSongSwipe,
+        onShuffle = { shown -> onSongClick(shown.shuffled(), 0) },
+        sortLabels = DesktopLibrarySort.entries.map { it.label() },
+        sortIndex = sort.ordinal,
+        onSort = { index ->
+            sort = DesktopLibrarySort.entries[index]
+            persistence.saveString("${persistenceKey}_sort", sort.name)
+        },
+        columns = columns,
+        onColumnsChange = { next ->
+            columns = next
+            persistence.saveString("${persistenceKey}_columns", next.encode())
+        },
+        onFindMusic = onFindMusic,
+        currentSong = currentSong,
+        isPlaying = isPlaying,
+    )
+}
+
 @Composable
 private fun DesktopDownloadsPage(
     downloads: List<Song>,
@@ -6483,7 +6579,11 @@ private enum class DesktopSettingsSection(val category: com.cosmotune.ui.setting
 /** How wide the settings home and its page run together, and the narrowest window that shows them side by side. */
 private val DesktopSettingsHubWidth = 1180.dp
 private val DesktopSettingsTwoPaneMin = 760.dp
-private val DesktopSettingsRailWidth = 280.dp
+private val DesktopSettingsRailWidth = 300.dp
+
+/** From this width the settings home beside the page is the board's two columns of tiles. */
+private val DesktopSettingsWideRailMin = 1080.dp
+private val DesktopSettingsWideRailWidth = 520.dp
 
 /** The section the search pass is running, so a row registers on its page. */
 private val LocalDesktopSettingsSection = compositionLocalOf<DesktopSettingsSection?> { null }
@@ -6517,6 +6617,11 @@ private fun DesktopModeLink(mode: AppMode, category: com.cosmotune.ui.settings.S
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
 private fun DesktopSettingsScreen(
+    /** Who is signed in, for the account card that leads the settings home (null: nobody). */
+    accountName: String?,
+    accountAvatar: String?,
+    /** The account card's tap: the account switcher, or signing in. */
+    onOpenAccounts: () -> Unit,
     onPlayProviderSongs: (List<Song>, Int) -> Unit,
     query: String,
     onQueryChange: (String) -> Unit,
@@ -6700,11 +6805,10 @@ private fun DesktopSettingsScreen(
                                 Spacer(Modifier.height(10.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     DesktopAutomixOptions.PHRASE_CHOICES.forEach { bars ->
-                                        FilterChip(
-                                            colors = desktopChipColors(),
+                                        SettingsChoiceChip(
                                             selected = automixPhraseBars == bars,
                                             onClick = { onAutomixPhraseBarsChange(bars) },
-                                            label = { Text(phraseBarsLabel(bars)) },
+                                            label = phraseBarsLabel(bars),
                                         )
                                     }
                                 }
@@ -6724,11 +6828,10 @@ private fun DesktopSettingsScreen(
                             Spacer(Modifier.height(10.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 AutomixPerformanceMode.entries.forEach { mode ->
-                                    FilterChip(
-                                        colors = desktopChipColors(),
+                                    SettingsChoiceChip(
                                         selected = automixPerformance == mode,
                                         onClick = { onAutomixPerformanceChange(mode) },
-                                        label = { Text(mode.label()) },
+                                        label = mode.label(),
                                     )
                                 }
                             }
@@ -6987,11 +7090,10 @@ private fun DesktopSettingsScreen(
                                 Spacer(Modifier.height(10.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     DesktopBackdrop.entries.forEach { option ->
-                                        FilterChip(
-                                            colors = desktopChipColors(),
+                                        SettingsChoiceChip(
                                             selected = backdropChoice == option,
                                             onClick = { DesktopWindowBackdrop.set(option) },
-                                            label = { Text(option.label) },
+                                            label = option.label,
                                         )
                                     }
                                 }
@@ -7095,11 +7197,10 @@ private fun DesktopSettingsScreen(
                     Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             DesktopAudioQuality.entries.forEach { rung ->
-                                FilterChip(
-                                    colors = desktopChipColors(),
+                                SettingsChoiceChip(
                                     selected = audioQuality == rung,
                                     onClick = { onAudioQualityChange(rung) },
-                                    label = { Text(rung.label) },
+                                    label = rung.label,
                                 )
                             }
                         }
@@ -7137,11 +7238,10 @@ private fun DesktopSettingsScreen(
                     Column(Modifier.fillMaxWidth().padding(horizontal = settingsInset, vertical = 12.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf("PCM_16" to "16-bit PCM", "FLOAT_32" to "32-bit float").forEach { (value, label) ->
-                                FilterChip(
-                                    colors = desktopChipColors(),
+                                SettingsChoiceChip(
                                     selected = outputPrecision == value,
                                     onClick = { onOutputPrecisionChange(value) },
-                                    label = { Text(label) },
+                                    label = label,
                                 )
                             }
                         }
@@ -7166,11 +7266,10 @@ private fun DesktopSettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         listOf("STANDARD" to "Standard", "HIGH" to "High", "LOSSLESS" to "Lossless").forEach { (value, label) ->
-                            FilterChip(
-                                colors = desktopChipColors(),
+                            SettingsChoiceChip(
                                 selected = downloadQuality == value,
                                 onClick = { onDownloadQualityChange(value) },
-                                label = { Text(label) },
+                                label = label,
                             )
                         }
                     }
@@ -7457,14 +7556,14 @@ private fun DesktopSettingsScreen(
                                 Spacer(Modifier.height(8.dp))
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     listOf("360p", "480p", "720p", "1080p").forEach { res ->
-                                        FilterChip(
-                                            colors = FilterChipDefaults.filterChipColors(
+                                        SettingsChoiceChip(
+                                            selected = openCanvasResolution.equals(res, ignoreCase = true),
+                                            onClick = { DesktopAppearanceSettings.setOpenCanvasResolution(res) },
+                                            label = res,
+                                            materialColors = FilterChipDefaults.filterChipColors(
                                                 selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                                                 selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
                                             ),
-                                            selected = openCanvasResolution.equals(res, ignoreCase = true),
-                                            onClick = { DesktopAppearanceSettings.setOpenCanvasResolution(res) },
-                                            label = { Text(res) },
                                         )
                                     }
                                 }
@@ -7549,6 +7648,10 @@ private fun DesktopSettingsScreen(
                 }
             }
             DesktopSettingsSection.COLOPHON -> {
+                // Watch mode's films and series come from TMDB, whose terms ask for this line and its logo in the credits.
+                if (com.cosmotune.ui.settings.LocalSettingsCollector.current == null) {
+                    com.cosmotune.ui.settings.TmdbAttribution(Modifier.padding(top = 24.dp))
+                }
                 DesktopSettingsFooter(onLicenses = onOpenLicenses)
             }
         }
@@ -7558,6 +7661,22 @@ private fun DesktopSettingsScreen(
     DesktopSettingsPageFrame(maxWidth = DesktopSettingsHubWidth) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val twoPane = maxWidth >= DesktopSettingsTwoPaneMin
+            val wideRail = maxWidth >= DesktopSettingsWideRailMin
+            // The account card (board 2): who is signed in, where the library sync stands; it opens the account switcher.
+            val cloudStatusNow by DesktopCloud.status.collectAsState()
+            val cloudOnNow by DesktopCloud.enabled.collectAsState()
+            val cloudActivityNow by DesktopCloud.activity.collectAsState()
+            val settingsAccountCard: @Composable (Boolean) -> Unit = { compactCard ->
+                val syncLine = cloudStatusText(cloudStatusNow, cloudActivityNow, cloudOnNow, System.currentTimeMillis()).let { (title, summary) -> "$title · $summary" }
+                com.cosmotune.ui.settings.SettingsAccountCard(
+                    label = if (accountName != null) "Account · Google" else "Account",
+                    name = accountName ?: DesktopStrings["d_sign_in", "Sign in"],
+                    line = syncLine,
+                    pictureUrl = accountAvatar,
+                    onClick = onOpenAccounts,
+                    compact = compactCard,
+                )
+            }
             val current = if (selectedCategory == com.cosmotune.ui.settings.SettingsCategory.ALL && twoPane) pages.first() else selectedCategory
             val openCategory: (com.cosmotune.ui.settings.SettingsCategory) -> Unit = { category ->
                 onCategoryChange(category)
@@ -7571,22 +7690,24 @@ private fun DesktopSettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     com.cosmotune.ui.settings.SettingsHubTitle(DesktopStrings["settings", "Settings"], Modifier.weight(1f))
-                    DesktopSearchField(
+                    com.cosmotune.ui.settings.SettingsSearchPill(
                         query = settingsQuery,
                         onQueryChange = { onQueryChange(it) },
-                        onSearch = {},
                         placeholder = DesktopStrings["settings_search_hint", "Search settings"],
-                        modifier = Modifier.padding(start = 24.dp).width(320.dp),
+                        modifier = Modifier.padding(start = 24.dp, end = 16.dp).width(340.dp),
                     )
                 }
                 Row(Modifier.weight(1f).fillMaxWidth()) {
                     if (twoPane) {
+                        // The board's left column: the account card, then the categories as tiles, two columns when there is room.
                         com.cosmotune.ui.settings.SettingsCategoryRail(
                             entries = hubEntries,
                             selected = current.takeIf { !searching },
                             onSelect = openCategory,
+                            columns = if (wideRail) 2 else 1,
+                            accountCard = { settingsAccountCard(!wideRail) },
                             modifier = Modifier
-                                .width(DesktopSettingsRailWidth)
+                                .width(if (wideRail) DesktopSettingsWideRailWidth else DesktopSettingsRailWidth)
                                 .fillMaxHeight()
                                 .verticalScroll(rememberScrollState())
                                 .padding(top = 8.dp, bottom = 28.dp + LocalDesktopBottomInset.current),
@@ -7637,7 +7758,7 @@ private fun DesktopSettingsScreen(
                                         .verticalScroll(rememberScrollState())
                                         .padding(bottom = 28.dp + LocalDesktopBottomInset.current),
                                 ) {
-                                    com.cosmotune.ui.settings.SettingsHub(entries = hubEntries, onOpen = openCategory)
+                                    com.cosmotune.ui.settings.SettingsHub(entries = hubEntries, onOpen = openCategory, accountCard = { settingsAccountCard(false) })
                                 }
                             }
                             else -> CompositionLocalProvider(
@@ -8916,6 +9037,21 @@ private fun DesktopEmptyPage(icon: androidx.compose.ui.graphics.vector.ImageVect
         Text(message, color = DesktopSecondary, textAlign = TextAlign.Center)
         if (onAction != null && actionLabel != null) TextButton(onClick = onAction) { Text(actionLabel) }
     }
+}
+
+/**
+ * One option of a settings choice: with the look on, Orbit's chip (the chosen one solid ink, board 2); with it off, the old
+ * filter chip in [materialColors].
+ */
+@Composable
+private fun SettingsChoiceChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    materialColors: androidx.compose.material3.SelectableChipColors = desktopChipColors(),
+) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsChip(label = label, selected = selected, onClick = onClick)
+    FilterChip(colors = materialColors, selected = selected, onClick = onClick, label = { Text(label) })
 }
 
 /** A titled block of settings rows. */

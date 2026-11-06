@@ -138,8 +138,19 @@ object YtMusicRepository {
      * under Today and Yesterday headings that the shelf parser doesn't carry
      * through either.
      */
-    private suspend fun fetchHistory(): List<Song> =
-        InnertubeParser.collectSongsDeep(Innertube.browse(HISTORY)).distinctBy { it.videoId }
+    private suspend fun fetchHistory(): List<Song> {
+        val page = Innertube.browse(HISTORY)
+        runCatching { InnertubeParser.historyDays(page) }.getOrNull()?.let { historyDaysState.value = it }
+        return InnertubeParser.collectSongsDeep(page).distinctBy { it.videoId }
+    }
+
+    private val historyDaysState = kotlinx.coroutines.flow.MutableStateFlow<Map<String, String>>(emptyMap())
+
+    /**
+     * The day each song of the last history read stands under on YouTube Music ("Today", "Yesterday", ...), by video id, for the
+     * History page's day labels. Empty until the history is read; a song it does not name was not in that read.
+     */
+    val historyDays: kotlinx.coroutines.flow.StateFlow<Map<String, String>> get() = historyDaysState
 
     /**
      * The account's listening history, in the order YouTube Music keeps it.
