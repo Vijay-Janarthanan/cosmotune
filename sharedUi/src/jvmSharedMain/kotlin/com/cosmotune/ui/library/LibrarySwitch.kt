@@ -10,6 +10,7 @@ import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.music.data.model.HomeShelf
 import com.cosmotune.music.data.model.LibraryPage
 import com.cosmotune.music.data.model.ShelfItem
+import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
 import com.cosmotune.music.ui.screens.LibraryLink
 import com.cosmotune.music.ui.screens.LibraryScreen
@@ -20,7 +21,7 @@ import com.cosmotune.music.ui.screens.LibraryScreen
  * The parameter list is [LibraryScreen]'s, name for name and in the same order, and both branches pass every argument by name.
  * That is the seam: when upstream adds a parameter to [LibraryScreen] the old branch stops compiling, and this file is where the
  * new parameter has to be decided on, instead of silently going missing from the new page. With the new look off nothing here
- * runs but the old call.
+ * runs but the old call. The last four (the Songs chip and the Liked card's Play of the Orbit page) reach the new page only.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +46,10 @@ fun LibrarySwitch(
     deviceItems: List<ShelfItem>,
     showTitle: Boolean = true,
     sourceShelves: List<HomeShelf> = com.cosmotune.ui.library.rememberSourceLibraryShelves(),
+    currentSong: Song? = null,
+    isPlaying: Boolean = false,
+    onSongClick: ((List<Song>, Int) -> Unit)? = null,
+    onSongLongPress: ((Song) -> Unit)? = null,
 ) {
     if (LocalCosmoShell.current != null) {
         CosmoLibrary(
@@ -53,6 +58,7 @@ fun LibrarySwitch(
             onImportSpotifyPlaylist = onImportSpotifyPlaylist, onShowAll = onShowAll, replay = replay, onSignIn = onSignIn,
             onRetry = onRetry, refreshing = refreshing, onRefresh = onRefresh, pullState = pullState, modifier = modifier,
             contentPadding = contentPadding, links = links, deviceItems = deviceItems, showTitle = showTitle, sourceShelves = sourceShelves,
+            currentSong = currentSong, isPlaying = isPlaying, onSongClick = onSongClick, onSongLongPress = onSongLongPress,
         )
     } else {
         LibraryScreen(

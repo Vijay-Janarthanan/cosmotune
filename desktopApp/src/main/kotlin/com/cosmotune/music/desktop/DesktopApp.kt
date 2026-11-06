@@ -4793,7 +4793,9 @@ fun CosmotuneDesktopApp() {
                             onLoadMore = {},
                             listState = searchListState,
                             scrollResetTrigger = searchScrollReset,
-                            focusRequested = searchFocusRequested,
+                            // The sidebar's field answers Ctrl K and the destination's focus request; the page's pill
+                            // takes the focus only when clicked, so typing in the sidebar is never interrupted.
+                            focusRequested = false,
                             onFocusHandled = { searchFocusRequested = false },
                             onSongClick = { songs, index ->
                                 songs.getOrNull(index)?.let { song ->
@@ -4858,7 +4860,8 @@ fun CosmotuneDesktopApp() {
                             onTypeaheadLongPress = ::openMenu,
                             contentPadding = sharedPagePadding,
                             topPadding = 0.dp,
-                            showField = false,
+                            // Orbit's big search pill heads the page, bound to the same query as the sidebar's field.
+                            showField = true,
                             // YouTube Music or the add-ons, as on the phone (the desktop's library has its own page and search).
                             sourceSwitcher = {
                                 com.cosmotune.ui.components.CosmoSegmented(
@@ -4976,6 +4979,11 @@ fun CosmotuneDesktopApp() {
                             links = libraryLinks,
                             deviceItems = libraryDeviceItems,
                             showTitle = false,
+                            // Orbit's Songs chip and the Liked card's Play.
+                            currentSong = playback.song,
+                            isPlaying = playback.isPlaying,
+                            onSongClick = { songs, index -> playSongs(songs, index, source = DesktopQueueSource(DesktopStrings["library", "Library"], PlaybackSourceType.BROWSE)) },
+                            onSongLongPress = ::openMenu,
                         )
                         destination == DesktopDestination.HISTORY -> DesktopHistoryPage(
                             // The account's history when there is one, and what

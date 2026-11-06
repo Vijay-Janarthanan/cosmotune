@@ -125,7 +125,7 @@ class AddonSearchInteractionTest {
     private fun recentWordsShowUntilSomethingIsSubmitted(newLook: Boolean) = withRowHosts {
         val taps = Taps()
         compose.setContent { NewLook { Page(newLook, "", null, listOf("aurora", "hans zimmer"), taps) } }
-        compose.onNodeWithText("Recent searches", ignoreCase = true).assertExists()
+        compose.onNodeWithText(if (newLook) "Recent" else "Recent searches", ignoreCase = true).assertExists()
         compose.onNodeWithText("hans zimmer").performClick()
         assertEquals("hans zimmer", taps.history)
     }

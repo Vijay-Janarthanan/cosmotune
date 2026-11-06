@@ -196,8 +196,8 @@ class PolishContractTest {
         assertTrue("onLongClick = onLongClick" in SourceContract.functionBody(kit, "KitQuickTile"), "the hold reaches the click")
         val library = SourceContract.code(SourceContract.read("${shared}library/CosmoLibrary.kt")).replace(Regex("\\s+"), " ")
         assertTrue(
-            library.contains("KitQuickTile(liked.title, null, { onClick(liked) }, Modifier.weight(1f), icon = CosmoIcons.Heart, onLongClick = { onLongPress(liked) })"),
-            "holding the liked tile calls the same hold as every other playlist: the menu the old row opened",
+            library.contains("val hold: (() -> Unit)? = liked?.let { { onHold(it) } }") && library.contains("onHold = onShelfItemLongPress,"),
+            "holding the Liked card calls the same hold as every other playlist: the menu the old row opened",
         )
     }
 

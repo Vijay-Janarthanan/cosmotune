@@ -27,6 +27,8 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.home.OrbitHome
 import com.cosmotune.ui.home.HomeQuickLink
 import com.cosmotune.ui.library.CosmoLibrary
+import com.cosmotune.ui.search.CosmoBrowsePage
+import com.cosmotune.ui.search.CosmoSearch
 import com.cosmotune.ui.listening.CosmoReleasesPage
 import com.cosmotune.ui.pages.CosmoArtistPage
 import com.cosmotune.ui.pages.CosmoReleasePage
@@ -137,6 +139,55 @@ class MusicVisualReviewTest {
         capture("library-dark")
     }
 
+    /** Orbit's Search results, the Explore tiles and the Library with its Liked card, in the dark and the light palettes. */
+    @Test fun searchExploreAndLibraryInOrbit() = hosts {
+        val art = listOf(cover("a", 142, 68, 58), cover("b", 44, 96, 120), cover("c", 90, 120, 60), cover("d", 110, 70, 130))
+        val songs = tracks(art[0])
+        val rows = listOf<SearchResult>(SearchResult.TopTrack(Song("top", "Hukum Reloaded", "Fixture artist", art[2], durationText = "3:24"))) +
+            songs.take(3).map { SearchResult.Track(it) } +
+            List(4) { SearchResult.Browse(BrowseItem("MPREa$it", "Album ${it + 1}", "Album · 2026", art[it % 4], BrowseType.ALBUM)) } +
+            List(4) { SearchResult.Browse(BrowseItem("UCar$it", "Artist ${it + 1}", "Artist", art[(it + 1) % 4], BrowseType.ARTIST)) }
+        val moods = listOf(
+            MoodGenreSection("Moods", listOf("Chill" to 0xFFF39A63, "Focus" to 0xFF1B8A86, "Romance" to 0xFFC23E64, "Party" to 0xFF8B6CC9).mapIndexed { i, (t, c) -> MoodGenre(t, "FEmood$i", "p$i", art[i % 4], c) }),
+            MoodGenreSection("Genres", listOf("Indie" to 0xFF3A7BD5, "Devotional" to 0xFF60A060, "Throwback" to 0xFFE07A9A).mapIndexed { i, (t, c) -> MoodGenre(t, "FEgenre$i", "g$i", art[(i + 2) % 4], c) }),
+        )
+        val playlists = HomeShelf("Playlists", listOf(ShelfItem("Liked Music", "Auto playlist", art[3], null, "VLLM")) + items("Playlist", 6, art))
+        for ((name, palette, dark) in listOf(
+            Triple("dark", OneTestPalette.dark(), true),
+            Triple("light", OneTestPalette.light(), false),
+        )) {
+            page(palette, dark) {
+                CosmoSearch(
+                    query = "hukum", onQueryChange = {}, filter = SearchFilter.ALL, currentSong = songs[1], isPlaying = true, onFilterChange = {},
+                    results = UiState.Success(rows), loadingMore = false, onLoadMore = {}, listState = rememberLazyListState(), scrollResetTrigger = 0,
+                    focusRequested = false, onFocusHandled = {}, onSongClick = { _, _ -> }, onSongLongPress = {}, onSongSwipe = {}, onTopResultPlay = {},
+                    onTopResultPlaylist = {}, onBrowseClick = {}, history = emptyList(), suggestions = emptyList(), typeaheadResults = emptyList(),
+                    onSubmit = {}, onSuggestionClick = {}, onHistoryClick = {}, onHistoryRemove = {}, onHistoryClear = {},
+                    contentPadding = PaddingValues(0.dp), topPadding = 24.dp,
+                )
+            }
+            capture("search-$name")
+            page(palette, dark) {
+                CosmoBrowsePage(
+                    state = UiState.Success(moods), listState = rememberLazyListState(), onCategoryClick = {}, onRetry = {}, refreshing = false,
+                    onRefresh = {}, pullState = rememberPullToRefreshState(), contentPadding = PaddingValues(top = 24.dp),
+                )
+            }
+            capture("explore-$name")
+            page(palette, dark) {
+                CosmoLibrary(
+                    signedIn = true,
+                    state = UiState.Success(LibraryPage(songs, songs, listOf(playlists))),
+                    listState = rememberLazyListState(), onShelfItemClick = {}, onShelfItemLongPress = {}, onNewPlaylist = {}, onShowAll = {},
+                    replay = {}, onSignIn = {}, onRetry = {}, refreshing = false, onRefresh = {}, pullState = rememberPullToRefreshState(),
+                    contentPadding = PaddingValues(top = 24.dp), links = emptyList(), deviceItems = emptyList(), sourceShelves = emptyList(),
+                    onSongClick = { _, _ -> },
+                )
+            }
+            capture("library-$name")
+        }
+    }
+
     @Test fun albumAndArtistAtPhoneWidth() = hosts {
         val art = cover("a", 142, 68, 58)
         val rows = tracks(art)
@@ -194,4 +245,5 @@ class MusicVisualReviewTest {
 /** The chrome's One palette, as the theme installs it. */
 private object OneTestPalette {
     fun dark() = CosmoPaletteState(com.cosmotune.theme.OnePalette.of(true, false), true)
+    fun light() = CosmoPaletteState(com.cosmotune.theme.OnePalette.of(false, false), false)
 }

@@ -3442,8 +3442,9 @@ private fun CosmotuneApp(
                             onTypeaheadLongPress = openSongMenu,
                             contentPadding = listPadding,
                             topPadding = topBarContentPadding(),
-                            // The field is in the top bar; see the bar's accessory.
-                            showField = false,
+                            // Orbit draws the big search pill on the page itself; the old look keeps the field in
+                            // the top bar (see the bar's accessory).
+                            showField = cosmoShell != null,
                             // The settings page's own two-state selector, so the
                             // app has one look for "pick one of these".
                             sourceSwitcher = {
@@ -3537,6 +3538,11 @@ private fun CosmotuneApp(
                             contentPadding = listPadding,
                             links = libraryLinks(),
                             deviceItems = libraryDeviceItems(downloadedReleases) + localPlaylistItems,
+                            // Orbit's Songs chip and the Liked card's Play.
+                            currentSong = player.song,
+                            isPlaying = player.isPlaying,
+                            onSongClick = { songs, index -> playFrom(songs, index, QueueSource(libraryLabel, PlaybackSourceType.BROWSE)) },
+                            onSongLongPress = openSongMenu,
                         )
                     }
                 }
@@ -3765,6 +3771,7 @@ private fun CosmotuneApp(
                     modifier = Modifier.align(Alignment.TopCenter),
                     // Only on the Search tab itself, not on anything pushed over it.
                     accessory = if (
+                        cosmoShell == null &&
                         selectedTab == TAB_SEARCH && detail == null && selectedMoodGenre == null &&
                         libraryShowAll == null && !showSettings && !showAccountScrobbling &&
                         !showSources && !showListenTogether && !showEqualizer && !showDiscord &&

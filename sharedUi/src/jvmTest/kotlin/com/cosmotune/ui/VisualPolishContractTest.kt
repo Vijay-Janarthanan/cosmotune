@@ -33,10 +33,9 @@ class VisualPolishContractTest {
         val mood = SourceContract.functionBody(SourceContract.read("$ui/blocks/CosmoMood.kt"), "CosmoMoodTile")
         assertTrue(".background(Color(palette.surface))" in mood && "RoundedCornerShape(CosmoRadii.rMd)" in mood, "the mood tile too")
         assertFalse("rotationZ" in mood || "tileLift" in mood, "no tilted cover, no lift")
-        // the sign-in banner and the search cards are the tile fill
+        // the sign-in banner is the tile fill (Search's top result is Orbit's colour card now)
         for ((file, call) in listOf(
             "states/CosmoSignInBanner.kt" to ".cosmoTile(SuperellipseShape(BANNER_RADIUS))",
-            "search/CosmoSearchResults.kt" to ".cosmoTile(shape)",
         )) assertTrue(call in code("$ui/$file"), "$file draws its tile with cosmoTile")
     }
 
