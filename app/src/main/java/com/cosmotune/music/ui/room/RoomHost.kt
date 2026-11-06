@@ -60,14 +60,15 @@ import com.cosmotune.music.ui.components.PillTextField
 import com.cosmotune.ui.bridge.AlertDialog
 import com.cosmotune.ui.bridge.ModalBottomSheet
 import com.cosmotune.ui.room.RoomScreen
+import com.cosmotune.ui.sheets.CosmoDialogBody
+import com.cosmotune.ui.sheets.CosmoDialogCard
 import com.cosmotune.ui.room.RoomUiState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * The room, full screen over the app while it is open. Back minimises it (the person stays in the room, and the room icon brings it
- * back); Leave asks first. [RoomScreen] is the shared screen and is called exactly as declared; the row above it is the phone's own,
- * so leaving is always one tap away whatever the shared screen shows. [media] is the picture of the room's video when it is one;
+ * The room, full screen over the app while it is open. Back, and the shared screen's own way back, minimise it (the person stays in
+ * the room, and the room icon brings it back); Leave, in the screen's "more" menu and on People, asks first in an Orbit dialog. [media] is the picture of the room's video when it is one;
  * [onPlaybackOptions] opens this device's own playback options for the room's item.
  */
 @Composable
@@ -120,47 +121,26 @@ fun RoomHost(
         context::getString,
     )
 
-    Column(
-        modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .systemBarsPadding(),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onMinimise) {
-                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = stringResource(R.string.room_minimise))
-            }
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { confirmLeave = true }) {
-                Text(stringResource(R.string.room_leave), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
-            }
-        }
-        RoomScreen(state = state, actions = actions, wide = wide, modifier = Modifier.weight(1f).fillMaxWidth(), media = media)
-    }
-
-    if (confirmLeave) {
-        AlertDialog(
-            onDismissRequest = { confirmLeave = false },
-            title = { Text(stringResource(R.string.room_leave_title)) },
-            text = { Text(stringResource(R.string.listen_together_leave_subtitle)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
+    Box(modifier.fillMaxSize()) {
+        // The shared screen draws the way back (it minimises the room) and the leave in its "more" menu; leaving asks first.
+        RoomScreen(state = state, actions = actions, wide = wide, modifier = Modifier.fillMaxSize(), media = media, onClose = onMinimise)
+        if (confirmLeave) {
+            CosmoDialogCard(onDismiss = { confirmLeave = false }, maxWidth = 420.dp) {
+                CosmoDialogBody(
+                    overline = stringResource(R.string.room_leave),
+                    title = stringResource(R.string.room_leave_title),
+                    message = stringResource(R.string.listen_together_leave_subtitle),
+                    confirmLabel = stringResource(R.string.room_leave),
+                    onConfirm = {
                         confirmLeave = false
                         onMinimise()
                         scope.launch { PhoneRooms.leave() }
                     },
-                ) {
-                    Text(stringResource(R.string.room_leave), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmLeave = false }) { Text(stringResource(R.string.cancel)) }
-            },
-        )
+                    dismissLabel = stringResource(R.string.cancel),
+                    onDismiss = { confirmLeave = false },
+                )
+            }
+        }
     }
 
     if (picking) {

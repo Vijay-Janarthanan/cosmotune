@@ -267,7 +267,7 @@ internal fun clock(ms: Long): String { val s = ms / 1000; return "%d:%02d".forma
 @Composable
 /**
  * A chip: 40 dp, ink at 8 %; [selected] makes it solid ink with ground-coloured text (a tab that is showing). [leading] is
- * optional (null: the title alone, padded evenly).
+ * optional (null: the title alone, padded evenly); [trailing] goes after the title (a count).
  */
 internal fun OrbitChip(
     title: String,
@@ -276,6 +276,7 @@ internal fun OrbitChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
     leading: (@Composable () -> Unit)?,
 ) {
     val text = if (selected) look.ground else look.ink
@@ -291,6 +292,10 @@ internal fun OrbitChip(
             Spacer(Modifier.width(8.dp))
         }
         Text(title, style = fonts.chip, color = text, maxLines = 1)
+        if (trailing != null) {
+            Spacer(Modifier.width(8.dp))
+            trailing()
+        }
     }
 }
 

@@ -20,6 +20,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasTestTag
@@ -134,7 +136,8 @@ class RoomScreenInteractionTest {
     @Test fun thePhoneHasThreePagesThatSwitchAndTheVoiceBarStays() {
         val actions = show(state(unread = 3))
         compose.onNodeWithTag(RoomTags.PAGE_NOW_PLAYING).assertExists()
-        compose.onNodeWithText("Kannalane", substring = false).assertExists()
+        // On the card and, highlighted, in Up next.
+        compose.onAllNodesWithText("Kannalane", substring = false).onFirst().assertExists()
         compose.onNodeWithText("Started by Mira").assertExists()
         compose.onNodeWithTag(RoomTags.UNREAD, useUnmergedTree = true).assertExists()
         assertTrue("chatSeen" !in actions.calls, "the chat was not opened yet")
@@ -171,10 +174,11 @@ class RoomScreenInteractionTest {
         assertTrue("playTrack(v-asked)" in actions.calls, "Play now plays the asked-for song: ${actions.calls}")
     }
 
-    @Test fun playNowAndTheTransportAreDisabledWhenOnlyTheHostControls() {
+    @Test fun playNowIsDisabledAndTheTransportGoneWhenOnlyTheHostControls() {
         val actions = show(state(hostOnly = true))
-        compose.onNodeWithTag(RoomTags.PLAY_PAUSE).assertIsNotEnabled()
-        compose.onNodeWithTag(RoomTags.NEXT).assertIsNotEnabled()
+        // Orbit: the bite and the transport are only drawn for a person who may control; the card says why they are not there.
+        compose.onNodeWithTag(RoomTags.PLAY_PAUSE).assertDoesNotExist()
+        compose.onNodeWithTag(RoomTags.NEXT).assertDoesNotExist()
         compose.onNodeWithTag(RoomTags.HOST_ONLY_HINT).assertExists()
         compose.onNodeWithTag(RoomTags.TAB_CHAT).performClick()
         compose.waitForIdle()
