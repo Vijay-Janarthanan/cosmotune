@@ -129,7 +129,8 @@ fun RoomHost(
                 CosmoDialogBody(
                     overline = stringResource(R.string.room_leave),
                     title = stringResource(R.string.room_leave_title),
-                    message = stringResource(R.string.listen_together_leave_subtitle),
+                    // Alone, there is nobody to carry on: leaving closes the room.
+                    message = stringResource(if ((room?.members?.size ?: 0) <= 1) R.string.listen_together_leave_alone else R.string.listen_together_leave_subtitle),
                     confirmLabel = stringResource(R.string.room_leave),
                     onConfirm = {
                         confirmLeave = false
