@@ -17,13 +17,16 @@ import kotlin.math.abs
 class StreamRanker(
     private val maxHeight: Int = 2160,
     private val preferredAudio: List<String> = emptyList(),
-    /** Plugin id to rank, lower first; built from the Plugins page order. Unknown plugins rank last. */
+    /**
+     * Plugin id to rank, lower first; built from the Plugins page order. Ranks below 100 are the user's own servers and
+     * folders, which win over any free copy; among the rest the picture decides first and the rank breaks ties.
+     */
     private val pluginRank: (String) -> Int = { 0 },
 ) {
     fun rank(streams: List<Stream>, hint: StreamHint? = null): List<Stream> =
         streams.distinctBy { it.url }.sortedWith(
-            compareBy<Stream>({ -hintScore(it, hint) }, { if (it.isPlayable) 0 else 1 }, { pluginRank(it.source.pluginId) },
-                { heightKey(it.height) }, { if (it.hasAds) 1 else 0 }, { audioKey(it) }, { if (it.protocol == StreamProtocol.HLS) 0 else 1 }),
+            compareBy<Stream>({ -hintScore(it, hint) }, { if (it.isPlayable) 0 else 1 }, { pluginRank(it.source.pluginId) / 100 },
+                { heightKey(it.height) }, { pluginRank(it.source.pluginId) }, { if (it.hasAds) 1 else 0 }, { audioKey(it) }, { if (it.protocol == StreamProtocol.HLS) 0 else 1 }),
         )
 
     private fun heightKey(height: Int?): Int = when {

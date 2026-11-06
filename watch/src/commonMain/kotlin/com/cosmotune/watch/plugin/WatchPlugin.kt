@@ -35,7 +35,7 @@ data class CatalogDef(val pluginId: String, val id: String, val name: String, va
  * itself (torrents, usenet, debrid) are dropped, never shown.
  */
 interface WatchPlugin {
-    /** Stable per configured instance: `pluto`, `iptv`, `stremio:<hash>`, `jellyfin:<hash>`. Used in channel keys. */
+    /** Stable per configured instance, never holding a colon: `pluto`, `iptv`, `st-<hash>`, `jf-<hash>`. Used in keys. */
     val id: String
     val kind: PluginKind
     val displayName: String
