@@ -15,7 +15,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +45,7 @@ import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.cosmotune.music.wear.R
 import com.cosmotune.music.wear.data.Link
 import com.cosmotune.music.wear.data.PhoneLink
+import kotlinx.coroutines.delay
 
 private const val PLAYER = "player"
 private const val QUEUE = "queue"
@@ -54,6 +60,14 @@ fun WearApp(link: PhoneLink) {
     val ambient = LocalAmbient.current
     val np by link.nowPlaying.collectAsStateWithLifecycle()
     val showAmbient = ambient.active && np != null
+    // Each Podio list and item page is its own destination, so Back walks back through them one at a time.
+    val podioPlaces = remember { mutableStateMapOf<Int, PodioDest>() }
+    var podioNext by remember { mutableIntStateOf(0) }
+    val openPodio: (PodioDest) -> Unit = { dest ->
+        val id = podioNext++
+        podioPlaces[id] = dest
+        nav.navigate("$PODIO/$id")
+    }
     // No pill behind the clock: the disc and its orbit run right up to the bezel.
     AppScaffold(timeText = { TimeText(backgroundColor = Color.Transparent) }) {
         // Kept composed under the ambient player so waking up lands exactly
@@ -84,7 +98,15 @@ fun WearApp(link: PhoneLink) {
             composable(MORE) {
                 MoreScreen(np = np, link = link, onOpenOutput = { nav.navigate(OUTPUT) }, onOpenPodio = { nav.navigate(PODIO) })
             }
-            composable(PODIO) { PodioScreen(link, onPlayer = { nav.popBackStack(PLAYER, inclusive = false) }, onOutput = { nav.navigate(OUTPUT) }) }
+            composable(PODIO) {
+                PodioScreen(link, PodioDest(), open = openPodio, back = { nav.popBackStack() },
+                    onPlayer = { nav.popBackStack(PLAYER, inclusive = false) }, onOutput = { nav.navigate(OUTPUT) })
+            }
+            composable("$PODIO/{id}") { entry ->
+                val dest = entry.arguments?.getString("id")?.toIntOrNull()?.let { podioPlaces[it] } ?: PodioDest()
+                PodioScreen(link, dest, open = openPodio, back = { nav.popBackStack() },
+                    onPlayer = { nav.popBackStack(PLAYER, inclusive = false) }, onOutput = { nav.navigate(OUTPUT) })
+            }
             composable(OUTPUT) {
                 // Straight back to the player once a choice is made.
                 OutputScreen(link = link, onDone = { nav.popBackStack(PLAYER, inclusive = false) })
@@ -115,12 +137,21 @@ private fun PlayerRoute(link: PhoneLink, openQueue: () -> Unit, openMore: () -> 
         )
     }
 
+    // Try again answers at once: the search for the phone is shown for a moment even when it fails straight away.
+    var trying by remember { mutableStateOf(false) }
+    LaunchedEffect(trying) {
+        if (trying) {
+            delay(2_500)
+            trying = false
+        }
+    }
     ScreenScaffold {
         val playing = np
         when {
             // The last state the phone sent is still the best thing to show
             // while it is being asked again; only "no phone at all" replaces it.
-            state == Link.NoPhone -> NoPhone(onRetry = link::retry, onPodio = openPodio)
+            state == Link.NoPhone && trying -> Connecting("Looking for your phone…")
+            state == Link.NoPhone -> NoPhone(onRetry = { trying = true; link.retry() }, onPodio = openPodio)
             playing != null -> NowPlayingScreen(np = playing, artwork = artwork, volume = volume, actions = actions)
             !heard -> Connecting()
             else -> NothingPlaying(onPodio = openPodio)
@@ -129,12 +160,12 @@ private fun PlayerRoute(link: PhoneLink, openQueue: () -> Unit, openMore: () -> 
 }
 
 @Composable
-private fun Connecting() {
+private fun Connecting(text: String? = null) {
     Box(Modifier.fillMaxSize().background(WearOrbit.Ground), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(modifier = Modifier.size(32.dp))
             Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.connecting), style = WearType.subtitle, color = WearOrbit.Dim)
+            Text(text ?: stringResource(R.string.connecting), style = WearType.subtitle, color = WearOrbit.Dim)
         }
     }
 }
@@ -175,7 +206,7 @@ private fun Message(title: String, body: String, action: String, onAction: () ->
             verticalArrangement = Arrangement.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 26.dp),
+                .padding(horizontal = wearEdgeInset() + WearTextInset),
         ) {
             if (!orbit && secondary == null) {
                 Icon(
