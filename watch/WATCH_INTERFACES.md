@@ -18,6 +18,7 @@ the call.
 | A row scrolled to the end | `rowPage(row.id, skip = row.items.size)` | more `TitleSummary` |
 | Continue watching (live) | `continueWatching: StateFlow<List<ContinueItem>>` | `ContinueItem`: `summary`, `episode`, `episodeLabel` ("S2 E4"), `remainingMin`, `progress.fraction` |
 | Live now | `liveNow(limit)` | `LiveNowItem(channel, now, next)`; `now.progressAt(nowMs)` for the line |
+| Live now strip: matches and live shows | `liveEvents()` | `Flow<List<LiveEvent>>`, see "Live events" below |
 | Film page (2) | `title(key)` | `Title`: `summary` (name, year, runtimeMin, rating, genres, overview, posterUrl, backdropUrl, logoUrl), `certification`, `cast`, `moreLikeThis`, `trailers` (YouTube keys), `whereToWatch` |
 | "Play from" list, best first (2) | `sources(targetOf(summary))` | `Flow<SourcesState>`: `streams` (ranked, `best` is first), `pending` plugins still answering, `errors`, `notFound`, `whereToWatch` |
 | | `sourcesNow(target)` | the same, once everything has answered |
@@ -43,10 +44,33 @@ the call.
 `targetOf(summary)`, `targetOf(seriesTitle, episode)` and `targetOf(channel)` build the `PlayTarget` for Play and for the
 Sources list.
 
+## Live events (the "Live now" strip)
+
+`liveEvents(): Flow<List<LiveEvent>>` emits the cached list at once, then again after every poll while it is collected
+(about a minute while something is live, ten minutes otherwise). Collect it only while the strip is on screen. It never
+fails: a score source that is not set up or does not answer is left out.
+
+`LiveEvent`: `id` (stable), `kind` (`CRICKET`, `FOOTBALL`, `SHOW`), `title` ("India v Australia, 2nd T20I"), `competition`
+("IPL 2027", "Premier League"), `teams` (`LiveTeam`: `name`, `shortName`, `logoUrl`, `score`, `country`), `scoreText` (the
+whole score on one line, null before the start), `statusText` ("India need 4 runs from 10 balls", "67'", "Full time"),
+`status` (`LIVE`, `UPCOMING`, `FINISHED`; `isLive`), `startMs`, `countries`, `languages`, `imageUrl`, `watchOptions`,
+`source` (the attribution line: "CricketData.org", "football-data.org", "TheSportsDB", "YouTube") and `updatedAtMs`.
+
+Order: live first, then upcoming by start time, then finished; inside each, the viewer's country and language first
+(`WatchPlace`, the same as Live TV).
+
+`watchOptions` lists only free streams our own plugins play (DD Sports or another DD channel, an official broadcaster's
+YouTube live), best first: `WatchOption(label, target, channel, badge)`. Play one with `player.open(option.target, null)`;
+`channel` is set when the option is a Live TV channel (for its logo). An event no free stream carries has no watch option:
+show the score only. Pay services are never listed.
+
+`FakeWatchRepository().liveEvents()` gives a live India v Australia T20 with DD Sports as its option, a live DD News YouTube
+special, a live and a finished football match with no option, and an upcoming IPL match.
+
 ## Keys
 
 `WatchKey` is the one id everywhere (progress, My list, rooms): `m:tmdb:603` film, `s:tmdb:1399` series,
-`e:tmdb:1399:1:1` episode, `c:<plugin>:<channelId>` channel, `a:<plugin>:<id>` an item with no TMDB match. Without a TMDB
+`e:tmdb:1399:1:1` episode, `c:<plugin>:<channelId>` channel, `a:<plugin>:<id>` an item with no TMDB match (`a:ytlive:<videoId>` a single YouTube live video). Without a TMDB
 key, films and series use `m:imdb:tt...` / `s:imdb:tt...`. `key.kind`, `key.seriesKey`, `key.season`, `key.episode` read it.
 
 ## Streams

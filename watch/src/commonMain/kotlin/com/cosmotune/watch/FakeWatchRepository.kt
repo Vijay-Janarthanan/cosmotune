@@ -5,6 +5,10 @@ import com.cosmotune.watch.model.Container
 import com.cosmotune.watch.model.EpgProgramme
 import com.cosmotune.watch.model.Episode
 import com.cosmotune.watch.model.ExternalIds
+import com.cosmotune.watch.model.LiveEvent
+import com.cosmotune.watch.model.LiveEventKind
+import com.cosmotune.watch.model.LiveEventStatus
+import com.cosmotune.watch.model.LiveTeam
 import com.cosmotune.watch.model.MyListEntry
 import com.cosmotune.watch.model.Person
 import com.cosmotune.watch.model.PlayTarget
@@ -18,6 +22,7 @@ import com.cosmotune.watch.model.SubtitleOrigin
 import com.cosmotune.watch.model.Title
 import com.cosmotune.watch.model.TitleSummary
 import com.cosmotune.watch.model.TitleType
+import com.cosmotune.watch.model.WatchOption
 import com.cosmotune.watch.model.WatchKey
 import com.cosmotune.watch.model.WatchProgress
 import com.cosmotune.watch.model.WatchProvider
@@ -240,6 +245,37 @@ class FakeWatchRepository(
 
     override suspend fun setFavouriteChannel(key: WatchKey, favourite: Boolean) {
         favourites.value = if (favourite) favourites.value + key else favourites.value - key
+    }
+
+    /** DD Sports as Prasar Bharati's plugin lists it, carrying the fake live match. */
+    private val ddSports = Channel(WatchKey.channel(BuiltInPlugins.PRASAR_BHARATI, "DDSports.in"), BuiltInPlugins.PRASAR_BHARATI, "DD Sports",
+        categories = listOf("Sports"), countries = listOf("in"), languages = listOf("hin", "eng"), tvgId = "DDSports.in")
+
+    override fun liveEvents(): Flow<List<LiveEvent>> = flow {
+        wait()
+        val t = now()
+        val minute = 60_000L
+        emit(listOf(
+            LiveEvent("cricket:fake:ind-aus-t20-2", LiveEventKind.CRICKET, "India v Australia, 2nd T20I", "Australia tour of India",
+                listOf(LiveTeam("India", "IND", score = "176/4 (18.2 ov)", country = "in"), LiveTeam("Australia", "AUS", score = "179/8 (20 ov)", country = "au")),
+                scoreText = "IND 176/4 (18.2) · AUS 179/8 (20)", statusText = "India need 4 runs from 10 balls", status = LiveEventStatus.LIVE,
+                startMs = t - 190 * minute, countries = listOf("in", "au"),
+                watchOptions = listOf(WatchOption("DD Sports", PlayTarget.Live(ddSports), ddSports, "DD")), source = "CricketData.org", updatedAtMs = t),
+            LiveEvent("show:yt:fakeLiveVid1", LiveEventKind.SHOW, "Chandrayaan-4 launch: live from Sriharikota", statusText = "Live on DD News",
+                status = LiveEventStatus.LIVE, startMs = t - 40 * minute, countries = listOf("in"), languages = listOf("eng", "hin"),
+                watchOptions = listOf(WatchOption("Live on YouTube · DD News",
+                    PlayTarget.Item(WatchKey.item(BuiltInPlugins.YOUTUBE_LIVE, "fakeLiveVid1"), BuiltInPlugins.YOUTUBE_LIVE, "fakeLiveVid1", "Chandrayaan-4 launch"), badge = "YT LIVE")),
+                source = "YouTube", updatedAtMs = t),
+            LiveEvent("football:fake:pl-ars-che", LiveEventKind.FOOTBALL, "Arsenal v Chelsea", "Premier League",
+                listOf(LiveTeam("Arsenal", "ARS", score = "2"), LiveTeam("Chelsea", "CHE", score = "1")), scoreText = "2 – 1", statusText = "67'",
+                status = LiveEventStatus.LIVE, startMs = t - 75 * minute, countries = listOf("gb"), source = "football-data.org", updatedAtMs = t),
+            LiveEvent("cricket:fake:ipl-csk-mi", LiveEventKind.CRICKET, "Chennai Super Kings v Mumbai Indians", "IPL 2027",
+                listOf(LiveTeam("Chennai Super Kings", "CSK"), LiveTeam("Mumbai Indians", "MI")), statusText = "Starts 19:30 IST",
+                status = LiveEventStatus.UPCOMING, startMs = t + 150 * minute, countries = listOf("in"), source = "CricketData.org", updatedAtMs = t),
+            LiveEvent("football:fake:ll-rma-bar", LiveEventKind.FOOTBALL, "Real Madrid v Barcelona", "La Liga",
+                listOf(LiveTeam("Real Madrid", "RMA", score = "1"), LiveTeam("Barcelona", "BAR", score = "1")), scoreText = "1 – 1", statusText = "Full time",
+                status = LiveEventStatus.FINISHED, startMs = t - 300 * minute, countries = listOf("es"), source = "football-data.org", updatedAtMs = t),
+        ))
     }
 
     override suspend fun search(query: String): SearchResults {

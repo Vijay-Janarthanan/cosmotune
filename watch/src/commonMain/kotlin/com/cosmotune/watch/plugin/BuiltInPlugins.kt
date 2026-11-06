@@ -17,6 +17,10 @@ object BuiltInPlugins {
     const val PUBLIC_DOMAIN = "pdm"
     const val OPENSUBTITLES = "opensubtitles"
     const val WATCHHUB = "watchhub"
+    /** Prasar Bharati's own Doordarshan channels. */
+    const val PRASAR_BHARATI = "dd"
+    /** Official broadcasters' 24x7 YouTube live channels. */
+    const val YOUTUBE_LIVE = "ytlive"
 
     /**
      * The Stremio-protocol add-ons the built-ins use (read-only HTTP JSON). Public Domain Movies' own streams are torrents,

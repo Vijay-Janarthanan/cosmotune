@@ -3,6 +3,7 @@ package com.cosmotune.watch
 import com.cosmotune.watch.model.Channel
 import com.cosmotune.watch.model.EpgProgramme
 import com.cosmotune.watch.model.Episode
+import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.MyListEntry
 import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.model.Stream
@@ -18,6 +19,7 @@ import com.cosmotune.watch.plugin.PluginInfo
 import com.cosmotune.watch.plugin.UserSourceSpec
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
 
 /** The chips at the top of Watch home. */
 enum class HomeFilter { ALL, FILMS, SERIES, LIVE }
@@ -148,6 +150,7 @@ data class DirectoryLink(val title: String, val description: String, val url: St
             DirectoryLink("Stremio community add-ons", "A directory of add-ons people have made; check each before installing", "https://stremio-addons.net"),
             DirectoryLink("Nuvio project", "Docs on Nuvio-protocol plugins", "https://github.com/tapframe/NuvioStreaming"),
             DirectoryLink("iptv-org playlists", "Free public channel playlists by country, language and category", "https://github.com/iptv-org/iptv"),
+            DirectoryLink("Free-TV/IPTV", "Free channels by country", "https://github.com/Free-TV/IPTV"),
             DirectoryLink("Jellyfin", "Your own media server, free and self-hosted", "https://jellyfin.org/downloads/server"),
         )
     }
@@ -201,6 +204,17 @@ interface WatchRepository {
     suspend fun guide(channels: List<Channel>, fromMs: Long, toMs: Long): GuideWindow
     suspend fun nowNext(channel: Channel): LiveNowItem
     suspend fun setFavouriteChannel(key: WatchKey, favourite: Boolean)
+
+    // Live now: matches and live specials
+    /**
+     * The "Live now" strip's events: cricket and football matches in play, about to start (the next 24 hours) or just
+     * finished (the last 12 hours), and big live shows on DD or an official YouTube channel. Emits what is cached at once,
+     * then again after each poll for as long as it is collected (about every minute while something is live, every ten
+     * minutes otherwise). Ranked: live first, then upcoming by start, then finished; within each, the viewer's country and
+     * language first (`WatchPlace`). Each event's [LiveEvent.watchOptions] are free streams our plugins can play; a source
+     * that is not set up or does not answer is left out, never fails the flow.
+     */
+    fun liveEvents(): Flow<List<LiveEvent>> = flowOf(emptyList())
 
     // Search
     suspend fun search(query: String): SearchResults
