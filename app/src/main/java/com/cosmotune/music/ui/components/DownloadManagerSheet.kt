@@ -121,50 +121,32 @@ fun TopBarDownloadButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
             shrinkTowards = Alignment.End,
         ),
     ) {
-        IconButton(
-            onClick = {
-                haptics.play(Haptic.Select)
-                onClick()
-            },
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                if (session.busy) {
-                    CircularProgressIndicator(
-                        // Never quite zero: a ring pinned at nothing reads as
-                        // stalled where the first sliver reads as starting.
-                        progress = { progress.coerceAtLeast(0.02f) },
-                        modifier = Modifier.size(RING_SIZE),
-                        color = tint,
-                        trackColor = tint.copy(alpha = 0.22f),
-                        strokeWidth = 2.dp,
-                        strokeCap = StrokeCap.Round,
-                        gapSize = 0.dp,
-                    )
-                }
-                Icon(
-                    imageVector = when {
-                        failed -> Icons.Rounded.ErrorOutline
-                        // A bare arrow inside the ring, not the tray-and-arrow: the
-                        // ring is already saying "downloading", and a second glyph
-                        // that says it too is detail nobody can resolve at 15dp.
-                        session.busy -> Icons.Rounded.ArrowDownward
-                        else -> Icons.Rounded.DownloadDone
-                    },
-                    contentDescription = when {
-                        session.busy -> stringResource(
-                            R.string.downloads_progress,
-                            (session.fraction * 100).toInt(),
-                        )
-                        failed -> pluralStringResource(
-                            R.plurals.downloads_failed_count,
-                            session.failed,
-                            session.failed,
-                        )
-                        else -> stringResource(R.string.downloads_finished)
-                    },
-                    tint = tint,
-                    modifier = Modifier.size(if (session.busy) GLYPH_IN_RING else GLYPH_SIZE),
-                )
+        // The kit's round button with the orbit as the progress round it (Orbit rule 2), in the page's ink (the error red on a failure).
+        val ink = if (failed) MaterialTheme.colorScheme.error else com.cosmotune.ui.orbit.orbitLook().ink
+        val label = when {
+            session.busy -> stringResource(R.string.downloads_progress, (session.fraction * 100).toInt())
+            failed -> pluralStringResource(R.plurals.downloads_failed_count, session.failed, session.failed)
+            else -> stringResource(R.string.downloads_finished)
+        }
+        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+            com.cosmotune.ui.orbit.OrbitRoundButton(
+                icon = when {
+                    failed -> Icons.Rounded.ErrorOutline
+                    // A bare arrow inside the ring, not the tray-and-arrow: the ring is already saying "downloading".
+                    session.busy -> Icons.Rounded.ArrowDownward
+                    else -> Icons.Rounded.DownloadDone
+                },
+                label = label,
+                ink = ink,
+                onClick = {
+                    haptics.play(Haptic.Select)
+                    onClick()
+                },
+                size = 40.dp,
+            )
+            if (session.busy) {
+                // Never quite zero: a ring pinned at nothing reads as stalled where the first sliver reads as starting.
+                com.cosmotune.ui.orbit.OrbitRing(48.dp, ink, progress = { progress.coerceAtLeast(0.02f) }, spinning = false, stroke = 2.dp, moon = 3.dp)
             }
         }
     }

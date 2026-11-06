@@ -30,7 +30,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.Font
-import java.awt.GradientPaint
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.util.Locale
@@ -53,51 +52,85 @@ internal fun DesktopReplaySummary.cardText(holder: String): DesktopReplayCardTex
     artists = artists.take(5).mapIndexed { i, entry -> "${i + 1}. ${entry.title}" },
 )
 
-/** A 1080 x 1920 story-sized card: the period, minutes listened, plays and the top five songs and artists. */
-internal fun renderReplayCard(text: DesktopReplayCardText): BufferedImage {
+/**
+ * A 1080 x 1920 story-sized card in the look of the Orbit Replay stories: one flat deep colour for the ground (the kit's stand-in
+ * colours, picked by the holder so a person's card keeps its colour), the headings in the wide face ([wide], Archivo, when it could
+ * be read), a disc in its orbit at the top, then the period, minutes listened, plays and the top five songs and artists in the pale
+ * ink of the card.
+ */
+internal fun renderReplayCard(text: DesktopReplayCardText, wide: Font? = null): BufferedImage {
     val image = BufferedImage(1080, 1920, BufferedImage.TYPE_INT_RGB)
     val g = image.createGraphics()
     try {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-        g.paint = GradientPaint(0f, 0f, java.awt.Color(0x2B1A5E), 1080f, 1920f, java.awt.Color(0x0E3B43))
+        val fill = com.cosmotune.ui.orbit.STAND_INS[Math.floorMod(text.title.hashCode(), com.cosmotune.ui.orbit.STAND_INS.size)]
+        g.color = java.awt.Color(fill.red, fill.green, fill.blue)
         g.fillRect(0, 0, image.width, image.height)
+        val ink = java.awt.Color(0xFF, 0xF3, 0xEC)
+        fun ink(alpha: Int) = java.awt.Color(ink.red, ink.green, ink.blue, alpha)
+        // The disc in its orbit (a quiet disc, the faint ring and the moon at the top), as the story cards open.
+        val cx = 860
+        val cy = 300
+        g.color = ink(36)
+        g.fillOval(cx - 110, cy - 110, 220, 220)
+        g.color = ink(70)
+        g.stroke = java.awt.BasicStroke(4f)
+        g.drawOval(cx - 140, cy - 140, 280, 280)
+        g.color = ink(245)
+        g.fillOval(cx - 12, cy - 152, 24, 24)
         var y = 200
-        fun line(value: String, size: Int, weight: Int, alpha: Int = 255, gap: Int = 24) {
-            g.font = Font(Font.SANS_SERIF, weight, size)
-            g.color = java.awt.Color(255, 255, 255, alpha)
+        fun line(value: String, size: Int, heading: Boolean, alpha: Int = 255, gap: Int = 24, width: Int = 920) {
+            g.font = if (heading && wide != null) wide.deriveFont(Font.BOLD, size.toFloat()) else Font(Font.SANS_SERIF, if (heading) Font.BOLD else Font.PLAIN, size)
+            g.color = ink(alpha)
             var shown = value
             // Long titles are shortened to the card's width rather than drawn past its edge.
-            while (shown.length > 4 && g.fontMetrics.stringWidth(shown) > 920) shown = shown.dropLast(2).trimEnd() + "…"
+            while (shown.length > 4 && g.fontMetrics.stringWidth(shown) > width) shown = shown.dropLast(2).trimEnd() + "…"
             y += g.fontMetrics.ascent
             g.drawString(shown, 80, y)
             y += g.fontMetrics.descent + gap
         }
-        line(text.title, 64, Font.BOLD)
-        line(text.period, 40, Font.PLAIN, alpha = 190, gap = 80)
-        line(text.headline, 120, Font.BOLD, gap = 16)
-        line(text.stats.joinToString("  ·  "), 38, Font.PLAIN, alpha = 200, gap = 90)
+        fun label(value: String, gap: Int = 20) {
+            // The mono label, upper case and tracked, as the cards' labels are.
+            g.font = Font(Font.MONOSPACED, Font.BOLD, 30)
+            g.color = ink(180)
+            val tracked = value.uppercase().toCharArray().joinToString("\u200A")
+            y += g.fontMetrics.ascent
+            g.drawString(tracked, 80, y)
+            y += g.fontMetrics.descent + gap
+        }
+        label("Cosmotune Replay", gap = 18)
+        line(text.title, 64, heading = true, width = 640)
+        line(text.period, 40, heading = false, alpha = 190, gap = 90, width = 640)
+        line(text.headline, 120, heading = true, gap = 16)
+        line(text.stats.joinToString("  ·  "), 38, heading = false, alpha = 200, gap = 90)
         if (text.songs.isNotEmpty()) {
-            line("Top songs", 46, Font.BOLD, gap = 20)
-            text.songs.forEach { line(it, 36, Font.PLAIN, alpha = 230, gap = 14) }
+            label("Top songs")
+            text.songs.forEach { line(it, 36, heading = false, alpha = 235, gap = 14) }
             y += 60
         }
         if (text.artists.isNotEmpty()) {
-            line("Top artists", 46, Font.BOLD, gap = 20)
-            text.artists.forEach { line(it, 36, Font.PLAIN, alpha = 230, gap = 14) }
+            label("Top artists")
+            text.artists.forEach { line(it, 36, heading = false, alpha = 235, gap = 14) }
         }
-        g.font = Font(Font.SANS_SERIF, Font.PLAIN, 30)
-        g.color = java.awt.Color(255, 255, 255, 150)
+        g.font = if (wide != null) wide.deriveFont(Font.BOLD, 32f) else Font(Font.SANS_SERIF, Font.BOLD, 32)
+        g.color = ink(170)
         g.drawString("Cosmotune", 80, 1840)
     } finally { g.dispose() }
     return image
 }
 
+/** Archivo, the Orbit headings' face, from the shared resources; null when it cannot be read (the card is then set in the system sans). */
+internal suspend fun replayCardFace(): Font? = runCatching {
+    val bytes = com.cosmotune.music.sharedui.resources.Res.readBytes("font/archivo_variable.ttf")
+    Font.createFont(Font.TRUETYPE_FONT, bytes.inputStream())
+}.getOrNull()
+
 /** The desktop's recap share card: a preview and a save through the system file picker, as the lyrics card does. */
 @Composable
 internal fun DesktopReplayShareDialog(summary: DesktopReplaySummary, holder: String, onDismiss: () -> Unit) {
     val text = remember(summary, holder) { summary.cardText(holder) }
-    val image by produceState<BufferedImage?>(null, text) { value = withContext(Dispatchers.Default) { renderReplayCard(text) } }
+    val image by produceState<BufferedImage?>(null, text) { val face = replayCardFace(); value = withContext(Dispatchers.Default) { renderReplayCard(text, face) } }
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
