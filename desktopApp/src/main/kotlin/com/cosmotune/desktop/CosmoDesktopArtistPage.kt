@@ -61,6 +61,8 @@ internal fun CosmoDesktopArtistPage(
     contentPadding: PaddingValues,
     artistId: String? = null,
     onStartRadio: ((Song) -> Unit)? = null,
+    /** Follow for a guest on an account's artist: opens sign-in, as following a channel is the account's. */
+    onFollowSignIn: (() -> Unit)? = null,
     nowPlaying: Song? = null,
     isPlaying: Boolean = LocalCosmoPlaying.current,
     onPlayPause: (() -> Unit)? = LocalCosmoPlayPause.current,
@@ -94,8 +96,9 @@ internal fun CosmoDesktopArtistPage(
             isPlaying = isPlaying,
             listState = rememberLazyListState(),
             contentPadding = PaddingValues(top = 16.dp, bottom = contentPadding.calculateBottomPadding()),
-            following = subscription?.subscribed,
-            onToggleFollow = subscription?.let { s -> onToggleSubscription?.let { toggle -> { toggle(s) } } },
+            // Follow stands on the card as on the phone; a guest's Follow asks them to sign in first.
+            following = subscription?.subscribed ?: false.takeIf { artist != null && onFollowSignIn != null },
+            onToggleFollow = subscription?.let { s -> onToggleSubscription?.let { toggle -> { toggle(s) } } } ?: onFollowSignIn?.takeIf { artist != null },
             playing = ArtistPlay.showsPause(top, nowPlaying, isPlaying),
             onPlay = {
                 when (ArtistPlay.tap(top, nowPlaying, canToggle = onPlayPause != null)) {

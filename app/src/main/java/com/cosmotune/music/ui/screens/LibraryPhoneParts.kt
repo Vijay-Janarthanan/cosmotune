@@ -24,7 +24,7 @@ import com.cosmotune.music.download.Downloads
 import com.cosmotune.music.download.SavedCollection
 import com.cosmotune.music.ui.components.PAGE_GUTTER
 import com.cosmotune.music.ui.components.ReplayCardRowSkeleton
-import com.cosmotune.music.ui.replay.ReplayCardRow
+import androidx.compose.foundation.lazy.items
 import com.cosmotune.music.ui.replay.ReplayHeroCard
 import com.cosmotune.music.ui.replay.ReplayStoryPage
 
@@ -146,13 +146,15 @@ fun LibraryReplayEntry(
     if (loading) {
         ReplayCardRowSkeleton()
     } else if (cards.isNotEmpty()) {
-        ReplayCardRow(
-            cards = cards,
-            holder = holder,
-            memberSince = memberSince,
-            onCardClick = onOpenReplay,
+        // Orbit colour cards, each opening Replay at its chart.
+        androidx.compose.foundation.lazy.LazyRow(
             modifier = Modifier.padding(vertical = 6.dp),
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-        )
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        ) {
+            items(cards, key = { it.label }) { card ->
+                com.cosmotune.ui.orbit.OrbitReplayCard(card.label, card.value, card.detail, card.artworkUrl, onClick = { onOpenReplay(card.page) })
+            }
+        }
     }
 }

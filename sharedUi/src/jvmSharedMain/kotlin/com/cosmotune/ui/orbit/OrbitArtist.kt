@@ -223,6 +223,18 @@ fun OrbitArtistPage(
 /** A shelf of more than this many cards also offers "Show all" in its heading. */
 private const val SHELF_PREVIEW = 5
 
+/**
+ * A top song's second line: its album, never the title over again (a single's album is named as the song is), else "Single" with
+ * the artists on it.
+ */
+internal fun topSongLine(song: Song): String {
+    fun plain(text: String) = text.lowercase().filter { it.isLetterOrDigit() }
+    val album = song.albumName?.trim()?.takeIf { it.isNotEmpty() && plain(it) != plain(song.title) }
+    if (album != null) return album
+    val artist = song.artist.trim().takeIf { it.isNotEmpty() && plain(it) != plain(song.title) }
+    return if (artist != null) "Single · $artist" else "Single"
+}
+
 /** The first top songs shown; the rest behind "Show all". */
 private const val TOP_SHOWN = 5
 
@@ -241,7 +253,7 @@ private fun TopSongs(
             val now = isCurrentRow(song)
             val row: @Composable (Modifier) -> Unit = { m ->
                 OrbitRankedRow(
-                    rank = index + 1, title = song.title, subtitle = song.albumName?.takeIf { it.isNotBlank() } ?: song.artist,
+                    rank = index + 1, title = song.title, subtitle = topSongLine(song),
                     cover = song.thumbnailUrl, fonts = fonts, look = look, onClick = { onClick(index) }, modifier = m,
                     now = now, playing = now && isPlaying, onLongClick = { onLongClick(song) },
                     trailing = {

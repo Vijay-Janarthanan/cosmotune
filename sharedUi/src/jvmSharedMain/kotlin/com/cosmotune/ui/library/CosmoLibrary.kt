@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -321,26 +322,39 @@ private fun LeadCards(
             }
         }
     }
+    val songs = when (downloadedCount) { 0 -> "Nothing yet"; 1 -> "1 song"; else -> "$downloadedCount songs" }
     val downloadedCard: @Composable (Modifier) -> Unit = { m ->
         Column(m.clip(RoundedCornerShape(30.dp)).background(page.look.chip).clickable(onClick = onDownloaded).padding(22.dp)) {
             OrbitLabel("Downloaded · on this device", page.fonts, page.look.dim)
-            Text(
-                when (downloadedCount) { 0 -> "Nothing yet"; 1 -> "1 song"; else -> "$downloadedCount songs" },
-                style = page.fonts.heroTitle.copy(fontSize = 24.sp), color = page.look.ink, maxLines = 1, modifier = Modifier.padding(top = 10.dp),
-            )
+            Text(songs, style = page.fonts.heroTitle.copy(fontSize = 24.sp), color = page.look.ink, maxLines = 1, modifier = Modifier.padding(top = 10.dp))
             Text("Plays without the internet", style = page.fonts.body, color = page.look.dim, modifier = Modifier.padding(top = 4.dp))
         }
     }
     val outer = Modifier.padding(horizontal = page.side).padding(top = 22.dp)
+    if (!showLiked) {
+        // Alone (signed out, no Liked songs card): one quiet line-high card, not a big empty one.
+        Row(
+            outer.widthIn(max = 560.dp).fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(page.look.chip).clickable(onClick = onDownloaded)
+                .padding(horizontal = 22.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                OrbitLabel("Downloaded · on this device", page.fonts, page.look.dim)
+                Text("$songs · Plays without the internet", style = page.fonts.title, color = page.look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 6.dp))
+            }
+            Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = page.look.dim, modifier = Modifier.padding(start = 12.dp).size(20.dp))
+        }
+        return
+    }
     if (page.wide) {
         Row(outer.fillMaxWidth().height(170.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (showLiked) likedCard(Modifier.weight(1.15f).fillMaxSize())
+            likedCard(Modifier.weight(1.15f).fillMaxSize())
             downloadedCard(Modifier.weight(1f).fillMaxSize())
-            if (!showLiked) Spacer(Modifier.weight(1.15f))
         }
     } else {
         Column(outer.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (showLiked) likedCard(Modifier.fillMaxWidth().height(180.dp))
+            likedCard(Modifier.fillMaxWidth().height(180.dp))
             downloadedCard(Modifier.fillMaxWidth())
         }
     }

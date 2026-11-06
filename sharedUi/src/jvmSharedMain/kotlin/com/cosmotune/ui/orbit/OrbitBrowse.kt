@@ -362,3 +362,12 @@ internal fun OrbitArtistDisc(name: String, url: String?, size: Dp, modifier: Mod
         ArtistMotionArtwork(motion.copy(heroUrl = ""), url, modifier.size(size).clip(CircleShape))
     }
 }
+
+/**
+ * A Replay headline (the minutes, the top artist, song or album) as a colour card: the figure as the title, what it is and its
+ * detail under it, the artwork as the disc. Library's way in to Replay; a tap opens Replay where [onClick] says.
+ */
+@Composable
+fun OrbitReplayCard(label: String, value: String, detail: String?, artworkUrl: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    OrbitColourTile(value, listOfNotNull(label, detail).joinToString(" · "), artworkUrl, OrbitTile.CARD, orbitFonts(), onClick = onClick, modifier = modifier.width(172.dp))
+}

@@ -42,7 +42,7 @@ class DesktopPagesContractTest {
         assertEquals(
             listOf(
                 "state", "fallbackName", "onRetry", "onPlaySongs", "onShuffle", "onOpenMenu", "onShelfItemClick", "onToggleSubscription",
-                "contentPadding", "artistId", "onStartRadio",
+                "contentPadding", "artistId", "onStartRadio", "onFollowSignIn",
             ),
             SourceContract.names(SourceContract.parameters(src, "DesktopArtistPage")),
         )

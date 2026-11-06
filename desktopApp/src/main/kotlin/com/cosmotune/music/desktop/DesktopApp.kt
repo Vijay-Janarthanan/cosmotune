@@ -20,7 +20,6 @@ import com.cosmotune.music.ui.components.PAGE_GUTTER
 import com.cosmotune.music.ui.components.trackColumnWidth
 import com.cosmotune.music.ui.components.SourceQualityBadge
 import com.cosmotune.music.ui.components.sourceQualityBadge
-import com.cosmotune.music.ui.replay.ReplayCreditCard
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import com.cosmotune.music.data.YtMusicRepository
@@ -4664,12 +4663,13 @@ fun CosmotuneDesktopApp() {
                             },
                             onOpenMenu = { song -> openMenu(song) },
                             onShelfItemClick = ::openShelfItem,
-                            // A channel subscription is the account's, so a guest is never shown
-                            // the button.
-                            onToggleSubscription = if (youtubeSignedIn) ::toggleSubscription else null,
+                            // A channel subscription is the account's: a guest's Follow opens sign-in. A source's
+                            // artist is followed in the source's library, signed in or not (as on the phone).
+                            onToggleSubscription = if (youtubeSignedIn || com.cosmotune.providers.ProviderBrowseKey.parse(openedArtist?.browseId.orEmpty()) != null) ::toggleSubscription else null,
                             contentPadding = contentPadding,
                             artistId = openedArtist?.browseId,
                             onStartRadio = ::startRadio,
+                            onFollowSignIn = { overlays.accounts = true }.takeIf { !youtubeSignedIn },
                         )
                         openedCollection?.loading == true -> DesktopPageScaffold(contentPadding) {
                             Box(Modifier.fillMaxSize()) {
@@ -4979,16 +4979,8 @@ fun CosmotuneDesktopApp() {
                                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     ) {
                                         items(cards, key = { it.label }) { card ->
-                                            ReplayCreditCard(
-                                                label = card.label,
-                                                value = card.value,
-                                                detail = card.detail,
-                                                artworkUrl = card.artworkUrl,
-                                                holder = replayHolder,
-                                                memberSince = replaySummary.memberSince(),
-                                                onClick = { overlays.replay = true },
-                                                modifier = Modifier.width(300.dp),
-                                            )
+                                            // Orbit colour cards: the figure, what it is, the artwork as the disc.
+                                            com.cosmotune.ui.orbit.OrbitReplayCard(card.label, card.value, card.detail, card.artworkUrl, onClick = { overlays.replay = true })
                                         }
                                     }
                                 }
@@ -5968,8 +5960,10 @@ private fun DesktopArtistPage(
     /** The channel and a station from a song: only the Orbit page uses them (More's "Copy link", Radio). */
     artistId: String? = null,
     onStartRadio: ((Song) -> Unit)? = null,
+    /** Follow for a guest: opens sign-in (the Orbit page only). */
+    onFollowSignIn: (() -> Unit)? = null,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopArtistPage(state = state, fallbackName = fallbackName, onRetry = onRetry, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onOpenMenu = onOpenMenu, onShelfItemClick = onShelfItemClick, onToggleSubscription = onToggleSubscription, contentPadding = contentPadding, artistId = artistId, onStartRadio = onStartRadio, nowPlaying = LocalNowPlaying.current)
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.CosmoDesktopArtistPage(state = state, fallbackName = fallbackName, onRetry = onRetry, onPlaySongs = onPlaySongs, onShuffle = onShuffle, onOpenMenu = onOpenMenu, onShelfItemClick = onShelfItemClick, onToggleSubscription = onToggleSubscription, contentPadding = contentPadding, artistId = artistId, onStartRadio = onStartRadio, nowPlaying = LocalNowPlaying.current, onFollowSignIn = onFollowSignIn)
     DesktopPageScaffold(contentPadding) {
         when (state) {
             UiState.Loading -> Box(Modifier.fillMaxSize()) {
