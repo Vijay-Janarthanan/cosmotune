@@ -66,6 +66,12 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object LyricsRepository {
 
+    /**
+     * Started only when the loop reaches them, and skipped once anything ahead of them has answered: [LyricsSource.GENIUS]
+     * (a scraper, kept quiet to avoid rate limits) and [LyricsSource.YOUTUBE_CAPTION_TRACK] (speech recognition, the last resort).
+     */
+    private val ASKED_LAST = setOf(LyricsSource.GENIUS, LyricsSource.YOUTUBE_CAPTION_TRACK)
+
     /** Lyrics, and which source they turned out to come from. */
     data class Result(val source: LyricsSource, val lines: List<LyricLine>)
 
@@ -130,7 +136,7 @@ object LyricsRepository {
         // Genius is a plain text web scraper. To preserve bandwidth and avoid rate-limiting,
         // it starts lazily and is only contacted if all higher-priority synced sources miss.
         val racing: List<Pair<LyricsSource, Deferred<Result?>>> = sequence.map { source ->
-            val startMode = if (source == LyricsSource.GENIUS) kotlinx.coroutines.CoroutineStart.LAZY else kotlinx.coroutines.CoroutineStart.DEFAULT
+            val startMode = if (source in ASKED_LAST) kotlinx.coroutines.CoroutineStart.LAZY else kotlinx.coroutines.CoroutineStart.DEFAULT
             source to async(Dispatchers.IO, start = startMode) {
                 onSourceStarted?.invoke(source)
                 try {
@@ -161,7 +167,7 @@ object LyricsRepository {
             var lineSynced: Result? = null
             for ((source, job) in racing) {
                 // If we already found a line-synced or better result, skip Genius completely
-                if (lineSynced != null && source == LyricsSource.GENIUS) continue
+                if (lineSynced != null && source in ASKED_LAST) continue
 
                 val found = runCatching { job.await() }.getOrNull() ?: continue
                 if (found.lines.any { it.isWordSynced }) return@coroutineScope found
@@ -214,6 +220,7 @@ object LyricsRepository {
             LyricsSource.KUGOU -> KuGou.lyrics(title, artist, durationMs, album)
             LyricsSource.MEGALOBIZ -> Megalobiz.lyrics(title, artist)
             LyricsSource.GENIUS -> Genius.lyrics(title, artist)
+            LyricsSource.YOUTUBE_CAPTION_TRACK -> YouTubeCaptionLyrics.lyrics(videoId)
         }
         return found
     }
