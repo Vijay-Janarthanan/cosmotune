@@ -12,6 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -100,10 +101,10 @@ class PlayingRowInteractionTest {
                 )
             }
         }
-        // The row that is playing carries the equaliser ("Now playing"); the namesake above it does not.
-        compose.onAllNodes(hasContentDescription("Now playing")).assertCountEquals(1)
-        compose.onAllNodes(hasContentDescription("Now playing") and hasText("4:02")).assertCountEquals(1)
-        compose.onAllNodes(hasContentDescription("Now playing") and hasText("3:01")).assertCountEquals(0)
+        // The row that is playing wears the orbit and says "Now playing" (Orbit's row); the namesake above it does not.
+        compose.onAllNodes(hasStateDescription("Now playing")).assertCountEquals(1)
+        compose.onAllNodes(hasStateDescription("Now playing") and hasText("4:02")).assertCountEquals(1)
+        compose.onAllNodes(hasStateDescription("Now playing") and hasText("3:01")).assertCountEquals(0)
     }
 
     @Test fun theNewLookRowShowsTheOfferedTierOnlyWhenAsked() = withRowHosts {

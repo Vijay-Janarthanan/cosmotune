@@ -1502,7 +1502,7 @@ internal fun Song.matchesSearch(query: String): Boolean =
         artist.contains(query, ignoreCase = true) ||
         albumName?.contains(query, ignoreCase = true) == true
 
-private fun List<Song>.sortedForLibrary(order: LocalMusicSort): List<Song> = when (order) {
+internal fun List<Song>.sortedForLibrary(order: LocalMusicSort): List<Song> = when (order) {
     LocalMusicSort.TITLE_ASC -> sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
     LocalMusicSort.TITLE_DESC -> sortedWith(compareByDescending<Song> { it.title.lowercase(Locale.ROOT) })
     LocalMusicSort.DATE_ADDED -> sortedWith(
@@ -1650,7 +1650,7 @@ private fun LocalSearchField(
 }
 
 @Composable
-private fun LocalMusicSort.localizedLabel(): String = when (this) {
+internal fun LocalMusicSort.localizedLabel(): String = when (this) {
     LocalMusicSort.TITLE_ASC -> stringResource(R.string.sort_title_ascending)
     LocalMusicSort.TITLE_DESC -> stringResource(R.string.sort_title_descending)
     LocalMusicSort.DATE_ADDED -> stringResource(R.string.sort_date_added)

@@ -215,9 +215,10 @@ class SettingsBlocksContractTest {
         val code = SourceContract.code(blocks)
         assertTrue(code.contains("GroupSegments.of("), "the tiles are the pure rectangles between the gaps")
         assertTrue(code.contains("height(GroupSegments.GAP_DP.dp)") && code.contains(".onPlaced { tiles?.dividerPlaced(key, it) }"), "a tile gap is a 3 dp spacer that reports where it was placed (a row divider is a hairline inside one tile)")
-        assertTrue(code.contains("CoverField.SURFACE_HIGH") && code.contains("CoverField.SURFACE)") && code.contains("TILE_TOP_MIX = 0.4f"), "the tile fill is mix(surfaceHigh, surface, 0.4) to surface")
-        assertTrue(code.contains("Brush.verticalGradient("), "at 180 degrees")
-        assertTrue(code.contains("GroupSegments.drawnRadius(GroupSegments.OUTER_RADIUS_DP)") && code.contains("GroupSegments.drawnRadius(GroupSegments.INNER_RADIUS_DP)"), "circular corners at the radius over 1.3")
+        // Orbit (board batch-a 2): the group is the quiet card, the ink at 5 % (4.5 % in the light), radius 26, 8 where two tiles meet
+        assertTrue(code.contains("TILE_INK_DARK = 0.05f") && code.contains("TILE_INK_LIGHT = 0.045f") && code.contains("CoverField.TEXT_PRIMARY).copy(alpha = if (colors.dark) TILE_INK_DARK else TILE_INK_LIGHT)"), "the tile is Orbit's row fill")
+        assertTrue(code.contains("TILE_OUTER_DP = 26f") && code.contains("TILE_INNER_DP = 8f"), "the board's corners")
+        assertFalse(code.contains("Brush.verticalGradient("), "no gradient: Orbit's cards are flat")
     }
 
     @Test fun theRowsAreButtonsWithAFocusRingAndTheSwitchRowIsASwitch() {
@@ -235,12 +236,15 @@ class SettingsBlocksContractTest {
     @Test fun theBlocksUseTheDesignsNumbers() {
         val code = SourceContract.code(blocks)
         for (fragment in listOf(
-            "ROW_MIN_HEIGHT = 64.dp", "ROW_PADDING_H = 16.dp", "ROW_PADDING_V = 10.dp", "ROW_GAP = 14.dp", "LEAD_SIZE = 40.dp", "LEAD_ICON = 20.dp",
-            "LEAD_RADIUS = 14.dp", "PROFILE_RADIUS = 26.dp", "AVATAR_SIZE = 48.dp", "BADGE_HEIGHT = 18.dp", "DESTRUCTIVE_MIN_HEIGHT = 52.dp",
-            "HEADER_TOP = 22.dp", "HEADER_BOTTOM = 8.dp", "textStart: Dp = 70.dp", "MINI_SEGMENT_HEIGHT_DP = 32f",
+            "ROW_MIN_HEIGHT = 60.dp", "ROW_PADDING_H = 16.dp", "ROW_PADDING_V = 10.dp", "ROW_GAP = 14.dp", "LEAD_SIZE = 40.dp", "LEAD_ICON = 20.dp",
+            "LEAD_RADIUS = 14.dp", "BADGE_HEIGHT = 18.dp", "DESTRUCTIVE_MIN_HEIGHT = 52.dp",
+            "HEADER_TOP = 24.dp", "HEADER_BOTTOM = 8.dp", "textStart: Dp = 70.dp", "MINI_SEGMENT_HEIGHT_DP = 32f", "CHIP_HEIGHT_DP = 40f", "CHIP_GAP = 8.dp",
         )) assertTrue(code.contains(fragment), "the blocks have $fragment")
-        assertTrue(code.contains("type.settings(12f, 700") && code.contains("type.settings(17f, 700") && code.contains("type.settings(11.5f, 700"), "header, name and badge sizes")
-        assertTrue(code.contains("settings(15.5f, TITLE_WEIGHT") && code.contains("TITLE_WEIGHT = 650"), "titles are 15.5 sp, weight 650")
+        // Orbit's faces: the header is the mono label, the rows Orbit's title and body, the badge the mono label again
+        assertTrue(code.contains("style = fonts.label,") && code.contains("title.copy(fontSize = 14.5.sp") && code.contains("body.copy(fontSize = 12.5.sp"), "header, title and line faces")
+        assertTrue(code.contains("OrbitAccountCard("), "the profile card is Orbit's account card")
+        assertTrue(code.contains("drawRoundRect(if (selected) text else text.copy(alpha = 0.08f)"), "a choice is a chip: the chosen one solid ink")
         assertTrue(code.contains("maxLines = 5"), "a subtitle may take five lines")
     }
+
 }

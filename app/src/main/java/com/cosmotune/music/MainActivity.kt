@@ -3019,7 +3019,7 @@ private fun CosmotuneApp(
                                 emptyList()
                             }
                         }
-                        LocalMusicScreen(
+                        com.cosmotune.ui.library.LocalMusicSwitch(
                             songs = localSongs,
                             onFindMusic = if (page.browseId == "local:downloads") ({ viewModel.clearDetail(); selectedTab = TAB_SEARCH }) else null,
                             collections = downloadCollections,

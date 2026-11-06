@@ -1,5 +1,14 @@
 package com.cosmotune.ui.account
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import com.cosmotune.ui.orbit.OrbitAccountCard
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -59,7 +68,8 @@ import com.cosmotune.ui.theme.LocalCosmoType
 import org.jetbrains.compose.resources.stringResource
 
 /*
- * The one account sheet of the app, for the one Google sign-in Music and Video share: who is signed in (picture, name, handle),
+ * The one account sheet of the app in Orbit (the account card of Canvas repo, design/cosmotune/batch-a/board.html, section 2, leads
+ * it), for the one Google sign-in Music and Video share: who is signed in (picture, name, handle),
  * where the sign-in stands ("Signed in to YouTube & YouTube Music", or expired), the channels and accounts to switch to, and
  * Sign in / Sign in again / Add account / Sign out. Music's profile button and Video's avatar open it; it takes what it shows as
  * an [AccountSheetModel] and says what was tapped.
@@ -140,8 +150,9 @@ fun ColumnScope.AccountSheetContent(
     statusText: String? = null,
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
     val signedOut = model.status == AccountStatus.SIGNED_OUT
     val name = model.name?.takeIf { it.isNotBlank() && !signedOut } ?: stringResource(Res.string.cosmo_account_signed_out_title)
     val status = when (model.status) {
@@ -149,113 +160,93 @@ fun ColumnScope.AccountSheetContent(
         AccountStatus.EXPIRED -> stringResource(Res.string.cosmo_account_status_expired)
         AccountStatus.SIGNED_OUT -> stringResource(Res.string.cosmo_account_signed_out_hint)
     }
+    // Who is signed in, as the account card that leads Settings (Orbit, board batch-a 2): the colour card, the picture as a disc.
+    OrbitAccountCard(
+        label = if (signedOut) "Account" else "Account · Google",
+        name = name,
+        line = model.handle?.takeIf { it.isNotBlank() && !signedOut },
+        pictureUrl = model.avatarUrl.takeUnless { signedOut },
+        fonts = fonts,
+        onClick = null,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag(AccountSheetTags.HEAD),
+        compact = true,
+    )
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).testTag(AccountSheetTags.HEAD),
+        Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 6.dp).testTag(AccountSheetTags.STATUS),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AccountAvatar(model.avatarUrl.takeUnless { signedOut }, 56)
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(name, style = type.title(TypeScale.TITLE_S), color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (!signedOut && !model.handle.isNullOrBlank()) {
-                Text(model.handle, style = type.body().copy(fontSize = 13.sp), color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag(AccountSheetTags.STATUS)) {
-                if (!signedOut) {
-                    val dot = if (model.status == AccountStatus.EXPIRED) palette.danger else palette.accent
-                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(CosmoRadii.rXs)).background(Color(dot)))
-                    Spacer(Modifier.width(6.dp))
-                }
-                Text(status, style = type.body().copy(fontSize = 13.sp), color = Color(palette.textSecondary), maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
+        if (!signedOut) {
+            val dot = if (model.status == AccountStatus.EXPIRED) Color(palette.danger) else LIVE_DOT
+            Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+            Spacer(Modifier.width(8.dp))
         }
+        Text(status, style = fonts.body, color = look.dim, maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
-    when (model.status) {
-        AccountStatus.SIGNED_OUT -> KitButton(
-            text = stringResource(Res.string.cosmo_account_sign_in),
-            onClick = { onSignIn(); onDismiss() },
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().testTag(AccountSheetTags.SIGN_IN),
-            icon = CosmoIcons.User,
-        )
-        AccountStatus.EXPIRED -> KitButton(
-            text = stringResource(Res.string.cosmo_account_sign_in_again),
-            onClick = { onSignIn(); onDismiss() },
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().testTag(AccountSheetTags.SIGN_IN),
-            icon = CosmoIcons.User,
-        )
-        AccountStatus.SIGNED_IN -> Unit
+    if (model.status != AccountStatus.SIGNED_IN) {
+        // One solid ink pill: the page's one thing to do.
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().height(48.dp).clip(CircleShape).background(look.ink)
+                .clickable(role = Role.Button) { onSignIn(); onDismiss() }
+                .testTag(AccountSheetTags.SIGN_IN),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(CosmoIcons.User, contentDescription = null, tint = look.ground, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(
+                stringResource(if (model.status == AccountStatus.EXPIRED) Res.string.cosmo_account_sign_in_again else Res.string.cosmo_account_sign_in),
+                style = fonts.chip, color = look.ground,
+            )
+        }
     }
     if (!signedOut && model.choices.size > 1) {
         val groups = model.choices.groupBy { it.group }
         for ((group, rows) in groups) {
-            KitGroup(title = group) {
-                rows.forEachIndexed { index, choice ->
-                    if (index > 0) KitDivider()
-                    ChoiceRow(choice, active = choice.id == model.activeId) { onSwitch(choice.id); onDismiss() }
-                }
+            if (group != null) OrbitLabel(group, fonts, look.dim, Modifier.padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 8.dp))
+            Column(Modifier.padding(horizontal = 16.dp, vertical = if (group == null) 8.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                rows.forEach { choice -> ChoiceRow(choice, active = choice.id == model.activeId, fonts, look) { onSwitch(choice.id); onDismiss() } }
             }
         }
     }
-    Spacer(Modifier.size(8.dp))
-    KitGroup {
-        var first = true
+    Spacer(Modifier.size(12.dp))
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (onAddAccount != null) {
-            KitSettingsRow(
-                title = stringResource(Res.string.cosmo_account_add),
-                icon = CosmoIcons.Plus,
-                tint = Color(palette.accent),
-                onClick = { onAddAccount(); onDismiss() },
-                modifier = Modifier.testTag(AccountSheetTags.ADD),
+            OrbitSongRow(
+                title = stringResource(Res.string.cosmo_account_add), subtitle = "", cover = null, fonts = fonts, look = look,
+                onClick = { onAddAccount(); onDismiss() }, icon = CosmoIcons.Plus, height = 56.dp, discSize = 36.dp,
+                modifier = Modifier.fillMaxWidth().testTag(AccountSheetTags.ADD),
             )
-            first = false
         }
         if (!signedOut) {
-            if (!first) KitDivider()
-            KitSettingsRow(
-                title = stringResource(Res.string.cosmo_account_sign_out),
-                icon = CosmoIcons.Close,
-                tint = Color(palette.danger),
-                onClick = { onSignOut(); onDismiss() },
-                modifier = Modifier.testTag(AccountSheetTags.SIGN_OUT),
+            OrbitSongRow(
+                title = stringResource(Res.string.cosmo_account_sign_out), subtitle = "", cover = null, fonts = fonts, look = look,
+                onClick = { onSignOut(); onDismiss() }, icon = CosmoIcons.Close, height = 56.dp, discSize = 36.dp,
+                modifier = Modifier.fillMaxWidth().testTag(AccountSheetTags.SIGN_OUT),
             )
         }
-        extra()
     }
+    Column(Modifier.padding(horizontal = 16.dp)) { extra() }
     Spacer(Modifier.size(12.dp))
 }
 
-/** One channel row: its picture, its name over its handle (or Personal / Brand channel), a check when it is the active one. */
+/** The green of a sign-in that is in force (Orbit's live dot). */
+private val LIVE_DOT = Color(0xFF7CE3A1)
+
+/** One channel: Home's row with its picture as the disc, its name over its handle (or Personal / Brand channel), a check when active. */
 @Composable
-private fun ChoiceRow(choice: AccountChoiceRow, active: Boolean, onClick: () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+private fun ChoiceRow(choice: AccountChoiceRow, active: Boolean, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
     val activeLabel = stringResource(Res.string.cosmo_account_active)
     val subtitle = choice.handle?.takeIf { it.isNotBlank() }
         ?: stringResource(if (choice.isBrand) Res.string.cosmo_account_brand else Res.string.cosmo_account_personal)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clickable(role = Role.RadioButton, onClick = onClick)
+    OrbitSongRow(
+        title = choice.name, subtitle = subtitle, cover = choice.avatarUrl, fonts = fonts, look = look, onClick = onClick,
+        height = 60.dp, discSize = 40.dp,
+        icon = if (choice.avatarUrl == null) CosmoIcons.User else null,
+        modifier = Modifier.fillMaxWidth()
             .then(if (active) Modifier.semantics { contentDescription = "${choice.name}, $activeLabel" } else Modifier)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
             .testTag(AccountSheetTags.choice(choice.id)),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AccountAvatar(choice.avatarUrl, 36)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                choice.name,
-                style = type.body().copy(fontSize = 15.sp, fontWeight = if (active) FontWeight(600) else FontWeight(500)),
-                color = Color(if (active) palette.accentStrong else palette.textPrimary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(subtitle, style = type.body().copy(fontSize = 13.sp), color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        if (active) Icon(CosmoIcons.Check, contentDescription = null, tint = Color(palette.accentStrong), modifier = Modifier.size(20.dp))
-    }
+        trailing = if (active) { { Icon(CosmoIcons.Check, contentDescription = null, tint = look.ink, modifier = Modifier.size(20.dp)) } } else null,
+    )
 }
 
 /** A round picture of [sizeDp] over the user glyph (what a signed-out or a failed load shows). */

@@ -1,5 +1,10 @@
 package com.cosmotune.ui.settings
 
+import com.cosmotune.ui.orbit.OrbitAccountCard
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -101,14 +106,13 @@ import com.cosmotune.music.ui.haptics.rememberHaptics
 import kotlin.math.min
 
 /*
- * The settings pages in the new look (B: they are part of the page). The names and the order of the parameters are the ones of the
- * phone's `SettingsSheet.kt` functions that delegate to them (`SettingsGroup`, `RowDivider`, `SettingsRow`, ...), so the old
- * screens' call sites keep working; the desktop's four private settings functions delegate to the same blocks.
+ * The settings pages in Orbit (Canvas repo, design/cosmotune/batch-a/board.html, section 2): a group is the board's quiet card, a
+ * mono label over the ink at 5 % (radius 26), its rows Orbit's title and body faces with the category's colour tile and Orbit's
+ * switch, and a choice is a row of chips with the chosen one solid ink. The names and the order of the parameters are the ones of
+ * the phone's `SettingsSheet.kt` functions that delegate to them (`SettingsGroup`, `RowDivider`, `SettingsRow`, ...), so the old
+ * screens' call sites keep working; the desktop's settings functions delegate to the same blocks.
  *
- * The numbers are `components-v3bc.css:135-144` (`.grp`, `.row2`) and `v2/screens-v2.css:117-124` (`.prof2`, `.grp-h`, the stacked
- * segmented control).
- *
- * A group is a column of rows with a 3 dp gap wherever a [CosmoRowDivider] stands; the group draws one rounded tile behind each run
+ * A group is a column of rows with a 3 dp gap wherever a [CosmoTileGap] stands; the group draws one rounded tile behind each run
  * of rows between two gaps. It finds the gaps from the dividers themselves: each reports where it was placed, relative to the group.
  */
 
@@ -123,7 +127,7 @@ object CosmoSettingsInsets {
 
 private val ROW_PADDING_H = 16.dp
 private val ROW_PADDING_V = 10.dp
-private val ROW_MIN_HEIGHT = 64.dp
+private val ROW_MIN_HEIGHT = 60.dp
 private val ROW_GAP = 14.dp
 private val LEAD_SIZE = 40.dp
 private val LEAD_ICON = 20.dp
@@ -134,19 +138,22 @@ private val DESTRUCTIVE_MIN_HEIGHT = 52.dp
 private val BADGE_HEIGHT = 18.dp
 private val BADGE_PADDING = 6.dp
 private val CHEVRON_SIZE = 20.dp
-private val AVATAR_SIZE = 48.dp
-private val PROFILE_RADIUS = 26.dp
-private val HEADER_TOP = 22.dp
+private val CHIP_GAP = 8.dp
+private val HEADER_TOP = 24.dp
 private val HEADER_BOTTOM = 8.dp
 private val FOOTER_SIDE = 20.dp
 private val FOOTER_TOP = 8.dp
 private const val FOCUS_RING = 3f
 
-/** The tile fill is `mix(surfaceHigh, surface, 0.4)` at the top and `surface` at the bottom (`--tile-fill`). */
-private const val TILE_TOP_MIX = 0.4f
-private const val TITLE_WEIGHT = 650
+/** The tile is Orbit's row fill: the ink at 5 % in the dark, 4.5 % in the light (`orbitLook().row`). */
+private const val TILE_INK_DARK = 0.05f
+private const val TILE_INK_LIGHT = 0.045f
+
+/** The corners of a group's tiles: the outer ones the board's card (26), the ones where two tiles meet across a gap 8. */
+private const val TILE_OUTER_DP = 26f
+private const val TILE_INNER_DP = 8f
 private const val MINI_SEGMENT_HEIGHT_DP = 32f
-private const val SEGMENT_WEIGHT = 640
+private const val CHIP_HEIGHT_DP = 40f
 
 /** A settings segment's label, shrunk half a sp at a time from its own size to fit; never below 12 sp (then the ellipsis cuts). */
 private val SEGMENT_FIT = FitLabel(ControlMetrics.settingsSegmentLabelMaxSp(compact = false), ControlMetrics.SEGMENT_LABEL_MIN_SP, 0.5f, wholeWords = false)
@@ -249,20 +256,19 @@ private fun tileOf(width: Float, top: Float, bottom: Float, topRadius: Float, bo
 
 // ---- type -----------------------------------------------------------------------------------------------------------------
 
-/** Hanken Grotesk at [size] sp and [weight]; the sizes of the settings page are the design's, not the scale's. */
-private fun CosmoType.settings(size: Float, weight: Int, lineHeight: Float = 1.3f): TextStyle =
-    body(TypeScale.BODY, FontWeight(weight)).copy(fontSize = size.sp, lineHeight = (size * lineHeight).sp)
+/** A row's title: Orbit's title face (Hanken Grotesk 700) at 14.5 sp, as the board's rows. */
+private fun OrbitFonts.rowTitle(): TextStyle = title.copy(fontSize = 14.5.sp, lineHeight = 18.sp)
 
-private fun CosmoType.rowTitle(text: String): TextStyle = forText(settings(15.5f, TITLE_WEIGHT, 1.25f), text)
-private fun CosmoType.rowSubtitle(text: String): TextStyle = forText(settings(13f, 400, 1.35f), text)
+/** The line under a row's title: Orbit's body at 12.5 sp, drawn in the dim ink. */
+private fun OrbitFonts.rowSubtitle(): TextStyle = body.copy(fontSize = 12.5.sp, lineHeight = 17.sp)
 
 // ---- the group ------------------------------------------------------------------------------------------------------------------
 
 /**
- * One group of rows: an overline [header] above (12 sp, weight 700, `textSecondary`, as written, not in capitals), a plain-language
- * [footer] below, and between them the tile or tiles that [content] stands on, 16 dp from the sides. Without a header there is
- * [topSpacing] of room above instead. The tiles are the runs of rows between [CosmoRowDivider]s: the first has outer corners 24
- * at the top, the last 24 at the bottom, every other corner is 6, and the gap between two is 3 dp.
+ * One group of rows: Orbit's mono label as its [header] (in capitals, tracked, the dim ink), a plain-language [footer] below, and
+ * between them the tile or tiles that [content] stands on, 16 dp from the sides. Without a header there is [topSpacing] of room
+ * above instead. The tiles are the runs of rows between [CosmoTileGap]s: the first has outer corners 26 at the top, the last 26 at
+ * the bottom, every other corner is 8, and the gap between two is 3 dp.
  */
 @Composable
 fun CosmoSettingsGroup(
@@ -273,24 +279,21 @@ fun CosmoSettingsGroup(
 ) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val density = LocalDensity.current.density
-    val tiles = remember(density) {
-        Tiles(
-            outerPx = GroupSegments.drawnRadius(GroupSegments.OUTER_RADIUS_DP) * density,
-            innerPx = GroupSegments.drawnRadius(GroupSegments.INNER_RADIUS_DP) * density,
-        )
-    }
+    val tiles = remember(density) { Tiles(outerPx = TILE_OUTER_DP * density, innerPx = TILE_INNER_DP * density) }
     if (header != null) {
-        // An overline in capitals, a little apart, so the sections of a page read at a glance.
+        // Orbit's mono label, a little apart, so the sections of a page read at a glance.
         val overline = remember(header) { header.uppercase() }
         Text(
             text = overline,
-            style = type.forText(type.settings(12f, 700, 1.3f).copy(letterSpacing = 0.08.em), header),
-            color = Color(palette.textSecondary),
+            style = fonts.label,
+            color = look.dim,
+            maxLines = 2,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = CosmoSettingsInsets.side, end = CosmoSettingsInsets.side, top = HEADER_TOP, bottom = HEADER_BOTTOM)
+                .padding(start = CosmoSettingsInsets.side + 6.dp, end = CosmoSettingsInsets.side, top = HEADER_TOP, bottom = HEADER_BOTTOM)
                 .semantics { heading() },
         )
     } else {
@@ -312,11 +315,8 @@ fun CosmoSettingsGroup(
                         Path().apply { addRoundRect(tileOf(width, segments[i].top, segments[i].bottom, segments[i].topRadius, segments[i].bottomRadius)) }
                     }
                     onDrawBehind {
-                        val base = colors.live(CoverField.SURFACE)
-                        val from = Color(ColorMix.mix(colors.live(CoverField.SURFACE_HIGH).toArgb(), base.toArgb(), TILE_TOP_MIX))
-                        for (i in paths.indices) {
-                            drawPath(paths[i], Brush.verticalGradient(listOf(from, base), startY = segments[i].top, endY = segments[i].bottom))
-                        }
+                        val fill = colors.live(CoverField.TEXT_PRIMARY).copy(alpha = if (colors.dark) TILE_INK_DARK else TILE_INK_LIGHT)
+                        for (i in paths.indices) drawPath(paths[i], fill)
                     }
                 },
         ) {
@@ -326,8 +326,8 @@ fun CosmoSettingsGroup(
     if (footer != null) {
         Text(
             text = footer,
-            style = type.rowSubtitle(footer),
-            color = Color(palette.textSecondary),
+            style = fonts.rowSubtitle(),
+            color = look.dim,
             modifier = Modifier.fillMaxWidth().padding(start = FOOTER_SIDE, end = FOOTER_SIDE, top = FOOTER_TOP),
         )
     }
@@ -460,8 +460,8 @@ fun CosmoSettingsRow(
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Row(
         Modifier
             .fillMaxWidth()
@@ -485,8 +485,8 @@ fun CosmoSettingsRow(
                 } else if (subtitle != null) {
                     Text(
                         text = subtitle,
-                        style = type.rowSubtitle(subtitle),
-                        color = Color(palette.textSecondary),
+                        style = fonts.rowSubtitle(),
+                        color = look.dim,
                         maxLines = 5,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 2.dp),
@@ -497,8 +497,8 @@ fun CosmoSettingsRow(
                 if (value != null) {
                     Text(
                         text = value,
-                        style = type.settings(14f, 400),
-                        color = Color(palette.textSecondary),
+                        style = fonts.body,
+                        color = look.dim,
                         maxLines = 1,
                     )
                 }
@@ -515,13 +515,13 @@ fun CosmoSettingsRow(
 /** The title of a row on one line, with its [badge] after it. */
 @Composable
 private fun TitleLine(title: String, badge: String?) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = title,
-            style = type.rowTitle(title),
-            color = Color(palette.textPrimary),
+            style = fonts.rowTitle(),
+            color = look.ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
@@ -571,8 +571,8 @@ fun CosmoSettingsSubRow(
     badge: String? = null,
     subtitle: String? = null,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Row(
         Modifier
             .fillMaxWidth()
@@ -585,8 +585,8 @@ fun CosmoSettingsSubRow(
             if (subtitle != null) {
                 Text(
                     text = subtitle,
-                    style = type.rowSubtitle(subtitle),
-                    color = Color(palette.textSecondary),
+                    style = fonts.rowSubtitle(),
+                    color = look.dim,
                     maxLines = 5,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 2.dp),
@@ -614,15 +614,15 @@ fun CosmoSliderRow(
     steps: Int,
     subtitle: String? = null,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Column(Modifier.fillMaxWidth()) {
         CosmoSettingsRow(
             icon = icon,
             title = title,
             subtitle = subtitle,
             trailing = {
-                Text(text = value, style = type.settings(14f, 400), color = Color(palette.textSecondary), maxLines = 1)
+                Text(text = value, style = fonts.label, color = look.dim, maxLines = 1)
             },
         )
         Box(
@@ -643,14 +643,14 @@ fun CosmoSliderRow(
     }
 }
 
-/** Sign out: the label centred on its row, 15.5 sp weight 650 in the theme's error colour (the danger red), 52 dp at least. */
+/** Sign out: the label centred on its row, in the rows' title face and the theme's error colour (the danger red), 52 dp at least. */
 @Composable
 fun CosmoDestructiveRow(
     label: String,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
     Box(
         Modifier
             .fillMaxWidth()
@@ -661,7 +661,7 @@ fun CosmoDestructiveRow(
     ) {
         Text(
             text = label,
-            style = type.rowTitle(label),
+            style = fonts.rowTitle(),
             color = MaterialTheme.colorScheme.error,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -670,27 +670,28 @@ fun CosmoDestructiveRow(
     }
 }
 
-/** A small pill after a title (Blocking, Connected): 18 dp high, `accentContainer` with `onAccentContainer` capitals, 11.5 sp weight 700. */
+/** A small pill after a title (Blocking, Connected): 18 dp high, the ink at 8 % under Orbit's mono label in the ink. */
 @Composable
 fun CosmoBadge(text: String) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val label = remember(text) { text.uppercase() }
     Box(
         Modifier
             .height(BADGE_HEIGHT)
             .drawBehind {
                 keepRedrawnWith(palette)
-                drawRoundRect(colors.live(CoverField.ACCENT_CONTAINER), cornerRadius = CornerRadius(size.height / 2f))
+                drawRoundRect(colors.live(CoverField.TEXT_PRIMARY).copy(alpha = 0.08f), cornerRadius = CornerRadius(size.height / 2f))
             }
             .padding(horizontal = BADGE_PADDING),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            style = type.settings(11.5f, 700, 1.1f),
-            color = Color(palette.onAccentContainer),
+            style = fonts.label.copy(fontSize = 9.5.sp, letterSpacing = 1.sp),
+            color = look.ink,
             maxLines = 1,
         )
     }
@@ -706,14 +707,10 @@ fun CosmoChevron() {
 // ---- the segmented control of a settings page ------------------------------------------------------------------------------------------
 
 /**
- * The segmented control of a settings page (theme, quality, refresh rate, colour intensity): the B segments of the B+C system (3 dp
- * apart, the outer ends pills, the inner corners 6 dp that morph to 16 dp while pressed, the selected segment a tonal pill) filling
- * the width it is given, each option an equal share (`.row2.stack .seg2 > button { flex: 1 }`), so that four or five options still fit.
- * [compact] is the small one (`.mini-seg`: 32 dp tall, 13 sp, no check mark), for a control that stands under a row. Disabled it is
- * drawn at 38 % and takes no input.
- *
- * `CosmoSegmented` itself is 40 dp tall with segments as wide as their labels, so it cannot do either; this draws the same segments
- * from the same numbers and helpers.
+ * The choice of a settings page (theme, quality, refresh rate, colour intensity) as Orbit's chips (board 2): 40 dp pills 8 dp apart,
+ * each an equal share of the width it is given so that four or five options still fit, the ink at 8 % and the chosen one solid ink
+ * with the ground's colour for its words. [compact] is the small one (32 dp, 12.5 sp), for a choice that stands under a row.
+ * Disabled it is drawn at 38 % and takes no input.
  */
 @Composable
 fun CosmoSettingsSegmented(
@@ -724,13 +721,13 @@ fun CosmoSettingsSegmented(
     enabled: Boolean = true,
     compact: Boolean = false,
 ) {
-    val height = if (compact) MINI_SEGMENT_HEIGHT_DP else ControlMetrics.SEGMENT_HEIGHT_DP
+    val height = if (compact) MINI_SEGMENT_HEIGHT_DP else CHIP_HEIGHT_DP
     Row(
         modifier
             .fillMaxWidth()
             .graphicsLayer { alpha = if (enabled) 1f else DISABLED_ALPHA }
             .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(ControlMetrics.SEGMENT_GAP_DP.dp),
+        horizontalArrangement = Arrangement.spacedBy(CHIP_GAP),
     ) {
         options.forEachIndexed { index, label ->
             SettingsSegment(
@@ -761,74 +758,67 @@ private fun SettingsSegment(
 ) {
     val colors = LocalCosmoColors.current
     val palette = colors.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
     val reduced = LocalReducedMotion.current
     val haptics = rememberHaptics()
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val hovered by interaction.collectIsHoveredAsState()
-    val target = ControlMorph.segment(heightDp, selected, pressed && enabled)
-    val inner = remember { Animatable(target.radiusDp) }
     val layer = remember { Animatable(0f) }
     val layerTarget = if (!enabled) 0f else if (pressed) STATE_LAYER_PRESSED else if (hovered) STATE_LAYER_HOVERED else 0f
-    LaunchedEffect(target.radiusDp, reduced) { inner.animateTo(target.radiusDp, CosmoMotion.press(reduced)) }
     LaunchedEffect(layerTarget, reduced) { layer.animateTo(layerTarget, CosmoMotion.effects(reduced)) }
-    val corners = remember { FloatArray(4) }
-    val outline = remember { Path() }
-    val ink = Color(if (selected) palette.onAccentContainer else palette.textSecondary)
-    val outer = heightDp / 2f
-    val check = ControlMetrics.settingsSegmentShowsCheck(selected, compact, count)
-    val textStyle = type.forText(
-        type.label.copy(fontWeight = FontWeight(SEGMENT_WEIGHT), fontSize = ControlMetrics.settingsSegmentLabelMaxSp(compact).sp, color = ink),
-        label,
-    )
+    // Orbit's chip: the ink at 8 %, the chosen one solid ink with the ground's colour for its words.
+    val look = orbitLook()
+    val ink = if (selected) look.ground else look.ink
+    val textStyle = fonts.chip.copy(fontSize = if (compact) 12.5.sp else 14.sp, color = ink)
     Row(
         modifier
             .minimumInteractiveComponentSize()
             .height(heightDp.dp)
-            .cosmoFocusRing(interaction, outer.dp)
+            .cosmoFocusRing(interaction, (heightDp / 2f).dp)
             .drawBehind {
                 keepRedrawnWith(palette)
-                ControlMetrics.segmentCorners(index, count, inner.value, corners, outer)
-                outline.reset()
-                outline.addRoundRect(
-                    RoundRect(
-                        0f, 0f, size.width, size.height,
-                        topLeftCornerRadius = CornerRadius(corners[0].dp.toPx()), topRightCornerRadius = CornerRadius(corners[1].dp.toPx()),
-                        bottomRightCornerRadius = CornerRadius(corners[2].dp.toPx()), bottomLeftCornerRadius = CornerRadius(corners[3].dp.toPx()),
-                    ),
-                )
-                if (selected) drawPath(outline, tonalFill(colors)) else drawPath(outline, SolidColor(colors.ink(ControlMetrics.SEGMENT_REST_FILL)))
-                if (layer.value > 0.001f) drawPath(outline, ink.copy(alpha = layer.value))
-                if (selected) topLine(outline, Color.White.copy(alpha = ControlMetrics.HIGHLIGHT_TONAL))
-                else innerRing(outline, colors.ink(ControlMetrics.OUTLINE), 1f)
+                val radius = CornerRadius(size.height / 2f)
+                val text = colors.live(CoverField.TEXT_PRIMARY)
+                drawRoundRect(if (selected) text else text.copy(alpha = 0.08f), cornerRadius = radius)
+                if (layer.value > 0.001f) drawRoundRect((if (selected) colors.live(CoverField.BACKGROUND_TOP) else text).copy(alpha = layer.value), cornerRadius = radius)
             }
             .hoverable(interaction, enabled)
             .selectable(selected, interaction, indication = null, enabled = enabled, role = Role.Tab) { haptics.play(Haptic.Select); onSelect() }
-            // The segment shares its row and its label is centred, so these ends only show when the label is long (see
-            // ControlMetrics.settingsSegmentLabelRoomDp).
-            .padding(horizontal = ControlMetrics.SEGMENT_FILL_PADDING_DP.dp),
-        horizontalArrangement = Arrangement.spacedBy(ControlMetrics.SEGMENT_CHECK_GAP_DP.dp, Alignment.CenterHorizontally),
+            // The chip keeps at least the old segment's room for its words: no check mark, the old ends when small (P4-17).
+            .padding(horizontal = if (compact) ControlMetrics.SEGMENT_FILL_PADDING_DP.dp else 12.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (check) Icon(CosmoIcons.Check, contentDescription = null, tint = ink, modifier = Modifier.size(ControlMetrics.SEGMENT_ICON_DP.dp))
         BasicText(
             text = label,
             style = textStyle,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             autoSize = if (compact) COMPACT_SEGMENT_FIT else SEGMENT_FIT,
-            modifier = Modifier.weight(1f, fill = false),
         )
     }
 }
 
-// ---- the profile card -------------------------------------------------------------------------------------------------------------------
+/**
+ * One option of a choice that lays its own options out (a row of phrase lengths, the window's backdrop): Orbit's 40 dp chip, the ink
+ * at 8 %, the chosen one solid ink with the ground's colour for its words.
+ */
+@Composable
+fun CosmoSettingsChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    SettingsSegment(
+        label = label, index = 0, count = 1, selected = selected, heightDp = CHIP_HEIGHT_DP, compact = false, enabled = enabled,
+        modifier = modifier.graphicsLayer { alpha = if (enabled) 1f else DISABLED_ALPHA }, onSelect = onClick,
+    )
+}
+
+// ---- the account card -------------------------------------------------------------------------------------------------------------------
 
 /**
- * Who is signed in, at the top of the settings (`.prof2`): a 48 dp avatar, the [name] (17 sp, weight 700), the [subtitle] on one line
- * and a chevron when the card opens something. It is a tile of the page (the tile fill, superellipse 26), 16 dp from the sides with
- * 16 dp above it, unless it is [grouped]: then a [CosmoSettingsGroup] already supplies the tile and the card draws none.
+ * Who is signed in, at the top of the settings (board 2): Home's colour card from the picture, the picture as a disc, the mono
+ * [label] (where the account is from, "Account · Google"), the [name] and the [subtitle] (the sync status). No bite, since nothing
+ * plays. It stands 16 dp from the sides with 16 dp above it, unless it is [grouped]: then a [CosmoSettingsGroup] holds it and it
+ * keeps to the group's width.
  */
 @Composable
 fun CosmoProfileCard(
@@ -837,76 +827,17 @@ fun CosmoProfileCard(
     avatarUrl: String?,
     onClick: (() -> Unit)? = null,
     grouped: Boolean = false,
+    label: String = "Account",
 ) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    val morph = remember { MorphPath() }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .then(
-                if (grouped) {
-                    Modifier
-                } else {
-                    Modifier
-                        .padding(start = CosmoSettingsInsets.side, end = CosmoSettingsInsets.side, top = CosmoSettingsInsets.side)
-                        .drawBehind {
-                            keepRedrawnWith(palette)
-                            val base = colors.live(CoverField.SURFACE)
-                            val from = Color(ColorMix.mix(colors.live(CoverField.SURFACE_HIGH).toArgb(), base.toArgb(), TILE_TOP_MIX))
-                            drawPath(
-                                morph.update(size.width, size.height, PROFILE_RADIUS.toPx(), 4f),
-                                Brush.verticalGradient(listOf(from, base), startY = 0f, endY = size.height),
-                            )
-                        }
-                },
-            )
-            .then(if (onClick != null) Modifier.tileClickable(onClick, true, Role.Button, squircleDp = if (grouped) 0f else PROFILE_RADIUS.value) else Modifier)
-            .padding(horizontal = ROW_PADDING_H, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(ROW_GAP),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Avatar(avatarUrl)
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = name,
-                style = type.forText(type.settings(17f, 700, 1.25f), name),
-                color = Color(palette.textPrimary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = subtitle,
-                style = type.rowSubtitle(subtitle),
-                color = Color(palette.textSecondary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (onClick != null) CosmoChevron()
-    }
-}
-
-@Composable
-private fun Avatar(url: String?) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    Box(
-        Modifier
-            .size(AVATAR_SIZE)
-            .clip(CircleShape)
-            .drawBehind {
-                keepRedrawnWith(palette)
-                drawRect(colors.live(CoverField.SURFACE_VARIANT))
-            }
-            .thumbnailBorder(CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (url != null) {
-            AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(AVATAR_SIZE))
-        } else {
-            Icon(CosmoIcons.User, contentDescription = null, tint = Color(palette.textSecondary), modifier = Modifier.size(LEAD_ICON))
-        }
-    }
+    val fonts = orbitFonts()
+    OrbitAccountCard(
+        label = label,
+        name = name,
+        line = subtitle,
+        pictureUrl = avatarUrl,
+        fonts = fonts,
+        onClick = onClick,
+        modifier = if (grouped) Modifier else Modifier.padding(start = CosmoSettingsInsets.side, end = CosmoSettingsInsets.side, top = CosmoSettingsInsets.side),
+        compact = true,
+    )
 }

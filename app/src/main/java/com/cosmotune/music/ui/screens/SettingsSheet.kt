@@ -477,12 +477,11 @@ fun SettingsScreen(
     ) {
         if (onHub) {
             SettingsHubTitle(stringResource(R.string.settings))
-            SearchField(
+            com.cosmotune.ui.settings.SettingsSearchPill(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
-                onSubmit = {},
                 placeholder = stringResource(R.string.settings_search_hint),
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             )
             if (collector == null) {
                 SettingsHub(
@@ -495,6 +494,7 @@ fun SettingsScreen(
                             account = account,
                             onSignIn = onSignIn,
                             onClick = onAccountScrobbling,
+                            syncLine = if (cloudEnabled) cloudStatusLine(cloudStatus) else stringResource(R.string.cloud_sync_off),
                         )
                     },
                 )
@@ -1822,6 +1822,8 @@ fun SettingsScreen(
 
         // The page's colophon, under About.
         if (collector == null && selectedCategory == SettingsCategory.ABOUT) {
+        // Watch mode's films and series come from TMDB, whose terms ask for this line and its logo in the credits.
+        com.cosmotune.ui.settings.TmdbAttribution(Modifier.padding(top = 24.dp))
         Text(
             text = buildAnnotatedString {
                 append("Made with love by Vijay\n")
@@ -2304,11 +2306,17 @@ internal fun AccountCard(
     onClick: (() -> Unit)? = null,
     /** Sits inside a [SettingsGroup] that already supplies the card, so draws none of its own. */
     grouped: Boolean = false,
+    /** Where the library sync stands, under the account on the settings home (Orbit's account card). */
+    syncLine: String? = null,
 ) {
     if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoProfileCard(
         name = account?.name ?: stringResource(if (signedIn) R.string.signed_in else R.string.not_signed_in),
-        subtitle = account?.email?.takeIf { it.isNotBlank() }
-            ?: stringResource(if (signedIn) R.string.youtube_music_account else R.string.tap_to_sign_in_google),
+        subtitle = listOfNotNull(
+            account?.email?.takeIf { it.isNotBlank() }
+                ?: stringResource(if (signedIn) R.string.youtube_music_account else R.string.tap_to_sign_in_google),
+            syncLine?.takeIf { signedIn },
+        ).joinToString(" · "),
+        label = if (signedIn) "Account · Google" else "Account",
         avatarUrl = account?.thumbnailUrl,
         onClick = when {
             signedIn && onClick != null -> onClick
