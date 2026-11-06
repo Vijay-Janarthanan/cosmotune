@@ -112,11 +112,11 @@ class MediaComponentsContractTest {
         assertTrue(preview.contains("Dispatchers.Default"), "the engine runs off the main thread")
     }
 
-    @Test fun thePreviewShowsTheControlsOfTheLookInThePageAndOnGlass() {
+    @Test fun thePreviewShowsTheControlsOfTheLookInOrbitAndNoGlass() {
         val preview = source("settings/LookPreview.kt")
-        for (control in listOf("CosmoButton(", "CosmoIconButton(", "PlayMorphButton(", "CosmoChip(", "CosmoSegmented(", "CosmoSwitch(")) {
+        for (control in listOf("CosmoButton(", "CosmoIconButton(", "OrbitPlayButton(", "CosmoChip(", "OrbitSelectChip(", "CosmoSwitch(", "OrbitProgressLine(", "OrbitRing(", "OrbitBiteCard(")) {
             assertTrue(preview.contains(control), "$control is shown")
         }
-        assertTrue(preview.contains("floating = true"), "and so are the floating variants")
+        for (old in listOf("cosmoGlass", "hazeSource", "PlayMorphButton(", "CosmoSegmented(", "floating = true")) assertFalse(preview.contains(old), "Orbit has no $old")
     }
 }

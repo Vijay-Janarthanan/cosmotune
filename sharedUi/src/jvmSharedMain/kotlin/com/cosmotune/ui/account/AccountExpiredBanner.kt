@@ -32,10 +32,12 @@ import com.cosmotune.music.sharedui.resources.cosmo_account_expired_banner
 import com.cosmotune.music.sharedui.resources.cosmo_account_sign_in_again
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.kit.KitTextButton
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.youtube.account.YouTubeAuthState
 import com.cosmotune.youtube.account.YouTubeSession
 import org.jetbrains.compose.resources.stringResource
@@ -47,8 +49,8 @@ object AccountBannerTags {
 }
 
 /**
- * The sign-in expired and could not be renewed silently: a thin banner at the top of a page (the kit's offline banner with an
- * action), the danger dot, one line, "Sign in again", and an optional dismiss. Never blocks the page under it: what is on the device
+ * The sign-in expired and could not be renewed silently, in Orbit: a quiet card at the top of a page, the user glyph on a disc of
+ * the danger colour, one line, "Sign in again", and an optional dismiss. Never blocks the page under it: what is on the device
  * still shows. [message] and [actionLabel] replace the defaults (Video says it without the site's name).
  */
 @Composable
@@ -59,27 +61,30 @@ fun AccountExpiredBanner(
     actionLabel: String? = null,
     onDismiss: (() -> Unit)? = null,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    // The inline banner (design system 4.21): surface2, 12 dp corners, 16 dp padding, the 20 dp status glyph in the danger colour,
-    // the line in body, and up to two text actions after it.
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val danger = Color(LocalCosmoColors.current.palette.danger)
+    // Orbit's quiet card (the ink at 5 %, radius 22), the user glyph on a disc of the theme's danger colour, the line in the body
+    // face, and up to two text actions after it in the accent.
     Row(
         modifier
             .fillMaxWidth()
             .padding(horizontal = CosmoSpacing.margin, vertical = 8.dp)
-            .clip(RoundedCornerShape(CosmoRadii.rMd))
-            .background(Color(palette.surfaceHigh))
-            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(look.row)
+            .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
             .semantics { liveRegion = LiveRegionMode.Polite }
             .testTag(AccountBannerTags.BANNER),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(CosmoIcons.User, contentDescription = null, tint = Color(palette.danger), modifier = Modifier.size(20.dp))
+        Box(Modifier.size(36.dp).clip(CircleShape).background(danger.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Icon(CosmoIcons.User, contentDescription = null, tint = danger, modifier = Modifier.size(18.dp))
+        }
         Spacer(Modifier.width(12.dp))
         Text(
             message ?: stringResource(Res.string.cosmo_account_expired_banner),
-            style = type.body(),
-            color = Color(palette.textPrimary),
+            style = fonts.body,
+            color = look.ink,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(vertical = 8.dp),

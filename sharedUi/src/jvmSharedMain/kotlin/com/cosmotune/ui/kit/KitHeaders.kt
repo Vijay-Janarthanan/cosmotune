@@ -39,6 +39,10 @@ import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import androidx.compose.foundation.layout.heightIn
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.OrbitPageSection
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 
 /*
  * The kit: the mode-agnostic building blocks every mode (Music, Video, Manga, Read, Podio, Library, Settings) is rebuilt on, so
@@ -143,8 +147,8 @@ fun KitPageTitle(title: String, modifier: Modifier = Modifier, actions: @Composa
 }
 
 /**
- * A section's header: an optional all-caps [overline] ("MADE FOR YOU") over a light [title], and "See all" at the end when
- * [onSeeAll] is given. Sits directly on the page, no container.
+ * A section's header in Orbit: an optional mono [overline] ("MADE FOR YOU", [OrbitLabel]) over the [title] in the wide face
+ * ([OrbitPageSection]), and [seeAllLabel] in the accent at the end when [onSeeAll] is given. Sits directly on the page, no container.
  */
 @Composable
 fun KitSectionHeader(
@@ -154,24 +158,10 @@ fun KitSectionHeader(
     seeAllLabel: String = "See all",
     onSeeAll: (() -> Unit)? = null,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Row(
-        modifier.fillMaxWidth().padding(start = CosmoSpacing.margin, end = 4.dp, top = 32.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Column(Modifier.weight(1f)) {
-            if (!overline.isNullOrBlank()) Text(overline.uppercase(), style = type.overline, color = Color(palette.textSecondary), maxLines = 1)
-            Text(
-                title,
-                style = type.forText(type.titleLarge, title),
-                color = Color(palette.textPrimary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.semantics { heading() },
-            )
-        }
-        if (onSeeAll != null) KitTextButton(seeAllLabel, onSeeAll, Modifier.sectionActionSlot())
+    val look = orbitLook()
+    Column(modifier.fillMaxWidth().padding(start = CosmoSpacing.margin, end = 4.dp, top = 32.dp, bottom = 12.dp)) {
+        if (!overline.isNullOrBlank()) OrbitLabel(overline, orbitFonts(), look.dim, Modifier.padding(bottom = 6.dp))
+        OrbitPageSection(title, action = seeAllLabel.takeIf { onSeeAll != null }, onAction = onSeeAll)
     }
 }
 

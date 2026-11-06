@@ -112,12 +112,13 @@ class AudioDiscoveryInteractionTest {
         MusicCandidateService.begin(DiscoveryPreferences.state.value, setOf("fixture"))
         MusicCandidateService.updateContext(MusicDiscoveryContext(listOf(seed, other)))
         try {
-            compose.setContent { MaterialTheme { PersonalPlaylistDialog(listOf(seed, other, seed), seed, { closed = true }) { name, songs ->
+            compose.setContent { Theme { PersonalPlaylistDialog(listOf(seed, other, seed), seed, { closed = true }) { name, songs ->
                 assertEquals("Made for me", name); saved = songs
             } } }
             compose.onNodeWithTag("playlist:kind").performClick()
             compose.onNodeWithText("Based on a song").performClick()
-            compose.onNodeWithText("Playlist name").performTextReplacement("Made for me")
+            // The Orbit field names itself for a screen reader; the label over it is for the eye.
+            compose.onNodeWithContentDescription("Playlist name").performTextReplacement("Made for me")
             compose.onNode(isToggleable()).performClick()
             compose.onNodeWithTag("playlist:generate").performScrollTo().performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("2 recordings ready. Small or unavailable catalogues may produce fewer songs than requested.").fetchSemanticsNodes().isNotEmpty() }

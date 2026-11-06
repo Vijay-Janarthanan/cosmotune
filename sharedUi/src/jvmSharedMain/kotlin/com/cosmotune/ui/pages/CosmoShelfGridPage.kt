@@ -11,7 +11,10 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.blocks.CosmoCard
+import com.cosmotune.ui.orbit.OrbitPortrait
+import com.cosmotune.ui.orbit.OrbitRecord
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.blocks.shelfKey
 import com.cosmotune.music.data.model.HomeShelf
 import com.cosmotune.music.data.model.ShelfItem
@@ -21,9 +24,9 @@ import com.cosmotune.music.ui.components.libraryGrid
 import com.cosmotune.music.ui.screens.localizeCardSubtitle
 
 /**
- * Everything an artist's shelf holds, as a grid ("Show all" on an artist page): the same cards as the shelf, at the width the Library's
- * "Show all" grid gives them ([libraryGrid]: two across on a phone, more on a wider window), run down the screen. Circles for a shelf of
- * artists. Back is the root's (it clears the page's active shelf); the bar's room is [contentPadding]'s top.
+ * Everything an artist's shelf holds, as a grid ("Show all" on an artist page), in Orbit: records (the cover as a disc), or round
+ * portraits for a shelf of artists, at the width the Library's
+ * "Show all" grid gives them ([libraryGrid]: two across on a phone, more on a wider window), run down the screen. Back is the root's (it clears the page's active shelf); the bar's room is [contentPadding]'s top.
  */
 @Composable
 fun CosmoShelfGridPage(
@@ -35,6 +38,8 @@ fun CosmoShelfGridPage(
 ) {
     val gridState = rememberLazyGridState()
     val circles = shelf.isArtists()
+    val fonts = orbitFonts()
+    val look = orbitLook()
     BoxWithConstraints(modifier.fillMaxSize()) {
         val grid = libraryGrid(maxWidth - PAGE_GUTTER * 2)
         LazyVerticalGrid(
@@ -52,15 +57,23 @@ fun CosmoShelfGridPage(
         ) {
             // A feed can repeat a card: its place is part of its key.
             itemsIndexed(shelf.items, key = { index, item -> shelfKey(item, index) }) { _, item ->
-                CosmoCard(
-                    title = item.title,
-                    imageUrl = item.thumbnailUrl,
-                    onClick = { onItemClick(item) },
-                    subtitle = item.subtitle.takeIf { it.isNotBlank() }?.let { localizeCardSubtitle(it) },
-                    width = grid.cardWidth,
-                    circle = circles,
-                    onLongPress = onItemLongPress?.let { held -> { held(item) } },
-                )
+                val held = onItemLongPress?.let { hold -> { hold(item) } }
+                if (circles) {
+                    OrbitPortrait(item.title, item.thumbnailUrl, grid.cardWidth, fonts, look, onClick = { onItemClick(item) }, onLongClick = held)
+                } else {
+                    // A record without the play moon: the page's only action on a card is to open it.
+                    OrbitRecord(
+                        title = item.title,
+                        subtitle = item.subtitle.takeIf { it.isNotBlank() }?.let { localizeCardSubtitle(it) }.orEmpty(),
+                        cover = item.thumbnailUrl,
+                        fonts = fonts,
+                        look = look,
+                        onClick = { onItemClick(item) },
+                        onPlay = null,
+                        onLongClick = held,
+                        size = grid.cardWidth,
+                    )
+                }
             }
         }
     }

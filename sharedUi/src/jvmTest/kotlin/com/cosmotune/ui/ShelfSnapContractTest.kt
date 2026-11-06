@@ -19,7 +19,8 @@ class ShelfSnapContractTest {
     }
 
     @Test fun theNewLookShelvesAndRailsSnap() {
-        assertEquals(1, uses("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/blocks/CosmoCards.kt"), "CosmoShelf: Home, Library, the artist pages on both hosts, moods")
+        assertTrue("OrbitShelfRow(" in code("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/blocks/CosmoCards.kt"), "CosmoShelf is Orbit's shelf row")
+        assertEquals(1, uses("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitShelves.kt"), "Orbit's shelf row: CosmoShelf, Home's rows, the pages, moods")
         assertEquals(2, uses("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/search/CosmoSearchResults.kt"), "the search's records and portraits")
     }
 

@@ -185,9 +185,9 @@ fun OrbitChipRow(side: Dp, modifier: Modifier = Modifier, content: @Composable R
     )
 }
 
-/** A page's heading, as Home's greeting: the mono [label] (none when empty) over the [title] in the wide face with its peach full stop, [trailing] at the end. */
+/** A page's heading, as Home's greeting: the mono [label] (none when empty) over the [title] in the wide face with its peach full stop, [trailing] at the end; a long title wraps to [maxLines]. */
 @Composable
-fun OrbitPageHeading(title: String, label: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, trailing: (@Composable RowScope.() -> Unit)? = null) {
+fun OrbitPageHeading(title: String, label: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, maxLines: Int = 1, trailing: (@Composable RowScope.() -> Unit)? = null) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
             if (label.isNotEmpty()) {
@@ -199,7 +199,7 @@ fun OrbitPageHeading(title: String, label: String, fonts: OrbitFonts, look: Orbi
                     append(title)
                     pushStyle(androidx.compose.ui.text.SpanStyle(color = look.accent)); append("."); pop()
                 },
-                style = fonts.greeting, color = look.ink, maxLines = 1,
+                style = fonts.greeting, color = look.ink, maxLines = maxLines, overflow = TextOverflow.Ellipsis,
             )
         }
         if (trailing != null) trailing()
