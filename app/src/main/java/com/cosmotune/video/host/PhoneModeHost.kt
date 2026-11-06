@@ -119,7 +119,9 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             androidx.activity.compose.BackHandler { if (!com.cosmotune.ui.watch.WatchNav.back()) shell.settings.setMode(AppMode.MUSIC) }
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
-            com.cosmotune.ui.watch.ProvideWatch(qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
+            val watchContext = LocalContext.current
+            val repository = remember(watchContext) { com.cosmotune.music.watch.AndroidWatch.repository(watchContext).also(com.cosmotune.ui.watch.WatchBackend::install) }
+            com.cosmotune.ui.watch.ProvideWatch(repository = repository, qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
                 com.cosmotune.ui.watch.WatchApp(
                     contentPadding = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues(),
                     showNavigation = true,

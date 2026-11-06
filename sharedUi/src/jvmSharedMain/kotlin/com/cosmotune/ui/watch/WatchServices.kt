@@ -23,11 +23,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
  */
 
 /**
- * The repository Watch uses when the host provides none. This is the one line to change when the real repository is ready
- * (or the hosts provide theirs through [LocalWatchRepository] and this stays the stand-in for previews).
+ * The repository Watch uses when the host provides none through [LocalWatchRepository]: the host's real one once it has
+ * [install]ed it (the desktop's `DesktopWatch.repository`, the phone's `AndroidWatch.repository(context)`), else the in-memory
+ * fake, which stays for previews and render tests only.
  */
 object WatchBackend {
-    val repository: WatchRepository by lazy { FakeWatchRepository(now = System::currentTimeMillis) }
+    @Volatile private var installed: WatchRepository? = null
+    private val fake: WatchRepository by lazy { FakeWatchRepository(now = System::currentTimeMillis) }
+
+    val repository: WatchRepository get() = installed ?: fake
+
+    /** The host's real repository, set once at start-up. */
+    fun install(repository: WatchRepository) { installed = repository }
 }
 
 /** The repository the Watch screens call; null means [WatchBackend.repository]. */

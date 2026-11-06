@@ -94,11 +94,13 @@ fun desktopMangaShown(): Boolean {
 
 /**
  * Watch's page in the window's content area. The sidebar carries its tabs ([com.cosmotune.ui.watch.WatchNav]); the repository is
- * [com.cosmotune.ui.watch.WatchBackend]'s until the desktop builds the real one, and QR codes are drawn with the desktop's zxing.
+ * the desktop's real one ([com.cosmotune.desktop.DesktopWatch.repository], also installed as [com.cosmotune.ui.watch.WatchBackend]'s),
+ * and QR codes are drawn with the desktop's zxing.
  */
 @Composable
 fun DesktopWatchPage(contentPadding: PaddingValues) {
-    com.cosmotune.ui.watch.ProvideWatch(qrCode = { payload, size -> com.cosmotune.music.desktop.DesktopQrCode(payload, size) }) {
+    val repository = remember { com.cosmotune.desktop.DesktopWatch.repository.also(com.cosmotune.ui.watch.WatchBackend::install) }
+    com.cosmotune.ui.watch.ProvideWatch(repository = repository, qrCode = { payload, size -> com.cosmotune.music.desktop.DesktopQrCode(payload, size) }) {
         // A compact window has no sidebar: the page then carries its own tabs, as on the phone.
         androidx.compose.foundation.layout.BoxWithConstraints {
             val compact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp

@@ -251,7 +251,7 @@ internal fun CosmoDesktopSidebar(
 private fun WatchSidebar() {
     val tab by com.cosmotune.ui.watch.WatchNav.tab.collectAsState()
     val stack by com.cosmotune.ui.watch.WatchNav.stack.collectAsState()
-    val repository = com.cosmotune.ui.watch.LocalWatchRepository.current ?: com.cosmotune.ui.watch.WatchBackend.repository
+    val repository = com.cosmotune.ui.watch.LocalWatchRepository.current ?: androidx.compose.runtime.remember { DesktopWatch.repository.also(com.cosmotune.ui.watch.WatchBackend::install) }
     val plugins by repository.plugins.collectAsState()
     val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
     val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
