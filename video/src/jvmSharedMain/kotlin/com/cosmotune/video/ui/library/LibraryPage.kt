@@ -1,5 +1,6 @@
 package com.cosmotune.video.ui.library
 
+import com.cosmotune.video.ui.blocks.VideoSectionHeading
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -172,7 +173,7 @@ fun LibraryPage(contentPadding: PaddingValues, wide: Boolean) {
         }
         if (playlists.isNotEmpty()) {
             item(key = "playlists:header") {
-                KitSectionHeader(stringResource(Res.string.video_your_playlists), cell)
+                VideoSectionHeading(stringResource(Res.string.video_your_playlists), cell)
             }
             items(playlists, key = { "playlist:" + it.id }) { playlist ->
                 val count = playlist.items.size

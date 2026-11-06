@@ -249,23 +249,18 @@ private fun RemotePlaylistPage(playlistId: String, contentPadding: PaddingValues
 /** The side margin of a row of videos on the page's content line, and the wide page's cap on its width. */
 private fun rowFit(line: PageLine, wide: Boolean): Modifier = line.fit(if (wide) Modifier.widthIn(max = ROW_MAX_WIDTH) else Modifier)
 
-/** The head of the page: the skeleton while the first page loads (nothing when it failed: the status says so), else the hero, title and buttons. */
+/** The head of the page: the skeleton while the first page loads (nothing when it failed: the status says so), else the colour card. */
 private fun LazyListScope.headerItems(shown: PlaylistShown?, failed: Boolean, actions: PlaylistActions, wide: Boolean, line: PageLine) {
     if (shown == null) {
         if (!failed) item(key = "header-skeleton", contentType = "header") { PlaylistHeaderSkeleton(wide, line.own) }
         return
     }
-    if (wide) {
-        item(key = "hero-row", contentType = "header") { PlaylistHeroRow(shown, actions, line.own) }
-    } else {
-        item(key = "hero", contentType = "header") { PlaylistHeroPhone(shown.thumbnailUrl, line.own) }
-        item(key = "meta", contentType = "header") { PlaylistTitleBlock(shown, wide = false, actions = actions, margin = line.own) }
-        item(key = "actions", contentType = "header") { PlaylistActionsRow(shown, actions, wide = false, margin = line.own) }
-    }
+    item(key = "card", contentType = "header") { PlaylistCard(shown, actions, wide, line.own) }
 }
 
-/** How many items stand before the first row when the head is shown: the hero row on a wide page, else the hero, the title block and the buttons. */
-private fun headerItemCount(wide: Boolean): Int = if (wide) 1 else 3
+/** How many items stand before the first row when the head is shown: the colour card. */
+@Suppress("UNUSED_PARAMETER")
+private fun headerItemCount(wide: Boolean): Int = 1
 
 // ---- one of your own playlists -------------------------------------------------------------------------------------------------
 

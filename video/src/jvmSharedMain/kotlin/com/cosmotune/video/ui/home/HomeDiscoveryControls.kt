@@ -1,5 +1,16 @@
 package com.cosmotune.video.ui.home
 
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -38,7 +49,7 @@ internal fun HomeDiscoveryControls(region: String?, language: String?, feedbackC
     val preferences = stringResource(Res.string.video_home_preferences,
         region?.let { Locale("", it).getDisplayCountry(Locale.getDefault()) } ?: stringResource(Res.string.video_set_device),
         language?.let { Locale.forLanguageTag(it).getDisplayLanguage(Locale.getDefault()) } ?: stringResource(Res.string.video_set_device))
-    KitIconButton(CosmoIcons.Settings, preferences, { open = true })
+    OrbitRoundButton(CosmoIcons.Settings, preferences, orbitLook().ink, { open = true })
     if (open) {
         KitSheet(onDismiss = { open = false }) {
             KitSettingsRow(preferences, icon = CosmoIcons.Settings, onClick = { open = false; onPreferences() })
@@ -50,13 +61,19 @@ internal fun HomeDiscoveryControls(region: String?, language: String?, feedbackC
     }
 }
 
-/** One quiet line under the chips (what failed), with its retry when there is one. */
+/** One quiet row under the chips (what failed), the Orbit row's fill, with its retry in the accent when there is one. */
 @Composable
 internal fun HomeNotice(text: String, retry: String? = null, onRetry: () -> Unit = {}) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(text = text, style = type.forText(type.meta, text), color = Color(palette.textSecondary))
-        if (retry != null) KitTextButton(retry, onRetry)
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(22.dp)).background(look.row)
+            .padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp).heightIn(min = 40.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = text, style = fonts.body, color = look.dim, modifier = Modifier.weight(1f))
+        if (retry != null) {
+            Text(retry, style = fonts.chip, color = look.accent, modifier = Modifier.clip(CircleShape).clickable(onClick = onRetry).padding(horizontal = 12.dp, vertical = 8.dp))
+        }
     }
 }

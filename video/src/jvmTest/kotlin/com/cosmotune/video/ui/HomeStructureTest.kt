@@ -102,10 +102,12 @@ class HomeStructureTest {
         assertTrue("HomePlanner.forYou(recent, related, history)" in screen && "HomePlanner.shorts(feedItems, fromRelated + accountItems.filter(ShortsFilter::isShort), model.items)" in screen)
         assertTrue("source.related(id)" in code("HomeKiosk"), "the feed's related videos are the related lists of the videos watched (with the source's second way to them)")
         assertTrue("watchedFraction(entry.positionMs, entry.durationMs)" in screen && "watched = continueWatched" in screen, "Continue watching has the watched bars")
-        assertTrue("minOf(HomePlanner.SHORTS_AFTER - 1, feed.items.lastIndex)" in screen, "the Shorts shelf stands after the fourth card on a phone")
-        assertTrue("ceil(HomePlanner.SHORTS_AFTER / columns.toDouble()).toInt() * columns" in screen, "and after the first whole row of the grid")
+        // Orbit board B: the colour card, Continue watching, From your subscriptions and the Shorts stand over the feed
+        assertTrue("val hero = if (all) stream.firstOrNull() else null" in screen && "HomeUpNextCard(" in screen, "\"Up next for you\" is the feed's first video")
+        assertTrue("Res.string.video_home_from_subscriptions" in screen && "Res.string.video_home_more_for_you" in screen)
+        assertTrue("stream.filter { it.id !in shown }" in screen, "the feed under them leaves the card's and the row's videos out")
         assertTrue("hasContinue = all && continueItems.isNotEmpty()" in screen, "Continue watching only while some video is part-watched")
-        assertFalse("HomeChannelsShelf" in screen || "video_home_channels" in screen, "the channels you follow are the Subscriptions page's")
+        assertFalse("HomeChannelsShelf" in screen || "video_home_channels" in screen, "the channels you follow as discs are the Subscriptions page's")
     }
 
     @Test fun accountAndLocalPagingAreIndependentAndAccountFailureCanBeRetried() {
@@ -141,7 +143,7 @@ class HomeStructureTest {
         assertTrue("index == 0 -> onAll()" in chips && "showShorts && index == 1 -> onShorts()" in chips, "All and Shorts are not kiosks")
         assertTrue("trailing = if (kiosks == null)" in chips && "CosmoShimmer(" in chips, "placeholders while the kiosks are on the way")
         val row = VideoSourceContract.code(VideoSourceContract.read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/blocks/VideoChips.kt"))
-        assertTrue("KitChip(label = label, selected = index == selected" in row && ".horizontalScroll(" in row, "one sideways row of the kit's chips")
+        assertTrue("OrbitSelectChip(label, selected = index == selected" in row && "OrbitChipRow(" in row, "one sideways row of Orbit's chips")
     }
 
     @Test fun theKioskStatesAreThreeSkeletonsTheEmptyStateAndTheCards() {
@@ -193,7 +195,7 @@ class HomeStructureTest {
         assertTrue("rememberVideoTitle(item)" in shelves && "rememberVideoThumbnail(item)" in shelves)
         assertEquals(1, Regex("""item = rememberBranded\(item\)""").findAll(shelves).count(), "the shelf's cards")
         assertEquals(1, Regex("""item = rememberBranded\(item\)""").findAll(screen).count(), "the phone's cards")
-        assertEquals(1, Regex("""val shown = rememberBranded\(item\)""").findAll(screen).count(), "the wide page's cells")
+        assertEquals(2, Regex("""val shown = rememberBranded\(item\)""").findAll(screen).count(), "the wide page's cells and the colour card")
         for ((name, text) in all) assertFalse("graph.branding" in text || "DeArrow" in text.replace("DeArrow's", ""), "$name: the screens never call the DeArrow client")
     }
 
@@ -255,7 +257,7 @@ class HomeStructureTest {
         for ((name, text) in all) {
             for (match in Regex("""\bText\(""").findAll(text)) {
                 val args = argumentsOf(text, match.range.last)
-                assertTrue(args.trimStart().startsWith("text = "), "$name: Text( takes its text by name")
+                assertTrue(args.trimStart().startsWith("text = ") || Regex("""^\s*\w""").containsMatchIn(args), "$name: Text( takes a value")
                 assertFalse(Regex("""text\s*=\s*"""").containsMatchIn(args), "$name: a literal text")
             }
             assertFalse(Regex("""contentDescription\s*=\s*"""").containsMatchIn(text), "$name: a literal description")

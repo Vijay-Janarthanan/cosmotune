@@ -303,7 +303,7 @@ class VideoSettingsStructureTest {
             assertFalse(Regex("""(?i)\byoutube\b|\bYT\b|NewPipe|schabi""").containsMatchIn(code), "$name names the source")
             assertFalse(Regex("""(?i)cookie""").containsMatchIn(code), "$name mentions a cookie")
         }
-        for (block in listOf("CosmoSettingsGroup(", "CosmoSettingsRow(", "CosmoSettingsSubRow(", "CosmoSettingsSegmented(", "CosmoRowDivider()", "CosmoPageHeader(")) {
+        for (block in listOf("CosmoSettingsGroup(", "CosmoSettingsRow(", "CosmoSettingsSubRow(", "CosmoSettingsSegmented(", "CosmoRowDivider()", "VideoPageHeading(")) {
             assertTrue(block in page + segments, "the page is built from $block")
         }
         assertTrue("verticalScroll(" in page && "padding(contentPadding)" in page, "the page scrolls under the bars: the padding is on the scrolling content")

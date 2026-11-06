@@ -65,83 +65,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
 /*
- * The picture of a video and what sits on it (spec 5.0): a 16:9 thumbnail clipped to its One radius, the duration, Live and Upcoming
- * badges, the watched bar, the count strip of a playlist and the downloaded badge. Every fill is drawn from the live palette in a
- * draw lambda; the only colours that are not the palette's are white text and black scrims over a picture, the documented exception.
+ * The picture of a video (Orbit rule 9: nothing is drawn on a picture): a thumbnail clipped to its shape, the shimmer while it loads
+ * and the palette's placeholder behind it. What used to sit on it (the length, Live, the watched bar, the downloaded mark, a
+ * playlist's count) is said beside it now: in the card's meta line, its watched line under the picture, a row's words.
  */
 
-/** The white of the watched bar's unplayed part: 30 % (a media colour over a picture). */
-private val WATCHED_TRACK = Color.White.copy(alpha = 0.30f)
-
-/** The black behind the duration badge's white text: 72 % (a media scrim). */
-private val DURATION_SCRIM = Color.Black.copy(alpha = VideoMetrics.BADGE_SCRIM_ALPHA)
-
-/** The badge's shape: `rXs`. */
-private val BADGE_SHAPE = RoundedCornerShape(CosmoRadii.rXs)
-
-/** The black behind the downloaded badge's white glyph: 56 %. */
-private val DOWNLOADED_SCRIM = Color.Black.copy(alpha = 0.56f)
-
-/** The wash over a thumbnail a mouse is over, and the disc behind the play glyph: media scrims over a picture, as the duration's. */
-private val HOVER_SCRIM = Color.Black.copy(alpha = 0.22f)
-private val HOVER_DISC = Color.Black.copy(alpha = 0.58f)
-private val HOVER_PLAY_DISC = 56.dp
-private val HOVER_PLAY_ICON = 28.dp
-private const val HOVER_FADE_MS = 140
-
-/** The count strip of a playlist (spec 5.3): the right 40 % of the thumbnail, black at 60 %. */
-internal const val COUNT_STRIP_FRACTION = 0.40f
-internal const val COUNT_STRIP_ALPHA = 0.60f
-private val COUNT_STRIP_SCRIM = Color.Black.copy(alpha = COUNT_STRIP_ALPHA)
-private val COUNT_STRIP_ICON = 20.dp
-
 /**
- * The downloaded badge (DESIGN_SYSTEM.md 4.7): a 24 dp circle of black at 56 % 6 dp inside the thumbnail's top-right corner, with
- * `CosmoIcons.Downloaded` at 16 dp in white (a media scrim, so it reads on any picture).
- */
-internal const val DOWNLOADED_BADGE_DP = 24f
-internal const val DOWNLOADED_ICON_DP = 16f
-internal const val DOWNLOADED_INSET_DP = 6f
-
-/**
- * A thumbnail: a 16:9 box [widthDp] wide, clipped to the One radius keyed on its height ([VideoMetrics.thumbRadiusDp]: `rSm` in a row,
- * `rMd` on a card). The picture is [url] (the shimmer while it
- * loads, the placeholder fill behind it and when there is none).
- *
- * On the picture, at most one of: the Live badge ([live]), the Upcoming badge ([upcoming]) or the duration ([durationSec]), 8 dp
- * from the bottom-right corner; the count strip ([countStrip], the number a playlist has, drawn over the right 40 %) takes the
- * duration's place. [watchedFraction] draws the watched bar at the bottom edge (null: none; the caller passes null below
- * [VideoMetrics.WATCHED_MIN_MS], as `VideoItem.watchedFraction` does). [downloaded] adds the badge of a downloaded video.
+ * A thumbnail: a 16:9 box [widthDp] wide, clipped to the One radius keyed on its height ([VideoMetrics.thumbRadiusDp]). The picture
+ * is [url] (the shimmer while it loads, the placeholder fill behind it and when there is none).
  */
 @Composable
-fun ThumbnailBox(
-    url: String?,
-    widthDp: Dp,
-    modifier: Modifier = Modifier,
-    durationSec: Long? = null,
-    live: Boolean = false,
-    upcoming: Boolean = false,
-    watchedFraction: Float? = null,
-    countStrip: String? = null,
-    downloaded: Boolean = false,
-) {
-    ThumbnailFrame(
-        url = url,
-        modifier = modifier.size(widthDp, VideoMetrics.thumbHeightDp(widthDp.value).dp),
-        shape = ThumbnailShape,
-        durationSec = durationSec,
-        live = live,
-        upcoming = upcoming,
-        watchedFraction = watchedFraction,
-        countStrip = countStrip,
-        downloaded = downloaded,
-    )
+fun ThumbnailBox(url: String?, widthDp: Dp, modifier: Modifier = Modifier) {
+    ThumbnailFrame(url = url, modifier = modifier.size(widthDp, VideoMetrics.thumbHeightDp(widthDp.value).dp), shape = ThumbnailShape)
 }
 
 /**
- * The corner of a thumbnail of any size: [VideoMetrics.thumbRadiusDp] of the box's shorter side (the height of a 16:9 picture, the
- * width of a vertical Shorts card: the cover rule is keyed on the shorter side), so a card that fills its width and a box of a fixed
- * width round alike, and nothing has to measure the card to know its radius.
+ * The corner of a thumbnail of any size: [VideoMetrics.thumbRadiusDp] of the box's shorter side, so a card that fills its width and a
+ * box of a fixed width round alike, and nothing has to measure the card to know its radius.
  */
 internal object ThumbnailShape : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
@@ -149,6 +89,9 @@ internal object ThumbnailShape : Shape {
         return RoundedCornerShape(radiusDp.dp).createOutline(size, layoutDirection, density)
     }
 }
+
+/** An Orbit picture's corner: 16 dp for a row's thumbnail, the cards' 24 being the kit's. */
+internal val RowPictureShape = RoundedCornerShape(16.dp)
 
 /**
  * Draws the picture of a thumbnail address instead of loading it. Null in the app; the screen previews (which have no network) provide
@@ -160,22 +103,11 @@ internal val LocalThumbnailStandIn = staticCompositionLocalOf<(@Composable (url:
 private enum class ImagePhase { LOADING, SHOWN, FAILED }
 
 /**
- * The thumbnail with everything on it, sized by [modifier] (a fixed size, or a width and an aspect ratio) and cut to [shape]. The
- * public [ThumbnailBox] and the cards, rows and the sheet's header are all this.
+ * The picture of a video, sized by [modifier] (a fixed size, or a width and an aspect ratio) and cut to [shape]; nothing on it. The
+ * public [ThumbnailBox] and the cards, rows and the sheets' headers are all this.
  */
 @Composable
-internal fun ThumbnailFrame(
-    url: String?,
-    modifier: Modifier,
-    shape: Shape,
-    durationSec: Long? = null,
-    live: Boolean = false,
-    upcoming: Boolean = false,
-    watchedFraction: Float? = null,
-    countStrip: String? = null,
-    downloaded: Boolean = false,
-    hovered: Boolean = false,
-) {
+internal fun ThumbnailFrame(url: String?, modifier: Modifier, shape: Shape) {
     val colors = LocalCosmoColors.current
     val stand = LocalThumbnailStandIn.current
     var phase by remember(url) { mutableStateOf(ImagePhase.LOADING) }
@@ -198,147 +130,6 @@ internal fun ThumbnailFrame(
             )
             if (phase == ImagePhase.LOADING) CosmoShimmer(Modifier.fillMaxSize(), RectangleShape)
         }
-        if (watchedFraction != null) WatchedBar(watchedFraction)
-        if (countStrip != null) {
-            CountStrip(countStrip)
-        } else when {
-            live -> TimeBadge(BadgeKind.LIVE, stringResource(Res.string.video_badge_live), null)
-            upcoming -> TimeBadge(BadgeKind.UPCOMING, stringResource(Res.string.video_badge_upcoming), null)
-            durationSec != null && durationSec > 0 -> TimeBadge(BadgeKind.DURATION, VideoText.duration(durationSec), spokenDuration(durationSec))
-        }
-        if (downloaded) VideoDownloadedBadge(Modifier.align(Alignment.TopEnd).padding(DOWNLOADED_INSET_DP.dp))
-        HoverPlay(hovered)
-    }
-}
-
-/**
- * What a mouse over a thumbnail shows (the desktop; a touch screen never reports a hover): a light wash over the picture and a
- * 56 dp disc with the play glyph in its middle, fading in and out in [HOVER_FADE_MS]. Decoration: the card is the button.
- */
-@Composable
-private fun BoxScope.HoverPlay(visible: Boolean) {
-    AnimatedVisibility(
-        visible = visible,
-        modifier = Modifier.matchParentSize(),
-        enter = fadeIn(tween(HOVER_FADE_MS)),
-        exit = fadeOut(tween(HOVER_FADE_MS)),
-    ) {
-        Box(Modifier.fillMaxSize().drawBehind { drawRect(HOVER_SCRIM) }.clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
-            Box(
-                Modifier.size(HOVER_PLAY_DISC).clip(CircleShape).drawBehind { drawRect(HOVER_DISC) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(CosmoIcons.Play, contentDescription = null, tint = Color.White, modifier = Modifier.size(HOVER_PLAY_ICON))
-            }
-        }
-    }
-}
-
-/** The watched bar (DESIGN_SYSTEM.md 4.7): 3 dp at the bottom edge, the played part in `accent`, the rest white at 30 %. */
-@Composable
-private fun BoxScope.WatchedBar(fraction: Float) {
-    val colors = LocalCosmoColors.current
-    val played = fraction.coerceIn(0f, 1f)
-    Box(
-        Modifier
-            .align(Alignment.BottomStart)
-            .fillMaxWidth()
-            .height(VideoMetrics.WATCHED_BAR_DP.dp)
-            .drawBehind {
-                drawRect(WATCHED_TRACK)
-                val width = size.width * played
-                val rtl = layoutDirection == LayoutDirection.Rtl
-                drawRect(colors.live(CoverField.ACCENT), topLeft = Offset(if (rtl) size.width - width else 0f, 0f), size = Size(width, size.height))
-            },
-    )
-}
-
-private enum class BadgeKind { DURATION, LIVE, UPCOMING }
-
-/**
- * The duration, Live or Upcoming badge (DESIGN_SYSTEM.md 4.7): 8 dp from the bottom-right corner, 20 high, padding 0 6, `rXs`, `caption`
- * tabular. Duration and Upcoming: white on black at 72 %. Live: `onDanger` on `danger`.
- * [description] is what a screen reader says instead of the digits ("4 min").
- */
-@Composable
-private fun BoxScope.TimeBadge(kind: BadgeKind, text: String, description: String?) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    val style = remember(type) { type.caption.tabular() }
-    val ink = if (kind == BadgeKind.LIVE) Color(palette.onDanger) else Color.White
-    Box(
-        Modifier
-            .align(Alignment.BottomEnd)
-            .padding(VideoMetrics.BADGE_INSET_DP.dp)
-            .height(VideoMetrics.BADGE_H_DP.dp)
-            .clip(BADGE_SHAPE)
-            .drawBehind {
-                drawRect(
-                    if (kind == BadgeKind.LIVE) colors.live(CoverField.DANGER) else DURATION_SCRIM,
-                )
-            }
-            .padding(horizontal = VideoMetrics.BADGE_PAD_H_DP.dp)
-            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = text, style = style, color = ink, maxLines = 1, overflow = TextOverflow.Clip)
-    }
-}
-
-/** A duration for a screen reader: "1 h 2 min", "4 min"; under a minute the digits ("0:45") are all there is. */
-@Composable
-private fun spokenDuration(sec: Long): String {
-    val parts = VideoText.durationParts(sec)
-    return when {
-        parts.hours > 0 -> stringResource(Res.string.video_duration_hm, parts.hours, parts.minutes)
-        parts.minutes > 0 -> stringResource(Res.string.video_duration_m, parts.minutes)
-        else -> VideoText.duration(sec)
-    }
-}
-
-/**
- * The count strip of a playlist (spec 5.3): the right 40 % of the thumbnail in black at 60 %, `CosmoIcons.List` over the count, white
- * and centred. The row's meta line says the same in words, so the strip is skipped by screen readers.
- */
-@Composable
-private fun BoxScope.CountStrip(count: String) {
-    val type = LocalCosmoType.current
-    val style = remember(type) { type.control.tabular() }
-    Column(
-        Modifier
-            .align(Alignment.CenterEnd)
-            .fillMaxHeight()
-            .fillMaxWidth(COUNT_STRIP_FRACTION)
-            .drawBehind { drawRect(COUNT_STRIP_SCRIM) }
-            .clearAndSetSemantics { },
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(CosmoIcons.List, contentDescription = null, tint = Color.White, modifier = Modifier.size(COUNT_STRIP_ICON))
-        Text(text = count, style = style, color = Color.White, maxLines = 1, overflow = TextOverflow.Clip)
-    }
-}
-
-/**
- * The badge of a downloaded video (spec 5.0): a 20 dp `accent` circle with `CosmoIcons.Downloaded` at 14 dp in `onAccent`, described
- * as "Downloaded" (`video_dl_done_cd`). The thumbnail puts it 6 dp inside its top-right corner; a Shorts card places it the same way.
- */
-@Composable
-fun VideoDownloadedBadge(modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .size(DOWNLOADED_BADGE_DP.dp)
-            .clip(CircleShape)
-            .background(DOWNLOADED_SCRIM),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            CosmoIcons.Downloaded,
-            contentDescription = stringResource(Res.string.video_dl_done_cd),
-            tint = Color.White,
-            modifier = Modifier.size(DOWNLOADED_ICON_DP.dp),
-        )
     }
 }
 

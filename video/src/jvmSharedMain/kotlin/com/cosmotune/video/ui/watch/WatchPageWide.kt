@@ -63,25 +63,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.cosmotune.ui.theme.CosmoRadii
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import com.cosmotune.ui.kit.KitChipRow
+import androidx.compose.foundation.lazy.LazyListScope
+import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.ui.shell.LocalVideoNavigator
 
 /*
- * The wide watch page (DESIGN_SYSTEM.md 6.2: 840 dp and up, the desktop page). Two columns 24 dp apart inside the 28 dp page margin: the
- * main column, two thirds of the width (the player, 12 dp corners, standing still at the top; under it, scrolling, the blocks of the phone
- * with the description on the page) and a third for the side column, with the kit's chips: Up next, Chapters, Comments. Theatre mode (key T, or
- * its chip) puts the player across both columns, the two columns under it. The full window (key F, the player's button, a double
- * click) is [FullWindowLayer]. The page takes the keys of `PlayerKeyMap` through `onPreviewKeyEvent` while it has the focus (spec 6.6:
- * the page first, the player box after).
+ * The wide watch page (Orbit board B, "Video watch page": 840 dp and up, the desktop page). Inside the 28 dp page margin: the top row
+ * (collapse, "VIDEO · CHANNEL", the chips Up next, Chapters, Comments, and more); the main column, two thirds of the width (the whole
+ * video in its frame with nothing on it, the colour card under it with play in its bite, the screen button and the seek line with
+ * SponsorBlock's marks, then, scrolling, the actions, the meta line and the description); and a third for the side column (the
+ * channel with Subscribe, then what the chosen chip shows). Theatre (key T, or the screen button) puts the video and the card across
+ * both columns. Cinema, the full window (key F, the screen button, a double click), is [FullWindowLayer]. The page takes the keys of
+ * `PlayerKeyMap` through `onPreviewKeyEvent` while it has the focus (spec 6.6).
  */
 
 /** The page's top under the frame's bar or the status bar (`.d2-main`: 16 dp), as the desktop page leaves it. */
 private val WIDE_TOP = 16.dp
-
-/** The gap between the chips and the side column's list. */
-private val SIDE_GAP = 12.dp
-
-/** The wide player's corner (a 16:9 card, DESIGN_SYSTEM.md 3.4: `rMd`). */
-private val PLAYER_SHAPE = RoundedCornerShape(CosmoRadii.rMd)
 
 /** The narrowest the side column is let be: a third of an 840 dp window would leave its rows no room for their words. */
 private val SIDE_MIN = 320.dp
@@ -147,6 +146,7 @@ internal fun WatchPageWide(
     pipUpdater: PipUpdater,
 ) {
     val graph = LocalVideoGraph.current
+    val navigator = LocalVideoNavigator.current
     val theatre = WatchSession.theatre
     val fullWindow = WatchSession.fullWindow
     val platform = rememberPlayerPlatform(playback)
@@ -154,6 +154,8 @@ internal fun WatchPageWide(
     // The page takes the focus as it opens and when the full window closes, so its keys are heard until a control (the search
     // field) takes it.
     LaunchedEffect(fullWindow) { if (!fullWindow) runCatching { focus.requestFocus() } }
+    val fonts = orbitFonts()
+    val look = orbitLook()
 
     val margin = VideoMetrics.DESKTOP_MARGIN_DP.dp
     val gap = VideoMetrics.COLUMN_GAP_DP.dp
@@ -163,12 +165,9 @@ internal fun WatchPageWide(
     val contentWidth = (width - margin * 2).coerceAtLeast(0.dp)
     val side = ((contentWidth - gap) / 3).coerceAtLeast(SIDE_MIN)
     val mainWidth = (contentWidth - gap - side).coerceAtLeast(0.dp)
-    val available = (height - top - bottom).coerceAtLeast(0.dp)
-    val playerHeight = if (theatre) {
-        WatchRules.theatreHeightDp(contentWidth.value, available.value, aspect).dp
-    } else {
-        VideoMetrics.playerHeightDp(mainWidth.value, available.value, aspect).dp
-    }
+    // The video leaves the top row, the card and a little of the page under them their room.
+    val available = (height - top - bottom - TOP_ROW_H - CARD_ROOM).coerceAtLeast(120.dp)
+    val playerHeight = watchFrameHeight(if (theatre) contentWidth else mainWidth, if (theatre) available * WatchRules.THEATRE_MAX_SHARE else available, aspect, WatchSession.fill)
     val onBounds = remember(pipUpdater) { { rect: Rect -> pipUpdater.bounds(rect) } }
     val openFullWindow = { WatchSession.fullWindow = true }
     val toggleTheatre = { WatchSession.theatre = !WatchSession.theatre }
@@ -177,6 +176,44 @@ internal fun WatchPageWide(
     val pip = rememberPictureInPicture()
     val enterPip = rememberPipEntry(pip)
     val pipOpen = pip.manual && pip.active
+    val info = view.info
+    val (ground, _) = coverFill(info?.item?.thumbnailUrl, view.videoId)
+    val segments = remember(view.chapters.isNotEmpty(), view.commentsShown) { wideSegments(view.chapters.isNotEmpty(), view.commentsShown) }
+    var chosen by rememberSaveable(view.videoId) { mutableStateOf(WideSegment.UP_NEXT) }
+    val shownSegment = if (chosen in segments) chosen else WideSegment.UP_NEXT
+    val screen = WatchScreen(
+        fill = WatchSession.fill, onFill = { WatchSession.fill = it }, onCinema = openFullWindow,
+        theatre = theatre, onTheatre = toggleTheatre, onMini = enterPip,
+    )
+    val streamable = info != null && !info.item.isLive && !info.item.isUpcoming
+
+    val video: @Composable (Modifier) -> Unit = { m ->
+        WidePlayer(playback, surface, fullWindow, title, ground, openFullWindow, onBounds, m.height(playerHeight), pipOpen) { pip.exit() }
+    }
+    val card: @Composable (Modifier) -> Unit = { m ->
+        WatchTransportCard(
+            playback = playback, title = view.title, thumbnail = info?.item?.thumbnailUrl, key = view.videoId, screen = screen, wide = true,
+            fonts = fonts, look = look, modifier = m,
+            onDownload = if (streamable) ({ callbacks.onChip(WatchChip.DOWNLOAD) }) else null,
+            downloaded = info?.downloadedLabel != null,
+        )
+    }
+    val about: LazyListScope.() -> Unit = {
+        if (info == null) {
+            if (view.loading) item(key = "loading") { MetaShimmer(0.dp) }
+        } else {
+            item(key = "meta") {
+                WatchMeta(
+                    info = info, wide = true, theatre = theatre, sidePadding = 0.dp, onOpenDescription = null,
+                    onChip = callbacks.onChip, onOpenChannel = callbacks.onOpenChannel, onSubscribe = callbacks.onSubscribe, channel = false,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            view.description?.let { description ->
+                item(key = "description") { DescriptionInline(description, callbacks.onSeek, 0.dp) }
+            }
+        }
+    }
 
     Box(
         Modifier
@@ -200,38 +237,28 @@ internal fun WatchPageWide(
             },
     ) {
         Column(Modifier.fillMaxSize().padding(start = margin, end = margin, top = top)) {
+            WatchTopRow(
+                label = watchLabel(info), fonts = fonts, look = look,
+                onCollapse = if (navigator.canPop) ({ navigator.pop(); Unit }) else null,
+                onMore = info?.let { { callbacks.onMore(it.item) } },
+                chips = if (segments.size > 1) ({ WatchSegmentChips(segments, shownSegment, { chosen = it }, fonts, look) }) else null,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
             if (theatre) {
-                WidePlayer(playback, surface, fullWindow, title, openFullWindow, onBounds, Modifier.fillMaxWidth().height(playerHeight), enterPip, pipOpen) { pip.exit() }
+                video(Modifier.fillMaxWidth())
+                card(Modifier.padding(top = 14.dp))
                 Spacer(Modifier.height(gap))
             }
             Row(Modifier.fillMaxWidth().weight(1f)) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    if (!theatre) WidePlayer(playback, surface, fullWindow, title, openFullWindow, onBounds, Modifier.fillMaxWidth().height(playerHeight), enterPip, pipOpen) { pip.exit() }
-                    LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = bottom)) {
-                        val info = view.info
-                        if (info == null) {
-                            if (view.loading) item(key = "loading") { MetaShimmer(0.dp) }
-                        } else {
-                            item(key = "meta") {
-                                WatchMeta(
-                                    info = info,
-                                    wide = true,
-                                    theatre = theatre,
-                                    sidePadding = 0.dp,
-                                    onOpenDescription = null,
-                                    onChip = callbacks.onChip,
-                                    onOpenChannel = callbacks.onOpenChannel,
-                                    onSubscribe = callbacks.onSubscribe,
-                                )
-                            }
-                            view.description?.let { description ->
-                                item(key = "description") { DescriptionInline(description, callbacks.onSeek, 0.dp) }
-                            }
-                        }
+                    if (!theatre) {
+                        video(Modifier.fillMaxWidth())
+                        card(Modifier.padding(top = 14.dp))
                     }
+                    LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = bottom), content = about)
                 }
                 Spacer(Modifier.width(gap))
-                WideSideColumn(view, callbacks, Modifier.width(side).fillMaxHeight().padding(bottom = bottom))
+                WideSideColumn(view, shownSegment, callbacks, Modifier.width(side).fillMaxHeight().padding(bottom = bottom))
             }
         }
     }
@@ -239,11 +266,14 @@ internal fun WatchPageWide(
     if (fullWindow) FullWindowLayer(playback, surface, title, onExit = { WatchSession.fullWindow = false }, onBoundsChanged = onBounds)
 }
 
+/** The top row's height and the room the colour card and a line of the page under it take below the video. */
+private val TOP_ROW_H = 62.dp
+private val CARD_ROOM = 200.dp
+
 /**
- * The wide player: `VideoPlayerBox(layout = WINDOW)` cut to `rMd` on black; its full-window button and a double click open the
- * full window ([onFullWindow]), its picture-in-picture button ([onEnterPip]) and the P key open the picture-in-picture window. While the
- * full window shows, the page keeps the black box in its place (one player, one picture); while the picture-in-picture window holds
- * the picture ([pipOpen]) the box says so, with a Return button ([onReturnFromPip]).
+ * The wide video: [WatchVideoFrame] in the page layout of the desktop; a double click opens the full window ([onFullWindow]). While
+ * the full window shows, the page keeps the frame in its place (one player, one picture); while the picture-in-picture window holds
+ * the picture ([pipOpen]) the frame says so, with a Return button ([onReturnFromPip]).
  */
 @Composable
 private fun WidePlayer(
@@ -251,48 +281,31 @@ private fun WidePlayer(
     surface: VideoSurfaceProvider?,
     fullWindow: Boolean,
     title: String?,
+    ground: Color,
     onFullWindow: () -> Unit,
     onBounds: (Rect) -> Unit,
     modifier: Modifier,
-    onEnterPip: (() -> Unit)?,
     pipOpen: Boolean,
     onReturnFromPip: () -> Unit,
 ) {
-    // The black of the player around its picture (the documented exception).
-    Box(modifier.clip(PLAYER_SHAPE).background(Color.Black)) {
-        if (pipOpen) {
-            PipPlaceholder(playback, onReturn = onReturnFromPip)
-        } else if (!fullWindow) {
-            VideoPlayerBox(
-                playback = playback,
-                surface = surface,
-                layout = PlayerLayout.WINDOW,
-                modifier = Modifier.fillMaxSize(),
-                onToggleFullscreen = onFullWindow,
-                onEnterPip = onEnterPip,
-                onBoundsChanged = onBounds,
-                title = title,
-            )
+    if (pipOpen || fullWindow) {
+        Box(modifier.clip(RoundedCornerShape(28.dp)).background(ground)) {
+            if (pipOpen) PipPlaceholder(playback, onReturn = onReturnFromPip)
         }
+    } else {
+        WatchVideoFrame(playback, surface, PlayerLayout.WINDOW, ground, modifier, onCinema = onFullWindow, onBounds = onBounds, title = title)
     }
 }
 
 /**
- * The side column (spec 5.4): the chips (when there is more than one segment), then Up next (the Autoplay switch and the
- * related videos as desktop rows), the chapters (rows that seek) or the comments (`CommentsPanel(sheet = false)`).
+ * The side column (board B): the channel row with Subscribe at its top, then what the chosen chip shows: Up next (the Autoplay
+ * switch and the related videos as rows), the chapters (rows that seek) or the comments (`CommentsPanel(sheet = false)`).
  */
 @Composable
-private fun WideSideColumn(view: WatchView, callbacks: WatchCallbacks, modifier: Modifier) {
-    val segments = remember(view.chapters.isNotEmpty(), view.commentsShown) { wideSegments(view.chapters.isNotEmpty(), view.commentsShown) }
-    var chosen by rememberSaveable(view.videoId) { mutableStateOf(WideSegment.UP_NEXT) }
-    val selected = segments.indexOf(chosen).coerceAtLeast(0)
+private fun WideSideColumn(view: WatchView, segment: WideSegment, callbacks: WatchCallbacks, modifier: Modifier) {
     Column(modifier) {
-        if (segments.size > 1) {
-            val labels = segments.map { stringResource(it.label) }
-            KitChipRow(labels, selected, onSelect = { chosen = segments[it] }, contentPadding = PaddingValues(0.dp))
-            Spacer(Modifier.height(SIDE_GAP))
-        }
-        when (segments[selected]) {
+        view.info?.let { info -> WatchChannelRow(info, 0.dp, callbacks.onOpenChannel, callbacks.onSubscribe) }
+        when (segment) {
             WideSegment.UP_NEXT -> {
                 val downloaded = rememberDownloadedIds()
                 val watched = rememberWatchedFractions(view.related)

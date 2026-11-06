@@ -149,7 +149,7 @@ internal fun VideoDesktopSidebarContent(focusSearch: Boolean, onSearchFocused: (
                     .padding(start = 12.dp, end = 12.dp, top = if (caption != null) 4.dp else 16.dp, bottom = ShellMetrics.DESKTOP_BAR_MARGIN_DP.dp),
             ) {
                 // The mode menu heads every mode's sidebar (DESIGN_SYSTEM.md 4.2).
-                com.cosmotune.ui.kit.KitModeMenuButton()
+                com.cosmotune.ui.orbit.OrbitNavModeChip(Modifier.padding(bottom = 6.dp))
                 // A focused row's ring lies outside it: the list is wider than its column by the room the ring needs, and its content is inset by the same.
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().weight(1f).bleed(RING_ROOM),
@@ -157,10 +157,10 @@ internal fun VideoDesktopSidebarContent(focusSearch: Boolean, onSearchFocused: (
                     verticalArrangement = Arrangement.spacedBy(NAV_LIST_GAP),
                 ) {
                     items(nav.take(PRIMARY_ROWS), key = { "nav:${it.label}" }) { item -> SidebarNavRow(if (item.selected) item.selectedIcon else item.icon, item.label, item.selected, item.onClick) }
-                    item(key = "divider-you") { SidebarDivider() }
+                    item(key = "divider-you") { Spacer(Modifier.height(10.dp)) }
                     item(key = "heading-you") { SidebarHeading(stringResource(SharedRes.string.library)) }
                     items(nav.drop(PRIMARY_ROWS), key = { "nav:${it.label}" }) { item -> SidebarNavRow(if (item.selected) item.selectedIcon else item.icon, item.label, item.selected, item.onClick) }
-                    item(key = "divider-subscriptions") { SidebarDivider() }
+                    item(key = "divider-subscriptions") { Spacer(Modifier.height(10.dp)) }
                     item(key = "heading-subscriptions") { SidebarHeading(stringResource(Res.string.video_tab_subscriptions)) }
                     if (channels.isEmpty()) {
                         item(key = "empty") {
@@ -247,23 +247,10 @@ private fun RailItem(icon: ImageVector, label: String, selected: Boolean, onClic
     }
 }
 
-/** A heading of the guide ("You", "Subscriptions"): 15 sp, weight 700. */
+/** A heading of the guide ("Library", "Subscriptions"): Orbit's mono navigation label. */
 @Composable
 private fun SidebarHeading(text: String) {
-    Text(
-        text = text,
-        style = LocalCosmoType.current.label.copy(fontSize = HEADING_SP.sp, fontWeight = FontWeight(HEADING_WEIGHT)),
-        color = Color(LocalCosmoColors.current.palette.textPrimary),
-        maxLines = 1,
-        modifier = Modifier.padding(start = 14.dp, end = 2.dp, top = 8.dp, bottom = 4.dp),
-    )
-}
-
-/** The hairline between the guide's groups: a faint wash of the ink. */
-@Composable
-private fun SidebarDivider() {
-    val colors = LocalCosmoColors.current
-    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp).height(1.dp).drawBehind { drawRect(colors.live(CoverField.TEXT_PRIMARY).copy(alpha = DIVIDER_WASH)) })
+    com.cosmotune.ui.orbit.OrbitNavSectionLabel(text, Modifier.padding(start = 6.dp, top = 6.dp, bottom = 4.dp))
 }
 
 /** Enter in the sidebar's search field: the query joins the recent searches, then the search page shows its results (a second search replaces the first). */
@@ -321,94 +308,16 @@ private fun sidebarNav(navigator: VideoNavigator, route: VideoRoute): List<Sideb
 
 // ---- Rows --------------------------------------------------------------------------------------------------------------------
 
-/** `.d2-nav button`: 44 dp, `rMd`, the icon and the label 12 dp apart; selected, the neutral `surface3`. */
+/** A page of the guide: Orbit's navigation chip (solid ink with the peach dot while its page is open). */
 @Composable
 private fun SidebarNavRow(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered = interaction.collectIsHoveredAsState()
-    val pressed = interaction.collectIsPressedAsState()
-    val shape = remember { RoundedCornerShape(NAV_RADIUS) }
-    val ink = Color(if (selected) palette.textPrimary else palette.textSecondary)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = NAV_HEIGHT)
-            .cosmoFocusRing(interaction, NAV_RADIUS)
-            .clip(shape)
-            .drawBehind { drawRowFill(colors, selected, pressed.value, hovered.value) }
-            .selectable(selected = selected, interactionSource = interaction, indication = null, role = Role.Tab, onClick = onClick)
-            .pointerHoverIcon(PointerIcon.Hand)
-            .padding(horizontal = NAV_PADDING),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(NAV_GAP),
-    ) {
-        Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(NAV_ICON))
-        Text(
-            text = label,
-            style = type.forText(type.label.copy(fontSize = NAV_LABEL_SP.sp, fontWeight = FontWeight(NAV_LABEL_WEIGHT)), label),
-            color = ink,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-    }
+    com.cosmotune.ui.orbit.OrbitNavChip(icon, label, selected, onClick)
 }
 
-/** A followed channel: a 36 dp avatar circle and its name (14 sp, weight 650); padding 6 10, radius 16, the tonal fill while its page is open. */
+/** A followed channel: Orbit's navigation row of a playlist, the channel's picture as its disc and its name; the chip fill while its page is open. */
 @Composable
 private fun SidebarChannelRow(channel: Subscription, selected: Boolean, onClick: () -> Unit) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    val interaction = remember { MutableInteractionSource() }
-    val hovered = interaction.collectIsHoveredAsState()
-    val pressed = interaction.collectIsPressedAsState()
-    val shape = remember { RoundedCornerShape(ITEM_RADIUS) }
-    val title = Color(if (selected) palette.textPrimary else palette.textPrimary)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .cosmoFocusRing(interaction, ITEM_RADIUS)
-            .clip(shape)
-            .drawBehind { drawRowFill(colors, selected, pressed.value, hovered.value) }
-            .selectable(selected = selected, interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
-            .pointerHoverIcon(PointerIcon.Hand)
-            .padding(horizontal = ITEM_PADDING_X, vertical = ITEM_PADDING_Y),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(ITEM_GAP),
-    ) {
-        ChannelAvatar(channel.avatarUrl, channel.name)
-        Text(
-            text = channel.name,
-            style = type.forText(type.label.copy(fontSize = ITEM_TITLE_SP.sp, fontWeight = FontWeight(ITEM_TITLE_WEIGHT)), channel.name),
-            color = title,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-/** A circle with the picture at [url] over a tonal disc with the channel's first letter (also what a failed load leaves). */
-@Composable
-private fun ChannelAvatar(url: String?, name: String) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    Box(
-        Modifier
-            .size(AVATAR)
-            .clip(CircleShape)
-            .drawBehind { drawCircle(colors.live(CoverField.SURFACE_VARIANT)) },
-        contentAlignment = Alignment.Center,
-    ) {
-        val initial = remember(name) { name.trim().take(1).uppercase() }
-        Text(text = initial, style = type.label.copy(fontSize = INITIAL_SP.sp, fontWeight = FontWeight.Bold), color = Color(palette.textPrimary))
-        if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
-    }
+    com.cosmotune.ui.orbit.OrbitNavPlaylist(channel.name, null, channel.avatarUrl, selected, onClick)
 }
 
 // ---- Drawing -----------------------------------------------------------------------------------------------------------------

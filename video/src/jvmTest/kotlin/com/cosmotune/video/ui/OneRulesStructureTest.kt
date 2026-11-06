@@ -18,9 +18,11 @@ class OneRulesStructureTest {
     }
 
     @Test fun everyCornerIsOnTheRadiusTable() {
-        val literal = Regex("""RoundedCornerShape\(\d+(\.\d+)?\.dp\)""")
+        // The Orbit radii (rules 1, 3 and 8): pictures 14-24, rows 22, cards 26-34; a token or a circle otherwise.
+        val orbit = setOf("10", "14", "16", "20", "22", "24", "26", "28", "34")
+        val literal = Regex("""RoundedCornerShape\((\d+(\.\d+)?)\.dp\)""")
         for ((name, code) in sources) {
-            assertFalse(literal.containsMatchIn(code), "$name has a literal radius; use a CosmoRadii token, CircleShape or RoundedCornerShape(percent = 50)")
+            for (match in literal.findAll(code)) assertTrue(match.groupValues[1] in orbit, "$name has a radius off the Orbit table: ${match.value}")
             assertFalse("SuperellipseShape" in code, "$name draws a superellipse")
         }
     }
@@ -32,7 +34,7 @@ class OneRulesStructureTest {
 
     @Test fun theWatchPageHasNoWrappedActionsAndNoDescriptionTile() {
         val meta = sources.single { it.first == "WatchMeta.kt" }.second
-        assertTrue("KitActionRow(" in meta && "FlowRow" !in meta)
+        assertTrue(".horizontalScroll(scroll)" in meta && "FlowRow" !in meta)
         val page = sources.single { it.first == "WatchPage.kt" }.second
         assertFalse("DescriptionTile(" in page)
     }

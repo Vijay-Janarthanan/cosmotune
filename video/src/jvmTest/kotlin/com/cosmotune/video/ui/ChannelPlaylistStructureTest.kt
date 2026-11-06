@@ -182,7 +182,7 @@ class ChannelPlaylistStructureTest {
                 assertTrue("key =" in argumentsOf(src, match.range.last), "$file: ${match.value} has no key")
             }
         }
-        assertTrue(seen >= 6, "found the lazy items (found $seen)")
+        assertTrue(seen >= 5, "found the lazy items (found $seen)")
         // the keys of a list of videos do not repeat
         assertTrue("uniqueKeys(" in code("channel/ChannelPage") && "uniqueKeys(" in code("playlist/PlaylistPage"))
         // the page items write their keys through
@@ -230,34 +230,25 @@ class ChannelPlaylistStructureTest {
 
     // ---- The channel page --------------------------------------------------------------------------------------------------------
 
-    @Test fun theBannerIsDrawnInDrawWithContentAndFadesOverItsLower40PercentIntoBackgroundTop() {
+    @Test fun theBannerIsARoundedStripInTheCardWithNothingOnIt() {
         val header = code("channel/ChannelHeader")
-        assertTrue("VideoMetrics.channelBannerHeightDp(widthDp)" in header, "16:5 on the phone")
-        assertEquals(112.5f, VideoMetrics.channelBannerHeightDp(360f))
-        assertTrue("VideoMetrics.DESKTOP_BANNER_DP.dp" in header && "RoundedCornerShape(CosmoRadii.rMd)" in header, "180 dp with rMd on a wide page")
-        val draw = Regex("""\.drawWithContent \{.*?\n            \}""", RegexOption.DOT_MATCHES_ALL).find(header)
-        assertNotNull(draw, "the banner has a drawWithContent")
-        assertTrue("drawContent()" in draw.value && "colors.live(CoverField.BACKGROUND_TOP)" in draw.value, "the fade is drawn over the picture, in the page's ground")
-        assertTrue("private const val BANNER_FADE_FROM = 0.60f" in header && "BANNER_FADE_FROM to ground.copy(alpha = 0f), 1f to ground" in header, "clear to 60 %, solid at the foot")
-        assertTrue("if (!wide)" in draw.value, "no fade on the wide page's rounded banner")
+        assertTrue("BANNER_SHAPE = RoundedCornerShape(24.dp)" in header && "height(if (wide) 132.dp else 84.dp)" in header)
+        assertTrue(".drawWithContent {" !in header, "no fade drawn over the picture")
     }
 
-    @Test fun theHeadIsA72dpAvatarOverTheBannerAndTheNameInHeadlineOr96WhenWide() {
+    @Test fun theHeadIsTheChannelsColourCardWithItsDisc() {
         val header = code("channel/ChannelHeader")
-        assertTrue("VideoMetrics.CHANNEL_AVATAR_DESKTOP_DP else VideoMetrics.CHANNEL_AVATAR_DP" in header)
-        assertTrue("type.forText(type.headline, channel.name)" in header)
+        assertTrue("coverFill(channel.avatarUrl, channel.id)" in header, "the card wears the colour of the channel's picture")
+        assertTrue("ChannelAvatar(channel.avatarUrl, 128.dp, name = channel.name)" in header && "ChannelAvatar(channel.avatarUrl, 88.dp, name = channel.name)" in header, "the disc: 88 dp, 128 wide")
         assertTrue("maxLines = 2" in header, "the name takes two lines")
-        assertTrue("ChannelAvatar(channel.avatarUrl, avatar, Modifier.overlapUp(AVATAR_OVERLAP), name = channel.name)" in header && "AVATAR_OVERLAP = 24.dp" in header, "overlapping the banner by 24 dp")
-        assertTrue("shadowElevation" !in header, "no shadow: nothing but the banner has colour here")
-        assertTrue("listOfNotNull(handle, subscribers, videos).joinToString" in header && "MetaText(meta" in header, "@handle, subscribers and videos on one line of meta")
-        assertTrue("channel.description?.lineSequence()" in header, "one line of the description")
+        assertTrue("listOfNotNull(stringResource(Res.string.video_channel_label), handle, subscribers, videos)" in header, "the mono line")
+        assertTrue("channel.description?.lineSequence()" in header, "the first line of the description")
     }
 
     @Test fun theActionsAreSubscribeShareAndDownloadTheLatest() {
         val header = code("channel/ChannelHeader")
-        assertTrue("SubscribePill(subscribed = subscribed, onClick = onSubscribe," in header, "Subscribe is the pill of the video apps")
-        assertTrue(Regex("""icon = CosmoIcons\.Share,.*?style = CosmoIconButtonStyle\.TONAL,\s+size = 40\.dp""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(header), "Share is a 40 dp tonal icon button")
-        assertTrue("padding(start = margin, end = margin, top = 12.dp, bottom = 4.dp)" in header, "padding 12 16 4")
+        assertTrue("SubscribePill(subscribed = subscribed, onClick = onSubscribe, ink = ink, fill = fill)" in header, "Subscribe in the card's ink")
+        assertTrue("OrbitRoundButton(CosmoIcons.Share" in header, "Share is a round button")
         assertTrue("Res.string.video_dl_latest" in header, "Download the latest")
         val page = code("channel/ChannelPage")
         assertTrue("DownloadBatchInfo(channel.id, BatchKind.CHANNEL_LATEST, channel.name)" in page && "latestPicker = true" in page)
@@ -308,27 +299,24 @@ class ChannelPlaylistStructureTest {
 
     // ---- The playlist page --------------------------------------------------------------------------------------------------------
 
-    @Test fun thePhoneHeadIsTheHeroTheTitleBlockAndTheButtons() {
+    @Test fun theHeadIsTheColourCard() {
         val header = code("playlist/PlaylistHeader")
-        assertTrue("HeroThumbnail(url, Modifier.fillMaxWidth().aspectRatio(16f / 9f))" in header, "the window less the margins, 16:9")
-        assertTrue("padding(start = margin, end = margin, top = 6.dp)" in header, "6 dp from the top")
-        assertTrue("ThumbnailFrame(url = url, modifier = modifier, shape = ThumbnailShape)" in header && "shadowElevation" !in header, "the picture flat, on the One radius: no shadow")
-        assertTrue("Res.string.video_your_playlist" in header && "Res.string.video_saved_playlist" in header && "Res.string.video_playlist" in header, "the overline")
-        assertTrue("val titleStyle = type.headline" in header && "maxLines = if (wide) 2 else 3" in header, "the One headline: three lines, two when wide")
-        assertTrue("OWNER_AVATAR = 28.dp" in header && "type.forText(type.rowTitle, name)" in header, "the owner row")
-        assertTrue("WIDE_THUMB_WIDTH = 320.dp" in header && "WIDE_THUMB_HEIGHT = 180.dp" in header, "the wide hero row")
+        assertTrue("OrbitBiteCard(" in header && "coverFill(shown.thumbnailUrl, shown.id)" in header, "one flat card in the picture's colour")
+        assertTrue("ThumbnailFrame(shown.thumbnailUrl, Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(22.dp))" in header, "the picture inside it, 16:9, nothing on it")
+        assertTrue("Res.string.video_your_playlist" in header && "Res.string.video_saved_playlist" in header && "Res.string.video_playlist" in header, "the mono label")
+        assertTrue("maxLines = 3" in header, "the title takes three lines")
         assertTrue("VideoText.durationParts(sec)" in header && "VideoText.duration(sec)" in header, "the total time comes from VideoText")
+        assertTrue("PlaylistCard(shown, actions, wide, line.own)" in code("playlist/PlaylistPage"))
     }
 
     @Test fun theButtonsArePlayAllShuffleSaveDownloadAllAndMore() {
         val header = code("playlist/PlaylistHeader")
-        assertTrue(Regex("""text = playAll,\s+onClick = actions\.onPlayAll,\s+kind = KitButtonKind\.PRIMARY""").containsMatchIn(header), "Play all is the head's one primary button")
-        assertTrue(Regex("""icon = CosmoIcons\.Shuffle,.*?style = CosmoIconButtonStyle\.TONAL,\s+size = 48\.dp""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(header), "Shuffle is a 48 dp tonal icon")
-        assertTrue(Regex("""icon = VideoIcons\.Bookmark,.*?style = CosmoIconButtonStyle\.TONAL,\s+size = 48\.dp,\s+on = shown\.saved""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(header), "Save is a bookmark, on when saved")
-        assertTrue(Regex("""icon = CosmoIcons\.Download,.*?style = CosmoIconButtonStyle\.TONAL,\s+size = 48\.dp""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(header), "Download all is a 48 dp tonal icon")
-        assertTrue("style = CosmoIconButtonStyle.PLAIN" in header && "CosmoIcons.MoreVertical" in header, "More is plain")
+        assertTrue("OrbitPlayButton(false, { if (actions.hasVideos) actions.onPlayAll() }, look)" in header, "Play all stands in the card's bite")
+        assertTrue("OrbitRoundButton(CosmoIcons.Shuffle, shuffle" in header, "Shuffle is a round button on the card")
+        assertTrue("OrbitRoundButton(VideoIcons.Bookmark, save, ink, it, on = shown.saved, onInk = fill)" in header, "Save is a bookmark, on when saved")
+        assertTrue("OrbitRoundButton(CosmoIcons.Download, downloadAll" in header, "Download all is a round button")
+        assertTrue("OrbitRoundButton(CosmoIcons.MoreVertical" in header && "OrbitMenu(" in header, "More opens the Orbit menu")
         assertTrue("Res.string.video_dl_all" in header && "Res.string.video_save_playlist" in header && "Res.string.video_unsave_playlist" in header)
-        assertTrue("if (maxWidth < NARROW_DP) ACTIONS_GAP_NARROW else ACTIONS_GAP" in header && "ACTIONS_GAP = 8.dp" in header)
     }
 
     @Test fun thePlaylistPageSavesPlaysAndDownloadsThroughTheLibraryThePlaybackAndTheHandler() {

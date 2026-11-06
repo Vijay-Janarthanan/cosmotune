@@ -122,7 +122,7 @@ class SubscriptionsStructureTest {
         for (group in listOf("TODAY" to "video_today", "YESTERDAY" to "video_yesterday", "THIS_WEEK" to "video_this_week", "THIS_MONTH" to "video_this_month", "OLDER" to "video_older")) {
             assertTrue("FeedGroup.${group.first} -> Res.string.${group.second}" in page, group.first)
         }
-        assertTrue("CosmoOverline(" in page)
+        assertTrue("OrbitLabel(stringResource(group.label())" in page, "the day as Orbit's mono label")
     }
 
     @Test fun theStripIsTheBlocksAndItsChoiceIsKeptWithThePage() {
@@ -132,7 +132,7 @@ class SubscriptionsStructureTest {
         assertTrue("onSelect = { picked = it }" in page)
         // the picked channel brings its button, which opens the channel
         assertTrue("video_open_channel_chip" in page && "VideoRoute.Channel(id)" in page)
-        assertTrue("KitChip(" in page && "role = Role.Button" in page && "clearAndSetSemantics" in page, "a chip to look at, a button to a screen reader")
+        assertTrue("OrbitSelectChip(" in page && "role = Role.Button" in page && "clearAndSetSemantics" in page, "a chip to look at, a button to a screen reader")
     }
 
     @Test fun theShortsShelfOpensThePagerAndAShortInTheFeedKeepsItsCard() {

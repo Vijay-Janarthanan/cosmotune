@@ -44,8 +44,7 @@ class VideoBlocksStructureTest {
     @Test fun thumbnailBoxAndTheCardsKeepTheBriefsParametersInOrder() {
         assertEquals(
             listOf(
-                "url: String?", "widthDp: Dp", "modifier: Modifier = Modifier", "durationSec: Long? = null", "live: Boolean = false",
-                "upcoming: Boolean = false", "watchedFraction: Float? = null", "countStrip: String? = null", "downloaded: Boolean = false",
+                "url: String?", "widthDp: Dp", "modifier: Modifier = Modifier",
             ),
             params("ThumbnailBox", "ThumbnailBox"),
         )
@@ -132,7 +131,7 @@ class VideoBlocksStructureTest {
     // ---- The downloaded badge (step 3b) -------------------------------------------------------------------------------------
 
     @Test fun downloadedIsTheLastParameterAndDefaultsToFalseOnEveryBlockThatDrawsAThumbnail() {
-        for ((file, function) in listOf("ThumbnailBox" to "ThumbnailBox", "VideoShelfCard" to "VideoShelfCard", "VideoRow" to "VideoRow")) {
+        for ((file, function) in listOf("VideoShelfCard" to "VideoShelfCard", "VideoRow" to "VideoRow")) {
             assertEquals("downloaded: Boolean = false", params(file, function).last(), "$function")
         }
         assertTrue("downloaded: Boolean = false" in params("VideoCard", "VideoCard"), "the feed card's")
@@ -140,16 +139,10 @@ class VideoBlocksStructureTest {
         assertEquals("downloaded: (String) -> Boolean = { false }", params("VideoGrid", "videoGridItems").first { it.startsWith("downloaded") })
     }
 
-    @Test fun theDownloadedBadgeIsTheSpecs() {
-        val src = code("ThumbnailBox")
-        assertTrue("internal const val DOWNLOADED_BADGE_DP = 24f" in src, "a 24 dp circle (DESIGN_SYSTEM.md 4.7)")
-        assertTrue("internal const val DOWNLOADED_ICON_DP = 16f" in src, "the glyph at 16 dp")
-        assertTrue("internal const val DOWNLOADED_INSET_DP = 6f" in src, "6 dp inside the corner")
-        assertTrue("VideoDownloadedBadge(Modifier.align(Alignment.TopEnd).padding(DOWNLOADED_INSET_DP.dp))" in src, "the top-right corner")
-        val badge = Regex("""fun VideoDownloadedBadge\(.*?\n}\n""", RegexOption.DOT_MATCHES_ALL).find(src)!!.value
-        assertTrue("CosmoIcons.Downloaded" in badge && ".background(DOWNLOADED_SCRIM)" in badge && "tint = Color.White" in badge, "a media scrim, white glyph")
-        assertTrue("stringResource(Res.string.video_dl_done_cd)" in badge, "described as Downloaded")
-        assertTrue("if (downloaded) VideoDownloadedBadge(" in src)
+    @Test fun aDownloadedVideoSaysSoInItsWords() {
+        val meta = code("MetaLine")
+        assertTrue("downloaded: Boolean = false" in meta && "stringResource(Res.string.video_dl_done_cd)" in meta, "\"Downloaded\" in the meta line")
+        assertFalse("VideoDownloadedBadge" in code("ThumbnailBox"), "never a badge on the picture")
     }
 
     @Test fun everyBlockThatDrawsAThumbnailPassesDownloadedOn() {
@@ -159,28 +152,24 @@ class VideoBlocksStructureTest {
 
     // ---- Where the numbers come from ----------------------------------------------------------------------------------------
 
-    @Test fun theBadgeAndBarNumbersComeFromVideoMetrics() {
+    @Test fun thePictureReadsItsShapeFromVideoMetrics() {
         val src = code("ThumbnailBox")
-        for (name in listOf("BADGE_INSET_DP", "BADGE_H_DP", "BADGE_PAD_H_DP", "BADGE_SCRIM_ALPHA", "WATCHED_BAR_DP")) {
-            assertTrue("VideoMetrics.$name" in src, "the thumbnail reads VideoMetrics.$name")
-        }
         assertTrue("VideoMetrics.thumbHeightDp(widthDp.value)" in src && "VideoMetrics.thumbRadiusDp(minOf(size.width, size.height) / density.density)" in src)
-        // none of the badge's numbers is written again as a literal
-        assertFalse(Regex("""height\(20\.dp\)|padding\(horizontal = 6\.dp\)|SuperellipseShape\(6\.dp\)|fontSize = 12\.sp|\.height\(3\.dp\)|alpha = 0\.72f""").containsMatchIn(src))
+        assertTrue("RowPictureShape = RoundedCornerShape(16.dp)" in src, "a row's picture: Orbit's 16")
     }
 
-    @Test fun theCardsRowsShelvesAndTheStripReadTheirNumbersFromVideoMetrics() {
+    @Test fun theCardsRowsShelvesAndTheStripAreTheOrbitKitsPieces() {
         val card = code("VideoCard")
-        assertTrue("KitVideoCard(" in card && "VideoMetrics.FEED_AVATAR_DP.dp" in card && "margin = CosmoSpacing.margin" in card, "the kit's card, in the page's margin")
+        assertTrue("OrbitVideoCard(" in card && "CARD_AVATAR = 32.dp" in card && "padding(horizontal = CosmoSpacing.margin)" in card, "the kit's video card, in the page's margin")
+        assertTrue("CardMetaLine(item, rememberNowMs(), downloaded = downloaded)" in card && "progress = watchedFraction" in card)
         val shelfCard = code("VideoShelfCard")
-        assertTrue("rememberTitleStyle(item.title)" in shelfCard && "rememberMetaStyle(meta)" in shelfCard && "VideoMetrics.thumbHeightDp(width.value)" in shelfCard)
+        assertTrue("VideoCardBody(" in shelfCard && "avatar = false" in shelfCard)
         val shelf = code("VideoShelf")
-        assertTrue("VideoMetrics.SHELF_GAP_DP.dp" in shelf && "PaddingValues(horizontal = CosmoSpacing.margin)" in shelf && "KitSectionHeader(title = title)" in shelf)
+        assertTrue("OrbitShelfRow(CosmoSpacing.margin, 18.dp)" in shelf && "OrbitSectionHeader(title" in shelf)
         val row = code("VideoRow")
-        for (name in listOf("ROW_PAD_V_DP", "MORE_BUTTON_DP", "ROW_THUMB_W_DP", "DESKTOP_ROW_THUMB_W_DP")) {
-            assertTrue("VideoMetrics.$name" in row, "the row reads $name")
-        }
-        assertTrue("ROW_THUMB_GAP = 16.dp" in row, "16 dp of gap (DESIGN_SYSTEM.md 3.3)")
+        for (name in listOf("ROW_THUMB_W_DP", "DESKTOP_ROW_THUMB_W_DP")) assertTrue("VideoMetrics.$name" in row, "the row reads $name")
+        assertTrue("ROW_RADIUS = 22.dp" in row && ".background(look.row)" in row, "Orbit rule 8: radius 22, the ink at 5 %")
+        assertTrue("OrbitRoundButton(CosmoIcons.MoreVertical" in row)
         assertEquals(128f, VideoMetrics.ROW_THUMB_W_DP, "128 x 72")
         val strip = code("ChannelStrip")
         assertTrue("VideoMetrics.STRIP_AVATAR_DP" in strip && "VideoMetrics.STRIP_ITEM_W_DP" in strip)
@@ -188,7 +177,7 @@ class VideoBlocksStructureTest {
         assertTrue("private val STRIP_GAP = 12.dp" in strip && "type.forText(type.caption, name)" in strip)
         assertTrue("private val RING_WIDTH = 2.dp" in strip && "colors.live(CoverField.TEXT_PRIMARY)" in strip, "a 2 dp neutral ring: never the accent")
         val chips = code("VideoChips")
-        assertTrue("CHIPS_GAP = 8.dp" in chips && "padding(horizontal = CosmoSpacing.margin)" in chips)
+        assertTrue("OrbitChipRow(CosmoSpacing.margin, modifier)" in chips && "OrbitSelectChip(label" in chips)
     }
 
     @Test fun theSheetsHeadIsA96By54ThumbnailWithRadius12AndRowsOf54() {
@@ -200,11 +189,13 @@ class VideoBlocksStructureTest {
         assertTrue("skipPartiallyExpanded = true" in src)
     }
 
-    @Test fun theCountStripIsTheRightFortyPercentInBlackAtSixty() {
+    @Test fun nothingIsDrawnOnAPicture() {
+        // Orbit rule 9: the length, Live, the watched line, the downloaded mark and a playlist's count are said beside the picture
         val src = code("ThumbnailBox")
-        assertTrue("internal const val COUNT_STRIP_FRACTION = 0.40f" in src && "internal const val COUNT_STRIP_ALPHA = 0.60f" in src)
-        assertTrue("CosmoIcons.List" in src && ".align(Alignment.CenterEnd)" in src && "fillMaxWidth(COUNT_STRIP_FRACTION)" in src)
-        assertTrue("playlist" in block("PlaylistRow").lowercase() && "countStrip = count?.let { VideoText.compact(it) }" in code("PlaylistRow"))
+        for (gone in listOf("TimeBadge", "CountStrip", "WatchedBar", "HoverPlay", "VideoDownloadedBadge", "COUNT_STRIP")) assertFalse(gone in src, "no $gone on the picture")
+        assertTrue("internal fun ThumbnailFrame(url: String?, modifier: Modifier, shape: Shape)" in src)
+        assertTrue("playlistMeta" !in code("PlaylistRow") && "pluralStringResource(Res.plurals.video_count_videos, quantity, quantity)" in code("PlaylistRow"), "the count is in the row's words")
+        assertTrue("val length = item.durationSec" in code("MetaLine"), "the length is in the card's meta line")
     }
 
     // ---- Rules of the whole directory ---------------------------------------------------------------------------------------
@@ -307,12 +298,13 @@ class VideoBlocksStructureTest {
         assertTrue("longPressMenuClickable(onClick = onClick, onLongClick = onMore)" in helper && ".contextClick(onMore)" in helper, "the hold and the right click both open the menu")
         assertTrue(".semantics(mergeDescendants = true) { role = Role.Button }" in helper, "one button for assistive technology")
         assertTrue(".cosmoFocusRing(interaction, radius)" in helper && "FocusInteraction.Focus()" in helper, "keyboard focus draws the ring")
-        for (file in listOf("VideoShelfCard", "VideoRow")) assertTrue(".videoClickable(" in code(file), "$file uses the helper")
-        // the feed card is the kit's, whose button takes the hold; the right click is added to it
-        assertTrue(".contextClick(onMore)" in code("VideoCard") && "onLongClick = onMore" in code("VideoCard"))
-        assertFalse(".clickable(" in code("VideoCard") + code("VideoShelfCard") + code("VideoRow") + code("PlaylistRow"), "no bare clickable on a card or a row")
-        // the shelf card has no visible more button: a screen reader gets the action instead
-        assertTrue("customActions = listOf(CustomAccessibilityAction(more) { onMore(); true })" in code("VideoShelfCard"))
+        assertTrue(".videoClickable(" in code("VideoRow"), "the row uses the helper")
+        // the cards are the kit's video card, whose button takes the hold and the right click
+        assertTrue("onLongClick = onMore" in code("VideoCard") && "VideoCardBody(" in code("VideoShelfCard"))
+        assertFalse(".clickable(" in code("VideoShelfCard") + code("VideoRow") + code("PlaylistRow"), "no bare clickable on a card or a row")
+        assertTrue(".clickable(role = Role.Button, onClick = onAvatarClick)" in code("VideoCard"), "only the channel's disc, which opens the channel")
+        // the card has no visible more button: a screen reader gets the action instead
+        assertTrue("customActions = listOf(CustomAccessibilityAction(more) { onMore(); true })" in code("VideoCard"))
         // the channel row is part two's row with a tonal small button, and a 52 dp circle
         val channel = code("ChannelStrip")
         assertTrue("CosmoListRow(" in channel && "CosmoRowLeading.Cover(item.avatarUrl, circle = true)" in channel)
@@ -346,7 +338,7 @@ class VideoBlocksStructureTest {
             }
         }
         // the words are the module's resources
-        for (file in listOf("ThumbnailBox", "VideoCard", "VideoActionsSheet", "ChannelStrip", "MetaLine")) assertTrue("stringResource(" in code(file) || "pluralStringResource(" in code(file), file)
+        for (file in listOf("VideoCard", "VideoActionsSheet", "ChannelStrip", "MetaLine")) assertTrue("stringResource(" in code(file) || "pluralStringResource(" in code(file), file)
     }
 
     @Test fun noColourIsPickedByHandAndWhiteAndBlackStayOnThePicture() {

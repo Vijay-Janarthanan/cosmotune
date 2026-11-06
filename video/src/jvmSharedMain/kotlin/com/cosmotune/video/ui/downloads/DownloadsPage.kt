@@ -1,5 +1,6 @@
 package com.cosmotune.video.ui.downloads
 
+import com.cosmotune.video.resources.video_library_label
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -273,29 +274,13 @@ private fun rememberStorageLine(downloads: DownloadController, entries: List<Dow
     return line
 }
 
-/** "Downloads" in `display(DISPLAY_M)` (spec 5.10) and, at its end, the 40 dp TONAL sort button with its menu ([showSort]: not while there is nothing to sort). */
+/** "Downloads." as an Orbit page heading under the mono "YOURS" and, at its end, the sort button with its menu ([showSort]: not while there is nothing to sort). */
 @Composable
 private fun DownloadsHeading(sort: DownloadsSort, onSort: (DownloadsSort) -> Unit, showSort: Boolean, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val title = stringResource(Res.string.video_downloads)
-    Row(
-        modifier
-            .fillMaxWidth()
-            .padding(start = CosmoSpacing.margin, end = DownloadsMetrics.HEADING_END_DP.dp, top = DownloadsMetrics.HEADING_TOP_DP.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            text = title,
-            style = type.forText(type.displayLarge, title),
-            color = Color(palette.textPrimary),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).semantics { heading() },
-        )
-        if (showSort) SortButton(sort, onSort)
-    }
+    com.cosmotune.video.ui.blocks.VideoPageHeading(
+        stringResource(Res.string.video_downloads), stringResource(Res.string.video_library_label), modifier,
+        actions = if (showSort) ({ SortButton(sort, onSort) }) else null,
+    )
 }
 
 /** The sort button (40 dp TONAL) and its menu: Newest, Oldest, Title, Size, the one in use ticked. */

@@ -1,5 +1,10 @@
 package com.cosmotune.video.ui.watch
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -148,29 +153,30 @@ private fun DescriptionBody(title: String, originalTitle: String?, meta: String,
 }
 
 /**
- * A chapter (spec 5.4): its 96 x 54 frame, the title `rowTitle` up to two lines over its start time in `meta`;
- * padding 8 16; a tap seeks to the chapter ([onSeek]). One button for assistive technology. The sheet and the wide page's Chapters
- * segment both list these.
+ * A chapter (spec 5.4) as an Orbit row: radius 22, the page's ink at 5 %, its 96 x 54 frame (radius 14), the title up to two lines
+ * and its start time in the mono label face; a tap seeks to the chapter ([onSeek]). One button for assistive technology. The sheet
+ * and the watch pages' Chapters chip both list these.
  */
 @Composable
 internal fun ChapterRow(chapter: Chapter, onSeek: (Long) -> Unit, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val titleStyle = rememberTitleStyle(chapter.title)
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val time = VideoText.duration(chapter.startMs / 1000)
-    val timeStyle = rememberMetaStyle(time)
     Row(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = CosmoSpacing.margin, vertical = VideoMetrics.ROW_PAD_V_DP.dp)
-            .videoClickable(CosmoRadii.rSm, { onSeek(chapter.startMs) }, null),
+            .padding(horizontal = CosmoSpacing.margin, vertical = 4.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(look.row)
+            .videoClickable(22.dp, { onSeek(chapter.startMs) }, null)
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ThumbnailFrame(url = chapter.thumbnailUrl, modifier = Modifier.size(CHAPTER_FRAME_W, CHAPTER_FRAME_H), shape = CHAPTER_FRAME_SHAPE)
-        Spacer(Modifier.width(CosmoSpacing.gutter))
+        ThumbnailFrame(url = chapter.thumbnailUrl, modifier = Modifier.size(CHAPTER_FRAME_W, CHAPTER_FRAME_H), shape = RoundedCornerShape(14.dp))
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(chapter.title, style = titleStyle, color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(2.dp))
-            Text(time, style = timeStyle.tabular(), color = Color(palette.textSecondary), maxLines = 1)
+            Text(chapter.title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(time, style = fonts.label, color = look.dim, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

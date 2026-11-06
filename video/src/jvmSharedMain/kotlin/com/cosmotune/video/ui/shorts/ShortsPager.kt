@@ -551,7 +551,12 @@ internal fun ShortsPageContent(
                 modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
             )
         }
-        if (active) PauseGlyph(controller.glyphSerial, Modifier.align(Alignment.Center))
+        if (active) {
+            PauseGlyph(
+                controller.glyphSerial,
+                Modifier.align(Alignment.TopCenter).padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + PAUSE_GLYPH_TOP),
+            )
+        }
         ShortsBottomBlock(
             item = item,
             title = title,
@@ -597,6 +602,9 @@ internal fun ShortsPageContent(
         )
     }
 }
+
+/** The paused mark stands this far under the status bar: under the top row, clear of the video's centre. */
+private val PAUSE_GLYPH_TOP = 72.dp
 
 /** What the pages mark on their Shorts: the liked ones and the followed channels (ids), read once for the screen. */
 @Immutable

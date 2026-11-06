@@ -115,6 +115,7 @@ import com.cosmotune.video.resources.video_speed_value
 import com.cosmotune.video.segments.SegmentCategory
 import com.cosmotune.video.settings.CodecPreference
 import com.cosmotune.video.settings.TitleCase
+import com.cosmotune.video.resources.video_settings_label
 import com.cosmotune.video.settings.VideoSettings
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.player.SPEEDS
@@ -174,7 +175,7 @@ fun VideoSettingsPage(contentPadding: PaddingValues, wide: Boolean) {
                 .verticalScroll(rememberScrollState())
                 .padding(contentPadding),
         ) {
-            CosmoPageHeader(title = stringResource(Res.string.video_drawer_settings), large = wide)
+            com.cosmotune.video.ui.blocks.VideoPageHeading(stringResource(Res.string.video_drawer_settings), stringResource(Res.string.video_settings_label))
             PlaybackSettings(settings, update, pip.supported) { choice = it }
             SmoothnessSettingsGroup(settings.smoothness, update, canSmooth, smoothReadout, smoothExperimental)
             CaptionSettings(settings, update, locale) { choice = it }

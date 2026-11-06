@@ -1,23 +1,18 @@
 package com.cosmotune.video.ui.blocks
 
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.kit.KitChip
+import com.cosmotune.ui.orbit.OrbitChipRow
+import com.cosmotune.ui.orbit.OrbitSelectChip
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.CosmoSpacing
 
 /**
- * A row of choices that scrolls sideways and never wraps (DESIGN_SYSTEM.md 4.4: kiosks, filters, channel tabs): one [KitChip] per label, 8 dp
- * apart, the page's margin at both ends, the [selected]th one chosen (-1: none). A tap calls [onSelect] with the chip's index. [leading]
- * stands first in the same row, before the chips, and [trailing] after them (Home's placeholders while the kiosks are on the way), with
- * the same gap.
+ * A row of choices that scrolls sideways and never wraps (Orbit rule 7: kiosks, filters, channel tabs): one 40 dp [OrbitSelectChip]
+ * per label, 8 dp apart, the page's margin at both ends inside the scroll, the [selected]th one solid ink (-1: none). A tap calls
+ * [onSelect] with the chip's index. [leading] stands first in the same row, before the chips, and [trailing] after them, with the
+ * same gap.
  */
 @Composable
 fun VideoChips(
@@ -28,21 +23,13 @@ fun VideoChips(
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = CosmoSpacing.margin),
-        horizontalArrangement = Arrangement.spacedBy(CHIPS_GAP),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    OrbitChipRow(CosmoSpacing.margin, modifier) {
         leading?.invoke()
         labels.forEachIndexed { index, label ->
-            KitChip(label = label, selected = index == selected, onClick = { onSelect(index) })
+            OrbitSelectChip(label, selected = index == selected, fonts = fonts, look = look, onClick = { onSelect(index) })
         }
         trailing?.invoke()
     }
 }
-
-/** The gap between chips. */
-private val CHIPS_GAP = 8.dp

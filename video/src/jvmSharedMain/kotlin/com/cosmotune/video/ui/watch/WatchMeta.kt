@@ -1,6 +1,11 @@
 package com.cosmotune.video.ui.watch
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -75,23 +80,20 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import com.cosmotune.ui.kit.KitActionRow
-import com.cosmotune.ui.room.RoomPlayButton
-import com.cosmotune.ui.room.roomVideoItem
 import com.cosmotune.video.resources.video_show_more
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
 /*
- * The blocks under the player (DESIGN_SYSTEM.md 6.2): the title `titleMedium` up to two lines, the meta line with "…more"; the compact 56 dp
- * channel row with Subscribe; and one sideways-scrolling row of tonal actions, which never wraps. On the wide page the blocks take the side
- * padding the page gives them, so they line up with the player.
+ * The blocks under the watch page's colour card (Orbit board B): the channel row (its disc, the name over the subscriber count, and
+ * Subscribe), one sideways-scrolling row of action chips that never wraps, and the meta line with "…more". The title is the card's.
+ * On the wide page the blocks take the side padding the page gives them, so they line up with the video.
  */
 
 private val TITLE_TOP = 12.dp
 private val META_TOP = 2.dp
 private val CHANNEL_ROW = 56.dp
-private val CHANNEL_AVATAR = 40.dp
+private val CHANNEL_AVATAR = 44.dp
 private val CHANNEL_GAP = 12.dp
 private val ACTIONS_BOTTOM = 8.dp
 private val ACTION_HEIGHT = 40.dp
@@ -139,8 +141,9 @@ internal data class WatchInfo(
 )
 
 /**
- * The title, the meta line, the chips and the channel row (spec 5.4). [onOpenDescription] is the tap on the title and meta (the
- * description sheet on the phone; null on the wide page, whose description stands inline). [theatre] marks the theatre chip.
+ * The channel row, the action chips and the meta line (spec 5.4; the title is the colour card's). [onOpenDescription] is the tap on
+ * the meta line (the description sheet on the phone; null on the wide page, whose description stands on the page). [theatre] marks
+ * the theatre chip. [channel] false leaves the channel row out (the wide page shows it at the top of its side column).
  */
 @Composable
 internal fun WatchMeta(
@@ -153,45 +156,32 @@ internal fun WatchMeta(
     onOpenChannel: () -> Unit,
     onSubscribe: () -> Unit,
     modifier: Modifier = Modifier,
+    channel: Boolean = true,
 ) {
     Column(modifier.fillMaxWidth()) {
-        WatchTitle(info, sidePadding, onOpenDescription)
-        // The channel comes before the actions, as the video apps lay it out.
-        WatchChannelRow(info, sidePadding, onOpenChannel, onSubscribe)
+        if (channel) WatchChannelRow(info, sidePadding, onOpenChannel, onSubscribe)
         WatchActionChips(info, wide, theatre, sidePadding, onChip)
+        WatchMetaLine(info, sidePadding, onOpenDescription)
     }
 }
 
-/** The title up to two lines and the meta line ("1.2M views · 3 days ago  …more"); one button that opens the description when [onOpen] is set. */
+/** The meta line ("1.2M views · 3 days ago  …more"); one button that opens the description when [onOpen] is set. */
 @Composable
-private fun WatchTitle(info: WatchInfo, sidePadding: Dp, onOpen: (() -> Unit)?) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val titleStyle = remember(type, info.title) { type.forText(type.titleMedium, info.title) }
+private fun WatchMetaLine(info: WatchInfo, sidePadding: Dp, onOpen: (() -> Unit)?) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val more = stringResource(Res.string.video_show_more)
     val line = MetaLine(info.item, rememberNowMs(), showChannel = false)
-    // The tap is on the whole block; the words say so where there is a sheet to open.
-    val meta = if (onOpen != null) (if (line.isEmpty()) "…$more" else "$line  …$more") else line
-    val metaStyle = rememberMetaStyle(meta)
+    if (line.isEmpty() && onOpen == null) return
     val openLabel = stringResource(Res.string.video_description)
     val tap = if (onOpen != null) Modifier.clickable(onClickLabel = openLabel, role = Role.Button, onClick = onOpen) else Modifier
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .then(tap)
-            .padding(start = sidePadding, end = sidePadding, top = TITLE_TOP),
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = sidePadding, vertical = 4.dp).clip(RoundedCornerShape(22.dp)).background(look.row).then(tap)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(info.title, style = titleStyle, color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (meta.isNotEmpty()) {
-            Text(
-                meta,
-                style = metaStyle,
-                color = Color(palette.textSecondary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = META_TOP),
-            )
-        }
+        Text(line, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (onOpen != null) Text(more, style = fonts.chip.copy(fontSize = 13.sp), color = look.ink, modifier = Modifier.padding(start = 10.dp))
     }
 }
 
@@ -270,18 +260,17 @@ private fun WatchActionChips(info: WatchInfo, wide: Boolean, theatre: Boolean, s
             }
         }
     }
-    // The video for everyone in the room, each device playing it in its own player. Under the original title (not DeArrow's), since
-    // the others may not use it. Drawn only where the host offers rooms.
-    val roomItem = remember(info.item.id, info.item.title, info.item.channelName, info.item.thumbnailUrl, info.item.durationSec) {
-        roomVideoItem(info.item.id, info.item.title, info.item.channelName.orEmpty(), info.item.thumbnailUrl, info.item.durationSec?.times(1000L))
-    }
+    // The video for everyone in the room, each device playing it in its own player (under the original title). Drawn only where the
+    // host offers rooms.
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val scroll = rememberScrollState()
-    KitActionRow(
-        modifier = Modifier.padding(bottom = ACTIONS_BOTTOM).wheelScrollsSideways(scroll),
-        contentPadding = PaddingValues(horizontal = sidePadding),
-        scrollState = scroll,
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = ACTIONS_BOTTOM).wheelScrollsSideways(scroll).horizontalScroll(scroll).padding(horizontal = sidePadding),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        RoomPlayButton(roomItem, dense = true)
+        VideoRoomChip(info.item, look.ink, fonts)
         chipItems()
     }
 }
@@ -303,9 +292,10 @@ private fun Modifier.wheelScrollsSideways(scroll: ScrollState): Modifier = point
 private val WHEEL_STEP = 48.dp
 
 /**
- * One action (DESIGN_SYSTEM.md 4.12): a 40 dp tonal pill (`surface2`), a 20 dp [icon] and the [label]; [on] (a rating given, a video kept) is the
- * neutral `surface3`, never the accent. An action with no [onClick] is a figure (the like and dislike counts while signed out), read by its
- * [description]; the others are buttons with a 48 dp target and the focus ring. [segment]: half of the rating pill, which draws the fill.
+ * One action (Orbit rule 7): a 40 dp chip in the page's ink at 8 %, an 18 dp [icon] and the [label]; [on] (a rating given, a video
+ * kept) is solid ink with the ground's colour for its words. An action with no [onClick] is a figure (the like and dislike counts
+ * while signed out), read by its [description]; the others are buttons with a 48 dp target and the focus ring. [segment]: half of the
+ * rating pill, which draws the fill.
  */
 @Composable
 internal fun WatchActionChip(
@@ -317,9 +307,9 @@ internal fun WatchActionChip(
     on: Boolean = false,
     segment: Boolean = false,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val ink = Color(palette.textPrimary)
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val ink = if (on) look.ground else look.ink
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val action = if (onClick != null) {
@@ -331,9 +321,9 @@ internal fun WatchActionChip(
         Modifier.clearAndSetSemantics { if (description != null) contentDescription = description }
     }
     val fill = when {
-        on -> Modifier.background(Color(palette.surfaceVariant), ACTION_SHAPE)
+        on -> Modifier.background(look.ink, ACTION_SHAPE)
         segment -> Modifier
-        else -> Modifier.background(Color(palette.surfaceHigh), ACTION_SHAPE)
+        else -> Modifier.background(look.chip, ACTION_SHAPE)
     }
     Row(
         modifier
@@ -341,31 +331,25 @@ internal fun WatchActionChip(
             .height(ACTION_HEIGHT)
             .graphicsLayer { alpha = if (pressed) CHIP_PRESSED_ALPHA else 1f }
             .then(fill)
-            .padding(horizontal = 16.dp),
+            .padding(start = if (icon != null) 12.dp else 16.dp, end = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(ACTION_ICON))
-        Text(
-            text = label,
-            color = ink,
-            style = type.forText(type.control, label),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Text(text = label, color = ink, style = fonts.chip, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
-/** Like and dislike as one tonal pill with a hairline between the halves; each half is a [WatchActionChip] drawn as a segment. */
+/** Like and dislike as one chip with a hairline between the halves; each half is a [WatchActionChip] drawn as a segment. */
 @Composable
 private fun WatchRatingSegment(like: @Composable () -> Unit, dislike: @Composable () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
     Row(
-        Modifier.height(ACTION_HEIGHT).background(Color(palette.surfaceHigh), ACTION_SHAPE),
+        Modifier.height(ACTION_HEIGHT).background(look.chip, ACTION_SHAPE),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         like()
-        Spacer(Modifier.width(1.dp).height(SEGMENT_RULE).background(Color(palette.textPrimary).copy(alpha = SEGMENT_RULE_ALPHA)))
+        Spacer(Modifier.width(1.dp).height(SEGMENT_RULE).background(look.ink.copy(alpha = SEGMENT_RULE_ALPHA)))
         dislike()
     }
 }
@@ -374,31 +358,30 @@ private val SEGMENT_RULE = 20.dp
 private const val SEGMENT_RULE_ALPHA = 0.16f
 
 /**
- * The channel row (DESIGN_SYSTEM.md 6.2): 56 dp, the avatar, the name over the subscriber count, and Subscribe (the accent; tonal once
- * subscribed). The row opens the channel when the video has one.
+ * The channel row (Orbit board B): the channel's 44 dp disc, the name over the subscriber count, and Subscribe (solid ink; the quiet
+ * chip with a check once subscribed). The row opens the channel when the video has one.
  */
 @Composable
-private fun WatchChannelRow(info: WatchInfo, sidePadding: Dp, onOpenChannel: () -> Unit, onSubscribe: () -> Unit) {
+internal fun WatchChannelRow(info: WatchInfo, sidePadding: Dp, onOpenChannel: () -> Unit, onSubscribe: () -> Unit) {
     val item = info.item
     val name = item.channelName?.takeIf { it.isNotBlank() } ?: return
-    val palette = LocalCosmoColors.current.palette
-    val nameStyle = rememberTitleStyle(name)
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val count = info.subscriberCount?.let { stringResource(Res.string.video_subscribers, VideoText.compact(it)) }
-    val countStyle = rememberMetaStyle(count.orEmpty())
-    val open = if (item.channelId != null) Modifier.videoClickable(CosmoRadii.rMd, onOpenChannel, null) else Modifier
+    val open = if (item.channelId != null) Modifier.videoClickable(22.dp, onOpenChannel, null) else Modifier
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = CHANNEL_ROW)
-            .padding(horizontal = sidePadding),
+            .padding(horizontal = sidePadding, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.weight(1f).then(open).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).then(open).padding(6.dp).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
             ChannelAvatar(item.channelAvatarUrl, CHANNEL_AVATAR, name = item.channelName)
             Spacer(Modifier.width(CHANNEL_GAP))
             Column(Modifier.weight(1f)) {
-                Text(name, style = nameStyle, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (count != null) Text(count, style = countStyle, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(name, style = fonts.title.copy(fontSize = 14.5.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (count != null) Text(count, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         if (item.channelId != null) {

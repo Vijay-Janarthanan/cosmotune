@@ -101,8 +101,9 @@ private const val BUBBLE_CHAPTER_SP = 12.5f
  * chapter; letting go seeks. A tap seeks too.
  *
  * The band is the 48 dp touch target; the line is at its bottom edge ([lineAtBottom], the page: the player's bottom edge) or its
- * middle. [onGlass] draws it in ink for the full window's bar, whose bubble rises [bubbleLiftDp] more to clear the bar. The playhead
- * is read only while drawing.
+ * middle. [onGlass] draws it in ink for the full window's bar, whose bubble rises [bubbleLiftDp] more to clear the bar. [ink] draws
+ * it in one ink, the Orbit seek line of the watch page's colour card (the played part and the dot in the card's ink, the rest
+ * faint, the SponsorBlock marks in their colours). The playhead is read only while drawing.
  *
  * A live stream (spec 5.13; plan task Y-28): the bar is its window from its start to the live edge ([LiveWindow]), so the dot sits
  * at the end while the stream is live and nothing past the edge can be picked; no segments, chapters or storyboard; the bubble says
@@ -120,6 +121,7 @@ internal fun PlayerScrubber(
     onInput: () -> Unit,
     modifier: Modifier = Modifier,
     bubbleLiftDp: Float = 0f,
+    ink: Color? = null,
 ) {
     val live = state.live
     val duration = if (live) LiveWindow.liveEdgeMs(state.durationMs) else state.durationMs
@@ -222,16 +224,16 @@ internal fun PlayerScrubber(
                     playhead.frame.longValue   // a new frame: draw again
                     val dragging = drag.active.value
                     val played = if (dragging) drag.fraction.floatValue else ScrubberGeometry.fraction(playback.positionMs(), duration)
-                    val ink = if (onGlass) colors.live(CoverField.TEXT_PRIMARY) else Color.White
+                    val pen = ink ?: if (onGlass) colors.live(CoverField.TEXT_PRIMARY) else Color.White
                     drawScrubLine(
                         played = played,
                         buffered = buffered,
                         dragging = dragging,
                         lineAtBottom = lineAtBottom,
-                        rest = ink.copy(alpha = ink.alpha * REST_ALPHA),
-                        bufferedColor = ink.copy(alpha = ink.alpha * BUFFERED_ALPHA),
-                        accent = colors.live(CoverField.ACCENT),
-                        dot = ink,
+                        rest = pen.copy(alpha = pen.alpha * REST_ALPHA),
+                        bufferedColor = pen.copy(alpha = pen.alpha * BUFFERED_ALPHA),
+                        accent = ink ?: colors.live(CoverField.ACCENT),
+                        dot = pen,
                         ranges = ranges,
                         gaps = gaps,
                     )

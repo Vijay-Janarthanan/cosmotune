@@ -1,5 +1,19 @@
 package com.cosmotune.video.ui.blocks
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.WatchProgressLine
+import com.cosmotune.ui.orbit.liveRed
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,7 +41,7 @@ import com.cosmotune.video.resources.video_more
 import org.jetbrains.compose.resources.stringResource
 
 /*
- * The big card of the wide pages: the result card of Search. Like every card it is one button (`videoClickable`: a tap, a hold, a
+ * The big card of the wide pages, in the Orbit row's look (radius 26, ink at 5 %): the result card of Search. Like every card it is one button (`videoClickable`: a tap, a hold, a
  * right click, the focus ring), answers a mouse the way the grid's cards do, and takes the numbers it shares with them from VideoMetrics.
  */
 
@@ -54,82 +68,51 @@ fun VideoResultCard(
     title: String = item.title,
     downloaded: Boolean = false,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val meta = MetaLine(item, rememberNowMs(), showChannel = false)
-    val titleStyle = rememberTitleStyle(title)
-    val metaStyle = rememberMetaStyle(meta)
-    val channelStyle = rememberMetaStyle(item.channelName.orEmpty())
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val meta = CardMetaLine(item, rememberNowMs(), showChannel = false, downloaded = downloaded)
     val snippet = item.snippet?.takeIf { it.isNotBlank() }
-    val snippetStyle = rememberMetaStyle(snippet.orEmpty())
     val more = stringResource(Res.string.video_more)
     val hover = rememberCardHover()
     Row(
         with(hover) { modifier.fillMaxWidth().track() }
-            .padding(horizontal = CosmoSpacing.margin, vertical = VideoMetrics.ROW_PAD_V_DP.dp)
-            .videoClickable(CosmoRadii.rMd, onClick, onMore),
+            .padding(horizontal = CosmoSpacing.margin, vertical = 6.dp)
+            .clip(RoundedCornerShape(26.dp))
+            .background(look.row)
+            .videoClickable(26.dp, onClick, onMore)
+            .padding(10.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        ThumbnailFrame(
-            url = item.thumbnailUrl,
-            modifier = with(hover) { Modifier.width(RESULT_PICTURE_W).aspectRatio(16f / 9f).lifted() },
-            shape = ThumbnailShape,
-            durationSec = item.durationSec,
-            live = item.isLive,
-            upcoming = item.isUpcoming,
-            watchedFraction = watchedFraction,
-            downloaded = downloaded,
-            hovered = hover.hovered,
-        )
-        Spacer(Modifier.width(RESULT_GAP))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = titleStyle,
-                color = Color(palette.textPrimary),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
+        Column(Modifier.width(RESULT_PICTURE_W)) {
+            ThumbnailFrame(
+                url = item.thumbnailUrl,
+                modifier = with(hover) { Modifier.fillMaxWidth().aspectRatio(16f / 9f).lifted() },
+                shape = RoundedCornerShape(20.dp),
             )
-            if (meta.isNotEmpty()) {
-                Text(
-                    text = meta,
-                    style = metaStyle,
-                    color = Color(palette.textSecondary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+            if (watchedFraction != null) WatchProgressLine(watchedFraction, look, Modifier.padding(top = 8.dp))
+        }
+        Spacer(Modifier.width(RESULT_GAP))
+        Column(Modifier.weight(1f).padding(top = 4.dp)) {
+            Text(title, style = fonts.title.copy(fontSize = 17.sp, lineHeight = 22.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val line = buildAnnotatedString {
+                if (item.isLive) {
+                    withStyle(SpanStyle(color = liveRed(look), fontFamily = fonts.label.fontFamily, fontWeight = FontWeight.Bold, fontSize = 10.5.sp)) { append("● LIVE") }
+                    if (meta.isNotBlank()) append(" · ")
+                }
+                append(meta)
             }
+            if (line.isNotEmpty()) Text(line, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
             if (!item.channelName.isNullOrBlank()) {
                 Row(Modifier.padding(top = 12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     ChannelAvatar(item.channelAvatarUrl, RESULT_AVATAR, name = item.channelName)
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = item.channelName.orEmpty(),
-                        style = channelStyle,
-                        color = Color(palette.textSecondary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Text(item.channelName.orEmpty(), style = fonts.body.copy(fontWeight = FontWeight(600)), color = look.ink.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (snippet != null) {
-                Text(
-                    text = snippet,
-                    style = snippetStyle,
-                    color = Color(palette.textSecondary),
-                    maxLines = RESULT_SNIPPET_LINES,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
+                Text(snippet, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = RESULT_SNIPPET_LINES, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
             }
         }
-        CosmoIconButton(
-            icon = CosmoIcons.MoreVertical,
-            contentDescription = more,
-            onClick = onMore,
-            style = CosmoIconButtonStyle.PLAIN,
-            size = VideoMetrics.MORE_BUTTON_DP.dp,
-        )
+        OrbitRoundButton(CosmoIcons.MoreVertical, more, look.ink, onMore, size = 40.dp)
     }
 }

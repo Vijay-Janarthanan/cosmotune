@@ -3,6 +3,14 @@ package com.cosmotune.video.ui.watch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.resources.video_home_heading
+import com.cosmotune.video.resources.video_watch_label
+import com.cosmotune.video.resources.Res
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -99,9 +107,11 @@ import androidx.compose.runtime.setValue
  * already the one on, a seek to the route's start when it is), follows the playback when it moves on by itself, plays the download
  * when the source cannot be reached, and draws one of three layouts:
  *
- * - the phone's page: the player under the status bar on a black band, `VideoMetrics.playerHeightDp` tall, and under it one column
- *   (B): [WatchMeta], [CommentsPreviewTile] and "Up next"; the description sheet and the comments sheet stand under the player when open;
- * - full screen (the button, a swipe up, or the phone turned to landscape): the video alone in its own window ([VideoFullWindow]),
+ * - the phone's page (Orbit board B, as Now Playing): the top row (collapse, "VIDEO · CHANNEL", more), the whole video in its rounded
+ *   frame with nothing on it, and under it one column: the colour card ([WatchTransportCard]: the title, the buttons, the seek line
+ *   with SponsorBlock's marks, play in the bite), [WatchMeta] (the channel, the actions, the meta line), the segment chips (Up next,
+ *   Chapters, Comments) and what the chosen one shows; the description sheet and the comments sheet stand under the video when open;
+ * - Cinema, full screen (the screen button, a swipe up, or the phone turned to landscape): the video alone in its own window ([VideoFullWindow]),
  *   `VideoPlayerBox(layout = FULLSCREEN)`, landscape for a landscape video, Back leaves it;
  * - [wide] (840 dp and up, always on the desktop): [WatchPageWide].
  *
@@ -347,12 +357,16 @@ private fun watchCallbacks(
 
 // ---- the phone's page --------------------------------------------------------------------------------------------------------
 
-/** The page's side margin (spec 5.0). */
+/** The page's side margin (spec 5.0), and the video's and the card's (12 dp: the frame reads as a card of the page). */
 private val PHONE_SIDE = CosmoSpacing.margin
+private val FRAME_SIDE = 12.dp
+
+/** The top row's height (the collapse button, the label and more). */
+private val TOP_ROW = 56.dp
 
 /**
- * The phone's page (spec 5.4 "Phone, portrait"): the black band with the player under the status bar, then the column. The
- * description sheet and the comments sheet open under the player, and Back closes them.
+ * The phone's page (see [WatchPage]): the top row, the video in its frame, then the column. The description sheet and the comments
+ * sheet open under the video, and Back closes them.
  */
 @Composable
 private fun WatchPagePhone(
@@ -375,43 +389,61 @@ private fun WatchPagePhone(
         descriptionOpen = false
         commentsOpen = false
     }
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val playerHeight = VideoMetrics.playerHeightDp(width.value, height.value, aspect).dp
+    val playerHeight = watchFrameHeight(width - FRAME_SIDE * 2, height * PHONE_FRAME_SHARE, aspect, WatchSession.fill)
     val downloaded = rememberDownloadedIds()
     val watched = rememberWatchedFractions(view.related)
     val onBounds = remember(pipUpdater) { { rect: Rect -> pipUpdater.bounds(rect) } }
+    val info = view.info
+    val (ground, _) = coverFill(info?.item?.thumbnailUrl, view.videoId)
+    val segments = remember(view.chapters.isNotEmpty(), view.commentsShown) { wideSegments(view.chapters.isNotEmpty(), view.commentsShown) }
+    var chosen by rememberSaveable(view.videoId) { mutableStateOf(WideSegment.UP_NEXT) }
+    val onChoose: (WideSegment) -> Unit = { segment -> if (segment == WideSegment.COMMENTS) commentsOpen = true else chosen = segment }
+    val screen = WatchScreen(
+        fill = WatchSession.fill, onFill = { WatchSession.fill = it }, onCinema = onEnterFullscreen,
+        theatre = null, onTheatre = {}, onMini = onEnterPip,
+    )
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            // The status bar's area and the bands around the picture are black (spec 5.4; the black of the player).
-            Box(Modifier.fillMaxWidth().background(Color.Black).padding(top = statusTop)) {
-                VideoPlayerBox(
-                    playback = playback,
-                    surface = surface,
-                    layout = PlayerLayout.PAGE,
-                    modifier = Modifier.fillMaxWidth().height(playerHeight),
-                    onCollapse = onCollapse,
-                    onToggleFullscreen = onEnterFullscreen,
-                    onEnterPip = onEnterPip,
-                    onBoundsChanged = onBounds,
-                )
-            }
+            WatchTopRow(
+                label = watchLabel(info), fonts = fonts, look = look, onCollapse = onCollapse,
+                onMore = info?.let { { callbacks.onMore(it.item) } },
+                modifier = Modifier.padding(top = statusTop).padding(horizontal = FRAME_SIDE),
+            )
+            WatchVideoFrame(
+                playback, surface, PlayerLayout.PAGE, ground,
+                Modifier.padding(horizontal = FRAME_SIDE).fillMaxWidth().height(playerHeight),
+                onCinema = onEnterFullscreen, onBounds = onBounds, onCollapse = onCollapse,
+            )
             LazyColumn(
                 Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                contentPadding = PaddingValues(top = 12.dp, bottom = contentPadding.calculateBottomPadding()),
             ) {
-                watchBlocks(
-                    view = view,
-                    callbacks = callbacks,
-                    onOpenDescription = { descriptionOpen = true },
-                    onOpenComments = { commentsOpen = true },
-                )
-                upNextSection(view, watched, downloaded, desktop = false, callbacks = callbacks)
+                item(key = "card") {
+                    WatchTransportCard(
+                        playback = playback, title = view.title, thumbnail = info?.item?.thumbnailUrl, key = view.videoId, screen = screen, wide = false,
+                        fonts = fonts, look = look, modifier = Modifier.padding(horizontal = FRAME_SIDE),
+                        onTitle = if (info != null) ({ descriptionOpen = true }) else null,
+                    )
+                }
+                watchBlocks(view = view, callbacks = callbacks, onOpenDescription = { descriptionOpen = true })
+                if (info != null && segments.size > 1) {
+                    item(key = "segments") { WatchSegmentRow(segments, chosen, onChoose, fonts, look, PHONE_SIDE) }
+                }
+                when (chosen) {
+                    WideSegment.CHAPTERS -> itemsIndexed(view.chapters, key = { index, chapter -> "chapter:$index:${chapter.startMs}" }) { _, chapter ->
+                        ChapterRow(chapter, callbacks.onSeek)
+                    }
+                    else -> upNextSection(view, watched, downloaded, desktop = false, callbacks = callbacks)
+                }
             }
         }
-        // The sheets stand under the player, over the sheets' 40 % black scrim on the page (the
+        // The sheets stand under the video, over the sheets' 40 % black scrim on the page (the
         // documented exception), so the page does not show through their glass; a tap on the scrim closes them.
-        val top = statusTop + playerHeight
+        val top = statusTop + TOP_ROW + playerHeight
         val panel = Modifier.padding(top = top, bottom = contentPadding.calculateBottomPadding())
         if (descriptionOpen && view.info != null) {
             Box(
@@ -426,7 +458,6 @@ private fun WatchPagePhone(
                     },
             )
         }
-        val info = view.info
         if (descriptionOpen && info != null) {
             DescriptionSheet(
                 title = view.title,
@@ -445,12 +476,21 @@ private fun WatchPagePhone(
     }
 }
 
-/** The phone's blocks under the player: the meta (or its shimmer while loading) and the comments teaser; the description is the sheet's. */
+/** At most this share of the phone's height goes to the video, so the card and the list keep some room. */
+private const val PHONE_FRAME_SHARE = 0.5f
+
+/** The top row's label: "VIDEO · CHANNEL" (the mode and the channel), "VIDEO" while nothing is known. */
+@Composable
+internal fun watchLabel(info: WatchInfo?): String {
+    val channel = info?.item?.channelName?.takeIf { it.isNotBlank() }
+    return if (channel != null) stringResource(Res.string.video_watch_label, channel) else stringResource(Res.string.video_home_heading)
+}
+
+/** The phone's blocks under the card: the channel, the actions and the meta line (or their shimmer while loading); the description is the sheet's. */
 private fun LazyListScope.watchBlocks(
     view: WatchView,
     callbacks: WatchCallbacks,
     onOpenDescription: () -> Unit,
-    onOpenComments: () -> Unit,
 ) {
     val info = view.info
     if (info == null) {
@@ -467,10 +507,8 @@ private fun LazyListScope.watchBlocks(
             onChip = callbacks.onChip,
             onOpenChannel = callbacks.onOpenChannel,
             onSubscribe = callbacks.onSubscribe,
+            modifier = Modifier.padding(top = 8.dp),
         )
-    }
-    if (view.commentsShown) {
-        item(key = "comments") { CommentsPreviewTile(videoId = view.videoId, onOpen = onOpenComments, modifier = Modifier.fillMaxWidth()) }
     }
 }
 
@@ -646,6 +684,9 @@ internal object WatchSession {
 
     /** Full screen was left while the phone was turned: the page stays upright until the last watch page leaves. */
     var portraitLock by mutableStateOf(false)
+
+    /** The page's video cut to fill its frame (the screen button's Fill) rather than shown whole; kept for the session. */
+    var fill by mutableStateOf(false)
 
     /** The wide page's full window (key F, the button, a double click); it outlives a page replaced by the next video's. */
     var fullWindow by mutableStateOf(false)

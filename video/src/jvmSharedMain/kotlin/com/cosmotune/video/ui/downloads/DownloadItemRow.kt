@@ -75,6 +75,7 @@ import com.cosmotune.video.resources.video_more
 import com.cosmotune.video.resources.video_retry
 import com.cosmotune.video.ui.blocks.ThumbnailFrame
 import com.cosmotune.video.ui.blocks.ThumbnailShape
+import com.cosmotune.video.ui.blocks.RowPictureShape
 import com.cosmotune.video.ui.blocks.VideoRowFrame
 import com.cosmotune.video.ui.blocks.rowThumbnailSize
 import com.cosmotune.video.ui.branding.rememberVideoThumbnail
@@ -117,9 +118,7 @@ internal fun DownloadItemRow(
                 ThumbnailFrame(
                     url = thumbnail,
                     modifier = Modifier.rowThumbnailSize(desktop),
-                    shape = ThumbnailShape,
-                    durationSec = item.durationSec,
-                    downloaded = finished,
+                    shape = RowPictureShape,
                 )
             },
             title = title,

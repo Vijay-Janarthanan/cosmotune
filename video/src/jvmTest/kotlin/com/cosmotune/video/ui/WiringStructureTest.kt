@@ -555,7 +555,7 @@ class WiringStructureTest {
             VideoSourceContract.parameters(src, "ShortsGrid"),
         )
         assertTrue("fun VideoNavigator.openShort(item: VideoItem, origin: ShortsOrigin, list: List<VideoItem>)" in src)
-        assertTrue("KitSectionHeader(title = title, onSeeAll = onSeeAll" in VideoSourceContract.functionBody(src, "ShortsShelf"))
+        assertTrue("VideoSectionHeading(title, onSeeAll = onSeeAll" in VideoSourceContract.functionBody(src, "ShortsShelf"))
         val open = VideoSourceContract.functionBody(src, "openShort")
         assertTrue("ShortsSeedCache.put(seed)" in open && "push(VideoRoute.Shorts(origin, item.id, key))" in open)
     }

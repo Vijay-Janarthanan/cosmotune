@@ -564,4 +564,27 @@
     <string name="video_dislike">Dislike</string>
     <string name="video_filter_unwatched">Unwatched</string>
     <string name="video_filter_empty">Nothing here right now</string>
+    <string name="video_home_heading">Video</string>
+    <string name="video_home_label">For you</string>
+    <string name="video_home_up_next_for_you">Up next for you</string>
+    <string name="video_home_from_subscriptions">From your subscriptions</string>
+    <string name="video_home_more_for_you">More for you</string>
+    <string name="video_watch_playing">Playing</string>
+    <string name="video_watch_paused">Paused</string>
+    <string name="video_watch_screen">Screen</string>
+    <string name="video_watch_whole">Whole</string>
+    <string name="video_watch_whole_detail">Nothing cut</string>
+    <string name="video_watch_fill">Fill</string>
+    <string name="video_watch_fill_detail">Fills the frame, cuts the edges</string>
+    <string name="video_watch_cinema">Cinema</string>
+    <string name="video_watch_cinema_detail">The whole window · F</string>
+    <string name="video_watch_mini">Mini</string>
+    <string name="video_watch_mini_detail">A small floating video</string>
+    <string name="video_watch_label">Video · %1$s</string>
+    <string name="video_watch_theatre_detail">The video across the page · T</string>
+    <string name="video_watch_description">About this video</string>
+    <string name="video_channel_label">Channel</string>
+    <string name="video_subscriptions_label">Your channels</string>
+    <string name="video_library_label">Yours</string>
+    <string name="video_settings_label">Video mode</string>
 </resources>
