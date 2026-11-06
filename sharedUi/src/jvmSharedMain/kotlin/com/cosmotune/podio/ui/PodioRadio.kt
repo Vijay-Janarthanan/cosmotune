@@ -117,6 +117,10 @@ internal class OnAir(val station: RadioStation?, val song: String?, val onPrevio
     }
 }
 
+/** The discs beside the wide Radio page's card: two rows of three. */
+private const val SIDE_COLUMNS = 3
+private const val SIDE_DISCS = 6
+
 /** How many station records fit a row of [width] with [side] gutters, and how wide each disc is. */
 internal fun stationCells(width: Dp, side: Dp, wide: Boolean): Pair<Int, Dp> {
     val room = width - side * 2
@@ -176,15 +180,28 @@ private fun stationsLine(m: PodioModel): String {
                 if (wide) Row(Modifier.fillMaxWidth().padding(horizontal = side).padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     card(Modifier.weight(1.45f))
                     Column(Modifier.weight(1f)) {
-                        val rows = favourites.ifEmpty { m.radio }.filter { it.id != featured.id }.take(3)
-                        OrbitPageSection(if (favourites.isEmpty()) "Popular now" else "Your stations",
-                            subtitle = if (favourites.isEmpty()) "From Radio Browser" else "${favourites.size} saved",
-                            action = if (favourites.size > 3) "All" else null, onAction = { env.chooseSection(PodioSection.FOLLOWING) })
-                        Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            rows.forEach { station ->
-                                val current = env.playback.id == station.item().id
-                                StationRow(station, favourites.any { it.id == station.id }, current, current && env.playback.playing, { m.playStation(station) },
-                                    { m.toggleFavourite(station) }, fonts, look)
+                        // Your stations as discs, then the most listened stations near you, so the column is never left empty.
+                        val yours = favourites.filter { it.id != featured.id }
+                        val near = m.radio.filter { s -> s.id != featured.id && favourites.none { it.id == s.id } }
+                        val discs = (yours + near).take(SIDE_DISCS)
+                        val filler = discs.size > yours.size
+                        OrbitPageSection(if (yours.isEmpty()) "Popular near you" else "Your stations",
+                            subtitle = when {
+                                favourites.isEmpty() -> "From Radio Browser"
+                                yours.isEmpty() || !filler -> "${favourites.size} saved"
+                                else -> "${favourites.size} saved · then popular near you"
+                            },
+                            action = if (favourites.size > 1) "All" else null, onAction = { env.chooseSection(PodioSection.FOLLOWING) })
+                        BoxWithConstraints(Modifier.padding(top = 14.dp).fillMaxWidth()) {
+                            val gap = 12.dp
+                            val disc = ((maxWidth - gap * (SIDE_COLUMNS - 1)) / SIDE_COLUMNS - 12.dp).coerceIn(64.dp, 112.dp)
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                discs.chunked(SIDE_COLUMNS).forEach { line ->
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                                        line.forEach { station -> Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) { StationTile(station, env, m, fonts, look, disc) } }
+                                        repeat(SIDE_COLUMNS - line.size) { Spacer(Modifier.weight(1f)) }
+                                    }
+                                }
                             }
                         }
                     }

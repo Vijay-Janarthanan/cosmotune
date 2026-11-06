@@ -250,7 +250,7 @@ internal class PodioModel(
         directoryLoading = true
         if (requestedFeed == null) error = null
         try {
-            if (stations) radio = catalogue.stations(query, country, language)
+            if (stations) radio = PodioLocal.rank(catalogue.stations(query, country, language), PodioLocal.current())
             else {
                 val storefront = country.ifBlank { java.util.Locale.getDefault().country.ifBlank { "US" } }
                 val genreName = PODCAST_GENRES.firstOrNull { it.first == genre }?.second
@@ -286,4 +286,37 @@ internal class PodioModel(
         item.id in running -> DownloadMark.RUNNING
         else -> DownloadMark.AVAILABLE
     }
+}
+
+/**
+ * The listener's country and language (Music's discovery preferences: India and Tamil here), so the station lists open on what is
+ * near them rather than on the directory's most clicked worldwide. [country] is ISO alpha-2 upper case, [language] the English name
+ * Radio Browser uses ("Tamil"); either may be empty.
+ */
+internal data class PodioPlace(val country: String, val language: String)
+
+internal object PodioLocal {
+    fun current(): PodioPlace {
+        val region = runCatching { com.cosmotune.music.data.recommendations.DiscoveryPreferences.state.value }.getOrNull()
+        val country = (region?.country ?: java.util.Locale.getDefault().country).takeIf { it != "ZZ" }.orEmpty().uppercase()
+        val language = region?.musicLanguage?.takeIf { it.isNotBlank() }
+            ?.let { java.util.Locale.forLanguageTag(it).getDisplayLanguage(java.util.Locale.ENGLISH) }.orEmpty()
+        return PodioPlace(country, language)
+    }
+
+    /** 0 the listener's country in their language, 1 their country, 2 their language elsewhere, 3 the rest. */
+    fun closeness(station: com.cosmotune.podio.RadioStation, place: PodioPlace): Int {
+        val country = place.country.isNotEmpty() && station.countryCode.equals(place.country, ignoreCase = true)
+        val language = place.language.isNotEmpty() && station.language.split(',', ';', '/').any { it.trim().equals(place.language, ignoreCase = true) }
+        return when {
+            country && language -> 0
+            country -> 1
+            language -> 2
+            else -> 3
+        }
+    }
+
+    /** [stations] (most listened first, as the directory gives them) with the listener's own first, each group keeping its order. */
+    fun rank(stations: List<com.cosmotune.podio.RadioStation>, place: PodioPlace): List<com.cosmotune.podio.RadioStation> =
+        if (place.country.isEmpty() && place.language.isEmpty()) stations else stations.sortedBy { closeness(it, place) }
 }
