@@ -1,6 +1,5 @@
 package com.cosmotune.music.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,21 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import com.cosmotune.ui.theme.CosmoRadii
-import org.jetbrains.compose.resources.painterResource
-import com.cosmotune.music.sharedui.resources.spotify_logo
-import com.cosmotune.music.sharedui.resources.Res
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
-import com.cosmotune.ui.bridge.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,18 +25,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import com.cosmotune.music.R
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.data.spotify.SpotifyLibrary
 import com.cosmotune.music.data.spotify.SpotifyPlaylist
-import com.cosmotune.music.data.spotify.SpotifyTrack
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.spotify_logo
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitSheetButton
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import org.jetbrains.compose.resources.painterResource
 
 /**
  * The signed-in Spotify account's playlists. A tap opens one as an ordinary
@@ -64,6 +57,8 @@ fun SpotifyLibraryScreen(
     var playlists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val fonts = orbitFonts()
+    val look = orbitLook()
 
     LaunchedEffect(cookie) {
         if (cookie.isBlank()) {
@@ -82,49 +77,46 @@ fun SpotifyLibraryScreen(
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         item {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
             ) {
                 Icon(
                     painter = painterResource(Res.drawable.spotify_logo),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onBackground,
+                    tint = look.ink,
                     modifier = Modifier.size(38.dp),
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(
                     text = stringResource(R.string.spotify),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    style = fonts.greeting,
+                    color = look.ink,
                 )
             }
         }
         if (cookie.isBlank()) {
             item {
-                Column(Modifier.padding(horizontal = 20.dp)) {
+                Column(Modifier.padding(horizontal = 16.dp)) {
                     Text(
                         text = stringResource(R.string.spotify_connect_subtitle),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = fonts.body,
+                        color = look.dim,
                     )
                     Spacer(Modifier.height(16.dp))
-                    Button(onClick = onOpenLogin) {
-                        Text(stringResource(R.string.spotify_sign_in))
-                    }
+                    OrbitSheetButton(label = stringResource(R.string.spotify_sign_in), onClick = onOpenLogin)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = onOpenTokenSetup) {
-                        Text(stringResource(R.string.spotify_use_spdc_token))
-                    }
+                    OrbitSheetButton(label = stringResource(R.string.spotify_use_spdc_token), onClick = onOpenTokenSetup, primary = false)
                 }
             }
         } else {
             if (loading) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        OrbitRing(40.dp, look.ink, progress = null, spinning = true)
                     }
                 }
             }
@@ -132,59 +124,21 @@ fun SpotifyLibraryScreen(
                 item {
                     Text(
                         text = message,
+                        style = fonts.body,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
             }
             items(playlists, key = { it.id }) { item ->
-                LibraryRow(
+                OrbitSongRow(
                     title = item.name,
                     subtitle = item.owner.orEmpty(),
-                    imageUrl = item.imageUrl,
+                    cover = item.imageUrl,
+                    fonts = fonts,
+                    look = look,
                     onClick = { onOpenPlaylist(item) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun LibraryRow(
-    title: String,
-    subtitle: String,
-    imageUrl: String?,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        AsyncImage(
-            model = imageUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.size(52.dp).clip(RoundedCornerShape(CosmoRadii.rSm)),
-        )
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (subtitle.isNotBlank()) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
         }

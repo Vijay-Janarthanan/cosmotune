@@ -165,7 +165,7 @@ class SheetsContractTest {
 
     @Test fun thePlaylistPickerRowDelegateIsTheFirstStatementAndPassesEveryParameter() {
         val statement = firstStatement(picker, "PlaylistRow")
-        assertTrue(statement.startsWith("$look return com.cosmotune.ui.sheets.CosmoPickRow("), "the delegate, but it is: $statement")
+        assertTrue(statement.startsWith("CosmoPickRow("), "the row is the Orbit pick row, but it is: $statement")
         val names = SourceContract.names(SourceContract.parameters(picker, "PlaylistRow"))
         assertEquals(listOf("playlist", "selected", "onClick"), names)
         SourceContract.assertPassesEveryParameter(statement, listOf("selected", "onClick"))

@@ -197,7 +197,7 @@ internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 
  * colour; [secret] hides what is typed.
  */
 @Composable
-internal fun OrbitTextField(
+fun OrbitTextField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
@@ -206,6 +206,8 @@ internal fun OrbitTextField(
     modifier: Modifier = Modifier,
     error: Boolean = false,
     secret: Boolean = false,
+    onDone: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(22.dp)
     androidx.compose.foundation.text.BasicTextField(
@@ -215,7 +217,10 @@ internal fun OrbitTextField(
         textStyle = fonts.body.copy(color = look.ink),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = if (secret) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password) else androidx.compose.foundation.text.KeyboardOptions.Default,
+        keyboardOptions = if (secret) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password)
+        else if (onDone != null) androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done)
+        else androidx.compose.foundation.text.KeyboardOptions.Default,
+        keyboardActions = if (onDone != null) androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }) else androidx.compose.foundation.text.KeyboardActions.Default,
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(shape)
@@ -223,9 +228,12 @@ internal fun OrbitTextField(
             .then(if (error) Modifier.border(1.5.dp, androidx.compose.material3.MaterialTheme.colorScheme.error, shape) else Modifier)
             .semantics { contentDescription = placeholder },
         decorationBox = { inner ->
-            Box(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
-                if (value.isEmpty()) Text(placeholder, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                inner()
+            Row(Modifier.padding(start = 18.dp, end = if (trailing != null) 8.dp else 18.dp, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) Text(placeholder, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    inner()
+                }
+                trailing?.invoke()
             }
         },
     )
