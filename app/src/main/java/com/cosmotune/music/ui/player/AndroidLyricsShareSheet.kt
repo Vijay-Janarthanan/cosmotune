@@ -177,6 +177,44 @@ internal fun AndroidLyricsShareSheet(
                 },
             )
 
+            // A short MP4 of the chosen lines lighting up over the cover, with that stretch of the song (LyricsVideoExport).
+            val videoPlan = remember(request) {
+                com.cosmotune.lyrics.video.LyricsVideoPlan.forSelection(request.lrcLines, request.lines.filterNot { it.isGap }.map { it.text })
+            }
+            var videoProgress by remember(request) { mutableStateOf<Float?>(null) }
+            var videoSaved by remember(request) { mutableStateOf(false) }
+            val videoTarget = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.CreateDocument("video/mp4"),
+            ) { uri ->
+                val plan = videoPlan
+                if (uri != null && plan != null) scope.launch {
+                    videoProgress = 0f
+                    val temporary = java.io.File(context.cacheDir, "lyrics-video.mp4")
+                    videoSaved = runCatching {
+                        LyricsVideoExport.export(context, request, plan, temporary) { videoProgress = it }
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            context.contentResolver.openOutputStream(uri, "wt")!!.use { out -> temporary.inputStream().use { it.copyTo(out) } }
+                        }
+                    }.isSuccess
+                    temporary.delete()
+                    videoProgress = null
+                    if (!videoSaved) com.cosmotune.music.ui.player.PlayerPlatform.host.showMessage("The lyrics video could not be made")
+                }
+            }
+            if (videoPlan != null) ShareAction(
+                label = videoProgress?.let { "Making the video… ${(it * 100).toInt()}%" } ?: "Save as video",
+                icon = Icons.Rounded.Download,
+                accent = false,
+                enabled = videoProgress == null,
+                modifier = Modifier.fillMaxWidth(),
+                saved = videoSaved,
+                savedLabel = stringResource(R.string.saved_bang),
+                onClick = {
+                    haptics.play(Haptic.Tap)
+                    videoTarget.launch(request.lrcFileName.substringBeforeLast('.') + ".mp4")
+                },
+            )
+
             if (failed) {
                 Text(
                     text = stringResource(R.string.couldnt_draw_picture),

@@ -114,6 +114,10 @@ its Mochy source in its comment, and the list below is kept up to date with `UPS
   `foss/cast/DlnaRenderer.kt` (SOAP control, polling, DIDL-Lite), ported to plain JVM code in
   `shared/.../music/data/cast/dlna/`; the media relay that serves the song to the renderer is Cosmotune's own.
 
+Mochy's lyrics video export, its USB DAC driver and its player styles were studied but not copied: the lyrics video
+(`shared/.../lyrics/video/`, the phone's `LyricsVideoExport.kt`, the desktop's `DesktopLyricsVideo.kt`) is Cosmotune's own,
+and what a userspace USB DAC output would need is written down in `docs/PENDING_WORK.md`.
+
 ## Video mode
 
 Video mode, the second mode of the profile drawer, reads a video site's public pages without an account and plays what it

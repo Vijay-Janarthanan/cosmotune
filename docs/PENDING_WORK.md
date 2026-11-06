@@ -70,3 +70,32 @@ The existing device checklist covers Android/watch pairing and watch audio, TV r
 Alternative branded icons/onboarding; Discord integration; raw native DSD, macOS DoP and Android userspace USB audio (the 1.0.14 strict Windows/Linux DoP path is described above; existing exclusive/hog-mode PCM output still requires hardware validation); concerts, haptics and desktop widgets; Lite builds; per-video sync offsets; custom Chromecast receiver, desktop casting and TV as a Cast target; Soulseek. Some require product choices, services, artwork or hardware, rather than just additional code. Monthly dataset-refresh scheduling remains deferred at the user's request.
 
 Manga technical-text translation, RAR/7z/PDF decoding, broader extension compatibility, password-free Subsonic artwork transport and macOS/Linux system-keychain integration remain limitations documented in the 1.0.4 release notes. Android's transport now permits HTTP for public Podio media; a real HTTP Komga server still needs a device walkthrough rather than retaining the old claim that Android blocks every remote HTTP address.
+
+## Android userspace USB DAC output (studied, not built)
+
+Mochy Music (GPL-3.0, `main` at `8dd8f3b0`) has the reference implementation: `playback/audio/pass/UsbPass.kt`,
+`UsbDacVolume.kt`, `UsbAudioDescriptors.kt` and the native `app/src/main/cpp/usb_pass.cpp` (about 480 lines of C++). It was
+not ported because it is a native driver that cannot be tested without real DACs, and a wrong isochronous stream is heard as
+clicks or not at all rather than failing loudly. What it needs, precisely:
+
+1. **Permission and the device:** `UsbManager.requestPermission` for the DAC, then `UsbManager.openDevice` for a
+   `UsbDeviceConnection`, whose `fileDescriptor` is handed to native code. No root; this is the USB host API.
+2. **The descriptors, parsed in Kotlin:** the raw configuration descriptor (`UsbDeviceConnection.rawDescriptors`) read for
+   USB Audio Class 1 and 2 streaming interfaces: each alternate setting's format (PCM, subslot size 2/3/4 bytes, bit
+   resolution), its sample rates (UAC1 lists them; UAC2 asks the clock source with a `CUR`/`RANGE` request), the
+   isochronous OUT endpoint and its `wMaxPacketSize`, and whether it is asynchronous with a feedback IN endpoint.
+3. **Taking the interface from the kernel (native):** `ioctl(fd, USBDEVFS_DISCONNECT_CLAIM)` (falling back to
+   `USBDEVFS_CLAIMINTERFACE`), `USBDEVFS_SETINTERFACE` to the chosen alternate setting, and, on release,
+   `USBDEVFS_RELEASEINTERFACE` plus `USBDEVFS_CONNECT` so Android's own driver takes the DAC back.
+4. **Setting the rate:** a class control request (`USBDEVFS_CONTROL`): UAC1 `SET_CUR` on the endpoint's sampling-frequency
+   control, UAC2 `SET_CUR` on the clock source entity.
+5. **Streaming (native, on its own real-time thread):** a ring of isochronous URBs (`USBDEVFS_URB_TYPE_ISO`,
+   `USBDEVFS_URB_ISO_ASAP`) submitted with `USBDEVFS_SUBMITURB` and reaped with `USBDEVFS_REAPURBNDELAY`, each split into
+   1 ms (full speed) or 125 µs (high speed, `USBDEVFS_GET_SPEED`) packets whose sizes follow the rate, corrected from the
+   feedback endpoint's 10.14 / 16.16 value for asynchronous DACs; PCM packed to the subslot size, little-endian.
+6. **Volume on the DAC:** the feature unit's `SET_CUR` volume control (1/256 dB units), read with `GET_MIN/MAX/RES`.
+7. **In Cosmotune:** an `AudioSink`-side output (beside `BitPerfectMixer.kt`) that writes the decoded PCM to the native ring
+   instead of an `AudioTrack`, reports played frames from reaped URBs for the clock, and drops back to Android's path on
+   unplug (`UsbManager.ACTION_USB_DEVICE_DETACHED`) or any ioctl failure.
+8. **Validation:** at least one UAC1 and one UAC2 DAC, adaptive and asynchronous, at 44.1, 48, 96 and 192 kHz, checked for
+   dropouts over an hour and for a clean hand-back to Android's driver.

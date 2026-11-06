@@ -62,6 +62,27 @@ fun DesktopLyricsShare(request: LyricsShareRequest, onDismiss: () -> Unit) {
                             finally { saving = false }
                         }
                     }) { Text("Save as .lrc") }
+                    // A short MP4 of the chosen lines lighting up over the cover, with the song underneath (DesktopLyricsVideo).
+                    val videoPlan = remember(request) {
+                        com.cosmotune.lyrics.video.LyricsVideoPlan.forSelection(request.lrcLines, request.lines.filterNot { it.isGap }.map { it.text })
+                    }
+                    if (videoPlan != null) TextButton(enabled = !saving, onClick = {
+                        scope.launch {
+                            saving = true
+                            try {
+                                val target = chooseCosmotuneFile(request.lrcFileName.substringBeforeLast('.') + ".mp4", saving = true)
+                                if (target != null) {
+                                    message = "Making the video…"
+                                    withContext(Dispatchers.IO) {
+                                        DesktopLyricsVideo.export(request, videoPlan, target) { message = "Making the video… ${(it * 100).toInt()}%" }
+                                    }
+                                    message = "Lyrics video saved"
+                                }
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                            catch (failure: Throwable) { message = "The video could not be made: ${failure.message}" }
+                            finally { saving = false }
+                        }
+                    }) { Text("Save as video") }
                     Button(enabled = image != null && !saving, onClick = {
                         scope.launch {
                             saving = true
