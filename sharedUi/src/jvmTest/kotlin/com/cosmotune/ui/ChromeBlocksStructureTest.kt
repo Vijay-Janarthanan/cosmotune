@@ -176,10 +176,9 @@ class ChromeBlocksStructureTest {
 
     // ---- the top bar ------------------------------------------------------------------------------------------------------------
 
-    @Test fun theBackButtonIsAGlassIconButtonOf40dp() {
+    @Test fun theBackButtonIsAnOrbitRoundButtonOf40dp() {
         val code = SourceContract.code(topBar)
-        assertTrue(Regex("""CosmoIconButton\(\s*icon\s*=\s*CosmoIcons\.ArrowLeft""").containsMatchIn(code), "the arrow")
-        assertTrue("style = CosmoIconButtonStyle.GLASS" in code, "C: it floats over the page")
+        assertTrue(Regex("""OrbitRoundButton\(\s*icon\s*=\s*CosmoIcons\.ArrowLeft""").containsMatchIn(code), "the arrow, on the kit's round button")
         assertTrue(Regex("""size\s*=\s*40\.dp""").containsMatchIn(code), "40 dp")
         assertTrue("Res.string.cosmo_back" in code, "named Back")
     }

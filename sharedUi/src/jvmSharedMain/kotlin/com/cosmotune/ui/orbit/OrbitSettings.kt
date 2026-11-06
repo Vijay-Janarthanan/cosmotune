@@ -198,7 +198,7 @@ internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 
  * colour; [secret] hides what is typed.
  */
 @Composable
-internal fun OrbitTextField(
+fun OrbitTextField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
