@@ -99,7 +99,8 @@ fun CosmoTopBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (onBack != null) {
-                // The Orbit round button (the kit's 40 dp tonal circle in the page's ink), not glass.
+                // The Orbit round button (the kit's 40 dp tonal circle in the page's ink), not glass, with the 48 dp touch target the
+                // glass button had round it (overhanging, so the circle keeps its place on the margin).
                 com.cosmotune.ui.orbit.OrbitRoundButton(
                     icon = CosmoIcons.ArrowLeft,
                     label = stringResource(Res.string.cosmo_back),
@@ -107,6 +108,7 @@ fun CosmoTopBar(
                     onClick = onBack,
                     size = 40.dp,
                     onInk = Color(palette.backgroundTop),
+                    touch = 48.dp,
                 )
             } else if (LocalCosmoShell.current != null) {
                 // A root page leads with the mode switcher (DESIGN_SYSTEM.md 4.2): the same pill in every mode, glyph only once scrolled.

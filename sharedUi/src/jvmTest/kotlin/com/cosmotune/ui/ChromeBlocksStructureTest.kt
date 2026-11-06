@@ -180,6 +180,7 @@ class ChromeBlocksStructureTest {
         val code = SourceContract.code(topBar)
         assertTrue(Regex("""OrbitRoundButton\(\s*icon\s*=\s*CosmoIcons\.ArrowLeft""").containsMatchIn(code), "the arrow, on the kit's round button")
         assertTrue(Regex("""size\s*=\s*40\.dp""").containsMatchIn(code), "40 dp")
+        assertTrue(Regex("""touch\s*=\s*48\.dp""").containsMatchIn(code), "with a 48 dp touch target round the circle")
         assertTrue("Res.string.cosmo_back" in code, "named Back")
     }
 
