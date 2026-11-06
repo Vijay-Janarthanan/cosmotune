@@ -207,6 +207,7 @@ fun CosmoNowPlaying(
         onNext = { if (controlsLocked) onBlockedControl() else { skipHaptics.play(Haptic.SkipNext); onNext() } },
         onToggleShuffle = onToggleShuffle, onCycleRepeat = onCycleRepeat, onToggleLike = onToggleLike, onSeekFraction = onSeekFraction,
         onOpenArtist = { onOpenArtist(song.artistId, song.artist) },
+        isLoading = isLoading,
     )
     val inParty = rememberInParty()
     val sheets = remember { NowPlayingSheetFlags() }

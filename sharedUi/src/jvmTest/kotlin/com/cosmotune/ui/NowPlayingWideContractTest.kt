@@ -63,7 +63,10 @@ class NowPlayingWideContractTest {
     @Test fun theSongCardIsTheBiteCardWithPlayInTheBiteAndEveryControl() {
         val body = SourceContract.functionBody(card, "NowPlayingSongCard")
         assertTrue(body.contains("coverFill(t.coverUrl, t.song.title)"), "the cover's colour")
-        assertTrue(body.contains("OrbitBiteCard(fill, modifier, bite = { OrbitPlayButton(t.isPlaying, t.onPlayPause, look) })"), "play / pause in the bite")
+        assertTrue(body.contains("OrbitBiteCard(fill, modifier, bite = { NowPlayingPlayButton(t, look, 66.dp, HERO_BITE_RING) })"), "play / pause in the bite")
+        val button = SourceContract.functionBody(card, "NowPlayingPlayButton")
+        assertTrue(button.contains("OrbitPlayButton(t.isPlaying, t.onPlayPause, look, size = size)"), "the bite's button is play / pause")
+        assertTrue(button.contains("if (t.isLoading)") && button.contains("OrbitRing("), "the moon circles it while the song loads")
         assertTrue(body.contains("OrbitProgressLine(t::progress, ink"), "the seek line")
         assertTrue(card.contains("\"NOW ORBITING\""), "the mono label")
         val call = screen.substring(screen.indexOf("card = { m, wideCard ->"), screen.indexOf("panel = { m ->"))
