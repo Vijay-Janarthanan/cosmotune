@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import com.cosmotune.ui.components.CosmoIcons
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -179,68 +181,44 @@ private fun AskToPlaySheet(onPick: (Song) -> Unit, onDismiss: () -> Unit) {
             }
         }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-            Text(
-                stringResource(R.string.room_ask_title),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Spacer(Modifier.size(12.dp))
-            PillTextField(
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    // An Orbit sheet: the title, the Orbit field with its search button, and the results as the kit's song rows.
+    com.cosmotune.ui.orbit.OrbitPickerSheet(onDismiss = onDismiss) {
+        com.cosmotune.ui.orbit.OrbitSheetTitle(stringResource(R.string.room_ask_title), label = "Room")
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            com.cosmotune.ui.orbit.OrbitTextField(
                 value = query,
                 onValueChange = { query = it.take(120) },
                 placeholder = stringResource(R.string.room_ask_hint),
-                container = MaterialTheme.colorScheme.surfaceVariant,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { search() }),
+                fonts = fonts,
+                look = look,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.size(8.dp))
-            when {
-                searching -> Text(
-                    stringResource(R.string.listen_together_server_checking),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-                results?.isEmpty() == true -> Text(
-                    stringResource(R.string.room_ask_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-            }
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
-                items(results.orEmpty(), key = { it.videoId }) { song ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { onPick(song) }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        AsyncImage(
-                            model = song.thumbnailUrl,
-                            contentDescription = null,
-                            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)),
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(song.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                song.artist,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            com.cosmotune.ui.orbit.OrbitRoundButton(CosmoIcons.Search, stringResource(R.string.search), look.ink, search, size = 48.dp, enabled = query.isNotBlank() && !searching)
         }
+        when {
+            searching -> Text(
+                stringResource(R.string.listen_together_server_checking),
+                style = fonts.body, color = look.dim,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            )
+            results?.isEmpty() == true -> Text(
+                stringResource(R.string.room_ask_empty),
+                style = fonts.body, color = look.dim,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            )
+        }
+        Spacer(Modifier.size(8.dp))
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(results.orEmpty(), key = { it.videoId }) { song ->
+                com.cosmotune.ui.orbit.OrbitSongRow(
+                    title = song.title, subtitle = song.artist, cover = song.thumbnailUrl, fonts = fonts, look = look,
+                    onClick = { onPick(song) }, height = 64.dp, modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        Spacer(Modifier.size(12.dp))
     }
 }
