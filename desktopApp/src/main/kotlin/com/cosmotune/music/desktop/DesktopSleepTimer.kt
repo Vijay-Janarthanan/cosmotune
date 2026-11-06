@@ -73,3 +73,15 @@ object DesktopSleepTimer {
     fun videoIsLoaded(status: PlayerStatus): Boolean =
         status == PlayerStatus.LOADING || status == PlayerStatus.READY || status == PlayerStatus.BUFFERING
 }
+
+/** [DesktopSleepTimer] as the shared screens reach it (the player's pill and menu). */
+internal object DesktopSleepTimerControl : com.cosmotune.ui.sleep.SleepTimerControl {
+    override val minutes: kotlinx.coroutines.flow.StateFlow<Int?> get() = DesktopSleepTimer.minutes
+    override val afterTrack: kotlinx.coroutines.flow.StateFlow<Boolean> get() = DesktopSleepTimer.afterTrack
+    override val presets: List<Int> get() = DesktopSleepTimer.presets
+    override fun remainingMs(): Long? = DesktopSleepTimer.remainingMs()
+    override fun start(minutes: Int) = DesktopSleepTimer.start(minutes)
+    override fun startAfterTrack() = DesktopSleepTimer.startAfterTrack()
+    override fun extend() = DesktopSleepTimer.extend()
+    override fun cancel() = DesktopSleepTimer.cancel()
+}

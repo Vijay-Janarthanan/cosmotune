@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -400,6 +401,15 @@ private fun MiniCapsule(
                     Text(song.title, style = capsuleTitleStyle(type.textFamily), color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (!ownMedia) PlayingQualityPill(Modifier.padding(end = 6.dp))
+                        // A running sleep timer, small before the artist: the moon and what is left.
+                        com.cosmotune.ui.sleep.rememberSleepTimer()?.let { sleep ->
+                            Icon(CosmoIcons.Timer, contentDescription = "Sleep timer", tint = ink.copy(alpha = 0.8f), modifier = Modifier.size(12.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                sleep.short("End of song"), style = capsuleArtistStyle(type.textFamily), color = ink.copy(alpha = 0.8f), maxLines = 1,
+                                modifier = Modifier.padding(end = 6.dp).testTag("dock:sleep"),
+                            )
+                        }
                         Text(song.artist, style = capsuleArtistStyle(type.textFamily), color = ink.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }

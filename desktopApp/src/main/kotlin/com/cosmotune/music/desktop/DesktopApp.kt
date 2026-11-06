@@ -1922,6 +1922,8 @@ fun CosmotuneDesktopApp() {
     // the next song at a different moment and be dragged back by a correcting seek. The transition a
     // party shares is the plain one. The settings themselves are left alone and come back after.
     val inParty = partyState.inParty
+    // The player's chip row shows a crossfade that is on; the length is this window's own state.
+    LaunchedEffect(crossfadeSeconds, inParty) { DesktopPlayerHost.crossfadeOn.value = crossfadeSeconds > 0 && !inParty }
     LaunchedEffect(automix, automixOnSkip, automixPhraseBars, crossfadeSeconds, inParty, audioQuality, selectedSong?.videoId, queue, liveQueue.index, shuffle, repeatMode, sleepAfterTrack) {
         playbackEngine.setAutomixEnabled(automix && !inParty)
         playbackEngine.setAutomixPhraseBars(DesktopAutomixOptions.enginePhraseBars(automix, inParty, automixPhraseBars))

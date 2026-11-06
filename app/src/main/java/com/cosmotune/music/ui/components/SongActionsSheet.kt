@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
@@ -754,6 +755,11 @@ private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
                 onBack()
             }
         }
+        if (countdown != null || afterTrack) {
+            ActionRow(Icons.Rounded.Add, stringResource(R.string.extend_sleep_timer, SleepTimer.EXTEND_MINUTES), accent = palette.accent) {
+                SleepTimer.extend()
+            }
+        }
         if (chosen != null || afterTrack) {
             ActionRow(Icons.Rounded.Close, stringResource(R.string.turn_off_timer), accent = palette.accent) {
                 SleepTimer.cancel()
@@ -799,7 +805,9 @@ private fun SleepOption(
 @Composable
 private fun sleepTimerStatus(): String? {
     val afterTrack by SleepTimer.afterTrack.collectAsStateWithLifecycle()
-    return sleepTimerCountdown() ?: stringResource(R.string.after_this_song).takeIf { afterTrack }
+    // "23:41 left" while one counts, so the row keeps saying the timer is on.
+    return sleepTimerCountdown()?.let { stringResource(R.string.sleep_time_left, it) }
+        ?: stringResource(R.string.after_this_song).takeIf { afterTrack }
 }
 
 /** Live "m:ss" until the sleep timer fires, or null when none is running. */

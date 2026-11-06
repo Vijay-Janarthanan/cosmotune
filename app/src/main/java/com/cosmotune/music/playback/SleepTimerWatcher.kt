@@ -144,3 +144,15 @@ object SleepTimerWatcher {
         context.getSystemService(AlarmManager::class.java)?.cancel(alarmIntent(context))
     }
 }
+
+/** [SleepTimer] as the shared screens reach it (the player's pill and menu). */
+object AndroidSleepTimerControl : com.cosmotune.ui.sleep.SleepTimerControl {
+    override val minutes: kotlinx.coroutines.flow.StateFlow<Int?> get() = SleepTimer.minutes
+    override val afterTrack: kotlinx.coroutines.flow.StateFlow<Boolean> get() = SleepTimer.afterTrack
+    override val presets: List<Int> get() = SleepTimer.PRESETS
+    override fun remainingMs(): Long? = SleepTimer.remainingMs()
+    override fun start(minutes: Int) = SleepTimer.start(minutes)
+    override fun startAfterTrack() = SleepTimer.startAfterTrack()
+    override fun extend() = SleepTimer.extend()
+    override fun cancel() = SleepTimer.cancel()
+}

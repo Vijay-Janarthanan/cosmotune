@@ -47,6 +47,10 @@ internal fun NowPlayingTopRow(
     look: OrbitLook,
     modifier: Modifier = Modifier,
     chips: Boolean = true,
+    /** What is switched on (the sleep timer, Automix, casting...), as solid chips before the panel chips; the wide page's. */
+    status: @Composable () -> Unit = {},
+    /** A menu opened from a "more" row (the sleep timer's), anchored where "more" is. */
+    moreOverlay: @Composable () -> Unit = {},
 ) {
     val dismiss = LocalCosmoPlayerDismiss.current
     var moreOpen by androidx.compose.runtime.remember { mutableStateOf(false) }
@@ -56,10 +60,14 @@ internal fun NowPlayingTopRow(
             "FROM · ${source.uppercase()}", style = fonts.label, color = look.ink.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onOpenOrigin).padding(vertical = 10.dp, horizontal = 4.dp),
         )
-        if (chips) PanelChips(panel, onPanel, fonts, look, closable = false)
+        if (chips) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { status() }
+            PanelChips(panel, onPanel, fonts, look, closable = false)
+        }
         Box {
             OrbitRoundButton(CosmoIcons.More, "More", look.ink, { moreOpen = true }, on = moreOpen, onInk = look.ground)
             OrbitMenu(moreOpen, { moreOpen = false }, more, fonts, look, header = "More")
+            moreOverlay()
         }
     }
 }

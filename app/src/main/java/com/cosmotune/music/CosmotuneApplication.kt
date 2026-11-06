@@ -136,6 +136,7 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         // The sleep timer is watched for the whole process, not by the music
         // service alone: Video and Watch play on a service of their own.
         com.cosmotune.music.playback.SleepTimerWatcher.start(this)
+        com.cosmotune.ui.sleep.SleepTimerUi.control = com.cosmotune.music.playback.AndroidSleepTimerControl
         // Before anything resolves a track: an addon with `checkValidLossless`
         // is gated on this, and the gate reads "no" until it has looked.
         com.cosmotune.music.playback.audio.LosslessOutput.init(this)

@@ -1,5 +1,6 @@
 package com.cosmotune.ui.nowplaying
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -143,10 +144,29 @@ internal fun NowPlayingPhoneLandscape(
     }
 }
 
-/** The phone's chips, centred under the card. */
+/**
+ * The phone's chips, centred under the card: the panels, then [status], what is switched on (the sleep timer's pill, repeat,
+ * shuffle and the rest) as solid chips. Wider than the phone, the row scrolls sideways.
+ */
 @Composable
-internal fun PhoneChips(panel: NowPlayingPanel, onPanel: (NowPlayingPanel) -> Unit, fonts: com.cosmotune.ui.orbit.OrbitFonts, look: com.cosmotune.ui.orbit.OrbitLook, modifier: Modifier) {
-    Box(modifier, contentAlignment = Alignment.Center) { PanelChips(panel, onPanel, fonts, look, closable = true, icons = false) }
+internal fun PhoneChips(
+    panel: NowPlayingPanel,
+    onPanel: (NowPlayingPanel) -> Unit,
+    fonts: com.cosmotune.ui.orbit.OrbitFonts,
+    look: com.cosmotune.ui.orbit.OrbitLook,
+    modifier: Modifier,
+    status: @Composable () -> Unit = {},
+) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.layout.Row(
+            Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = PHONE_SIDE),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PanelChips(panel, onPanel, fonts, look, closable = true, icons = false)
+            status()
+        }
+    }
 }
 
 private val PHONE_SIDE = 14.dp

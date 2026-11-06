@@ -23,6 +23,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -193,6 +194,7 @@ fun CosmoPlayerBar(
                         Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFE5484D)))
                         Spacer(Modifier.width(8.dp))
                         Text("LIVE", style = fonts.label, color = ink.copy(alpha = 0.8f))
+                        SleepBadge(fonts, ink, Modifier.padding(start = 8.dp))
                         Spacer(Modifier.weight(1f))
                         Tools(live, plan, bar, lyricsOn, queueOn, onLyrics, onQueue, onOutput, volumeLabel)
                     }
@@ -204,6 +206,7 @@ fun CosmoPlayerBar(
                             )
                             Spacer(Modifier.width(OrbitBarMetrics.CLOCK_GAP_DP.dp))
                             Clock(position, durationMs, scrub, fonts, ink)
+                            SleepBadge(fonts, ink)
                             Spacer(Modifier.weight(1f))
                             Tools(live, plan, bar, lyricsOn, queueOn, onLyrics, onQueue, onOutput, volumeLabel)
                         }
@@ -364,6 +367,27 @@ private fun Clock(position: PlaybackPosition, durationMs: Long, scrub: PlayerScr
         maxLines = 1,
         modifier = Modifier.width(OrbitBarMetrics.CLOCK_DP.dp),
     )
+}
+
+/**
+ * A running sleep timer, small beside the clock: the moon and "23:41" (or "End of song") in the bar's ink. A click opens the
+ * timer's menu (the time left, Extend, Turn off). Nothing while no timer runs.
+ */
+@Composable
+private fun SleepBadge(fonts: OrbitFonts, ink: Color, modifier: Modifier = Modifier) {
+    val reading = com.cosmotune.ui.sleep.rememberSleepTimer() ?: return
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box(modifier) {
+        Row(
+            Modifier.clip(CircleShape).clickable { open = true }.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(CosmoIcons.Timer, contentDescription = "Sleep timer", tint = ink.copy(alpha = 0.85f), modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(5.dp))
+            Text(reading.short("End of song"), style = fonts.label.copy(letterSpacing = 0.8.sp), color = ink.copy(alpha = 0.85f), maxLines = 1)
+        }
+        com.cosmotune.ui.sleep.SleepTimerMenu(open, { open = false }, fonts, orbitLook())
+    }
 }
 
 /** The volume: its glyph and a 92 dp compact [CosmoSlider] in the card's ink, on the host's system volume. */

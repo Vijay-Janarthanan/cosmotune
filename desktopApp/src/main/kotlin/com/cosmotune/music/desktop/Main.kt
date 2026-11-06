@@ -80,6 +80,7 @@ private fun runDesktop() {
     DesktopWindowVisibility.install()
     // The player is the phone's, from the shared UI module; this is what it reads underneath.
     PlayerPlatform.install(DesktopPlayerHost)
+    com.cosmotune.ui.sleep.SleepTimerUi.control = DesktopSleepTimerControl
     com.cosmotune.music.ui.AppUi.install(DesktopAppUiHost)
     // The data layer both apps share logs through here, and keeps translated
     // lyrics beside the rest of the desktop's cache.

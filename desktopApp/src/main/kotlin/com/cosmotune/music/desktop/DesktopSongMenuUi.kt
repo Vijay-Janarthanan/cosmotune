@@ -235,8 +235,13 @@ internal fun DesktopSongMenu(
             DesktopMenuRow(Icons.Rounded.Refresh, "Try another lyrics source", onClick = it)
         }
         if (pickingSleepTimer) {
-            DesktopMenuHeader("Sleep timer") { pickingSleepTimer = false }
+            val running = com.cosmotune.ui.sleep.rememberSleepTimer(DesktopSleepTimerControl)
+            DesktopMenuHeader(running?.let { "Sleep timer · ${it.line("end of this track")}" } ?: "Sleep timer") { pickingSleepTimer = false }
             DesktopMenuDivider()
+            if (running != null) {
+                DesktopMenuRow(Icons.Rounded.Bedtime, "Extend by ${DesktopSleepTimer.EXTEND_MINUTES} minutes") { DesktopSleepTimer.extend() }
+                DesktopMenuDivider()
+            }
             DesktopSleepTimer.presets.forEach { minutes ->
                 DesktopMenuRow(
                     icon = Icons.Rounded.Bedtime,
@@ -332,7 +337,9 @@ internal fun DesktopSongMenu(
         DesktopMenuRow(
             icon = Icons.Rounded.Bedtime,
             label = DesktopStrings["sleep_timer", "Sleep timer"],
-            value = sleepTimerLabel(sleepTimerMinutes, sleepAfterTrack),
+            // What is left ("23:41 left") while one runs, so the row keeps saying the timer is on.
+            value = com.cosmotune.ui.sleep.rememberSleepTimer(DesktopSleepTimerControl)?.line("End of track")
+                ?: sleepTimerLabel(sleepTimerMinutes, sleepAfterTrack),
         ) { pickingSleepTimer = true }
         if (!isOffline) {
             DesktopMenuRow(Icons.Rounded.Share, DesktopStrings["share", "Share"], onClick = onShare)
