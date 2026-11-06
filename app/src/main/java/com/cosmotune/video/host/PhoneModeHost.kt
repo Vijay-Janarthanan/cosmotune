@@ -5,6 +5,8 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.Composable
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.CompositionLocalProvider
@@ -87,7 +89,7 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     // Music's way into Video: no shell (the look off) or Video not available, no links. One identity per shell, so the static local
     // changes only when the look does.
     val links = remember(shell, asked) { shell?.let { phoneModeLinks(it.settings, asked) } }
-    val profileAction: (@Composable () -> Unit)? = if (shell != null && (mode == AppMode.MANGA || mode == AppMode.READ || mode == AppMode.PODIO)) {
+    val profileAction: (@Composable () -> Unit)? = if (shell != null && (mode == AppMode.MANGA || mode == AppMode.READ || mode == AppMode.PODIO || mode == AppMode.WATCH)) {
         { com.cosmotune.ui.chrome.PhoneModeProfileButton(shell.settings, mode) }
     } else null
     // The room, around every mode: "Play in room" on any page, the room icon, the full-screen room and its video ([RoomVideo]).
@@ -111,6 +113,18 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
             com.cosmotune.podio.PhonePodioPage(onMusic = { shell.settings.setMode(AppMode.MUSIC) })
+        }
+        else if (shell != null && mode == AppMode.WATCH) holder.SaveableStateProvider("watch") {
+            // Back closes Watch's top page, then goes Home, then leaves for Music.
+            androidx.activity.compose.BackHandler { if (!com.cosmotune.ui.watch.WatchNav.back()) shell.settings.setMode(AppMode.MUSIC) }
+            val request = MusicLink.pending.collectAsStateWithLifecycle()
+            LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
+            com.cosmotune.ui.watch.ProvideWatch(qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
+                com.cosmotune.ui.watch.WatchApp(
+                    contentPadding = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues(),
+                    showNavigation = true,
+                )
+            }
         }
         else if (videoShell == null) holder.SaveableStateProvider("music") { music() }
         // While the room screen draws the room's video over the app ([RoomVideo.covered]), Video's pages step aside so the one player

@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.unit.dp
 import com.cosmotune.design.AppMode
 import com.cosmotune.design.AppModes
 import com.cosmotune.desktop.LocalCosmoPlayPause
@@ -36,6 +37,7 @@ object DesktopModeHost {
     var active: Boolean = false
     @Volatile var mangaActive: Boolean = false
     @Volatile var podioActive: Boolean = false
+    @Volatile var watchActive: Boolean = false
 
     /**
      * A video waiting to be opened, set by the host when Music asks for one ("Watch the music video", Y-26). It is snapshot state, so a
@@ -79,6 +81,30 @@ fun desktopMangaShown(): Boolean {
     val shown = mode == AppMode.PODIO
     SideEffect { DesktopModeHost.podioActive = shown }
     return shown
+}
+
+/** Watch (films, series, live TV) owns the page, the sidebar and the keys; the music player bar and side panel stand aside. */
+@Composable fun desktopWatchShown(): Boolean {
+    val shell = LocalCosmoShell.current
+    val mode = shell?.settings?.mode?.collectAsState()?.value
+    val shown = shell != null && mode == AppMode.WATCH && AppModes.available(AppMode.WATCH)
+    SideEffect { DesktopModeHost.watchActive = shown }
+    return shown
+}
+
+/**
+ * Watch's page in the window's content area. The sidebar carries its tabs ([com.cosmotune.ui.watch.WatchNav]); the repository is
+ * [com.cosmotune.ui.watch.WatchBackend]'s until the desktop builds the real one, and QR codes are drawn with the desktop's zxing.
+ */
+@Composable
+fun DesktopWatchPage(contentPadding: PaddingValues) {
+    com.cosmotune.ui.watch.ProvideWatch(qrCode = { payload, size -> com.cosmotune.music.desktop.DesktopQrCode(payload, size) }) {
+        // A compact window has no sidebar: the page then carries its own tabs, as on the phone.
+        androidx.compose.foundation.layout.BoxWithConstraints {
+            val compact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
+            com.cosmotune.ui.watch.WatchApp(contentPadding = contentPadding, showNavigation = compact)
+        }
+    }
 }
 
 @Composable

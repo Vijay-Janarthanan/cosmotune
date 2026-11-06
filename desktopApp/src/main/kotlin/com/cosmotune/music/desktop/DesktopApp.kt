@@ -3572,7 +3572,7 @@ fun CosmotuneDesktopApp() {
                     )
                 },
                 modifier = Modifier.onPreviewKeyEvent { event ->
-                    if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive).or(com.cosmotune.video.host.DesktopModeHost.podioActive)) return@onPreviewKeyEvent false
+                    if (com.cosmotune.video.host.DesktopModeHost.active.or(com.cosmotune.video.host.DesktopModeHost.mangaActive).or(com.cosmotune.video.host.DesktopModeHost.podioActive).or(com.cosmotune.video.host.DesktopModeHost.watchActive)) return@onPreviewKeyEvent false
                     if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
                     when {
                         event.key == Key.MediaPlayPause -> {
@@ -3864,7 +3864,7 @@ fun CosmotuneDesktopApp() {
                             )
                         }
                     }
-                    val videoModeShown = com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown()
+                    val videoModeShown = com.cosmotune.video.host.desktopVideoShown() || com.cosmotune.video.host.desktopMangaShown() || com.cosmotune.video.host.desktopPodioShown() || com.cosmotune.video.host.desktopWatchShown()
                     LaunchedEffect(videoModeShown) {
                         if (videoModeShown) {
                             DesktopWindowMode.exit()
@@ -4237,6 +4237,7 @@ fun CosmotuneDesktopApp() {
             ) { contentPadding ->
                 if (com.cosmotune.video.host.desktopVideoShown()) return@DesktopFrame com.cosmotune.video.host.DesktopVideoPage(contentPadding)
                 if (com.cosmotune.video.host.desktopMangaShown()) return@DesktopFrame com.cosmotune.video.host.DesktopMangaPage(contentPadding)
+                if (com.cosmotune.video.host.desktopWatchShown()) return@DesktopFrame com.cosmotune.video.host.DesktopWatchPage(contentPadding)
                 if (com.cosmotune.video.host.desktopPodioShown()) {
                     return@DesktopFrame com.cosmotune.podio.ui.PodioApp(
                         storage = com.cosmotune.podio.PodioLibrary.desktopFile(),
