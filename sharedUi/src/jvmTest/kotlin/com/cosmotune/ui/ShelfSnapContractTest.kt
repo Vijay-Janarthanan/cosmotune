@@ -25,7 +25,9 @@ class ShelfSnapContractTest {
 
     @Test fun thePhonesArtistCarouselsSnap() {
         assertEquals(2, uses("app/src/main/java/com/cosmotune/music/ui/screens/DetailScreen.kt"), "top songs and the album/single carousels")
-        assertTrue("flingBehavior = rememberSnapFlingBehavior(lazyListState = rowState)" in code("app/src/main/java/com/cosmotune/music/ui/replay/ReplayScreen.kt"), "Replay's cards, as before")
+        assertTrue("OrbitReplayTiles(" in code("app/src/main/java/com/cosmotune/music/ui/replay/ReplayScreen.kt"), "Replay's cards are the Orbit shelf")
+        assertTrue("OrbitShelfRow(" in code("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/replay/OrbitReplay.kt"), "which settles on a card")
+        assertEquals(1, uses("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitShelves.kt"), "OrbitShelfRow: Home's shelves, Replay's cards")
     }
 
     @Test fun theDesktopRowsSnapOnFlingDragReleaseAndPaging() {
