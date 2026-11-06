@@ -230,7 +230,8 @@ Video's own wiring. Our own files that know about the stored mode and the drawer
    `WatchDownloads.kt`, `player/EngineWatchPlayer.kt` and `plugins/free/YouTubeFreePlugin.kt` (and `watch/src/jvmTest/kotlin/com/cosmotune/watch/EngineWatchPlayerTest.kt`);
    the phone's host `app/src/main/java/com/cosmotune/music/watch/AndroidWatch.kt` and its room follower `RoomWatch.kt` (they reach
    only the engine's graph and picture scale; `ModeHooksContractTest` lists the two); the desktop's
-   `desktopApp/src/main/kotlin/com/cosmotune/desktop/DesktopWatch.kt`; and `uiTests/src/test/kotlin/com/cosmotune/ui/WatchVisualReviewTest.kt`.
+   `desktopApp/src/main/kotlin/com/cosmotune/desktop/DesktopWatch.kt`; the TV's
+   `tv/src/main/java/com/cosmotune/music/ui/tv/screens/TvWatchScreen.kt`; and `uiTests/src/test/kotlin/com/cosmotune/ui/WatchVisualReviewTest.kt`.
    Give Watch an engine of its own first, or make Watch unreachable the same way as step 1.
 5. **Find what is left**: `grep -rl "com.cosmotune.video" --include=*.kt --include=*.kts --include=*.xml .` must print nothing, then run
    `./gradlew :shared:jvmTest :sharedUi:jvmTest :desktopApp:compileKotlin :app:assembleDevDebug` and the guard. `LegalTextsTest` fails
