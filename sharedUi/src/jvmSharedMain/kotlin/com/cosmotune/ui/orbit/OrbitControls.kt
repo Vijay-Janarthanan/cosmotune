@@ -19,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.alpha
+import com.cosmotune.ui.components.cosmoFocusRing
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,9 +49,29 @@ fun OrbitPlayButton(playing: Boolean, onClick: () -> Unit, look: OrbitLook, modi
 
 /** The round tonal button of a card or a bar (previous, next, like, the screen button): [ink] at 12 %, or solid when [on]. */
 @Composable
-fun OrbitRoundButton(icon: ImageVector, label: String, ink: Color, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 40.dp, on: Boolean = false, onInk: Color = Color(0xFF1B1416)) {
+fun OrbitRoundButton(
+    icon: ImageVector,
+    label: String,
+    ink: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+    on: Boolean = false,
+    onInk: Color = Color(0xFF1B1416),
+    enabled: Boolean = true,
+) {
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Box(
-        modifier.size(size).clip(CircleShape).background(if (on) ink else ink.copy(alpha = 0.12f)).clickable(onClick = onClick),
+        modifier.alpha(if (enabled) 1f else 0.45f).size(size).cosmoFocusRing(interaction, size / 2).clip(CircleShape)
+            .background(if (on) ink else ink.copy(alpha = 0.12f))
+            .clickable(
+                interactionSource = interaction,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                enabled = enabled,
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClickLabel = label,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, contentDescription = label, tint = if (on) onInk else ink, modifier = Modifier.size(size * 0.45f)) }
 }
@@ -87,12 +110,21 @@ fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Mo
 
 /** Play as a small moon on the bottom-end edge of a disc, ringed in the page's ground so the cover stays clear. Use inside the disc's box. */
 @Composable
-fun BoxScope.DiscPlayMoon(look: OrbitLook, onClick: () -> Unit, size: Dp = 44.dp) {
+fun BoxScope.DiscPlayMoon(
+    look: OrbitLook,
+    onClick: () -> Unit,
+    size: Dp = 44.dp,
+    label: String = "Play",
+    /** How far past the corner it sits (a picture's moon hangs 10 dp off it; a disc's sits on its edge). */
+    overhang: Dp = 0.dp,
+    iconScale: Float = 0.38f,
+) {
     Box(
-        Modifier.align(Alignment.BottomEnd).size(size).clip(CircleShape).background(look.ground)
-            .padding(4.dp).clip(CircleShape).background(PEACH).clickable(onClick = onClick),
+        Modifier.align(Alignment.BottomEnd).offset(x = overhang, y = overhang).size(size).clip(CircleShape).background(look.ground)
+            .padding(4.dp).clip(CircleShape).background(PEACH)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(CosmoIcons.Play, contentDescription = "Play", tint = Color(0xFF2A100A), modifier = Modifier.size(size * 0.38f)) }
+    ) { Icon(CosmoIcons.Play, contentDescription = label, tint = Color(0xFF2A100A), modifier = Modifier.size(size * iconScale)) }
 }
 
 /**

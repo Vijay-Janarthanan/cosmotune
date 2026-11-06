@@ -197,12 +197,7 @@ internal fun OrbitNotice(text: String, fonts: OrbitFonts, look: OrbitLook, modif
 /** The room's ground wash: the indigo of [ROOM_FILL] falling from the top of the page and gone by three quarters of the way down. */
 internal fun orbitRoomWash(look: OrbitLook): androidx.compose.ui.graphics.Brush {
     val indigo = if (look.dark) Color(0xFF3C328C) else Color(0xFF7B6FE0)
-    val top = if (look.dark) 0.6f else 0.16f
-    return androidx.compose.ui.graphics.Brush.verticalGradient(
-        0f to indigo.copy(alpha = top),
-        0.35f to indigo.copy(alpha = top / 3f),
-        0.75f to Color.Transparent,
-    )
+    return orbitWash(indigo, look, darkAlpha = 0.6f, lightAlpha = 0.16f, tail = 1f / 3f)
 }
 
 /** The room's mono labels on its ground: the room card's lavender in dark, the dim ink in light. */

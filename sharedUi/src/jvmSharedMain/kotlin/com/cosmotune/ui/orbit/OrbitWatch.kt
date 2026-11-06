@@ -91,13 +91,8 @@ fun WatchPicture(url: Any?, key: String, modifier: Modifier = Modifier, radius: 
 
 /** Play as a moon hanging off the bottom-end corner of a picture, ringed in the page's ground. Use inside the picture's box. */
 @Composable
-fun BoxScope.WatchPlayMoon(look: OrbitLook, onClick: () -> Unit, size: Dp = 42.dp, label: String = "Play") {
-    Box(
-        Modifier.align(Alignment.BottomEnd).offset(x = 10.dp, y = 10.dp).size(size).clip(CircleShape).background(look.ground)
-            .padding(4.dp).clip(CircleShape).background(PEACH).clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Icon(CosmoIcons.Play, contentDescription = label, tint = Color(0xFF2A100A), modifier = Modifier.size(size * 0.36f)) }
-}
+fun BoxScope.WatchPlayMoon(look: OrbitLook, onClick: () -> Unit, size: Dp = 42.dp, label: String = "Play") =
+    DiscPlayMoon(look, onClick, size = size, label = label, overhang = 10.dp, iconScale = 0.36f)
 
 /** How far through: a 4 dp line, the watched part in the accent. */
 @Composable
@@ -128,6 +123,7 @@ fun WatchCardChip(
     solid: Boolean = false,
     onSolid: Color = Color(0xFF1B1416),
     enabled: Boolean = true,
+    iconGap: Dp = 8.dp,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val text2 = if (solid) onSolid else ink
@@ -137,7 +133,7 @@ fun WatchCardChip(
             .padding(start = if (icon != null) 12.dp else 16.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) { Icon(icon, null, tint = text2, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }
+        if (icon != null) { Icon(icon, null, tint = text2, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(iconGap)) }
         Text(text, style = fonts.chip, color = text2, maxLines = 1)
     }
 }
@@ -322,14 +318,8 @@ fun WatchMessage(label: String, title: String, text: String, fonts: OrbitFonts, 
 
 /** A round tonal button that takes the focus (back, more, a star). */
 @Composable
-fun WatchRoundButton(icon: ImageVector, label: String, look: OrbitLook, onClick: () -> Unit, modifier: Modifier = Modifier, ink: Color = look.ink, size: Dp = 40.dp, on: Boolean = false, enabled: Boolean = true) {
-    val interaction = remember { MutableInteractionSource() }
-    Box(
-        modifier.alpha(if (enabled) 1f else 0.45f).size(size).cosmoFocusRing(interaction, size / 2).clip(CircleShape).background(if (on) ink else ink.copy(alpha = 0.12f))
-            .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Icon(icon, contentDescription = label, tint = if (on) look.ground else ink, modifier = Modifier.size(size * 0.45f)) }
-}
+fun WatchRoundButton(icon: ImageVector, label: String, look: OrbitLook, onClick: () -> Unit, modifier: Modifier = Modifier, ink: Color = look.ink, size: Dp = 40.dp, on: Boolean = false, enabled: Boolean = true) =
+    OrbitRoundButton(icon, label, ink, onClick, modifier, size = size, on = on, onInk = look.ground, enabled = enabled)
 
 /** A focus target with no look of its own (TV rows that have no click). */
 internal fun Modifier.watchFocusable(interaction: MutableInteractionSource): Modifier = this.focusable(interactionSource = interaction)

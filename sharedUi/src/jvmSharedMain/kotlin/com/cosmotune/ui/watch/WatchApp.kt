@@ -174,14 +174,8 @@ internal class WatchActions(
 
 /** The top wash of a page (board `.wash`): its colour strong at the top, gone by three quarters down the window. */
 @Composable
-internal fun WatchWash(color: Color, look: OrbitLook, modifier: Modifier = Modifier) {
-    val a = if (look.dark) 0.55f else 0.22f
-    Box(
-        modifier.fillMaxWidth().height(620.dp).background(
-            Brush.verticalGradient(0f to color.copy(alpha = a), 0.35f to color.copy(alpha = a * 0.33f), 0.75f to Color.Transparent),
-        ),
-    )
-}
+internal fun WatchWash(color: Color, look: OrbitLook, modifier: Modifier = Modifier) =
+    com.cosmotune.ui.orbit.OrbitPageWash(color, modifier, height = 620.dp, look = look, darkAlpha = 0.55f, lightAlpha = 0.22f, tail = 0.33f)
 
 /** The phone's head of every tab: the mode pill (and the account button when the host gives one), then the tabs as chips. */
 @Composable

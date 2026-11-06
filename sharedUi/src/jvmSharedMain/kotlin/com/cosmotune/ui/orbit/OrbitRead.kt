@@ -53,12 +53,27 @@ fun OrbitBackHeader(kind: String, onBack: () -> Unit, modifier: Modifier = Modif
     }
 }
 
-/** The board's top wash: [color] strong at the top of the page, gone by three quarters of [height]. */
+/**
+ * The boards' top wash as a brush: [color] at [darkAlpha] (dark) or [lightAlpha] (light) at the top, [tail] of that at 35 %, gone
+ * by three quarters. Read's and Manga's pages, Watch's pages and the room each use it at their own strength.
+ */
+fun orbitWash(color: Color, look: OrbitLook, darkAlpha: Float = 0.5f, lightAlpha: Float = 0.2f, tail: Float = 0.3f): Brush {
+    val a = if (look.dark) darkAlpha else lightAlpha
+    return Brush.verticalGradient(0f to color.copy(alpha = a), 0.35f to color.copy(alpha = a * tail), 0.75f to Color.Transparent)
+}
+
+/** The board's top wash: [color] strong at the top of the page, gone by three quarters of [height] ([orbitWash]). */
 @Composable
-fun OrbitPageWash(color: Color, modifier: Modifier = Modifier, height: Dp = 560.dp) {
-    val look = orbitLook()
-    val a = if (look.dark) 0.5f else 0.2f
-    Box(modifier.fillMaxWidth().height(height).background(Brush.verticalGradient(0f to color.copy(alpha = a), 0.35f to color.copy(alpha = a * 0.3f), 0.75f to Color.Transparent)))
+fun OrbitPageWash(
+    color: Color,
+    modifier: Modifier = Modifier,
+    height: Dp = 560.dp,
+    look: OrbitLook = orbitLook(),
+    darkAlpha: Float = 0.5f,
+    lightAlpha: Float = 0.2f,
+    tail: Float = 0.3f,
+) {
+    Box(modifier.fillMaxWidth().height(height).background(orbitWash(color, look, darkAlpha, lightAlpha, tail)))
 }
 
 /**
