@@ -42,6 +42,14 @@ object DesktopWatch {
             stopOthers = { runCatching { graph.playback.stop() } })
     }
 
+    /** Whether [player] has been built in this process. */
+    @Volatile var playerBuilt: Boolean = false
+        private set
+
+    /** [player], or null where Video's engine cannot start here (libmpv missing): the player page then says it is not connected. */
+    fun playerOrNull(): com.cosmotune.watch.player.EngineWatchPlayer? =
+        runCatching { player }.onSuccess { playerBuilt = true }.onFailure { com.cosmotune.music.desktop.DesktopTrackLog.log("watch: no player here: ${it.message}") }.getOrNull()
+
     val api: WatchRepository get() = repository
 
     /** A link given on the command line or by the operating system (stremio://, cosmotune://watch/...): the Install sheet shows it. */

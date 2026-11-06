@@ -183,7 +183,10 @@ object RoomWatch {
         }
     }
 
-    private var roomItemOpened: String? = null
+    @Volatile private var roomItemOpened: String? = null
+
+    /** Whether the room opened [key] in Watch's player here (the player page then leaves it to the room). */
+    fun holds(key: String): Boolean = roomItemOpened == key
 
     private fun load(p: EngineWatchPlayer, track: PartyTrack, now: Long) {
         if (loadingId == track.videoId && now - loadingAtMs < LOAD_RETRY_MS) return

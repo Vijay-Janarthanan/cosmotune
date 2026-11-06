@@ -48,9 +48,14 @@ enum class WatchSurfaceScale { FIT, CROP }
 
 /**
  * The Watch player and the platform's picture of its engine ([WatchPlayer.engine]): the phone's Media3 view or the desktop's
- * libmpv surface, drawn by the host the way Video mode draws it.
+ * libmpv surface, drawn by the host the way Video mode draws it. [roomHolds] is true for an item the room opened in this player
+ * (the host's room follower drives it), which the player page then neither reopens nor stops when it goes.
  */
-class WatchPlayback(val player: WatchPlayer, val surface: @Composable (scale: WatchSurfaceScale, modifier: Modifier) -> Unit)
+class WatchPlayback(
+    val player: WatchPlayer,
+    val roomHolds: (WatchKey) -> Boolean = { false },
+    val surface: @Composable (scale: WatchSurfaceScale, modifier: Modifier) -> Unit,
+)
 
 /** The player, provided by the host once it has one; null shows the player page's "not connected" card. */
 val LocalWatchPlayback = staticCompositionLocalOf<WatchPlayback?> { null }
@@ -89,7 +94,9 @@ enum class WatchTab(val label: String) {
 /** A page opened over a tab: a film or series page, or the player. */
 sealed interface WatchRoute {
     data class Page(val summary: TitleSummary) : WatchRoute
-    data class Play(val target: PlayTarget, val summary: TitleSummary? = null, val stream: Stream? = null, val episode: Episode? = null) : WatchRoute
+    /** [attached]: the player already holds [target] (the room opened it), so the page shows it as it is. */
+    data class Play(val target: PlayTarget, val summary: TitleSummary? = null, val stream: Stream? = null, val episode: Episode? = null,
+        val attached: Boolean = false) : WatchRoute
 }
 
 /**
@@ -116,6 +123,18 @@ object WatchNav {
         }
         stack.value = now.dropLast(1)
         return true
+    }
+
+    /**
+     * The room opened [target] in this device's Watch player: its player page comes up over whatever is shown (replacing a player
+     * page that was already on top), attached to what is playing.
+     */
+    fun showPlaying(target: PlayTarget, summary: TitleSummary?) {
+        val now = stack.value
+        val top = now.lastOrNull()
+        if (top is WatchRoute.Play && top.target.key == target.key) return
+        val below = if (top is WatchRoute.Play) now.dropLast(1) else now
+        stack.value = below + WatchRoute.Play(target, summary, attached = true)
     }
 
     /** Hosts call this for a one-tap install link that reached the app. */

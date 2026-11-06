@@ -100,11 +100,41 @@ fun desktopMangaShown(): Boolean {
 @Composable
 fun DesktopWatchPage(contentPadding: PaddingValues) {
     val repository = remember { com.cosmotune.desktop.DesktopWatch.repository.also(com.cosmotune.ui.watch.WatchBackend::install) }
-    com.cosmotune.ui.watch.ProvideWatch(repository = repository, qrCode = { payload, size -> com.cosmotune.music.desktop.DesktopQrCode(payload, size) }) {
+    val playback = rememberDesktopWatchPlayback()
+    com.cosmotune.ui.watch.ProvideWatch(repository = repository, playback = playback, qrCode = { payload, size -> com.cosmotune.music.desktop.DesktopQrCode(payload, size) }) {
         // A compact window has no sidebar: the page then carries its own tabs, as on the phone.
         androidx.compose.foundation.layout.BoxWithConstraints {
             val compact = maxWidth < com.cosmotune.design.ShellMetrics.DESKTOP_COMPACT_DP.dp
             com.cosmotune.ui.watch.WatchApp(contentPadding = contentPadding, showNavigation = compact)
+        }
+    }
+}
+
+/**
+ * Watch's player on the desktop: [com.cosmotune.desktop.DesktopWatch.player] on Video mode's libmpv engine, built the first time a
+ * player page opens (so browsing Watch never starts Video's player), and its picture drawn with the engine's own surface, as Video's
+ * watch page draws it. Audio stays one at a time: Watch starting pauses Music, and Music starting pauses Watch.
+ */
+@Composable
+private fun rememberDesktopWatchPlayback(): com.cosmotune.ui.watch.WatchPlayback? {
+    val stack by com.cosmotune.ui.watch.WatchNav.stack.collectAsState()
+    val wanted = stack.any { it is com.cosmotune.ui.watch.WatchRoute.Play }
+    val player = remember(wanted) { if (wanted || com.cosmotune.desktop.DesktopWatch.playerBuilt) com.cosmotune.desktop.DesktopWatch.playerOrNull() else null }
+    val musicPlaying = rememberUpdatedState(LocalCosmoPlaying.current)
+    val playPause = rememberUpdatedState(LocalCosmoPlayPause.current)
+    if (player != null) {
+        LaunchedEffect(player) {
+            player.engine.snapshot.collect { if (it.playing && musicPlaying.value) playPause.value?.invoke() }
+        }
+        val music = LocalCosmoPlaying.current
+        LaunchedEffect(music) { if (music && player.engine.snapshot.value.playing) player.engine.pause() }
+    }
+    return remember(player) {
+        player?.let { p ->
+            com.cosmotune.ui.watch.WatchPlayback(p, roomHolds = { key -> com.cosmotune.music.desktop.DesktopRoomWatch.holds(key.value) }) { scale, modifier ->
+                com.cosmotune.video.graph.desktopVideoGraph(build = false)?.surface?.Surface(modifier,
+                    if (scale == com.cosmotune.ui.watch.WatchSurfaceScale.CROP) com.cosmotune.video.player.VideoScale.FILL else com.cosmotune.video.player.VideoScale.FIT)
+            }
         }
     }
 }

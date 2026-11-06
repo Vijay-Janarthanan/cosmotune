@@ -40,6 +40,9 @@ internal object DesktopRoomWatch : RoomVideoPlayer {
 
     override fun shown(): Boolean = openedKey != null
 
+    /** Whether the room opened [key] in Watch's player here (the player page then leaves it to the room). */
+    fun holds(key: String): Boolean = openedKey == key
+
     override fun open(track: PartyTrack, startMs: Long): Boolean {
         if (!WatchRoom.canPlay(track)) return false
         val p = player ?: return false

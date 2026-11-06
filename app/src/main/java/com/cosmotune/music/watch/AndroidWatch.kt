@@ -40,6 +40,9 @@ object AndroidWatch {
         )
     }.also { repositoryRef = it }
 
+    /** Whether [player] has been built in this process. */
+    val playerBuilt: Boolean get() = playerRef != null
+
     /** The player, on Video mode's Media3 engine. */
     @Synchronized
     fun player(context: Context): EngineWatchPlayer = playerRef ?: run {
