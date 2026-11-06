@@ -99,6 +99,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -2701,7 +2702,10 @@ private fun CosmotuneApp(
         // a row, and the player is the right. Off a tablet the row has the
         // one child it always had and changes nothing.
         Row(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f).fillMaxHeight()) {
+            // While the new look's player covers the window, the page under it is out of the accessibility tree: a screen reader
+            // would otherwise walk the hidden page behind the player.
+            val pageCovered = cosmoShell != null && showNowPlaying && playerSong != null
+            Box(Modifier.weight(1f).fillMaxHeight().then(if (pageCovered) Modifier.clearAndSetSemantics {} else Modifier)) {
                 AnimatedContent(
                     targetState = when {
                         showSpotify && detail == null -> "spotify"
@@ -3731,6 +3735,7 @@ private fun CosmotuneApp(
                         .graphicsLayer { alpha = topFadeAlpha },
                 )
 
+                val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
                 com.cosmotune.ui.chrome.TopBarSwitch(
                     title = when {
                         showSpotify && detail == null -> stringResource(R.string.spotify)
@@ -3784,6 +3789,9 @@ private fun CosmotuneApp(
                         showListenTogether -> ({ showListenTogether = false })
                         showEqualizer -> ({ showEqualizer = false })
                         settingsSubScreen != null -> ({ settingsSubScreen = null })
+                        // In the new look a settings page has no back of its own: this one steps back as the system's does (the
+                        // search, then the page, then Settings itself), so it is the one back button on the screen.
+                        showSettings && cosmoShell != null && backDispatcher != null -> ({ backDispatcher.onBackPressed() })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
                         detailActiveShelf != null -> ({ detailActiveShelf = null })
@@ -4048,7 +4056,8 @@ private fun CosmotuneApp(
                                 // equaliser from Settings).
                                 entries = listOf(
                                     com.cosmotune.ui.chrome.CosmoDrawerEntry(
-                                        icon = CosmoIcons.Library,
+                                        // Not the Library glyph: that is a mode's and the Library tab's.
+                                        icon = CosmoIcons.Clock,
                                         label = "Your listening",
                                         onClick = { listeningToolsOpen = true },
                                     ),
@@ -4157,7 +4166,8 @@ private fun CosmotuneApp(
                         CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(exploreLabel, CosmoIcons.Explore, CosmoIcons.ExploreFill),
                         CosmoTab(releasesLabel, CosmoIcons.Bell, CosmoIcons.BellFill), CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill),
                     ),   // DESIGN_SYSTEM.md 5.2: Search is not a tab, it is the top bar's button
-                    selectedIndex = MUSIC_DOCK.indexOf(if (selectedTab == TAB_SEARCH) searchReturnTab else selectedTab),
+                    // Search and Settings (and what they open) belong to no tab: none is lit under them, rather than the tab left behind.
+                    selectedIndex = if (selectedTab == TAB_SEARCH || showSettings) -1 else MUSIC_DOCK.indexOf(selectedTab),
                     onTabSelected = { index -> onTabSelected(MUSIC_DOCK[index]) },
                     song = player.song, isPlaying = player.isPlaying, isLoading = playPauseBusy,
                     position = player.position, durationMs = player.durationMs,

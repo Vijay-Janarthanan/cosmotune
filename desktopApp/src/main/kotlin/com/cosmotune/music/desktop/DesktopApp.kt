@@ -3666,7 +3666,7 @@ fun CosmotuneDesktopApp() {
                         onSearch = { selectDestination(DesktopDestination.SEARCH) },
                         // The profile drawer's entries. Settings and Replay stand in place of the page, so they leave each other first.
                         entries = listOf(
-                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Library, "Your listening", onClick = { listeningToolsOpen = true }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Clock, "Your listening", onClick = { listeningToolsOpen = true }),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Replay, DesktopStrings["replay", "Replay"], onClick = { overlays.settingsPage = null; overlays.replay = true }),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Together, DesktopStrings["listen_together", "Listen together"], onClick = ::openRoomPage),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings["downloads", "Downloads"], onClick = { selectDestination(DesktopDestination.DOWNLOADS) }),
@@ -6762,6 +6762,9 @@ private fun DesktopSettingsScreen(
     val sectionContent: @Composable (DesktopSettingsSection) -> Unit = { section ->
         when (section) {
             DesktopSettingsSection.PLAYBACK -> {
+                // Its own toggles and sliders have no icon tiles: the shared rows among them (spatial style, surround, the volume cap,
+                // pitch) leave theirs off too, so every row on the page is the same.
+                androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.settings.LocalSettingsRowIcons provides false) {
                     SettingsGroup(DesktopStrings["playback", "Playback"]) {
                     if (!automix) {
                         if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
@@ -6918,6 +6921,7 @@ private fun DesktopSettingsScreen(
                         com.cosmotune.ui.settings.SongRecognitionRows(onPlay = onPlayProviderSongs)
                     }
                 }
+            }
             }
             DesktopSettingsSection.DESKTOP_PLAYBACK -> {
                 SettingsGroup(DesktopStrings["d_desktop_playback", "Desktop playback"]) {
