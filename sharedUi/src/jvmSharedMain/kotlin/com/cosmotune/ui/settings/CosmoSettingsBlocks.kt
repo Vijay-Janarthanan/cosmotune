@@ -441,6 +441,12 @@ private fun Modifier.tileClickable(
 // ---- the rows -------------------------------------------------------------------------------------------------------------------------
 
 /**
+ * Whether [CosmoSettingsRow] (and the rows built on it) draw their icon tile. A page whose own rows have none (the desktop's
+ * Playback page, its toggles and sliders written without icons) provides false, so every row on the page reads the same.
+ */
+val LocalSettingsRowIcons = androidx.compose.runtime.compositionLocalOf { true }
+
+/**
  * The standard row (`.row2`): a 40 dp lead tile with the icon in the cover's tonal colour (none when there is no icon), the title
  * on one line with an optional [badge] after it, the subtitle (up to five lines, or [subtitleContent]), and at the end [trailing] (a
  * switch, say) or the [value] followed by a chevron. A row with an [onClick] is a button; it shows the chevron even without a value.
@@ -477,7 +483,7 @@ fun CosmoSettingsRow(
             horizontalArrangement = Arrangement.spacedBy(ROW_GAP),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (icon != null || iconPainter != null) LeadTile(icon, iconPainter)
+            if (LocalSettingsRowIcons.current && (icon != null || iconPainter != null)) LeadTile(icon, iconPainter)
             Column(Modifier.weight(1f)) {
                 TitleLine(title, badge)
                 if (subtitleContent != null) {

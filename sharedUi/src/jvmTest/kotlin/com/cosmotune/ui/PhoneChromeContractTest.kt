@@ -224,7 +224,7 @@ class PhoneChromeContractTest {
     @Test fun theDockMapsItsTabsAndBackAndSearchKeepsTheTabItWasOpenedFromLit() {
         val text = main
         assertTrue("private val MUSIC_DOCK = listOf(TAB_HOME, TAB_EXPLORE, TAB_RELEASES, TAB_LIBRARY)" in text, "the dock's order, in the host's numbers")
-        assertTrue("selectedIndex = MUSIC_DOCK.indexOf(if (selectedTab == TAB_SEARCH) searchReturnTab else selectedTab)," in text, "Search keeps its tab lit")
+        assertTrue("selectedIndex = if (selectedTab == TAB_SEARCH || showSettings) -1 else MUSIC_DOCK.indexOf(selectedTab)," in text, "Search and Settings light no tab")
         assertTrue("onTabSelected = { index -> onTabSelected(MUSIC_DOCK[index]) }," in text, "the one tab handler is the root's")
         assertTrue("LaunchedEffect(selectedTab) { if (selectedTab != TAB_SEARCH) searchReturnTab = selectedTab }" in text, "the tab Search returns to")
         assertTrue("cosmoShell != null && selectedTab == TAB_SEARCH -> ({ selectedTab = searchReturnTab })" in text, "the bar's back button returns there")

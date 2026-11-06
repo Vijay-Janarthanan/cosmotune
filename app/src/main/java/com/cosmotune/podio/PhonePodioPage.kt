@@ -121,5 +121,7 @@ import java.io.File
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }, "Share podcast subscriptions"))
         })
+    // The pages scroll under the status bar: its ground keeps the clock readable and the titles from running under it.
+    com.cosmotune.ui.orbit.OrbitStatusBarScrim(Modifier.align(androidx.compose.ui.Alignment.TopCenter))
     }
 }

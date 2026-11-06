@@ -205,15 +205,16 @@ fun OrbitNavPlaylist(title: String, subtitle: String?, imageUrl: String?, select
 fun OrbitNavRoomCard(modifier: Modifier = Modifier) {
     val room = LocalRoomLauncher.current?.takeIf { it.inRoom } ?: return
     val fonts = orbitFonts()
+    val tone = roomCardColors(orbitLook())
     Box(
-        modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(26.dp)).background(ROOM_FILL)
+        modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(26.dp)).background(tone.fill)
             .clickable(role = Role.Button) { room.openRoom() }.pointerHoverIcon(PointerIcon.Hand),
     ) {
         Canvas(Modifier.align(Alignment.TopEnd).offset(x = 40.dp, y = (-44).dp).size(140.dp)) {
             val c = center
-            drawCircle(ROOM_INK.copy(alpha = 0.16f), 30.dp.toPx(), c, style = Stroke(1.dp.toPx()))
-            drawCircle(ROOM_INK.copy(alpha = 0.16f), 54.dp.toPx(), c, style = Stroke(1.dp.toPx()))
-            drawCircle(ROOM_INK.copy(alpha = 0.22f), 13.dp.toPx(), c)
+            drawCircle(tone.ink.copy(alpha = 0.16f), 30.dp.toPx(), c, style = Stroke(1.dp.toPx()))
+            drawCircle(tone.ink.copy(alpha = 0.16f), 54.dp.toPx(), c, style = Stroke(1.dp.toPx()))
+            drawCircle(tone.ink.copy(alpha = 0.22f), 13.dp.toPx(), c)
             val colors = listOf(Color(0xFFE9875A), Color(0xFF5B8C6A), Color(0xFF8B6CC9), Color(0xFFD9A441), Color(0xFF4F8FD9), Color(0xFFC96C9A))
             repeat(room.memberCount.coerceIn(1, 6)) { i ->
                 val r = if (i % 2 == 0) 54.dp.toPx() else 30.dp.toPx()
@@ -223,12 +224,12 @@ fun OrbitNavRoomCard(modifier: Modifier = Modifier) {
         }
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(7.dp).clip(CircleShape).background(LIVE))
+                Box(Modifier.size(7.dp).clip(CircleShape).background(tone.live))
                 Spacer(Modifier.width(8.dp))
-                Text("LIVE ROOM · ${room.memberCount}", style = fonts.label, color = ROOM_DIM, maxLines = 1)
+                Text("LIVE ROOM · ${room.memberCount}", style = fonts.label, color = tone.dim, maxLines = 1)
             }
             Spacer(Modifier.height(6.dp))
-            Text("Your room", style = fonts.section.copy(fontSize = 17.sp, lineHeight = 20.sp), color = ROOM_INK, maxLines = 1)
+            Text("Your room", style = fonts.section.copy(fontSize = 17.sp, lineHeight = 20.sp), color = tone.ink, maxLines = 1)
         }
     }
 }

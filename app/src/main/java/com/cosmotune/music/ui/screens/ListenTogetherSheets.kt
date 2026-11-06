@@ -197,6 +197,8 @@ internal fun PartyLanding(
     onCreate: () -> Unit,
     onJoin: () -> Unit,
     modifier: Modifier = Modifier,
+    /** In a sheet: a smaller face and less air above it, so the two doors are in view as the sheet opens. */
+    compact: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -204,9 +206,9 @@ internal fun PartyLanding(
             .padding(horizontal = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(28.dp))
-        GlowingAvatar(url = avatarUrl)
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(if (compact) 4.dp else 28.dp))
+        GlowingAvatar(url = avatarUrl, size = if (compact) 72.dp else 104.dp)
+        Spacer(Modifier.height(if (compact) 12.dp else 20.dp))
         Text(
             text = stringResource(R.string.listen_together_landing_title),
             style = MaterialTheme.typography.headlineMedium.copy(

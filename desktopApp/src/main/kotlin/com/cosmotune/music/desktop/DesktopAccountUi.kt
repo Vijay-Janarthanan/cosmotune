@@ -22,17 +22,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.ManageAccounts
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Settings
 import com.cosmotune.ui.bridge.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,11 +41,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.ui.icons.CosmotuneIcons
-import com.cosmotune.ui.theme.CosmoRadii
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.Disc
+import com.cosmotune.ui.orbit.OrbitAccountCard
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.PEACH
+import com.cosmotune.ui.orbit.PEACH_INK
+import com.cosmotune.ui.orbit.orbitFloatEdge
+import com.cosmotune.ui.orbit.orbitFloatGround
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.sheets.CosmoDialogBody
+import com.cosmotune.ui.sheets.CosmoDialogCard
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -97,8 +109,11 @@ internal fun DesktopAccountButton(
 }
 
 /**
- * The account switcher: every login this app holds, the channels under each, and the actions that
- * change the set.
+ * The account switcher as an Orbit popover (the kit's float card, as [com.cosmotune.ui.orbit.OrbitMenu] draws it) under the toolbar's
+ * account button: the account card at its head (Settings' own, compact: the active profile's picture as a disc, its name or "Sign
+ * in", its handle), then every login this app holds with the channels under it as Orbit rows (the picture disc, the name, the handle;
+ * the one in use solid ink with the peach dot), then the actions that change the set (add an account, manage them, Settings) as
+ * rows. "Manage accounts" turns the profile rows into "Sign out" rows. A click outside closes it.
  */
 @Composable
 internal fun DesktopAccountSelector(
@@ -113,65 +128,67 @@ internal fun DesktopAccountSelector(
     onDismiss: () -> Unit,
 ) {
     var managing by remember { mutableStateOf(false) }
+    val look = orbitLook()
+    val fonts = orbitFonts()
+    val activeAccount = accounts.firstOrNull { it.accountId == activeAccountId }
+    val activeProfile = activeAccount?.profiles?.firstOrNull { it.profileId == activeProfileId }
     Box(Modifier.fillMaxSize()) {
         // The scrim is its own layer rather than a modifier on the container.
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
+                .background(Color.Black.copy(alpha = 0.4f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = onDismiss,
                 ),
         )
-        val shape = RoundedCornerShape(CosmoRadii.rLg)
+        val shape = RoundedCornerShape(24.dp)
         Column(
             Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 64.dp, end = 24.dp)
                 .widthIn(max = 380.dp)
                 .fillMaxWidth()
+                .shadow(24.dp, shape, clip = false)
                 .clip(shape)
-                // The same frosted pane the floating bars are made of, sampling the page underneath
-                // rather than sitting on a flat fill.
-                .desktopBarGlass(shape),
+                .background(orbitFloatGround(look))
+                .border(1.dp, orbitFloatEdge(look), shape)
+                // Clicks on the card's own background stay on the card.
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+                .padding(8.dp),
         ) {
+            OrbitAccountCard(
+                label = if (activeProfile != null) "Account · Google" else "Account",
+                name = activeProfile?.name ?: activeAccount?.name?.ifBlank { null } ?: "Sign in",
+                line = activeProfile?.handle?.ifBlank { null } ?: activeAccount?.email?.ifBlank { null }
+                    ?: if (accounts.isEmpty()) DesktopStrings[
+                        "d_nobody_is_signed_in",
+                        "Nobody is signed in. Your library, playlists and history need a YouTube Music account.",
+                    ] else null,
+                pictureUrl = activeProfile?.avatar,
+                fonts = fonts,
+                onClick = if (accounts.isEmpty()) onAddAccount else null,
+                compact = true,
+            )
             Row(
-                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 12.dp, top = 14.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    if (accounts.isEmpty()) "Accounts" else "Switch account",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                )
-                Spacer(Modifier.weight(1f))
-                if (busy) CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(16.dp))
+                OrbitLabel(if (accounts.isEmpty()) "Accounts" else "Switch account", fonts, look.dim, Modifier.weight(1f))
+                if (busy) CircularProgressIndicator(color = look.accent, modifier = Modifier.size(16.dp))
             }
-            LazyColumn(Modifier.heightIn(max = 460.dp)) {
-                if (accounts.isEmpty()) {
-                    item {
-                        Text(
-                            DesktopStrings[
-                                "d_nobody_is_signed_in",
-                                "Nobody is signed in. Your library, playlists and history need a " +
-                                    "YouTube Music account.",
-                            ],
-                            style = MaterialTheme.typography.bodySmall,
-                            color = DesktopSecondary,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                        )
-                    }
-                }
+            LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 accounts.forEach { account ->
                     item(key = "header-${account.accountId}") {
                         Text(
                             account.email.ifBlank { account.name.ifBlank { "Account" } },
-                            style = MaterialTheme.typography.labelMedium,
-                            color = DesktopSecondary,
-                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
+                            style = fonts.body.copy(fontSize = 12.sp),
+                            color = look.dim,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 2.dp),
                         )
                     }
                     items(account.profiles.size, key = { "p-${account.accountId}-$it" }) { index ->
@@ -186,21 +203,24 @@ internal fun DesktopAccountSelector(
                         )
                     }
                 }
+                item { Spacer(Modifier.height(6.dp)) }
                 item { DesktopSelectorAction(CosmotuneIcons.Plus, "Add account", onAddAccount) }
                 if (accounts.isNotEmpty()) {
                     item {
-                        DesktopSelectorAction(Icons.Rounded.ManageAccounts, "Manage accounts") {
-                            managing = !managing
-                        }
+                        DesktopSelectorAction(Icons.Rounded.ManageAccounts, if (managing) "Done managing" else "Manage accounts", onClick = { managing = !managing }, on = managing)
                     }
                 }
-                item { DesktopSelectorAction(Icons.Rounded.Settings, "Settings", onOpenSettings) }
-                item { Spacer(Modifier.height(10.dp)) }
+                item { DesktopSelectorAction(CosmoIcons.Settings, "Settings", onOpenSettings) }
             }
         }
     }
 }
 
+/**
+ * A channel of an account as an Orbit row: 60 dp, radius 22, the picture as a 40 dp disc (the user glyph on a faint disc without
+ * one), the name over the handle. The one in use is solid ink with the ground's colour for its words and the peach dot; while
+ * [managing] the row says "Sign out" in red and a click signs the account out.
+ */
 @Composable
 private fun DesktopProfileRow(
     profile: DesktopYouTubeProfile,
@@ -209,71 +229,81 @@ private fun DesktopProfileRow(
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    val look = orbitLook()
+    val fonts = orbitFonts()
+    val on = selected && !managing
+    val ink = if (on) look.ground else look.ink
+    val dim = if (on) look.ground.copy(alpha = 0.72f) else look.dim
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clickable(onClick = if (managing) onRemove else onClick)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .heightIn(min = 60.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(if (on) look.ink else look.row)
+            .clickable(role = Role.Button, onClick = if (managing) onRemove else onClick)
+            .semantics { if (selected) this.selected = true }
+            .padding(start = 10.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (profile.avatar != null) {
-            DesktopArtwork(
-                profile.avatar,
-                Modifier.size(38.dp).clip(CircleShape),
-                contentScale = ContentScale.Crop,
-                px = 128,
-            )
-        } else {
-            Icon(
-                Icons.Rounded.Person,
-                null,
-                tint = DesktopSecondary,
-                modifier = Modifier.size(38.dp),
-            )
+        Box(Modifier.size(40.dp).clip(CircleShape).background(ink.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Icon(CosmoIcons.User, null, tint = ink, modifier = Modifier.size(18.dp))
+            if (profile.avatar != null) Disc(profile.avatar, 40.dp)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(profile.name, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(profile.name, style = fonts.title.copy(fontSize = 14.sp), color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 profile.handle.ifBlank { if (profile.isBrandAccount) "Brand account" else "Personal" },
-                style = MaterialTheme.typography.bodySmall,
-                color = DesktopSecondary,
+                style = fonts.body.copy(fontSize = 12.sp),
+                color = dim,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
         when {
-            managing -> Text(DesktopStrings["sign_out", "Sign out"], color = DesktopDestructive, style = MaterialTheme.typography.labelMedium)
-            selected -> Icon(CosmotuneIcons.Check, DesktopStrings["selected", "Selected"], tint = DesktopAccent, modifier = Modifier.size(20.dp))
+            managing -> Text(DesktopStrings["sign_out", "Sign out"], color = DesktopDestructive, style = fonts.chip.copy(fontSize = 13.sp))
+            selected -> Box(
+                Modifier.size(7.dp).clip(CircleShape).background(if (look.dark) PEACH_INK else PEACH)
+                    .semantics { contentDescription = DesktopStrings["selected", "Selected"] },
+            )
         }
     }
 }
 
+/** An action of the switcher as an Orbit row: 44 dp, round, the glyph in the dim ink and the label; [on] (managing) is the chip fill. */
 @Composable
 private fun DesktopSelectorAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,
+    on: Boolean = false,
 ) {
+    val look = orbitLook()
+    val fonts = orbitFonts()
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp),
+            .heightIn(min = 44.dp)
+            .clip(CircleShape)
+            .background(if (on) look.chip else Color.Transparent)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(16.dp))
-        Text(label, color = Color.White)
+        Icon(icon, null, tint = look.dim, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(label, style = fonts.chip, color = look.ink)
     }
 }
 
 /** What [DesktopSignInDialog]'s `busy` holds while the in-app sign-in window is open. */
 internal const val WEB_SIGN_IN = "Google"
 
-/** Signing in: Google's own page in a Cosmotune window, a browser to take the session from, or the cookie by hand. */
+/**
+ * Signing in, on the Orbit dialog ([CosmoDialogCard] with [CosmoDialogBody]): Google's own page in a Cosmotune window, a browser to
+ * take the session from, or the cookie by hand, each an Orbit row. A click on the scrim does nothing (leaving would cancel a sign-in
+ * that is still open): only Close does.
+ */
 @Composable
 internal fun DesktopSignInDialog(
     /** Whether the in-app sign-in window can be shown; see [DesktopWebSignIn]. */
@@ -295,186 +325,107 @@ internal fun DesktopSignInDialog(
             }
         }
     }
+    val look = orbitLook()
+    val fonts = orbitFonts()
 
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                // Swallows clicks without dismissing: leaving now would cancel a sign-in that is
-                // still open, so only the close button does that.
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {},
-                ),
-        )
-        val shape = RoundedCornerShape(CosmoRadii.rLg)
-        Column(
-            Modifier
-                .widthIn(max = 520.dp)
-                .fillMaxWidth()
-                .clip(shape)
-                .desktopBarGlass(shape)
-                .padding(bottom = 8.dp),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().padding(start = 22.dp, end = 10.dp, top = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    DesktopStrings["sign_in_youtube_music", "Sign in to YouTube Music"],
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                    modifier = Modifier.weight(1f).padding(top = 10.dp),
-                )
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Rounded.Close, DesktopStrings["close", "Close"], tint = DesktopSecondary)
+    CosmoDialogCard(onDismiss = {}, maxWidth = 520.dp) {
+        CosmoDialogBody(
+            overline = "Account",
+            title = DesktopStrings["sign_in_youtube_music", "Sign in to YouTube Music"],
+            message = when {
+                pasting -> DesktopStrings["d_paste_the_cookie_header_for_music_youtube_com", "Paste the Cookie header for music.youtube.com."]
+                webSignIn -> "Sign in with Google in a Cosmotune window, then choose \"Use this profile\"."
+                else -> DesktopStrings[
+                    "d_google_signs_in_inside_a_browser",
+                    "Google signs in inside a browser and hands back a session. Pick a browser " +
+                        "here that is already signed in and Cosmotune will use its session.",
+                ]
+            },
+            confirmLabel = if (pasting) DesktopStrings["sign_in", "Sign in"] else null,
+            onConfirm = { onPaste(pasted.trim()) },
+            confirmEnabled = pasted.isNotBlank() && busy == null,
+            dismissLabel = if (pasting) DesktopStrings["back", "Back"] else DesktopStrings["close", "Close"],
+            onDismiss = { if (pasting) pasting = false else onDismiss() },
+            extra = {
+                error?.let {
+                    Text(it, style = fonts.body, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 10.dp))
                 }
-            }
-            Text(
-                if (webSignIn) {
-                    "Sign in with Google in a Cosmotune window, then choose \"Use this profile\"."
-                } else {
-                    DesktopStrings[
-                        "d_google_signs_in_inside_a_browser",
-                        "Google signs in inside a browser and hands back a session. Pick a browser " +
-                            "here that is already signed in and Cosmotune will use its session.",
-                    ]
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = DesktopSecondary,
-                modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 6.dp, bottom = 10.dp),
-            )
-            error?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = DesktopAccent,
-                    modifier = Modifier.padding(horizontal = 22.dp).padding(bottom = 8.dp),
-                )
-            }
-            when {
-                pasting -> {
-                    Text(
-                        DesktopStrings["d_paste_the_cookie_header_for_music_youtube_com", "Paste the Cookie header for music.youtube.com."],
-                        style = MaterialTheme.typography.bodySmall,
-                        color = DesktopSecondary,
-                        modifier = Modifier.padding(horizontal = 22.dp),
-                    )
-                    BasicTextField(
+                when {
+                    pasting -> BasicTextField(
                         value = pasted,
                         onValueChange = { pasted = it },
                         singleLine = false,
-                        textStyle = MaterialTheme.typography.bodySmall.copy(color = Color.White),
-                        cursorBrush = SolidColor(DesktopAccent),
+                        textStyle = fonts.body.copy(color = look.ink),
+                        cursorBrush = SolidColor(look.accent),
                         modifier = Modifier
-                            .padding(horizontal = 22.dp, vertical = 10.dp)
                             .fillMaxWidth()
                             .heightIn(min = 84.dp, max = 160.dp)
-                            .clip(RoundedCornerShape(CosmoRadii.rSm))
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .padding(12.dp),
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(look.row)
+                            .padding(14.dp),
                     )
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        TextButton(onClick = { pasting = false }) { Text(DesktopStrings["back", "Back"], color = DesktopSecondary) }
-                        TextButton(
-                            onClick = { onPaste(pasted.trim()) },
-                            enabled = pasted.isNotBlank() && busy == null,
-                        ) {
-                            Text(DesktopStrings["sign_in", "Sign in"], color = DesktopAccent)
-                        }
+                    profiles == null -> Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(color = look.accent, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text(DesktopStrings["d_looking_for_browsers", "Looking for browsers…"], style = fonts.body, color = look.dim)
                     }
-                }
-                profiles == null -> Row(
-                    Modifier.fillMaxWidth().padding(22.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Text(DesktopStrings["d_looking_for_browsers", "Looking for browsers…"], color = DesktopSecondary)
-                }
-                else -> LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                    val found = profiles.orEmpty()
-                    if (webSignIn) {
-                        item(key = "web-sign-in") {
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 62.dp)
-                                    .clickable(enabled = busy == null) { onWebSignIn() }
-                                    .padding(horizontal = 22.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("Sign in with Google", color = Color.White)
-                                    Text(
-                                        if (busy == WEB_SIGN_IN) {
-                                            "Finish in the sign-in window, then choose \"Use this profile\""
-                                        } else {
-                                            "Opens Google's sign-in page in a Cosmotune window"
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = DesktopSecondary,
-                                    )
-                                }
-                                if (busy == WEB_SIGN_IN) {
-                                    CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(14.dp))
-                                }
-                            }
+                    else -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val found = profiles.orEmpty()
+                        if (webSignIn) {
+                            SignInRow(
+                                "Sign in with Google",
+                                if (busy == WEB_SIGN_IN) "Finish in the sign-in window, then choose \"Use this profile\""
+                                else "Opens Google's sign-in page in a Cosmotune window",
+                                CosmoIcons.User, enabled = busy == null, working = busy == WEB_SIGN_IN, onClick = onWebSignIn,
+                            )
                         }
-                    }
-                    if (found.isEmpty() && !webSignIn) {
-                        item {
+                        if (found.isEmpty() && !webSignIn) {
                             Text(
                                 DesktopStrings["d_no_browser_profile_was_found_on_this_machine", "No browser profile was found on this machine."],
-                                style = MaterialTheme.typography.bodySmall,
-                                color = DesktopSecondary,
-                                modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
+                                style = fonts.body, color = look.dim, modifier = Modifier.padding(vertical = 4.dp),
                             )
                         }
-                    }
-                    items(found.size, key = { found[it].database.toString() }) { index ->
-                        val profile = found[index]
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 52.dp)
-                                .clickable(enabled = busy == null) { onImport(profile) }
-                                .padding(horizontal = 22.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(profile.label, color = Color.White, modifier = Modifier.weight(1f))
-                            if (busy == profile.label) {
-                                CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(14.dp))
-                            }
+                        found.forEach { profile ->
+                            SignInRow(profile.label, null, CosmoIcons.Explore, enabled = busy == null, working = busy == profile.label) { onImport(profile) }
                         }
-                    }
-                    item {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 52.dp)
-                                .clickable { pasting = true }
-                                .padding(horizontal = 22.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                Icons.Rounded.ContentPaste,
-                                null,
-                                tint = Color.White.copy(alpha = 0.85f),
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(14.dp))
-                            Text(DesktopStrings["d_paste_a_cookie_instead", "Paste a cookie instead"], color = Color.White)
+                        SignInRow(DesktopStrings["d_paste_a_cookie_instead", "Paste a cookie instead"], null, Icons.Rounded.ContentPaste, enabled = true, working = false) {
+                            pasting = true
                         }
                     }
                 }
-            }
+            },
+        )
+    }
+}
+
+/** One way to sign in as an Orbit row: 56 dp, radius 22, the glyph, the [title] over its [detail], a small spinner while [working]. */
+@Composable
+private fun SignInRow(
+    title: String,
+    detail: String?,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    working: Boolean,
+    onClick: () -> Unit,
+) {
+    val look = orbitLook()
+    val fonts = orbitFonts()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(look.row)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = look.dim, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail != null) Text(detail, style = fonts.body.copy(fontSize = 12.sp), color = look.dim, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
+        if (working) CircularProgressIndicator(color = look.accent, modifier = Modifier.size(14.dp))
     }
 }

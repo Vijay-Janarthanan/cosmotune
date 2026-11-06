@@ -133,9 +133,11 @@ internal fun ReadModeFrame(
     modifier: Modifier = Modifier,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    Column(modifier.fillMaxSize()) {
+    // The status bar is kept clear on every page, not only the tabs' (a series, a catalogue and a search have no tab head to carry
+    // it), so no page's head is drawn under the clock.
+    Column(modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
         if (showNavigation) {
-            Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(top = 10.dp)) {
+            Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalAlignment = Alignment.CenterVertically) {
                     LocalReadModeSwitcher.current?.invoke()
                     Spacer(Modifier.weight(1f))

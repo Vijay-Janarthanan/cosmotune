@@ -131,9 +131,12 @@ internal fun RoomNowPlayingPage(
                 Text(stringResource(Res.string.cosmo_room_queue_empty), style = fonts.body, color = look.dim, modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp))
             }
         }
+        // A song queued without its length takes it from the same song elsewhere (the playing one, which this device's player measured).
+        val lengths = (queue + listOfNotNull(room.playback.track)).mapNotNull { t -> t.durationMs?.takeIf { it > 0L }?.let { t.videoId to it } }.toMap()
         // A queue may hold the same song twice, so the key is its place as well as its id.
         itemsIndexed(queue, key = { index, item -> "q:$index:${item.videoId}" }) { index, item ->
-            QueueRow(item, index, current = index == room.queue.index, playing = room.playback.isPlaying, canControl = canControl, actions = actions, fonts = fonts, look = look)
+            val known = if ((item.durationMs ?: 0L) > 0L) item else lengths[item.videoId]?.let { item.copy(durationMs = it) } ?: item
+            QueueRow(known, index, current = index == room.queue.index, playing = room.playback.isPlaying, canControl = canControl, actions = actions, fonts = fonts, look = look)
         }
     }
 }

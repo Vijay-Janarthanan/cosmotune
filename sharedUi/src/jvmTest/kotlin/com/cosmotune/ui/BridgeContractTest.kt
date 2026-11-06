@@ -301,7 +301,7 @@ class BridgeContractTest {
         assertFalse(on.contains("live("))
     }
 
-    @Test fun theSheetIsDetachedSolidTintedGlassWithTheInkGrabber() {
+    @Test fun theSheetIsDetachedOpaqueWithTheInkGrabber() {
         val src = bridge("SheetBridge.kt")
         val c = code(src)
         assertTrue(c.contains("SuperellipseShape(CosmoRadii.sheet)"))
@@ -316,7 +316,8 @@ class BridgeContractTest {
             "scrimColor = SHEET_SCRIM",
             "dragHandle = if (dragHandle == null) null else { { CosmoSheetHandle() } }",
         )) assertTrue(on.contains(line), line)
-        assertTrue(on.contains("Color(LocalCosmoColors.current.palette.surfaceHigh).copy(alpha = GlassPolicy.SOLID_ALPHA)"))
+        // Opaque, the Orbit sheets' own ground: nothing behind reads through the rows.
+        assertTrue(on.contains("val glass = orbitSheetGround(orbitLook())"))
         val tokens = read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/theme/CosmoTokens.kt")
         assertTrue(tokens.contains("val sheetInset = 8.dp"))
         // the grabber: 36 x 4 dp, textPrimary at 45 %, 10 dp above and 14 dp below

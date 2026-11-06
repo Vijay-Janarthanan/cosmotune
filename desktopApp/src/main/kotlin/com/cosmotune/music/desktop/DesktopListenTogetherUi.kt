@@ -237,7 +237,7 @@ private fun PartyLanding(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 PartyChoiceCard(
-                    title = "Start a party",
+                    title = "Start a room",
                     subtitle = "Choose how friends see you and how many can join.",
                     modifier = Modifier.weight(1f),
                 ) {

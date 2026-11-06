@@ -65,7 +65,9 @@ fun OrbitMenu(
 ) {
     if (!open) return
     val ground = orbitFloatGround(look)
-    Popup(popupPositionProvider = OrbitMenuPosition, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+    val margin = with(androidx.compose.ui.platform.LocalDensity.current) { MENU_MARGIN.roundToPx() }
+    val position = androidx.compose.runtime.remember(margin) { OrbitMenuPosition(margin) }
+    Popup(popupPositionProvider = position, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         Column(
             Modifier.width(width).heightIn(max = 520.dp)
                 .shadow(24.dp, RoundedCornerShape(24.dp), clip = false)
@@ -105,12 +107,19 @@ fun OrbitMenu(
     }
 }
 
-/** Under the anchor with its end edge on the anchor's end edge; above it when it would run off the bottom; always on screen. */
-private object OrbitMenuPosition : PopupPositionProvider {
+/** The least room a menu keeps from the window's edges: the page margin, so it never touches a side. */
+private val MENU_MARGIN = 16.dp
+
+/**
+ * Under the anchor with its end edge on the anchor's end edge; above it when it would run off the bottom; always on screen, and at
+ * least [margin] in from the window's sides (a menu anchored near the start of a phone's card stays off the edge).
+ */
+private class OrbitMenuPosition(private val margin: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
         val gap = 8
-        val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
-        val x = (if (layoutDirection == LayoutDirection.Ltr) anchorBounds.right - popupContentSize.width else anchorBounds.left).coerceIn(0, maxX)
+        val maxX = (windowSize.width - popupContentSize.width - margin).coerceAtLeast(0)
+        val minX = margin.coerceAtMost(maxX)
+        val x = (if (layoutDirection == LayoutDirection.Ltr) anchorBounds.right - popupContentSize.width else anchorBounds.left).coerceIn(minX, maxX)
         val below = anchorBounds.bottom + gap
         val y = if (below + popupContentSize.height <= windowSize.height) below
         else (anchorBounds.top - gap - popupContentSize.height).coerceAtLeast(0)

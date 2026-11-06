@@ -501,7 +501,8 @@ fun SettingsScreen(
         } else {
             SettingsPageHeader(
                 title = selectedCategory.title(),
-                onBack = { selectedCategory = SettingsCategory.ALL },
+                // In the new look the top bar's back is the one back button: it goes back like the system's (to the settings home).
+                onBack = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) null else { { selectedCategory = SettingsCategory.ALL } },
                 modifier = Modifier.padding(bottom = 4.dp),
             )
         }

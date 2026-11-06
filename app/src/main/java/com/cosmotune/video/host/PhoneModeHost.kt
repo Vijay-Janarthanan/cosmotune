@@ -121,6 +121,10 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
         }
     }
     if (live != null) com.cosmotune.ui.live.LiveNowReminders(live)
+    // Music sets its bars' glyphs itself (it knows when its player is up); every other mode draws them for its own ground, so a dark
+    // mode is never left with the dark icons a light page before it asked for.
+    val otherMode = shell != null && (mode == AppMode.MANGA || mode == AppMode.READ || mode == AppMode.PODIO || mode == AppMode.WATCH || videoShell != null)
+    if (otherMode) com.cosmotune.music.ui.theme.SystemBarGlyphsOn(com.cosmotune.ui.orbit.orbitLook().ground)
     // The room, around every mode: "Play in room" on any page, the room icon, the full-screen room and its video ([RoomVideo]).
     com.cosmotune.music.ui.room.PhoneRoomRoot(RoomVideo) {
     CompositionLocalProvider(com.cosmotune.ui.live.LocalLiveNow provides live, com.cosmotune.ui.live.LocalLiveNowInPage provides (live != null)) {

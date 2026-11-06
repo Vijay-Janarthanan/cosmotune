@@ -13,6 +13,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.cosmotune.theme.CoverField
 
 /** A radial glow squashed to an ellipse ([rx] x [ry]) at ([cx], [cy]); [stops] are (fraction of rx, colour). */
@@ -42,25 +49,66 @@ fun Modifier.cosmoAmbientGround(artwork: Boolean = false): Modifier {
     val wash by animateFloatAsState(if (colors.palette.isFallback) 0f else 1f, tween(600), label = "wash")
     return drawWithCache {
         // Live colours are read here, so the cache is rebuilt only while a fade runs.
-        val linear = Brush.verticalGradient(
-            0f to colors.live(CoverField.BACKGROUND_TOP), 0.46f to colors.live(CoverField.BACKGROUND_MID),
-            0.82f to colors.live(CoverField.BACKGROUND_BOTTOM), endY = size.height,
-        )
-        if (!artwork) {
-            // The cover's accent (its strongest colour), moved toward black or white only as far as the page's text needs.
-            val tint = readableBehind(colors.live(CoverField.ACCENT), colors.live(CoverField.TEXT_PRIMARY))
-            val cover = Brush.verticalGradient(
-                0f to tint.copy(alpha = wash), 0.35f to tint.copy(alpha = 0.55f * wash), 0.8f to tint.copy(alpha = 0f), endY = size.height,
-            )
-            return@drawWithCache onDrawBehind { drawRect(linear); if (wash > 0f) drawRect(cover) }
-        }
+        val brushes = groundBrushes(colors, wash, artwork, size.height)
+        onDrawBehind { brushes.forEach { drawRect(it) } }
+    }
+}
+
+/**
+ * The ground's brushes for a page [height] tall: the linear gradient, then the cover's wash while there is one ([wash] its share);
+ * the player's [artwork] fade alone with [artwork].
+ */
+private fun groundBrushes(colors: CosmoColors, wash: Float, artwork: Boolean, height: Float): List<Brush> {
+    if (artwork) {
         val bottom = colors.live(CoverField.BACKGROUND_BOTTOM)
-        val fade = Brush.verticalGradient(
-            0f to readableBehind(colors.live(CoverField.ACCENT_CONTAINER), colors.live(CoverField.TEXT_PRIMARY)),
-            0.65f to bottom,
-            endY = size.height,
+        return listOf(
+            Brush.verticalGradient(
+                0f to readableBehind(colors.live(CoverField.ACCENT_CONTAINER), colors.live(CoverField.TEXT_PRIMARY)),
+                0.65f to bottom,
+                endY = height,
+            ),
         )
-        onDrawBehind { drawRect(fade) }
+    }
+    val linear = Brush.verticalGradient(
+        0f to colors.live(CoverField.BACKGROUND_TOP), 0.46f to colors.live(CoverField.BACKGROUND_MID),
+        0.82f to colors.live(CoverField.BACKGROUND_BOTTOM), endY = height,
+    )
+    if (wash <= 0f) return listOf(linear)
+    // The cover's accent (its strongest colour), moved toward black or white only as far as the page's text needs.
+    val tint = readableBehind(colors.live(CoverField.ACCENT), colors.live(CoverField.TEXT_PRIMARY))
+    val cover = Brush.verticalGradient(
+        0f to tint.copy(alpha = wash), 0.35f to tint.copy(alpha = 0.55f * wash), 0.8f to tint.copy(alpha = 0f), endY = height,
+    )
+    return listOf(linear, cover)
+}
+
+/**
+ * The page's own ground behind a bar at the top of the window (the phone's top bar, a status-bar band): the gradient and the cover's
+ * wash exactly as [cosmoAmbientGround] paints them on the whole window, so at rest the bar cannot be told from the page, and content
+ * scrolling under it goes under the ground instead of under the bar's words. [shown] (0 to 1, read only while drawing) fades it in
+ * once something is under the bar; below its bounds the ground runs on for [fade], fading out, so the edge is soft.
+ */
+@Composable
+fun Modifier.cosmoTopGround(shown: () -> Float, fade: Dp = 14.dp): Modifier {
+    val colors = LocalCosmoColors.current
+    val wash by animateFloatAsState(if (colors.palette.isFallback) 0f else 1f, tween(600), label = "topWash")
+    val pageHeight = LocalWindowInfo.current.containerSize.height.toFloat()
+    return drawWithCache {
+        val brushes = groundBrushes(colors, wash, artwork = false, height = if (pageHeight > 0f) pageHeight else size.height * 8f)
+        val fadePx = fade.toPx()
+        val mask = Brush.verticalGradient(0f to Color.Black, 1f to Color.Transparent, startY = size.height, endY = size.height + fadePx)
+        val band = Size(size.width, size.height + fadePx)
+        onDrawBehind {
+            val alpha = shown().coerceIn(0f, 1f)
+            if (alpha <= 0f) return@onDrawBehind
+            drawIntoCanvas { canvas ->
+                canvas.saveLayer(Rect(Offset.Zero, band), Paint().apply { this.alpha = alpha })
+                brushes.forEach { drawRect(it, size = band) }
+                // Below the bar the ground fades out: the mask keeps the bar's own height whole.
+                drawRect(mask, topLeft = Offset(0f, size.height), size = Size(size.width, fadePx), blendMode = BlendMode.DstIn)
+                canvas.restore()
+            }
+        }
     }
 }
 
