@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.cosmotune.music.ui.graphics.ColorUtils
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.cosmoFocusRing
 
@@ -68,9 +69,10 @@ internal val WATCH_ADD_INK = Color(0xFFECE8FF)
 /** A picture that has not loaded (or has no address): the deep stand-in for [key], lit from one corner like a poster. */
 fun pictureStandIn(key: String): Brush {
     val base = STAND_INS[Math.floorMod(key.hashCode(), STAND_INS.size)]
-    val hsv = FloatArray(3)
-    java.awt.Color.RGBtoHSB((base.red * 255).toInt(), (base.green * 255).toInt(), (base.blue * 255).toInt(), hsv)
-    val h = hsv[0] * 360f
+    // The hue alone, which HSL and HSB share; java.awt is not there on Android.
+    val hsl = FloatArray(3)
+    ColorUtils.RGBToHSL((base.red * 255).toInt(), (base.green * 255).toInt(), (base.blue * 255).toInt(), hsl)
+    val h = hsl[0]
     return Brush.linearGradient(
         listOf(Color.hsv(h, 0.55f, 0.36f), Color.hsv(h, 0.5f, 0.09f), Color.hsv((h + 18f) % 360f, 0.62f, 0.86f)),
         start = androidx.compose.ui.geometry.Offset(0f, 0f),
