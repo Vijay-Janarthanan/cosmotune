@@ -3,6 +3,7 @@ package com.cosmotune.settings
 import com.cosmotune.CosmoConfig
 import com.cosmotune.design.AppMode
 import com.cosmotune.design.Intensity
+import com.cosmotune.design.VideoView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
     private val modeFlow = MutableStateFlow(modeOf(store.getInt(KEY_MODE, AppMode.MUSIC.ordinal)))
     private val npControlsMinimizedFlow = MutableStateFlow(store.getBoolean(KEY_NP_CONTROLS_MINIMIZED, false))
     private val amoledFlow = MutableStateFlow(store.getBoolean(KEY_AMOLED, false))
+    private val videoViewFlow = MutableStateFlow(VideoView.kept(store.getInt(KEY_VIDEO_VIEW, VideoView.WHOLE.ordinal)))
     val newLook: StateFlow<Boolean> = newLookFlow.asStateFlow()
     val coverColours: StateFlow<Boolean> = coverColoursFlow.asStateFlow()
 
@@ -50,6 +52,18 @@ class CosmoLookSettings(private val store: KeyValueStore) {
      * (`CoverPaletteSpec.amoled`). Off until switched on; the light theme ignores it.
      */
     val amoled: StateFlow<Boolean> = amoledFlow.asStateFlow()
+
+    /**
+     * How Now Playing shows a song's video: [VideoView.WHOLE] (its own shape, nothing cut; the default) or [VideoView.FILL]
+     * (cut to fill the frame). Cinema is entered per visit and is not kept; a stored Cinema or Mini reads as Whole.
+     */
+    val videoView: StateFlow<VideoView> = videoViewFlow.asStateFlow()
+
+    fun setVideoView(view: VideoView) {
+        val kept = VideoView.kept(view.ordinal)
+        store.putInt(KEY_VIDEO_VIEW, kept.ordinal)
+        videoViewFlow.value = kept
+    }
 
     fun setAmoled(on: Boolean) { store.putBoolean(KEY_AMOLED, on); amoledFlow.value = on }
 
@@ -80,6 +94,7 @@ class CosmoLookSettings(private val store: KeyValueStore) {
         const val KEY_INTENSITY = "intensity"
         const val KEY_NP_CONTROLS_MINIMIZED = "np_controls_minimized"
         const val KEY_AMOLED = "amoled"
+        const val KEY_VIDEO_VIEW = "np_video_view"
 
         private fun modeOf(stored: Int): AppMode = AppMode.entries.getOrNull(stored) ?: AppMode.MUSIC
     }

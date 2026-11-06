@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -54,10 +55,11 @@ internal fun OrbitRoundButton(icon: ImageVector, label: String, ink: Color, onCl
 
 /**
  * The seek line with its moon: [progress] (0..1, read in draw) of the line in [ink], the rest faint, the moon at the current point.
- * Tapping or dragging calls [onSeek] with the fraction; null makes it a read-only line.
+ * Tapping or dragging calls [onSeek] with the fraction (on letting go; with [live] all the way through the drag, for a level such
+ * as the volume); null makes it a read-only line.
  */
 @Composable
-internal fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Modifier, onSeek: ((Float) -> Unit)? = null, moon: Dp = 6.dp) {
+internal fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Modifier, onSeek: ((Float) -> Unit)? = null, moon: Dp = 6.dp, live: Boolean = false) {
     var drag by remember { mutableStateOf<Float?>(null) }
     val input = if (onSeek == null) Modifier else Modifier
         .pointerInput(onSeek) { detectTapGestures { onSeek((it.x / size.width).coerceIn(0f, 1f)) } }
@@ -66,7 +68,11 @@ internal fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modi
                 onDragStart = { drag = (it.x / size.width).coerceIn(0f, 1f) },
                 onDragEnd = { drag?.let(onSeek); drag = null },
                 onDragCancel = { drag = null },
-            ) { change, _ -> drag = (change.position.x / size.width).coerceIn(0f, 1f) }
+            ) { change, _ ->
+                change.consume()
+                drag = (change.position.x / size.width).coerceIn(0f, 1f)
+                if (live) drag?.let(onSeek)
+            }
         }
     Canvas(modifier.fillMaxWidth().height(moon * 2 + 8.dp).then(input)) {
         val p = (drag ?: progress()).coerceIn(0f, 1f)
@@ -91,7 +97,8 @@ internal fun BoxScope.DiscPlayMoon(look: OrbitLook, onClick: () -> Unit, size: D
 
 /**
  * Home's colour card: flat [fill], a round bite out of its bottom-end corner ([shape]) and [bite] standing in it (usually an
- * [OrbitPlayButton]). The bite button is outside the clipped card, so it is never cut.
+ * [OrbitPlayButton]). The bite button is outside the clipped card, so it is never cut. Given a size the card fills it; given
+ * only a width it is as tall as its [content].
  */
 @Composable
 internal fun OrbitBiteCard(
@@ -103,11 +110,12 @@ internal fun OrbitBiteCard(
     bite: @Composable BoxScope.() -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    Box(modifier) {
+    // The card takes the size it is given, or its content's height when it is given only a width.
+    Box(modifier, propagateMinConstraints = true) {
         Box(
-            Modifier.fillMaxSize().clip(shape).background(fill).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            Modifier.clip(shape).background(fill).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
             content = content,
         )
-        Box(Modifier.align(Alignment.BottomEnd).padding(biteInset), content = bite)
+        Box(Modifier.align(Alignment.BottomEnd).wrapContentSize(Alignment.BottomEnd).padding(biteInset), content = bite)
     }
 }

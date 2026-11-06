@@ -88,8 +88,7 @@ class NowPlayingDockStructureTest {
         }
         assertTrue(dock.contains(".cosmoGlass(hazeState = null, shape = shape, overVideo = true)"), "the bar is the solid glass of layer C")
         // the backdrop's video is called as before: no layer around the clip, its alpha its own parameter
-        assertTrue(media.contains("presentationAlpha = { reveal.value"))
-        assertTrue(media.contains("contentMode = CanvasContentMode.FIT_PORTRAIT"), "landscape sources crop; portrait sources preserve their full height")
+        assertTrue(media.contains("NowPlayingVideo("), "the video is shown as its view says, never in a fixed frame")
     }
 
     // ---- accessibility ----------------------------------------------------------------------------------------------------

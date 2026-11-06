@@ -366,25 +366,11 @@ private fun OrbitSongRows(
         shown.chunked(columns).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 pair.forEach { item ->
-                    val now = isPlaying(item)
-                    Row(
-                        Modifier.weight(1f).height(68.dp).clip(RoundedCornerShape(22.dp))
-                            .background(if (now) Brush.horizontalGradient(listOf(look.accent.copy(alpha = 0.28f), look.row)) else Brush.linearGradient(listOf(look.row, look.row)))
-                            .combinedClickable(onClick = { onClick(item) }, onLongClick = onLongPress?.let { { it(item) } })
-                            .padding(start = 10.dp, end = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
-                            Disc(item.thumbnailUrl, 44.dp)
-                            if (now) OrbitRing(52.dp, look.accent, progress = null, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(item.title, style = fonts.title, color = if (now) look.accent else look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(item.subtitle, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        item.song?.durationText?.let { Text(it, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp)) }
-                    }
+                    OrbitSongRow(
+                        item.title, item.subtitle, item.thumbnailUrl, fonts, look,
+                        onClick = { onClick(item) }, onLongClick = onLongPress?.let { { it(item) } },
+                        modifier = Modifier.weight(1f), now = isPlaying(item), playing = playing,
+                    ) { OrbitRowTime(item.song?.durationText, fonts, look) }
                 }
                 if (pair.size < columns) Spacer(Modifier.weight(1f))
             }

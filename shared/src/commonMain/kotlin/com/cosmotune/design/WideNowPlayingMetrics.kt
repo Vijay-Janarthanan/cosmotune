@@ -32,7 +32,7 @@ object WideNowPlayingMetrics {
     const val VIDEO_RIGHT_DP = 64f
     const val VIDEO_TOP_DP = 96f
     const val VIDEO_HEIGHT_DP = 704f
-    const val VIDEO_WIDTH_DP = VIDEO_HEIGHT_DP * NowPlayingVideoMetrics.ASPECT
+    const val VIDEO_WIDTH_DP = VIDEO_HEIGHT_DP * 4f / 5f
     const val VIDEO_RADIUS_DP = 32f
 
     const val BAR_LEFT_DP = 32f

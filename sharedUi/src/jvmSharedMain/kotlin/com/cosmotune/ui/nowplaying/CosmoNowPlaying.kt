@@ -37,6 +37,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.design.LyricsMetrics
 import com.cosmotune.design.NowPlayingLayout
 import com.cosmotune.design.Springs
+import com.cosmotune.design.VideoView
+import com.cosmotune.music.ui.haptics.Haptic
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitMenu
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.design.WideNowPlayingMetrics
 import com.cosmotune.ui.shell.CosmoPlayerBar
 import com.cosmotune.ui.theme.CosmoMotion
@@ -180,6 +186,16 @@ fun CosmoNowPlaying(
     }
     val scrub = rememberPlayerScrub(song.videoId, position, durationMs)
     val controlsLocked = rememberControlsLocked()
+    val skipHaptics = rememberHaptics()
+    val transport = NowPlayingTransport(
+        song = song, coverUrl = remoteArt, isPlaying = isPlaying, position = position, durationMs = durationMs, scrub = scrub,
+        liked = likeStatus == LikeStatus.LIKE, shuffle = shuffleEnabled, repeatMode = repeatMode, hasPrevious = hasPrevious, hasNext = hasNext,
+        onPlayPause = onPlayPause,
+        onPrevious = { if (controlsLocked) onBlockedControl() else { skipHaptics.play(Haptic.SkipPrevious); onPrevious() } },
+        onNext = { if (controlsLocked) onBlockedControl() else { skipHaptics.play(Haptic.SkipNext); onNext() } },
+        onToggleShuffle = onToggleShuffle, onCycleRepeat = onCycleRepeat, onToggleLike = onToggleLike, onSeekFraction = onSeekFraction,
+        onOpenArtist = { onOpenArtist(song.artistId, song.artist) },
+    )
     val inParty = rememberInParty()
     val sheets = remember { NowPlayingSheetFlags() }
     val openAudioOutput = rememberOutputPicker { sheets.output = true }
@@ -212,6 +228,22 @@ fun CosmoNowPlaying(
     // a derived state: the progress moves every frame of the morph, the answer changes once.
     val settled by remember(shell) { derivedStateOf { shell?.playerSettled != false } }
     val wantVideo = canvas != null && !videoHidden && settled
+    // How the video is shown (Whole or Fill, kept in the look settings), whether Cinema is up, and the clip's own shape.
+    val keptView = shell?.settings?.videoView?.collectAsStateWithLifecycle()?.value ?: VideoView.WHOLE
+    val setView: (VideoView) -> Unit = { shell?.settings?.setVideoView(it) }
+    var cinema by rememberSaveable { mutableStateOf(false) }
+    var videoAspect by remember(canvas?.url) { mutableFloatStateOf(0f) }
+    var videoMenuOpen by remember { mutableStateOf(false) }
+    val cinemaShown = cinema && wantVideo
+    PlayerBackHandler(enabled = cinemaShown) { cinema = false }
+    val orbitType = orbitFonts()
+    val orbitInk = orbitLook()
+    val videoMenu: @Composable () -> Unit = {
+        OrbitMenu(
+            open = videoMenuOpen, onDismiss = { videoMenuOpen = false }, fonts = orbitType, look = orbitInk, header = "Show the video",
+            items = videoViewItems(keptView, cinema, !videoHidden, setView, { cinema = it }, { videoHidden = !it }),
+        )
+    }
     // Keyed on the clip (a version switch that keeps it carries this through) and on whether it is wanted at all: a clip that
     // is mounted again has to show a frame again before the cover gives way.
     var rendered by remember(canvas?.url, wantVideo) { mutableStateOf(false) }
@@ -251,8 +283,8 @@ fun CosmoNowPlaying(
     val topBar: @Composable (Modifier) -> Unit = { m ->
         NowPlayingTopBar(
             song = song, playedBy = playedBy, hasVideo = canvas != null, videoOn = canvas != null && !videoHidden,
-            blockedByMobileData = blockedByMobileData, onToggleVideo = { videoHidden = !videoHidden },
-            onOpenOrigin = openOrigin, onOpenMenu = onOpenMenu, modifier = m,
+            blockedByMobileData = blockedByMobileData, onToggleVideo = { videoMenuOpen = true },
+            onOpenOrigin = openOrigin, onOpenMenu = onOpenMenu, modifier = m, videoMenu = videoMenu,
         )
     }
     val stack: @Composable (Modifier, Boolean, (@Composable BoxScope.() -> Unit)?) -> Unit = { m, landscape, panel ->
@@ -295,6 +327,8 @@ fun CosmoNowPlaying(
             canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal, lyricsOpen = panels.lyricsOpen,
             onRenderedChanged = { rendered = it }, hazeState = playerHaze, modifier = Modifier.fillMaxSize(),
             controls = controlsSheet.progressState, controlsHeightPx = stackHeightPx,
+            view = keptView, aspect = videoAspect, onAspect = { videoAspect = it }, onDoubleTap = { cinema = true },
+            onPinch = setView, coverUrl = remoteArt,
         )
         // The stack is measured with its own padding, so the cover and the panels know how much of the window it takes. Over a
         // video it can be minimized to the bar (NP-1); otherwise the sheet is the stack alone, as it always was.
@@ -329,6 +363,7 @@ fun CosmoNowPlaying(
                 NowPlayingLandscapeMedia(
                     canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal,
                     onRenderedChanged = { rendered = it }, coverUrl = remoteArt, shell = shell,
+                    view = keptView, aspect = videoAspect, onAspect = { videoAspect = it },
                 )
             },
             topBar = { topBar(Modifier) },
@@ -347,8 +382,9 @@ fun CosmoNowPlaying(
                 NowPlayingWideHeader(
                     song = song, playedBy = playedBy, coverUrl = remoteArt, queueSelected = panels.queueOpen,
                     onSelectTab = { if (it == 0) panels.openLyrics() else panels.openQueue() },
-                    hasVideo = canvas != null, videoOn = canvas != null && !videoHidden, onToggleVideo = { videoHidden = !videoHidden },
+                    hasVideo = canvas != null, videoOn = canvas != null && !videoHidden, onToggleVideo = { videoMenuOpen = true },
                     onOpenOrigin = openOrigin, onOpenMenu = onOpenMenu, modifier = m, onWatchMusicVideo = watchMusicVideo,
+                    videoMenu = videoMenu,
                 )
             },
             panel = { m ->
@@ -363,6 +399,7 @@ fun CosmoNowPlaying(
                     canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal, onRenderedChanged = { rendered = it },
                     blockedByMobileData = blockedByMobileData, coverUrl = remoteArt, shell = shell,
                     coverModifier = cover, videoModifier = video, coverSide = side,
+                    view = keptView, aspect = videoAspect, onAspect = { videoAspect = it }, onDoubleTap = { cinema = true },
                 )
             },
             bar = { m ->
@@ -388,6 +425,19 @@ fun CosmoNowPlaying(
                 NowPlayingLayout.PORTRAIT -> page()
                 NowPlayingLayout.LANDSCAPE -> landscapePage()
                 NowPlayingLayout.WIDE -> widePage()
+            }
+            if (cinemaShown && canvas != null) {
+                NowPlayingCinema(
+                    canvas = canvas, isPlaying = isPlaying, view = keptView, aspect = videoAspect, onAspect = { videoAspect = it },
+                    reveal = reveal, onRenderedChanged = { rendered = it }, coverUrl = remoteArt, t = transport,
+                    fonts = orbitType, look = orbitInk, menuOpen = videoMenuOpen, onLeave = { cinema = false },
+                    buttons = listOf(
+                        CardButton(CosmoIcons.Previous, "Previous", transport.onPrevious, enabled = hasPrevious),
+                        CardButton(CosmoIcons.Next, "Next", transport.onNext, enabled = hasNext),
+                        CardButton(if (transport.liked) CosmoIcons.HeartFill else CosmoIcons.Heart, "Like", onToggleLike, on = transport.liked),
+                        CardButton(VIDEO_VIEW_ICON, "How the video is shown", { videoMenuOpen = true }, on = videoMenuOpen, menu = videoMenu),
+                    ),
+                )
             }
             NowPlayingSheets(
                 song = song, flags = sheets, hazeState = playerHaze, accountName = accountName, isPlaying = isPlaying,

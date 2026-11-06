@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
-import com.cosmotune.design.NowPlayingVideoMetrics
+import com.cosmotune.design.VideoView
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -43,8 +43,6 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.cosmoAmbientGround
 import com.cosmotune.ui.theme.drawEllipseGlow
 import com.cosmotune.music.data.canvas.CanvasArtwork
-import com.cosmotune.music.ui.player.CanvasArtworkPlayer
-import com.cosmotune.music.ui.player.CanvasContentMode
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
@@ -73,8 +71,13 @@ internal fun NowPlayingBackdrop(
     modifier: Modifier = Modifier,
     controls: State<Float>? = null,
     controlsHeightPx: State<Int>,
+    view: VideoView = VideoView.WHOLE,
+    aspect: Float = 0f,
+    onAspect: (Float) -> Unit = {},
+    onDoubleTap: (() -> Unit)? = null,
+    onPinch: ((VideoView) -> Unit)? = null,
+    coverUrl: String? = null,
 ) {
-    var videoBounds by remember(canvas) { mutableStateOf(IntSize.Zero) }
     // The fixed portrait card leaves the ambient ground visible around it.
     val scrimsShown by remember(reveal) { derivedStateOf { reveal.value > 0f } }
     Box(modifier.hazeSource(hazeState)) {
@@ -82,14 +85,10 @@ internal fun NowPlayingBackdrop(
         Box(Modifier.fillMaxSize().cosmoAmbientGround(artwork = true))
         if (wantVideo && canvas != null) {
             NowPlayingPortraitVideoFrame(controlsHeightPx) {
-                CanvasArtworkPlayer(
-                    canvas = canvas,
-                    isPlaying = isPlaying,
-                    modifier = Modifier.fillMaxSize().onSizeChanged { videoBounds = it },
-                    contentMode = CanvasContentMode.FIT_PORTRAIT,
-                    portraitRevealBounds = videoBounds,
-                    onRenderedChanged = onRenderedChanged,
-                    presentationAlpha = { reveal.value.coerceIn(0f, 1f) },
+                NowPlayingVideo(
+                    canvas = canvas, isPlaying = isPlaying, view = view, aspect = aspect, onAspect = onAspect, reveal = reveal,
+                    onRenderedChanged = onRenderedChanged, coverUrl = coverUrl, radius = CosmoRadii.rMd,
+                    modifier = Modifier.fillMaxSize(), onDoubleTap = onDoubleTap, onPinch = onPinch,
                 )
             }
         }
@@ -97,20 +96,19 @@ internal fun NowPlayingBackdrop(
     }
 }
 
-/** A fixed 4:5 card above the expanded controls. No detector, playhead or source-frame changes resize it. */
+/** The room above the expanded controls, the page's width less its sides; the video shows itself in it as its view says. */
 @Composable
 private fun NowPlayingPortraitVideoFrame(controlsHeightPx: State<Int>, content: @Composable () -> Unit) {
     val density = LocalDensity.current
     val topInsets = com.cosmotune.music.ui.theme.stableStatusBarInsets().union(WindowInsets.displayCutout)
-    Layout(content = { Box(Modifier.fillMaxSize().clip(RoundedCornerShape(CosmoRadii.rMd))) { content() } }, modifier = Modifier.fillMaxSize()) { measurables, constraints ->
-        val frame = NowPlayingVideoMetrics.portrait(
-            constraints.maxWidth.toDp().value, constraints.maxHeight.toDp().value,
-            controlsHeightPx.value.toDp().value, topInsets.getTop(density).toDp().value,
-        )
-        val placeable = measurables.single().measure(Constraints.fixed(frame.width.dp.roundToPx(), frame.height.dp.roundToPx()))
-        layout(constraints.maxWidth, constraints.maxHeight) {
-            placeable.place(frame.x.dp.roundToPx(), frame.y.dp.roundToPx())
-        }
+    Layout(content = { Box(Modifier.fillMaxSize()) { content() } }, modifier = Modifier.fillMaxSize()) { measurables, constraints ->
+        val side = 16.dp.roundToPx()
+        val top = topInsets.getTop(density) + 76.dp.roundToPx()
+        val room = (constraints.maxHeight - top - controlsHeightPx.value - 64.dp.roundToPx()).coerceAtLeast(0)
+        val width = (constraints.maxWidth - 2 * side).coerceAtLeast(0)
+        val height = minOf(room, (constraints.maxHeight * 0.6f).toInt())
+        val placeable = measurables.single().measure(Constraints.fixed(width, height))
+        layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(side, top) }
     }
 }
 

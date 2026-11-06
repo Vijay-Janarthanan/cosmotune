@@ -116,6 +116,7 @@ internal fun NowPlayingTopBar(
     onOpenOrigin: () -> Unit,
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    videoMenu: @Composable () -> Unit = {},
 ) {
     val dismiss = LocalCosmoPlayerDismiss.current
     val buttons = if (videoOn && hasVideo) CosmoIconButtonStyle.GLASS else CosmoIconButtonStyle.PLAIN
@@ -132,12 +133,13 @@ internal fun NowPlayingTopBar(
                 )
                 PlayingFrom(song, playedBy, onOpenOrigin, Modifier.weight(1f))
                 PlayerVisualsAction(song, style = buttons)
-                CosmoIconButton(
-                    if (videoOn) CosmoIcons.Canvas else CosmoIcons.CanvasOff,
-                    stringResource(if (videoOn) Res.string.cosmo_video_hide else Res.string.cosmo_video_show),
-                    onToggleVideo,
-                    style = buttons, size = 40.dp, on = videoOn, enabled = hasVideo,
-                )
+                Box {
+                    CosmoIconButton(
+                        if (videoOn) CosmoIcons.Canvas else CosmoIcons.CanvasOff, "How the video is shown", onToggleVideo,
+                        style = buttons, size = 40.dp, on = videoOn, enabled = hasVideo,
+                    )
+                    videoMenu()
+                }
                 CosmoIconButton(CosmoIcons.More, stringResource(Res.string.more), onOpenMenu, style = buttons, size = 40.dp)
             }
             if (blockedByMobileData) {

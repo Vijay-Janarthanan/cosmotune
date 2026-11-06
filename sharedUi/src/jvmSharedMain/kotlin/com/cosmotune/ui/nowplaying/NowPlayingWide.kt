@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.design.Springs
+import com.cosmotune.design.VideoView
 import com.cosmotune.design.WideNowPlayingMetrics
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.components.CosmoIconButton
@@ -75,8 +76,6 @@ import com.cosmotune.music.sharedui.resources.played_by
 import com.cosmotune.music.sharedui.resources.playing_from
 import com.cosmotune.music.sharedui.resources.playing_radio
 import com.cosmotune.music.sharedui.resources.queue
-import com.cosmotune.music.ui.player.CanvasArtworkPlayer
-import com.cosmotune.music.ui.player.CanvasContentMode
 import com.cosmotune.music.ui.player.PlayerPlatform
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
@@ -163,6 +162,7 @@ internal fun NowPlayingWideHeader(
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier,
     onWatchMusicVideo: (() -> Unit)? = null,
+    videoMenu: @Composable () -> Unit = {},
 ) {
     val dismiss = LocalCosmoPlayerDismiss.current
     val type = LocalCosmoType.current
@@ -198,12 +198,13 @@ internal fun NowPlayingWideHeader(
             CosmoIconButton(CosmoIcons.Video, stringResource(Res.string.cosmo_watch_music_video), onWatchMusicVideo, style = CosmoIconButtonStyle.TONAL, size = HEADER_BUTTON)
         }
         if (hasVideo) {
-            CosmoIconButton(
-                if (videoOn) CosmoIcons.Canvas else CosmoIcons.CanvasOff,
-                stringResource(if (videoOn) Res.string.cosmo_video_hide else Res.string.cosmo_video_show),
-                onToggleVideo,
-                style = CosmoIconButtonStyle.TONAL, size = HEADER_BUTTON, on = videoOn,
-            )
+            Box {
+                CosmoIconButton(
+                    if (videoOn) CosmoIcons.Canvas else CosmoIcons.CanvasOff, "How the video is shown", onToggleVideo,
+                    style = CosmoIconButtonStyle.TONAL, size = HEADER_BUTTON, on = videoOn,
+                )
+                videoMenu()
+            }
         }
         CosmoIconButton(CosmoIcons.More, stringResource(Res.string.more), onOpenMenu, style = CosmoIconButtonStyle.TONAL, size = HEADER_BUTTON)
         CosmoIconButton(CosmoIcons.ChevronDown, stringResource(Res.string.cosmo_collapse_player), dismiss, style = CosmoIconButtonStyle.TONAL, size = HEADER_BUTTON)
@@ -253,8 +254,11 @@ internal fun NowPlayingWideMedia(
     coverModifier: Modifier,
     videoModifier: Modifier,
     coverSide: Dp,
+    view: VideoView = VideoView.WHOLE,
+    aspect: Float = 0f,
+    onAspect: (Float) -> Unit = {},
+    onDoubleTap: (() -> Unit)? = null,
 ) {
-    var videoBounds by remember(canvas) { mutableStateOf(IntSize.Zero) }
     val colors = LocalCosmoColors.current
     val shape = remember { RoundedCornerShape(CosmoRadii.rMd) }
     Box(
@@ -274,17 +278,11 @@ internal fun NowPlayingWideMedia(
                 ambient = { Color.Black.copy(alpha = AMBIENT_SHADOW_ALPHA * reveal.value.coerceIn(0f, 1f)) },
             ),
         ) {
-            Box(Modifier.fillMaxSize().clip(shape)) {
-                CanvasArtworkPlayer(
-                    canvas = canvas,
-                    isPlaying = isPlaying,
-                    modifier = Modifier.fillMaxSize().onSizeChanged { videoBounds = it },
-                    contentMode = CanvasContentMode.FIT_PORTRAIT,
-                    portraitRevealBounds = videoBounds,
-                    onRenderedChanged = onRenderedChanged,
-                    presentationAlpha = { reveal.value.coerceIn(0f, 1f) },
-                )
-            }
+            NowPlayingVideo(
+                canvas = canvas, isPlaying = isPlaying, view = view, aspect = aspect, onAspect = onAspect, reveal = reveal,
+                onRenderedChanged = onRenderedChanged, coverUrl = coverUrl, radius = CosmoRadii.rMd,
+                modifier = Modifier.fillMaxSize(), onDoubleTap = onDoubleTap,
+            )
         }
     }
     if (blockedByMobileData) {

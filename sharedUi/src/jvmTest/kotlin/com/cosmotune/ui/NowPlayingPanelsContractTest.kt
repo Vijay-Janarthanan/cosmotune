@@ -132,7 +132,7 @@ class NowPlayingPanelsContractTest {
         val handlers = Regex("""PlayerBackHandler\(enabled = ([\w.]+)""").findAll(src).map { it.groupValues[1] }.toList()
         // a later call is the one back reaches first: the lyrics, the queue, then the sheets
         assertEquals(
-            listOf("panels.lyricsOpen", "panels.queueOpen", "flags.output", "flags.providers", "flags.members", "flags.details", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
+            listOf("panels.lyricsOpen", "panels.queueOpen", "cinemaShown", "flags.output", "flags.providers", "flags.members", "flags.details", "flags.pipeline", "flags.cast", "lyricsOffsetOpen"),
             handlers,
         )
         assertTrue(src.indexOf("PlayerBackHandler(enabled = panels.queueOpen && !wide)") in 0 until src.indexOf("NowPlayingSheets(\n                song"), "the panels register before the sheets")
@@ -176,8 +176,7 @@ class NowPlayingPanelsContractTest {
 
     @Test fun landscapeIsTwoPanesWithTheVideoCroppedAndTheCoverSizedToFit() {
         val src = code(nowPlaying("NowPlayingLandscape.kt"))
-        assertTrue(src.contains("contentMode = CanvasContentMode.FIT_PORTRAIT"))
-        assertTrue(src.contains("presentationAlpha = { reveal.value.coerceIn(0f, 1f) }"), "the clip's own alpha, not a layer")
+        assertTrue(src.contains("NowPlayingVideo("), "the video is shown as its view says")
         assertTrue(src.contains("LandscapeMetrics.coverSideDp(maxWidth.value, maxHeight.value)"))
         assertTrue(src.contains("CosmoRadii.rMd"), "the token's corners")
         assertTrue(src.contains("shell?.playerCoverBounds = it.boundsInRoot()"))

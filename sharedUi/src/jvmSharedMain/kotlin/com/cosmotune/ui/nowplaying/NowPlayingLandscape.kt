@@ -35,15 +35,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
-import com.cosmotune.design.NowPlayingVideoMetrics
+import com.cosmotune.design.VideoView
 import com.cosmotune.design.LandscapeMetrics
 import com.cosmotune.ui.components.CoverImage
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.CosmoShellState
 import com.cosmotune.ui.theme.cosmoAmbientGround
 import com.cosmotune.music.data.canvas.CanvasArtwork
-import com.cosmotune.music.ui.player.CanvasArtworkPlayer
-import com.cosmotune.music.ui.player.CanvasContentMode
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
@@ -102,9 +100,10 @@ internal fun NowPlayingLandscapeMedia(
     coverUrl: String?,
     shell: CosmoShellState?,
     modifier: Modifier = Modifier,
+    view: VideoView = VideoView.WHOLE,
+    aspect: Float = 0f,
+    onAspect: (Float) -> Unit = {},
 ) {
-    var videoBounds by remember(canvas) { mutableStateOf(IntSize.Zero) }
-    val shape = remember { RoundedCornerShape(CosmoRadii.rMd) }
     BoxWithConstraints(modifier.fillMaxSize().windowInsetsPadding(com.cosmotune.music.ui.theme.stableStatusBarInsets()).padding(LandscapeMetrics.MEDIA_PADDING_DP.dp)) {
         val side = LandscapeMetrics.coverSideDp(maxWidth.value, maxHeight.value).dp
         Box(
@@ -117,18 +116,10 @@ internal fun NowPlayingLandscapeMedia(
             CoverImage(coverUrl, side, CosmoRadii.rMd, shadow = false)
         }
         if (wantVideo && canvas != null) {
-            val frame = NowPlayingVideoMetrics.fit(maxWidth.value, maxHeight.value)
-            Box(Modifier.align(Alignment.Center).size(frame.width.dp, frame.height.dp).clip(shape)) {
-                CanvasArtworkPlayer(
-                    canvas = canvas,
-                    isPlaying = isPlaying,
-                    modifier = Modifier.fillMaxSize().onSizeChanged { videoBounds = it },
-                    contentMode = CanvasContentMode.FIT_PORTRAIT,
-                    portraitRevealBounds = videoBounds,
-                    onRenderedChanged = onRenderedChanged,
-                    presentationAlpha = { reveal.value.coerceIn(0f, 1f) },
-                )
-            }
+            NowPlayingVideo(
+                canvas = canvas, isPlaying = isPlaying, view = view, aspect = aspect, onAspect = onAspect, reveal = reveal,
+                onRenderedChanged = onRenderedChanged, coverUrl = coverUrl, radius = CosmoRadii.rMd, modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
