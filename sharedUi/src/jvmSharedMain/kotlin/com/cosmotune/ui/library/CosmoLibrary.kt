@@ -93,10 +93,10 @@ import com.cosmotune.ui.orbit.OrbitPlayButton
 import com.cosmotune.ui.orbit.OrbitPortrait
 import com.cosmotune.ui.orbit.OrbitRecord
 import com.cosmotune.ui.orbit.OrbitRoundButton
-import com.cosmotune.ui.orbit.OrbitRow
 import com.cosmotune.ui.orbit.OrbitSectionHeader
 import com.cosmotune.ui.orbit.OrbitSelectChip
 import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.OrbitSongRowFor
 import com.cosmotune.ui.orbit.coverFill
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
@@ -439,15 +439,16 @@ private fun LazyListScope.playlistsSegment(
     if (page.grid) recordGrid("playlist", rows, onClick, onLongPress, page)
     else itemsIndexed(rows, key = { index, item -> "playlist:" + shelfKey(item, index) }) { _, item ->
         val pinnedItem = item.browseId != null && item.browseId in pinned
-        OrbitRow(
+        OrbitSongRow(
             title = item.title,
             subtitle = localizeCardSubtitle(item.subtitle),
             cover = item.thumbnailUrl,
             fonts = page.fonts,
             look = page.look,
             onClick = { onClick(item) },
-            modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp),
-            onLongPress = { onLongPress(item) },
+            modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp).fillMaxWidth(),
+            onLongClick = { onLongPress(item) },
+            endPadding = 6.dp,
             trailing = {
                 if (pinnedItem) PinMark(page)
                 MoreButton(page) { onLongPress(item) }
@@ -550,7 +551,7 @@ private fun LazyListScope.songsSegment(
     item(key = "songs:top") { Spacer(Modifier.height(8.dp)) }
     itemsIndexed(songs, key = { index, song -> "song:${song.videoId}:$index" }) { index, song ->
         val current = isCurrentRow(song)
-        OrbitSongRow(
+        OrbitSongRowFor(
             song = song,
             fonts = page.fonts,
             look = page.look,
@@ -569,15 +570,15 @@ private fun LazyListScope.songsSegment(
 /** Items as Home's rows: the disc, the title, and the line under it. A hold opens the menu. */
 private fun LazyListScope.itemRows(prefix: String, items: List<ShelfItem>, onClick: (ShelfItem) -> Unit, onLongPress: (ShelfItem) -> Unit, page: LibraryLook) {
     itemsIndexed(items, key = { index, item -> "$prefix:" + shelfKey(item, index) }) { _, item ->
-        OrbitRow(
+        OrbitSongRow(
             title = item.title,
             subtitle = localizeCardSubtitle(item.subtitle),
             cover = item.thumbnailUrl,
             fonts = page.fonts,
             look = page.look,
             onClick = { onClick(item) },
-            modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp),
-            onLongPress = { onLongPress(item) },
+            modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp).fillMaxWidth(),
+            onLongClick = { onLongPress(item) },
         )
     }
 }
@@ -605,15 +606,16 @@ private fun LazyListScope.downloadedSegment(
         }
         itemsIndexed(links, key = { index, link -> "folder:${link.item.browseId ?: link.item.title}#$index" }) { _, link ->
             val logo = link.logo?.let { painterResource(it) }
-            OrbitRow(
+            OrbitSongRow(
                 title = link.item.title,
                 subtitle = link.item.subtitle,
                 cover = null,
                 fonts = page.fonts,
                 look = page.look,
                 onClick = { onClick(link.item) },
-                modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp),
-                leading = {
+                modifier = Modifier.padding(horizontal = page.side, vertical = 4.dp).fillMaxWidth(),
+                endPadding = 6.dp,
+                discContent = {
                     Box(Modifier.size(44.dp).clip(CircleShape).background(page.look.chip), contentAlignment = Alignment.Center) {
                         if (logo != null) Icon(logo, contentDescription = null, tint = androidx.compose.ui.graphics.Color.Unspecified, modifier = Modifier.size(22.dp))
                         else Icon(link.icon, contentDescription = null, tint = page.look.ink, modifier = Modifier.size(20.dp))
@@ -686,7 +688,7 @@ private fun LibraryRecord(item: ShelfItem, onClick: (ShelfItem) -> Unit, onLongP
             fonts = page.fonts,
             look = page.look,
             onClick = { onClick(item) },
-            onLongPress = { onLongPress(item) },
+            onLongClick = { onLongPress(item) },
             onPlay = { onClick(item) },
         )
     }

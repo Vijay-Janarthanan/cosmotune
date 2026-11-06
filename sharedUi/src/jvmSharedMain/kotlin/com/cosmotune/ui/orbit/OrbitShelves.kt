@@ -45,6 +45,7 @@ import coil3.compose.AsyncImage
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.ui.components.LocalShelfRowChrome
 import com.cosmotune.music.ui.components.contextClick
+import com.cosmotune.music.ui.components.longPressMenuClickable
 import com.cosmotune.music.ui.components.rememberShelfFlingBehavior
 import com.cosmotune.ui.components.CosmoIcons
 
@@ -54,64 +55,6 @@ import com.cosmotune.ui.components.CosmoIcons
  */
 
 // ---- rows -----------------------------------------------------------------------------------------------------------------------
-
-/**
- * Home's song row: 68 dp, radius 22, the ink at 5 %, the cover as a 44 dp disc at the start. The playing row ([now]) is washed
- * with peach from the start, its title is peach and its disc wears the orbit (the moon circles while [playing]).
- *
- * [leading] replaces the disc (a selection mark, a spinner); [titleContent] the title line (an explicit mark); [trailing] the
- * duration ([trailingText]) at the end. Holding the row, or a right click on the desktop, is [onLongPress].
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-internal fun OrbitSongRow(
-    title: String,
-    subtitle: String,
-    cover: String?,
-    fonts: OrbitFonts,
-    look: OrbitLook,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    now: Boolean = false,
-    playing: Boolean = false,
-    onLongPress: (() -> Unit)? = null,
-    trailingText: String? = null,
-    enabled: Boolean = true,
-    titleContent: (@Composable () -> Unit)? = null,
-    subtitleLeading: (@Composable () -> Unit)? = null,
-    leading: (@Composable () -> Unit)? = null,
-    trailing: (@Composable RowScope.() -> Unit)? = null,
-) {
-    Row(
-        modifier.height(68.dp).clip(RoundedCornerShape(22.dp))
-            .background(if (now) Brush.horizontalGradient(listOf(look.accent.copy(alpha = 0.28f), look.row)) else Brush.linearGradient(listOf(look.row, look.row)))
-            .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongPress)
-            .contextClick(onLongPress.takeIf { enabled })
-            .padding(start = 10.dp, end = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
-            if (leading != null) leading()
-            else {
-                Disc(cover, 44.dp)
-                if (now) OrbitRing(52.dp, look.accent, progress = null, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
-            }
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            if (titleContent != null) titleContent()
-            else Text(title, style = fonts.title, color = if (now) look.accent else look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitleLeading != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    subtitleLeading()
-                    if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            } else if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        if (trailing != null) trailing()
-        else trailingText?.let { Text(it, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp)) }
-    }
-}
 
 /**
  * A row of a ranking (a chart, an artist's top songs): the place as a big narrow number, the first in peach, then a 48 dp disc and
@@ -174,8 +117,10 @@ internal fun OrbitShelfRow(side: Dp, gap: Dp, content: androidx.compose.foundati
 
 internal fun shelfItemKey(item: ShelfItem, index: Int): String = (item.browseId ?: item.videoId ?: item.title) + "#" + index
 
-/** An album or playlist as a record: the cover as a disc, play as a moon on its edge ([onPlay]), the title and a line under it. */
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * An album or playlist as a record, the only one: the cover as a disc [size] wide, play as a moon on its edge ([onPlay]; null for
+ * none; the moon is 38 dp on discs under 130 dp), the title and a line under it. A tap opens it, a hold or a right click opens its menu.
+ */
 @Composable
 internal fun OrbitRecord(
     title: String,
@@ -185,15 +130,15 @@ internal fun OrbitRecord(
     look: OrbitLook,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onPlay: () -> Unit = onClick,
-    onLongPress: (() -> Unit)? = null,
+    onPlay: (() -> Unit)? = onClick,
+    onLongClick: (() -> Unit)? = null,
     size: Dp = 152.dp,
 ) {
-    Column(modifier.width(size).combinedClickable(onClick = onClick, onLongClick = onLongPress).contextClick(onLongPress)) {
+    Column(modifier.width(size).longPressMenuClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick)) {
         Box(Modifier.size(size)) {
             Disc(cover, size)
             // Play is a small moon on the disc's edge, so the cover itself stays clear.
-            DiscPlayMoon(look, onPlay)
+            if (onPlay != null) DiscPlayMoon(look, onPlay, size = if (size < 130.dp) 38.dp else 44.dp)
         }
         Text(title, style = fonts.title, color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
         if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -215,7 +160,7 @@ internal fun OrbitRecordRow(
     OrbitShelfRow(side + 4.dp, 18.dp) {
         itemsIndexed(items, key = { i, it -> shelfItemKey(it, i) }) { _, item ->
             OrbitRecord(item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, onPlay = { onPlay(item) },
-                onLongPress = onLongPress?.let { { it(item) } }, size = size)
+                onLongClick = onLongPress?.let { { it(item) } }, size = size)
         }
     }
 }

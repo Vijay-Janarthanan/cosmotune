@@ -61,9 +61,9 @@ import com.cosmotune.ui.orbit.OrbitPlayButton
 import com.cosmotune.ui.orbit.OrbitPortrait
 import com.cosmotune.ui.orbit.OrbitRecord
 import com.cosmotune.ui.orbit.OrbitRoundButton
-import com.cosmotune.ui.orbit.OrbitRow
 import com.cosmotune.ui.orbit.OrbitSectionHeader
 import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.OrbitSongRowFor
 import com.cosmotune.ui.orbit.coverFill
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -277,7 +277,7 @@ private fun SearchRecord(item: BrowseItem, actions: SearchRowActions, page: Sear
         fonts = page.fonts,
         look = page.look,
         onClick = { actions.onBrowseClick(item) },
-        onLongPress = holdFor(item, actions),
+        onLongClick = holdFor(item, actions),
         // The moon opens the release, whose page plays it: the search has no way to play a whole album from here.
         onPlay = if (item.type == BrowseType.OTHER) null else ({ actions.onBrowseClick(item) }),
     )
@@ -311,7 +311,7 @@ private fun SearchSongRow(song: Song, tracks: List<Song>, actions: SearchRowActi
     // The row that was played lights, not every namesake among the page's songs: see [playingRowMatcher].
     val isCurrentRow = remember(tracks, actions.currentSong) { playingRowMatcher(tracks, actions.currentSong) }
     val current = isCurrentRow(song)
-    OrbitSongRow(
+    OrbitSongRowFor(
         song = song,
         fonts = page.fonts,
         look = page.look,
@@ -327,15 +327,15 @@ private fun SearchSongRow(song: Song, tracks: List<Song>, actions: SearchRowActi
 /** An album, an artist, a playlist or the rest as Home's row: the disc, the name, and what it is. */
 @Composable
 internal fun BrowseListRow(item: BrowseItem, onClick: () -> Unit, onLongPress: (() -> Unit)?, page: SearchPage, modifier: Modifier = Modifier) {
-    OrbitRow(
+    OrbitSongRow(
         title = item.title,
         subtitle = item.subtitle.ifBlank { typeLabel(item.type.name) },
         cover = item.thumbnailUrl,
         fonts = page.fonts,
         look = page.look,
         onClick = onClick,
-        modifier = modifier,
-        onLongPress = onLongPress,
+        modifier = modifier.fillMaxWidth(),
+        onLongClick = onLongPress,
     )
 }
 
@@ -374,7 +374,7 @@ internal fun LazyListScope.libraryRows(
             val isCurrentRow = playingRowMatcher(tracks, currentSong)
             itemsIndexed(tracks, key = { index, song -> "${prefix}_${song.videoId}_$index" }) { index, song ->
                 val current = isCurrentRow(song)
-                OrbitSongRow(
+                OrbitSongRowFor(
                     song = song,
                     fonts = page.fonts,
                     look = page.look,

@@ -68,6 +68,7 @@ import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.orbit.OrbitSearchPill
 import com.cosmotune.ui.orbit.OrbitSelectChip
 import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.OrbitSongRowFor
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.orbit.orbitRecordGrid
@@ -275,7 +276,7 @@ fun CosmoSearch(
                         // Source by source, each with its own state, as the answers come in.
                         addonSourceSections(searchIn.progress, searchIn, "addon", cosmo = true) { tracks, index, song ->
                             val current = playingRowMatcher(tracks, currentSong)(song)
-                            OrbitSongRow(
+                            OrbitSongRowFor(
                                 song = song,
                                 fonts = fonts,
                                 look = look,
@@ -589,7 +590,7 @@ private fun LazyListScope.typeaheadRows(
 
 @Composable
 private fun TypeaheadSong(song: Song, actions: SearchRowActions, onLongPress: ((Song) -> Unit)?, current: Boolean, page: SearchPage, modifier: Modifier) {
-    OrbitSongRow(
+    OrbitSongRowFor(
         song = song,
         fonts = page.fonts,
         look = page.look,

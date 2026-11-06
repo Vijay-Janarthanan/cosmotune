@@ -368,7 +368,7 @@ private fun OrbitSongRows(
                 pair.forEach { item ->
                     OrbitSongRow(
                         item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, modifier = Modifier.weight(1f),
-                        now = isPlaying(item), playing = playing, onLongPress = onLongPress?.let { { it(item) } }, trailingText = item.song?.durationText,
+                        now = isPlaying(item), playing = playing, onLongClick = onLongPress?.let { { it(item) } }, trailingText = item.song?.durationText,
                     )
                 }
                 if (pair.size < columns) Spacer(Modifier.weight(1f))

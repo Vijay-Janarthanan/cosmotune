@@ -225,7 +225,7 @@ class LibraryContractTest {
         assertTrue("LibrarySegments.RAIL_MAX_ITEMS" in code, "the old cap of five")
         assertTrue("painter = painterResource(Res.drawable.spotify_logo)" in code, "the Import chip keeps the Spotify mark")
         assertTrue(Regex("""if \(onImportSpotifyPlaylist != null\)""").containsMatchIn(code), "Import only where this build has it")
-        assertTrue("DiscPlayMoon" in SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitBrowse.kt"), "records wear the play moon")
+        assertTrue("DiscPlayMoon" in SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitShelves.kt"), "records wear the play moon")
         assertTrue("onPlay = { onClick(item) }" in code)
     }
 
@@ -253,7 +253,7 @@ class LibraryContractTest {
         val code = SourceContract.code(lib("CosmoLibrary"))
         assertTrue(Regex("""recordGrid\("albums"""").containsMatchIn(code))
         assertTrue("recordGrid(\"artist\", items, onClick, onLongPress, page, portraits = true)" in code)
-        assertTrue("OrbitPortrait(" in code && "OrbitRecord(" in code && "OrbitSongRow(" in code)
+        assertTrue("OrbitPortrait(" in code && "OrbitRecord(" in code && "OrbitSongRow(" in code && "OrbitSongRowFor(" in code)
         assertTrue("library.librarySongs.ifEmpty { library.likedSongs }" in code, "Songs: the library's tracks")
         assertTrue("playingRowMatcher(songs, currentSong)" in code, "only the played row lights")
         assertTrue("orbitRecordGrid(maxWidth, side)" in code, "wider windows take more records to a row")

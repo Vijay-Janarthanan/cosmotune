@@ -198,62 +198,13 @@ internal fun OrbitLabel(text: String, fonts: OrbitFonts, color: Color, modifier:
 // ---- rows ----------------------------------------------------------------------------------------------------------------------
 
 /**
- * Home's row: 68 dp, radius 22, ink at 5 %, a 44 dp disc at the start. [now] is the playing row: the peach wash, the title in
- * peach and the orbit round its disc ([playing] sets the moon going). [leading] replaces the disc (an icon, a logo).
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-internal fun OrbitRow(
-    title: String,
-    subtitle: String,
-    cover: String?,
-    fonts: OrbitFonts,
-    look: OrbitLook,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    onLongPress: (() -> Unit)? = null,
-    now: Boolean = false,
-    playing: Boolean = false,
-    trailingText: String? = null,
-    leading: (@Composable () -> Unit)? = null,
-    titleContent: (@Composable () -> Unit)? = null,
-    subtitleLeading: (@Composable () -> Unit)? = null,
-    trailing: (@Composable RowScope.() -> Unit)? = null,
-) {
-    Row(
-        modifier.fillMaxWidth().height(68.dp).clip(RoundedCornerShape(22.dp))
-            .background(if (now) Brush.horizontalGradient(listOf(look.accent.copy(alpha = 0.28f), look.row)) else Brush.linearGradient(listOf(look.row, look.row)))
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
-            .contextClick(onLongPress)
-            .padding(start = 10.dp, end = if (trailing != null) 6.dp else 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
-            if (leading != null) leading() else Disc(cover, 44.dp)
-            if (now) OrbitRing(52.dp, look.accent, progress = null, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            if (titleContent != null) titleContent()
-            else Text(title, style = fonts.title, color = if (now) look.accent else look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle.isNotBlank() || subtitleLeading != null) Row(verticalAlignment = Alignment.CenterVertically) {
-                if (subtitleLeading != null) { subtitleLeading(); Spacer(Modifier.width(6.dp)) }
-                Text(subtitle, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        if (trailingText != null) Text(trailingText, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp))
-        if (trailing != null) trailing()
-    }
-}
-
-/**
- * A song as Home's row: its cover, the title with the explicit mark, the artist (led by the source's offered tier with
+ * A [Song] as [OrbitSongRow] (Home's row): its cover, the title with the explicit mark, the artist (led by the source's offered tier with
  * [showSourceQuality]), the length. A tap plays, a hold or a right click opens the song's menu, and with [onSwipe] a swipe either
  * way queues it (or plays it next), as the old rows did; the row springs back.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun OrbitSongRow(
+internal fun OrbitSongRowFor(
     song: Song,
     fonts: OrbitFonts,
     look: OrbitLook,
@@ -269,15 +220,15 @@ internal fun OrbitSongRow(
     val quality = if (showSourceQuality) song.catalogueQualityBadge() else null
     val faded = if (song.isMatchMissing) Modifier.alpha(0.45f) else Modifier
     val row: @Composable (Modifier) -> Unit = { m ->
-        OrbitRow(
+        OrbitSongRow(
             title = song.title,
             subtitle = song.artist,
             cover = cover,
             fonts = fonts,
             look = look,
             onClick = onClick,
-            modifier = m,
-            onLongPress = onLongPress.takeIf { !song.isMatchPending && !song.isMatchMissing },
+            modifier = m.fillMaxWidth(),
+            onLongClick = onLongPress.takeIf { !song.isMatchPending && !song.isMatchMissing },
             now = now,
             playing = playing,
             trailingText = song.durationText,
@@ -325,33 +276,6 @@ private fun SwipeUnder(state: SwipeToDismissBoxState, fonts: OrbitFonts, look: O
 }
 
 // ---- records and portraits -----------------------------------------------------------------------------------------------
-
-/**
- * An album or a playlist as a record: the cover as a disc [size] wide with Play as a moon on its edge ([onPlay]; null for none),
- * the title and the line under it. A tap opens it, a hold or a right click opens its menu.
- */
-@Composable
-internal fun OrbitRecord(
-    title: String,
-    subtitle: String,
-    cover: String?,
-    size: Dp,
-    fonts: OrbitFonts,
-    look: OrbitLook,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    onLongPress: (() -> Unit)? = null,
-    onPlay: (() -> Unit)? = null,
-) {
-    Column(modifier.width(size).clip(RoundedCornerShape(18.dp)).longPressMenuClickable(onClick = onClick, onLongClick = onLongPress).contextClick(onLongPress)) {
-        Box(Modifier.size(size)) {
-            Disc(cover, size)
-            if (onPlay != null) DiscPlayMoon(look, onPlay, size = if (size < 130.dp) 38.dp else 44.dp)
-        }
-        Text(title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
-        if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
 
 /** A grid of records: as many 150 dp cells as fit [width] with [side] gutters and 18 dp between (at least two), and their width. */
 internal fun orbitRecordGrid(width: Dp, side: Dp): Pair<Int, Dp> {

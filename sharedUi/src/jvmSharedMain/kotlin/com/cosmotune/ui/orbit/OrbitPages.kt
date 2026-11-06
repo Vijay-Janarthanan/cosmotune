@@ -226,11 +226,11 @@ fun OrbitTrackRow(
         OrbitSongRow(
             title = song.title, subtitle = subtitle, cover = cover, fonts = fonts, look = look, onClick = onClick,
             modifier = m, now = now, playing = playing,
-            onLongPress = onLongPress.takeUnless { pending || missing },
+            onLongClick = onLongPress.takeUnless { pending || missing },
             enabled = !missing,
             titleContent = { ExplicitSongTitle(song, style = fonts.title, color = if (now) look.accent else look.ink) },
             subtitleLeading = quality?.let { badge -> { QualityPill(badge, compact = true) } },
-            leading = when {
+            discContent = when {
                 selected != null -> { { OrbitCheckMark(selected, look) } }
                 pending -> { { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = look.dim) } }
                 else -> null
@@ -323,7 +323,7 @@ fun OrbitLatestRelease(item: ShelfItem, year: Int?, saved: Boolean?, onClick: ()
     val look = orbitLook()
     OrbitSongRow(
         title = item.title, subtitle = listOfNotNull("Latest release", year?.toString()).joinToString(" · "), cover = item.thumbnailUrl,
-        fonts = fonts, look = look, onClick = onClick, modifier = modifier.fillMaxWidth(), onLongPress = onLongPress,
+        fonts = fonts, look = look, onClick = onClick, modifier = modifier.fillMaxWidth(), onLongClick = onLongPress,
         trailing = {
             if (saved != null && onToggleSaved != null) {
                 OrbitRoundButton(if (saved) CosmoIcons.HeartFill else CosmoIcons.Heart, if (saved) "Saved" else "Save", look.ink, onToggleSaved, on = saved, onInk = look.ground)

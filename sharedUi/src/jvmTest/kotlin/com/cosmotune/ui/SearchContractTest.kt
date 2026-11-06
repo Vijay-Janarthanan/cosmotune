@@ -310,7 +310,7 @@ class SearchContractTest {
     @Test fun theResultPageUsesTheOrbitPiecesTheBoardNames() {
         val results = SourceContract.code(search("CosmoSearchResults"))
         for (needle in listOf(
-            "OrbitBiteCard(", "OrbitPlayButton(", "coverFill(cover, title)", "OrbitLabel(\"Top result · \$kind\"", "OrbitArtistDisc(", "OrbitSongRow(",
+            "OrbitBiteCard(", "OrbitPlayButton(", "coverFill(cover, title)", "OrbitLabel(\"Top result · \$kind\"", "OrbitArtistDisc(", "OrbitSongRow(", "OrbitSongRowFor(",
             "OrbitRecord(", "OrbitPortrait(", "CosmoIcons.Plus", "Res.string.playlist_action", "Res.string.cosmo_search_no_results_hint", "WIDE_SEARCH_DP",
             "Res.string.search_library_no_results", "Res.string.search_library_empty", "songListSkeleton(count = 3, keyPrefix = \"skeleton:search:more\"",
         )) assertTrue(needle in results, "CosmoSearchResults has $needle")
