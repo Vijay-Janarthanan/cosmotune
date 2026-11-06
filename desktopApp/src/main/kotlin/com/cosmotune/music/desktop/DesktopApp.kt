@@ -1705,6 +1705,12 @@ fun CosmotuneDesktopApp() {
                 }
             },
             onCrossfaded = { song ->
+                // A blend already under way when "End of this track" was chosen:
+                // the track it was set for has now gone, so this is the end.
+                if (DesktopSleepTimer.afterTrack.value) {
+                    DesktopSleepTimer.cancel()
+                    playbackEngine.pause()
+                }
                 scope.launch {
                     // The queue moves with the audio. Only the selection used to, which left the
                     // queue on the track that had just finished — so Next "advanced" onto the song
@@ -1797,6 +1803,22 @@ fun CosmotuneDesktopApp() {
         }
         playbackEngine.pause()
         partySync.onLocalIntent()
+    }
+    /**
+     * The sleep timer ran out: everything this app plays pauses, not Music's
+     * engine alone. Music as the pause button would (a room hears it as this
+     * listener's pause), then Video and Watch, which play on Video's own mpv
+     * player, then a DLNA renderer that has the song.
+     */
+    fun pauseEverythingForSleep() {
+        pauseFromUser()
+        if (playbackEngine.state.value.isPlaying) playbackEngine.pause()
+        com.cosmotune.video.graph.desktopVideoGraph(build = false)?.playback?.engine?.let { engine ->
+            // Only a loaded video: mpv keeps its pause across files, so pausing
+            // an idle player would leave the next video starting paused.
+            if (DesktopSleepTimer.videoIsLoaded(engine.snapshot.value.status)) engine.pause()
+        }
+        com.cosmotune.music.data.cast.dlna.DlnaCast.pauseRenderer()
     }
     // A DLNA renderer that has taken the song stops it playing here (Extras: DLNA casting).
     DisposableEffect(playbackEngine) {
@@ -1900,7 +1922,9 @@ fun CosmotuneDesktopApp() {
     // the next song at a different moment and be dragged back by a correcting seek. The transition a
     // party shares is the plain one. The settings themselves are left alone and come back after.
     val inParty = partyState.inParty
-    LaunchedEffect(automix, automixOnSkip, automixPhraseBars, crossfadeSeconds, inParty, audioQuality, selectedSong?.videoId, queue, liveQueue.index, shuffle, repeatMode) {
+    // The player's chip row shows a crossfade that is on; the length is this window's own state.
+    LaunchedEffect(crossfadeSeconds, inParty) { DesktopPlayerHost.crossfadeOn.value = crossfadeSeconds > 0 && !inParty }
+    LaunchedEffect(automix, automixOnSkip, automixPhraseBars, crossfadeSeconds, inParty, audioQuality, selectedSong?.videoId, queue, liveQueue.index, shuffle, repeatMode, sleepAfterTrack) {
         playbackEngine.setAutomixEnabled(automix && !inParty)
         playbackEngine.setAutomixPhraseBars(DesktopAutomixOptions.enginePhraseBars(automix, inParty, automixPhraseBars))
         playbackEngine.setCrossfadeSeconds(if (inParty) 0 else crossfadeSeconds)
@@ -1911,8 +1935,11 @@ fun CosmotuneDesktopApp() {
         // blended into a song from history whenever the current one was not at the top.
         // Repeat-one prepares nothing: the track ends and [onEnded] starts it again, rather than
         // blending into the next one.
+        // "End of this track" prepares nothing either: a blend into the next
+        // track never ends this one, so [onEnded] (where that timer pauses)
+        // never came and the music played on.
         val next = selectedSong
-            ?.takeIf { repeatMode != DesktopRepeatMode.ONE }
+            ?.takeIf { DesktopSleepTimer.preparesNext(repeatOne = repeatMode == DesktopRepeatMode.ONE, afterTrack = sleepAfterTrack) }
             ?.let { liveQueue.followingFor(it.videoId, repeatAll = repeatMode == DesktopRepeatMode.ALL) }
         playbackEngine.prepareNext(next)
     }
@@ -1959,7 +1986,7 @@ fun CosmotuneDesktopApp() {
             delay(1_000L)
             if (DesktopSleepTimer.isExpired()) {
                 DesktopSleepTimer.cancel()
-                playbackEngine.pause()
+                pauseEverythingForSleep()
             }
         }
     }

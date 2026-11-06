@@ -238,7 +238,9 @@ fun TvSongActionMenuDialog(
             item {
                 TvListRow(
                     title = "Sleep Timer",
-                    value = if (sleepDeadline != null || sleepAfterTrack) "On" else "Off",
+                    // What is left while one runs, rather than a bare "On".
+                    value = com.cosmotune.ui.sleep.rememberSleepTimer()?.line("After this song")
+                        ?: if (sleepDeadline != null || sleepAfterTrack) "On" else "Off",
                     trailingIcon = Icons.Rounded.Timer,
                     onClick = { sheet = SongSheet.Sleep },
                 )
@@ -370,13 +372,23 @@ fun TvSleepTimerDialog(onDismiss: () -> Unit) {
     val deadline by SleepTimer.deadline.collectAsState()
     val afterTrack by SleepTimer.afterTrack.collectAsState()
     val active = deadline != null || afterTrack
+    val running = com.cosmotune.ui.sleep.rememberSleepTimer()
+    val message = running?.let { if (it.afterTrack) "Pausing when this song ends" else "${it.line()} before playback pauses" }
+        ?: "Stop playing music after"
 
-    TvDialog(title = "Sleep Timer", message = "Stop playing music after", onDismissRequest = onDismiss) {
+    TvDialog(title = "Sleep Timer", message = message, onDismissRequest = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            if (active) {
+                TvListRow(
+                    title = "Extend by ${SleepTimer.EXTEND_MINUTES} Minutes",
+                    modifier = Modifier.tvInitialFocus(),
+                    onClick = { SleepTimer.extend() },
+                )
+            }
             listOf(15, 30, 45, 60).forEachIndexed { index, minutes ->
                 TvListRow(
                     title = "$minutes Minutes",
-                    modifier = if (index == 0) Modifier.tvInitialFocus() else Modifier,
+                    modifier = if (index == 0 && !active) Modifier.tvInitialFocus() else Modifier,
                     onClick = {
                         SleepTimer.start(minutes)
                         onDismiss()

@@ -129,6 +129,18 @@ internal object DesktopPlayerHost : PlayerHost {
         .map { it.toOutputFormat() }
         .stateIn(scope, SharingStarted.Eagerly, OutputFormatUi())
 
+    /** The window's crossfade length, which lives in its own state; it writes it here as it changes. */
+    val crossfadeOn = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    override val activeFeatures: StateFlow<com.cosmotune.music.ui.player.ActiveFeaturesUi> =
+        kotlinx.coroutines.flow.combine(
+            crossfadeOn,
+            DesktopEqualizerSettings.enabled,
+            com.cosmotune.music.data.cast.dlna.DlnaCast.renderer,
+        ) { crossfade, eq, renderer ->
+            com.cosmotune.music.ui.player.ActiveFeaturesUi(crossfade = crossfade, equaliser = eq, castingTo = renderer?.device?.name)
+        }.stateIn(scope, SharingStarted.Eagerly, com.cosmotune.music.ui.player.ActiveFeaturesUi())
+
     override val party: StateFlow<PartyUi> = DesktopListenTogether.state
         .map {
             PartyUi(

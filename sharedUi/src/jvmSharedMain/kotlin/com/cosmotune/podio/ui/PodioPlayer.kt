@@ -76,14 +76,24 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
     val look = orbitLook()
     var open by remember { mutableStateOf(false) }
     val active = timer.afterEpisode || timer.minutes != null
-    val text = when { timer.afterEpisode -> "After episode"; timer.minutes != null -> "${timer.minutes} min"; else -> "Sleep timer" }
+    // The time left while one counts ("23:41"), from the host's timer; the length set where there is no host timer to read.
+    val left = com.cosmotune.ui.sleep.rememberSleepTimer()?.remainingMs
+    val text = when {
+        timer.afterEpisode -> "After episode"
+        left != null -> com.cosmotune.ui.sleep.sleepCountdown(left)
+        timer.minutes != null -> "${timer.minutes} min"
+        else -> "Sleep timer"
+    }
     Box {
         if (card != null) OrbitCardChip(text, card, { open = true }, icon = Icons.Outlined.Bedtime, solid = active)
         else OrbitSelectChip(text, active, fonts, look, { open = true }, icon = Icons.Outlined.Bedtime, haptic = false)
-        val items = listOf(15, 30, 45, 60).map { minutes -> OrbitMenuItem("$minutes minutes", selected = timer.minutes == minutes && !timer.afterEpisode) { onTimer(minutes) } } +
+        val extend = com.cosmotune.ui.sleep.SleepTimerUi.control?.takeIf { left != null }
+        val items = listOfNotNull(extend?.let { control ->
+            OrbitMenuItem("Extend", "Add ${com.cosmotune.ui.sleep.SleepTimerControl.EXTEND_MINUTES} minutes", keepOpen = true) { control.extend() }
+        }) + listOf(15, 30, 45, 60).map { minutes -> OrbitMenuItem("$minutes minutes", selected = timer.minutes == minutes && !timer.afterEpisode) { onTimer(minutes) } } +
             listOfNotNull(timer.onAfterEpisode?.takeIf { episode }?.let { after -> OrbitMenuItem("End of episode", selected = timer.afterEpisode) { after() } }) +
             OrbitMenuItem("Turn off timer", enabled = active) { onTimer(null) }
-        OrbitMenu(open, { open = false }, items, fonts, look, header = "Sleep timer", width = 220.dp)
+        OrbitMenu(open, { open = false }, items, fonts, look, header = left?.let { "Sleep timer · ${com.cosmotune.ui.sleep.sleepCountdown(it)} left" } ?: "Sleep timer", width = 220.dp)
     }
 }
 

@@ -103,6 +103,12 @@ interface PlayerHost {
     val castState: StateFlow<CastUi> get() = NoCast
 
     /**
+     * Crossfade, the equaliser and casting, for the player's row of what is switched on. All off where the host does not say.
+     * Reading it starts nothing (unlike [castState], which starts the Cast framework on the phone).
+     */
+    val activeFeatures: StateFlow<ActiveFeaturesUi> get() = NoFeatures
+
+    /**
      * The companion watch app as an output: the watch plays the queue the way a
      * Cast receiver does. Absent, and so never drawn, where there is no watch.
      */
@@ -141,6 +147,18 @@ interface PlayerHost {
 }
 
 private val NoCast = MutableStateFlow(CastUi())
+
+private val NoFeatures = MutableStateFlow(ActiveFeaturesUi())
+
+/** What is switched on that the player's chip row shows while it is on. */
+data class ActiveFeaturesUi(
+    /** A crossfade length is set (Automix is [PlayerSettingsSource.smartFadeEnabled]). */
+    val crossfade: Boolean = false,
+    /** The equaliser shapes the sound. */
+    val equaliser: Boolean = false,
+    /** The receiver's name while the music is cast to one, else null. */
+    val castingTo: String? = null,
+)
 
 private val NoWatch = MutableStateFlow(WatchOutputUi())
 

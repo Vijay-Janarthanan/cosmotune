@@ -61,7 +61,7 @@ private const val ScrubStepMs = 10_000L
 /** How long the scrubber waits for more presses before it actually seeks. */
 private const val ScrubCommitDelayMs = 650L
 
-private enum class PlayerSheet { Menu }
+private enum class PlayerSheet { Menu, Sleep }
 
 /**
  * Now Playing on the TV, in Orbit.
@@ -309,6 +309,9 @@ fun TvNowPlayingScreen(
                 onToggleLyrics = { lyricsHidden = !lyricsHidden },
                 onToggleUpNext = { upNextOpen = !upNextOpen },
                 onMore = { sheet = PlayerSheet.Menu },
+                shuffle = shuffle,
+                repeatMode = playerState.repeatMode,
+                onSleepTimer = { sheet = PlayerSheet.Sleep },
                 upNext = {
                     TvUpNext(
                         queue = playerState.queue,
@@ -355,6 +358,7 @@ fun TvNowPlayingScreen(
             onToggleLike = { viewModel.toggleLike(song.videoId) },
             onDismiss = { sheet = null },
         )
+        PlayerSheet.Sleep -> com.cosmotune.music.ui.tv.dialogs.TvSleepTimerDialog(onDismiss = { sheet = null })
         null -> Unit
     }
 }

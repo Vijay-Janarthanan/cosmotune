@@ -80,6 +80,12 @@ object DlnaCast {
         return true
     }
 
+    /** Pauses the renderer that has the song, if one has; the sleep timer's way to reach it. Returns at once. */
+    fun pauseRenderer() {
+        val target = rendererFlow.value ?: return
+        scope.launch { runCatching { target.pause() } }
+    }
+
     suspend fun disconnect(stopPlayback: Boolean = true) {
         follow?.cancel()
         follow = null

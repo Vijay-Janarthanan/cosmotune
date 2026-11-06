@@ -181,6 +181,12 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         main.post { Toast.makeText(app, message, Toast.LENGTH_SHORT).show() }
     }
 
+    override val activeFeatures: StateFlow<ActiveFeaturesUi> by lazy {
+        combine(AppSettings.crossfadeSeconds, AppSettings.equalizerEnabled, CastController.state) { crossfade, eq, cast ->
+            ActiveFeaturesUi(crossfade = crossfade > 0, equaliser = eq, castingTo = cast.connectedName)
+        }.stateIn(scope, SharingStarted.Eagerly, ActiveFeaturesUi())
+    }
+
     override val castState: StateFlow<CastUi> by lazy {
         CastController.ensureStarted(app)
         CastController.state

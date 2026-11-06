@@ -349,8 +349,12 @@ internal fun TvTransport(
     onToggleUpNext: () -> Unit,
     onMore: () -> Unit,
     upNext: @Composable () -> Unit,
+    shuffle: Boolean = false,
+    repeatMode: Int = Player.REPEAT_MODE_OFF,
+    onSleepTimer: () -> Unit = {},
 ) {
     val showStats by AppSettings.showNerdStats.collectAsState()
+    val sleep = com.cosmotune.ui.sleep.rememberSleepTimer()
     val (fill, ink) = coverFill(song.thumbnailUrl, song.videoId)
     val look = tvOrbitLook()
     Column(
@@ -375,6 +379,13 @@ internal fun TvTransport(
                                 color = ink.copy(alpha = 0.75f),
                             )
                             TvQualityLine(showStats = showStats, ink = ink)
+                            // What is switched on stays in sight, solid on the card: the sleep timer's time left, repeat, shuffle.
+                            sleep?.let { TvActiveTag(CosmoIcons.Timer, it.short("After this song"), ink, fill) }
+                            when (repeatMode) {
+                                Player.REPEAT_MODE_ONE -> TvActiveTag(CosmoIcons.RepeatOne, "Repeat one", ink, fill)
+                                Player.REPEAT_MODE_ALL -> TvActiveTag(CosmoIcons.Repeat, "Repeat all", ink, fill)
+                            }
+                            if (shuffle) TvActiveTag(CosmoIcons.Shuffle, "Shuffle", ink, fill)
                         }
                         Text(
                             text = song.title,
@@ -397,6 +408,7 @@ internal fun TvTransport(
                         TvCardButton(if (isLiked) CosmoIcons.HeartFill else CosmoIcons.Heart, if (isLiked) "Unlove" else "Love", ink, on = isLiked, onClick = onToggleLike)
                         TvCardButton(CosmoIcons.Lyrics, "Lyrics", ink, on = lyricsOn, enabled = lyricsAvailable, onClick = onToggleLyrics)
                         TvCardButton(CosmoIcons.Queue, "Up Next", ink, on = upNextOpen, onClick = onToggleUpNext)
+                        TvCardButton(CosmoIcons.Timer, "Sleep timer", ink, on = sleep != null, onClick = onSleepTimer)
                         TvCardButton(CosmoIcons.More, "More", ink, onClick = onMore)
                     }
                 }
@@ -427,6 +439,19 @@ internal fun TvTransport(
                 upNext()
             }
         }
+    }
+}
+
+/** A feature that is on, as a small solid tag in the card's ink with the card's fill for its words. */
+@Composable
+private fun TvActiveTag(icon: ImageVector, text: String, ink: Color, fill: Color) {
+    Row(
+        modifier = Modifier.clip(CircleShape).background(ink).padding(start = 8.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.Icon(icon, contentDescription = null, tint = fill, modifier = Modifier.size(14.dp))
+        Spacer(modifier = Modifier.width(5.dp))
+        Text(text = text, style = TvType.Label, color = fill, maxLines = 1)
     }
 }
 

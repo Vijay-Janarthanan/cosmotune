@@ -80,6 +80,9 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.modes.LocalModeLinks
 import com.cosmotune.ui.modes.musicVideoLink
 import com.cosmotune.ui.orbit.OrbitMenu
+import com.cosmotune.ui.sleep.SleepTimerMenu
+import com.cosmotune.ui.sleep.SleepTimerUi
+import com.cosmotune.ui.sleep.rememberSleepTimer
 import com.cosmotune.ui.orbit.OrbitMenuItem
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
@@ -281,10 +284,31 @@ fun CosmoNowPlaying(
     var visualsOpen by rememberSaveable { mutableStateOf(false) }
     if (visualsOpen) LocalVisualsPresentation.current({ visualsOpen = false }) { PlayerVisualsContent(song, { visualsOpen = false }) }
     val together: () -> Unit = { if (inParty) sheets.members = true else onListenTogether() }
+    // What is switched on stays in sight: solid chips in the chip row (the sleep timer's pill first), not a state that only a
+    // menu shows.
+    val features by PlayerPlatform.host.activeFeatures.collectAsStateWithLifecycle()
+    val automixOn by PlayerSettings.smartFadeEnabled.collectAsStateWithLifecycle()
+    val active = NowPlayingActive(
+        shuffle = shuffleEnabled, repeatMode = repeatMode, crossfade = features.crossfade, automix = automixOn,
+        equaliser = features.equaliser, castingTo = features.castingTo, inRoom = inParty,
+    )
+    val statusChips: @Composable (Boolean) -> Unit = { transportOnCard ->
+        NowPlayingStatusChips(
+            activeChips(active, transportOnCard, onToggleShuffle, onCycleRepeat, { sheets.details = true }, { sheets.cast = true }, together),
+            orbitType, orbitInk,
+        )
+    }
+    val sleepTimer = rememberSleepTimer()
+    var sleepMenuOpen by remember { mutableStateOf(false) }
+    val sleepMenu: @Composable () -> Unit = { SleepTimerMenu(sleepMenuOpen, { sleepMenuOpen = false }, orbitType, orbitInk) }
     // The rarer actions, in the top row's "more" (the phone adds shuffle and repeat, which its card has no room for).
     val moreItems: (Boolean) -> List<OrbitMenuItem> = { phone ->
         buildList {
             add(OrbitMenuItem("Song options", "Playlists, sharing, quality and the rest", CosmoIcons.MoreVertical, onClick = onOpenMenu))
+            // Says what is left while one runs ("23:41 left"), rather than going quiet once it is set.
+            if (SleepTimerUi.control != null) {
+                add(OrbitMenuItem("Sleep timer", sleepTimer?.line() ?: "Pause after a while", CosmoIcons.Timer, selected = sleepTimer != null) { sleepMenuOpen = true })
+            }
             if (phone) {
                 add(OrbitMenuItem(if (shuffleEnabled) "Shuffle is on" else "Shuffle", null, CosmoIcons.Shuffle, selected = shuffleEnabled, keepOpen = true, onClick = onToggleShuffle))
                 add(OrbitMenuItem(repeatLabel(repeatMode), null, if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, selected = repeatMode != RepeatModes.OFF, keepOpen = true, onClick = onCycleRepeat))
@@ -376,6 +400,7 @@ fun CosmoNowPlaying(
                 NowPlayingTopRow(
                     source = sourceLabel, onOpenOrigin = openOrigin, panel = panels.widePanel, onPanel = { panels.panel = it },
                     more = moreItems(false), fonts = orbitType, look = orbitInk, modifier = m,
+                    status = { statusChips(true) }, moreOverlay = sleepMenu,
                 )
             },
             media = { m -> pageMedia(m, 34.dp, 440.dp, false) },
@@ -416,7 +441,7 @@ fun CosmoNowPlaying(
     val phoneTop: @Composable (Modifier) -> Unit = { m ->
         NowPlayingTopRow(
             source = sourceLabel, onOpenOrigin = openOrigin, panel = panels.panel, onPanel = { panels.panel = it },
-            more = moreItems(true), fonts = orbitType, look = orbitInk, modifier = m, chips = false,
+            more = moreItems(true), fonts = orbitType, look = orbitInk, modifier = m, chips = false, moreOverlay = sleepMenu,
         )
     }
     val phoneCard: @Composable (Modifier) -> Unit = { m ->
@@ -425,7 +450,7 @@ fun CosmoNowPlaying(
             buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton),
         )
     }
-    val phoneChips: @Composable (Modifier) -> Unit = { m -> PhoneChips(panels.panel, { panels.panel = it }, orbitType, orbitInk, m) }
+    val phoneChips: @Composable (Modifier) -> Unit = { m -> PhoneChips(panels.panel, { panels.panel = it }, orbitType, orbitInk, m, status = { statusChips(false) }) }
     val phonePage: @Composable BoxScope.() -> Unit = {
         NowPlayingPhone(
             hazeState = playerHaze,
