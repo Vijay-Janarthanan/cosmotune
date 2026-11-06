@@ -80,7 +80,7 @@ fun ListeningDeviceSheet(facts: ListeningDeviceFacts, store: ListeningDeviceProf
                         persist(profile.copy(bypass = it), apply = true)
                     }
                     OutlinedButton(enabled = facts.tuningAvailable, onClick = { applyEq(profile.appliedEq()) }, modifier = Modifier.fillMaxWidth()) { Text("Apply saved tuning now") }
-                    Text("Saved balance: ${profile.eq.balance}; ${if (profile.eq.fullHeadroom) "full" else "standard"} headroom. Edit tuning and balance in Equalizer, then update this profile. Stereo widening is separate and is never enabled by a profile.", style = MaterialTheme.typography.bodySmall)
+                    Text("Saved balance: ${profile.eq.balance}; ${if (profile.eq.fullHeadroom) "full" else "standard"} headroom. Edit tuning and balance in Equalizer, then update this profile. Spatial audio is separate and is never enabled by a profile.", style = MaterialTheme.typography.bodySmall)
                     profile.measurement?.let { provenance -> Text("User-provided AutoEq source: ${provenance.measurement}. Seven-band approximation, not exact parametric correction.", style = MaterialTheme.typography.bodySmall)
                         TextButton(onClick = { onOpenGuide(provenance.sourceUrl) }) { Text("View recorded measurement source") } }
                     TextButton(onClick = { try { store.remove(profile.routeKey); error = null } catch (_: Exception) { error = "The profile could not be removed." } }) { Text("Forget this device profile") }

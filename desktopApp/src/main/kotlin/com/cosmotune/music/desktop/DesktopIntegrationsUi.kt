@@ -306,20 +306,20 @@ internal fun DesktopSpotifyImportDialog(
     var unmatched by remember { mutableStateOf<List<SpotifyImportTrack>?>(null) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    val title = DesktopStrings["spotify_import_title", "Import Spotify playlist"]
+    val title = DesktopStrings["spotify_import_title", "Import a playlist"]
 
     fun start() {
         if (working) return
         val id = SpotifyImporter.extractPlaylistId(link)
         // Apple Music and Deezer links are read the same way (PlaylistLinkImport) and matched exactly.
         if (id == null && com.cosmotune.music.data.spotify.PlaylistLinkImport.serviceOf(link) == null) {
-            status = DesktopStrings["spotify_import_invalid", "That isn't a Spotify playlist link."] + " Apple Music and Deezer links work too."
+            status = DesktopStrings["spotify_import_invalid", "That isn't a Spotify, Apple Music or Deezer playlist link."]
             failed = true
             return
         }
         working = true
         failed = false
-        status = DesktopStrings["spotify_import_fetching", "Reading the Spotify playlist…"]
+        status = DesktopStrings["spotify_import_fetching", "Reading the playlist…"]
         scope.launch {
             try {
                 val progress: (Int, Int) -> Unit = { done, total ->
@@ -365,11 +365,11 @@ internal fun DesktopSpotifyImportDialog(
             DialogHeading(
                 title = title,
                 message = if (signedIn) {
-                    DesktopStrings["spotify_import_description", "Paste a public playlist link. Songs are matched on YouTube Music."]
+                    DesktopStrings["spotify_import_description", "Paste a public Spotify, Apple Music or Deezer playlist link. Songs are matched on YouTube Music."]
                 } else {
                     DesktopStrings[
                         "spotify_import_description_local",
-                        "Paste a public playlist link. Songs are matched on YouTube Music and saved on this device.",
+                        "Paste a public Spotify, Apple Music or Deezer playlist link. Songs are matched on YouTube Music and saved on this device.",
                     ]
                 },
             )

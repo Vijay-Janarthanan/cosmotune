@@ -74,7 +74,7 @@ object AndroidListeningDevices {
             "Device-local mapping. When Android hides the hardware address, this uses the output name; identically named devices share that mapping. Confirm the model before saving.", facts,
             spatial = when {
                 Build.VERSION.SDK_INT < 32 -> "Requires Android 12L or newer; stereo widening is separate."
-                !spatial.reported -> "Android did not expose platform spatial audio state. Stereo widening is a separate app effect."
+                !spatial.reported -> "Android did not expose platform spatial audio state. Cosmotune's Spatial audio switch is a separate app effect."
                 !spatial.supported -> "This Android audio platform reports no spatializer support."
                 else -> "System spatial audio: ${if (spatial.enabled) "enabled" else "off"}.\n" +
                     "Current route: ${if (spatial.available) "available" else "unavailable"}.\n" +

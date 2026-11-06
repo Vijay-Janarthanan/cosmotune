@@ -45,7 +45,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * Paste a Spotify playlist link, match its songs on YouTube Music, keep the result.
+ * Paste a Spotify, Apple Music or Deezer playlist link, match its songs on YouTube Music, keep the result.
  *
  * The same frosted card as the addon editor, rather than a Material dialog.
  * The "who can see it" row exists only for [signedIn]: it is a YouTube Music
@@ -76,7 +76,7 @@ fun SpotifyImportAlert(
         // Apple Music and Deezer links are read the same way (PlaylistLinkImport) and matched exactly.
         val other = if (id == null) com.cosmotune.music.data.spotify.PlaylistLinkImport.serviceOf(link) else null
         if (id == null && other == null) {
-            status = context.getString(R.string.spotify_import_invalid) + " Apple Music and Deezer links work too."
+            status = context.getString(R.string.spotify_import_invalid)
             failed = true
             return
         }

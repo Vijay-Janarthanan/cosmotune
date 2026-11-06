@@ -6728,8 +6728,6 @@ private fun DesktopSettingsScreen(
     val settingsScope = rememberCoroutineScope()
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     var editingSubsonic by remember { mutableStateOf<DesktopSourceConfig?>(null) }
-    var showingExtras by remember { mutableStateOf(false) }
-    if (showingExtras) DesktopExtrasDialog(onDismiss = { showingExtras = false }, onPlay = onPlayProviderSongs)
     val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
     val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
     val sourceProbeKey = sourceConfigs
@@ -6875,17 +6873,24 @@ private fun DesktopSettingsScreen(
                         onSkipSilenceChange,
                     )
                     SettingsToggle(
-                        DesktopStrings["stereo_widening", "Stereo widening"],
-                        DesktopStrings["stereo_widening_subtitle", "Optional stereo width and crossfeed"],
+                        DesktopStrings["stereo_widening", "Spatial audio"],
+                        DesktopStrings["stereo_widening_subtitle", "Crossfeed, virtual speakers or mono over headphones, in the style below"],
                         spatialAudio,
                         onSpatialAudioChange,
                     )
-                    // One row into the shared Extras dialog; see com.cosmotune.ui.extras.ExtrasSettingsDialog.
-                    SettingsNavigationRow(
-                        title = "Extras",
-                        subtitle = "Volume cap, pitch, spatial style, proxy, offline mode",
-                        onClick = { showingExtras = true },
-                    )
+                    // The style of the switch above and the rest of the options first seen in Mochy Music (the shared rows of the Sound page).
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.SPATIAL_STYLE, com.cosmotune.ui.settings.SoundExtrasText.SPATIAL_STYLE_LINE)) {
+                        com.cosmotune.ui.settings.SpatialStyleRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.SURROUND, com.cosmotune.ui.settings.SoundExtrasText.SURROUND_LINE)) {
+                        com.cosmotune.ui.settings.BinauralSurroundRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME, com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME_LINE)) {
+                        com.cosmotune.ui.settings.MaxVolumeRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.PITCH, com.cosmotune.ui.settings.SoundExtrasText.PITCH_LINE)) {
+                        com.cosmotune.ui.settings.PitchRow()
+                    }
                     SettingsToggle(
                         DesktopStrings["dolby_atmos", "Dolby Atmos"],
                         if (DesktopCodecs.supportsDolbyAtmos) {
@@ -6905,6 +6910,27 @@ private fun DesktopSettingsScreen(
                         },
                         onClick = onOpenEqualizer,
                     )
+                }
+                SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_LYRICS_TIMING) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.AUTO_OFFSET, com.cosmotune.ui.settings.SoundExtrasText.AUTO_OFFSET_LINE)) {
+                        com.cosmotune.ui.settings.AutoLyricsOffsetRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.FORGET_OFFSETS, com.cosmotune.ui.settings.SoundExtrasText.FORGET_OFFSETS_LINE)) {
+                        com.cosmotune.ui.settings.ForgetLyricsOffsetsRow()
+                    }
+                }
+                SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_NETWORK) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.OFFLINE, com.cosmotune.ui.settings.SoundExtrasText.OFFLINE_LINE)) {
+                        com.cosmotune.ui.settings.OfflineModeRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.PROXY, com.cosmotune.ui.settings.SoundExtrasText.PROXY_LINE)) {
+                        com.cosmotune.ui.settings.ProxyRows()
+                    }
+                }
+                SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_RECOGNITION) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.RECOGNITION, com.cosmotune.ui.settings.SoundExtrasText.RECOGNITION_LINE)) {
+                        com.cosmotune.ui.settings.SongRecognitionRows(onPlay = onPlayProviderSongs)
+                    }
                 }
             }
             DesktopSettingsSection.DESKTOP_PLAYBACK -> {
