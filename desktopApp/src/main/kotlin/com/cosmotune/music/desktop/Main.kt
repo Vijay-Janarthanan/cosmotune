@@ -173,6 +173,9 @@ private fun desktopMain() = application {
     Window(
         onCloseRequest = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
         onPreviewKeyEvent = { event -> com.cosmotune.ui.kit.modeShortcut(event) { lookSettings.setMode(it) } },
+        // Space plays and pauses (Music, Video, Watch) once nothing focused has claimed it: a text field keeps its spaces
+        // and a button its press. See [DesktopSpaceKey].
+        onKeyEvent = { event -> DesktopSpaceKey.onKeyEvent(event, lookSettings.mode.value) },
         visible = visible,
         title = "Cosmotune",
         icon = painterResource(Res.drawable.logo),
