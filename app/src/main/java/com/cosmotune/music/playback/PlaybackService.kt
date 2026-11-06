@@ -1036,6 +1036,9 @@ class PlaybackService : MediaLibraryService() {
             // current — or it is the one that moved, and this is the phone
             // catching up, which [CastPlayback] tells apart by track.
             speakers.onLocalTransition(mediaItem, reason)
+            // A repeat or the queue moving on is a moment the phone is awake;
+            // a timer that is overdue stops here rather than a lap later.
+            SleepTimerWatcher.checkDue()
 
             // No crossfade case to allow for here any more. A blended advance
             // never reaches this callback — the incoming track starts as the
@@ -6125,6 +6128,9 @@ class PlaybackService : MediaLibraryService() {
                 // that happened to be first would go on reporting a player that
                 // has been silent since the last crossfade.
                 val player = this@PlaybackService.player
+                // A wake past the sleep timer's deadline stops the music here
+                // even if the timer's own wait has not come round yet.
+                SleepTimerWatcher.checkDue()
                 if (player != null && player.isPlaying) {
                     lastPositionSeconds = player.currentPosition / 1000
                     player.currentMediaItem?.mediaId?.takeUnless(com.cosmotune.podio.PodioPlaybackPolicy::isPodio)?.let {
@@ -6159,21 +6165,29 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /**
-     * Pause when the sleep timer runs out.
-     *
-     * `collectLatest` is what makes re-setting the timer work: the pending wait
-     * is cancelled and restarted on the new deadline instead of both firing.
+     * Pause when the sleep timer runs out. The watching is
+     * [SleepTimerWatcher]'s, process-wide; this service only says how its own
+     * players are paused, for as long as it exists.
      */
     private fun watchSleepTimer() {
-        scope.launch {
-            SleepTimer.deadline.collectLatest { deadline ->
-                if (deadline == null) return@collectLatest
-                val remaining = deadline - SystemClock.elapsedRealtime()
-                if (remaining > 0) delay(remaining)
-                player?.pause()
-                SleepTimer.cancel()
-            }
-        }
+        SleepTimerWatcher.start(this)
+        SleepTimerWatcher.addPauser(sleepPauser)
+    }
+
+    /**
+     * Pauses everything this service plays.
+     *
+     * The session's player first: it is the one the pause button reaches, so a
+     * Cast receiver pauses rather than the idle local player, and a locked room
+     * records the pause as the listener's own instead of [PartySync] playing
+     * the player again at its next reconcile. Then both local players, so a
+     * crossfade in flight does not leave its other half going for the tick it
+     * takes [CrossfadeController] to follow.
+     */
+    private val sleepPauser: () -> Unit = {
+        runCatching { mediaSession?.player?.pause() }
+            .onFailure { TrackLog.w("SLEEP", "session pause failed: ${it.message}") }
+        eachPlayer { it.pause() }
     }
 
     /**
@@ -7362,6 +7376,7 @@ class PlaybackService : MediaLibraryService() {
         serviceLyricsJob?.cancel()
         serviceLyricsJob = null
         serviceLyrics = null
+        SleepTimerWatcher.removePauser(sleepPauser)
         cancelPrefetch()
         trackAnalyzer.release()
         loudnessRetryJob?.cancel()
