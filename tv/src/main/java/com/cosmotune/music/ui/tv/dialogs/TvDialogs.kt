@@ -76,6 +76,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -126,16 +129,25 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 
 private enum class AccountDialogMode { Profiles, SignInTv }
 
-/** Native account/profile flow. Phone pairing controls playback, never account cookies. */
+/**
+ * Native account/profile flow. Phone pairing controls playback, never account cookies. Signed out it goes straight to signing in
+ * unless [accountCard] is set (Account from the chips), which opens on the account card with Sign in on it instead.
+ */
 @Composable
-fun TvAccountDialog(viewModel: MainViewModel, onDismiss: () -> Unit, onSignOut: () -> Unit = {}, onProfileUnlocked: (String) -> Unit = {}) {
+fun TvAccountDialog(
+    viewModel: MainViewModel,
+    onDismiss: () -> Unit,
+    onSignOut: () -> Unit = {},
+    onProfileUnlocked: (String) -> Unit = {},
+    accountCard: Boolean = false,
+) {
     val googleAccounts by viewModel.googleAccounts.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
     val activeProfileId by viewModel.activeProfileId.collectAsState()
     val signedIn by viewModel.signedIn.collectAsState()
-    var mode by remember { mutableStateOf(if (googleAccounts.isNotEmpty() || signedIn) AccountDialogMode.Profiles else AccountDialogMode.SignInTv) }
+    var mode by remember { mutableStateOf(if (accountCard || googleAccounts.isNotEmpty() || signedIn) AccountDialogMode.Profiles else AccountDialogMode.SignInTv) }
     val backFromSignIn: () -> Unit = {
-        if (googleAccounts.isNotEmpty() || signedIn) mode = AccountDialogMode.Profiles else onDismiss()
+        if (accountCard || googleAccounts.isNotEmpty() || signedIn) mode = AccountDialogMode.Profiles else onDismiss()
     }
     when (mode) {
         AccountDialogMode.Profiles -> {
@@ -148,6 +160,7 @@ fun TvAccountDialog(viewModel: MainViewModel, onDismiss: () -> Unit, onSignOut: 
                     onProfileUnlocked(profile.profileId)
                     onDismiss()
                 },
+                onAddAccount = { mode = AccountDialogMode.SignInTv },
                 onRemoveAccount = { account ->
                     viewModel.removeAccount(account.accountId)
                     if (viewModel.googleAccounts.value.none { it.accountId == account.accountId }) {
@@ -170,6 +183,7 @@ private fun TvProfileSwitcher(
     activeAccountId: String?,
     activeProfileId: String?,
     onSelectProfile: (GoogleAccountSession, YouTubeProfile) -> Unit,
+    onAddAccount: () -> Unit,
     onRemoveAccount: (GoogleAccountSession) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -295,6 +309,7 @@ private fun TvProfileSwitcher(
             }
         }
 
+        val current = allProfiles.firstOrNull { it.second.profileId == currentSelectedProfile?.profileId }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -308,36 +323,49 @@ private fun TvProfileSwitcher(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                TvAppMark(size = 64.dp)
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Text(
-                    text = if (allProfiles.isEmpty()) "Sign In" else "Who's watching?",
-                    style = TvType.Title.copy(fontSize = 32.sp, fontWeight = FontWeight.Bold),
-                    color = TvGlass.TextPrimary,
-                    textAlign = TextAlign.Center,
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = if (allProfiles.isEmpty()) {
-                        "Nobody is signed in. Add a YouTube Music account to access your music."
+                // The account card: who is signed in, in the colour of their picture, and what it brings to the TV.
+                TvAccountCard(
+                    name = current?.second?.name?.ifBlank { null } ?: current?.first?.name?.ifBlank { null } ?: "Sign in",
+                    pictureUrl = current?.second?.avatar ?: current?.first?.profiles?.firstOrNull()?.avatar,
+                    line = if (current == null) {
+                        "Nobody is signed in. Add a YouTube Music account for your library, playlists and recommendations."
                     } else {
-                        "Choose a profile to switch your library, playlists and recommendations."
+                        listOfNotNull(
+                            current.second.handle.ifBlank { current.first.email }.ifBlank { null },
+                            "Library, playlists and recommendations from YouTube Music",
+                        ).joinToString(" · ")
                     },
-                    style = TvType.Callout,
-                    color = TvGlass.TextSecondary,
-                    textAlign = TextAlign.Center,
+                    signedIn = current != null,
+                    modifier = Modifier.width(620.dp),
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(30.dp))
+
+                if (allProfiles.isNotEmpty()) {
+                    Text(
+                        text = buildAnnotatedString {
+                            append("Who's listening")
+                            withStyle(SpanStyle(color = TvGlass.Peach)) { append("?") }
+                        },
+                        style = TvType.Section,
+                        color = TvGlass.TextPrimary,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Choose a profile to switch your library, playlists and recommendations.",
+                        style = TvType.Callout,
+                        color = TvGlass.TextSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
 
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    verticalAlignment = Alignment.Top,
+                    // Room round the discs for the focus ring and the lift.
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
                     modifier = Modifier.focusGroup(),
                 ) {
                     itemsIndexed(
@@ -348,12 +376,13 @@ private fun TvProfileSwitcher(
 
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.onFocusChanged { itemFocused = it.hasFocus },
                         ) {
                             TvProfileCard(
                                 account = account,
                                 profile = profile,
+                                current = profile.profileId == currentSelectedProfile?.profileId,
                                 modifier = Modifier
                                     .tvInitialFocus(enabled = index == 0)
                                     .focusProperties {
@@ -389,81 +418,120 @@ private fun TvProfileSwitcher(
                     }
                 }
 
-                if (!isCurrentProfileLocked) {
-                    Spacer(modifier = Modifier.height(28.dp))
-
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.focusGroup()) {
                     TvButton(
-                        text = "Cancel",
-                        onClick = onDismiss,
+                        text = if (allProfiles.isEmpty()) "Sign in" else "Add account",
+                        icon = Icons.Rounded.Add,
+                        isPrimary = allProfiles.isEmpty(),
+                        onClick = onAddAccount,
+                        modifier = if (allProfiles.isEmpty()) Modifier.tvInitialFocus() else Modifier,
                     )
+                    if (!isCurrentProfileLocked) {
+                        TvButton(text = "Cancel", onClick = onDismiss)
+                    }
                 }
             }
         }
     }
 }
 
+/**
+ * The account card (the kit's account card made for the sofa): flat in the colour of the account's picture, the picture as a
+ * disc, the mono label over the name, and what the account brings to the TV.
+ */
+@Composable
+private fun TvAccountCard(name: String, pictureUrl: String?, line: String, signedIn: Boolean, modifier: Modifier = Modifier) {
+    val (fill, ink) = com.cosmotune.ui.orbit.coverFill(pictureUrl, "account:$name")
+    Row(
+        modifier = modifier
+            .heightIn(min = 140.dp)
+            .clip(RoundedCornerShape(32.dp))
+            .background(fill)
+            .padding(horizontal = 26.dp, vertical = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        Box(Modifier.size(96.dp).clip(CircleShape).background(ink.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            if (pictureUrl.isNullOrBlank()) {
+                Icon(Icons.Rounded.Person, contentDescription = null, tint = ink, modifier = Modifier.size(42.dp))
+            } else {
+                TvArtwork(url = pictureUrl, px = 288, shape = CircleShape, glyph = Icons.Rounded.Person, modifier = Modifier.fillMaxSize())
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text((if (signedIn) "Signed in" else "Account").uppercase(), style = TvType.Label, color = ink.copy(alpha = 0.75f))
+            Text(
+                name,
+                style = TvType.LargeTitle.copy(fontSize = 26.sp, lineHeight = 29.sp),
+                color = ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                line,
+                style = TvType.Callout,
+                color = ink.copy(alpha = 0.85f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
+}
+
+/** A profile as a large disc with its name under it; focus is the peach ring round the disc, the current one wears the orbit. */
 @Composable
 private fun TvProfileCard(
     account: GoogleAccountSession,
     profile: YouTubeProfile,
+    current: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(20.dp)
+    val disc = 128.dp
 
     Column(
-        modifier = modifier
-            .width(170.dp)
-            .height(210.dp)
-            .tvLift(interaction, shape, focusedScale = 1.08f)
-            .tvPlatter(
-                interaction,
-                resting = TvGlass.Fill,
-                focused = TvGlass.Platter,
-            )
-            .tvClick(interaction, onClick = onClick)
-            .padding(16.dp),
+        modifier = Modifier.width(disc + 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(88.dp)
-                .clip(CircleShape)
-                .background(TvGlass.Placeholder),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (!profile.avatar.isNullOrBlank()) {
-                TvArtwork(
-                    url = profile.avatar,
-                    px = 512,
-                    shape = CircleShape,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Rounded.Person,
-                    contentDescription = null,
-                    tint = if (focused) TvGlass.OnPlatterSecondary else TvGlass.TextSecondary,
-                    modifier = Modifier.size(44.dp),
-                )
+        Box(Modifier.size(disc + 18.dp), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = modifier
+                    .size(disc)
+                    .tvLift(interaction, CircleShape, focusedScale = 1.06f)
+                    .tvClick(interaction, onClick = onClick)
+                    .background(TvGlass.Placeholder),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!profile.avatar.isNullOrBlank()) {
+                    TvArtwork(url = profile.avatar, px = 384, shape = CircleShape, glyph = Icons.Rounded.Person, modifier = Modifier.fillMaxSize())
+                } else {
+                    Icon(imageVector = Icons.Rounded.Person, contentDescription = null, tint = TvGlass.TextSecondary, modifier = Modifier.size(54.dp))
+                }
+                if (TvSettings.isProfileLocked(profile.profileId)) {
+                    Box(
+                        Modifier.align(Alignment.BottomEnd).size(34.dp).clip(CircleShape).background(TvGlass.FillStrong),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.Lock, contentDescription = "Locked", tint = TvGlass.TextPrimary, modifier = Modifier.size(17.dp)) }
+                }
             }
+            if (current) com.cosmotune.ui.orbit.OrbitRing(disc + 18.dp, TvGlass.Peach, progress = null, spinning = false, stroke = 2.dp, moon = 5.dp)
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             text = profile.name.ifBlank { account.name.ifBlank { "Account" } },
-            style = TvType.CardTitle.copy(fontWeight = FontWeight.Bold),
-            color = if (focused) TvGlass.OnPlatter else TvGlass.TextPrimary,
+            style = TvType.Headline,
+            color = if (current) TvGlass.Peach else if (focused) TvGlass.TextPrimary else TvGlass.TextPrimary.copy(alpha = 0.85f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
         )
-
-        Spacer(modifier = Modifier.height(4.dp))
 
         val handleOrEmail = profile.handle.ifBlank {
             account.email.ifBlank {
@@ -474,7 +542,7 @@ private fun TvProfileCard(
             Text(
                 text = handleOrEmail,
                 style = TvType.Caption,
-                color = if (focused) TvGlass.OnPlatterSecondary else TvGlass.TextSecondary,
+                color = TvGlass.TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
@@ -500,11 +568,11 @@ private fun TvProfileSettingsButton(
 
     Box(
         modifier = modifier
-            .size(38.dp)
+            .size(40.dp)
             .graphicsLayer { this.alpha = alpha }
             .focusProperties { canFocus = visible }
-            .tvLift(interaction, CircleShape, focusedScale = 1.15f)
-            .tvPlatter(interaction, resting = Color.Transparent, focused = TvGlass.Platter)
+            .tvLift(interaction, CircleShape, focusedScale = 1f, ringGap = 3.dp)
+            .tvPlatter(interaction, resting = TvGlass.Fill, focused = TvGlass.Platter)
             .tvClick(interaction, enabled = visible, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -813,7 +881,7 @@ private fun TvPinDialog(
             ) {
                 Text(
                     text = title,
-                    style = TvType.Title.copy(fontSize = 24.sp, fontWeight = FontWeight.Bold),
+                    style = TvType.Section,
                     color = TvGlass.TextPrimary,
                     textAlign = TextAlign.Center,
                 )
@@ -837,19 +905,10 @@ private fun TvPinDialog(
                         val filled = index < pin.length
                         Box(
                             modifier = Modifier
-                                .size(width = 54.dp, height = 62.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (filled) com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.22f) else com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.08f)
-                                ),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = if (filled) "●" else "",
-                                style = TvType.Title.copy(fontSize = 22.sp),
-                                color = TvGlass.TextPrimary,
-                            )
-                        }
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(if (filled) TvGlass.Peach else TvGlass.Ink.copy(alpha = 0.14f)),
+                        )
                     }
                 }
 
@@ -886,22 +945,23 @@ private fun TvPinDialog(
 
                 Column(
                     modifier = Modifier.graphicsLayer { alpha = keypadAlpha },
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    // Room between the keys for the focus ring.
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     keys.forEachIndexed { rowIndex, row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                             row.forEach { label ->
                                 val interaction = remember { MutableInteractionSource() }
                                 val focused by interaction.collectIsFocusedAsState()
 
                                 Box(
                                     modifier = Modifier
-                                        .size(width = 68.dp, height = 44.dp)
+                                        .size(52.dp)
                                         .tvLift(
                                             interaction,
-                                            RoundedCornerShape(10.dp),
-                                            focusedScale = if (isInputBlocked) 1f else 1.1f,
+                                            CircleShape,
+                                            focusedScale = if (isInputBlocked) 1f else 1.06f,
                                         )
                                         .tvPlatter(
                                             interaction,

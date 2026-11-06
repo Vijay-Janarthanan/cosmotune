@@ -234,6 +234,7 @@ fun TvApp(
             TvAccountDialog(
                 viewModel = viewModel,
                 onProfileUnlocked = profileAccess::verifiedSelection,
+                accountCard = true,
                 onDismiss = {
                     showAccountDialog = false
                 },
