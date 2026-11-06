@@ -17,6 +17,10 @@ object BuiltInPlugins {
     const val PUBLIC_DOMAIN = "pdm"
     const val OPENSUBTITLES = "opensubtitles"
     const val WATCHHUB = "watchhub"
+    /** Prasar Bharati's own Doordarshan channels. */
+    const val PRASAR_BHARATI = "dd"
+    /** Official broadcasters' 24x7 YouTube live channels. */
+    const val YOUTUBE_LIVE = "ytlive"
 
     /**
      * The Stremio-protocol add-ons the built-ins use (read-only HTTP JSON). Public Domain Movies' own streams are torrents,
@@ -33,6 +37,10 @@ object BuiltInPlugins {
             setOf(Capability.LIVE, Capability.EPG, Capability.CATALOG, Capability.SEARCH, Capability.STREAMS, Capability.META)),
         Def(SAMSUNG, PluginKind.SAMSUNG_TV_PLUS, "Samsung TV Plus", "Live TV · free", "TV+", true,
             setOf(Capability.LIVE, Capability.EPG, Capability.SEARCH)),
+        Def(PRASAR_BHARATI, PluginKind.PRASAR_BHARATI, "Prasar Bharati (DD)", "Live TV · DD National, DD News, DD Sports, DD Tamil and the regional DD channels, from their official YouTube", "DD", true,
+            setOf(Capability.LIVE, Capability.EPG, Capability.STREAMS)),
+        Def(YOUTUBE_LIVE, PluginKind.YOUTUBE_LIVE, "Live on YouTube", "Live TV · broadcasters' own 24x7 news streams: Tamil, Telugu, Malayalam, Kannada, Hindi, English", "YT LIVE", true,
+            setOf(Capability.LIVE, Capability.EPG, Capability.STREAMS)),
         Def(PLEX, PluginKind.PLEX_FREE, "Plex free", "Free films and series, live TV", "PLEX", true,
             setOf(Capability.CATALOG, Capability.SEARCH, Capability.STREAMS, Capability.LIVE, Capability.EPG, Capability.META)),
         Def(ARCHIVE, PluginKind.INTERNET_ARCHIVE, "Internet Archive", "Classic and public-domain films", "ARC", true,

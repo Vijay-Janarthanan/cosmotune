@@ -65,21 +65,36 @@ internal fun NowPlayingPhone(
                 .padding(horizontal = PHONE_SIDE),
         ) {
             com.cosmotune.ui.shell.WindowCaptionArea(Modifier.fillMaxWidth()) { topRow(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp)) }
-            MediaOverCard(mediaKind, aspect, Modifier.weight(1f).fillMaxWidth(), media, card)
-            Spacer(Modifier.height(14.dp))
-            chips(Modifier.fillMaxWidth().padding(bottom = 18.dp))
+            MediaOverCard(mediaKind, aspect, Modifier.weight(1f).fillMaxWidth(), media, card, chips)
         }
     }
 }
 
-/** The media and, [PHONE_GAP] under it, the card; the card is measured first and the media gets the rest as [kind] says. */
+/**
+ * The media, [PHONE_GAP] under it the card, and [PHONE_CHIPS_GAP] under that the chips, as one block: the card and the chips are
+ * measured first and the media gets the rest as [kind] says. A media that does not take all the room (the whole video, the record)
+ * leaves some over; the block then stands a third of the way down it instead of the chips sinking to the foot, so the chips stay with
+ * the card they belong to.
+ */
 @Composable
-private fun MediaOverCard(kind: PhoneMedia, aspect: Float, modifier: Modifier, media: @Composable (Modifier) -> Unit, card: @Composable (Modifier) -> Unit) {
-    Layout(content = { Box { media(Modifier.fillMaxSize()) }; Box { card(Modifier.fillMaxWidth()) } }, modifier = modifier) { measurables, constraints ->
+private fun MediaOverCard(
+    kind: PhoneMedia,
+    aspect: Float,
+    modifier: Modifier,
+    media: @Composable (Modifier) -> Unit,
+    card: @Composable (Modifier) -> Unit,
+    chips: @Composable (Modifier) -> Unit,
+) {
+    Layout(
+        content = { Box { media(Modifier.fillMaxSize()) }; Box { card(Modifier.fillMaxWidth()) }; Box { chips(Modifier.fillMaxWidth().padding(bottom = 18.dp)) } },
+        modifier = modifier,
+    ) { measurables, constraints ->
         val width = constraints.maxWidth
         val cardPlaced = measurables[1].measure(Constraints(minWidth = width, maxWidth = width, maxHeight = constraints.maxHeight))
+        val chipsPlaced = measurables[2].measure(Constraints(minWidth = width, maxWidth = width))
         val gap = PHONE_GAP.roundToPx()
-        val room = (constraints.maxHeight - cardPlaced.height - gap).coerceAtLeast(0)
+        val chipsGap = PHONE_CHIPS_GAP.roundToPx()
+        val room = (constraints.maxHeight - cardPlaced.height - gap - chipsGap - chipsPlaced.height).coerceAtLeast(0)
         val wanted = when (kind) {
             PhoneMedia.WHOLE -> (width / (if (aspect > 0f) aspect else com.cosmotune.design.VideoView.DEFAULT_ASPECT)).toInt()
             PhoneMedia.ROOM -> room
@@ -87,9 +102,11 @@ private fun MediaOverCard(kind: PhoneMedia, aspect: Float, modifier: Modifier, m
         }
         val height = wanted.coerceIn(0, room)
         val mediaPlaced = measurables[0].measure(Constraints.fixed(width, height))
+        val top = (room - height) / 3
         layout(width, constraints.maxHeight) {
-            mediaPlaced.place(0, 0)
-            cardPlaced.place(0, height + gap)
+            mediaPlaced.place(0, top)
+            cardPlaced.place(0, top + height + gap)
+            chipsPlaced.place(0, top + height + gap + cardPlaced.height + chipsGap)
         }
     }
 }
@@ -134,3 +151,4 @@ internal fun PhoneChips(panel: NowPlayingPanel, onPanel: (NowPlayingPanel) -> Un
 
 private val PHONE_SIDE = 14.dp
 private val PHONE_GAP = 18.dp
+private val PHONE_CHIPS_GAP = 14.dp

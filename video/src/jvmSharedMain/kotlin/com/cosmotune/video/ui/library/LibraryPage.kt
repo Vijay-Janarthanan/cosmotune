@@ -12,10 +12,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.blocks.CosmoListRow
-import com.cosmotune.ui.blocks.CosmoRowLeading
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.graph.LocalVideoGraph
@@ -105,13 +101,7 @@ fun LibraryPage(contentPadding: PaddingValues, wide: Boolean) {
     LibraryList(contentPadding, wide) { cell ->
         item(key = "heading") {
             LibraryHeader(stringResource(SharedRes.string.library), wide, cell) {
-                CosmoIconButton(
-                    CosmoIcons.Plus,
-                    stringResource(Res.string.video_new_playlist),
-                    { newPlaylist = true },
-                    style = CosmoIconButtonStyle.TONAL,
-                    size = 40.dp,
-                )
+                OrbitAction(CosmoIcons.Plus, stringResource(Res.string.video_new_playlist), { newPlaylist = true })
             }
         }
         item(key = "you") {
@@ -177,12 +167,13 @@ fun LibraryPage(contentPadding: PaddingValues, wide: Boolean) {
             }
             items(playlists, key = { "playlist:" + it.id }) { playlist ->
                 val count = playlist.items.size
-                CosmoListRow(
+                OrbitInfoRow(
                     title = playlist.name,
                     onClick = { navigator.push(VideoRoute.LocalPlaylist(playlist.id)) },
                     modifier = cell,
                     subtitle = pluralStringResource(Res.plurals.video_count_videos, count, count),
-                    leading = CosmoRowLeading.Cover(LibraryPlan.coverOf(playlist)),
+                    cover = LibraryPlan.coverOf(playlist),
+                    icon = CosmoIcons.List,
                 )
             }
         }

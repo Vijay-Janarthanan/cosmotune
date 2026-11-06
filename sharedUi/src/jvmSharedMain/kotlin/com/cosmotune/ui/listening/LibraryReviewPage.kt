@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.cosmotune.listening.*
+import com.cosmotune.ui.orbit.OrbitBusyRing
 import com.cosmotune.audio.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -66,12 +67,8 @@ internal fun ColumnScope.LibraryReviewPage(
     }
     LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("listening:audit:list"), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
-            Text("Review local files", style = MaterialTheme.typography.headlineSmall)
-            Text("Find missing or inaccessible audio and compare copies. Format labels come from file headers; a FLAC label does not establish the quality of its original recording.")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Compare file bytes (up to 2 GiB)", Modifier.weight(1f))
-                Switch(verify, { verify = it }, enabled = !working, modifier = Modifier.testTag("listening:audit:verify").semantics { contentDescription = "Compare file bytes" })
-            }
+            Heading("Review local files", "Find missing or inaccessible audio and compare copies. Format labels come from file headers; a FLAC label does not establish the quality of its original recording.")
+            ToggleRow("Compare file bytes (up to 2 GiB)", verify, tag = "listening:audit:verify", description = "Compare file bytes", enabled = !working) { verify = it }
             ToolButton("Scan local library", enabled = !working, tag = "listening:audit:scan", onClick = {
                 task = scope.launch {
                     notice = null; progress = null; report = null
@@ -85,14 +82,16 @@ internal fun ColumnScope.LibraryReviewPage(
                 }
             })
             if (task != null) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-                progress?.let { Text("${it.checked} / ${it.total} checked · ${it.hashedBytes / (1024 * 1024)} MiB compared", Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
-                TextButton(onClick = { task?.cancel() }) { Text("Stop scan") }
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OrbitBusyRing()
+                    progress?.let { Text("${it.checked} / ${it.total} checked · ${it.hashedBytes / (1024 * 1024)} MiB compared", Modifier.weight(1f, fill = false).semantics { liveRegion = LiveRegionMode.Polite }) }
+                    ToolButton("Stop scan", { task?.cancel() }, kind = ToolKind.QUIET)
+                }
             }
             notice?.let { Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
-            Text("Measure loudness and audio quality", style = MaterialTheme.typography.titleMedium)
+            ToolSection("Measure loudness and audio quality")
             Text("Decodes each local file once to measure EBU R128 loudness, ReplayGain track and album gain, peak level, the decoded format and where high frequencies stop. Unchanged files are not decoded again. Playback uses the measurement when loudness normalization is on; files are never modified.")
-            ToolButton("Analyse local audio", enabled = !working, tag = "listening:analysis:run", onClick = {
+            ToolButton("Analyse local audio", enabled = !working, kind = ToolKind.QUIET, tag = "listening:analysis:run", onClick = {
                 task = scope.launch {
                     analysisSummary = null; analysisProgress = null
                     try {
@@ -116,33 +115,30 @@ internal fun ColumnScope.LibraryReviewPage(
         }
         report?.let { result ->
             item {
-                Text("${result.entries.size} local entries · ${result.entries.count { it.state != LibraryFileState.READABLE }} need attention", style = MaterialTheme.typography.titleMedium)
+                ToolSection("${result.entries.size} local entries · ${result.entries.count { it.state != LibraryFileState.READABLE }} need attention")
                 if (result.hashBudgetReached) Text("The comparison budget was reached. Uncompared files are not confirmed duplicates.")
-                ToolButton("Export review report", enabled = !working, tag = "listening:audit:export", onClick = { run {
+                ToolButton("Export review report", enabled = !working, kind = ToolKind.QUIET, tag = "listening:audit:export", onClick = { run {
                     val text = withContext(Dispatchers.IO) { result.export() }
                     if (latestHost.exportFile("cosmotune-library-review.json", text)) "Review saved, including local file locations" else null
                 } })
-                Text("The report includes local file locations. Choose where you save it.", style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(query, { query = it.take(500) }, label = { Text("Title, artist, album or source") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("listening:audit:query"))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Show files needing attention", Modifier.weight(1f))
-                    Switch(problemsOnly, { problemsOnly = it }, modifier = Modifier.testTag("listening:audit:problems").semantics { contentDescription = "Show files needing attention" })
-                }
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selectedFormat == null, { selectedFormat = null }, label = { Text("All formats") })
+                ToolNote("The report includes local file locations. Choose where you save it.")
+                ToolField(query, { query = it.take(500) }, "Title, artist, album or source", Modifier.fillMaxWidth(), tag = "listening:audit:query")
+                ToggleRow("Show files needing attention", problemsOnly, tag = "listening:audit:problems") { problemsOnly = it }
+                ToolChipRow {
+                    ToolChip("All formats", selectedFormat == null, { selectedFormat = null })
                     entries.mapNotNull { it.format }.distinct().sorted().forEach { format ->
-                        FilterChip(selectedFormat == format, { selectedFormat = format }, label = { Text(format) })
+                        ToolChip(format, selectedFormat == format, { selectedFormat = format })
                     }
                 }
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(qualityFilter == null, { qualityFilter = null }, label = { Text("Any measured quality") })
+                ToolChipRow {
+                    ToolChip("Any measured quality", qualityFilter == null, { qualityFilter = null })
                     QualityFilter.entries.forEach { option ->
-                        FilterChip(qualityFilter == option, { qualityFilter = option }, label = { Text(option.label) }, modifier = Modifier.testTag("listening:quality:${option.name}"))
+                        ToolChip(option.label, qualityFilter == option, { qualityFilter = option }, Modifier.testTag("listening:quality:${option.name}"))
                     }
                 }
-                if (genres.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(genreFilter == null, { genreFilter = null }, label = { Text("All genres") })
-                    genres.forEach { genre -> FilterChip(genreFilter == genre, { genreFilter = genre }, label = { Text(genre) }, modifier = Modifier.testTag("listening:genre:$genre")) }
+                if (genres.isNotEmpty()) ToolChipRow {
+                    ToolChip("All genres", genreFilter == null, { genreFilter = null })
+                    genres.forEach { genre -> ToolChip(genre, genreFilter == genre, { genreFilter = genre }, Modifier.testTag("listening:genre:$genre")) }
                 }
             }
             items(result.duplicates) { group ->
@@ -151,30 +147,28 @@ internal fun ColumnScope.LibraryReviewPage(
                     LibraryDuplicateKind.IDENTICAL_BYTES -> "Identical file bytes"
                     LibraryDuplicateKind.METADATA_CANDIDATES -> "Similar metadata — review the recordings"
                 }
-                Text(label, style = MaterialTheme.typography.titleMedium)
+                ToolCard {
+                ToolTitle(label)
                 if (group.kind != LibraryDuplicateKind.IDENTICAL_BYTES) {
-                    Text(group.indices.joinToString("\n") { index -> result.entries[index].let { "${it.song.artist} · ${it.song.title}\n${it.identity.orEmpty()}" } })
+                    ToolNote(group.indices.joinToString("\n") { index -> result.entries[index].let { "${it.song.artist} · ${it.song.title}\n${it.identity.orEmpty()}" } })
                 } else group.indices.forEach { index ->
                     val entry = result.entries[index]
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("${entry.song.artist} · ${entry.song.title}\n${entry.identity.orEmpty()}", Modifier.weight(1f))
-                        TextButton(enabled = !working, modifier = Modifier.testTag("listening:merge:keep:$index"), onClick = { run {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ToolNote("${entry.song.artist} · ${entry.song.title}\n${entry.identity.orEmpty()}", Modifier.weight(1f))
+                        ToolButton("Keep this copy", kind = ToolKind.QUIET, enabled = !working, tag = "listening:merge:keep:$index", onClick = { run {
                             merge = withContext(Dispatchers.Default) { previewDuplicateMerge(store.state.value, result, group, index) }
                             null
-                        } }) { Text("Keep this copy") }
+                        } })
                     }
                 }
                 // Only under the identical-bytes group it came from; the same file can also be a metadata candidate.
                 merge?.takeIf { preview -> group.kind == LibraryDuplicateKind.IDENTICAL_BYTES &&
                     (preview.remove + preview.keep).all { member -> group.indices.any { result.entries[it] == member } } }?.let { preview ->
-                    Surface(tonalElevation = 2.dp, shape = MaterialTheme.shapes.medium) {
-                        Column(Modifier.padding(12.dp).testTag("listening:merge:preview"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ToolCard(Modifier.testTag("listening:merge:preview"), raised = true) {
                             Text("Keep ${preview.keep.identity}. ${preview.repairs.size} saved session entries will point to it; titles, order and history stay.")
-                            if (latestHost.trashFiles != null) Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                Text("Also move ${preview.remove.size} other copies to the system trash", Modifier.weight(1f))
-                                Switch(trashCopies, { trashCopies = it }, modifier = Modifier.testTag("listening:merge:trash").semantics { contentDescription = "Move other copies to the trash" })
-                            }
-                            preview.remove.forEach { Text("× ${it.identity}", style = MaterialTheme.typography.bodySmall) }
+                            if (latestHost.trashFiles != null) ToggleRow("Also move ${preview.remove.size} other copies to the system trash", trashCopies,
+                                tag = "listening:merge:trash", description = "Move other copies to the trash") { trashCopies = it }
+                            preview.remove.forEach { ToolNote("× ${it.identity}") }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 ToolButton("Apply", enabled = !working, tag = "listening:merge:apply", onClick = { run {
                                     val current = latestHost
@@ -184,71 +178,69 @@ internal fun ColumnScope.LibraryReviewPage(
                                     if (trashed > 0) report = null
                                     "Kept one copy; ${preview.repairs.size} session entries updated" + if (trashed > 0) ", $trashed copies moved to the trash. Scan again to refresh." else ""
                                 } })
-                                TextButton(onClick = { merge = null }, enabled = !working) { Text("Discard") }
+                                ToolButton("Discard", { merge = null }, enabled = !working, kind = ToolKind.QUIET)
                             }
-                        }
                     }
+                }
                 }
             }
             items(filtered) { entry ->
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("${entry.song.title} · ${entry.song.artist}", style = MaterialTheme.typography.titleMedium)
+                ToolCard {
+                    ToolTitle("${entry.song.title} · ${entry.song.artist}")
                     Text(listOfNotNull(entry.format ?: "Format not measured", entry.bytes?.let { "${it / 1024} KiB" }, entry.state.label()).joinToString(" · "))
-                    measured(entry)?.let { Text(it.describe(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("listening:analysis:entry")) }
-                    entry.identity?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    measured(entry)?.let { ToolNote(it.describe(), Modifier.testTag("listening:analysis:entry")) }
+                    entry.identity?.let { ToolNote(it) }
                     if (entry.state == LibraryFileState.READABLE && entry.song.localPath?.let { java.io.File(it).isAbsolute } == true &&
                         (entry.format == "FLAC" || entry.format?.startsWith("ID3") == true || entry.format == "OPUS" || entry.format == "OGG" ||
                             entry.format?.startsWith("MP4") == true || entry.song.localPath!!.endsWith(".mp3", true))) {
-                        TextButton(enabled = !working, modifier = Modifier.testTag("listening:tags:edit"), onClick = { editing = if (editing == entry) null else entry }) { Text("Edit tags") }
+                        ToolButton("Edit tags", { editing = if (editing == entry) null else entry }, enabled = !working, kind = ToolKind.QUIET, tag = "listening:tags:edit")
                     }
                     if (editing == entry) TagEditor(entry, working, run) { path -> latestHost.onLocalFileChanged(path); editing = null }
-                    HorizontalDivider()
                 }
             }
         }
         item {
             var exception by remember { mutableStateOf("") }
-            Text("Artist names that are one artist", style = MaterialTheme.typography.titleMedium)
+            ToolSection("Artist names that are one artist")
             Text("Commas, ampersands and slashes normally separate collaborators. Add a name that contains them, such as a band or a composer trio, to keep it whole in matching and listening statistics.")
-            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                OutlinedTextField(exception, { exception = it.take(120) }, label = { Text("Artist name") }, singleLine = true, modifier = Modifier.weight(1f).testTag("listening:artist:exception"))
-                TextButton(enabled = !working && exception.trim().length >= 2, modifier = Modifier.testTag("listening:artist:add"), onClick = { run {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ToolField(exception, { exception = it.take(120) }, "Artist name", Modifier.weight(1f), tag = "listening:artist:exception")
+                ToolButton("Add", enabled = !working && exception.trim().length >= 2, kind = ToolKind.QUIET, tag = "listening:artist:add", onClick = { run {
                     val name = exception.trim()
                     withContext(Dispatchers.IO) { store.update { it.copy(preferences = it.preferences.copy(artistExceptions = (it.preferences.artistExceptions + name).distinctBy { n -> n.lowercase() }.take(200))) } }
                     exception = ""; "“$name” is kept as one artist"
-                } }) { Text("Add") }
+                } })
             }
             state.preferences.artistExceptions.forEach { name ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Text(name, Modifier.weight(1f))
-                    TextButton(enabled = !working, onClick = { run {
+                ToolLine(name, Modifier.padding(vertical = 3.dp)) {
+                    ToolButton("Remove", enabled = !working, kind = ToolKind.QUIET, onClick = { run {
                         withContext(Dispatchers.IO) { store.update { it.copy(preferences = it.preferences.copy(artistExceptions = it.preferences.artistExceptions - name)) } }; null
-                    } }) { Text("Remove") }
+                    } })
                 }
             }
         }
         item {
-            Text("Repair saved session locations", style = MaterialTheme.typography.titleMedium)
+            ToolSection("Repair saved session locations")
             Text("Find a readable local copy of the exact same recording. Preview every change; queue order, titles, likes and history stay intact.")
             ToolButton("Preview session repairs", enabled = !working, tag = "listening:audit:repair-preview", onClick = { run {
                 val current = latestHost
                 repairs = withContext(Dispatchers.IO) { previewSessionFileRepairs(store.state.value, current.library.songs, current.available) }
                 if (repairs.isNullOrEmpty()) "No saved session locations can be repaired from this library" else "Review ${repairs!!.size} location changes below"
             } })
-            ToolButton("Preview lossless upgrades", enabled = !working, tag = "listening:audit:upgrades", onClick = { run {
+            ToolButton("Preview lossless upgrades", enabled = !working, kind = ToolKind.QUIET, tag = "listening:audit:upgrades", onClick = { run {
                 val current = latestHost
                 repairs = withContext(Dispatchers.IO) { previewLosslessUpgrades(store.state.value, analysis, current.available) }
                 if (repairs.isNullOrEmpty()) "No analysed lossless copies of saved lossy entries were found" else "Review ${repairs!!.size} upgrades below. Audio files are not changed."
             } })
             host.requestLosslessCopies?.let { request ->
-                ToolButton("Get lossless copies from sources", enabled = !working, tag = "listening:audit:lossless-copies", onClick = { run {
+                ToolButton("Get lossless copies from sources", enabled = !working, kind = ToolKind.QUIET, tag = "listening:audit:lossless-copies", onClick = { run {
                     val wanted = withContext(Dispatchers.IO) { losslessCopyRequests(store.state.value, analysis) }
                     if (wanted.isEmpty()) "No analysed lossy entries need a lossless copy"
                     else "Queued ${request(wanted.map { it.song() })} lossless downloads. Each is labelled from its own bytes; analyse the library again, then preview upgrades."
                 } })
             }
-            Text("Moved or renamed files are found by the fingerprint an earlier analysis recorded (exact size, length and loudness), only when one file matches.", style = MaterialTheme.typography.bodySmall)
-            ToolButton("Find moved files", enabled = !working, tag = "listening:audit:moved", onClick = { run {
+            ToolNote("Moved or renamed files are found by the fingerprint an earlier analysis recorded (exact size, length and loudness), only when one file matches.")
+            ToolButton("Find moved files", enabled = !working, kind = ToolKind.QUIET, tag = "listening:audit:moved", onClick = { run {
                 val current = latestHost
                 repairs = withContext(Dispatchers.IO) { previewMovedFileRepairs(store.state.value, analysis, current.available) }
                 if (repairs.isNullOrEmpty()) "No moved files were found. Analyse your library before moving files to make this possible." else "Review ${repairs!!.size} location changes below"
@@ -256,14 +248,14 @@ internal fun ColumnScope.LibraryReviewPage(
         }
         repairs?.takeIf { it.isNotEmpty() }?.let { preview ->
             items(preview) { change ->
-                Text("${change.before.title}\n${change.before.path ?: change.before.uri}\n→ ${change.after.path ?: change.after.uri}")
+                ToolCard { Text("${change.before.title}\n${change.before.path ?: change.before.uri}\n→ ${change.after.path ?: change.after.uri}") }
             }
             item {
                 ToolButton("Apply ${preview.size} reviewed repairs", enabled = !working, tag = "listening:audit:repair-apply", onClick = { run {
                     withContext(Dispatchers.IO) { store.update { applySessionFileRepairs(it, preview, latestHost.available) } }
                     repairs = null; "Saved session locations repaired"
                 } })
-                TextButton(onClick = { repairs = null }, enabled = !working) { Text("Discard preview") }
+                ToolButton("Discard preview", { repairs = null }, enabled = !working, kind = ToolKind.QUIET)
             }
         }
     }
@@ -313,13 +305,12 @@ private fun TagEditor(entry: LibraryAuditEntry, working: Boolean, run: (suspend 
             .onFailure { failure = it.message ?: "These tags cannot be read." }
     }
     Column(Modifier.testTag("listening:tags:editor"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        failure?.let { Text(it, color = MaterialTheme.colorScheme.error); return@Column }
+        failure?.let { ToolError(it); return@Column }
         if (original == null) { Text("Reading tags…"); return@Column }
         listOf("TITLE" to "Title", "ARTIST" to "Artist", "ALBUM" to "Album", "ALBUM_ARTIST" to "Album artist", "GENRE" to "Genre", "TRACK" to "Track", "YEAR" to "Year").forEach { (key, label) ->
-            OutlinedTextField(values[key].orEmpty(), { values[key] = it.take(1000) }, label = { Text(label) }, singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("listening:tags:$key"))
+            ToolField(values[key].orEmpty(), { values[key] = it.take(1000) }, label, Modifier.fillMaxWidth(), tag = "listening:tags:$key", labelled = true)
         }
-        Text("Writes a verified copy beside the file, then replaces it. The audio itself is not re-encoded.", style = MaterialTheme.typography.bodySmall)
+        ToolNote("Writes a verified copy beside the file, then replaces it. The audio itself is not re-encoded.")
         ToolButton("Save tags", enabled = !working, tag = "listening:tags:save", onClick = { run {
             val before = original.orEmpty()
             fun changed(key: String) = values[key].orEmpty().takeIf { it != before[key].orEmpty() }

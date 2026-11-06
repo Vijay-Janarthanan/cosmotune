@@ -1,39 +1,35 @@
 package com.cosmotune.music.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import com.cosmotune.ui.bridge.Switch
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.R
+import com.cosmotune.music.data.settings.AppSettings
+import com.cosmotune.ui.orbit.OrbitBackHeader
+import com.cosmotune.ui.orbit.OrbitSheetButton
+import com.cosmotune.ui.orbit.OrbitSwitch
+import com.cosmotune.ui.orbit.OrbitTextField
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SpotifyCanvasAuthScreen(
     onNavigateUp: () -> Unit
@@ -42,32 +38,33 @@ fun SpotifyCanvasAuthScreen(
     val autoHidePlayer by AppSettings.spotifyCanvasAutoHide.collectAsStateWithLifecycle()
     val prioritizeSpotify by AppSettings.prioritizeSpotifyCanvas.collectAsStateWithLifecycle()
     var tokenInput by remember(currentToken) { mutableStateOf(currentToken) }
+    val fonts = orbitFonts()
+    val look = orbitLook()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.spotify_canvas_setup)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateUp) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                        )
-                    }
-                }
-            )
-        }
-    ) { padding ->
+    Column(Modifier.fillMaxSize().background(look.ground).statusBarsPadding()) {
+        OrbitBackHeader(
+            kind = stringResource(R.string.spotify),
+            onBack = onNavigateUp,
+            backLabel = stringResource(R.string.back),
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
+                .weight(1f)
+                .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text(
+                text = stringResource(R.string.spotify_canvas_setup),
+                style = fonts.heroTitle,
+                color = look.ink,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Text(
                 text = stringResource(R.string.spotify_canvas_setup_description),
-                style = MaterialTheme.typography.bodyLarge,
+                style = fonts.body,
+                color = look.dim,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
@@ -84,30 +81,31 @@ fun SpotifyCanvasAuthScreen(
                 checked = prioritizeSpotify,
                 onCheckedChange = AppSettings::setPrioritizeSpotifyCanvas,
             )
-            
+
             Text(
                 text = stringResource(R.string.spotify_canvas_setup_steps),
-                style = MaterialTheme.typography.bodyMedium,
+                style = fonts.body,
+                color = look.dim,
                 modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)
             )
 
-            OutlinedTextField(
+            OrbitTextField(
                 value = tokenInput,
                 onValueChange = { tokenInput = it },
-                label = { Text(stringResource(R.string.spdc_token)) },
+                placeholder = stringResource(R.string.spdc_token),
+                fonts = fonts,
+                look = look,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                singleLine = true
             )
 
-            Button(
-                onClick = { 
+            OrbitSheetButton(
+                label = stringResource(R.string.save),
+                onClick = {
                     AppSettings.setSpotifySpdcToken(tokenInput.trim())
                     onNavigateUp()
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(stringResource(R.string.save))
-            }
+            )
         }
     }
 }
@@ -119,6 +117,8 @@ private fun SpotifyCanvasSettingToggle(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -131,19 +131,9 @@ private fun SpotifyCanvasSettingToggle(
                 .weight(1f)
                 .padding(end = 16.dp),
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text(text = title, style = fonts.title, color = look.ink)
+            Text(text = subtitle, style = fonts.body, color = look.dim)
         }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-        )
+        OrbitSwitch(checked = checked, onChange = onCheckedChange, look = look, label = title)
     }
 }

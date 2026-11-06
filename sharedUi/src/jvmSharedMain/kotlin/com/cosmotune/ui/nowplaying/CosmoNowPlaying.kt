@@ -5,6 +5,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -346,7 +347,9 @@ fun CosmoNowPlaying(
     }
     // The video or the record in the box given. The page's video is not mounted while Cinema shows its own.
     val pageMedia: @Composable (Modifier, Dp, Dp, Boolean) -> Unit = { m, radius, maxDisc, phone ->
-        Box(m) {
+        // Nothing on top of media (Orbit rule 9): the mobile-data note stands under the frame, the frame taking the rest.
+        androidx.compose.foundation.layout.Column(m) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
             RecordBox(Modifier.fillMaxSize(), maxDisc) { record(it) }
             if (wantVideo && !cinemaShown && canvas != null) {
                 NowPlayingVideo(
@@ -356,7 +359,8 @@ fun CosmoNowPlaying(
                     onFramePlaced = coverPlaced,
                 )
             }
-            if (blockedByMobileData) Box(Modifier.padding(4.dp)) { PlayerPlatform.host.CanvasMobileDataHint(Modifier) }
+        }
+        if (blockedByMobileData) Box(Modifier.fillMaxWidth().padding(top = 8.dp)) { PlayerPlatform.host.CanvasMobileDataHint(Modifier) }
         }
     }
     val likeButton = CardButton(if (transport.liked) CosmoIcons.HeartFill else CosmoIcons.Heart, if (transport.liked) "Remove from liked" else "Like", onToggleLike, on = transport.liked)

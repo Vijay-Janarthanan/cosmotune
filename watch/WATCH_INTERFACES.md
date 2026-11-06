@@ -17,7 +17,8 @@ the call.
 | Watch home (1) | `home(HomeFilter.ALL / FILMS / SERIES / LIVE)` | `WatchHome`: `featured` (`Featured`: summary, badges, progress), `continueWatching`, `liveNow`, `rows` (`HomeRow`: id, title, subtitle, items, `wide`, `pageable`), `empty` |
 | A row scrolled to the end | `rowPage(row.id, skip = row.items.size)` | more `TitleSummary` |
 | Continue watching (live) | `continueWatching: StateFlow<List<ContinueItem>>` | `ContinueItem`: `summary`, `episode`, `episodeLabel` ("S2 E4"), `remainingMin`, `progress.fraction` |
-| Live now | `liveNow(limit)` | `LiveNowItem(channel, now, next)`; `now.progressAt(nowMs)` for the line |
+| Live now | `liveNow(limit)` | `LiveNowItem(channel, now, next)`; `now.progressAt(nowMs)` for the line. Ranked by the viewer's country and language (`WatchPlace`: Tamil news first for a Tamil viewer in India); a DD or Live on YouTube channel appears only while it has something live |
+| Live now strip: matches and live shows | `liveEvents()` | `Flow<List<LiveEvent>>`, see "Live events" below |
 | Film page (2) | `title(key)` | `Title`: `summary` (name, year, runtimeMin, rating, genres, overview, posterUrl, backdropUrl, logoUrl), `certification`, `cast`, `moreLikeThis`, `trailers` (YouTube keys), `whereToWatch` |
 | "Play from" list, best first (2) | `sources(targetOf(summary))` | `Flow<SourcesState>`: `streams` (ranked, `best` is first), `pending` plugins still answering, `errors`, `notFound`, `whereToWatch` |
 | | `sourcesNow(target)` | the same, once everything has answered |
@@ -43,10 +44,50 @@ the call.
 `targetOf(summary)`, `targetOf(seriesTitle, episode)` and `targetOf(channel)` build the `PlayTarget` for Play and for the
 Sources list.
 
+## Live events (the "Live now" strip)
+
+`liveEvents(): Flow<List<LiveEvent>>` emits the cached list at once, then again after every poll while it is collected
+(about a minute while something is live, ten minutes otherwise). Collect it only while the strip is on screen. It never
+fails: a score source that is not set up or does not answer is left out.
+
+`LiveEvent`: `id` (stable), `kind` (`CRICKET`, `FOOTBALL`, `SHOW`), `title` ("India v Australia, 2nd T20I"), `competition`
+("IPL 2027", "Premier League"), `teams` (`LiveTeam`: `name`, `shortName`, `logoUrl`, `score`, `country`, `batting`: cricket's side batting now, false when unknown), `scoreText` (the
+whole score on one line, null before the start), `statusText` ("India need 4 runs from 10 balls", "67'", "Full time"),
+`status` (`LIVE`, `UPCOMING`, `FINISHED`; `isLive`), `startMs`, `countries`, `languages`, `imageUrl`, `watchOptions`,
+`source` (the attribution line: "CricketData.org", "football-data.org", "TheSportsDB", "YouTube") and `updatedAtMs`.
+
+Window: everything live; upcoming in the next 24 hours; finished matches that started in the last 16 hours.
+
+Order: live first, then upcoming, then finished; inside each, the viewer's country and language first (`WatchPlace`, the
+same as Live TV: an India match or an IPL game for a viewer in India, a Tamil show for a Tamil viewer), then events with a
+watch option, then upcoming by start time and the rest newest first.
+
+Where the data comes from (all free, all read-only; a missing key leaves that service out, never fails):
+
+| Sport | With a key | Key (local.properties or environment) | Without a key |
+| :-- | :-- | :-- | :-- |
+| Cricket | CricketData.org `currentMatches`: internationals and the major leagues (IPL, WPL, Big Bash, PSL, SA20, The Hundred, ICC events) with runs, wickets, overs and the status line; kept 15 minutes (the free key allows 100 calls a day) | `CRICKETDATA_API_KEY` (free at cricketdata.org) | TheSportsDB: the IPL's next match and last result |
+| Football | football-data.org `/v4/matches`: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Eredivisie, Primeira Liga, Championship, Brasileirão, Champions League, Euros, World Cup, with the running score; kept 2 minutes | `FOOTBALL_DATA_API_KEY` (free at football-data.org/client/register) | TheSportsDB: each top league's and the ISL's next match and last result, no running score |
+| Shows | DD National's and DD Sports' live videos, and DD News' and DD India's live specials beside their 24x7 streams, from the DD plugin (when it is on) | none | |
+
+TheSportsDB uses its public test key unless `THESPORTSDB_API_KEY` is set. The desktop passes the keys as
+`-Dcosmotune.cricketdata.key`, `-Dcosmotune.footballdata.key`, `-Dcosmotune.thesportsdb.key`; the phone and TV as
+`BuildConfig` fields of the same names as the keys. `DefaultWatchRepository.liveEventsNow()` answers once without polling.
+
+A match's watch option is found, not assumed: a live video on DD Sports or DD National whose title names both sides.
+
+`watchOptions` lists only free streams our own plugins play (DD Sports or another DD channel, an official broadcaster's
+YouTube live), best first: `WatchOption(label, target, channel, badge)`. Play one with `player.open(option.target, null)`;
+`channel` is set when the option is a Live TV channel (for its logo). An event no free stream carries has no watch option:
+show the score only. Pay services are never listed.
+
+`FakeWatchRepository().liveEvents()` gives a live India v Australia T20 with DD Sports as its option, a live DD News YouTube
+special, a live and a finished football match with no option, and an upcoming IPL match.
+
 ## Keys
 
 `WatchKey` is the one id everywhere (progress, My list, rooms): `m:tmdb:603` film, `s:tmdb:1399` series,
-`e:tmdb:1399:1:1` episode, `c:<plugin>:<channelId>` channel, `a:<plugin>:<id>` an item with no TMDB match. Without a TMDB
+`e:tmdb:1399:1:1` episode, `c:<plugin>:<channelId>` channel, `a:<plugin>:<id>` an item with no TMDB match (`a:ytlive:<videoId>` a single YouTube live video). Without a TMDB
 key, films and series use `m:imdb:tt...` / `s:imdb:tt...`. `key.kind`, `key.seriesKey`, `key.season`, `key.episode` read it.
 
 ## Streams
@@ -66,8 +107,21 @@ the failover message and errors. `switchStream`, `selectAudio`, `selectSubtitle(
 ## Built-in plugins
 
 `BuiltInPlugins.all`, in Plugins page order (default in brackets): iptv-org [on], Pluto TV [on], Samsung TV Plus [on],
-Plex free [on], Internet Archive [on], Free on YouTube [on], Public Domain Movies (Stremio) [off], OpenSubtitles (Stremio)
+Prasar Bharati (DD) [on], Live on YouTube [on], Plex free [on], Internet Archive [on], Free on YouTube [on], Public Domain Movies (Stremio) [off], OpenSubtitles (Stremio)
 [on], WatchHub (Stremio) [off]. Nothing else is built in; no torrent, debrid or site-scraper plugin exists or may be added.
+
+Prasar Bharati (DD), id `dd`, badge "DD": DD News, DD India, DD National, DD Sports, DD Kisan, DD Urdu, DD Bharati, DD Tamil
+and the regional DD channels (`c:dd:DDTamil`). Prasar Bharati publishes no open stream address (its WAVES app is
+DRM-protected), so each channel is its official YouTube channel and plays what that channel has live, through Video's
+player like Free on YouTube. A channel that only goes live for programmes carries the label "Not 24/7"; when nothing is
+live, it has no stream ("Not on your sources"). Its guide is the live video's title (on now, with an approximate end) and
+the channel's scheduled streams (next).
+
+Live on YouTube, id `ytlive`, badge "YT LIVE": broadcasters' own 24x7 news streams on YouTube, Tamil first (Sun News,
+Polimer News, Thanthi TV, Puthiya Thalaimurai, News18 Tamil Nadu, Kalaignar Seithigal, News7 Tamil, Jaya Plus, Sathiyam),
+then Telugu, Malayalam, Kannada, Hindi and English news and Sansad TV (`c:ytlive:SunNews`). It plays the same way as DD.
+A single live video (a live special in the events strip) is `PlayTarget.Item(WatchKey.item(pluginId, videoId), pluginId,
+videoId, name)` with `pluginId` `ytlive` or `dd`.
 
 ## Rooms ("Watch together")
 

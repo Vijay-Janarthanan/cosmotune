@@ -116,7 +116,7 @@ class DesktopTrayFlyoutTest {
         val entries = menuEntries(DesktopTrayMenu.entries())
         val rows = entries.count { !it.separator }
         val separators = entries.count { it.separator }
-        snapshot("menu", DesktopTrayFlyout.Mode.MENU, song, DpSize(252.dp, (12 + rows * 36 + separators * 9 + 58 + 9).dp))
+        snapshot("menu", DesktopTrayFlyout.Mode.MENU, song, DpSize(252.dp, (16 + rows * 40 + separators * 9 + 58 + 9).dp))
         assertTrue(File("build/tray-preview/player.png").length() > 5_000)
         assertTrue(File("build/tray-preview/menu.png").length() > 5_000)
     }

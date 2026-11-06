@@ -112,7 +112,7 @@ class AudioDiscoveryInteractionTest {
         MusicCandidateService.begin(DiscoveryPreferences.state.value, setOf("fixture"))
         MusicCandidateService.updateContext(MusicDiscoveryContext(listOf(seed, other)))
         try {
-            compose.setContent { MaterialTheme { PersonalPlaylistDialog(listOf(seed, other, seed), seed, { closed = true }) { name, songs ->
+            compose.setContent { PodioTestTheme { PersonalPlaylistDialog(listOf(seed, other, seed), seed, { closed = true }) { name, songs ->
                 assertEquals("Made for me", name); saved = songs
             } } }
             compose.onNodeWithTag("playlist:kind").performClick()
@@ -123,7 +123,7 @@ class AudioDiscoveryInteractionTest {
             compose.waitUntil(10_000) { compose.onAllNodesWithText("2 recordings ready. Small or unavailable catalogues may produce fewer songs than requested.").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithContentDescription("Move Second song up").performScrollTo().assertIsEnabled().performClick()
             compose.onNodeWithText("1. Second song").performScrollTo().assertExists()
-            compose.onNodeWithTag("playlist:save").performClick()
+            compose.onNodeWithText("Save locally").performClick()
             compose.waitUntil { closed }
             assertEquals(listOf(other.videoId, seed.videoId), saved.map { it.videoId })
         } finally { MusicCandidateService.updateContext(previousContext) }

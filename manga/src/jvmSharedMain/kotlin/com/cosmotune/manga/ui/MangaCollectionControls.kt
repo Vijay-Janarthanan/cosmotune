@@ -1,5 +1,8 @@
 package com.cosmotune.manga.ui
 
+import com.cosmotune.ui.orbit.OrbitInputField
+import com.cosmotune.ui.orbit.OrbitSwitch
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -46,7 +49,7 @@ import kotlinx.coroutines.launch
     KitSheet(onDismiss = onDismiss) {
         ReadSheetHeader(mangaText("Collections"), onDone = onDismiss)
         Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(name, { name = it.take(80) }, singleLine = true, label = { Text(mangaText("Collection name")) }, modifier = Modifier.fillMaxWidth().testTag("manga:collection:name"))
+            OrbitInputField(name, { name = it.take(80) }, mangaText("Collection name"), modifier = Modifier.fillMaxWidth().testTag("manga:collection:name"))
             ReadButton(mangaText(if (editing == null) "Create collection" else "Save name"), {
                 action { val id = editing; if (id == null) repository.store.createCollection(name) else repository.store.renameCollection(id, name); name = ""; editing = null }
             }, kind = ReadKind.TONAL, modifier = Modifier.testTag("manga:collection:save"))
@@ -94,12 +97,12 @@ import kotlinx.coroutines.launch
             error?.let { Text(it, style = ReadType.body(), color = Color(palette.danger)) }
             state.collections.forEach { collection ->
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(bookId in collection.bookIds, onCheckedChange = { included -> scope.launch {
+                    OrbitSwitch(bookId in collection.bookIds, { included -> scope.launch {
                         try { repository.store.assignCollection(bookId, collection.id, included); error = null }
                         catch (cancelled: CancellationException) { throw cancelled }
                         catch (failure: Exception) { error = failure.message }
-                    } }, modifier = Modifier.testTag("manga:collection:member:${collection.id}"))
-                    Text(collection.name, style = ReadType.rowTitle(), color = Color(palette.textPrimary))
+                    } }, orbitLook(), collection.name, Modifier.testTag("manga:collection:member:${collection.id}"))
+                    Text(collection.name, style = ReadType.rowTitle(), color = Color(palette.textPrimary), modifier = Modifier.padding(start = 12.dp))
                 }
             }
             Spacer(Modifier.height(16.dp))

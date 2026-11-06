@@ -176,9 +176,9 @@ class PlayerChromeStructureTest {
         var seen = 0
         for ((name, source) in files) {
             val code = VideoSourceContract.code(source)
-            for (call in calls(code, "CosmoIconButton")) {
+            for (call in calls(code, "PlayerButton")) {
                 seen++
-                assertTrue("contentDescription = stringResource(" in call, "$name: a CosmoIconButton without a content description from the strings: ${call.take(120)}")
+                assertTrue("contentDescription = stringResource(" in call, "$name: a PlayerButton without a content description from the strings: ${call.take(120)}")
             }
             assertFalse(Regex("""contentDescription\s*=\s*"""").containsMatchIn(code), "$name: a content description written in the code")
             assertFalse(Regex("""\btext\s*=\s*"""").containsMatchIn(code), "$name: a label written in the code")
@@ -198,13 +198,13 @@ class PlayerChromeStructureTest {
     }
 
     @Test fun touchTargetsAreFortyEightDp() {
-        // A CosmoIconButton of 40 dp reserves a 48 dp target; the chrome's are 40, 48, 56 and 64.
+        // A PlayerButton of 40 dp reserves a 48 dp target; the chrome's are 40, 48, 56 and 64.
         for (size in listOf(VideoMetrics.CHROME_ICON_DP, VideoMetrics.QUEUE_BUTTON_DP, VideoMetrics.CENTRE_BUTTON_DP, VideoMetrics.CENTRE_PLAY_DP)) {
             assertTrue(size >= 40f)
         }
         for ((name, source) in files) {
             val code = VideoSourceContract.code(source)
-            for (call in calls(code, "CosmoIconButton")) {
+            for (call in calls(code, "PlayerButton")) {
                 assertTrue(Regex("""size\s*=\s*(VideoMetrics\.\w+|size)\.dp""").containsMatchIn(call), "$name: an icon button's size is not one of the chrome's: ${call.take(120)}")
             }
             var from = 0
@@ -270,7 +270,7 @@ class PlayerChromeStructureTest {
                 assertTrue("hazeState = null" in call, "$name: a glass surface with a backdrop: $call")
             }
         }
-        assertTrue(seen >= 6, "the bar, bubble, pill, meter, toast and stats card are glass ($seen)")
+        assertTrue(seen >= 5, "the bar, bubble, pill, meter and stats card are glass ($seen; the skip toast is a flat Orbit card)")
         assertFalse("HazeState" in allCode, "no haze state in the chrome")
     }
 
@@ -283,9 +283,9 @@ class PlayerChromeStructureTest {
         // Black: the band around the picture, the subtitles' background and shadow (media scrims, the documented exception).
         val blacks = files.filter { "Color.Black" in VideoSourceContract.code(it.second) }.map { it.first }.toSet()
         assertEquals(setOf("VideoPlayerBox", "SubtitleOverlay"), blacks)
-        // White: text over the video (title, time, error, subtitles) and the scrubber's line over the video.
+        // White: text over the video (title, time, error, subtitles), the scrubber's line and the skip button's countdown ring over the video.
         val whites = files.filter { "Color.White" in VideoSourceContract.code(it.second) }.map { it.first }.toSet()
-        assertEquals(setOf("PlayerControls", "PlayerScrubber", "SubtitleOverlay"), whites)
+        assertEquals(setOf("PlayerControls", "PlayerScrubber", "SubtitleOverlay", "SkipSegmentButton"), whites)
         // The segments' colours are SponsorBlock's category colours (the documented exception on the scrubber).
         assertTrue("Color(range.third)" in VideoSourceContract.code(file("PlayerScrubber")))
     }

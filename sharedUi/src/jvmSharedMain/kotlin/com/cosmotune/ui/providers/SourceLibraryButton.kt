@@ -2,6 +2,7 @@ package com.cosmotune.ui.providers
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.unit.dp
 import com.cosmotune.providers.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,15 +20,25 @@ fun SourceLibraryButton(page: SourceCataloguePage) {
     var busy by remember(id) { mutableStateOf(false) }
     var failure by remember(id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    TextButton(enabled = !busy, onClick = {
-        if (!busy) scope.launch {
-            busy = true; failure = false
-            try {
-                val library = requireNotNull(hub.library) { "Source library unavailable" }
-                if (artist) library.follow(page, !saved) else library.save(page, !saved)
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { failure = true }
-            finally { busy = false }
-        }
-    }) { Text(when { busy -> "Saving…"; failure -> "Save failed · Retry"; artist && saved -> "Following"; artist -> "Follow"; saved -> "Saved"; else -> "Save" }) }
+    val label = when { busy -> "Saving…"; failure -> "Save failed · Retry"; artist && saved -> "Following"; artist -> "Follow"; saved -> "Saved"; else -> "Save" }
+    // The quiet Orbit pill; saved or followed, it carries the check.
+    com.cosmotune.ui.orbit.OrbitPillButton(
+        label,
+        onClick = {
+            if (!busy) scope.launch {
+                busy = true; failure = false
+                try {
+                    val library = requireNotNull(hub.library) { "Source library unavailable" }
+                    if (artist) library.follow(page, !saved) else library.save(page, !saved)
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { failure = true }
+                finally { busy = false }
+            }
+        },
+        fonts = com.cosmotune.ui.orbit.orbitFonts(),
+        look = com.cosmotune.ui.orbit.orbitLook(),
+        enabled = !busy,
+        icon = if (saved && !busy && !failure) com.cosmotune.ui.components.CosmoIcons.Check else null,
+        height = 40.dp,
+    )
 }

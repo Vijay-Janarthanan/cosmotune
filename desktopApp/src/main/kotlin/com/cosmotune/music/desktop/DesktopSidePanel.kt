@@ -74,7 +74,7 @@ internal fun DesktopSidePanelColumn(
                         Box(Modifier.fillMaxSize().desktopChromeGlass())
                     }
                     Column(Modifier.fillMaxSize()) {
-                        Row(
+                        if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) com.cosmotune.desktop.CosmoDesktopSidePanelHeader(which == DesktopSidePanel.LYRICS, onClose) else Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(if (which == DesktopSidePanel.LYRICS) HEADER_HEIGHT else QUEUE_HEADER_HEIGHT)
@@ -103,13 +103,15 @@ internal fun DesktopSidePanelColumn(
                             Modifier
                                 .fillMaxWidth()
                                 .weight(1f)
-                                .padding(
-                                    start = if (which == DesktopSidePanel.LYRICS) 18.dp else 14.dp,
-                                    end = if (which == DesktopSidePanel.LYRICS) 18.dp else 4.dp,
-                                    bottom = 14.dp,
+                                .then(
+                                    com.cosmotune.desktop.cosmoDesktopSidePanelInset(which == DesktopSidePanel.LYRICS) ?: Modifier.padding(
+                                        start = if (which == DesktopSidePanel.LYRICS) 18.dp else 14.dp,
+                                        end = if (which == DesktopSidePanel.LYRICS) 18.dp else 4.dp,
+                                        bottom = 14.dp,
+                                    ),
                                 ),
                         ) {
-                            content(which)
+                            com.cosmotune.desktop.CosmoDesktopSidePanelContent { content(which) }
                         }
                     }
                 }

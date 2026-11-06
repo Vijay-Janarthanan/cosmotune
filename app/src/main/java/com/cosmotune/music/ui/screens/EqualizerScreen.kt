@@ -28,10 +28,9 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import com.cosmotune.ui.bridge.ModalBottomSheet
+import com.cosmotune.ui.sheets.SurfaceSheetSwitch
 import com.cosmotune.ui.bridge.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -58,6 +57,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.R
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import com.cosmotune.ui.orbit.OrbitChip
+import com.cosmotune.ui.orbit.OrbitSheetTitle
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.data.settings.EqualizerMode
 import com.cosmotune.music.playback.AudioOutputStatus
@@ -293,7 +300,7 @@ fun EqualizerScreen(
     }
 
     if (pickingPreset) {
-        ModalBottomSheet(
+        SurfaceSheetSwitch(
             onDismissRequest = { pickingPreset = false },
             containerColor = MaterialTheme.colorScheme.background,
         ) {
@@ -834,63 +841,44 @@ private fun BalanceControl(
 
 // ---- Presets ---------------------------------------------------------------
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PresetSheet(selected: EqualizerPreset, onSelect: (EqualizerPreset) -> Unit) {
     val haptics = rememberHaptics()
-    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-        Text(
-            text = stringResource(R.string.equalizer_preset),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
-        )
-        HorizontalDivider(
-            thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outline,
-        )
-        // Sixteen curves is taller than the sheet on most phones, and laid
-        // out straight the ones past the fold were simply unreachable. The
-        // title and its rule stay put while the list underneath scrolls;
-        // `fill = false` keeps a short list from stretching the sheet to the
-        // full height it is allowed.
-        Column(
-            modifier = Modifier
-                .weight(1f, fill = false)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            EqualizerPreset.entries.forEach { preset ->
-                // Custom is a state the bands can be in, not a curve anyone can
-                // choose, so it is only ever shown when it is the one in force.
-                if (preset == EqualizerPreset.CUSTOM && selected != EqualizerPreset.CUSTOM) {
-                    return@forEach
-                }
-                val chosen = preset == selected
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = preset != EqualizerPreset.CUSTOM) {
-                            haptics.play(Haptic.Select)
-                            onSelect(preset)
-                        }
-                        .padding(horizontal = 22.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = preset.localizedLabel(),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (chosen) {
-                        Icon(
-                            Icons.Rounded.Check,
-                            contentDescription = stringResource(R.string.selected),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp),
-                        )
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    OrbitSheetTitle(title = stringResource(R.string.equalizer_preset))
+    // Sixteen curves is taller than the sheet on most phones, and laid out
+    // straight the ones past the fold were simply unreachable. The sheet
+    // scrolls its own content; the presets sit in it as wrapping chips.
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        EqualizerPreset.entries.forEach { preset ->
+            // Custom is a state the bands can be in, not a curve anyone can
+            // choose, so it is only ever shown when it is the one in force.
+            if (preset == EqualizerPreset.CUSTOM && selected != EqualizerPreset.CUSTOM) {
+                return@forEach
+            }
+            val chosen = preset == selected
+            OrbitChip(
+                title = preset.localizedLabel(),
+                fonts = fonts,
+                look = look,
+                selected = chosen,
+                onClick = {
+                    if (preset != EqualizerPreset.CUSTOM) {
+                        haptics.play(Haptic.Select)
+                        onSelect(preset)
                     }
-                }
-        }
+                },
+                modifier = Modifier.semantics { this.selected = chosen },
+                leading = if (chosen) {
+                    { Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.selected), modifier = Modifier.size(18.dp)) }
+                } else null,
+            )
         }
     }
 }

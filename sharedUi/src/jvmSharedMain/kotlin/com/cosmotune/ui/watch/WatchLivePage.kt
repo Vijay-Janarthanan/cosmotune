@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.cosmoFocusRing
+import com.cosmotune.ui.orbit.WatchLiveLine
 import com.cosmotune.ui.orbit.OrbitChipRow
 import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitLabel
@@ -149,6 +150,18 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
     }
 }
 
+/** "free" under a DD channel (Prasar Bharati's own streams), "YouTube" under a broadcaster's YouTube live; null for the rest. */
+private fun liveTag(channel: Channel): String? = when (channel.pluginId) {
+    com.cosmotune.watch.plugin.BuiltInPlugins.PRASAR_BHARATI -> "free"
+    com.cosmotune.watch.plugin.BuiltInPlugins.YOUTUBE_LIVE -> "YouTube"
+    else -> null
+}
+
+/** What an official YouTube live channel with no guide is showing all day: "Live news 24×7" for news, "Live 24×7" otherwise. */
+private fun alwaysLiveLine(channel: Channel): String? =
+    if (channel.pluginId != com.cosmotune.watch.plugin.BuiltInPlugins.YOUTUBE_LIVE) null
+    else if (channel.categories.any { it.equals("news", ignoreCase = true) }) "Live news 24×7" else "Live 24×7"
+
 /** The board's names for the categories sources give: Movies are Films, Sports is Sport. */
 private fun categoryName(name: String): String = when (name.lowercase()) { "movies" -> "Films"; "sports" -> "Sport"; else -> name }
 
@@ -188,7 +201,11 @@ private fun GuideGrid(window: GuideWindow, now: Long, favourites: Set<com.cosmot
                     onStar = { actions.favourite(row.channel, it) })
                 Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(scroll)) {
                     Box(Modifier.width(gridWidth).fillMaxHeight()) {
-                        if (row.programmes.isEmpty()) {
+                        val always = alwaysLiveLine(row.channel)
+                        if (row.programmes.isEmpty() && always != null) {
+                            // An official YouTube live stream has no guide but is on all day: one cell on now across the window.
+                            ProgrammeCell(null, always, "On air now", true, gridWidth, 0.dp, fonts, look) { actions.playChannel(row.channel) }
+                        } else if (row.programmes.isEmpty()) {
                             // A quiet line, not a cell: there is nothing to choose here.
                             Text("No guide", style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1,
                                 modifier = Modifier.align(Alignment.CenterStart).padding(start = 15.dp))
@@ -225,7 +242,12 @@ private fun ChannelCell(channel: Channel, favourite: Boolean, width: Dp, wide: B
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         WatchLogoTile(channelMark(channel.name), logoFill(channel.categories.firstOrNull() ?: channel.name), fonts, logoUrl = channel.logoUrl, size = if (wide) 46.dp else 38.dp)
-        Text(channel.name, style = fonts.title.copy(fontSize = 13.5.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        val live = liveTag(channel)
+        Column(Modifier.weight(1f)) {
+            Text(channel.name, style = fonts.title.copy(fontSize = 13.5.sp, lineHeight = 17.sp), color = look.ink, maxLines = if (live != null) 1 else 2, overflow = TextOverflow.Ellipsis)
+            // The free Indian channels and the official YouTube live ones say so under their name (board section 2).
+            if (live != null) WatchLiveLine(live, fonts, look, Modifier.padding(top = 2.dp))
+        }
         if (wide) {
             val star = remember { MutableInteractionSource() }
             Box(

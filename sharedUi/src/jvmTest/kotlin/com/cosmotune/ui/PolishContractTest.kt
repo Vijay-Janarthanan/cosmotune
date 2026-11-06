@@ -156,7 +156,7 @@ class PolishContractTest {
         val src = SourceContract.code(SourceContract.read("${cosmoDesktop}CosmoDesktopSidePanel.kt"))
         assertFalse(src.contains("PANEL_PADDING"), "no 14 dp inside the card: the header and content of the column carry 14 to 18 dp themselves")
         val body = SourceContract.functionBody(SourceContract.read("${cosmoDesktop}CosmoDesktopSidePanel.kt"), "cosmoDesktopSidePanelCard").replace(Regex("\\s+"), " ")
-        assertTrue(body.trimEnd().endsWith(".cosmoGlass(LocalDesktopHaze.current, shape) }"), "the card is margin and glass, nothing inside: $body")
+        assertTrue(body.trimEnd().endsWith(".clip(ORBIT_SIDE_PANEL_SHAPE) .background(fill) }"), "the card is margin and the flat Orbit fill, nothing inside: $body")
     }
 
     // ---- 5. the error page keeps its Tune icon -------------------------------------------------------------------------------------

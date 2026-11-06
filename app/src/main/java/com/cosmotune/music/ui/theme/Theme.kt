@@ -1,16 +1,12 @@
 package com.cosmotune.music.ui.theme
 
-import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -114,15 +110,5 @@ fun CosmotuneTheme(
  * surface follows the theme. Hence a parameter rather than reading it here.
  */
 @Composable
-fun SystemBarIcons(dark: Boolean) {
-    val view = LocalView.current
-    if (view.isInEditMode) return
-    val window = findWindow(view) ?: return
-    SideEffect {
-        WindowCompat.getInsetsController(window, view).apply {
-            isAppearanceLightStatusBars = dark
-            isAppearanceLightNavigationBars = dark
-        }
-    }
-}
+fun SystemBarIcons(dark: Boolean) = SystemBarGlyphs(dark)
 

@@ -1,5 +1,10 @@
 package com.cosmotune.video.ui.search
 
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.ui.comments.CommentLink
+import com.cosmotune.video.ui.library.OrbitAction
+import com.cosmotune.video.ui.library.OrbitGroupLabel
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,8 +37,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.design.SearchHighlight
-import com.cosmotune.ui.blocks.CosmoOverline
-import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.states.CosmoEmptyState
 import com.cosmotune.ui.theme.CosmoRadii
@@ -51,7 +54,6 @@ import com.cosmotune.video.ui.blocks.videoClickable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
-import com.cosmotune.ui.kit.KitTextButton
 import androidx.compose.runtime.getValue
 
 /*
@@ -160,15 +162,10 @@ internal fun LazyListScope.recentRows(recents: List<String>, onPick: (String) ->
         return
     }
     item(key = "recent:header") {
-        CosmoOverline(
-            text = stringResource(Res.string.video_recent_searches),
-            trailing = {
-                KitTextButton(
-                    text = stringResource(Res.string.video_clear),
-                    onClick = onClear,
-                    )
-            },
-        )
+        Row(Modifier.fillMaxWidth().padding(end = CosmoSpacing.margin), verticalAlignment = Alignment.CenterVertically) {
+            OrbitGroupLabel(stringResource(Res.string.video_recent_searches), Modifier.weight(1f))
+            CommentLink(text = stringResource(Res.string.video_clear), onClick = onClear)
+        }
     }
     items(recents, key = { "recent:$it" }) { text ->
         SearchTextRow(
@@ -197,8 +194,8 @@ private fun SearchTextRow(
     trailingDescription: String,
     onTrailing: () -> Unit,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val shown = remember(text, typed) {
         val (bold, rest) = SearchHighlight.split(text, typed)
         buildAnnotatedString {
@@ -206,12 +203,7 @@ private fun SearchTextRow(
             append(rest)
         }
     }
-    val style = remember(type, text) {
-        type.forText(
-            TextStyle(fontFamily = type.textFamily, fontWeight = FontWeight.Normal, fontSize = TEXT_SP.sp, lineHeight = TEXT_SP.sp * 1.3f),
-            text,
-        )
-    }
+    val style = remember(fonts) { fonts.body.copy(fontSize = TEXT_SP.sp, lineHeight = TEXT_SP.sp * 1.3f) }
     Row(Modifier.fillMaxWidth().heightIn(min = ROW_MIN), verticalAlignment = Alignment.CenterVertically) {
         Row(
             Modifier
@@ -222,21 +214,21 @@ private fun SearchTextRow(
                 .padding(start = CosmoSpacing.margin - RING_ROOM),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(leading, contentDescription = null, tint = Color(palette.textTertiary), modifier = Modifier.size(LEADING_DP.dp))
+            Icon(leading, contentDescription = null, tint = look.dim, modifier = Modifier.size(LEADING_DP.dp))
             Spacer(Modifier.width(LEADING_GAP))
             Text(
                 text = shown,
                 style = style,
-                color = Color(palette.textPrimary),
+                color = look.ink,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
         }
         // The end button's 48 dp target ends 4 dp from the edge, so its glyph stands near the page margin.
-        CosmoIconButton(
+        OrbitAction(
             icon = trailingIcon,
-            contentDescription = trailingDescription,
+            label = trailingDescription,
             onClick = onTrailing,
             size = END_BUTTON,
             modifier = Modifier.padding(end = END_INSET),

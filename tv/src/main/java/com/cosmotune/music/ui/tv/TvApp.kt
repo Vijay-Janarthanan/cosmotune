@@ -106,6 +106,8 @@ enum class TvDestination(val label: String) {
     LIBRARY("Library"),
     WATCH("Watch"),
     PODIO("Radio"),
+    /** "Live now", the page the Live pill of the chips row opens (it is not a chip of its own). */
+    LIVE("Live now"),
     SETTINGS("Settings"),
 }
 
@@ -338,6 +340,21 @@ private fun TvMainShell(
     // sheet waits ([com.cosmotune.ui.watch.WatchApp] draws it).
     val watchLink by com.cosmotune.watch.WatchLinks.pending.collectAsState()
     LaunchedEffect(watchLink != null) { if (watchLink != null) select(TvDestination.WATCH) }
+    // Live now: the pill in the chips row while something followed is live, its page, and the reminders. Watch plays in Watch's player.
+    val liveContext = androidx.compose.ui.platform.LocalContext.current
+    val liveSettings = com.cosmotune.ui.live.rememberLiveNowSettings()
+    val live = remember(liveSettings, liveContext) {
+        com.cosmotune.ui.live.LiveNowHost(
+            events = { com.cosmotune.music.watch.AndroidWatch.repository(liveContext).liveEvents() },
+            settings = liveSettings,
+            play = { event, option ->
+                com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.LIVE)
+                com.cosmotune.ui.watch.WatchNav.open(com.cosmotune.ui.live.liveRoute(event, option))
+                select(TvDestination.WATCH)
+            },
+        )
+    }
+    com.cosmotune.ui.live.LiveNowReminders(live)
     val activeDetail = detailStack.lastOrNull()
     val contentFocus = remember { FocusRequester() }
     val detailFocus = remember { FocusRequester() }
@@ -405,7 +422,7 @@ private fun TvMainShell(
     val barVisible = !chrome.contentScrolled || barHasFocus
     val barProgress by animateFloatAsState(if (barVisible) 1f else 0f, tween(260), label = "barProgress")
 
-    CompositionLocalProvider(LocalTvChrome provides chrome) {
+    CompositionLocalProvider(LocalTvChrome provides chrome, com.cosmotune.ui.live.LocalLiveNow provides live) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -434,6 +451,7 @@ private fun TvMainShell(
                         when (destination) {
                             TvDestination.PODIO -> com.cosmotune.music.ui.tv.screens.TvPodioScreen(mediaController, playerState, openNowPlaying)
                             TvDestination.WATCH -> com.cosmotune.music.ui.tv.screens.TvWatchScreen()
+                            TvDestination.LIVE -> com.cosmotune.music.ui.tv.screens.TvLiveScreen()
                             TvDestination.HOME -> TvHomeScreen(
                                 viewModel = viewModel,
                                 mediaController = mediaController,
@@ -627,6 +645,12 @@ private fun TvTopBar(
                 }
             }
         }
+        // The Live pill after the chips, while something followed is live: it opens the Live now page.
+        TvLiveChip(
+            selected = destination == TvDestination.LIVE,
+            onClick = { onSelect(TvDestination.LIVE) },
+            modifier = downToContent.then(if (destination == TvDestination.LIVE) Modifier.focusRequester(tabFocus) else Modifier),
+        )
         TvNowPlayingChip(
             playerState = playerState,
             onClick = onOpenNowPlaying,
@@ -643,6 +667,19 @@ private fun TvTopBar(
             imageUrl = if (signedIn) avatarUrl else null,
             onClick = onOpenAccount,
             modifier = downToContent,
+        )
+    }
+}
+
+/** The Live pill in the TV's look: the shared pill ([com.cosmotune.ui.live.LiveNowPillButton]) on the dark Orbit look, the TV's ring for focus. */
+@Composable
+private fun TvLiveChip(selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    com.cosmotune.ui.theme.CosmoLookTheme(dark = true, legacy = { content -> content() }) {
+        com.cosmotune.ui.live.LiveNowPillButton(
+            onOpen = onClick,
+            interactionSource = interaction,
+            modifier = modifier.tvLift(interaction, CircleShape, focusedScale = 1f, ringGap = if (selected) 5.dp else 3.dp),
         )
     }
 }

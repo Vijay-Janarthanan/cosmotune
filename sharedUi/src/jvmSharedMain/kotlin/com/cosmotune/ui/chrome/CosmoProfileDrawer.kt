@@ -77,6 +77,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.onClick
@@ -347,7 +348,8 @@ private fun DrawerLayer(
                         translationX = towardStart * (resting + drag)
                         alpha = if (reduced) slide.value else 1f
                     }
-                    .cosmoGlass(hazeState = null, shape = PANEL_SHAPE)
+                    // Flat, the Orbit sheets' own ground (rule 4: no glass on a surface of its own).
+                    .clip(PANEL_SHAPE).background(com.cosmotune.ui.orbit.orbitSheetGround(com.cosmotune.ui.orbit.orbitLook()))
                     // A tap on the panel's own background must not fall through to the scrim.
                     .pointerInput(Unit) { detectTapGestures(onTap = {}) }
                     .semantics { paneTitle = profile; isTraversalGroup = true }
@@ -356,15 +358,17 @@ private fun DrawerLayer(
                         bottom = DrawerMetrics.panelBottomPaddingDp(navBottom.value).dp,
                     ),
             ) {
+                // Everything but the foot scrolls; the foot stands under the list, never over its last row.
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     DrawerHead(name, subtitle, avatarUrl, onAccount)
-                    Separator()
                     ModeSwitch(onChosen = onDismiss, onLater = { later = it })
                     Spacer(Modifier.height(14.dp))
-                    Separator()
-                    Spacer(Modifier.height(10.dp))
-                    for (entry in entries) EntryRow(entry)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { for (entry in entries) EntryRow(entry) }
+                    // In a room, the room's small card under the rows; a tap opens the room.
+                    com.cosmotune.ui.orbit.OrbitNavRoomCard(Modifier.padding(start = 12.dp, end = 12.dp, top = 14.dp))
+                    Spacer(Modifier.height(12.dp))
                 }
+                Separator()
                 DrawerFoot()
             }
         }
@@ -375,37 +379,23 @@ private fun DrawerLayer(
 
 // ---- Head ----------------------------------------------------------------------------------------------------------------------
 
-/** The avatar, [name] and [subtitle]; a tap is [onAccount]. 20 dp from the panel's edge, 20 dp below it. */
+/**
+ * The head: the Orbit account card (Settings' own, made compact): the picture as a disc, [name] (or "Sign in") in the wide face and
+ * [subtitle] (the sync status, the handle) under it, on the picture's colour. A tap is [onAccount]; nothing while that is null.
+ */
 @Composable
 private fun DrawerHead(name: String, subtitle: String?, avatarUrl: String?, onAccount: (() -> Unit)?) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val interaction = remember { MutableInteractionSource() }
-    val pressed = interaction.collectIsPressedAsState()
-    val hovered = interaction.collectIsHoveredAsState()
     val haptics = rememberHaptics()
-    // 12 dp in from the panel, 8 dp of padding in the row: the avatar stands 20 dp from the edge, like the labels below it.
-    Row(
-        Modifier
-            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-            .fillMaxWidth()
-            .cosmoFocusRing(interaction, 16.dp)
-            .stateLayer(colors, palette, pressed, hovered, 16.dp)
-            .then(
-                if (onAccount != null) Modifier.clickable(interactionSource = interaction, indication = null, role = Role.Button) { haptics.play(Haptic.Tap); onAccount() }
-                else Modifier,
-            )
-            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Avatar(avatarUrl, AVATAR)
-        Column(Modifier.weight(1f)) {
-            val type = LocalCosmoType.current
-            DrawerText(name, type.title(TypeScale.TITLE_M), Color(palette.textPrimary))
-            if (subtitle != null) DrawerText(subtitle, type.sized(13f, 400), Color(palette.textSecondary), maxLines = 2)
-        }
-    }
+    com.cosmotune.ui.orbit.OrbitAccountCard(
+        label = "Account",
+        name = name,
+        line = subtitle,
+        pictureUrl = avatarUrl,
+        fonts = com.cosmotune.ui.orbit.orbitFonts(),
+        onClick = onAccount?.let { open -> { haptics.play(Haptic.Tap); open() } },
+        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 4.dp),
+        compact = true,
+    )
 }
 
 /** A circle with the picture at [avatarUrl] over a tonal placeholder with the user glyph (also what a failed load leaves). */
@@ -442,18 +432,14 @@ private fun ModeSwitch(onChosen: () -> Unit, onLater: (AppMode) -> Unit) {
     val type = LocalCosmoType.current
     val settings = LocalCosmoShell.current?.settings
     val current = settings?.mode?.collectAsState()?.value ?: AppMode.MUSIC
-    Text(
-        text = stringResource(Res.string.cosmo_mode),
-        style = type.sized(12f, 700),
-        color = Color(palette.textTertiary),
-        modifier = Modifier.padding(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 8.dp).semantics { heading() },
-    )
-    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        for (mode in AppMode.entries) {
+    com.cosmotune.ui.orbit.OrbitNavSectionLabel(stringResource(Res.string.cosmo_mode), Modifier.padding(start = 24.dp, top = 20.dp, end = 20.dp, bottom = 8.dp).semantics { heading() })
+    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        for (mode in DRAWER_MODES) {
             val available = AppModes.available(mode)
             if (!available) continue
             ModeRow(
-                icon = when (mode) { AppMode.MUSIC, AppMode.PODIO -> CosmoIcons.Waveform; AppMode.VIDEO -> CosmoIcons.Video; AppMode.MANGA, AppMode.READ, AppMode.LIBRARY -> CosmoIcons.Library; AppMode.WATCH -> CosmoIcons.Video },
+                // Each mode its own glyph, the mode switcher's: two modes sharing one read as the same place.
+                icon = com.cosmotune.ui.kit.modeIcon(mode),
                 title = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music; AppMode.VIDEO -> Res.string.cosmo_mode_video; AppMode.MANGA -> Res.string.cosmo_mode_manga; AppMode.PODIO -> Res.string.cosmo_mode_podio; AppMode.READ -> Res.string.cosmo_mode_read; AppMode.LIBRARY -> Res.string.library; AppMode.WATCH -> Res.string.cosmo_mode_watch }),
                 summary = stringResource(when (mode) { AppMode.MUSIC -> Res.string.cosmo_mode_music_summary; AppMode.VIDEO -> Res.string.cosmo_mode_video_summary; AppMode.MANGA -> Res.string.cosmo_mode_manga_summary; AppMode.PODIO -> Res.string.cosmo_mode_podio_summary; AppMode.READ -> Res.string.cosmo_mode_read_summary; AppMode.LIBRARY -> Res.string.cosmo_mode_library_summary; AppMode.WATCH -> Res.string.cosmo_mode_watch_summary }),
                 // A mode that does not work never becomes the selected one.
@@ -466,44 +452,46 @@ private fun ModeSwitch(onChosen: () -> Unit, onLater: (AppMode) -> Unit) {
 }
 
 /**
- * One mode: min 64 dp, padding 10 20, 14 dp between its parts. The selected one has the `--row-on` wash, radius 18, 8 dp in
- * from the sides, and a tick at the end. A mode that is not available is still a focusable radio button that says "Later".
+ * One mode as an Orbit navigation chip (the desktop sidebar's, [com.cosmotune.ui.orbit.OrbitNavChip]): 44 dp, round, 12 dp in from the
+ * panel, the mode's own glyph and its name; the current one solid ink with the ground's colour for its words and a small dot of
+ * that colour at its end, the others a faint wash under the finger. [summary] is what a screen reader hears after the name. A mode that is
+ * not available is still a focusable radio button that says "Later".
  */
 @Composable
 private fun ModeRow(icon: ImageVector, title: String, summary: String, selected: Boolean, later: Boolean, onClick: () -> Unit) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
     val type = LocalCosmoType.current
     val haptics = rememberHaptics()
     val interaction = remember { MutableInteractionSource() }
-    val pressed = interaction.collectIsPressedAsState()
-    val hovered = interaction.collectIsHoveredAsState()
+    val pressed by interaction.collectIsPressedAsState()
+    val hovered by interaction.collectIsHoveredAsState()
+    val ink = if (selected) look.ground else look.ink.copy(alpha = 0.86f)
     Row(
         Modifier
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = 12.dp)
             .fillMaxWidth()
-            .heightIn(min = 64.dp)
-            .cosmoFocusRing(interaction, 18.dp)
-            .stateLayer(colors, palette, pressed, hovered, 18.dp, selectedWash = selected)
+            .heightIn(min = 44.dp)
+            .cosmoFocusRing(interaction, 22.dp)
+            .clip(CircleShape)
+            .background(if (selected) look.ink else rowWash(look, hovered, pressed))
             .selectable(selected = selected, interactionSource = interaction, indication = null, role = Role.RadioButton, onClick = { haptics.play(Haptic.Select); onClick() })
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .semantics { stateDescription = summary }
+            .padding(start = 14.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(if (selected) palette.accent else palette.textSecondary), modifier = Modifier.size(24.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                DrawerText(title, type.sized(15.5f, 650), Color(palette.textPrimary), modifier = Modifier.weight(1f, fill = false))
-                if (later) {
-                    Spacer(Modifier.width(6.dp))
-                    LaterTag()
-                }
-            }
-            DrawerText(summary, type.sized(13f, 400), Color(palette.textSecondary), modifier = Modifier.padding(top = 2.dp), maxLines = 2)
-        }
-        if (selected) Icon(CosmoIcons.Check, contentDescription = null, tint = Color(palette.textPrimary), modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
+        Text(title, style = type.forText(fonts.chip, title), color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (later) LaterTag()
+        // The moon dot in the chip's own ink, not peach: peach is "playing now" alone.
+        if (selected) Box(Modifier.size(7.dp).clip(CircleShape).background(ink))
     }
 }
+
+/** A row's wash while the pointer is on it or presses it: the page's ink, faint (the sidebar's). */
+private fun rowWash(look: com.cosmotune.ui.orbit.OrbitLook, hovered: Boolean, pressed: Boolean): Color =
+    if (pressed) look.ink.copy(alpha = 0.10f) else if (hovered) look.ink.copy(alpha = 0.06f) else Color.Transparent
 
 /** The "Later" pill: 18 dp high (more under a large font), 6 dp of padding, 11.5 sp bold on `accentContainer`. */
 @Composable
@@ -527,31 +515,32 @@ private fun LaterTag() {
 
 // ---- Entries and foot ------------------------------------------------------------------------------------------------------------
 
-/** A row of the list under the modes (`.drawer-nav a`): 48 dp, 12 dp in from the sides, padding 0 12, radius 16, 16 dp between its parts. */
+/** A row of the list under the modes, as an Orbit navigation row: 44 dp, round, the glyph in the dim ink, the label, [CosmoDrawerEntry.aside] in the accent. */
 @Composable
 private fun EntryRow(entry: CosmoDrawerEntry) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
     val type = LocalCosmoType.current
     val haptics = rememberHaptics()
     val interaction = remember { MutableInteractionSource() }
-    val pressed = interaction.collectIsPressedAsState()
-    val hovered = interaction.collectIsHoveredAsState()
+    val pressed by interaction.collectIsPressedAsState()
+    val hovered by interaction.collectIsHoveredAsState()
     Row(
         Modifier
             .padding(horizontal = 12.dp)
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .cosmoFocusRing(interaction, 16.dp)
-            .stateLayer(colors, palette, pressed, hovered, 16.dp)
+            .heightIn(min = 44.dp)
+            .cosmoFocusRing(interaction, 22.dp)
+            .clip(CircleShape)
+            .background(rowWash(look, hovered, pressed))
             .clickable(interactionSource = interaction, indication = null, role = Role.Button) { haptics.play(Haptic.Tap); entry.onClick() }
-            .padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(start = 14.dp, end = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(entry.icon, contentDescription = null, tint = Color(palette.textSecondary), modifier = Modifier.size(24.dp))
-        DrawerText(entry.label, type.sized(15.5f, 500), Color(palette.textPrimary), modifier = Modifier.weight(1f))
-        if (entry.aside != null) DrawerText(entry.aside, type.sized(12f, 400).tabular(), Color(palette.textTertiary))
+        Icon(entry.icon, contentDescription = null, tint = look.dim, modifier = Modifier.size(20.dp))
+        Text(entry.label, style = type.forText(fonts.chip, entry.label), color = look.ink.copy(alpha = 0.86f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (entry.aside != null) Text(entry.aside, style = fonts.label, color = look.accent, maxLines = 1)
     }
 }
 
@@ -569,7 +558,7 @@ private fun DrawerFoot() {
             modifier = Modifier.size(TopBarMetrics.LOGO_WIDTH, TopBarMetrics.LOGO_HEIGHT),
         )
         val line = stringResource(Res.string.cosmo_not_affiliated)
-        DrawerText(line, type.sized(12.5f, 400, lineHeight = 1.45f), Color(palette.textTertiary), modifier = Modifier.padding(top = 8.dp), maxLines = 4)
+        DrawerText(line, type.sized(12.5f, 400, lineHeight = 1.45f), com.cosmotune.ui.orbit.orbitLook().dim, modifier = Modifier.padding(top = 8.dp), maxLines = 4)
     }
 }
 
@@ -691,6 +680,9 @@ private const val PANEL_MAX_SHARE = 0.85f
 private val PANEL_SHAPE = RoundedCornerShape(topStart = 0.dp, topEnd = 17.dp, bottomEnd = 17.dp, bottomStart = 0.dp)
 
 private val AVATAR = 48.dp
+
+/** The modes in the drawer's order: Music, Video, Watch, Podio, Read, Manga (and Library, which is "later"). */
+private val DRAWER_MODES = listOf(AppMode.MUSIC, AppMode.VIDEO, AppMode.WATCH, AppMode.PODIO, AppMode.READ, AppMode.MANGA, AppMode.LIBRARY)
 
 /** The black behind the drawer (a documented exception to "no colour by hand": a scrim) and behind the "later" card. */
 internal const val SCRIM_ALPHA = 0.56f

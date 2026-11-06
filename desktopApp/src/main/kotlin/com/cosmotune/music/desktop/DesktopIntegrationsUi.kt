@@ -49,9 +49,20 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.spotify.SpotifyImportTrack
 import com.cosmotune.music.data.spotify.SpotifyImporter
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitPillButton
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitTextField
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.CosmoRadii
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+
+/** The page's ink and its dim (Orbit), so this window's words read on a light page as on a dark one. */
+private val inkColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().ink
+private val dimColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().dim
+private val groundColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().ground
 
 /**
  * Signing in to Last.fm with a username and password.
@@ -186,7 +197,7 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
             ],
             modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 4.dp),
             style = MaterialTheme.typography.bodySmall,
-            color = DesktopSecondary,
+            color = dimColor,
         )
         Spacer(Modifier.height(12.dp))
         DialogField(
@@ -201,9 +212,7 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
             Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
             horizontalArrangement = Arrangement.Start,
         ) {
-            TextButton(onClick = { DesktopExternalLinks.open("https://open.spotify.com/") }) {
-                Text(DesktopStrings["d_open_spotify", "Open Spotify"], color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
-            }
+            DialogLink(DesktopStrings["d_open_spotify", "Open Spotify"]) { DesktopExternalLinks.open("https://open.spotify.com/") }
         }
         DialogActions(
             confirm = DesktopStrings["save", "Save"],
@@ -250,9 +259,7 @@ internal fun DesktopListenBrainzTokenDialog(onDismiss: () -> Unit) {
             Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
             horizontalArrangement = Arrangement.Start,
         ) {
-            TextButton(onClick = { DesktopExternalLinks.open("https://listenbrainz.org/settings/") }) {
-                Text(DesktopStrings["d_open_listenbrainz", "Open ListenBrainz"], color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
-            }
+            DialogLink(DesktopStrings["d_open_listenbrainz", "Open ListenBrainz"]) { DesktopExternalLinks.open("https://listenbrainz.org/settings/") }
         }
         DialogActions(
             confirm = DesktopStrings["save", "Save"],
@@ -284,13 +291,13 @@ private fun DialogHeading(title: String, message: String, isError: Boolean = fal
             title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White,
+            color = inkColor,
         )
         Text(
             message,
             modifier = Modifier.padding(top = 5.dp),
             style = MaterialTheme.typography.bodySmall,
-            color = if (isError) DesktopDestructive else DesktopSecondary,
+            color = if (isError) DesktopDestructive else dimColor,
             textAlign = if (LocalDesktopPanelIsPage.current) TextAlign.Start else TextAlign.Center,
         )
     }
@@ -400,7 +407,7 @@ internal fun DesktopSpotifyImportDialog(
                     it,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 6.dp),
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (failed) DesktopDestructive else DesktopSecondary,
+                    color = if (failed) DesktopDestructive else dimColor,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -430,7 +437,7 @@ internal fun DesktopSpotifyImportDialog(
                         .padding(horizontal = panelInset(22.dp))
                         .heightIn(max = 200.dp)
                         .clip(RoundedCornerShape(CosmoRadii.rSm))
-                        .background(Color.White.copy(alpha = 0.06f))
+                        .background(inkColor.copy(alpha = 0.06f))
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -439,7 +446,7 @@ internal fun DesktopSpotifyImportDialog(
                         Text(
                             if (track.artist.isBlank()) track.title else "${track.title} · ${track.artist}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = DesktopSecondary,
+                            color = dimColor,
                         )
                     }
                 }
@@ -461,25 +468,45 @@ private fun DialogField(
     imeAction: ImeAction = ImeAction.Done,
     onSubmit: () -> Unit = {},
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        // The Orbit field (the chip's pill) with the round clear button at its end once something is typed.
+        val look = orbitLook()
+        OrbitTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = placeholder,
+            fonts = orbitFonts(),
+            look = look,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)).then(modifier),
+            secret = isPassword,
+            enabled = enabled,
+            onSubmit = onSubmit,
+            imeAction = imeAction,
+            trailing = if (value.isNotEmpty() && enabled) {
+                { OrbitRoundButton(CosmoIcons.Close, DesktopStrings["clear", "Clear"], look.ink, { onValueChange("") }, size = 32.dp) }
+            } else null,
+        )
+        return
+    }
     Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = panelInset(22.dp))
             .clip(RoundedCornerShape(CosmoRadii.rMd))
-            .background(Color.White.copy(alpha = if (enabled) 0.08f else 0.04f))
+            .background(inkColor.copy(alpha = if (enabled) 0.08f else 0.04f))
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) {
-                Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = DesktopSecondary)
+                Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = dimColor)
             }
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 enabled = enabled,
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = inkColor),
                 cursorBrush = SolidColor(DesktopAccent),
                 visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
                 keyboardOptions = KeyboardOptions(imeAction = imeAction),
@@ -492,8 +519,20 @@ private fun DialogField(
                 Modifier.size(26.dp).clip(CircleShape).clickable { onValueChange("") },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.Close, DesktopStrings["clear", "Clear"], tint = DesktopSecondary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Rounded.Close, DesktopStrings["clear", "Clear"], tint = dimColor, modifier = Modifier.size(16.dp))
             }
+        }
+    }
+}
+
+/** A way out to the service's own page under a field ("Open Spotify"): the quiet Orbit pill with the look, a text button without. */
+@Composable
+private fun DialogLink(label: String, onClick: () -> Unit) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        OrbitPillButton(label, onClick, orbitFonts(), orbitLook(), Modifier.padding(top = 10.dp), height = 36.dp)
+    } else {
+        TextButton(onClick = onClick) {
+            Text(label, color = dimColor, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -523,10 +562,10 @@ private fun DialogActions(
             Spacer(Modifier.size(12.dp))
         }
         TextButton(onClick = onDismiss, enabled = !busy) {
-            Text(DesktopStrings["cancel", "Cancel"], color = DesktopSecondary)
+            Text(DesktopStrings["cancel", "Cancel"], color = dimColor)
         }
         TextButton(onClick = onConfirm, enabled = confirmEnabled) {
-            Text(confirm, color = if (confirmEnabled) DesktopAccent else DesktopSecondary)
+            Text(confirm, color = if (confirmEnabled) DesktopAccent else dimColor)
         }
     }
 }

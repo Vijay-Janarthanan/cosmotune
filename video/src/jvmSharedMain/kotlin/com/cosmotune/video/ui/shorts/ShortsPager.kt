@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.shorts
 
+import com.cosmotune.ui.orbit.OrbitActionPill
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -95,15 +99,12 @@ import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
 import kotlin.random.Random
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.produceState
 import com.cosmotune.video.account.AccountState
 import com.cosmotune.video.ui.watch.FullscreenController
 import com.cosmotune.video.ui.watch.WatchOrientation
 import com.cosmotune.video.ui.watch.votesOrNull
 import kotlinx.coroutines.flow.map
-import com.cosmotune.ui.kit.KitButton
-import com.cosmotune.ui.kit.KitButtonKind
 import com.cosmotune.video.account.Rating
 import com.cosmotune.video.segments.Votes
 import androidx.compose.runtime.getValue
@@ -636,7 +637,7 @@ internal fun ShortsEndPage(queue: ShortsQueue, modifier: Modifier = Modifier) {
         )
         if (queue.failed) {
             Spacer(Modifier.height(16.dp))
-            KitButton(stringResource(Res.string.video_retry), onClick = { scope.launch { queue.more() } }, kind = KitButtonKind.QUIET)
+            OrbitActionPill(label = stringResource(Res.string.video_retry), onClick = { scope.launch { queue.more() } }, fonts = orbitFonts(), look = orbitLook(), primary = true)
         }
     }
 }
@@ -752,7 +753,7 @@ private fun ShortsPhonePager(route: VideoRoute.Shorts, queue: ShortsQueue, contr
                 )
             }
         }
-        if (queue.pageCount == 0) CircularProgressIndicator(Modifier.align(Alignment.Center).size(24.dp), color = Color.White, strokeWidth = 2.5.dp)
+        if (queue.pageCount == 0) OrbitRing(28.dp, Color.White, progress = null, spinning = true, modifier = Modifier.align(Alignment.Center))
         ShortsTopRow(
             muted = state.muted,
             onBack = controller::back,

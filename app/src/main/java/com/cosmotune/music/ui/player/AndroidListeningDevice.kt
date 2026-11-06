@@ -9,6 +9,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.cosmotune.music.playback.AndroidListeningDevices
 import com.cosmotune.music.playback.AudioOutputStatus
@@ -21,7 +23,13 @@ import com.cosmotune.ui.nowplaying.ListeningDeviceSheet
 @Composable
 fun AndroidListeningDeviceEntry() {
     var open by remember { mutableStateOf(false) }
-    OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) { Text("Listening device · profile and connection") }
+    // Inset like the rows around it: edge to edge it touched the card's sides.
+    com.cosmotune.ui.orbit.OrbitPillButton(
+        "Listening device · profile and connection", { open = true },
+        com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook(),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        icon = com.cosmotune.ui.components.CosmoIcons.Devices,
+    )
     if (open) AndroidListeningDeviceDialog { open = false }
 }
 

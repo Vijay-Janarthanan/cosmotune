@@ -37,6 +37,7 @@ import com.cosmotune.room.RoomMember
 import com.cosmotune.room.RoomMeta
 import com.cosmotune.room.RoomState
 import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.account.AccountSheetContent
 import com.cosmotune.ui.orbit.OrbitSheetChip
 import com.cosmotune.ui.room.RoomActions
 import com.cosmotune.ui.room.RoomScreen
@@ -180,6 +181,63 @@ class OrbitBatchA2ReviewTest {
             capture("room-phone-people-$name")
             page(palette, 390.dp, 844.dp) { RoomScreen(roomState(art, hostOnly = true), Quiet(), wide = false) }
             capture("room-phone-guest-$name")
+        }
+    }
+
+    @Test fun theProfileDrawer() = hosts {
+        val entries = listOf(
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Clock, "Your listening") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Replay, "Replay") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Together, "Listen together") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Download, "Downloads", aside = "2") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Equaliser, "Equalizer") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Settings, "Settings") {},
+        )
+        for ((name, palette) in palettes) {
+            page(palette, 390.dp, 844.dp) {
+                com.cosmotune.ui.chrome.CosmoProfileDrawer(
+                    open = true, onDismiss = {}, name = "Vijay", subtitle = "Synced 2 minutes ago", avatarUrl = null,
+                    entries = entries, onAccount = {},
+                )
+            }
+            capture("profile-drawer-$name", popup = true)
+        }
+    }
+
+    @Test fun theModeSheetAndTheAccountSheet() = hosts {
+        for ((name, palette) in palettes) {
+            page(palette, 390.dp, 844.dp) {
+                val look = com.cosmotune.ui.orbit.orbitLook()
+                Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.padding(16.dp)) { com.cosmotune.ui.kit.KitModePill(com.cosmotune.design.AppMode.MUSIC, onClick = {}) }
+                    Column(Modifier.fillMaxWidth().padding(top = 40.dp).background(com.cosmotune.ui.orbit.orbitSheetGround(look)).padding(10.dp)) {
+                        com.cosmotune.ui.kit.KitModeSheetContent(
+                            current = com.cosmotune.design.AppMode.MUSIC, onSelect = {}, onDismiss = {},
+                            status = { if (it == com.cosmotune.design.AppMode.MUSIC) "Playing · Golden Hour" else if (it == com.cosmotune.design.AppMode.MANGA) "3 new chapters" else null },
+                            onManage = {},
+                        )
+                    }
+                }
+            }
+            capture("mode-sheet-$name")
+            page(palette, 390.dp, 844.dp) {
+                val look = com.cosmotune.ui.orbit.orbitLook()
+                Column(Modifier.fillMaxSize().padding(top = 60.dp).background(com.cosmotune.ui.orbit.orbitSheetGround(look)).padding(10.dp)) {
+                    com.cosmotune.ui.orbit.OrbitSheetTitle("Account")
+                    AccountSheetContent(
+                        model = com.cosmotune.ui.account.AccountSheetModel(
+                            com.cosmotune.ui.account.AccountStatus.SIGNED_IN, name = "Vijay", handle = "@vijay",
+                            choices = listOf(
+                                com.cosmotune.ui.account.AccountChoiceRow("p1", "Vijay", "@vijay", group = "vijay@example.com"),
+                                com.cosmotune.ui.account.AccountChoiceRow("p2", "Night Shift Radio", group = "vijay@example.com", isBrand = true),
+                            ),
+                            activeId = "p1",
+                        ),
+                        onSignIn = {}, onSwitch = {}, onSignOut = {}, onDismiss = {}, onAddAccount = {},
+                    )
+                }
+            }
+            capture("account-sheet-$name")
         }
     }
 

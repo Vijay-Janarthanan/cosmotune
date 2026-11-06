@@ -1,5 +1,6 @@
 package com.cosmotune.manga.ui
 
+import com.cosmotune.ui.orbit.OrbitInputField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -84,12 +85,12 @@ internal fun MangaSources(repository: MangaRepository, bottom: androidx.compose.
                     ReadOverline(mangaText("Libraries and extensions"), inset = 0.dp)
                     ReadButton(mangaText("Connect Komga library"), { komga = !komga }, kind = ReadKind.TONAL)
                     if (komga) {
-                        OutlinedTextField(server, { server = it.take(2_048) }, label = { Text(mangaText("Server URL")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("manga:komga:server"))
-                        OutlinedTextField(key, { key = it.take(512) }, label = { Text(mangaText("API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        OrbitInputField(server, { server = it.take(2_048) }, mangaText("Server URL"), modifier = Modifier.fillMaxWidth().testTag("manga:komga:server"))
+                        OrbitInputField(key, { key = it.take(512) }, mangaText("API key"), secret = true,
                             modifier = Modifier.fillMaxWidth().testTag("manga:komga:key"))
                         Text("Or sign in with a Komga user name and password instead of an API key.", style = ReadType.meta(), color = Color(palette.textSecondary))
-                        OutlinedTextField(user, { user = it.take(256) }, label = { Text(mangaText("User name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(password, { password = it.take(512) }, label = { Text(mangaText("Password")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        OrbitInputField(user, { user = it.take(256) }, mangaText("User name"), modifier = Modifier.fillMaxWidth())
+                        OrbitInputField(password, { password = it.take(512) }, mangaText("Password"), secret = true,
                             modifier = Modifier.fillMaxWidth())
                         ReadButton(mangaText("Test and save"), enabled = !testing, onClick = { scope.launch {
                             testing = true
@@ -133,7 +134,7 @@ internal fun MangaSources(repository: MangaRepository, bottom: androidx.compose.
                         ReadChip(mangaText("All languages"), language.isBlank(), { language = "" })
                         languages.forEach { tag -> ReadChip(languageName(tag), language == tag, { language = if (language == tag) "" else tag }) }
                     }
-                    OutlinedTextField(language, { language = it.take(32) }, label = { Text(mangaText("Language code, e.g. en or ja")) }, singleLine = true,
+                    OrbitInputField(language, { language = it.take(32) }, mangaText("Language code, e.g. en or ja"),
                         modifier = Modifier.fillMaxWidth().padding(horizontal = ReadMargin).testTag("manga:sources:language"))
                 }
             }

@@ -21,14 +21,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,29 +39,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.cosmotune.music.ui.components.optimizedHazeEffect
 import com.cosmotune.music.ui.utils.containSheetGestures
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.orbit.OrbitSheetGrab
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.orbit.orbitSheetGround
+import com.cosmotune.ui.sheets.CosmoSheetScrim
+import com.cosmotune.ui.sheets.SHEET_CORNER
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlin.math.roundToInt
 
-internal val DRAWER_SHAPE = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+/** The Orbit sheet's top corners (board batch-a, section 4: 32 dp), as every sheet of the app has them. */
+internal val DRAWER_SHAPE = RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER)
 
 /**
  * The widest the drawer itself gets, however wide the window behind it is.
@@ -77,8 +77,9 @@ internal val DRAWER_SHAPE = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
  * No effect on a phone, which is narrower than this everywhere it runs.
  */
 internal val DRAWER_MAX_WIDTH = 640.dp
-internal val ROW_SHAPE = RoundedCornerShape(CosmoRadii.rLg)
-internal val SCRIM_COLOR = Color.Black.copy(alpha = 0.5f)
+
+/** The black behind the drawer: the Orbit sheets' 40 % ([CosmoSheetScrim]). */
+internal val SCRIM_COLOR = CosmoSheetScrim
 
 /**
  * How much of its own height the drawer has to be dragged before letting go
@@ -89,19 +90,22 @@ private const val DISMISS_DRAG_FRACTION = 0.25f
 
 /**
  * The bottom-edge drawer shell every player sheet in this package puts up —
- * [AudioOutputSheet] and [ListenTogetherMembersSheet] alike: dark over a
- * scrim, a grab handle, a title, drag down to put it away. Pulled out because
- * the drag gesture, the scrim fade tied to it, and the haze background are
- * identical between the two and worth keeping in exactly one place.
+ * [AudioOutputSheet], [LyricsProviderSheet], [LyricsOffsetSheet] and
+ * [ListenTogetherMembersSheet] alike — as an Orbit sheet (board batch-a, section
+ * 4): the sheet's own flat ground ([orbitSheetGround], no glass) with 32 dp top
+ * corners over the Orbit scrim, the grabber, the title in the wide heading face,
+ * drag down to put it away. Light and dark follow the player's own colours.
+ * Pulled out because the drag gesture and the scrim fade tied to it are
+ * identical between them and worth keeping in exactly one place.
  *
  * Public because a platform's own player sheet draws in it too: the phone's
  * lyrics card goes up in this same shell rather than in a second one that would
- * have to re-learn the drag gesture, the scrim fade and the frosted material.
+ * have to re-learn the drag gesture and the scrim fade. [hazeState] is kept for
+ * the callers and blurs nothing (Orbit rule 4).
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun PlayerDrawer(
-    hazeState: HazeState,
+    @Suppress("UNUSED_PARAMETER") hazeState: HazeState,
     title: String,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -109,7 +113,9 @@ fun PlayerDrawer(
     titleGap: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val look = orbitLook()
+    val fonts = orbitFonts()
+    val ground = orbitSheetGround(look)
 
     // How far the drawer has been dragged down, in pixels. Released, it either
     // springs back or goes — see [DISMISS_DRAG_FRACTION].
@@ -209,18 +215,7 @@ fun PlayerDrawer(
                 .onSizeChanged { height = it.height }
                 .offset { IntOffset(0, offset.roundToInt()) }
                 .clip(DRAWER_SHAPE)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
-                    } else {
-                        Modifier
-                            .optimizedHazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.regular(Color(0xFF141414)),
-                            )
-                            .background(Color(0xFF121212).copy(alpha = 0.9f))
-                    }
-                )
+                .background(ground)
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },
@@ -240,31 +235,23 @@ fun PlayerDrawer(
                 }
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp)
-                .padding(top = 10.dp, bottom = 20.dp)
+                .padding(bottom = 20.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // The grab handle every sheet here has, and the thing that says the
             // drawer can be pulled away before anybody tries it.
-            Box(
-                Modifier
-                    .padding(bottom = 12.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.25f)),
-            )
+            OrbitSheetGrab(look)
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-                color = Color.White,
+                style = fonts.section,
+                color = look.ink,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 4.dp, bottom = titleGap),
+                    .padding(start = 4.dp, bottom = titleGap)
+                    .semantics { heading() },
             )
-            content()
+            CompositionLocalProvider(LocalContentColor provides look.ink) { content() }
         }
         }
     }

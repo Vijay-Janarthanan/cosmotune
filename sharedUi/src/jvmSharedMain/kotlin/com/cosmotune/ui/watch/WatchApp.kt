@@ -110,6 +110,8 @@ fun WatchApp(
                 WatchTab.PLUGINS -> WatchPluginsPage(fonts, look, frame)
             }
         }
+        // The phone's pages scroll under the status bar: its ground keeps the clock readable and the titles from running under it.
+        if (showNavigation) com.cosmotune.ui.orbit.OrbitStatusBarScrim(Modifier.align(Alignment.TopCenter), look)
         pending?.let { link -> WatchInstallSheet(link, fonts, look, onDone = { WatchNav.pendingInstall.value = null }) }
         // A link opened from outside (an intent, the system's URL handler, a second launch): its Install or pack sheet.
         when (val link = opened) {
@@ -219,6 +221,8 @@ private fun WatchPhoneHeader(tab: WatchTab, fonts: OrbitFonts, look: OrbitLook) 
             Spacer(Modifier.weight(1f))
             LocalModeProfileAction.current?.invoke()
         }
+        // The Live pill under the top bar, when something followed is live (the phone's; nothing elsewhere).
+        com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = 16.dp).padding(top = 12.dp))
         OrbitChipRow(16.dp, Modifier.padding(top = 12.dp)) {
             WatchTab.entries.forEach { t ->
                 OrbitSelectChip(t.label, t == tab, fonts, look, onClick = { WatchNav.go(t) }, haptic = false,

@@ -88,7 +88,7 @@ class ProviderPackagesInteractionTest {
                 } }; output.toByteArray()
             }
             runBlocking { manager.trust(manager.inspect { archive.inputStream() }) }
-            compose.setContent { MaterialTheme { ProviderPackagesDialog(onDismiss = {}, manager = manager) } }
+            compose.setContent { PodioTestTheme { ProviderPackagesDialog(onDismiss = {}, manager = manager) } }
             val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
             try {
                 val loading = scope.async { manager.search("fixture", "query") }
@@ -103,7 +103,7 @@ class ProviderPackagesInteractionTest {
     @Test fun providerBrowseAndSearchHandTheChosenSourceRecordingToPlayback() = withRowHosts {
         manager().use { manager ->
             var played: Song? = null
-            compose.setContent { MaterialTheme { ProviderPackagesDialog(onDismiss = {}, manager = manager,
+            compose.setContent { PodioTestTheme { ProviderPackagesDialog(onDismiss = {}, manager = manager,
                 onPlay = { songs, index -> played = songs[index] }) } }
             compose.onNodeWithTag("provider:fixture:browse").performClick()
             compose.waitUntil(15_000) { compose.onAllNodesWithTag("provider:track:home-song").fetchSemanticsNodes().isNotEmpty() }
@@ -121,7 +121,7 @@ class ProviderPackagesInteractionTest {
 
     @Test fun settingsPersistAndTheProviderSwitchActuallyDisablesItsRuntime() {
         manager().use { manager ->
-            compose.setContent { MaterialTheme { ProviderPackagesDialog(onDismiss = {}, manager = manager) } }
+            compose.setContent { PodioTestTheme { ProviderPackagesDialog(onDismiss = {}, manager = manager) } }
             compose.onNodeWithTag("providers:discover").assertIsDisplayed()
             compose.onNodeWithTag("provider:fixture:access").assertTextEquals("Enabled · ready")
             compose.onNodeWithTag("provider:fixture:settings").performClick()
@@ -137,7 +137,7 @@ class ProviderPackagesInteractionTest {
 
     @Test fun httpAddonSettingsKeepSavedValuesAndMaskCredentialFields() {
         var saved: Map<String, String>? = null
-        compose.setContent { MaterialTheme {
+        compose.setContent { PodioTestTheme {
             HttpAddonSettingsEntry("An HTTP source", mapOf("country" to "IN"), load = {
                 listOf(ProviderSetting("country", "Country", default = JsonPrimitive("US")),
                     ProviderSetting("credential", "Credential", type = "password", default = JsonPrimitive("")))
@@ -156,7 +156,7 @@ class ProviderPackagesInteractionTest {
     @Test fun httpAddonAlbumsAndArtistsStayOnTheirOwnSourceAndHandOffTheChosenRecording() = withRowHosts {
         var played: Song? = null
         val calls = java.util.concurrent.CopyOnWriteArrayList<Pair<String, String>>()
-        compose.setContent { MaterialTheme {
+        compose.setContent { PodioTestTheme {
             HttpAddonCatalogueEntry("http-fixture", "Fixture HTTP", true, "one", load = { resource, id, _ ->
                 calls += resource to id
                 Json.parseToJsonElement(when (resource) {

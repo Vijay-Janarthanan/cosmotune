@@ -4,11 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -23,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.ui.rememberIsForeground
 import com.cosmotune.providers.ProviderAutoVerification
@@ -33,6 +28,8 @@ import com.cosmotune.providers.ProviderVerificationCoordinator
 import com.cosmotune.providers.ProviderVerificationOutcome
 import com.cosmotune.providers.ProviderVerificationRequest
 import com.cosmotune.providers.ProviderVerificationTarget
+import com.cosmotune.ui.orbit.OrbitErrorText
+import com.cosmotune.ui.orbit.OrbitFormField
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -93,17 +90,15 @@ private fun VerificationHelpSheet(manager: ProviderManager, request: ProviderVer
         title = "Waiting for ${request.target.title}",
         content = {
             Column(Modifier.testTag("provider-verification:help"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Finish the check on the provider's page. It closes by itself when it is done. If it did not open or cannot return, open it again, copy its link into your browser, or paste the callback address or grant=… text here.",
-                    style = MaterialTheme.typography.bodyMedium)
+                Text("Finish the check on the provider's page. It closes by itself when it is done. If it did not open or cannot return, open it again, copy its link into your browser, or paste the callback address or grant=… text here.")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     com.cosmotune.ui.sheets.CosmoDialogQuietButton("Open again", onOpenAgain, enabled = !busy)
                     com.cosmotune.ui.sheets.CosmoDialogQuietButton("Copy link", { clipboard.setText(AnnotatedString(request.target.url)) }, enabled = !busy)
                 }
-                OutlinedTextField(pasted, { if (it.length <= 16_384) { pasted = it; error = null } }, enabled = !busy,
-                    label = { Text(if (request.target.signed) "Callback URL or grant=…" else "Callback URL") },
-                    visualTransformation = PasswordVisualTransformation(), singleLine = true,
-                    modifier = Modifier.fillMaxWidth().testTag("provider-verification:paste"))
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                OrbitFormField(pasted, { if (it.length <= 16_384) { pasted = it; error = null } },
+                    if (request.target.signed) "Callback URL or grant=…" else "Callback URL",
+                    fieldModifier = Modifier.testTag("provider-verification:paste"), enabled = !busy, secret = true)
+                error?.let { OrbitErrorText(it) }
             }
         },
         confirmLabel = "Continue",

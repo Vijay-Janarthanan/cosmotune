@@ -109,9 +109,8 @@ class LiveStructureTest {
 
     @Test fun thePillIsACSecondaryPillAndItsThresholdIsTenSeconds() {
         val text = flat(pill)
-        assertTrue("text = stringResource(Res.string.video_go_live)" in text)
-        assertTrue("kind = CosmoButtonKind.QUIET" in text && "floating = true" in text, "a C secondary pill: the floating QUIET button")
-        assertTrue("size = CosmoButtonSize.SMALL" in text && "icon = VideoIcons.Live" in text)
+        assertTrue("contentDescription = stringResource(Res.string.video_go_live)" in text)
+        assertTrue("PlayerButton(" in text && "icon = VideoIcons.Live" in text, "an essential control on the picture: the Orbit round button")
         assertTrue("LiveWindow.showGoLive(LiveWindow.behindLiveEdgeMs(positionMs, durationMs))" in text)
         assertEquals(10_000L, LiveWindow.GO_LIVE_AFTER_MS)
         // 10 s behind where live plays is not yet "more than 10 s"; a millisecond more is.

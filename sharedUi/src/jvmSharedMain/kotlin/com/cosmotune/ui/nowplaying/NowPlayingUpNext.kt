@@ -71,12 +71,14 @@ internal fun NowPlayingUpNext(
     autoplayEnabled: Boolean,
     controlsLocked: Boolean,
     isPlaying: Boolean,
-    progress: () -> Float,
+    /** Where the playing song is (0..1); null where it is not known, and the playing row's moon circles while it plays. */
+    progress: (() -> Float)?,
     onJumpTo: (Int) -> Unit,
     onRemove: (Int) -> Unit,
     onMove: (Int, Int) -> Unit,
     onClear: () -> Unit,
-    onToggleAutoplay: () -> Unit,
+    /** Null where the host has no way to turn AutoPlay on or off (the desktop's side panel): the group heads show no button. */
+    onToggleAutoplay: (() -> Unit)?,
     onDragActiveChange: (Boolean) -> Unit,
     fonts: OrbitFonts,
     look: OrbitLook,
@@ -111,7 +113,7 @@ internal fun NowPlayingUpNext(
                 }
                 if (nowPlaying != null) {
                     item(key = nowPlaying.key) {
-                        TrackRow(nowPlaying, fonts, look, onClick = null, now = true, playing = isPlaying, progress = { progress() }, modifier = placed())
+                        TrackRow(nowPlaying, fonts, look, onClick = null, now = true, playing = isPlaying, progress = progress?.let { p -> { p() } }, modifier = placed())
                     }
                 }
                 if (tracks.user.isNotEmpty()) {
@@ -129,14 +131,14 @@ internal fun NowPlayingUpNext(
                 if (autoplayEnabled || tracks.autoplay.isNotEmpty()) {
                     item(key = "h:autoplay") {
                         GroupHead("AutoPlay", fonts, look, placed()) {
-                            GroupAction(if (autoplayEnabled) "Turn off" else "Turn on", fonts, look, enabled = !controlsLocked, onToggleAutoplay)
+                            if (onToggleAutoplay != null) GroupAction(if (autoplayEnabled) "Turn off" else "Turn on", fonts, look, enabled = !controlsLocked, onToggleAutoplay)
                         }
                     }
                     group(tracks.autoplay, QueueSection.AUTOPLAY, drag, controlsLocked, fonts, look, onJumpTo, onRemove)
                 } else {
                     item(key = "h:autoplay-off") {
                         GroupHead("AutoPlay is off", fonts, look, placed()) {
-                            GroupAction("Turn on", fonts, look, enabled = !controlsLocked, onToggleAutoplay)
+                            if (onToggleAutoplay != null) GroupAction("Turn on", fonts, look, enabled = !controlsLocked, onToggleAutoplay)
                         }
                     }
                 }

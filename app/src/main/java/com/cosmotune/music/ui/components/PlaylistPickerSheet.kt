@@ -1,7 +1,5 @@
 package com.cosmotune.music.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,28 +11,15 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
-import androidx.compose.material3.Button
-import com.cosmotune.ui.bridge.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,27 +29,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.cosmotune.music.R
 import com.cosmotune.music.data.model.PlaylistPrivacy
-import com.cosmotune.music.data.model.ROW_ART_PX
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UserPlaylist
-import com.cosmotune.music.data.model.artworkAt
-import com.cosmotune.music.ui.components.thumbnailBorder
 import com.cosmotune.music.ui.icons.CosmotuneIcons
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.orbit.OrbitChip
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitSheetButton
+import com.cosmotune.ui.orbit.OrbitSheetTitle
+import com.cosmotune.ui.orbit.OrbitTextField
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.sheets.CosmoActionRow
+import com.cosmotune.ui.sheets.CosmoPickRow
+import com.cosmotune.ui.sheets.CosmoSheetGap
+import com.cosmotune.ui.sheets.CosmoSheetHeader
+import com.cosmotune.ui.sheets.CosmoSheetHeading
 import java.util.Locale
 
 /**
@@ -112,15 +101,13 @@ fun PlaylistPickerSheet(
 
     Column(modifier.fillMaxWidth()) {
         if (song != null) {
-            SheetTrackHeader(song)
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+            CosmoSheetHeader(title = song.title, subtitle = song.artist, imageUrl = song.thumbnailUrl, explicit = song.isExplicit == true)
         }
-        SheetHeading(
-            stringResource(if (song != null) R.string.add_to_playlist else R.string.your_playlists)
-                .uppercase(Locale.getDefault()),
+        CosmoSheetHeading(
+            stringResource(if (song != null) R.string.add_to_playlist else R.string.your_playlists),
         )
 
-        ActionRow(
+        CosmoActionRow(
             icon = CosmotuneIcons.Plus,
             label = stringResource(R.string.new_playlist),
             onClick = { creating = true },
@@ -135,25 +122,18 @@ fun PlaylistPickerSheet(
                     .height(120.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(
-                    strokeWidth = 2.5.dp,
-                    modifier = Modifier.size(26.dp),
-                )
+                OrbitRing(40.dp, orbitLook().ink, progress = null, spinning = true)
             }
 
             playlists.isEmpty() -> Text(
                 text = stringResource(R.string.no_playlists_yet),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 18.dp),
+                style = orbitFonts().body,
+                color = orbitLook().dim,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
             )
 
             else -> {
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 6.dp),
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outline,
-                )
+                CosmoSheetGap(menu = false)
                 // Capped so a long list can't push the sheet past the screen;
                 // it scrolls inside the sheet instead.
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {
@@ -169,21 +149,18 @@ fun PlaylistPickerSheet(
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Button(
+                OrbitSheetButton(
+                    label = if (selected.isEmpty()) {
+                        stringResource(R.string.add_to_playlist)
+                    } else {
+                        pluralStringResource(R.plurals.add_to_playlists_count, selected.size, selected.size)
+                    },
                     onClick = { onAdd(playlists.filter { it.playlistId in selected }) },
                     enabled = selected.isNotEmpty(),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 22.dp),
-                ) {
-                    Text(
-                        if (selected.isEmpty()) {
-                            stringResource(R.string.add_to_playlist)
-                        } else {
-                            pluralStringResource(R.plurals.add_to_playlists_count, selected.size, selected.size)
-                        },
-                    )
-                }
+                        .padding(horizontal = 12.dp),
+                )
             }
         }
         Spacer(Modifier.height(24.dp))
@@ -192,50 +169,13 @@ fun PlaylistPickerSheet(
 
 @Composable
 private fun PlaylistRow(playlist: UserPlaylist, selected: Boolean, onClick: () -> Unit) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoPickRow(title = playlist.title, subtitle = playlist.subtitle, imageUrl = playlist.thumbnailUrl, selected = selected, onClick = onClick)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = playlist.thumbnailUrl.artworkAt(ROW_ART_PX),
-            contentDescription = null,
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(CosmoRadii.rSm))
-                .thumbnailBorder(RoundedCornerShape(CosmoRadii.rSm))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        )
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = playlist.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (playlist.subtitle.isNotBlank()) {
-                Text(
-                    text = playlist.subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        Spacer(Modifier.width(12.dp))
-        Icon(
-            imageVector = if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-            contentDescription = null,
-            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp),
-        )
-    }
+    CosmoPickRow(
+        title = playlist.title,
+        subtitle = playlist.subtitle,
+        imageUrl = playlist.thumbnailUrl,
+        selected = selected,
+        onClick = onClick,
+    )
 }
 
 /**
@@ -252,6 +192,8 @@ private fun NewPlaylistForm(
     var privacy by remember { mutableStateOf(PlaylistPrivacy.PRIVATE) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
 
     // The form exists to be typed into; opening it with the keyboard already
     // up saves the tap that would otherwise always follow.
@@ -271,90 +213,35 @@ private fun NewPlaylistForm(
             .fillMaxWidth()
             .imePadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = if (onBack != null) 8.dp else 22.dp, end = 22.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            onBack?.let {
-                IconButton(onClick = it) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = stringResource(R.string.back),
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.new_playlist),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = stringResource(R.string.saved_to_youtube_music_account),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+        OrbitSheetTitle(
+            title = stringResource(R.string.new_playlist),
+            subtitle = stringResource(R.string.saved_to_youtube_music_account),
+            leading = onBack?.let { back ->
+                { OrbitRoundButton(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back), look.ink, back) }
+            },
+        )
 
-        Row(
+        OrbitTextField(
+            value = name,
+            onValueChange = { name = it },
+            placeholder = stringResource(R.string.playlist_name),
+            fonts = fonts,
+            look = look,
+            onDone = submit,
+            trailing = if (name.isNotEmpty()) {
+                { OrbitRoundButton(Icons.Rounded.Close, stringResource(R.string.clear_name), look.ink, { name = "" }, size = 32.dp) }
+            } else null,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 16.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(CosmoRadii.rMd))
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.weight(1f)) {
-                if (name.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.playlist_name),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                BasicTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.onBackground,
-                    ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { submit() }),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                )
-            }
-            if (name.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .clickable { name = "" },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Rounded.Close,
-                        contentDescription = stringResource(R.string.clear_name),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-        }
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .focusRequester(focusRequester),
+        )
 
-        SheetHeading(stringResource(R.string.who_can_see_it).uppercase(Locale.getDefault()))
+        CosmoSheetHeading(stringResource(R.string.who_can_see_it))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 4.dp),
+                .padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PlaylistPrivacy.entries.forEach { option ->
@@ -368,16 +255,15 @@ private fun NewPlaylistForm(
         }
 
         Spacer(Modifier.height(20.dp))
-        Button(
+        OrbitSheetButton(
+            label = stringResource(R.string.create_playlist),
             onClick = submit,
             enabled = name.isNotBlank(),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp),
-        ) {
-            Text(stringResource(R.string.create_playlist))
-        }
-        Spacer(Modifier.height(28.dp))
+                .padding(horizontal = 12.dp),
+        )
+        Spacer(Modifier.height(12.dp))
     }
 }
 
@@ -396,6 +282,8 @@ internal fun RenamePlaylistForm(
     var name by remember { mutableStateOf(playlist.title) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -413,61 +301,33 @@ internal fun RenamePlaylistForm(
             .fillMaxWidth()
             .imePadding(),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 8.dp, end = 22.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = stringResource(R.string.back),
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-            Text(
-                text = stringResource(R.string.rename_playlist),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+        OrbitSheetTitle(
+            title = stringResource(R.string.rename_playlist),
+            leading = { OrbitRoundButton(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back), look.ink, onBack) },
+        )
 
-        Row(
+        OrbitTextField(
+            value = name,
+            onValueChange = { name = it },
+            placeholder = stringResource(R.string.playlist_name),
+            fonts = fonts,
+            look = look,
+            onDone = submit,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 16.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(CosmoRadii.rMd))
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BasicTextField(
-                value = name,
-                onValueChange = { name = it },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onBackground,
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { submit() }),
-                modifier = Modifier
-                    .weight(1f)
-                    .focusRequester(focusRequester),
-            )
-        }
-        Button(
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .focusRequester(focusRequester),
+        )
+        Spacer(Modifier.height(12.dp))
+        OrbitSheetButton(
+            label = stringResource(R.string.save_name),
             onClick = submit,
             enabled = name.isNotBlank() && name != playlist.title,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp),
-        ) {
-            Text(stringResource(R.string.save_name))
-        }
-        Spacer(Modifier.height(28.dp))
+                .padding(horizontal = 12.dp),
+        )
+        Spacer(Modifier.height(12.dp))
     }
 }
 
@@ -483,7 +343,7 @@ private val PlaylistPrivacy.icon: ImageVector
         PlaylistPrivacy.PUBLIC -> Icons.Rounded.Public
     }
 
-/** The search filters' pill, carrying an icon ahead of its label. */
+/** The search filters' chip, carrying an icon ahead of its label. */
 @Composable
 private fun PrivacyPill(
     icon: ImageVector,
@@ -491,36 +351,12 @@ private fun PrivacyPill(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val content = if (selected) {
-        MaterialTheme.colorScheme.onPrimary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .background(
-                if (selected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
-            )
-            .clickable(onClick = onClick)
-            .padding(start = 11.dp, end = 14.dp, top = 7.dp, bottom = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = content,
-            modifier = Modifier.size(16.dp),
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
-            color = content,
-        )
-    }
+    OrbitChip(
+        title = label,
+        fonts = orbitFonts(),
+        look = orbitLook(),
+        onClick = onClick,
+        selected = selected,
+        leading = { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
+    )
 }

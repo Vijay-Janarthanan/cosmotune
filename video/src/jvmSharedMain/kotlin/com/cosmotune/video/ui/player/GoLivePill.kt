@@ -9,9 +9,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.components.CosmoButton
-import com.cosmotune.ui.components.CosmoButtonKind
-import com.cosmotune.ui.components.CosmoButtonSize
 import com.cosmotune.video.player.LiveWindow
 import com.cosmotune.video.player.PlaybackUiState
 import com.cosmotune.video.player.VideoPlayback
@@ -24,19 +21,16 @@ import org.jetbrains.compose.resources.stringResource
 private const val PILL_GAP_DP = 8f
 
 /**
- * "Go to live" (spec 5.13; plan task Y-28): a C secondary pill, the floating QUIET [CosmoButton] (glass, ink label, 40 dp with its
- * 48 dp target), with the Live icon. Its label is its content description.
+ * "Go to live" (spec 5.13; plan task Y-28): the player's Orbit round button with the Live icon. Nothing but the essential controls
+ * sits on the picture, so it is round; its label is its content description.
  */
 @Composable
 internal fun GoLivePill(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    CosmoButton(
-        text = stringResource(Res.string.video_go_live),
+    PlayerButton(
+        icon = VideoIcons.Live,
+        contentDescription = stringResource(Res.string.video_go_live),
         onClick = onClick,
         modifier = modifier,
-        kind = CosmoButtonKind.QUIET,
-        size = CosmoButtonSize.SMALL,
-        icon = VideoIcons.Live,
-        floating = true,
     )
 }
 

@@ -18,10 +18,12 @@ class FocusRingModalityTest {
 
     private fun code(path: String) = SourceContract.code(SourceContract.read(path)).replace(Regex("\\s+"), " ")
 
-    @Test fun tabTheArrowsSpaceAndEnterAreKeyboardNavigation() {
-        for (key in listOf(Key.Tab, Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight, Key.Spacebar, Key.Enter, Key.NumPadEnter)) {
+    @Test fun tabAndTheArrowsAreKeyboardNavigationButSpaceAndEnterAreTyping() {
+        for (key in listOf(Key.Tab, Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight)) {
             assertTrue(key.isFocusNavigationKey(), "$key")
         }
+        // A query typed into a field sends them: they must not light a ring on the next button touched.
+        for (key in listOf(Key.Spacebar, Key.Enter, Key.NumPadEnter)) assertFalse(key.isFocusNavigationKey(), "$key")
         for (key in listOf(Key.MoveHome, Key.MoveEnd, Key.PageUp, Key.PageDown, Key.DirectionCenter)) assertTrue(key.isFocusNavigationKey(), "$key pages or acts on a list")
     }
 

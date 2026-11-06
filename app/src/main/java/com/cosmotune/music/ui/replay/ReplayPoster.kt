@@ -82,12 +82,13 @@ suspend fun renderReplayPoster(
         .associateWith { url -> async(Dispatchers.IO) { loadBitmap(context, url) } }
         .mapValues { it.value.await() }
 
+    val wide = archivoWide(context)
     withContext(Dispatchers.Default) {
         val lit = page?.let { summary.storyArtwork(it) }
             ?: songs.firstOrNull()?.artworkUrl
         val bitmap = Bitmap.createBitmap(POSTER_W, POSTER_H, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val type = Fonts(context)
+        val type = Fonts(context, wide)
 
         // The same cover and the same turn of the colour wheel the card on
         // screen was drawn with, so the picture is recognisably that card.
@@ -281,18 +282,9 @@ private fun drawCollage(
 // ── Background ──────────────────────────────────────────────────────────────
 
 /**
- * The mesh, by hand.
- *
- * Four wide radial gradients off the leading sleeve's own colours, laid over a
- * dark base and then flattened under a vertical scrim — the same recipe the
- * player's backdrop uses, at a size where the radii can simply be written down
- * instead of derived from a layout.
- *
- * [height] is the canvas it is being drawn on: the poster passes the full
- * frame, a card that grows with its own contents passes whatever it turned out
- * to be. The anchors are fractions of it, so a short card gets the same
- * composition squeezed into its rows rather than the bottom half of a poster
- * left blank.
+ * The ground of the picture, as the Orbit Replay story cards have it: one flat colour, the cover's own hue made deep (saturated and
+ * dark enough for the pale ink; a near-grey cover stays a quiet charcoal), turned by [hue] as the card on screen was. No glow, no
+ * gradient (Orbit rule 4).
  */
 internal fun drawBackdrop(
     canvas: Canvas,
@@ -300,48 +292,30 @@ internal fun drawBackdrop(
     hue: Float,
     height: Float = POSTER_H.toFloat(),
 ) {
-    val colors = paletteOf(lead).map { rotated(it, hue) }
-    canvas.drawColor(dimmed(colors.first()))
+    val seed = rotated(paletteOf(lead).first(), hue)
+    canvas.drawColor(orbitFill(seed))
+}
 
-    val anchors = listOf(
-        0.20f to 0.16f,
-        0.84f to 0.22f,
-        0.76f to 0.66f,
-        0.18f to 0.78f,
-    )
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    colors.forEachIndexed { index, color ->
-        val (fx, fy) = anchors[index]
-        val cx = POSTER_W * fx
-        val cy = height * fy
-        val radius = POSTER_W * 0.95f
-        paint.shader = RadialGradient(
-            cx,
-            cy,
-            radius,
-            intArrayOf(
-                ColorUtils.setAlphaComponent(color, 210),
-                ColorUtils.setAlphaComponent(color, 0),
-            ),
-            floatArrayOf(0f, 1f),
-            Shader.TileMode.CLAMP,
-        )
-        canvas.drawCircle(cx, cy, radius, paint)
+/** The Orbit card colour of [seed] (the kit's `vivid`): its hue, saturation held to 0.58 to 0.86 at value 0.40; greys stay grey. */
+internal fun orbitFill(seed: Int): Int {
+    val hsv = FloatArray(3)
+    Color.colorToHSV(seed, hsv)
+    return if (hsv[1] < 0.14f) Color.HSVToColor(floatArrayOf(hsv[0], hsv[1], 0.27f))
+    else Color.HSVToColor(floatArrayOf(hsv[0], hsv[1].coerceIn(0.58f, 0.86f), 0.40f))
+}
+
+/** A disc's orbit, as the story cards draw it: a faint ring [gap] outside the disc at ([cx], [cy]) and the moon at its top. */
+internal fun drawOrbit(canvas: Canvas, cx: Float, cy: Float, discRadius: Float, gap: Float = 22f) {
+    val ring = discRadius + gap
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        color = 0x40FFFFFF
     }
-    paint.shader = null
-
-    // Ink, weighted to the foot where the smaller type is.
-    paint.shader = android.graphics.LinearGradient(
-        0f,
-        0f,
-        0f,
-        height,
-        intArrayOf(0x8C000000.toInt(), 0x59000000, 0xCC000000.toInt()),
-        floatArrayOf(0f, 0.42f, 1f),
-        Shader.TileMode.CLAMP,
-    )
-    canvas.drawRect(0f, 0f, POSTER_W.toFloat(), height, paint)
-    paint.shader = null
+    canvas.drawCircle(cx, cy, ring, paint)
+    paint.style = Paint.Style.FILL
+    paint.color = 0xF2FFFFFF.toInt()
+    canvas.drawCircle(cx, cy - ring, 11f, paint)
 }
 
 /**
@@ -610,7 +584,9 @@ internal fun drawArtwork(
     circular: Boolean,
 ) {
     val bounds = RectF(x, y, x + size, y + size)
-    val radius = if (circular) size / 2f else size * 0.10f
+    // Every cover is a disc in Orbit; [circular] is kept for the callers.
+    val radius = size / 2f
+    if (size >= ORBIT_MIN_SIZE) drawOrbit(canvas, x + size / 2f, y + size / 2f, size / 2f)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     if (bitmap != null) {
         val scale = size / minOf(bitmap.width, bitmap.height).toFloat()
@@ -727,8 +703,9 @@ internal fun ellipsised(text: String, paint: Paint, width: Float): String {
  * missing font resource a slightly plainer picture rather than a crash on the
  * share button.
  */
-internal class Fonts(context: Context) {
-    private val heavy = font(context, R.font.sf_pro_display_heavy) ?: Typeface.DEFAULT_BOLD
+internal class Fonts(context: Context, wide: Typeface? = null) {
+    // The headings in the Orbit cards' wide face (Archivo, width 125, weight 800) when it could be read.
+    private val heavy = wide ?: font(context, R.font.sf_pro_display_heavy) ?: Typeface.DEFAULT_BOLD
     private val semibold = font(context, R.font.sf_pro_display_semibold) ?: Typeface.DEFAULT_BOLD
     private val regular = font(context, R.font.sf_pro_display_regular) ?: Typeface.DEFAULT
 
@@ -784,7 +761,22 @@ private const val CARD_ROWS = 5
 private const val COLUMN_GAP = 36f
 private const val ROW_HEIGHT = 116f
 private const val ART = 84f
-private const val ACCENT = 0xFFFA2D48.toInt()
+/** The number one's rank: the full pale ink (peach is kept for what is playing, and nothing plays on a picture). */
+private const val ACCENT = 0xFFFFFFFF.toInt()
+
+/** The smallest cover that wears its orbit on the picture. */
+private const val ORBIT_MIN_SIZE = 220f
+
+/**
+ * Archivo at width 125 and weight 800, the Orbit headings' face, from the shared resources; null when it cannot be read (the
+ * picture is then set in the app's heavy face).
+ */
+private suspend fun archivoWide(context: Context): Typeface? = runCatching {
+    val bytes = com.cosmotune.music.sharedui.resources.Res.readBytes("font/archivo_variable.ttf")
+    val file = java.io.File(context.cacheDir, "replay-archivo.ttf")
+    withContext(Dispatchers.IO) { if (!file.exists() || file.length() != bytes.size.toLong()) file.writeBytes(bytes) }
+    Typeface.Builder(file).setFontVariationSettings("'wght' 800, 'wdth' 125").build()
+}.getOrNull()
 
 private const val POSTER_ROWS = 5
 private const val POSTER_ALBUMS = 3

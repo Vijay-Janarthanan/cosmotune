@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -175,4 +176,22 @@ fun OrbitReaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 @Composable
 fun OrbitRowCover(cover: Any?, key: String, width: Dp = 34.dp) {
     WatchPicture(cover, key, Modifier.size(width, width * 1.5f), radius = 8.dp)
+}
+
+/**
+ * The status bar's ground for a page that scrolls under it (Watch's and Podio's tabs): the page's ground, nearly whole behind the
+ * clock and the icons and fading out just under them, so a title scrolling up goes under it instead of under the icons. Takes the
+ * status bar's height and nothing where there is none (the desktop). Put it last in the page's box, aligned to the top.
+ */
+@Composable
+fun OrbitStatusBarScrim(modifier: Modifier = Modifier, look: OrbitLook = orbitLook()) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val bar = androidx.compose.foundation.layout.WindowInsets.statusBars.getTop(density)
+    if (bar <= 0) return
+    val fade = with(density) { 14.dp.toPx() }
+    val ground = look.ground
+    Box(
+        modifier.fillMaxWidth().height(with(density) { (bar + fade).toDp() })
+            .background(Brush.verticalGradient(0f to ground.copy(alpha = 0.94f), bar / (bar + fade) to ground.copy(alpha = 0.82f), 1f to Color.Transparent)),
+    )
 }

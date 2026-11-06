@@ -8,6 +8,9 @@ import androidx.compose.runtime.Composable
 @Composable
 actual fun StatusBarIcons(dark: Boolean) = Unit
 
+@Composable
+actual fun SystemBarGlyphs(dark: Boolean) = Unit
+
 // Nor one to hide.
 @Composable
 actual fun HideStatusBar(hidden: Boolean) = Unit

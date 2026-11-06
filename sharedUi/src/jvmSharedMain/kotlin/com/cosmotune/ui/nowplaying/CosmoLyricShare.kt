@@ -1,7 +1,5 @@
 package com.cosmotune.ui.nowplaying
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,9 +15,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.components.CosmoButton
-import com.cosmotune.ui.components.CosmoButtonKind
-import com.cosmotune.ui.components.CosmoButtonSize
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitSheetButton
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.sharedui.resources.Res
@@ -39,8 +36,8 @@ import org.jetbrains.compose.resources.stringResource
  * Lyric card sharing in the new Now Playing (the old view's feature, carried over): long-press a line to start choosing lines, tap to add or drop one, then
  * Share turns the chosen lines into a card. The choice, its budget (one card holds about five short lines), the order of the
  * lines on the card and the marks for lines that were skipped are the old panel's own `rememberLyricsPicker`, reused as it is;
- * the card itself is drawn by the platform ([com.cosmotune.music.ui.player.PlayerHost.LyricsShareSheet], the phone's) and
- * is not in the new look.
+ * the card itself is drawn by the platform ([com.cosmotune.music.ui.player.PlayerHost.LyricsShareSheet], the phone's), in the
+ * Orbit sheet the player's other sheets go up in ([com.cosmotune.music.ui.player.LyricsShareDrawer]).
  */
 
 /** What a line of lyrics needs to know about choosing lines for a card: the lines are picked by their index in the list. */
@@ -128,7 +125,7 @@ internal fun CosmoLyricShareHost(share: CosmoLyricShare, hazeState: HazeState) {
 
 /**
  * The foot of the lyrics while lines are being chosen: Cancel and Share, where the status line and the two toggles are the rest
- * of the time (the toggles would redraw the very lines the pick is indexing). Page buttons, so B: a quiet one and a primary one.
+ * of the time (the toggles would redraw the very lines the pick is indexing). The kit's pills: Cancel quiet, Share the one peach action.
  * No count and no budget: what is chosen is said by the lines themselves, which light up, and a line that will not fit does not.
  */
 @Composable
@@ -138,10 +135,7 @@ internal fun LyricsPickFooter(shareEnabled: Boolean, onCancel: () -> Unit, onSha
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CosmoButton(stringResource(Res.string.cancel), onCancel, Modifier.weight(1f), kind = CosmoButtonKind.QUIET, size = CosmoButtonSize.MEDIUM)
-        CosmoButton(
-            stringResource(Res.string.share), onShare, Modifier.weight(1f), kind = CosmoButtonKind.PRIMARY, size = CosmoButtonSize.MEDIUM,
-            icon = Icons.Rounded.IosShare, enabled = shareEnabled,
-        )
+        OrbitSheetButton(stringResource(Res.string.cancel), onCancel, Modifier.weight(1f))
+        OrbitSheetButton(stringResource(Res.string.share), onShare, Modifier.weight(1f), primary = true, enabled = shareEnabled, icon = CosmoIcons.Share)
     }
 }

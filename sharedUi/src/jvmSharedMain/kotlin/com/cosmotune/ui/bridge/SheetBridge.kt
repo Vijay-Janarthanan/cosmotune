@@ -22,8 +22,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.cosmotune.design.GlassPolicy
 import com.cosmotune.ui.components.SuperellipseShape
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.orbit.orbitSheetGround
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoShell
@@ -47,8 +48,9 @@ private val GRAB_BOTTOM = 14.dp
 /**
  * Material's `ModalBottomSheet` with the same names, order and defaults (material3 1.3.x). With the new look off it is Material's
  * own. With it on, a sheet that paints itself (the caller passed `containerColor = Color.Transparent`: the song and browse
- * sheets, the player) is Material's untouched. Any other sheet is detached glass: 8 dp in from the sides and the bottom
- * ([CosmoRadii.sheetInset], `.sheet2 { left/right/bottom: var(--sheet-inset) }`), a 36 dp superellipse, `surfaceHigh` at [GlassPolicy.SOLID_ALPHA], a 40 % black scrim, no tonal elevation and the
+ * sheets, the player) is Material's untouched. Any other sheet is detached: 8 dp in from the sides and the bottom
+ * ([CosmoRadii.sheetInset], `.sheet2 { left/right/bottom: var(--sheet-inset) }`), a 36 dp superellipse on the Orbit sheets' opaque
+ * ground ([orbitSheetGround]), a 40 % black scrim, no tonal elevation and the
  * [CosmoSheetHandle] grabber in place of the Material handle (a handle the caller turned off with `null` stays off).
  */
 @ExperimentalMaterial3Api
@@ -86,7 +88,8 @@ fun ModalBottomSheet(
         )
         return
     }
-    val glass = Color(LocalCosmoColors.current.palette.surfaceHigh).copy(alpha = GlassPolicy.SOLID_ALPHA)
+    // Opaque: a sheet is a surface of its own (Orbit rule 4, no glass), so nothing of the page behind reads through its rows.
+    val glass = orbitSheetGround(orbitLook())
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier.padding(start = CosmoRadii.sheetInset, end = CosmoRadii.sheetInset, bottom = CosmoRadii.sheetInset),

@@ -1,5 +1,6 @@
 package com.cosmotune.music.ui.screens
 
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -137,7 +138,7 @@ fun RoomsScreen(
                 SettingsRow(
                     icon = Icons.AutoMirrored.Rounded.Logout,
                     title = stringResource(R.string.room_leave),
-                    subtitle = stringResource(R.string.listen_together_leave_subtitle),
+                    subtitle = stringResource(if (party.members.size <= 1) R.string.listen_together_leave_alone else R.string.listen_together_leave_subtitle),
                     onClick = { scope.launch { PhoneRooms.leave() } },
                 )
             }
@@ -204,7 +205,8 @@ internal fun rememberRoomEntry(): RoomEntry {
 internal fun RoomEntrySheets(entry: RoomEntry, landing: Boolean, onJoined: () -> Unit, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val code by PhoneRooms.code.collectAsStateWithLifecycle()
-    val sheetState = rememberModalBottomSheetState()
+    // Opened whole, never half way: half way left the landing's main action ("Create a room") under the gesture bar.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val open = entry.sheet
     if (open == null && !landing) return
     val dismiss = {
@@ -216,7 +218,8 @@ internal fun RoomEntrySheets(entry: RoomEntry, landing: Boolean, onJoined: () ->
         entry.sheet = null
         onJoined()
     }
-    ModalBottomSheet(
+    // The Orbit sheet (the song sheet's flat surface and grabber) in the new look; the sheet the bridge draws otherwise.
+    com.cosmotune.ui.sheets.SurfaceSheetSwitch(
         onDismissRequest = dismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
@@ -233,7 +236,9 @@ internal fun RoomEntrySheets(entry: RoomEntry, landing: Boolean, onJoined: () ->
                     entry.failure = null
                     entry.sheet = PartySheet.JoinCode
                 },
-                modifier = Modifier.padding(bottom = 24.dp),
+                // On a short window the landing scrolls inside the sheet rather than pushing its buttons off the foot.
+                modifier = Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = 24.dp),
+                compact = true,
             )
 
             PartySheet.Create -> CreatePartySheet(

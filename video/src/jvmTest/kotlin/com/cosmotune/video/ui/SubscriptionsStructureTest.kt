@@ -191,7 +191,7 @@ class SubscriptionsStructureTest {
     @Test fun theStatusLineSaysWhenTheFeedWasUpdatedAndWhatFailed() {
         for (key in listOf("video_updated", "video_feed_updated_now", "video_channels_failed", "video_retry", "video_feed_refresh", "video_dl_all")) assertTrue("Res.string.$key" in status || "Res.plurals.$key" in status, key)
         assertTrue("private const val STATUS_SP = 12.5f" in status, "12.5 sp")
-        assertTrue("Color(palette.textTertiary)" in status, "textTertiary")
+        assertTrue("color = look.dim" in status, "the dim ink")
         assertTrue("pluralStringResource(Res.plurals.video_channels_failed, failedCount, failedCount)" in status)
         assertTrue("onClick = onRetry" in status)
         assertTrue("private val STATUS_MIN_HEIGHT = 48.dp" in status, "a 48 dp row for the small text buttons")
@@ -211,7 +211,7 @@ class SubscriptionsStructureTest {
             assertFalse(("org.schabi" + ".newpipe") in src, "$name does not name the extractor")
         }
         // colours that are read come from the palette in composition
-        assertTrue(Regex("""Color\(palette\.\w+\)""").containsMatchIn(status))
+        assertTrue("orbitLook()" in status)
     }
 
     @Test fun everyTextIsAStringResourceAndTheTypeAndMotionComeFromTheShell() {
@@ -219,7 +219,7 @@ class SubscriptionsStructureTest {
             assertFalse(Regex("""Text\(\s*(text = )?""" + "\"").containsMatchIn(src), "$name has no literal text")
             assertFalse(Regex("""(title|message|label|text|actionLabel) = "[A-Za-z]""").containsMatchIn(VideoSourceContract.code(src)), "$name has no literal label")
         }
-        assertTrue("LocalCosmoType.current" in status)
+        assertTrue("orbitFonts()" in status)
         assertFalse(Regex("""FontFamily\.""").containsMatchIn(status))
         assertFalse("LaunchedEffect(Unit)" in page, "a keyed effect only")
     }

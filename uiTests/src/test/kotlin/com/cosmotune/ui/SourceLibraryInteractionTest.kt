@@ -42,7 +42,7 @@ class SourceLibraryInteractionTest {
         val library = library()
         val album = page("album", "album", "A source album")
         val artist = page("artist", "artist", "An artist")
-        compose.setContent { MaterialTheme { Column { SourceLibraryButton(album); SourceLibraryButton(artist) } } }
+        compose.setContent { PodioTestTheme { Column { SourceLibraryButton(album); SourceLibraryButton(artist) } } }
         compose.onNodeWithText("Save", substring = false).performClick()
         compose.waitUntil(10_000) { library.state.value.collections.size == 1 }
         compose.onNodeWithText("Saved", substring = false).assertIsDisplayed()

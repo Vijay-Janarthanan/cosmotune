@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -81,7 +82,7 @@ internal fun OrbitStatCard(
  * and the [line] under it (the sync status). No bite: nothing plays here. [compact] is the phone's (a 72 dp disc).
  */
 @Composable
-internal fun OrbitAccountCard(
+fun OrbitAccountCard(
     label: String,
     name: String,
     line: String?,
@@ -126,7 +127,8 @@ internal fun OrbitAccountCard(
  * A category of the settings home (board 2, `.tile`): radius 26, ink at 5 %, a 44 dp icon tile in the category's [fill] with a white
  * glyph, the [title] and the one-line [summary]. [stacked] puts the icon over the text (a narrow cell: the phone's two columns).
  * [selected] (not null: the tile is a tab, the desktop's list beside the page) true is solid ink with the ground's colour for its text.
- * [summaryLines] lets a search result say where it lives and what it does.
+ * [summaryLines] lets a search result say where it lives and what it does; a [stacked] tile (a narrow cell) gives its summary two lines
+ * at least, so "Wi-Fi: Lossless · Mobile data: Lossless" is read whole.
  */
 @Composable
 internal fun OrbitSettingsTile(
@@ -158,7 +160,7 @@ internal fun OrbitSettingsTile(
         val text = @Composable { m: Modifier ->
             Column(m) {
                 Text(title, style = fonts.title.copy(fontSize = 14.5.sp), color = ink, maxLines = if (stacked) 2 else 1, overflow = TextOverflow.Ellipsis)
-                Text(summary, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = dim, maxLines = summaryLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                Text(summary, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = dim, maxLines = if (stacked) maxOf(summaryLines, 2) else summaryLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
             }
         }
         if (stacked) {
@@ -192,12 +194,15 @@ internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 
 }
 
 /**
- * A one-line field of a settings page (the proxy's address, user and password): the chip's pill (radius 22, at least 48 dp), the
+ * A field of a settings page (the proxy's address, user and password): the chip's pill (radius 22, at least 48 dp), the
  * [placeholder] in the dim ink while it is empty, the words in the body face and the ink. [error] rings it in the theme's error
- * colour; [secret] hides what is typed.
+ * colour; [secret] hides what is typed; [enabled] false fades it and takes no typing. [onDone] (or [onSubmit]) is Enter (a dialog's
+ * Save, a room code's look-up; an [imeAction] of Next moves on instead). [singleLine] false with [minLines] / [maxLines] makes it a
+ * box of several lines (a pasted curve, a comment); [sentences] capitalises them. [textStyle] is laid over the body face (a room
+ * code's wide tracking), and [trailing] sits at the field's end (a clear button).
  */
 @Composable
-internal fun OrbitTextField(
+fun OrbitTextField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
@@ -206,26 +211,50 @@ internal fun OrbitTextField(
     modifier: Modifier = Modifier,
     error: Boolean = false,
     secret: Boolean = false,
+    onDone: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+    singleLine: Boolean = true,
+    sentences: Boolean = false,
+    minLines: Int = 1,
+    enabled: Boolean = true,
+    maxLines: Int = Int.MAX_VALUE,
+    onSubmit: (() -> Unit)? = null,
+    imeAction: androidx.compose.ui.text.input.ImeAction? = null,
+    textStyle: androidx.compose.ui.text.TextStyle? = null,
 ) {
     val shape = RoundedCornerShape(22.dp)
+    val words = fonts.body.merge(textStyle)
+    val submit = onDone ?: onSubmit
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        singleLine = true,
-        textStyle = fonts.body.copy(color = look.ink),
+        singleLine = singleLine,
+        minLines = minLines,
+        maxLines = if (singleLine) 1 else maxOf(minLines, maxLines),
+        enabled = enabled,
+        textStyle = words.copy(color = if (enabled) look.ink else look.dim),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = if (secret) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password) else androidx.compose.foundation.text.KeyboardOptions.Default,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = if (secret) androidx.compose.ui.text.input.KeyboardType.Password else androidx.compose.ui.text.input.KeyboardType.Text,
+            capitalization = if (sentences && !secret) androidx.compose.ui.text.input.KeyboardCapitalization.Sentences else androidx.compose.ui.text.input.KeyboardCapitalization.None,
+            imeAction = imeAction ?: if (submit != null) androidx.compose.ui.text.input.ImeAction.Done else androidx.compose.ui.text.input.ImeAction.Default,
+        ),
+        keyboardActions = if (submit != null) androidx.compose.foundation.text.KeyboardActions(onDone = { submit() }) else androidx.compose.foundation.text.KeyboardActions.Default,
         modifier = modifier
+            .then(if (enabled) Modifier else Modifier.alpha(0.45f))
             .heightIn(min = 48.dp)
             .clip(shape)
             .background(look.chip)
             .then(if (error) Modifier.border(1.5.dp, androidx.compose.material3.MaterialTheme.colorScheme.error, shape) else Modifier)
             .semantics { contentDescription = placeholder },
         decorationBox = { inner ->
-            Box(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
-                if (value.isEmpty()) Text(placeholder, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                inner()
+            Row(Modifier.padding(start = 18.dp, end = if (trailing != null) 6.dp else 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f).padding(vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) Text(placeholder, style = words, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    inner()
+                }
+                trailing?.invoke()
             }
         },
     )

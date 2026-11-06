@@ -3666,7 +3666,7 @@ fun CosmotuneDesktopApp() {
                         onSearch = { selectDestination(DesktopDestination.SEARCH) },
                         // The profile drawer's entries. Settings and Replay stand in place of the page, so they leave each other first.
                         entries = listOf(
-                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Library, "Your listening", onClick = { listeningToolsOpen = true }),
+                            com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Clock, "Your listening", onClick = { listeningToolsOpen = true }),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Replay, DesktopStrings["replay", "Replay"], onClick = { overlays.settingsPage = null; overlays.replay = true }),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Together, DesktopStrings["listen_together", "Listen together"], onClick = ::openRoomPage),
                             com.cosmotune.ui.chrome.CosmoDrawerEntry(com.cosmotune.ui.components.CosmoIcons.Download, DesktopStrings["downloads", "Downloads"], onClick = { selectDestination(DesktopDestination.DOWNLOADS) }),
@@ -3814,6 +3814,10 @@ fun CosmotuneDesktopApp() {
                                 onMove = ::moveInQueue,
                                 onClear = ::clearQueue,
                                 modifier = Modifier.fillMaxSize(),
+                                // The playing row's orbit and AutoPlay, as the phone's Up next has them. The playhead is read while drawing.
+                                isPlaying = playback.isPlaying,
+                                progress = { if (playback.durationMs > 0L) (playerPosition.positionMs.toFloat() / playback.durationMs).coerceIn(0f, 1f) else 0f },
+                                onToggleAutoplay = { setAutoplay(!DesktopAutoplay.enabled(partyState, autoplay)) },
                             )
                         }
                     }
@@ -6567,6 +6571,7 @@ private enum class DesktopSettingsSection(val category: com.cosmotune.ui.setting
     APPEARANCE(com.cosmotune.ui.settings.SettingsCategory.APPEARANCE),
     LANGUAGE(com.cosmotune.ui.settings.SettingsCategory.APPEARANCE),
     VIDEO(com.cosmotune.ui.settings.SettingsCategory.VIDEO),
+    LIVE_NOW(com.cosmotune.ui.settings.SettingsCategory.VIDEO),
     READ(com.cosmotune.ui.settings.SettingsCategory.READ),
     PODIO(com.cosmotune.ui.settings.SettingsCategory.PODIO),
     LISTENING(com.cosmotune.ui.settings.SettingsCategory.LISTENING),
@@ -6762,6 +6767,9 @@ private fun DesktopSettingsScreen(
     val sectionContent: @Composable (DesktopSettingsSection) -> Unit = { section ->
         when (section) {
             DesktopSettingsSection.PLAYBACK -> {
+                // Its own toggles and sliders have no icon tiles: the shared rows among them (spatial style, surround, the volume cap,
+                // pitch) leave theirs off too, so every row on the page is the same.
+                androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.settings.LocalSettingsRowIcons provides false) {
                     SettingsGroup(DesktopStrings["playback", "Playback"]) {
                     if (!automix) {
                         if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
@@ -6918,6 +6926,7 @@ private fun DesktopSettingsScreen(
                         com.cosmotune.ui.settings.SongRecognitionRows(onPlay = onPlayProviderSongs)
                     }
                 }
+            }
             }
             DesktopSettingsSection.DESKTOP_PLAYBACK -> {
                 SettingsGroup(DesktopStrings["d_desktop_playback", "Desktop playback"]) {
@@ -7626,6 +7635,12 @@ private fun DesktopSettingsScreen(
             DesktopSettingsSection.VIDEO -> {
                 DesktopModeLink(AppMode.VIDEO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO_SUMMARY.text())
             }
+            DesktopSettingsSection.LIVE_NOW -> {
+                // The Live pill of every mode, the sports and the teams it follows (kept on this computer).
+                SettingsGroup("Live now") {
+                    if (settingsRowVisible("Live pill", "sports teams cricket football scores")) com.cosmotune.ui.live.LiveNowSettingsSection()
+                }
+            }
             DesktopSettingsSection.READ -> {
                 DesktopModeLink(AppMode.MANGA, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_READ.text(), com.cosmotune.ui.settings.SettingsText.OPEN_READ_SUMMARY.text())
             }
@@ -8096,17 +8111,20 @@ private fun DesktopSourceEditorDialog(
         onDismiss = onDismiss,
         content = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                // The Orbit field (the chip's pill), its name as the mono label above it.
+                com.cosmotune.ui.orbit.OrbitLabel(DesktopStrings["d_addon_url", "Addon URL"], com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook().dim)
+                com.cosmotune.ui.orbit.OrbitTextField(
                     value = baseUrl,
                     onValueChange = {
-                        baseUrl = it
-                        message = null
+                        if (!checking) {
+                            baseUrl = it
+                            message = null
+                        }
                     },
+                    placeholder = "https://example.com/addon",
+                    fonts = com.cosmotune.ui.orbit.orbitFonts(),
+                    look = com.cosmotune.ui.orbit.orbitLook(),
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(DesktopStrings["d_addon_url", "Addon URL"]) },
-                    placeholder = { Text("https://example.com/addon") },
-                    singleLine = true,
-                    enabled = !checking,
                 )
                 Text(
                     DesktopStrings[
@@ -8117,14 +8135,14 @@ private fun DesktopSourceEditorDialog(
                     color = DesktopSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                OutlinedTextField(
+                com.cosmotune.ui.orbit.OrbitLabel(DesktopStrings["d_name_optional", "Name (optional)"], com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook().dim)
+                com.cosmotune.ui.orbit.OrbitTextField(
                     value = label,
-                    onValueChange = { label = it },
+                    onValueChange = { if (!checking) label = it },
+                    placeholder = DesktopStrings["d_my_music_source", "My music source"],
+                    fonts = com.cosmotune.ui.orbit.orbitFonts(),
+                    look = com.cosmotune.ui.orbit.orbitLook(),
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(DesktopStrings["d_name_optional", "Name (optional)"]) },
-                    placeholder = { Text(DesktopStrings["d_my_music_source", "My music source"]) },
-                    singleLine = true,
-                    enabled = !checking,
                 )
                 (message ?: status)?.let {
                     Text(it, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)

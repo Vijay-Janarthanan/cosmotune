@@ -395,6 +395,7 @@ private fun HomeFeedPhone(
     val margin = VideoMetrics.MARGIN_DP.dp
     // The list starts under the bar rather than scrolling beneath it: a sticky header pins to the top of the list, and it must pin below the bar.
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding()), contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())) {
+        item(key = "live", contentType = "live") { com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = margin).padding(top = 8.dp)) }
         item(key = "title", contentType = "title") { VideoPageHeading(stringResource(Res.string.video_home_heading), stringResource(Res.string.video_home_label)) }
         stickyHeader(key = "chips", contentType = "chips") { chips(Modifier.videoSolidGround().padding(vertical = 6.dp)) }
         item(key = "source-status", contentType = "status") { status() }

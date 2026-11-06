@@ -1,20 +1,28 @@
 package com.cosmotune.ui.providers
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.cosmotune.music.data.model.Song
-import com.cosmotune.music.ui.components.SongRow
 import com.cosmotune.providers.*
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitBusyRing
+import com.cosmotune.ui.orbit.OrbitErrorText
+import com.cosmotune.ui.orbit.OrbitFormField
+import com.cosmotune.ui.orbit.OrbitPageSection
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitRowTime
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.OrbitSongRowFor
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.sheets.CosmoActionRow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -104,67 +112,67 @@ fun CatalogueBrowserDialog(access: CatalogueBrowserAccess, onDismiss: () -> Unit
         track.artists.forEach { artist -> artist.browseId?.let(ProviderBrowseKey::parse)?.let { add(artist.name to it) } }
     }.filter { it.second.kind in access.supportedKinds }.distinctBy { it.second }
 
-    Dialog(onDismissRequest = ::back, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxHeight().widthIn(max = 920.dp).fillMaxWidth()) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(horizontal = 16.dp).testTag("provider:browse")) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = ::back) { Text("Back") }
-                    Text(heading, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { revision++ }, enabled = !loading) { Text("Refresh") }
-                }
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    // A song of the page: Home's row, a tap plays it, its album and artists behind More (or a hold) when there are any.
+    @Composable fun TrackRow(track: ProviderTrack, rows: List<ProviderTrack>) {
+        val song = access.song(track)
+        val more = links(track).isNotEmpty()
+        OrbitSongRowFor(song, fonts, look, onClick = { play(rows, rows.indexOf(track)) }, modifier = Modifier.testTag("provider:track:${track.id}"),
+            onLongClick = if (more) ({ selectedTrack = track }) else null,
+            trailing = {
+                OrbitRowTime(song.durationText, fonts, look)
+                if (more) OrbitRoundButton(CosmoIcons.MoreVertical, "More", look.ink, onClick = { selectedTrack = track }, modifier = Modifier.padding(start = 6.dp), size = 36.dp)
+            })
+    }
+    // An album, an artist or a playlist to open: the same row with its kind's mark for a disc (no remote picture is fetched for it).
+    @Composable fun CollectionRow(page: ProviderCollection, modifier: Modifier = Modifier) {
+        OrbitSongRow(page.title, page.subtitle, cover = null, fonts = fonts, look = look, onClick = { open(page) }, modifier = modifier.fillMaxWidth(),
+            icon = when (page.key.kind) { "artist" -> CosmoIcons.User; "album" -> CosmoIcons.Library; else -> CosmoIcons.List },
+            trailing = { androidx.compose.material3.Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = look.dim, modifier = Modifier.size(18.dp)) })
+    }
+    ProviderPageWindow(::back, kind = if (path.isEmpty() && submitted.isBlank()) "Catalogue" else access.title, tag = "provider:browse",
+        trailing = { OrbitRoundButton(CosmoIcons.Replay, "Refresh", look.ink, onClick = { revision++ }, enabled = !loading) }) {
+                ProviderPageTitle(heading)
                 if (path.isEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(query, { query = it }, label = { Text("Search ${access.title}") },
-                            singleLine = true, modifier = Modifier.weight(1f).testTag("provider:query"))
-                        TextButton(onClick = { submitted = query.trim(); revision++ }, enabled = query.isNotBlank() && !loading) { Text("Search") }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                        OrbitFormField(query, { query = it }, "Search ${access.title}", Modifier.weight(1f), fieldModifier = Modifier.testTag("provider:query"))
+                        ProviderButton("Search", { submitted = query.trim(); revision++ }, enabled = query.isNotBlank() && !loading, primary = true)
                     }
                     if (access.hasHome) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-                            if (regional != null) OutlinedTextField(region, { region = it.take(2) }, label = { Text("Region") },
-                                singleLine = true, modifier = Modifier.width(100.dp))
-                            if (languageKey != null) OutlinedTextField(language, { language = it.take(100) }, label = { Text("Language") },
-                                singleLine = true, modifier = Modifier.widthIn(max = 220.dp))
-                            TextButton(onClick = { path = emptyList(); submitted = ""; revision++ }, enabled = !loading) { Text("Home") }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                            itemVerticalAlignment = Alignment.Bottom, modifier = Modifier.padding(vertical = 10.dp)) {
+                            if (regional != null) OrbitFormField(region, { region = it.take(2) }, "Region", Modifier.width(110.dp), label = "Region")
+                            if (languageKey != null) OrbitFormField(language, { language = it.take(100) }, "Language", Modifier.widthIn(min = 140.dp, max = 220.dp), label = "Language")
+                            ProviderButton("Home", { path = emptyList(); submitted = ""; revision++ }, enabled = !loading, icon = CosmoIcons.Home,
+                                modifier = Modifier.padding(bottom = 4.dp))
                         }
                     }
                 }
-                if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                if (failure) Text("This provider could not load the page. Check its connection settings and retry.", color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(vertical = 12.dp))
-                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 24.dp)) {
+                if (loading) OrbitBusyRing(Modifier.padding(vertical = 8.dp))
+                if (failure) OrbitErrorText("This provider could not load the page. Check its connection settings and retry.", Modifier.padding(vertical = 12.dp))
+                LazyColumn(Modifier.weight(1f).padding(top = 8.dp), contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (tracks.isEmpty() && sections.isEmpty() && collection?.collections.isNullOrEmpty() && !loading && !failure) item {
-                        Text(if (submitted.isNotBlank()) "No songs found." else "Search this provider to find songs.", modifier = Modifier.padding(16.dp))
+                        Text(if (submitted.isNotBlank()) "No songs found." else "Search this provider to find songs.", color = look.dim, modifier = Modifier.padding(vertical = 16.dp))
                     }
-                    items(tracks, key = { "track:${it.id}" }) { track ->
-                        SongRow(access.song(track), onClick = { play(tracks, tracks.indexOf(track)) },
-                            onMore = if (links(track).isNotEmpty()) ({ selectedTrack = track }) else null,
-                            modifier = Modifier.testTag("provider:track:${track.id}"))
-                    }
+                    items(tracks, key = { "track:${it.id}" }) { track -> TrackRow(track, tracks) }
                     items(collection?.collections.orEmpty(), key = { "collection:${it.key.encode()}" }) { page ->
-                        ListItem(headlineContent = { Text(page.title) }, supportingContent = { Text(page.subtitle) },
-                            modifier = Modifier.clickable { open(page) }.testTag("provider:collection:${page.key.id}"))
+                        CollectionRow(page, Modifier.testTag("provider:collection:${page.key.id}"))
                     }
                     sections.forEachIndexed { sectionIndex, section ->
-                        item("heading:$sectionIndex") { Text(section.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)) }
-                        items(section.tracks, key = { "s$sectionIndex:track:${it.id}" }) { track ->
-                            SongRow(access.song(track), onClick = { play(section.tracks, section.tracks.indexOf(track)) },
-                                onMore = if (links(track).isNotEmpty()) ({ selectedTrack = track }) else null,
-                                modifier = Modifier.testTag("provider:track:${track.id}"))
-                        }
-                        items(section.collections, key = { "s$sectionIndex:collection:${it.key.encode()}" }) { page ->
-                            ListItem(headlineContent = { Text(page.title) }, supportingContent = { Text(page.subtitle) }, modifier = Modifier.clickable { open(page) })
-                        }
+                        item("heading:$sectionIndex") { OrbitPageSection(section.title, Modifier.padding(top = 20.dp, bottom = 4.dp)) }
+                        items(section.tracks, key = { "s$sectionIndex:track:${it.id}" }) { track -> TrackRow(track, section.tracks) }
+                        items(section.collections, key = { "s$sectionIndex:collection:${it.key.encode()}" }) { page -> CollectionRow(page) }
                     }
                 }
-            }
-        }
     }
     selectedTrack?.let { track -> com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = { selectedTrack = null },
         title = track.title,
         content = {
         Column { links(track).forEach { (title, key) ->
-            TextButton(onClick = { selectedTrack = null; path = path + key }) { Text("${if (key.kind == "artist") "Artist" else "Album"} · $title") }
+            CosmoActionRow(if (key.kind == "artist") CosmoIcons.User else CosmoIcons.Library, "${if (key.kind == "artist") "Artist" else "Album"} · $title",
+                menu = true, onClick = { selectedTrack = null; path = path + key })
         } }
     },
         confirmLabel = "Close",

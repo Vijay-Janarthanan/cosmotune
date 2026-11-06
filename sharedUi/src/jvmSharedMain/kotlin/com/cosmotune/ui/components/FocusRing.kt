@@ -134,10 +134,14 @@ fun FocusModalityRoot(enabled: Boolean, content: @Composable () -> Unit) {
     Box(if (enabled) Modifier.trackFocusModality() else Modifier, propagateMinConstraints = true) { content() }
 }
 
-/** The keys that move focus or act on it: Tab, the arrows and the d-pad's centre, Space, Enter, and the keys that page through a list. */
+/**
+ * The keys that move focus: Tab, the arrows and the d-pad's centre, and the keys that page through a list. Space and Enter are not:
+ * they are also what typing into a field sends (a search's space, its Enter), and a ring must not light up on a button the person
+ * touched only because they typed a query first. A keyboard user moves with Tab or the arrows before Space or Enter anyway.
+ */
 internal fun Key.isFocusNavigationKey(): Boolean = this in FOCUS_NAVIGATION_KEYS
 
 private val FOCUS_NAVIGATION_KEYS = setOf(
     Key.Tab, Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter,
-    Key.Enter, Key.NumPadEnter, Key.Spacebar, Key.MoveHome, Key.MoveEnd, Key.PageUp, Key.PageDown,
+    Key.MoveHome, Key.MoveEnd, Key.PageUp, Key.PageDown,
 )

@@ -123,6 +123,17 @@ internal val ROOM_FILL = Color(0xFF1F1C3D)
 internal val ROOM_INK = Color(0xFFECE8FF)
 internal val ROOM_DIM = Color(0xFFA9A3E6)
 internal val ROOM_TEXT = Color(0xFFC9C4F2)
+
+/**
+ * The room card's colours: the deep indigo with lavender ink in dark; in light the same hue made pale (a lavender card) with the
+ * indigo as its ink, so the card stays a colour card of the room's hue without a dark slab on a light page. Contrast on the light
+ * card: ink 13:1, text 8.5:1, the mono label 5:1, the button's words on the indigo 13:1.
+ */
+internal class RoomCardColors(val fill: Color, val ink: Color, val dim: Color, val text: Color, val live: Color)
+
+internal fun roomCardColors(look: OrbitLook): RoomCardColors =
+    if (look.dark) RoomCardColors(ROOM_FILL, ROOM_INK, ROOM_DIM, ROOM_TEXT, LIVE)
+    else RoomCardColors(Color(0xFFE4E0FF), ROOM_FILL, Color(0xFF5A50B8), Color(0xFF3A3570), Color(0xFF2E9E5B))
 val LIVE = Color(0xFF7CE3A1)
 internal val CARD_FALLBACK = Color(0xFF3A2A2A)
 val CARD_INK = Color(0xFFFFEDE2)
@@ -304,13 +315,14 @@ fun OrbitChip(
 @Composable
 internal fun OrbitRoomCard(room: RoomLauncher, fonts: OrbitFonts, modifier: Modifier) {
     val live = room.inRoom
-    Box(modifier.clip(RoundedCornerShape(30.dp)).background(ROOM_FILL).clickable { room.openRoom() }) {
+    val tone = roomCardColors(orbitLook())
+    Box(modifier.clip(RoundedCornerShape(30.dp)).background(tone.fill).clickable { room.openRoom() }) {
         // The room as a small system: a disc in the middle and one moon on its orbits per person in it.
         Canvas(Modifier.align(Alignment.TopEnd).offset(x = 64.dp, y = (-52).dp).size(200.dp)) {
             val c = center
-            drawCircle(ROOM_INK.copy(alpha = 0.16f), 44.dp.toPx(), c, style = Stroke(1.dp.toPx()))
-            drawCircle(ROOM_INK.copy(alpha = 0.16f), 78.dp.toPx(), c, style = Stroke(1.dp.toPx()))
-            drawCircle(ROOM_INK.copy(alpha = 0.22f), 20.dp.toPx(), c)
+            drawCircle(tone.ink.copy(alpha = 0.16f), 44.dp.toPx(), c, style = Stroke(1.dp.toPx()))
+            drawCircle(tone.ink.copy(alpha = 0.16f), 78.dp.toPx(), c, style = Stroke(1.dp.toPx()))
+            drawCircle(tone.ink.copy(alpha = 0.22f), 20.dp.toPx(), c)
             val people = if (live) room.memberCount.coerceIn(1, 6) else 3
             val colors = listOf(Color(0xFFE9875A), Color(0xFF5B8C6A), Color(0xFF8B6CC9), Color(0xFFD9A441), Color(0xFF4F8FD9), Color(0xFFC96C9A))
             repeat(people) { i ->
@@ -321,21 +333,21 @@ internal fun OrbitRoomCard(room: RoomLauncher, fonts: OrbitFonts, modifier: Modi
         }
         Column(Modifier.padding(20.dp).fillMaxHeight()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (live) { Box(Modifier.size(7.dp).clip(CircleShape).background(LIVE)); Spacer(Modifier.width(8.dp)) }
-                Text(if (live) "LIVE ROOM · ${room.memberCount}" else "LISTEN TOGETHER", style = fonts.label, color = ROOM_DIM)
+                if (live) { Box(Modifier.size(7.dp).clip(CircleShape).background(tone.live)); Spacer(Modifier.width(8.dp)) }
+                Text(if (live) "LIVE ROOM · ${room.memberCount}" else "LISTEN TOGETHER", style = fonts.label, color = tone.dim)
             }
             Spacer(Modifier.height(10.dp))
-            Text(if (live) "Your room" else "Start a room", style = fonts.section.copy(fontSize = 23.sp), color = ROOM_INK)
+            Text(if (live) "Your room" else "Start a room", style = fonts.section.copy(fontSize = 23.sp), color = tone.ink)
             Text(
                 if (live) "${room.memberCount} listening with you. Open it to chat, ask for songs or talk."
                 else "Friends join with a code and hear the same song in their own app.",
-                style = fonts.body, color = ROOM_TEXT, modifier = Modifier.padding(top = 6.dp).widthIn(max = 196.dp),
+                style = fonts.body, color = tone.text, modifier = Modifier.padding(top = 6.dp).widthIn(max = 196.dp),
             )
             Spacer(Modifier.weight(1f))
             Row(
-                Modifier.height(34.dp).clip(CircleShape).background(ROOM_INK).padding(horizontal = 16.dp),
+                Modifier.height(34.dp).clip(CircleShape).background(tone.ink).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
-            ) { Text(if (live) "Open room" else "Start", style = fonts.chip.copy(fontSize = 13.sp, fontWeight = FontWeight(800)), color = ROOM_FILL) }
+            ) { Text(if (live) "Open room" else "Start", style = fonts.chip.copy(fontSize = 13.sp, fontWeight = FontWeight(800)), color = tone.fill) }
         }
     }
 }
@@ -345,7 +357,7 @@ internal fun OrbitRoomCard(room: RoomLauncher, fonts: OrbitFonts, modifier: Modi
 @Composable
 fun OrbitSectionHeader(title: String, subtitle: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
     Column(modifier.fillMaxWidth()) {
-        Text(title, style = fonts.section, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, style = fonts.section, color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
     }
 }

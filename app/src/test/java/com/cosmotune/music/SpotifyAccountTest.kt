@@ -73,7 +73,7 @@ class SpotifyAccountTest {
         assertTrue("SpotifyLoginScreen( modifier = Modifier.navigationBarsPadding(), onConnected = { token -> AppSettings.setSpotifySpdcToken(token) showSpotifyLogin = false }," in host)
         val page = read("app/src/main/java/com/cosmotune/music/ui/screens/SpotifyLibraryScreen.kt")
         assertFalse("the page itself hosts no WebView any more", "WebView" in page)
-        assertTrue("Button(onClick = onOpenLogin)" in page && "OutlinedButton(onClick = onOpenTokenSetup)" in page)
+        assertTrue("onClick = onOpenLogin" in page && "onClick = onOpenTokenSetup" in page)
         val account = read("app/src/main/java/com/cosmotune/music/ui/screens/AccountAndScrobblingScreen.kt")
         assertTrue("clearSpotifyWebSession() AppSettings.setSpotifySpdcToken(\"\")" in account)
         val login = read("app/src/main/java/com/cosmotune/music/auth/SpotifyLoginScreen.kt")

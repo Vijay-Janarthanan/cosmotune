@@ -213,7 +213,7 @@ class DesktopShellContractTest {
         assertTrue("val ink = if (selected) look.ground else" in code, "with the ground's colour for its words")
         assertTrue("background(if (look.dark) PEACH_INK else PEACH)" in code, "and a small peach dot")
         assertTrue("Disc(imageUrl, PLAYLIST_DISC)" in code && "private val PLAYLIST_DISC = 34.dp" in nav, "playlists are 34 dp discs")
-        assertTrue("LocalRoomLauncher.current?.takeIf { it.inRoom } ?: return" in code && "background(ROOM_FILL)" in code, "the room card is the indigo one, only in a room")
+        assertTrue("LocalRoomLauncher.current?.takeIf { it.inRoom } ?: return" in code && "val tone = roomCardColors(orbitLook())" in code && "background(tone.fill)" in code, "the room card is the room's colour card (indigo, or lavender in light), only in a room")
         assertTrue("selectable(" in code && "Role.Tab" in code && "cosmoFocusRing(" in code, "a chip is one selectable tab with a visible focus ring")
         assertTrue("forText(" in code, "names in Indian scripts get the taller line")
     }
@@ -334,8 +334,15 @@ class DesktopShellContractTest {
         for (kept in listOf("private val SIDE_PANEL_WIDTH = 360.dp", "private const val SLIDE_MS = 260", "expandHorizontally(", "shrinkHorizontally(", "onClick = onClose", "DesktopToolbarButton(onClick = onClose")) {
             assertTrue(kept in code, "the width, the slide and the close button stay: `$kept`")
         }
+        // The Orbit head and inset choose by the look in front of the old ones, which are their look-off branches, unchanged.
+        assertTrue(
+            "if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) com.cosmotune.desktop.CosmoDesktopSidePanelHeader(which == DesktopSidePanel.LYRICS, onClose) else Row(" in code,
+            "the head is Orbit's with the look on, the old row without",
+        )
+        assertTrue("com.cosmotune.desktop.cosmoDesktopSidePanelInset(which == DesktopSidePanel.LYRICS) ?: Modifier.padding(" in code, "the inset likewise")
+        assertTrue("com.cosmotune.desktop.CosmoDesktopSidePanelContent { content(which) }" in code, "what the panel holds is told whether the song plays")
         // `com.cosmotune.music` is the file's own package since the rename (FORK.md); only the calls into our code count.
-        assertEquals(3, Regex("""com\.cosmotune(?!\.music\b)""").findAll(SourceContract.code(text)).count(), "three lines choose by the look and no more")
+        assertEquals(7, Regex("""com\.cosmotune(?!\.music\b)""").findAll(SourceContract.code(text)).count(), "five lines choose by the look and no more")
         assertTrue("desktopChromeGlass" in text, "the old glass call is still in the file")
     }
 
@@ -345,12 +352,13 @@ class DesktopShellContractTest {
         val body = squash(SourceContract.functionBody(panel, "cosmoDesktopSidePanelCard"))
         assertTrue(body.startsWith("{ if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) return Modifier") || body.startsWith("{ if (LocalCosmoShell.current == null) return Modifier"), "with the look off the modifier is the identity: $body")
         assertTrue("top = PANEL_MARGIN" in body && "end = PANEL_MARGIN" in body && "bottom = ShellMetrics.desktopBarFootprintDp().dp" in body, "margins 14 (top, end) and the player bar's footprint at the bottom: $body")
-        assertTrue("SuperellipseShape(CosmoRadii.xl)" in body, "a superellipse of 28: $body")
-        assertTrue(".cosmoGlass(LocalDesktopHaze.current, shape)" in body, "glass over the window's haze: $body")
+        assertTrue(".clip(ORBIT_SIDE_PANEL_SHAPE)" in body, "the Orbit panel's corners of 28: $body")
+        assertFalse("cosmoGlass" in code || "LocalDesktopHaze" in code, "Orbit: a flat panel, no glass over the window's haze")
         // P4-20: no padding of the card's own: the column's header (18 dp in) and content (18 dp for the lyrics, 14 dp for the queue)
         // carry the inset, so a card padding of 14 dp on top of them put the content 28 to 32 dp from the edge (the board: 14)
         assertFalse("PANEL_PADDING" in code, "the card has no padding of its own: the column's content has its own")
-        assertTrue(".cosmoGlass(LocalDesktopHaze.current, shape)" in body && body.endsWith(".cosmoGlass(LocalDesktopHaze.current, shape) }"), "margin, then glass, and nothing inside it: $body")
+        assertTrue(body.endsWith(".clip(ORBIT_SIDE_PANEL_SHAPE) .background(fill) }"), "margin, then the flat fill, and nothing inside it: $body")
+        assertTrue("val fill = orbitSidePanelFill(orbitLook())" in body, "the fill is the kit's: $body")
         assertHas(panel, "private val PANEL_MARGIN = 14.dp")
         assertFalse("ShellMetrics.DESKTOP_SIDE_PANEL_DP" in code, "the width is the column's own")
     }

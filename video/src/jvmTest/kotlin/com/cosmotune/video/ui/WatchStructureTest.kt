@@ -496,7 +496,7 @@ class WatchStructureTest {
         val meta = flat(file("WatchMeta"))
         assertTrue("role = Role.Button" in meta && "cosmoFocusRing(interaction" in meta && "minimumInteractiveComponentSize()" in meta, "chips: buttons, 48 dp, the focus ring")
         val sheet = flat(file("DescriptionSheet"))
-        assertTrue("contentDescription = stringResource(SharedRes.string.cosmo_close)" in sheet)
+        assertTrue("label = stringResource(SharedRes.string.cosmo_close)" in sheet)
         val upNext = flat(file("UpNext"))
         assertTrue("OrbitSwitch(checked = autoplay, onChange = onAutoplay, look = look, label = label)" in upNext)
         val card = flat(file("WatchCard"))

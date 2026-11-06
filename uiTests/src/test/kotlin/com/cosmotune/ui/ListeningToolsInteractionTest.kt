@@ -37,7 +37,7 @@ class ListeningToolsInteractionTest {
     private fun show(width: Dp = 960.dp, fontScale: Float = 1f, tracks: List<Song> = listOf(song), libraryTracks: List<Song> = tracks) {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
-            MaterialTheme {
+            PodioTestTheme {
                 ListeningTools(true, ListeningToolsHost(
                     file = file,
                     library = ListeningLibrary(libraryTracks, likedIds = setOf(song.videoId)),

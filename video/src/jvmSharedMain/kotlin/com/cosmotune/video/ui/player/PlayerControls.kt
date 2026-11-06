@@ -1,5 +1,8 @@
 package com.cosmotune.video.ui.player
 
+import com.cosmotune.ui.orbit.OrbitActionPill
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -42,11 +45,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cosmotune.ui.components.CosmoButton
-import com.cosmotune.ui.components.CosmoButtonKind
-import com.cosmotune.ui.components.CosmoButtonSize
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.PlayMorphButton
 import com.cosmotune.ui.components.cosmoGlass
@@ -209,23 +207,19 @@ internal fun BoxScope.ChromeControls(
     val tools: @Composable () -> Unit = {
         CaptionsButton(playback, state, settings, onInput, floatingPlain = fullWindow)
         Box {
-            CosmoIconButton(
+            PlayerButton(
                 icon = CosmoIcons.Settings,
                 contentDescription = stringResource(Res.string.video_player_settings),
                 onClick = { onInput(); onOpenSettings() },
-                style = if (fullWindow) CosmoIconButtonStyle.PLAIN else CosmoIconButtonStyle.GLASS,
-                floating = true,
                 size = VideoMetrics.CHROME_ICON_DP.dp,
             )
             settingsMenu?.invoke()
         }
         if (onEnterPip != null) {
-            CosmoIconButton(
+            PlayerButton(
                 icon = VideoIcons.Pip,
                 contentDescription = stringResource(Res.string.video_pip),
                 onClick = onEnterPip,
-                style = if (fullWindow) CosmoIconButtonStyle.PLAIN else CosmoIconButtonStyle.GLASS,
-                floating = true,
                 size = VideoMetrics.CHROME_ICON_DP.dp,
             )
         }
@@ -237,11 +231,10 @@ internal fun BoxScope.ChromeControls(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (layout == PlayerLayout.PAGE && onCollapse != null) {
-            CosmoIconButton(
+            PlayerButton(
                 icon = CosmoIcons.ChevronDown,
                 contentDescription = stringResource(Res.string.video_collapse),
                 onClick = onCollapse,
-                style = CosmoIconButtonStyle.GLASS,
                 size = VideoMetrics.CHROME_ICON_DP.dp,
             )
         }
@@ -291,7 +284,7 @@ internal fun BoxScope.ChromeControls(
         if (state.live) LiveStatus(playback, state, playhead, onInput) else TimeText(playhead, state.durationMs, onGlass = false, onInput = onInput)
         Spacer(Modifier.weight(1f))
         val fullscreen = layout == PlayerLayout.FULLSCREEN
-        CosmoIconButton(
+        PlayerButton(
             icon = if (fullscreen) VideoIcons.FullscreenExit else VideoIcons.Fullscreen,
             contentDescription = stringResource(
                 when (layout) {
@@ -301,7 +294,6 @@ internal fun BoxScope.ChromeControls(
                 },
             ),
             onClick = { onInput(); onToggleFullscreen() },
-            style = CosmoIconButtonStyle.GLASS,
             size = VideoMetrics.CHROME_ICON_DP.dp,
         )
     }
@@ -339,28 +331,26 @@ internal fun CentreControls(
     val ended = state.status == PlayerStatus.ENDED && state.item != null
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(metrics.centreGapDp.dp), verticalAlignment = Alignment.CenterVertically) {
         if (queueButtons) QueueButton(previous = true, playback, onInput)
-        if (!ended) SeekButton(forward = false, step, playback, playhead, onInput, VideoMetrics.CENTRE_BUTTON_DP, CosmoIconButtonStyle.GLASS)
+        if (!ended) SeekButton(forward = false, step, playback, playhead, onInput, VideoMetrics.CENTRE_BUTTON_DP)
         PlayOrReplay(playback, state, buffering, VideoMetrics.CENTRE_PLAY_DP, onInput)
-        if (!ended) SeekButton(forward = true, step, playback, playhead, onInput, VideoMetrics.CENTRE_BUTTON_DP, CosmoIconButtonStyle.GLASS)
+        if (!ended) SeekButton(forward = true, step, playback, playhead, onInput, VideoMetrics.CENTRE_BUTTON_DP)
         if (queueButtons) QueueButton(previous = false, playback, onInput)
     }
 }
 
 @Composable
-private fun QueueButton(previous: Boolean, playback: VideoPlayback, onInput: () -> Unit, size: Float = VideoMetrics.QUEUE_BUTTON_DP, style: CosmoIconButtonStyle = CosmoIconButtonStyle.GLASS) {
-    CosmoIconButton(
+private fun QueueButton(previous: Boolean, playback: VideoPlayback, onInput: () -> Unit, size: Float = VideoMetrics.QUEUE_BUTTON_DP) {
+    PlayerButton(
         icon = if (previous) CosmoIcons.Previous else CosmoIcons.Next,
         contentDescription = stringResource(if (previous) Res.string.video_previous else Res.string.video_next),
         onClick = { onInput(); if (previous) playback.playPrevious() else playback.playNext() },
-        style = style,
-        floating = true,
         size = size.dp,
     )
 }
 
 @Composable
-private fun SeekButton(forward: Boolean, step: Int, playback: VideoPlayback, playhead: Playhead, onInput: () -> Unit, size: Float, style: CosmoIconButtonStyle) {
-    CosmoIconButton(
+private fun SeekButton(forward: Boolean, step: Int, playback: VideoPlayback, playhead: Playhead, onInput: () -> Unit, size: Float) {
+    PlayerButton(
         icon = if (forward) VideoIcons.Forward else SeekBackIcon,
         contentDescription = stringResource(if (forward) Res.string.video_seek_forward else Res.string.video_seek_back, step),
         onClick = {
@@ -368,8 +358,6 @@ private fun SeekButton(forward: Boolean, step: Int, playback: VideoPlayback, pla
             playback.seekBy((if (forward) step else -step) * 1000L)
             playhead.refresh()
         },
-        style = style,
-        floating = true,
         size = size.dp,
     )
 }
@@ -379,11 +367,10 @@ private fun SeekButton(forward: Boolean, step: Int, playback: VideoPlayback, pla
 private fun PlayOrReplay(playback: VideoPlayback, state: PlaybackUiState, buffering: Boolean, size: Float, onInput: () -> Unit) {
     val item = state.item
     if (state.status == PlayerStatus.ENDED && item != null) {
-        CosmoIconButton(
+        PlayerButton(
             icon = SeekBackIcon,
             contentDescription = stringResource(Res.string.video_replay),
             onClick = { onInput(); playback.play(item.id, startMs = 0L) },
-            style = CosmoIconButtonStyle.GLASS,
             size = size.dp,
         )
     } else {
@@ -392,7 +379,6 @@ private fun PlayOrReplay(playback: VideoPlayback, state: PlaybackUiState, buffer
             loading = buffering,
             onClick = { onInput(); playback.togglePlayPause() },
             size = size.dp,
-            floating = true,
         )
     }
 }
@@ -404,15 +390,13 @@ private fun PlayOrReplay(playback: VideoPlayback, state: PlaybackUiState, buffer
 @Composable
 internal fun CaptionsButton(playback: VideoPlayback, state: PlaybackUiState, settings: VideoSettings, onInput: () -> Unit, floatingPlain: Boolean) {
     val on = state.subtitleLanguage != null
-    CosmoIconButton(
+    PlayerButton(
         icon = VideoIcons.Captions,
         contentDescription = stringResource(Res.string.video_captions),
         onClick = {
             onInput()
             playback.selectSubtitles(if (on) null else preferredSubtitle(state, settings))
         },
-        style = if (floatingPlain) CosmoIconButtonStyle.PLAIN else CosmoIconButtonStyle.GLASS,
-        floating = true,
         size = VideoMetrics.CHROME_ICON_DP.dp,
         on = on,
         enabled = state.subtitles.isNotEmpty(),
@@ -452,7 +436,6 @@ internal fun TimeText(playhead: Playhead, durationMs: Long, onGlass: Boolean, on
     val toggle = stringResource(Res.string.video_time_toggle)
     Text(
         text = text,
-        style = style,
         color = if (onGlass) Color(palette.textPrimary) else Color.White.copy(alpha = TIME_ALPHA),
         maxLines = 1,
         modifier = modifier
@@ -552,20 +535,18 @@ private fun FullWindowBarContent(
             if (state.live) LiveStatus(playback, state, playhead, onInput, Modifier.align(Alignment.CenterStart))
             else TimeText(playhead, state.durationMs, onGlass = true, onInput = onInput, modifier = Modifier.align(Alignment.CenterStart))
             Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-                if (queue) QueueButton(previous = true, playback, onInput, VideoMetrics.CHROME_ICON_DP, CosmoIconButtonStyle.PLAIN)
-                SeekButton(forward = false, step, playback, playhead, onInput, VideoMetrics.CHROME_ICON_DP, CosmoIconButtonStyle.PLAIN)
+                if (queue) QueueButton(previous = true, playback, onInput, VideoMetrics.CHROME_ICON_DP)
+                SeekButton(forward = false, step, playback, playhead, onInput, VideoMetrics.CHROME_ICON_DP)
                 PlayOrReplay(playback, state, buffering, VideoMetrics.QUEUE_BUTTON_DP, onInput)
-                SeekButton(forward = true, step, playback, playhead, onInput, VideoMetrics.CHROME_ICON_DP, CosmoIconButtonStyle.PLAIN)
-                if (queue) QueueButton(previous = false, playback, onInput, VideoMetrics.CHROME_ICON_DP, CosmoIconButtonStyle.PLAIN)
+                SeekButton(forward = true, step, playback, playhead, onInput, VideoMetrics.CHROME_ICON_DP)
+                if (queue) QueueButton(previous = false, playback, onInput, VideoMetrics.CHROME_ICON_DP)
             }
             Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
                 tools()
-                CosmoIconButton(
+                PlayerButton(
                     icon = VideoIcons.FullscreenExit,
                     contentDescription = stringResource(Res.string.video_exit_fullscreen),
                     onClick = { onInput(); onToggleFullscreen() },
-                    style = CosmoIconButtonStyle.PLAIN,
-                    floating = true,
                     size = VideoMetrics.CHROME_ICON_DP.dp,
                 )
             }
@@ -612,7 +593,7 @@ internal fun PlayerErrorState(state: PlaybackUiState, onRetry: () -> Unit, modif
             )
         }
         if (state.item != null) {
-            CosmoButton(text = stringResource(Res.string.video_retry), onClick = onRetry, kind = CosmoButtonKind.QUIET, size = CosmoButtonSize.SMALL, floating = true)
+            OrbitActionPill(label = stringResource(Res.string.video_retry), onClick = onRetry, fonts = orbitFonts(), look = orbitLook(), primary = true)
         }
     }
 }

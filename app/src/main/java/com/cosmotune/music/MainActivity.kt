@@ -63,6 +63,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
@@ -99,6 +100,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -117,6 +119,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.data.cloud.AndroidCloud
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -2701,7 +2705,10 @@ private fun CosmotuneApp(
         // a row, and the player is the right. Off a tablet the row has the
         // one child it always had and changes nothing.
         Row(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f).fillMaxHeight()) {
+            // While the new look's player covers the window, the page under it is out of the accessibility tree: a screen reader
+            // would otherwise walk the hidden page behind the player.
+            val pageCovered = cosmoShell != null && showNowPlaying && playerSong != null
+            Box(Modifier.weight(1f).fillMaxHeight().then(if (pageCovered) Modifier.clearAndSetSemantics {} else Modifier)) {
                 AnimatedContent(
                     targetState = when {
                         showSpotify && detail == null -> "spotify"
@@ -3652,10 +3659,8 @@ private fun CosmotuneApp(
                     }
                     "replay" -> {
                         if (showReplay && !showReplayShare) {
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.background,
-                            ) {
+                            // On the Orbit ground (the page's own gradient), opaque over the Settings page kept under it.
+                            com.cosmotune.music.ui.components.OrbitPageGround {
                                 ReplayScreen(
                                     state = replay,
                                     holder = account?.name.orEmpty(),
@@ -3731,6 +3736,7 @@ private fun CosmotuneApp(
                         .graphicsLayer { alpha = topFadeAlpha },
                 )
 
+                val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
                 com.cosmotune.ui.chrome.TopBarSwitch(
                     title = when {
                         showSpotify && detail == null -> stringResource(R.string.spotify)
@@ -3784,6 +3790,9 @@ private fun CosmotuneApp(
                         showListenTogether -> ({ showListenTogether = false })
                         showEqualizer -> ({ showEqualizer = false })
                         settingsSubScreen != null -> ({ settingsSubScreen = null })
+                        // In the new look a settings page has no back of its own: this one steps back as the system's does (the
+                        // search, then the page, then Settings itself), so it is the one back button on the screen.
+                        showSettings && cosmoShell != null && backDispatcher != null -> ({ backDispatcher.onBackPressed() })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
                         detailActiveShelf != null -> ({ detailActiveShelf = null })
@@ -4048,7 +4057,8 @@ private fun CosmotuneApp(
                                 // equaliser from Settings).
                                 entries = listOf(
                                     com.cosmotune.ui.chrome.CosmoDrawerEntry(
-                                        icon = CosmoIcons.Library,
+                                        // Not the Library glyph: that is a mode's and the Library tab's.
+                                        icon = CosmoIcons.Clock,
                                         label = "Your listening",
                                         onClick = { listeningToolsOpen = true },
                                     ),
@@ -4157,7 +4167,8 @@ private fun CosmotuneApp(
                         CosmoTab(homeLabel, CosmoIcons.Home, CosmoIcons.HomeFill), CosmoTab(exploreLabel, CosmoIcons.Explore, CosmoIcons.ExploreFill),
                         CosmoTab(releasesLabel, CosmoIcons.Bell, CosmoIcons.BellFill), CosmoTab(libraryLabel, CosmoIcons.Library, CosmoIcons.LibraryFill),
                     ),   // DESIGN_SYSTEM.md 5.2: Search is not a tab, it is the top bar's button
-                    selectedIndex = MUSIC_DOCK.indexOf(if (selectedTab == TAB_SEARCH) searchReturnTab else selectedTab),
+                    // Search and Settings (and what they open) belong to no tab: none is lit under them, rather than the tab left behind.
+                    selectedIndex = if (selectedTab == TAB_SEARCH || showSettings) -1 else MUSIC_DOCK.indexOf(selectedTab),
                     onTabSelected = { index -> onTabSelected(MUSIC_DOCK[index]) },
                     song = player.song, isPlaying = player.isPlaying, isLoading = playPauseBusy,
                     position = player.position, durationMs = player.durationMs,
@@ -4408,15 +4419,9 @@ private fun CosmotuneApp(
         // ---- Share the Replay ----
         if (showReplayShare) {
             replay.summary?.takeUnless { it.isEmpty }?.let { summary ->
-                ModalBottomSheet(
-                    onDismissRequest = { showReplayShare = false },
-                    // Straight to full height. The sheet is a picture and two
-                    // buttons, and half-open it showed the picture with both
-                    // buttons below the fold â€” a sheet whose only two controls
-                    // need a drag to reach.
-                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                    containerColor = MaterialTheme.colorScheme.background,
-                ) {
+                // Straight to full height, on the Orbit sheet: the sheet is a picture and two buttons, and half-open it showed the
+                // picture with both buttons below the fold.
+                com.cosmotune.music.ui.components.OrbitSheetHost(onDismiss = { showReplayShare = false }) {
                     ReplayShareSheet(
                         summary = summary,
                         holder = account?.name.orEmpty(),
@@ -4779,10 +4784,7 @@ private fun CosmotuneApp(
                 DownloadSession.markSeen()
             }
             BackHandler(onBack = closeDownloadManager)
-            ModalBottomSheet(
-                onDismissRequest = closeDownloadManager,
-                containerColor = MaterialTheme.colorScheme.background,
-            ) {
+            com.cosmotune.music.ui.components.OrbitSheetHost(onDismiss = closeDownloadManager) {
                 DownloadManagerSheet(onDismiss = closeDownloadManager)
             }
         }
@@ -5086,11 +5088,7 @@ private fun CosmotuneApp(
                     override suspend fun onPostFling(consumed: Velocity, available: Velocity) = available
                 }
             }
-            ModalBottomSheet(
-                onDismissRequest = close,
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                containerColor = MaterialTheme.colorScheme.background,
-            ) {
+            com.cosmotune.music.ui.components.OrbitSheetHost(onDismiss = close) {
                 ReorderPlaylistSheet(
                     modifier = Modifier.nestedScroll(keepSheetStill),
                     playlist = target,
@@ -5430,26 +5428,7 @@ private fun CosmotuneApp(
             BackHandler { showDiscordLogin = false }
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Column(Modifier.fillMaxSize()) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        IconButton(onClick = { showDiscordLogin = false }) {
-                            Icon(
-                                Icons.Rounded.Close,
-                                contentDescription = stringResource(R.string.close),
-                                tint = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
-                        Text(
-                            "Sign in to Discord",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                    SignInHeader("Sign in to Discord", onClose = { showDiscordLogin = false })
                     DiscordLoginScreen(
                         onTokenCaptured = { token ->
                             AppSettings.setDiscordToken(token)
@@ -5467,26 +5446,7 @@ private fun CosmotuneApp(
             BackHandler { showSpotifyLogin = false }
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Column(Modifier.fillMaxSize()) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        IconButton(onClick = { showSpotifyLogin = false }) {
-                            Icon(
-                                Icons.Rounded.Close,
-                                contentDescription = stringResource(R.string.close),
-                                tint = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
-                        Text(
-                            stringResource(R.string.spotify_sign_in),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                    SignInHeader(stringResource(R.string.spotify_sign_in), onClose = { showSpotifyLogin = false })
                     SpotifyLoginScreen(
                         modifier = Modifier.navigationBarsPadding(),
                         onConnected = { token ->
@@ -5571,6 +5531,27 @@ private fun CosmotuneApp(
     }
 }
 
+/**
+ * The head of a full-screen sign-in page (Discord, Spotify) in Orbit: the round close button of the kit, the mono "Sign in" label
+ * over the [title] in the wide face, under the status bar.
+ */
+@Composable
+private fun SignInHeader(title: String, onClose: () -> Unit) {
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    Row(
+        Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        com.cosmotune.ui.orbit.OrbitRoundButton(CosmoIcons.Close, stringResource(R.string.close), look.ink, onClose)
+        Column(Modifier.weight(1f)) {
+            com.cosmotune.ui.orbit.OrbitLabel("Sign in", fonts, look.dim)
+            Text(title, style = fonts.heroTitle.copy(fontSize = 20.sp, lineHeight = 23.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
 private fun tween(durationMillis: Int) =
     androidx.compose.animation.core.tween<Float>(durationMillis)
 
@@ -5597,6 +5578,34 @@ private fun FrostedSortMenu(
     onFlipDateDirection: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // The new look: the Orbit menu (the video view menu's popover), under the top bar's end, the one in force solid ink.
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        val dateActive = selected == SongSort.DATE_ADDED_ASC || selected == SongSort.DATE_ADDED_DESC
+        val dateLabel = stringResource(R.string.sort_date_added_toggle)
+        val newest = stringResource(R.string.sort_date_added)
+        val oldest = stringResource(R.string.sort_date_added_oldest)
+        val labels = SongSort.entries.associateWith { it.localizedLabel() }
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 52.dp, end = 16.dp).size(1.dp)) {
+                com.cosmotune.ui.orbit.OrbitMenu(
+                    open = true, onDismiss = onDismiss, fonts = com.cosmotune.ui.orbit.orbitFonts(), look = com.cosmotune.ui.orbit.orbitLook(),
+                    header = "Sort",
+                    items = buildList {
+                        // Date added is one row: tapping it flips the direction and leaves the menu up, as before.
+                        add(com.cosmotune.ui.orbit.OrbitMenuItem(
+                            dateLabel, if (dateActive) (if (selected == SongSort.DATE_ADDED_ASC) oldest else newest) else null,
+                            if (selected == SongSort.DATE_ADDED_ASC) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
+                            selected = dateActive, keepOpen = true, onClick = onFlipDateDirection,
+                        ))
+                        SongSort.entries.filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }.forEach { option ->
+                            add(com.cosmotune.ui.orbit.OrbitMenuItem(labels.getValue(option), selected = option == selected, keepOpen = true) { onSelect(option) })
+                        }
+                    },
+                )
+            }
+        }
+        return
+    }
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val shape = MaterialTheme.shapes.extraLarge
     Box(

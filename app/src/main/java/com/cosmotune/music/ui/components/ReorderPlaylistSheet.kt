@@ -1,19 +1,16 @@
 package com.cosmotune.music.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -21,12 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material3.Button
-import com.cosmotune.ui.bridge.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,22 +31,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import coil3.compose.AsyncImage
 import com.cosmotune.music.R
 import com.cosmotune.music.data.model.ROW_ART_PX
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.UiState
 import com.cosmotune.music.data.model.UserPlaylist
 import com.cosmotune.music.data.model.artworkAt
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitSheetPill
+import com.cosmotune.ui.orbit.OrbitSheetTitle
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 
 /**
  * Rearranges one of the account's playlists: every entry with a handle to drag
@@ -81,43 +77,27 @@ fun ReorderPlaylistSheet(
     val order = remember(original) { mutableStateListOf<Song>().apply { addAll(original) } }
     val changed = order.map { it.setVideoId } != original.map { it.setVideoId }
 
+    val look = orbitLook()
+    val fonts = orbitFonts()
+
     Column(modifier.fillMaxWidth().navigationBarsPadding()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 8.dp, end = 22.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    Icons.Rounded.Close,
-                    contentDescription = stringResource(R.string.back),
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.reorder_songs),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = playlist.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Button(onClick = { onSave(order.toList()) }, enabled = changed && !saving) {
+        OrbitSheetTitle(
+            title = stringResource(R.string.reorder_songs),
+            subtitle = playlist.title,
+            leading = { OrbitRoundButton(Icons.Rounded.Close, stringResource(R.string.back), look.ink, onClose) },
+            trailing = {
                 if (saving) {
-                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                    OrbitRing(40.dp, look.ink, progress = null, spinning = true)
                 } else {
-                    Text(stringResource(R.string.save_order))
+                    OrbitSheetPill(
+                        label = stringResource(R.string.save_order),
+                        onClick = { onSave(order.toList()) },
+                        primary = true,
+                        enabled = changed,
+                    )
                 }
-            }
-        }
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+            },
+        )
 
         when (entries) {
             UiState.Loading -> Box(
@@ -126,14 +106,14 @@ fun ReorderPlaylistSheet(
                     .height(200.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(strokeWidth = 2.5.dp, modifier = Modifier.size(26.dp))
+                OrbitRing(40.dp, look.ink, progress = null, spinning = true)
             }
 
             is UiState.Error -> Text(
                 text = entries.message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 24.dp),
+                style = fonts.body,
+                color = look.dim,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 24.dp),
             )
 
             is UiState.Success -> ReorderableSongList(order, enabled = !saving)
@@ -253,6 +233,8 @@ private fun ReorderRow(
     onDragEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val look = orbitLook()
+    val fonts = orbitFonts()
     // Holding anywhere on the row picks it up too, not only the handle — the
     // handle is a small target, and a long press is what lists elsewhere on
     // the phone teach people to try first.
@@ -268,59 +250,41 @@ private fun ReorderRow(
             },
         )
     }
-    Row(
+    OrbitSongRow(
+        title = song.title,
+        subtitle = song.artist,
+        cover = song.artworkAt(ROW_ART_PX),
+        fonts = fonts,
+        look = look,
+        onClick = null,
+        endPadding = 4.dp,
+        // The held row stands off the list on a shadow; peach stays for what is playing.
         modifier = modifier
-            .fillMaxWidth()
-            .background(
-                if (lifted) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.background,
+            .padding(vertical = 3.dp)
+            .then(if (lifted) Modifier.shadow(12.dp, RoundedCornerShape(22.dp)) else Modifier)
+            .then(gestures),
+        titleContent = { ExplicitSongTitle(song = song, style = fonts.title, color = look.ink) },
+        trailing = {
+            Icon(
+                imageVector = Icons.Rounded.DragHandle,
+                contentDescription = stringResource(R.string.drag_to_reorder),
+                tint = look.dim,
+                modifier = Modifier
+                    .size(48.dp)
+                    .padding(12.dp)
+                    .pointerInput(enabled) {
+                        if (!enabled) return@pointerInput
+                        detectDragGestures(
+                            onDragStart = { onDragStart() },
+                            onDragEnd = onDragEnd,
+                            onDragCancel = onDragEnd,
+                            onDrag = { change, amount ->
+                                change.consume()
+                                onDrag(amount.y)
+                            },
+                        )
+                    },
             )
-            .then(gestures)
-            .padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = song.artworkAt(ROW_ART_PX),
-            contentDescription = null,
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(CosmoRadii.rSm))
-                .thumbnailBorder(RoundedCornerShape(CosmoRadii.rSm))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        )
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
-            ExplicitSongTitle(
-                song = song,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Icon(
-            imageVector = Icons.Rounded.DragHandle,
-            contentDescription = stringResource(R.string.drag_to_reorder),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .size(48.dp)
-                .padding(12.dp)
-                .pointerInput(enabled) {
-                    if (!enabled) return@pointerInput
-                    detectDragGestures(
-                        onDragStart = { onDragStart() },
-                        onDragEnd = onDragEnd,
-                        onDragCancel = onDragEnd,
-                        onDrag = { change, amount ->
-                            change.consume()
-                            onDrag(amount.y)
-                        },
-                    )
-                },
-        )
-    }
+        },
+    )
 }

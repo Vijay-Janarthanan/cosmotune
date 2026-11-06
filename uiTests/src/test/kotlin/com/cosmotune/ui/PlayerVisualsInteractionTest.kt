@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.Density
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.ui.nowplaying.PlayerVisualsAction
 import com.cosmotune.ui.nowplaying.PlayerVisualsContent
+import com.cosmotune.ui.theme.CosmoBrandPalettes
+import com.cosmotune.ui.theme.CosmoColors
+import com.cosmotune.ui.theme.CosmoPaletteState
+import com.cosmotune.ui.theme.LocalCosmoColors
 import java.io.File
 import javax.imageio.ImageIO
 import org.junit.Rule
@@ -26,8 +30,15 @@ class PlayerVisualsInteractionTest {
     @get:Rule val compose = createComposeRule()
     private val song = Song("visual-fixture", "A song with a longer title", "Artist", null)
 
+    /** The Visuals are an Orbit page, which reads the look's colours. */
+    private val colors = CosmoColors::class.java.getConstructor(CosmoPaletteState::class.java).newInstance(CosmoPaletteState(CosmoBrandPalettes.of(true), true))
+
+    @androidx.compose.runtime.Composable
+    private fun Look(content: @androidx.compose.runtime.Composable () -> Unit) =
+        MaterialTheme(colorScheme = darkColorScheme()) { CompositionLocalProvider(LocalCosmoColors provides colors, content = content) }
+
     @Test fun phoneActionOpensNamedScenesAndClosesWithARealButton() {
-        compose.setContent { MaterialTheme(colorScheme = darkColorScheme()) { Box(Modifier.size(360.dp, 780.dp)) { PlayerVisualsAction(song) } } }
+        compose.setContent { Look { Box(Modifier.size(360.dp, 780.dp)) { PlayerVisualsAction(song) } } }
         compose.onNodeWithContentDescription("Visuals").assertHasClickAction().performClick()
         compose.onNodeWithText("Waveform").performClick()
         compose.onNodeWithText("Play audio on this device to see the visualization.").assertExists()
@@ -37,7 +48,7 @@ class PlayerVisualsInteractionTest {
 
     @Test fun narrowAndWideViewsKeepSceneAndControlsSeparate() {
         val wide = mutableStateOf(false)
-        compose.setContent { MaterialTheme(colorScheme = darkColorScheme()) { Box(Modifier.size(if (wide.value) 1200.dp else 360.dp, 780.dp)) { PlayerVisualsContent(song, {}) } } }
+        compose.setContent { Look { Box(Modifier.size(if (wide.value) 1200.dp else 360.dp, 780.dp)) { PlayerVisualsContent(song, {}) } } }
         compose.onNodeWithText("Artwork").assertIsDisplayed()
         compose.onNodeWithText("Pulse").performClick()
         val scene = compose.onNodeWithTag("player:visuals:scene").fetchSemanticsNode().boundsInRoot
@@ -54,7 +65,7 @@ class PlayerVisualsInteractionTest {
     @Test fun allModesAndDismissRemainUsableAtLargeText() {
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f, 2f)) {
-                MaterialTheme(colorScheme = darkColorScheme()) { Box(Modifier.size(320.dp, 740.dp)) { PlayerVisualsContent(song, {}) } }
+                Look { Box(Modifier.size(320.dp, 740.dp)) { PlayerVisualsContent(song, {}) } }
             }
         }
         listOf("Artwork", "Pulse", "Waveform").forEach { name ->

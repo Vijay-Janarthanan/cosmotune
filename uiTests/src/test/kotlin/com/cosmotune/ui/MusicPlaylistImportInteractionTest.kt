@@ -20,7 +20,7 @@ class MusicPlaylistImportInteractionTest {
 
     private fun show(file: MusicPlaylistFile, library: List<Song> = emptyList()) {
         compose.setContent {
-            MaterialTheme {
+            PodioTestTheme {
                 ListeningTools(true, ListeningToolsHost(
                     file = File(directory, "listening.json"), library = ListeningLibrary(library),
                     queue = { ListeningQueue(emptyList(), 0, 0, 0, false) }, replay = { ReplayTracks("", emptyList()) },

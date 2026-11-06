@@ -47,7 +47,7 @@ private val FACE_FILLS = listOf(0xFFE9875A, 0xFF5B8C6A, 0xFF8B6CC9, 0xFFD9A441, 
 
 /** A person's face: their picture as a disc, or a disc of their own colour with their initial while there is none. */
 @Composable
-internal fun OrbitFace(url: String?, name: String, key: String, size: Dp, modifier: Modifier = Modifier) {
+fun OrbitFace(url: String?, name: String, key: String, size: Dp, modifier: Modifier = Modifier) {
     Box(modifier.size(size).clip(CircleShape).background(FACE_FILLS[Math.floorMod(key.hashCode(), FACE_FILLS.size)]), contentAlignment = Alignment.Center) {
         val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString().orEmpty()
         if (initial.isNotEmpty()) {
@@ -181,7 +181,7 @@ internal fun OrbitInputPill(look: OrbitLook, modifier: Modifier = Modifier, fiel
 
 /** A quiet notice in the room (the connection coming back, a refused control): a row of the chip's fill with its dot and words. */
 @Composable
-internal fun OrbitNotice(text: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, icon: ImageVector? = null, end: (@Composable RowScope.() -> Unit)? = null) {
+fun OrbitNotice(text: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, icon: ImageVector? = null, end: (@Composable RowScope.() -> Unit)? = null) {
     Row(
         modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(22.dp)).background(look.chip).padding(start = 16.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,

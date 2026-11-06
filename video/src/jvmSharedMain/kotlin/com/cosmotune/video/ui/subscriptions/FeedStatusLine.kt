@@ -1,5 +1,8 @@
 package com.cosmotune.video.ui.subscriptions
 
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.ui.comments.CommentLink
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -43,7 +46,6 @@ import com.cosmotune.video.ui.blocks.LocalVideoNowMs
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import com.cosmotune.ui.kit.KitTextButton
 import androidx.compose.runtime.getValue
 
 /*
@@ -89,13 +91,13 @@ fun FeedStatusLine(
     Column(modifier.fillMaxWidth()) {
         if (updated != null || onRefresh != null || onDownloadAll != null) {
             StatusRow(text = updated) {
-                if (onRefresh != null) KitTextButton(text = stringResource(Res.string.video_feed_refresh), onClick = onRefresh)
-                if (onDownloadAll != null) KitTextButton(text = stringResource(Res.string.video_dl_all), onClick = onDownloadAll)
+                if (onRefresh != null) CommentLink(text = stringResource(Res.string.video_feed_refresh), onClick = onRefresh)
+                if (onDownloadAll != null) CommentLink(text = stringResource(Res.string.video_dl_all), onClick = onDownloadAll)
             }
         }
         if (failed != null) {
             StatusRow(text = failed) {
-                KitTextButton(text = stringResource(Res.string.video_retry), onClick = onRetry)
+                CommentLink(text = stringResource(Res.string.video_retry), onClick = onRetry)
             }
         }
     }
@@ -104,11 +106,9 @@ fun FeedStatusLine(
 /** One row of the line: [text] (when there is one) filling the room, then the [buttons] at the end. */
 @Composable
 private fun StatusRow(text: String?, buttons: @Composable RowScope.() -> Unit) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val style = remember(type, text) {
-        type.forText(TextStyle(fontFamily = type.textFamily, fontWeight = FontWeight.Normal, fontSize = STATUS_SP.sp, lineHeight = STATUS_SP.sp * 1.35f), text.orEmpty())
-    }
+    val look = orbitLook()
+    val fonts = orbitFonts()
+    val style = remember(fonts) { fonts.body.copy(fontSize = STATUS_SP.sp, lineHeight = STATUS_SP.sp * 1.35f) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -120,7 +120,7 @@ private fun StatusRow(text: String?, buttons: @Composable RowScope.() -> Unit) {
             Text(
                 text = text,
                 style = style,
-                color = Color(palette.textTertiary),
+                color = look.dim,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),

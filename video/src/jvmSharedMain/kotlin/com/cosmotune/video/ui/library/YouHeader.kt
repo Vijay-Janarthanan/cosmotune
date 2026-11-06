@@ -1,5 +1,8 @@
 package com.cosmotune.video.ui.library
 
+import com.cosmotune.ui.orbit.OrbitActionPill
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,8 +28,6 @@ import com.cosmotune.video.resources.video_signed_out_name
 import com.cosmotune.video.resources.video_switch_account
 import com.cosmotune.video.ui.blocks.ChannelAvatar
 import org.jetbrains.compose.resources.stringResource
-import com.cosmotune.ui.kit.KitButton
-import com.cosmotune.ui.kit.KitButtonKind
 
 /*
  * The head of the Library tab: the account's picture (56 dp) with its name and handle and a "Switch account" button, or, signed out, a
@@ -38,26 +39,26 @@ private val AVATAR = 56.dp
 /** The Library tab's head for [state]. [onSignIn] and [onAccount] (the account sheet: switch, sign out) are the page's. */
 @Composable
 fun YouHeader(state: AccountState, onSignIn: () -> Unit, onAccount: () -> Unit, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val signedIn = state as? AccountState.SignedIn
     val name = signedIn?.displayName ?: stringResource(Res.string.video_signed_out_name)
     val line = signedIn?.handle ?: if (signedIn == null) stringResource(Res.string.video_signed_out_hint) else null
-    val nameStyle = remember(type, name) { type.forText(type.titleMedium, name) }
     Row(modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         ChannelAvatar(signedIn?.avatarUrl, AVATAR, name = signedIn?.displayName)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
-            Text(text = name, style = nameStyle, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = name, style = fonts.section, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (line != null) {
-                Text(text = line, style = type.meta, color = Color(palette.textSecondary), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(text = line, style = fonts.body, color = look.dim, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
-            KitButton(
-                text = stringResource(if (signedIn == null) Res.string.video_sign_in else Res.string.video_switch_account),
+            OrbitActionPill(
+                label = stringResource(if (signedIn == null) Res.string.video_sign_in else Res.string.video_switch_account),
                 onClick = if (signedIn == null) onSignIn else onAccount,
-                modifier = Modifier.padding(top = 4.dp),
-                kind = KitButtonKind.TONAL,
-                dense = true,
+                fonts = fonts,
+                look = look,
+                modifier = Modifier.padding(top = 8.dp),
+                primary = signedIn == null,
             )
         }
     }

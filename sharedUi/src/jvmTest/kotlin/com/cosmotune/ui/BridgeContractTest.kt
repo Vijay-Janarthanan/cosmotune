@@ -98,18 +98,18 @@ class BridgeContractTest {
     private val desktop = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/"
 
     private val swapped: Map<String, List<String>> = mapOf(
-        "Switch" to listOf("AccountAndScrobblingScreen", "DiscordScreen", "EqualizerScreen", "ListenTogetherScreen", "SettingsSheet", "SourcesScreen", "SpotifyCanvasAuthScreen")
+        "Switch" to listOf("AccountAndScrobblingScreen", "DiscordScreen", "EqualizerScreen", "ListenTogetherScreen", "SettingsSheet", "SourcesScreen")
             .map { "${app}ui/screens/$it.kt" } +
             listOf("DesktopApp", "DesktopEqualizerUi", "DesktopIntegrationsDialog", "DesktopListenTogetherUi").map { "$desktop$it.kt" },
         "CircularProgressIndicator" to listOf("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/Common.kt") +
-            listOf("AccountChannelDialog", "CastDialog", "DownloadManagerSheet", "PlaylistPickerSheet", "ReorderPlaylistSheet", "SongActionsSheet")
+            listOf("AccountChannelDialog", "CastDialog", "DownloadManagerSheet", "SongActionsSheet")
                 .map { "${app}ui/components/$it.kt" } +
-            listOf("ListenTogetherScreen", "SpotifyLibraryScreen").map { "${app}ui/screens/$it.kt" } +
+            listOf("ListenTogetherScreen").map { "${app}ui/screens/$it.kt" } +
             listOf("ReplayScreen", "ReplayShareSheet").map { "${app}ui/replay/$it.kt" } +
             listOf("DesktopAccountUi", "DesktopApp", "DesktopIntegrationsUi", "DesktopListenTogetherUi", "DesktopPlaylistUi", "DesktopSongMenuUi")
                 .map { "$desktop$it.kt" },
         "AlertDialog" to listOf("${app}ui/screens/ListenTogetherScreen.kt", "${app}ui/screens/SettingsSheet.kt", "${app}ui/components/LyricsSourcesDialog.kt", "${desktop}DesktopApp.kt"),
-        "ModalBottomSheet" to listOf("${app}MainActivity.kt") + listOf("EqualizerScreen", "ListenTogetherScreen", "SettingsSheet").map { "${app}ui/screens/$it.kt" },
+        "ModalBottomSheet" to listOf("${app}MainActivity.kt") + listOf("ListenTogetherScreen", "SettingsSheet").map { "${app}ui/screens/$it.kt" },
         "DropdownMenu" to listOf("${app}MainActivity.kt", "${app}ui/screens/LocalMusicScreen.kt", "${desktop}DesktopApp.kt", "${desktop}DesktopSharedPages.kt"),
         "DropdownMenuItem" to listOf("${app}MainActivity.kt", "${app}ui/screens/LocalMusicScreen.kt", "${desktop}DesktopApp.kt", "${desktop}DesktopSharedPages.kt"),
     )
@@ -132,9 +132,9 @@ class BridgeContractTest {
         }
     }
 
-    @Test fun theSwapsTouchTwentyNineFilesAndFortyFourImports() {
-        assertEquals(29, swapped.values.flatten().toSet().size)
-        assertEquals(44, swapped.values.sumOf { it.size })
+    @Test fun theSwapsTouchTwentyFiveFilesAndThirtyNineImports() {
+        assertEquals(25, swapped.values.flatten().toSet().size)
+        assertEquals(39, swapped.values.sumOf { it.size })
     }
 
     @Test fun theCallsInThoseFilesAreNotQualifiedAndNotRenamed() {
@@ -301,7 +301,7 @@ class BridgeContractTest {
         assertFalse(on.contains("live("))
     }
 
-    @Test fun theSheetIsDetachedSolidTintedGlassWithTheInkGrabber() {
+    @Test fun theSheetIsDetachedOpaqueWithTheInkGrabber() {
         val src = bridge("SheetBridge.kt")
         val c = code(src)
         assertTrue(c.contains("SuperellipseShape(CosmoRadii.sheet)"))
@@ -316,7 +316,8 @@ class BridgeContractTest {
             "scrimColor = SHEET_SCRIM",
             "dragHandle = if (dragHandle == null) null else { { CosmoSheetHandle() } }",
         )) assertTrue(on.contains(line), line)
-        assertTrue(on.contains("Color(LocalCosmoColors.current.palette.surfaceHigh).copy(alpha = GlassPolicy.SOLID_ALPHA)"))
+        // Opaque, the Orbit sheets' own ground: nothing behind reads through the rows.
+        assertTrue(on.contains("val glass = orbitSheetGround(orbitLook())"))
         val tokens = read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/theme/CosmoTokens.kt")
         assertTrue(tokens.contains("val sheetInset = 8.dp"))
         // the grabber: 36 x 4 dp, textPrimary at 45 %, 10 dp above and 14 dp below

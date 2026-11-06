@@ -42,8 +42,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.shape.RoundedCornerShape
-import com.cosmotune.ui.kit.KitButton
-import com.cosmotune.ui.kit.KitButtonKind
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import com.cosmotune.ui.orbit.OrbitActionPill
+import com.cosmotune.ui.orbit.orbitFloatGroundColor
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.runtime.getValue
 
 /**
@@ -70,7 +74,7 @@ internal fun acknowledgeFirstRun(settings: VideoSettingsRepository) {
 }
 
 /**
- * The notice itself (spec 5.14): a layer-C card over the page (a superellipse of 36 dp, solid glass, 20 dp of padding) with the title
+ * The notice itself (spec 5.14): a flat Orbit card over the page (radius 34, the dialog's ground, no glass, 20 dp of padding) with the title
  * "Before you watch", the disclaimer and a primary "Got it" button that calls [onDismiss]. It stands on a 40 % black scrim that takes
  * every touch, so the page below waits until the button is pressed; the button has the focus when the notice appears, so Enter does it
  * on the desktop. The card is at most 440 dp wide and keeps the page margin on a phone. Only the button closes it: a touch outside
@@ -78,8 +82,8 @@ internal fun acknowledgeFirstRun(settings: VideoSettingsRepository) {
  */
 @Composable
 fun FirstRunNotice(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val title = stringResource(Res.string.video_disclaimer_title)
     val text = stringResource(Res.string.video_disclaimer_text)
     val ok = stringResource(Res.string.video_disclaimer_ok)
@@ -98,28 +102,31 @@ fun FirstRunNotice(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
                 .padding(horizontal = CosmoSpacing.margin)
                 .widthIn(max = CARD_MAX_WIDTH)
                 .fillMaxWidth()
-                .cosmoGlass(hazeState = null, shape = CARD_SHAPE)
+                .clip(CARD_SHAPE)
+                .background(orbitFloatGroundColor(look))
                 .semantics { paneTitle = title }
                 .padding(CosmoSpacing.s5),
         ) {
             Text(
                 text = title,
-                style = type.forText(type.titleMedium, title),
-                color = Color(palette.textPrimary),
+                style = fonts.section,
+                color = look.ink,
                 modifier = Modifier.semantics { heading() },
             )
             Spacer(Modifier.height(CosmoSpacing.s3))
             Text(
                 text = text,
-                style = type.forText(type.body(TypeScale.BODY), text),
-                color = Color(palette.textSecondary),
+                style = fonts.body.copy(fontSize = 15.sp, lineHeight = 21.sp),
+                color = look.dim,
             )
             Spacer(Modifier.height(CosmoSpacing.s5))
-            KitButton(
-                ok,
-                onDismiss,
+            OrbitActionPill(
+                label = ok,
+                onClick = onDismiss,
+                fonts = fonts,
+                look = look,
                 modifier = Modifier.align(Alignment.End).focusRequester(focus),
-                kind = KitButtonKind.PRIMARY,
+                primary = true,
             )
         }
     }
@@ -128,8 +135,8 @@ fun FirstRunNotice(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
 /** `.scrim-dim`: the black behind a dialog, 40 % (the documented exception: the black scrims of sheets and dialogs). */
 private val SCRIM = Color.Black.copy(alpha = 0.40f)
 
-/** Spec 5.14: a superellipse of 36 dp, the sheet's corner. */
-private val CARD_SHAPE = RoundedCornerShape(CosmoRadii.rXl)
+/** A flat Orbit card (the dialog's ground, no glass), radius 32. */
+private val CARD_SHAPE = RoundedCornerShape(34.dp)
 
 /** The width of the desktop's dialogs (spec 5.16: 440 dp); on a phone the card is the window less its margins. */
 private val CARD_MAX_WIDTH = 440.dp
