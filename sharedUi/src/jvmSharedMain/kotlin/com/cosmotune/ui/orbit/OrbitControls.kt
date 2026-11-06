@@ -196,13 +196,15 @@ fun OrbitBiteCard(
     shape: BiteShape = HeroBite,
     biteInset: Dp = 13.dp,
     onClick: (() -> Unit)? = null,
+    /** On the card's own clickable surface, before its click: a focus requester or properties (the TV's Right to the bite). */
+    cardModifier: Modifier = Modifier,
     bite: @Composable BoxScope.() -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
     // The card takes the size it is given, or its content's height when it is given only a width.
     Box(modifier, propagateMinConstraints = true) {
         Box(
-            Modifier.clip(shape).background(fill).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            Modifier.clip(shape).background(fill).then(if (onClick != null) cardModifier.clickable(onClick = onClick) else Modifier),
             content = content,
         )
         Box(Modifier.align(Alignment.BottomEnd).wrapContentSize(Alignment.BottomEnd).padding(biteInset), content = bite)

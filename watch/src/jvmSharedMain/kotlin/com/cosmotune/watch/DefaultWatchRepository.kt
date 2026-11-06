@@ -406,7 +406,7 @@ class DefaultWatchRepository(
         val free = pluginRows.await()
         val rows = free + metaRows.await()
         val cw = continueWatching.value.filter { type == null || it.summary.type == type }
-        val featured = (featuredPopular(popularFilms(metaRows.await()), free, probed.await()) ?: bestFree(free, rows))
+        val featured = (featuredPopular(popularFilms(metaRows.await()), free, probed.await()) ?: bestFree(free, rows, ::playable))
             ?.let { (s, badge) -> Featured(s, listOfNotNull(badge), store.state.value.progress[s.key.value]) }
         WatchHome(featured, cw, live.await(), rows, empty = rows.isEmpty() && live.await().isEmpty() && cw.isEmpty())
     }
@@ -446,12 +446,25 @@ class DefaultWatchRepository(
     }
 
     /** The best free title when no popular film is free: a free service's film with a wide picture first, then the first of the rows. */
-    private fun bestFree(free: List<HomeRow>, rows: List<HomeRow>): Pair<TitleSummary, String?>? {
-        val pick = free.filter { it.pluginId != BuiltInPlugins.ARCHIVE }.flatMap { it.items }.firstOrNull { it.backdropUrl != null }
-            ?: free.flatMap { it.items }.firstOrNull { it.backdropUrl != null }
+    private suspend fun bestFree(free: List<HomeRow>, rows: List<HomeRow>, playable: suspend (HomeRow, TitleSummary) -> Boolean?): Pair<TitleSummary, String?>? {
+        // A free row's item is played by the plugin that lists it, which can hold an item with no film in it (an Archive item
+        // whose files were taken down): the first few with a picture are asked, and one that plainly has nothing is passed over.
+        val pictured = (free.filter { it.pluginId != BuiltInPlugins.ARCHIVE } + free.filter { it.pluginId == BuiltInPlugins.ARCHIVE })
+            .flatMap { row -> row.items.filter { it.backdropUrl != null }.map { row to it } }.distinctBy { it.second.key }
+        val checked = withTimeoutOrNull(FEATURED_PROBE_MS) {
+            pictured.take(4).firstOrNull { (row, item) -> playable(row, item) != false }?.second
+        }
+        val pick = checked
+            ?: pictured.firstOrNull()?.second
             ?: free.firstOrNull { it.items.isNotEmpty() }?.items?.first()
             ?: rows.firstOrNull()?.items?.firstOrNull()
         return pick?.let { it to it.badge }
+    }
+
+    /** Whether the plugin that lists [item] in [row] has a copy it can play: false only when it answered with none. */
+    private suspend fun playable(row: HomeRow, item: TitleSummary): Boolean? {
+        val plugin = activePlugins().firstOrNull { it.id == row.pluginId && Capability.STREAMS in it.capabilities } ?: return null
+        return runCatching { plugin.streams(targetOf(item)).any { it.isPlayable } }.getOrNull()
     }
 
     private suspend fun pluginRows(type: TitleType?): List<HomeRow> {

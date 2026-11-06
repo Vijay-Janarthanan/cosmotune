@@ -5,6 +5,12 @@
 package com.cosmotune.music.ui.tv.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.focusGroup
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -65,12 +71,15 @@ fun TvExploreScreen(
 ) {
     val selected by viewModel.selectedMoodGenre.collectAsState()
     val mood = selected
+    // The mood last opened, so Back from its page puts focus back on its card rather than on the chips at the top.
+    var opened by rememberSaveable { mutableStateOf<String?>(null) }
     if (mood == null) {
         val explore by viewModel.explore.collectAsState()
         TvMoodGrid(
             state = explore,
-            onCategory = viewModel::openMoodGenre,
+            onCategory = { opened = it.key(); viewModel.openMoodGenre(it) },
             onRetry = { viewModel.loadExplore() },
+            returnTo = opened,
             modifier = modifier,
         )
     } else {
@@ -91,10 +100,18 @@ private fun TvMoodGrid(
     state: UiState<List<MoodGenreSection>>,
     onCategory: (MoodGenre) -> Unit,
     onRetry: () -> Unit,
+    returnTo: String?,
     modifier: Modifier = Modifier,
 ) {
     val gridState = rememberLazyGridState()
     TvChromeScrollEffect(gridState)
+    val returnFocus = remember { FocusRequester() }
+    LaunchedEffect(returnTo, state is UiState.Success) {
+        if (returnTo != null && state is UiState.Success) {
+            delay(120)
+            runCatching { returnFocus.requestFocus() }
+        }
+    }
 
     LazyVerticalGrid(
         state = gridState,
@@ -124,8 +141,12 @@ private fun TvMoodGrid(
             }
             is UiState.Success -> {
                 val moods = state.data.flatMap(MoodGenreSection::items).distinctBy { it.browseId to it.params }
-                items(moods, key = { "${it.browseId}|${it.params}" }) { item ->
-                    TvMoodCard(item = item, onClick = { onCategory(item) })
+                items(moods, key = { it.key() }) { item ->
+                    TvMoodCard(
+                        item = item,
+                        onClick = { onCategory(item) },
+                        modifier = if (item.key() == returnTo) Modifier.focusRequester(returnFocus) else Modifier,
+                    )
                 }
             }
         }
@@ -144,6 +165,14 @@ private fun TvMoodPage(
     val shelves by viewModel.moodGenreShelves.collectAsState()
     val scope = rememberCoroutineScope()
     var menuSong by remember { mutableStateOf<Song?>(null) }
+    // The card that opened the page is gone with the grid: focus goes into the page's shelves once they arrive.
+    val pageFocus = remember { FocusRequester() }
+    LaunchedEffect(shelves is UiState.Success) {
+        if (shelves is UiState.Success) {
+            delay(120)
+            runCatching { pageFocus.requestFocus() }
+        }
+    }
 
     when (val state = shelves) {
         UiState.Loading -> TvShelvesLoading(modifier)
@@ -174,7 +203,7 @@ private fun TvMoodPage(
                     ),
                 )
             },
-            modifier = modifier,
+            modifier = modifier.focusRequester(pageFocus).focusGroup(),
         )
     }
 
@@ -188,6 +217,8 @@ private fun TvMoodPage(
         )
     }
 }
+
+private fun MoodGenre.key(): String = "$browseId|$params"
 
 /** The phone's own floor for a mood card's width; the grid fits as many columns as that allows. */
 private val MOOD_MIN_WIDTH = 176.dp

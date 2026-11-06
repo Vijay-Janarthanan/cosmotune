@@ -698,7 +698,7 @@ private fun TvAccountSettingsDialog(
                 )
 
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     TvListRow(
@@ -1155,7 +1155,7 @@ fun TvScrobbleDialog(onDismiss: () -> Unit) {
         message = "Connect these on the Cosmotune phone app; the TV uses the same accounts.",
         onDismissRequest = onDismiss,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             TvListRow(
                 title = "Last.fm",
                 value = if (lastfmEnabled && lastfmUser.isNotBlank()) lastfmUser else "Not Connected",
@@ -1178,7 +1178,7 @@ fun TvScrobbleDialog(onDismiss: () -> Unit) {
 fun TvAboutDialog(onDismiss: () -> Unit) {
     TvDialog(title = "Cosmotune", message = "Version ${BuildConfig.VERSION_NAME}", onDismissRequest = onDismiss) {
         TvAppMark(size = 77.dp, modifier = Modifier.padding(bottom = 21.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             TvListRow(title = "Kushagra Singh", value = "Creator", enabled = false, onClick = {})
             TvListRow(title = "Nithyanantha", value = "TV App", enabled = false, onClick = {})
         }
@@ -1206,7 +1206,7 @@ fun TvRefreshRateDialog(onDismiss: () -> Unit) {
             String.format(java.util.Locale.US, "%.0f Hz", capabilities.actualRefreshRateHz),
         onDismissRequest = onDismiss,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             TvRefreshRatePreference.entries.forEach { preference ->
                 val supported = preference != TvRefreshRatePreference.SMOOTH_60 || capabilities.is60HzSupported
                 TvListRow(
@@ -1231,7 +1231,7 @@ fun TvThemeDialog(onDismiss: () -> Unit) {
     val current = AppThemeOption.fromId(currentId)
 
     TvDialog(title = "Appearance", onDismissRequest = onDismiss) {
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             AppThemeOption.entries.forEach { theme ->
                 TvListRow(
                     title = theme.title,
@@ -1268,7 +1268,9 @@ fun TvLyricsSourcesDialog(onDismiss: () -> Unit) {
     ) {
         LazyColumn(
             modifier = Modifier.heightIn(max = 304.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            // Room inside the scrolling list for the focused row's ring, and between the rows.
+            contentPadding = PaddingValues(vertical = 10.dp, horizontal = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             itemsIndexed(order, key = { _, source -> source.name }) { index, source ->
                 val checked = source in selected

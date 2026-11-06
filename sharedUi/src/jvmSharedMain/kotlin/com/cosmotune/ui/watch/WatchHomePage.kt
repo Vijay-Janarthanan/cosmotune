@@ -35,6 +35,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -230,8 +233,12 @@ private fun WatchFeaturedCard(
             }
         }
     }
+    // Play sits in the bite, inside the card's bounds, so a D-pad's Right from the card would never find it: it is named.
+    val cardFocus = remember { FocusRequester() }
+    val playFocus = remember { FocusRequester() }
     OrbitBiteCard(fill, modifier.fillMaxWidth().then(if (wide) Modifier.height(250.dp) else Modifier), onClick = onOpen,
-        bite = { OrbitPlayButton(false, onPlay, look) }) {
+        cardModifier = Modifier.focusRequester(cardFocus).focusProperties { right = playFocus },
+        bite = { OrbitPlayButton(false, onPlay, look, Modifier.focusRequester(playFocus).focusProperties { left = cardFocus }) }) {
         if (wide) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val pictureWidth = (maxWidth * 0.36f).coerceAtMost(340.dp)

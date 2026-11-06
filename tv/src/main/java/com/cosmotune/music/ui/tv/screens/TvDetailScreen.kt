@@ -238,6 +238,9 @@ private fun TvReleaseContent(
                             modifier = Modifier.height(224.dp),
                             action = { TvButton(text = "Allow Access", onClick = onRequestPermission) },
                         )
+                    } else if (page?.browseId?.startsWith("local:") == true) {
+                        // A list on this TV with nothing in it (no downloads yet) is empty, not a failure: no Try Again.
+                        TvEmptyState(title = "Nothing Here Yet", message = songsState.message, modifier = Modifier.height(224.dp))
                     } else {
                         TvErrorState(message = songsState.message, onRetry = onRetry, modifier = Modifier.height(224.dp))
                     }

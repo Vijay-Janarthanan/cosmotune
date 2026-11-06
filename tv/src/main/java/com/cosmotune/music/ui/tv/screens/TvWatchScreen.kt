@@ -92,9 +92,15 @@ fun TvWatchScreen(modifier: Modifier = Modifier) {
     // A page opened or closed takes the focused card with it: focus goes to the top of the page now shown, unless it is up in the
     // chips at the top. The page under the player is kept as it was (its filters, its scroll), so coming back from the player
     // returns to the same place in it.
-    LaunchedEffect(stack) {
+    // The stack when focus came into the page, and whether focus left it because the page it was on went (a film's page opening
+    // over the card, or closing) rather than by the remote: then it is taken back into the page now shown.
+    var gainedWith by remember { mutableStateOf<List<WatchRoute>?>(null) }
+    var reclaim by remember { mutableStateOf(false) }
+    LaunchedEffect(stack, reclaim) {
         delay(120)
-        if (WatchNav.stack.value.lastOrNull() !is WatchRoute.Play && chrome.pageFocused && !screenHasFocus) runCatching { pageFocus.requestFocus() }
+        val wanted = reclaim || (chrome.pageFocused && !screenHasFocus)
+        reclaim = false
+        if (WatchNav.stack.value.lastOrNull() !is WatchRoute.Play && wanted) runCatching { pageFocus.requestFocus() }
     }
 
     CosmoLookTheme(dark = true, legacy = { content -> content() }) {
@@ -109,6 +115,11 @@ fun TvWatchScreen(modifier: Modifier = Modifier) {
                             // Not drawn under the player, whose picture is behind the window (the player keeps the remote to itself).
                             .graphicsLayer { alpha = if (playing) 0f else 1f }
                             .focusRequester(pageFocus)
+                            .onFocusChanged {
+                                if (it.hasFocus) gainedWith = WatchNav.stack.value
+                                else if (gainedWith != null && gainedWith != WatchNav.stack.value) reclaim = true
+                                if (!it.hasFocus) gainedWith = null
+                            }
                             .tvRingHost(cornerCap = 22.dp * TV_WATCH_SCALE)
                             .focusGroup(),
                     ) {

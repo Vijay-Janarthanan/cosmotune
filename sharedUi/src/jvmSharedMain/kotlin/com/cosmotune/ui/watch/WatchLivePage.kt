@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -34,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +63,7 @@ import com.cosmotune.watch.ChannelFilter
 import com.cosmotune.watch.GuideWindow
 import com.cosmotune.watch.model.Channel
 import com.cosmotune.watch.model.EpgProgramme
+import kotlinx.coroutines.delay
 import com.cosmotune.watch.plugin.Capability
 import java.time.Instant
 import java.time.ZoneId
@@ -100,6 +104,24 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
     val yours = plugins.count { !it.builtIn && it.enabled && Capability.LIVE in it.capabilities }
     val side = frame.side
     val scroll = rememberScrollState()
+    // The channel last played from the guide: when a host keeps this page under its player (the TV), Back from the player
+    // puts focus back on that channel's cell rather than on the top of the page.
+    var played by rememberSaveable { mutableStateOf<String?>(null) }
+    val playedFocus = remember { FocusRequester() }
+    val playing = WatchNav.stack.collectAsState().value.lastOrNull() is WatchRoute.Play
+    var wasPlaying by remember { mutableStateOf(false) }
+    LaunchedEffect(playing) {
+        if (playing) wasPlaying = true
+        else if (wasPlaying) {
+            wasPlaying = false
+            delay(200)
+            runCatching { playedFocus.requestFocus() }
+        }
+    }
+    val playChannel: (Channel) -> Unit = { channel ->
+        played = channel.key.value
+        actions.playChannel(channel)
+    }
     Box(Modifier.fillMaxSize()) {
         WatchWash(LIVE_WASH, look)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = frame.padding) {
@@ -136,7 +158,7 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
                         list.isEmpty() -> WatchMessage("No channels", if (favouritesOnly) "No favourites yet" else "No channels here",
                             if (favouritesOnly) "Star a channel in the guide to keep it here." else "Try another country, language or category, or switch on more plugins.", fonts, look,
                             action = "Show every channel", onAction = { country = null; language = null; category = null; favouritesOnly = false })
-                        window != null -> GuideGrid(window, now, favourites, frame.wide, scroll, fonts, look, actions)
+                        window != null -> GuideGrid(window, now, favourites, frame.wide, scroll, fonts, look, actions, played, playedFocus, playChannel)
                     }
                 }
             }
@@ -173,7 +195,10 @@ private fun hm(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.system
  * logo and name and its programmes laid out to scale. Every row scrolls sideways together.
  */
 @Composable
-private fun GuideGrid(window: GuideWindow, now: Long, favourites: Set<com.cosmotune.watch.model.WatchKey>, wide: Boolean, scroll: ScrollState, fonts: OrbitFonts, look: OrbitLook, actions: WatchActions) {
+private fun GuideGrid(
+    window: GuideWindow, now: Long, favourites: Set<com.cosmotune.watch.model.WatchKey>, wide: Boolean, scroll: ScrollState, fonts: OrbitFonts, look: OrbitLook,
+    actions: WatchActions, played: String?, playedFocus: FocusRequester, playChannel: (Channel) -> Unit,
+) {
     val perMinute = if (wide) 8.5.dp else 6.dp
     val channelWidth = if (wide) 220.dp else 136.dp
     val span = ((window.toMs - window.fromMs) / 60_000).toInt()
@@ -197,14 +222,15 @@ private fun GuideGrid(window: GuideWindow, now: Long, favourites: Set<com.cosmot
         window.rows.forEach { row ->
             Box(Modifier.fillMaxWidth().height(1.dp).background(look.ink.copy(alpha = 0.05f)))
             Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
-                ChannelCell(row.channel, row.channel.key in favourites, channelWidth, wide, fonts, look, onPlay = { actions.playChannel(row.channel) },
-                    onStar = { actions.favourite(row.channel, it) })
+                ChannelCell(row.channel, row.channel.key in favourites, channelWidth, wide, fonts, look, onPlay = { playChannel(row.channel) },
+                    onStar = { actions.favourite(row.channel, it) },
+                    modifier = if (row.channel.key.value == played) Modifier.focusRequester(playedFocus) else Modifier)
                 Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(scroll)) {
                     Box(Modifier.width(gridWidth).fillMaxHeight()) {
                         val always = alwaysLiveLine(row.channel)
                         if (row.programmes.isEmpty() && always != null) {
                             // An official YouTube live stream has no guide but is on all day: one cell on now across the window.
-                            ProgrammeCell(null, always, "On air now", true, gridWidth, 0.dp, fonts, look) { actions.playChannel(row.channel) }
+                            ProgrammeCell(null, always, "On air now", true, gridWidth, 0.dp, fonts, look) { playChannel(row.channel) }
                         } else if (row.programmes.isEmpty()) {
                             // A quiet line, not a cell: there is nothing to choose here.
                             Text("No guide", style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1,
@@ -218,7 +244,7 @@ private fun GuideGrid(window: GuideWindow, now: Long, favourites: Set<com.cosmot
                                 val w = perMinute * ((stop - start) / 60_000).toInt()
                                 val on = p.isOnAt(now)
                                 ProgrammeCell(p, p.title.substringAfter(": "), if (on) "${hm(p.startMs)} – ${hm(p.stopMs)}" else hm(p.startMs), on, w, x, fonts, look) {
-                                    if (on || p.startMs <= now) actions.playChannel(row.channel)
+                                    if (on || p.startMs <= now) playChannel(row.channel)
                                 }
                             }
                         }
@@ -231,10 +257,11 @@ private fun GuideGrid(window: GuideWindow, now: Long, favourites: Set<com.cosmot
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ChannelCell(channel: Channel, favourite: Boolean, width: Dp, wide: Boolean, fonts: OrbitFonts, look: OrbitLook, onPlay: () -> Unit, onStar: (Boolean) -> Unit) {
+private fun ChannelCell(channel: Channel, favourite: Boolean, width: Dp, wide: Boolean, fonts: OrbitFonts, look: OrbitLook, onPlay: () -> Unit, onStar: (Boolean) -> Unit,
+    modifier: Modifier = Modifier) {
     val interaction = remember { MutableInteractionSource() }
     Row(
-        Modifier.width(width).fillMaxHeight().cosmoFocusRing(interaction, 16.dp).clip(RoundedCornerShape(16.dp))
+        modifier.width(width).fillMaxHeight().cosmoFocusRing(interaction, 16.dp).clip(RoundedCornerShape(16.dp))
             .combinedClickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClickLabel = "Play ${channel.name}",
                 onLongClickLabel = if (favourite) "Remove from Favourites" else "Add to Favourites", onLongClick = { onStar(!favourite) }, onClick = onPlay)
             .padding(start = 12.dp, end = 4.dp),

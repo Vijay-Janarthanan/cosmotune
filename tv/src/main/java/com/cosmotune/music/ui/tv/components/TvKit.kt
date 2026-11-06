@@ -977,6 +977,16 @@ fun TvTextField(
     val focused by interaction.collectIsFocusedAsState()
     val textColor = if (focused) TvGlass.OnPlatter else TvGlass.TextPrimary
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    // Walking past the field with the D-pad does not open the keyboard over the page: focus arriving closes it again, and
+    // Select (or a key typed) is what opens it.
+    var editing by remember { mutableStateOf(false) }
+    LaunchedEffect(focused, editing) {
+        if (focused && !editing) {
+            repeat(3) { kotlinx.coroutines.delay(60); keyboard?.hide() }
+        }
+        if (!focused) editing = false
+    }
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -1003,6 +1013,9 @@ fun TvTextField(
                     }
                     android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
                         focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down); true
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER -> {
+                        if (editing) false else { editing = true; keyboard?.show(); true }
                     }
                     else -> false
                 }

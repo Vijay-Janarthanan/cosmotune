@@ -610,7 +610,9 @@ private fun TvTopBar(
                     LaunchedEffect(focused) {
                         if (focused && !selected) {
                             delay(TabSwitchDelayMs)
-                            if (tab == TvDestination.WATCH && destination == TvDestination.WATCH) WatchNav.go(WatchTab.HOME) else onSelect(tab)
+                            // The Watch chip is Watch's home: it opens there, not on whichever Watch tab was last left open.
+                            if (tab == TvDestination.WATCH) WatchNav.go(WatchTab.HOME)
+                            if (destination != tab) onSelect(tab)
                         }
                     }
                 }
@@ -618,7 +620,10 @@ private fun TvTopBar(
                     label = tab.label,
                     selected = selected,
                     interactionSource = interaction,
-                    onClick = { if (tab == TvDestination.WATCH && inWatch) WatchNav.go(WatchTab.HOME) else onSelect(tab) },
+                    onClick = {
+                        if (tab == TvDestination.WATCH) WatchNav.go(WatchTab.HOME)
+                        if (destination != tab || tab != TvDestination.WATCH) onSelect(tab)
+                    },
                     modifier = downToContent.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier),
                 )
                 if (tab == TvDestination.WATCH && inWatch) {
@@ -644,13 +649,14 @@ private fun TvTopBar(
                     }
                 }
             }
+            // The Live pill after the chips, while something followed is live: it opens the Live now page. It scrolls with the
+            // chips, so the chips themselves (Radio last) always fit beside it.
+            TvLiveChip(
+                selected = destination == TvDestination.LIVE,
+                onClick = { onSelect(TvDestination.LIVE) },
+                modifier = downToContent.then(if (destination == TvDestination.LIVE) Modifier.focusRequester(tabFocus) else Modifier),
+            )
         }
-        // The Live pill after the chips, while something followed is live: it opens the Live now page.
-        TvLiveChip(
-            selected = destination == TvDestination.LIVE,
-            onClick = { onSelect(TvDestination.LIVE) },
-            modifier = downToContent.then(if (destination == TvDestination.LIVE) Modifier.focusRequester(tabFocus) else Modifier),
-        )
         TvNowPlayingChip(
             playerState = playerState,
             onClick = onOpenNowPlaying,
