@@ -40,7 +40,7 @@ class ProviderServiceHealthInteractionTest {
                 permissions = ProviderPermissions(network = listOf("health.example")),
                 serviceHealth = listOf(ProviderHealthCheck("gateway", "https://health.example/status", label = "Gateway"))), "a".repeat(64))
             manager.store.update { it.copy(installed = listOf(installed)) }
-            compose.setContent { MaterialTheme { ProviderPackagesDialog({}, manager) } }
+            compose.setContent { PodioTestTheme { ProviderPackagesDialog({}, manager) } }
             compose.onNodeWithTag("provider:fixture:health").performScrollTo().performClick()
             compose.waitUntil(10_000) { manager.serviceHealth.reports.value.isNotEmpty() }
             compose.onNodeWithText("Gateway · Endpoint or service unavailable · HTTP 404", substring = true).assertExists()

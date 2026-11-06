@@ -33,7 +33,7 @@ class PhoneRemoteInteractionTest {
         ListeningStore(file).update { it.copy(preferences = ListeningPreferences(setupComplete = true)) }
         var qrLink: String? = null
         try {
-            compose.setContent { MaterialTheme {
+            compose.setContent { PodioTestTheme {
                 ListeningTools(true, ListeningToolsHost(file, ListeningLibrary(), { ListeningQueue(emptyList(), 0, 0, 0, false) },
                     replay = { ReplayTracks("", emptyList()) }, createPlaylist = { _, _ -> }, restore = {}, play = {},
                     openRelease = { _, _ -> }, findMusic = {}, importMusic = {}, applySetup = { _, _ -> }, exportFile = { _, _ -> false }, importFile = { null },

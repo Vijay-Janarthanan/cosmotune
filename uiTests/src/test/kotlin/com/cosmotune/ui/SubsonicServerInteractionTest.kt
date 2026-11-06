@@ -40,7 +40,7 @@ class SubsonicServerInteractionTest {
     @Test fun aServerIsSavedOnlyOnceItAcceptsTheCredential() {
         var saved: SubsonicServerEdit? = null
         compose.setContent {
-            MaterialTheme {
+            PodioTestTheme {
                 SubsonicServerDialog(isNew = true, label = "", address = "", settings = emptyMap(), http = OkHttpClient(),
                     onSave = { saved = it }, onRemove = null, onDismiss = {})
             }
@@ -67,7 +67,7 @@ class SubsonicServerInteractionTest {
         var saved: SubsonicServerEdit? = null
         val address = "http://127.0.0.1:${server.address.port}"
         compose.setContent {
-            MaterialTheme {
+            PodioTestTheme {
                 SubsonicServerDialog(isNew = false, label = "Home", address = address,
                     settings = mapOf(SubsonicCatalogue.KEY_USER to "vijay", SubsonicCatalogue.KEY_PASSWORD to "sesame"), http = OkHttpClient(),
                     onSave = { saved = it }, onRemove = {}, onDismiss = {})

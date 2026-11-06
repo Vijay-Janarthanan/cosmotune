@@ -41,7 +41,7 @@ class ProviderAuthenticationInteractionTest {
     @Test fun rejectedCallbackStaysEditableAndSuccessfulCallbackCanBeCancelled() {
         manager().use { manager ->
             var opened: String? = null
-            compose.setContent { MaterialTheme { Column { ProviderAuthenticationEntry(manager, installed) { opened = it } } } }
+            compose.setContent { PodioTestTheme { Column { ProviderAuthenticationEntry(manager, installed) { opened = it } } } }
             compose.onNodeWithText("Continue provider sign-in").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Open sign-in page").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Open sign-in page").performClick()
@@ -67,7 +67,7 @@ class ProviderAuthenticationInteractionTest {
             runBlocking { manager.store.update { it.copy(installed = listOf(noStorage), auth = mapOf("fixture" to buildJsonObject {
                 put("access_token", "private-provider-token"); put("_epoch", "old-generation")
             })) } }
-            compose.setContent { MaterialTheme { Column { ProviderAuthenticationEntry(manager, noStorage) { error("Unexpected browser") } } } }
+            compose.setContent { PodioTestTheme { Column { ProviderAuthenticationEntry(manager, noStorage) { error("Unexpected browser") } } } }
             compose.onNodeWithText("Disconnect provider account").performClick()
             compose.waitUntil(10_000) { manager.store.state.value.auth["fixture"]?.keys == setOf("_epoch") }
             assertNotEquals(JsonPrimitive("old-generation"), manager.store.state.value.auth["fixture"]?.get("_epoch"))
@@ -90,7 +90,7 @@ class ProviderAuthenticationInteractionTest {
                     put("expires_at", java.time.Instant.ofEpochMilli(System.currentTimeMillis() + 600_000).toString())
                 }
             })) } }
-            compose.setContent { MaterialTheme { Column { ProviderAuthenticationEntry(manager, signed) { error("Unexpected browser") } } } }
+            compose.setContent { PodioTestTheme { Column { ProviderAuthenticationEntry(manager, signed) { error("Unexpected browser") } } } }
             compose.onNodeWithText("Provider access verified").assertExists()
             compose.onNodeWithText("Verify provider access").assertDoesNotExist()
             compose.onNodeWithText("fixture-operator-secret", substring = true).assertDoesNotExist()
@@ -116,7 +116,7 @@ class ProviderAuthenticationInteractionTest {
         val proof = "fixture-state-long-enough"
         manager(redirect, proof, pkce = true).use { manager ->
             val opened = java.util.concurrent.atomic.AtomicReference<String?>()
-            compose.setContent { MaterialTheme { Column { ProviderAuthenticationEntry(manager, installed) { opened.set(it) } } } }
+            compose.setContent { PodioTestTheme { Column { ProviderAuthenticationEntry(manager, installed) { opened.set(it) } } } }
             compose.onNodeWithText("Continue provider sign-in").performClick()
             compose.onNodeWithText("Open sign-in page").performClick()
             compose.waitUntil(10_000) { opened.get() != null }
@@ -138,7 +138,7 @@ class ProviderAuthenticationInteractionTest {
         val port = java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1")).use { it.localPort }
         manager("http://127.0.0.1:$port/callback", "fixture-state-long-enough", pkce = true).use { manager ->
             val attempted = java.util.concurrent.atomic.AtomicBoolean(false)
-            compose.setContent { MaterialTheme { Column { ProviderAuthenticationEntry(manager, installed) {
+            compose.setContent { PodioTestTheme { Column { ProviderAuthenticationEntry(manager, installed) {
                 attempted.set(true); throw java.io.IOException("No browser in test fixture")
             } } } }
             compose.onNodeWithText("Continue provider sign-in").performClick()
@@ -173,7 +173,7 @@ class ProviderAuthenticationInteractionTest {
         ProviderManager(ProviderStore(temporary.newFolder(), protection), httpClient = http).use { manager ->
             runBlocking { manager.store.update { it.copy(installed = listOf(signed)) } }
             var address: String? = null
-            compose.setContent { MaterialTheme { Column { ProviderAuthenticationEntry(manager, signed) { address = it } } } }
+            compose.setContent { PodioTestTheme { Column { ProviderAuthenticationEntry(manager, signed) { address = it } } } }
             compose.onNodeWithText("Verification service: auth.example").assertExists()
             compose.onNodeWithText("Verify provider access").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Open sign-in page").fetchSemanticsNodes().isNotEmpty() }
