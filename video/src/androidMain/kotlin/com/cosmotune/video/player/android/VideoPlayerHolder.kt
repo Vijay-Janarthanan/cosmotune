@@ -42,6 +42,9 @@ object VideoPlayerHolder {
      * gives way to the next one. The renderers are the defaults, with a pass-through audio processor that delays the sound by one
      * frame while frame smoothing shows the picture one frame late (it does nothing otherwise).
      */
+    /** The sleep timer's pause of this player (Video mode and Watch), added while the service's player exists. */
+    private val sleepPause: () -> Unit = { player?.pause() }
+
     @MainThread
     fun build(context: Context): ExoPlayer {
         val meter = DefaultBandwidthMeter.Builder(context).build()
@@ -58,6 +61,7 @@ object VideoPlayerHolder {
             .build()
         player = built
         bandwidthMeter = meter
+        com.cosmotune.ui.sleep.SleepPausers.add(sleepPause)
         return built
     }
 
@@ -65,6 +69,7 @@ object VideoPlayerHolder {
     @MainThread
     fun release(released: ExoPlayer) {
         if (player === released) {
+            com.cosmotune.ui.sleep.SleepPausers.remove(sleepPause)
             player = null
             bandwidthMeter = null
         }

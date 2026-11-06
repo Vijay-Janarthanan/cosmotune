@@ -101,10 +101,8 @@ object SleepTimerWatcher {
         pausers.forEach { pause ->
             runCatching(pause).onFailure { TrackLog.w("SLEEP", "a pause failed: ${it.message}") }
         }
-        // Video and Watch: Video's service player, which exists only while that
-        // service runs, so asking it never starts anything.
-        runCatching { com.cosmotune.video.player.android.VideoPlayerHolder.player?.pause() }
-            .onFailure { TrackLog.w("SLEEP", "video pause failed: ${it.message}") }
+        // Every other mode's player (Video's service player, which Watch also plays on) adds its own pause to the hook.
+        com.cosmotune.ui.sleep.SleepPausers.pauseAll().forEach { TrackLog.w("SLEEP", "a mode's pause failed: $it") }
         // A DLNA renderer playing the song ("Play on a TV or speaker").
         runCatching { com.cosmotune.music.data.cast.dlna.DlnaCast.pauseRenderer() }
     }

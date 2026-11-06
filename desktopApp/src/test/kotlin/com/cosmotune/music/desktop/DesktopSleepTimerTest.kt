@@ -122,14 +122,4 @@ class DesktopSleepTimerTest {
         assertFalse(DesktopSleepTimer.preparesNext(repeatOne = false, afterTrack = true))
         assertFalse(DesktopSleepTimer.preparesNext(repeatOne = true, afterTrack = false))
     }
-
-    @Test
-    fun onlyALoadedVideoIsPaused() {
-        // mpv keeps its pause between files: pausing an idle player would start
-        // the next video paused.
-        assertFalse(DesktopSleepTimer.videoIsLoaded(com.cosmotune.video.player.PlayerStatus.IDLE))
-        assertFalse(DesktopSleepTimer.videoIsLoaded(com.cosmotune.video.player.PlayerStatus.ENDED))
-        assertTrue(DesktopSleepTimer.videoIsLoaded(com.cosmotune.video.player.PlayerStatus.READY))
-        assertTrue(DesktopSleepTimer.videoIsLoaded(com.cosmotune.video.player.PlayerStatus.BUFFERING))
-    }
 }

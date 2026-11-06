@@ -1,6 +1,5 @@
 package com.cosmotune.music.desktop
 
-import com.cosmotune.video.player.PlayerStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.concurrent.atomic.AtomicLong
 
@@ -68,10 +67,6 @@ object DesktopSleepTimer {
      * pauses.
      */
     fun preparesNext(repeatOne: Boolean, afterTrack: Boolean): Boolean = !repeatOne && !afterTrack
-
-    /** Whether Video's player has a video loaded that a pause would stop. */
-    fun videoIsLoaded(status: PlayerStatus): Boolean =
-        status == PlayerStatus.LOADING || status == PlayerStatus.READY || status == PlayerStatus.BUFFERING
 }
 
 /** [DesktopSleepTimer] as the shared screens reach it (the player's pill and menu). */

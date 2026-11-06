@@ -1813,11 +1813,8 @@ fun CosmotuneDesktopApp() {
     fun pauseEverythingForSleep() {
         pauseFromUser()
         if (playbackEngine.state.value.isPlaying) playbackEngine.pause()
-        com.cosmotune.video.graph.desktopVideoGraph(build = false)?.playback?.engine?.let { engine ->
-            // Only a loaded video: mpv keeps its pause across files, so pausing
-            // an idle player would leave the next video starting paused.
-            if (DesktopSleepTimer.videoIsLoaded(engine.snapshot.value.status)) engine.pause()
-        }
+        // Every other mode's player that is loaded (Video's mpv, which Watch also plays on) adds its own pause to the hook.
+        com.cosmotune.ui.sleep.SleepPausers.pauseAll()
         com.cosmotune.music.data.cast.dlna.DlnaCast.pauseRenderer()
     }
     // A DLNA renderer that has taken the song stops it playing here (Extras: DLNA casting).
