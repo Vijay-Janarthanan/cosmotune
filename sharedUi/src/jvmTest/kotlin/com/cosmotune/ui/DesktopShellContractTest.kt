@@ -181,45 +181,41 @@ class DesktopShellContractTest {
         assertHas(sidebar, "onFocusChanged = { searchFocused = it }")
     }
 
-    @Test fun theSearchFieldIs44dpWithTheKeyHintOutsideMacOs() {
+    @Test fun theSearchFieldIs40dpWithTheKeyHintOutsideMacOs() {
         val call = squash(callAt(SourceContract.code(sidebar), "CosmoSearchField("))
         assertTrue("height = SEARCH_HEIGHT" in call, call)
         assertTrue("keyHint = if (DesktopPlatform.isMac) null else \"Ctrl K\"" in call, call)
         assertTrue("onSubmit = onSearch" in call && "query = query" in call && "onQueryChange = onQueryChange" in call, call)
         assertTrue("focusRequester = focusRequester" in call, call)
         assertTrue("placeholder = " in call && "DesktopStrings[" in call, call)
-        assertHas(sidebar, "private val SEARCH_HEIGHT = 44.dp")
+        assertHas(sidebar, "private val SEARCH_HEIGHT = 40.dp")
     }
 
-    @Test fun theRowsHaveTheBoardsNumbers() {
-        for (line in listOf(
-            "private val NAV_HEIGHT = 44.dp", "private val NAV_RADIUS = 22.dp", "private val NAV_PADDING = 14.dp", "private val NAV_GAP = 12.dp",
-            "private val NAV_ICON = 20.dp", "private val NAV_LIST_GAP = 2.dp", "private const val NAV_LABEL_SP = 14.5f", "private const val NAV_LABEL_WEIGHT = 650",
-            "private const val ASIDE_SP = 12f", "private const val LIBRARY_SP = 15f", "private const val LIBRARY_WEIGHT = 700",
-            "private val ITEM_PADDING_X = 10.dp", "private val ITEM_PADDING_Y = 6.dp", "private val ITEM_RADIUS = 16.dp", "private val ITEM_GAP = 12.dp",
-            "private val COVER_SIZE = 40.dp", "private val COVER_RADIUS = 10.dp", "private const val ITEM_TITLE_SP = 14f", "private const val ITEM_TITLE_WEIGHT = 650",
-            "private const val ITEM_SUBTITLE_SP = 12.5f", "private const val EMPTY_SP = 13f",
-        )) assertHas(sidebar, line)
-    }
-
-    @Test fun theNavRowsAreTonalWhenSelectedAndTheLabelsAreTheBriefs() {
+    @Test fun theSidebarIsBuiltOfTheOrbitNavigationPieces() {
         val code = squash(SourceContract.code(sidebar))
+        assertTrue("OrbitNavModeChip()" in code && "KitModeMenuButton" !in code, "the mode switcher is the chip with the orbit mark, in every mode's sidebar")
+        assertTrue("OrbitNavChip(icon, label, selected, onClick, aside = aside)" in code, "pages are the kit's 40 dp chips, with the downloads count as their aside")
         assertTrue("if (selected) item.selectedIcon else item.icon" in code, "the selected icon when selected")
-        assertTrue("if (selected) palette.textPrimary else palette.textSecondary" in code, "selected text is the primary ink (DESIGN_SYSTEM.md 4.17)")
-        assertTrue("palette.textSecondary" in code, "the rest is textSecondary")
-        assertTrue("CoverField.ACCENT_STRONG" in code || "palette.accentStrong" in code, "the aside is accentStrong")
-        assertTrue("palette.textTertiary" in code, "the empty line is textTertiary")
-        assertTrue("SolidColor(colors.live(CoverField.SURFACE_VARIANT))" in code, "the selected fill is surface3")
-        assertFalse("CoverField.ACCENT_CONTAINER" in code, "the sidebar takes nothing from the accent")
-        assertTrue("selectable(" in code && "Role.Tab" in code, "a row is one selectable thing with a role")
-        assertTrue("cosmoFocusRing(" in code, "a visible focus ring")
-        assertTrue("CoverImage(" in code && "shadow = false" in code, "playlist covers have no shadow")
-        assertTrue("CosmoIcons.Queue" in code, "a playlist without a picture shows the queue glyph on a tonal tile")
-        assertTrue("CosmoIcons.Settings" in code, "Settings is a row of its own at the bottom")
-        assertTrue("DesktopStrings[\"d_sidebar_no_playlists\", \"Your playlists will appear here\"]" in code, "the empty line")
-        assertTrue("DesktopStrings[\"library\", \"Library\"]" in code, "the Library heading")
-        assertTrue("DesktopStrings[\"settings\", \"Settings\"]" in code, "the Settings label")
-        assertTrue("forText(" in code, "playlist names in Indian scripts get the taller line")
+        assertTrue("val selected = item.selected && !settingsSelected" in code, "while Settings is open no other page is selected")
+        assertTrue("OrbitNavSectionLabel(\"Your playlists\"" in code, "the playlists' heading")
+        assertTrue("OrbitNavPlaylist(playlist.title, playlist.subtitle, playlist.imageUrl, playlist.selected, playlist.onClick)" in code, "playlists are small discs with title and count")
+        assertTrue("OrbitNavRoomCard(" in code, "the small room card at the foot while a room is joined")
+        assertTrue("OrbitNavRow(CosmoIcons.Settings, DesktopStrings[\"settings\", \"Settings\"], null, settingsSelected, onOpenSettings)" in code, "Settings is a chip of its own at the bottom")
+        assertTrue("DesktopStrings[\"d_sidebar_no_playlists\", \"Your playlists will appear here\"]" in code && "palette.textTertiary" in code, "the empty line")
+        for (old in listOf("SidebarNavRow", "SidebarPlaylistRow", "CoverField.SURFACE_VARIANT", "SuperellipseShape")) assertFalse(old in code, "nothing of the old rows: $old")
+    }
+
+    @Test fun theOrbitNavigationPiecesHaveTheBoardsShapes() {
+        val nav = SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitNav.kt")
+        val code = squash(SourceContract.code(nav))
+        assertTrue("private val CHIP = 40.dp" in nav && ".height(CHIP)" in code && ".clip(CircleShape)" in code, "40 dp pills")
+        assertTrue(".background(if (selected) look.ink else wash(look, hovered, pressed))" in code, "the selected chip is solid ink")
+        assertTrue("val ink = if (selected) look.ground else" in code, "with the ground's colour for its words")
+        assertTrue("background(if (look.dark) PEACH_INK else PEACH)" in code, "and a small peach dot")
+        assertTrue("Disc(imageUrl, PLAYLIST_DISC)" in code && "private val PLAYLIST_DISC = 34.dp" in nav, "playlists are 34 dp discs")
+        assertTrue("LocalRoomLauncher.current?.takeIf { it.inRoom } ?: return" in code && "background(ROOM_FILL)" in code, "the room card is the indigo one, only in a room")
+        assertTrue("selectable(" in code && "Role.Tab" in code && "cosmoFocusRing(" in code, "a chip is one selectable tab with a visible focus ring")
+        assertTrue("forText(" in code, "names in Indian scripts get the taller line")
     }
 
     @Test fun theSidebarReadsLiveColoursOnlyWhileDrawingAndRemembersNoBrush() {
