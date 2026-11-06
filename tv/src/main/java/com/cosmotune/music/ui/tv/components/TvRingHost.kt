@@ -26,6 +26,7 @@ import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.TraversableNode
 import androidx.compose.ui.node.findNearestAncestor
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.cosmotune.music.ui.tv.theme.TvGlass
 
 /*
@@ -68,7 +69,7 @@ fun Modifier.tvRingHost(cornerCap: Dp): Modifier {
             val a = alpha
             if (rect == null || a <= 0f || rect.isEmpty) return@drawWithContent
             val w = RingWidth.toPx()
-            val grow = RingGap.toPx() + w / 2f
+            val grow = HostRingGap.toPx() + w / 2f
             val radius = minOf(rect.minDimension / 2f, cornerCap.toPx())
             drawRoundRect(
                 TvGlass.Peach.copy(alpha = a),
@@ -90,6 +91,12 @@ private class RingTarget {
     /** Bumped on every report of the focused piece's bounds (focus moving, or the piece moving with a scroll), to redraw. */
     var moves by mutableIntStateOf(0)
 }
+
+/**
+ * The ring's gap here: closer than the TV's own pieces, as Watch's guide and lists set their pieces edge to edge (a channel's cell
+ * fills its row), so a ring further out would run into the rows beside it.
+ */
+private val HostRingGap = 2.dp
 
 /** Marks a [tvRingHost] for [isUnderRingHost]. */
 private object RingHostKey
