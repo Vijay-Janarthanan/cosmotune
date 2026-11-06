@@ -1,13 +1,14 @@
 package com.cosmotune.music.desktop
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,25 +19,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,10 +41,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.music.data.listentogether.JamInvite
@@ -61,9 +56,24 @@ import com.cosmotune.room.RoomControl
 import com.cosmotune.room.RoomException
 import com.cosmotune.room.RoomPreview
 import com.cosmotune.ui.bridge.CircularProgressIndicator
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitDoorCard
+import com.cosmotune.ui.orbit.OrbitFace
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.OrbitNotice
+import com.cosmotune.ui.orbit.OrbitPillButton
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitSearchPill
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.OrbitTextField
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.orbit.orbitPlainDoor
+import com.cosmotune.ui.orbit.orbitRoomDoor
 import com.cosmotune.ui.room.RoomLauncher
 import com.cosmotune.ui.room.RoomScreen
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.sheets.CosmoDialogHeading
+import com.cosmotune.ui.sheets.CosmoToast
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -140,7 +150,11 @@ internal fun DesktopRoomView(onClose: (() -> Unit)? = null) {
     }
 }
 
-/** Making a room or finding one by its code. A code is looked up first, so the person sees who is inside before joining. */
+/**
+ * Making a room or finding one by its code, in Orbit as the phone's Start a room: the heading in the wide face, then two doors side by
+ * side, the room's own indigo card (its size and Create room) and a quiet card for a code (the field and Look up room), and the
+ * notices under them. A code is looked up first, so the person sees who is inside before joining.
+ */
 @Composable
 private fun DesktopRoomLanding(autoplayEnabled: Boolean, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -150,27 +164,45 @@ private fun DesktopRoomLanding(autoplayEnabled: Boolean, onDismiss: () -> Unit) 
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val pending by DesktopRooms.pendingItem.collectAsState()
+    val fonts = orbitFonts()
+    val look = orbitLook()
+
+    fun lookUp() {
+        if (!RoomCode.isValid(code)) {
+            error = "That isn't a room code. Codes are six letters and digits."
+            return
+        }
+        busy = true
+        error = null
+        scope.launch {
+            DesktopRooms.peek(code)
+                .onSuccess { found ->
+                    if (found == null) error = DesktopRoomPlayback.errorMessage(RoomException(RoomException.Reason.NOT_FOUND, ""))
+                    else preview = found
+                }
+                .onFailure { error = DesktopRoomPlayback.errorMessage(it) }
+            busy = false
+        }
+    }
 
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 920) {
         Column(desktopPanelBody(cardMax = 760.dp, cardMin = 560.dp, fill = true)) {
             Row(
-                Modifier.fillMaxWidth().padding(start = panelInset(28.dp), end = panelInset(18.dp), top = 22.dp, bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier.fillMaxWidth().padding(start = panelInset(28.dp), end = panelInset(18.dp), top = 26.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.Top,
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(DesktopStrings["listen_together", "Listen together"], style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(
-                        pending?.let { "Start a room or join one, and “${it.title.ifBlank { "this" }}” plays for everyone" }
-                            ?: "Start a room or join friends with a six-character code",
-                        color = DesktopSecondary,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+                CosmoDialogHeading(
+                    overline = null,
+                    title = DesktopStrings["listen_together", "Listen together"],
+                    message = pending?.let { "Start a room or join one, and “${it.title.ifBlank { "this" }}” plays for everyone" }
+                        ?: "Start a room or join friends with a six-character code",
+                    modifier = Modifier.weight(1f),
+                )
                 if (!LocalDesktopPanelIsPage.current) {
-                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Close") }
+                    Spacer(Modifier.width(12.dp))
+                    OrbitRoundButton(CosmoIcons.Close, "Close", look.ink, onDismiss)
                 }
             }
-            if (!LocalDesktopPanelIsPage.current) HorizontalDivider(color = DesktopCardEdge)
 
             val found = preview
             if (found != null) {
@@ -192,22 +224,30 @@ private fun DesktopRoomLanding(autoplayEnabled: Boolean, onDismiss: () -> Unit) 
             }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(28.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                contentPadding = PaddingValues(horizontal = panelInset(28.dp), vertical = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                        RoomChoiceCard("Start a room", "Friends join with the code. Everyone can play, pause and skip unless you choose otherwise.", Modifier.weight(1f)) {
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        val room = orbitRoomDoor()
+                        OrbitDoorCard(
+                            label = "New room",
+                            title = "Start a room",
+                            text = "Friends join with the code. Everyone can play, pause and skip unless you choose otherwise.",
+                            colors = room,
+                            orbits = true,
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("Room size", fontWeight = FontWeight.Medium)
-                                    Text("${DesktopRooms.MIN_SIZE}–${DesktopRooms.MAX_SIZE} people", color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                                    Text("Room size", style = fonts.title, color = room.ink)
+                                    Text("${DesktopRooms.MIN_SIZE}–${DesktopRooms.MAX_SIZE} people", style = fonts.body, color = room.dim)
                                 }
-                                RoomStepper("−", !busy && size > DesktopRooms.MIN_SIZE) { size-- }
-                                Text("$size", modifier = Modifier.width(34.dp), textAlign = TextAlign.Center)
-                                RoomStepper("+", !busy && size < DesktopRooms.MAX_SIZE) { size++ }
+                                OrbitRoundButton(Icons.Rounded.Remove, "One fewer", room.ink, { size-- }, enabled = !busy && size > DesktopRooms.MIN_SIZE, onInk = room.fill)
+                                Text("$size", style = fonts.section, color = room.ink, modifier = Modifier.width(44.dp), textAlign = TextAlign.Center)
+                                OrbitRoundButton(Icons.Rounded.Add, "One more", room.ink, { size++ }, enabled = !busy && size < DesktopRooms.MAX_SIZE, onInk = room.fill)
                             }
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(20.dp))
                             RoomPrimaryButton("Create room", busy, true) {
                                 busy = true
                                 error = null
@@ -217,46 +257,40 @@ private fun DesktopRoomLanding(autoplayEnabled: Boolean, onDismiss: () -> Unit) 
                                 }
                             }
                         }
-                        RoomChoiceCard("Join a room", "Enter the code first. You'll see who is inside before joining.", Modifier.weight(1f)) {
-                            OutlinedTextField(
+                        val plain = orbitPlainDoor(look)
+                        OrbitDoorCard(
+                            label = "Have a code",
+                            title = "Join a room",
+                            text = "Enter the code first. You'll see who is inside before joining.",
+                            colors = plain,
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                        ) {
+                            OrbitLabel("Room code", fonts, plain.dim, Modifier.padding(start = 4.dp, bottom = 8.dp))
+                            OrbitTextField(
                                 value = code,
                                 onValueChange = {
                                     code = (JamInvite.parse(it) ?: RoomCode.normalize(it)).take(JamInvite.CODE_LENGTH)
                                     error = null
                                 },
-                                label = { Text("Room code") },
-                                placeholder = { Text("ABC234") },
-                                singleLine = true,
-                                textStyle = MaterialTheme.typography.headlineSmall.copy(letterSpacing = 5.sp),
+                                placeholder = "ABC234",
+                                fonts = fonts,
+                                look = look,
                                 modifier = Modifier.fillMaxWidth(),
+                                enabled = !busy,
+                                onSubmit = { if (code.length == JamInvite.CODE_LENGTH && !busy) lookUp() },
+                                textStyle = TextStyle(fontFamily = fonts.wide, fontSize = 20.sp, letterSpacing = 5.sp),
                             )
-                            Spacer(Modifier.height(18.dp))
-                            RoomPrimaryButton("Look up room", busy, code.length == JamInvite.CODE_LENGTH) {
-                                if (!RoomCode.isValid(code)) {
-                                    error = "That isn't a room code. Codes are six letters and digits."
-                                    return@RoomPrimaryButton
-                                }
-                                busy = true
-                                error = null
-                                scope.launch {
-                                    DesktopRooms.peek(code)
-                                        .onSuccess { found ->
-                                            if (found == null) error = DesktopRoomPlayback.errorMessage(RoomException(RoomException.Reason.NOT_FOUND, ""))
-                                            else preview = found
-                                        }
-                                        .onFailure { error = DesktopRoomPlayback.errorMessage(it) }
-                                    busy = false
-                                }
-                            }
+                            Spacer(Modifier.height(20.dp))
+                            RoomPrimaryButton("Look up room", busy, code.length == JamInvite.CODE_LENGTH, onClick = ::lookUp)
                         }
                     }
                 }
-                error?.let { item { RoomNotice(it, destructive = true) } }
+                error?.let { item { OrbitNotice(it, fonts, look, icon = Icons.Rounded.ErrorOutline) } }
                 item {
-                    RoomNotice(
+                    OrbitNotice(
                         "Rooms use a guest identity on this device, or your Google account if you signed in under Account & sync. " +
                             "Joining a room does not turn on library sync.",
-                        destructive = false,
+                        fonts, look,
                     )
                 }
             }
@@ -264,38 +298,47 @@ private fun DesktopRoomLanding(autoplayEnabled: Boolean, onDismiss: () -> Unit) 
     }
 }
 
+/** Who is inside a room found by its code: their faces, the room's line and Join room (Back goes to the doors again). */
 @Composable
 private fun RoomJoinConfirmation(preview: RoomPreview, busy: Boolean, error: String?, onBack: () -> Unit, onJoin: () -> Unit) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Column(
         Modifier.fillMaxSize().padding(horizontal = panelInset(36.dp), vertical = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(Icons.Rounded.Groups, null, tint = DesktopAccent, modifier = Modifier.size(54.dp))
-        Spacer(Modifier.height(14.dp))
+        val names = preview.memberNames.filter { it.isNotBlank() }
+        if (names.isEmpty()) {
+            Box(Modifier.size(72.dp).clip(CircleShape).background(orbitRoomDoor().fill), contentAlignment = Alignment.Center) {
+                Icon(CosmoIcons.Together, null, tint = orbitRoomDoor().ink, modifier = Modifier.size(32.dp))
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                names.take(6).forEach { name -> OrbitFace(url = null, name = name, key = name, size = 56.dp) }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        OrbitLabel("${preview.memberCount} of ${preview.maxMembers} people · ${preview.code}", fonts, look.dim)
+        Spacer(Modifier.height(10.dp))
         Text(
             if (preview.hostName.isBlank()) "Join this room?" else "Join ${preview.hostName}'s room?",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = fonts.heroTitle,
+            color = look.ink,
+            textAlign = TextAlign.Center,
         )
-        Text("${preview.memberCount} of ${preview.maxMembers} people · ${preview.code}", color = DesktopSecondary)
-        if (preview.memberNames.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            Text(
-                preview.memberNames.joinToString(", ").ifBlank { "Someone" },
-                color = DesktopSecondary,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-            )
+        if (names.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(names.joinToString(", "), style = fonts.body, color = look.dim, textAlign = TextAlign.Center)
         }
         if (preview.isFull) {
             Spacer(Modifier.height(10.dp))
-            Text("This room is full.", color = DesktopDestructive)
+            Text("This room is full.", style = fonts.body, color = MaterialTheme.colorScheme.error)
         }
-        error?.let { Spacer(Modifier.height(10.dp)); Text(it, color = DesktopDestructive) }
-        Spacer(Modifier.height(20.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            TextButton(onClick = onBack, enabled = !busy) { Text("Back") }
+        error?.let { Spacer(Modifier.height(10.dp)); Text(it, style = fonts.body, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center) }
+        Spacer(Modifier.height(24.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            OrbitPillButton("Back", onBack, fonts, look, enabled = !busy, height = 46.dp)
             RoomPrimaryButton("Join room", busy, !preview.isFull, Modifier.width(190.dp), onJoin)
         }
     }
@@ -303,7 +346,7 @@ private fun RoomJoinConfirmation(preview: RoomPreview, busy: Boolean, error: Str
 
 /**
  * "Ask to play": a song found with the desktop's own search, sent to the room as a request card. It plays for nobody until someone
- * presses Play now on it.
+ * presses Play now on it. In Orbit: the dialog's heading, the search pill and the results as the kit's song rows.
  */
 @Composable
 private fun DesktopRoomSongPicker(onPick: (PartyTrack) -> Unit, onDismiss: () -> Unit) {
@@ -312,6 +355,10 @@ private fun DesktopRoomSongPicker(onPick: (PartyTrack) -> Unit, onDismiss: () ->
     var results by remember { mutableStateOf<List<Song>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
     // A pause in typing searches, as does Enter.
     LaunchedEffect(query) {
@@ -338,42 +385,52 @@ private fun DesktopRoomSongPicker(onPick: (PartyTrack) -> Unit, onDismiss: () ->
     }
 
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 640, popup = true) {
-        Column(Modifier.fillMaxWidth().padding(22.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Ask to play", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("The room sees your request and anyone can play it.", color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
-                }
-                IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Close") }
+        Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 16.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                CosmoDialogHeading(
+                    overline = null,
+                    title = "Ask to play",
+                    message = "The room sees your request and anyone can play it.",
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(12.dp))
+                OrbitRoundButton(CosmoIcons.Close, "Close", look.ink, onDismiss)
             }
-            Spacer(Modifier.height(14.dp))
-            DesktopSearchField(query = query, onQueryChange = { query = it }, onSearch = { submitted = query }, placeholder = "Search for a song")
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(16.dp))
+            OrbitSearchPill(
+                query = query,
+                onQueryChange = { query = it },
+                onSubmit = { submitted = query },
+                placeholder = "Search for a song",
+                fonts = fonts,
+                look = look,
+                focusRequester = focus,
+                height = 52.dp,
+            )
+            Spacer(Modifier.height(12.dp))
             Box(Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 420.dp)) {
                 when {
-                    searching && results.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center).size(24.dp), strokeWidth = 2.dp)
-                    failed -> Text("Search did not work just now. Try again.", color = DesktopSecondary, modifier = Modifier.align(Alignment.Center))
+                    searching && results.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center).size(24.dp), color = look.accent, strokeWidth = 2.dp)
+                    failed -> Text("Search did not work just now. Try again.", style = fonts.body, color = look.dim, modifier = Modifier.align(Alignment.Center))
                     results.isEmpty() -> Text(
                         if (submitted.isBlank()) "Find the song to ask for" else "Nothing found",
-                        color = DesktopSecondary,
+                        style = fonts.body,
+                        color = look.dim,
                         modifier = Modifier.align(Alignment.Center),
                     )
-                    else -> LazyColumn(Modifier.fillMaxWidth()) {
+                    else -> LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(results, key = Song::videoId) { song ->
-                            Row(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(CosmoRadii.rSm))
-                                    .clickable { onPick(song.toPartyTrack(DesktopRoomPlayback.durationMsOf(song.durationText) ?: 0L)) }
-                                    .padding(horizontal = 8.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                DesktopArtwork(song.thumbnailUrl, Modifier.size(42.dp).clip(RoundedCornerShape(CosmoRadii.rSm)), px = 120)
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(song.artist, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                                song.durationText?.let { Text(it, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall) }
-                            }
+                            OrbitSongRow(
+                                title = song.title,
+                                subtitle = song.artist,
+                                cover = song.thumbnailUrl,
+                                fonts = fonts,
+                                look = look,
+                                onClick = { onPick(song.toPartyTrack(DesktopRoomPlayback.durationMsOf(song.durationText) ?: 0L)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                height = 62.dp,
+                                trailingText = song.durationText,
+                            )
                         }
                     }
                 }
@@ -445,36 +502,14 @@ internal fun DesktopNoticeToast(modifier: Modifier = Modifier) {
         }
     }
     val text = message ?: return
-    Text(
-        text = text,
-        color = Color.White,
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color.Black.copy(alpha = 0.72f))
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-    )
+    // The Orbit toast: the ink pill with the ground's words, rising into place for each new notice.
+    key(text) { CosmoToast(text, modifier) }
 }
 
-@Composable
-private fun RoomChoiceCard(title: String, subtitle: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Column(modifier.desktopCardInset(RoundedCornerShape(CosmoRadii.rLg)).padding(20.dp)) {
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(4.dp))
-        Text(subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(20.dp))
-        content()
-    }
-}
-
-@Composable
-private fun RoomStepper(label: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier.size(32.dp).clip(CircleShape).background(DesktopCardInsetFill).clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, color = if (enabled) Color.White else DesktopSecondary) }
-}
-
+/**
+ * The one action of a door or of the confirmation: the Orbit dialog's peach pill, 46 dp high; while [busy] its word gives way to a
+ * small spinner and it holds still.
+ */
 @Composable
 private fun RoomPrimaryButton(
     label: String,
@@ -483,24 +518,10 @@ private fun RoomPrimaryButton(
     modifier: Modifier = Modifier.fillMaxWidth(),
     onClick: () -> Unit,
 ) {
-    Button(
-        onClick = onClick,
-        enabled = enabled && !busy,
-        shape = RoundedCornerShape(50),
-        colors = ButtonDefaults.buttonColors(containerColor = DesktopAccent, contentColor = Color.Black),
-        modifier = modifier.height(46.dp),
-    ) {
-        if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.Black)
-        else Text(label, fontWeight = FontWeight.SemiBold)
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    Box(modifier, contentAlignment = Alignment.Center) {
+        OrbitPillButton(if (busy) "" else label, onClick, fonts, look, Modifier.fillMaxWidth(), primary = true, enabled = enabled && !busy, height = 46.dp)
+        if (busy) CircularProgressIndicator(Modifier.size(18.dp), color = look.ink, strokeWidth = 2.dp)
     }
-}
-
-@Composable
-private fun RoomNotice(text: String, destructive: Boolean) {
-    Text(
-        text,
-        color = if (destructive) DesktopDestructive else DesktopSecondary,
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.fillMaxWidth().desktopCardInset(RoundedCornerShape(CosmoRadii.rMd)).padding(14.dp),
-    )
 }

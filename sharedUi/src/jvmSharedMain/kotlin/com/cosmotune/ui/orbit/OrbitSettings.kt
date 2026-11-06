@@ -194,10 +194,12 @@ internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 
 }
 
 /**
- * A one-line field of a settings page (the proxy's address, user and password): the chip's pill (radius 22, at least 48 dp), the
+ * A field of a settings page (the proxy's address, user and password): the chip's pill (radius 22, at least 48 dp), the
  * [placeholder] in the dim ink while it is empty, the words in the body face and the ink. [error] rings it in the theme's error
- * colour; [secret] hides what is typed; [enabled] false fades it and takes no typing.
- * colour; [secret] hides what is typed. [minLines] above 1 makes it a field of several lines (a pasted curve).
+ * colour; [secret] hides what is typed; [enabled] false fades it and takes no typing. [onDone] (or [onSubmit]) is Enter (a dialog's
+ * Save, a room code's look-up; an [imeAction] of Next moves on instead). [singleLine] false with [minLines] / [maxLines] makes it a
+ * box of several lines (a pasted curve, a comment); [sentences] capitalises them. [textStyle] is laid over the body face (a room
+ * code's wide tracking), and [trailing] sits at the field's end (a clear button).
  */
 @Composable
 fun OrbitTextField(
@@ -216,24 +218,29 @@ fun OrbitTextField(
     minLines: Int = 1,
     enabled: Boolean = true,
     maxLines: Int = Int.MAX_VALUE,
+    onSubmit: (() -> Unit)? = null,
+    imeAction: androidx.compose.ui.text.input.ImeAction? = null,
+    textStyle: androidx.compose.ui.text.TextStyle? = null,
 ) {
     val shape = RoundedCornerShape(22.dp)
+    val words = fonts.body.merge(textStyle)
+    val submit = onDone ?: onSubmit
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
         singleLine = singleLine,
         minLines = minLines,
+        maxLines = if (singleLine) 1 else maxOf(minLines, maxLines),
         enabled = enabled,
-        maxLines = maxOf(minLines, maxLines),
-        textStyle = fonts.body.copy(color = look.ink),
+        textStyle = words.copy(color = if (enabled) look.ink else look.dim),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
             keyboardType = if (secret) androidx.compose.ui.text.input.KeyboardType.Password else androidx.compose.ui.text.input.KeyboardType.Text,
             capitalization = if (sentences && !secret) androidx.compose.ui.text.input.KeyboardCapitalization.Sentences else androidx.compose.ui.text.input.KeyboardCapitalization.None,
-            imeAction = if (onDone != null) androidx.compose.ui.text.input.ImeAction.Done else androidx.compose.ui.text.input.ImeAction.Default,
+            imeAction = imeAction ?: if (submit != null) androidx.compose.ui.text.input.ImeAction.Done else androidx.compose.ui.text.input.ImeAction.Default,
         ),
-        keyboardActions = if (onDone != null) androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }) else androidx.compose.foundation.text.KeyboardActions.Default,
+        keyboardActions = if (submit != null) androidx.compose.foundation.text.KeyboardActions(onDone = { submit() }) else androidx.compose.foundation.text.KeyboardActions.Default,
         modifier = modifier
             .then(if (enabled) Modifier else Modifier.alpha(0.45f))
             .heightIn(min = 48.dp)
@@ -242,9 +249,9 @@ fun OrbitTextField(
             .then(if (error) Modifier.border(1.5.dp, androidx.compose.material3.MaterialTheme.colorScheme.error, shape) else Modifier)
             .semantics { contentDescription = placeholder },
         decorationBox = { inner ->
-            Row(Modifier.padding(start = 18.dp, end = if (trailing != null) 8.dp else 18.dp, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    if (value.isEmpty()) Text(placeholder, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.padding(start = 18.dp, end = if (trailing != null) 6.dp else 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f).padding(vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) Text(placeholder, style = words, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     inner()
                 }
                 trailing?.invoke()

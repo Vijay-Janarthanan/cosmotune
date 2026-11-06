@@ -1,29 +1,32 @@
 package com.cosmotune.desktop
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
 import com.cosmotune.design.ShellMetrics
-import com.cosmotune.ui.components.SuperellipseShape
-import com.cosmotune.ui.components.cosmoGlass
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.music.desktop.DesktopStrings
+import com.cosmotune.music.ui.player.LocalSidePanelPlaying
+import com.cosmotune.ui.orbit.ORBIT_SIDE_PANEL_SHAPE
+import com.cosmotune.ui.orbit.OrbitSidePanelHeader
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.orbit.orbitSidePanelFill
 import com.cosmotune.ui.theme.LocalCosmoShell
-import com.cosmotune.music.desktop.LocalDesktopHaze
 
 /**
- * The card of the side panel (`.d2-panel`, `V3.deskPanel`): the lyrics or the queue stand in a glass card beside the page
- * instead of in a column cut off by a rule. As a modifier chain, from the outside in: the margin (14 dp above and at the end,
- * and the player bar's footprint below, so the card ends clear of the bar), then glass over the window's haze in a superellipse of
- * [CosmoRadii.xl]. The card has no padding of its own: the column's header and content already stand 14 to 18 dp in (the queue's
- * content 14, the lyrics' 18), which is the board's 14 dp; a card padding on top of them put the content 28 to 32 dp from the
- * edge. The column's width (360 dp), its slide and its close button are upstream's, untouched: this is only what its contents are
- * drawn on. It is a function and not an extension of `Modifier`
- * because the one upstream line that takes it does so by its full name, without an import.
+ * The card of the side panel in Orbit: the lyrics or Up next stand in one flat panel beside the page instead of in a column cut off
+ * by a rule. As a modifier chain, from the outside in: the margin (14 dp above and at the end, and the player bar's footprint below,
+ * so the card ends clear of the bar), then the panel's corners of 28 and its flat fill ([orbitSidePanelFill]: the row's ink over the
+ * page's ground). No glass and no blur (Orbit rule 4). The card has no padding of its own: the head ([CosmoDesktopSidePanelHeader])
+ * and the content's inset ([cosmoDesktopSidePanelInset]) carry it. The column's width (360 dp) and its slide are upstream's,
+ * untouched. It is a function and not an extension of `Modifier` because the one upstream line that takes it does so by its full
+ * name, without an import.
  *
  * With the new look off the modifier is the identity, so `DesktopSidePanelColumn` looks exactly as it did.
  *
@@ -38,10 +41,43 @@ internal fun cosmoDesktopSidePanelCard(): Modifier {
         val placeable = measurable.measure(constraints)
         layout(placeable.width, placeable.height) {}
     }
-    val shape = remember { SuperellipseShape(CosmoRadii.xl) }
+    val fill = orbitSidePanelFill(orbitLook())
     return Modifier
         .padding(top = PANEL_MARGIN, end = PANEL_MARGIN, bottom = ShellMetrics.desktopBarFootprintDp().dp)
-        .cosmoGlass(LocalDesktopHaze.current, shape)
+        .clip(ORBIT_SIDE_PANEL_SHAPE)
+        .background(fill)
+}
+
+/**
+ * The head of the panel in Orbit: "Lyrics" or "Up next" in the wide section face and the round close button ([onClose]). The queue
+ * is headed here too (in the old look it heads itself): Up next's groups follow under it.
+ */
+@Composable
+internal fun CosmoDesktopSidePanelHeader(lyrics: Boolean, onClose: () -> Unit) {
+    OrbitSidePanelHeader(
+        title = if (lyrics) DesktopStrings["lyrics", "Lyrics"] else DesktopStrings["up_next", "Up next"],
+        closeLabel = DesktopStrings["close", "Close"],
+        onClose = onClose,
+    )
+}
+
+/**
+ * The content's inset inside the card with the new look: 20 dp at the sides for the lyrics (the head's own), 12 dp for Up next's rows
+ * (whose cards carry their own 10 dp in), and 14 dp above the card's end. Null with the look off: the column's own padding stands.
+ */
+@Composable
+internal fun cosmoDesktopSidePanelInset(lyrics: Boolean): Modifier? {
+    if (LocalCosmoShell.current == null) return null
+    return Modifier.padding(start = if (lyrics) 20.dp else 12.dp, end = if (lyrics) 20.dp else 12.dp, bottom = 14.dp)
+}
+
+/**
+ * What the panel holds, told whether the song plays ([LocalCosmoPlaying], which the window provides): Up next's playing row circles
+ * its moon while it does, as Now Playing's. The panel's own call of the queue (in `DesktopApp.kt`) does not pass it.
+ */
+@Composable
+internal fun CosmoDesktopSidePanelContent(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalSidePanelPlaying provides LocalCosmoPlaying.current, content = content)
 }
 
 /**

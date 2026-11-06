@@ -1,6 +1,7 @@
 package com.cosmotune.music.desktop
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.OpenInNew
@@ -28,11 +28,10 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,20 +41,15 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -63,7 +57,21 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.BiteShape
+import com.cosmotune.ui.orbit.Disc
+import com.cosmotune.ui.orbit.OrbitBiteCard
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitPlayButton
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitWindowColours
+import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.ui.orbit.orbitFloatEdge
+import com.cosmotune.ui.orbit.orbitFloatGround
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -160,8 +168,15 @@ internal object DesktopTrayFlyoutPlacement {
 private val PLAYER_CARD = DpSize(344.dp, 172.dp)
 private val MENU_CARD_WIDTH = 252.dp
 private val SHADOW_PAD = 16.dp
-private val CARD_RADIUS = 18.dp
-private const val ROW_DP = 36
+/** The player card's corners and its bite: play (56 dp) stands in a 33 dp bite whose centre is 40 dp in from the corner. */
+private val CARD_RADIUS = 30.dp
+private val PLAY_DP = 56.dp
+private val PLAYER_BITE = BiteShape(corner = CARD_RADIUS, bite = 33.dp, inset = 40.dp)
+private val RING_DP = 72.dp
+private val DISC_DP = 60.dp
+private val MENU_RADIUS = 24.dp
+private val MENU_PAD = 8.dp
+private const val ROW_DP = 40
 private const val SEPARATOR_DP = 9
 private const val HEADER_DP = 58
 
@@ -213,7 +228,7 @@ internal fun DesktopTrayFlyoutWindow() {
                 dialog.toFront()
                 dialog.requestFocus()
             }
-            DesktopTrayFlyoutContent(current.mode, now, DesktopMiniPlayer.actions, entries, card, DesktopTrayFlyout::close)
+            DesktopTrayFlyoutContent(current.mode, now, DesktopMiniPlayer.actions, entries, card, onClose = DesktopTrayFlyout::close)
         }
     }
 }
@@ -228,10 +243,15 @@ internal fun menuEntries(all: List<DesktopTrayMenu.Entry>): List<DesktopTrayMenu
 private fun menuHeight(entries: List<DesktopTrayMenu.Entry>, header: Boolean): Int {
     val rows = entries.count { !it.separator } * ROW_DP
     val separators = entries.count { it.separator } * SEPARATOR_DP
-    return 12 + rows + separators + if (header) HEADER_DP + SEPARATOR_DP else 0
+    return 16 + rows + separators + if (header) HEADER_DP + SEPARATOR_DP else 0
 }
 
-/** The card, on its own so it can be drawn off screen. */
+/**
+ * The card, on its own so it can be drawn off screen. Orbit: the player is a flat card in the cover's own colour with the cover as
+ * a disc whose orbit is the song's progress, round buttons in the card's ink and play in the card's bite (no blurred cover under
+ * it); the menu is the Orbit popover's card (the float ground, radius 24) with its rows. The window stands outside the app's theme,
+ * so it brings the colours of [dark] (the desktop's own are dark).
+ */
 @Composable
 internal fun DesktopTrayFlyoutContent(
     mode: DesktopTrayFlyout.Mode,
@@ -239,20 +259,16 @@ internal fun DesktopTrayFlyoutContent(
     actions: DesktopMiniPlayer.Actions,
     entries: List<DesktopTrayMenu.Entry>,
     card: DpSize,
+    dark: Boolean = true,
     onClose: () -> Unit,
 ) {
-    MaterialTheme(colorScheme = darkColorScheme()) {
-        Box(Modifier.fillMaxSize().padding(SHADOW_PAD), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier.size(card.width, card.height)
-                    .shadow(14.dp, RoundedCornerShape(CARD_RADIUS))
-                    .clip(RoundedCornerShape(CARD_RADIUS))
-                    .background(Color(0xFF15151C))
-                    .testTag("tray:${mode.name.lowercase()}"),
-            ) {
+    MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
+        OrbitWindowColours(dark) {
+            Box(Modifier.fillMaxSize().padding(SHADOW_PAD), contentAlignment = Alignment.Center) {
+                val sized = Modifier.size(card.width, card.height).testTag("tray:${mode.name.lowercase()}")
                 when (mode) {
-                    DesktopTrayFlyout.Mode.PLAYER -> PlayerCard(now, actions, onClose)
-                    DesktopTrayFlyout.Mode.MENU -> MenuCard(now, entries, onClose)
+                    DesktopTrayFlyout.Mode.PLAYER -> PlayerCard(now, actions, onClose, sized)
+                    DesktopTrayFlyout.Mode.MENU -> MenuCard(now, entries, onClose, sized)
                 }
             }
         }
@@ -260,107 +276,102 @@ internal fun DesktopTrayFlyoutContent(
 }
 
 @Composable
-private fun PlayerCard(now: DesktopMiniPlayer.NowPlaying, actions: DesktopMiniPlayer.Actions, onClose: () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        // The cover, blown up and blurred, is the card's background.
-        if (now.artworkUrl != null) {
-            DesktopArtwork(
-                now.artworkUrl,
-                Modifier.fillMaxSize().graphicsLayer { scaleX = 1.6f; scaleY = 1.6f }.blur(28.dp, BlurredEdgeTreatment.Unbounded),
-            )
-        }
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x59000000), Color(0xE6000000)))))
+private fun PlayerCard(now: DesktopMiniPlayer.NowPlaying, actions: DesktopMiniPlayer.Actions, onClose: () -> Unit, modifier: Modifier) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val (fill, ink) = coverFill(now.artworkUrl, now.title.ifBlank { "tray" })
+    OrbitBiteCard(
+        fill = fill,
+        modifier = modifier,
+        shape = PLAYER_BITE,
+        biteInset = 12.dp,
+        bite = { OrbitPlayButton(now.playing, actions.playPause, look, Modifier.testTag("tray:playpause"), size = PLAY_DP) },
+    ) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                DesktopArtwork(now.artworkUrl, Modifier.size(66.dp).clip(RoundedCornerShape(CosmoRadii.rSm)))
+                // The cover as a disc, its orbit the song's progress and the moon where it is.
+                Box(Modifier.size(RING_DP), contentAlignment = Alignment.Center) {
+                    Disc(now.artworkUrl, DISC_DP)
+                    OrbitRing(RING_DP, ink, progress = { now.progress.coerceIn(0f, 1f) }, spinning = now.playing, stroke = 2.dp, moon = 4.dp)
+                }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        now.title.ifBlank { "Nothing playing" }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                        now.title.ifBlank { "Nothing playing" }, style = fonts.title.copy(fontSize = 16.sp), color = ink,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("tray:title"),
                     )
-                    Text(now.artist, color = Color.White.copy(alpha = 0.72f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (now.artist.isNotBlank()) {
+                        Text(now.artist, style = fonts.body, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
-                IconButton(onClick = { onClose(); actions.openMain() }, modifier = Modifier.size(36.dp).testTag("tray:open")) {
-                    Icon(Icons.Rounded.OpenInNew, "Open Cosmotune", tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
-                }
+                Spacer(Modifier.width(8.dp))
+                OrbitRoundButton(
+                    Icons.Rounded.OpenInNew, "Open Cosmotune", ink, onClick = { onClose(); actions.openMain() },
+                    modifier = Modifier.testTag("tray:open"), size = 36.dp, onInk = fill,
+                )
             }
             Spacer(Modifier.weight(1f))
-            LinearProgressIndicator(
-                progress = { now.progress.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
-                color = Color.White, trackColor = Color.White.copy(alpha = 0.25f),
-            )
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = actions.previous, modifier = Modifier.size(44.dp).testTag("tray:previous")) {
-                    Icon(Icons.Rounded.SkipPrevious, "Previous", tint = Color.White, modifier = Modifier.size(28.dp))
-                }
-                Spacer(Modifier.width(14.dp))
-                Box(
-                    Modifier.size(48.dp).clip(CircleShape).background(Color.White).clickable(onClick = actions.playPause).testTag("tray:playpause"),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        if (now.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        if (now.playing) "Pause" else "Play", tint = Color(0xFF15151C), modifier = Modifier.size(30.dp),
-                    )
-                }
-                Spacer(Modifier.width(14.dp))
-                IconButton(onClick = actions.next, modifier = Modifier.size(44.dp).testTag("tray:next")) {
-                    Icon(Icons.Rounded.SkipNext, "Next", tint = Color.White, modifier = Modifier.size(28.dp))
-                }
+            // Previous and next along the card's foot, play in its bite.
+            Row(Modifier.padding(start = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                OrbitRoundButton(CosmoIcons.Previous, "Previous", ink, actions.previous, Modifier.testTag("tray:previous"), size = 44.dp, onInk = fill)
+                OrbitRoundButton(CosmoIcons.Next, "Next", ink, actions.next, Modifier.testTag("tray:next"), size = 44.dp, onInk = fill)
             }
         }
     }
 }
 
 @Composable
-private fun MenuCard(now: DesktopMiniPlayer.NowPlaying, entries: List<DesktopTrayMenu.Entry>, onClose: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(6.dp)) {
+private fun MenuCard(now: DesktopMiniPlayer.NowPlaying, entries: List<DesktopTrayMenu.Entry>, onClose: () -> Unit, modifier: Modifier) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val shape = RoundedCornerShape(MENU_RADIUS)
+    Column(
+        modifier.shadow(14.dp, shape, clip = false).clip(shape).background(orbitFloatGround(look)).border(1.dp, orbitFloatEdge(look), shape)
+            .padding(MENU_PAD),
+    ) {
         if (now.title.isNotBlank()) {
             Row(Modifier.fillMaxWidth().height(HEADER_DP.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                DesktopArtwork(now.artworkUrl, Modifier.size(42.dp).clip(RoundedCornerShape(CosmoRadii.rSm)))
-                Spacer(Modifier.width(10.dp))
+                Disc(now.artworkUrl, 42.dp)
+                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(now.title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(now.artist, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(now.title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(now.artist, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            Divider()
+            Gap()
         }
         entries.forEach { entry ->
-            if (entry.separator) Divider() else MenuRow(entry, onClose)
+            if (entry.separator) Gap() else MenuRow(entry, onClose, fonts, look)
         }
     }
 }
 
+/** Where the system menu has a rule: a little air instead (Orbit draws no rules). */
 @Composable
-private fun Divider() {
-    Box(Modifier.fillMaxWidth().height(SEPARATOR_DP.dp).padding(horizontal = 8.dp, vertical = 4.dp)) {
-        Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.12f)))
-    }
+private fun Gap() {
+    Spacer(Modifier.fillMaxWidth().height(SEPARATOR_DP.dp))
 }
 
+/** One entry, as the Orbit popover draws its items: the icon and the title, the chip's fill under the pointer. */
 @Composable
-private fun MenuRow(entry: DesktopTrayMenu.Entry, onClose: () -> Unit) {
+private fun MenuRow(entry: DesktopTrayMenu.Entry, onClose: () -> Unit, fonts: OrbitFonts, look: OrbitLook) {
     val hover = remember { MutableInteractionSource() }
     val hovered by hover.collectIsHoveredAsState()
     Row(
-        Modifier.fillMaxWidth().height(ROW_DP.dp).clip(RoundedCornerShape(CosmoRadii.rSm))
-            .background(if (hovered) Color.White.copy(alpha = 0.10f) else Color.Transparent)
+        Modifier.fillMaxWidth().height(ROW_DP.dp).clip(RoundedCornerShape(16.dp))
+            .background(if (hovered) look.chip else Color.Transparent)
             .hoverable(hover)
             .clickable {
                 onClose()
                 entry.action?.let { EventQueue.invokeLater(it) }
             }
-            .padding(horizontal = 10.dp)
+            .padding(horizontal = 12.dp)
             .testTag("tray:item:${entry.label}"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(iconFor(entry), null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
+        Icon(iconFor(entry), null, tint = look.ink, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(12.dp))
-        Text(entry.label, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(entry.label, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
