@@ -29,8 +29,13 @@ class LibraryContractTest {
     @Test fun libraryScreenAndItsReplacementsTakeTheSameList() {
         val old = params(SourceContract.read(oldLibrary), "LibraryScreen")
         assertEquals(20, old.size, "the old screen's list was read (${old.size})")
-        assertEquals(old, params(lib("LibrarySwitch"), "LibrarySwitch"))
-        assertEquals(old, params(lib("CosmoLibrary"), "CosmoLibrary"))
+        // Orbit's Songs chip and the Liked card's Play add four, last and with defaults, for the new page only.
+        val orbit = listOf(
+            "currentSong: Song? = null", "isPlaying: Boolean = false",
+            "onSongClick: ((List<Song>, Int) -> Unit)? = null", "onSongLongPress: ((Song) -> Unit)? = null",
+        )
+        assertEquals(old + orbit, params(lib("LibrarySwitch"), "LibrarySwitch"))
+        assertEquals(old + orbit, params(lib("CosmoLibrary"), "CosmoLibrary"))
     }
 
     @Test fun libraryGridPageAndItsReplacementsTakeTheSameList() {
@@ -67,8 +72,14 @@ class LibraryContractTest {
         SourceContract.assertPassesEveryParameter(old, names)
     }
 
-    @Test fun bothBranchesOfLibrarySwitchPassEveryParameterByName() =
+    @Test fun bothBranchesOfLibrarySwitchPassEveryParameterByName() {
         checkSwitch(lib("LibrarySwitch"), "LibrarySwitch", "CosmoLibrary", "LibraryScreen", params(SourceContract.read(oldLibrary), "LibraryScreen"))
+        val (new, old) = branches(lib("LibrarySwitch"), "LibrarySwitch")
+        for (name in listOf("currentSong", "isPlaying", "onSongClick", "onSongLongPress")) {
+            assertTrue(Regex("""\b$name = $name\b""").containsMatchIn(new), "the new page gets $name")
+            assertFalse(Regex("""\b$name = $name\b""").containsMatchIn(old), "the old screen never had $name")
+        }
+    }
 
     @Test fun bothBranchesOfLibraryGridSwitchPassEveryParameterByName() =
         checkSwitch(lib("LibraryGridSwitch"), "LibraryGridSwitch", "CosmoLibraryGrid", "LibraryGridPage", params(SourceContract.read(oldLibrary), "LibraryGridPage"))
@@ -169,45 +180,53 @@ class LibraryContractTest {
         }
     }
 
-    @Test fun theLibraryHasFourChipsInOrderAndKeepsTheChosenOneAcrossRecreation() {
+    @Test fun theLibraryHasFiveChipsInTheBoardsOrderAndKeepsTheChosenOneAcrossRecreation() {
         val code = SourceContract.code(lib("CosmoLibrary"))
-        val labels = Regex("""stringResource\(Res\.string\.(\w+)\),\s*stringResource\(Res\.string\.(\w+)\),\s*stringResource\(Res\.string\.(\w+)\),\s*stringResource\(Res\.string\.(\w+)\)""").find(code)
-            ?: fail("the four segment labels are listed together")
-        assertEquals(listOf("playlists", "albums", "artists", "downloaded"), labels.groupValues.drop(1))
-        assertTrue(Regex("""var segmentIndex by rememberSaveable""").containsMatchIn(code), "the segment is saved")
-        // DESIGN_SYSTEM.md 6.1: a row of chips, the chosen one inverse, then the count, the order and the list or grid switch.
-        assertTrue("KitChipRow(labels, segment.ordinal, { segmentIndex = it }," in code, "the chips")
-        assertTrue("LibraryViewLine(" in code && "AppUi.host.setLibrarySort(option)" in code && "CosmoIcons.Grid" in code && "CosmoIcons.List" in code, "the order and the switch")
-        assertTrue("var gridSegments by rememberSaveable" in code, "each chip's list or grid is saved")
+        val chips = Regex("""^\s+(\w+)\("(\w+)", LibrarySegment\.\w+\)|^\s+(\w+)\("(\w+)", null\)""", RegexOption.MULTILINE).findAll(code)
+            .map { (it.groupValues[2] + it.groupValues[4]) }.toList()
+        assertEquals(listOf("Playlists", "Albums", "Artists", "Songs", "Downloaded"), chips, "the board's chips, in order")
+        assertTrue(Regex("""var segmentIndex by rememberSaveable""").containsMatchIn(code), "the chip is saved")
+        assertTrue("OrbitSelectChip(entry.label, selected = entry == chip," in code, "the chips are Orbit's")
+        assertTrue("AppUi.host.setLibrarySort(option)" in code && "CosmoIcons.Sort" in code, "the sort chip and its menu")
+        assertTrue("CosmoIcons.Grid" in code && "CosmoIcons.List" in code && "var listSegments by rememberSaveable" in code, "records or rows, saved per chip")
     }
 
-    @Test fun theHeadingIsTheLargeTitleAndTheNewPlaylistButtonIsATonal40DpIconButton() {
+    @Test fun theHeadingIsLibraryWithItsCountAndTheNewPlaylistButtonIsRound() {
         val code = SourceContract.code(lib("CosmoLibrary"))
-        assertTrue("CosmoPageHeader(title = stringResource(Res.string.library))" in code, "the light large title, which grows with the size class by itself")
-        assertTrue(Regex("""CosmoIconButton\(CosmoIcons\.Plus, stringResource\(Res\.string\.new_playlist\), onNewPlaylist, style = CosmoIconButtonStyle\.TONAL, size = 40\.dp\)""").containsMatchIn(code))
-        assertTrue("heading()" in SourceContract.code(SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/blocks/CosmoHeaders.kt")), "the title is a heading")
+        assertTrue("OrbitPageHeading(" in code && "title = \"Library\"" in code && "Your library · \$count items" in code, "Library. with a mono count")
+        assertTrue("OrbitRoundButton(CosmoIcons.Plus, stringResource(Res.string.new_playlist), page.look.ink, onClick = onNewPlaylist" in code)
         assertFalse(Regex("""\bif \(showTitle\)""").containsMatchIn(code), "the title shows on both platforms: showTitle is not read")
+    }
+
+    @Test fun likedSongsLeadsAsTheColourCardWithPlayInItsBiteBesideTheDownloadedCard() {
+        val code = SourceContract.code(lib("CosmoLibrary"))
+        val lead = SourceContract.functionBody(lib("CosmoLibrary"), "LeadCards")
+        assertTrue("OrbitBiteCard(fill = fill" in lead && "OrbitPlayButton(playing = false, onClick = play" in lead, "one card, Play in its bite")
+        assertTrue("coverFill(" in lead, "in its cover's colour")
+        assertTrue("onPlay(likedSongs, 0)" in lead && "liked?.let(onOpen)" in lead, "Play plays the liked songs, or opens the playlist")
+        assertTrue("Downloaded · on this device" in lead && "onClick = onDownloaded" in lead, "the quiet Downloaded card opens its chip")
+        assertTrue("AppUi.host.downloadedIds().size" in code)
     }
 
     @Test fun everyPlaylistRowHasTheMoreButtonAndAHoldThatOpenTheSameMenu() {
         val code = SourceContract.code(lib("CosmoLibrary"))
-        assertTrue(Regex("""icon = CosmoIcons\.MoreVertical,.*?onClick = onClick,.*?style = CosmoIconButtonStyle\.PLAIN,\s*size = 40\.dp""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(code), "the more button: three dots, PLAIN, 40 dp")
-        assertTrue("MoreButton { onLongPress(item) }" in code, "the more button opens what a hold opens")
+        assertTrue("MoreButton(page) { onLongPress(item) }" in code, "the more button opens what a hold opens")
         assertTrue("onLongPress = { onLongPress(item) }" in code, "a hold on a row opens the menu")
-        assertTrue("onLongClick = { onLongPress(mix) }" in code, "a hold on the mix tile opens the menu")
         assertTrue("contentDescription = stringResource(Res.string.more)" in code, "the more button is named")
         assertTrue("contentDescription = stringResource(Res.string.pinned)" in code, "the pin mark is named")
     }
 
     @Test fun thePlaylistsPageDrawsEachPlaylistOnceAndReadsThePinsFromTheHost() {
         val code = SourceContract.code(lib("CosmoLibrary"))
-        assertTrue("LibrarySegments.playlistLayout(" in code, "the tiles and the rows come from one split")
+        assertTrue("LibrarySegments.playlistLayout(" in code, "the card and the records come from one split")
+        assertTrue("listOfNotNull(layout.mix) + layout.rows" in code, "every playlist but the liked one is a record")
         assertTrue("AppUi.host.pinnedPlaylists.collectAsStateWithLifecycle()" in code)
         assertTrue("LibrarySegments.otherShelves(shelves)" in code, "podcasts and the other shelves stay as rails")
         assertTrue("LibrarySegments.RAIL_MAX_ITEMS" in code, "the old cap of five")
-        assertTrue(Regex("""KitQuickTile\(liked\.title""").containsMatchIn(code) && Regex("""KitQuickTile\(mix\.title""").containsMatchIn(code), "the liked and pinned playlists are quick tiles")
-        assertTrue(Regex("""leading = CosmoRowLeading\.IconPainter\(painterResource\(Res\.drawable\.spotify_logo\)\)""").containsMatchIn(code), "the Import row keeps the Spotify mark")
+        assertTrue("painter = painterResource(Res.drawable.spotify_logo)" in code, "the Import chip keeps the Spotify mark")
         assertTrue(Regex("""if \(onImportSpotifyPlaylist != null\)""").containsMatchIn(code), "Import only where this build has it")
+        assertTrue("DiscPlayMoon" in SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitBrowse.kt"), "records wear the play moon")
+        assertTrue("onPlay = { onClick(item) }" in code)
     }
 
     @Test fun theSignedOutAndTheLoadingAndTheErrorStatesAreKept() {
@@ -217,24 +236,27 @@ class LibraryContractTest {
         assertTrue(Regex("""message = stringResource\(Res\.string\.library_sign_in_description\)""").containsMatchIn(code), "signed out: the sign-in message")
         assertTrue("onAction = onSignIn" in code)
         // Downloaded is the device's own and does not wait for the account's library
-        val downloadedBranch = code.substringAfter("LibrarySegment.DOWNLOADED ->").substringBefore("else ->")
+        val downloadedBranch = code.substringAfter("LibraryChip.DOWNLOADED ->").substringBefore("else ->")
         assertTrue("downloadedSegment(" in downloadedBranch && "state" !in downloadedBranch.replace("onShelfItemClick", ""), "Downloaded does not read the library's state")
     }
 
-    @Test fun theDownloadedSegmentListsTheFoldersWithAChevronAndTheReleasesAsCards() {
+    @Test fun theDownloadedSegmentListsTheFoldersWithAChevronAndTheReleasesAsRecords() {
         val code = SourceContract.code(lib("CosmoLibrary"))
-        assertTrue("CosmoOverline(stringResource(Res.string.cosmo_library_folders))" in code)
-        assertTrue("CosmoOverline(stringResource(Res.string.on_device))" in code)
-        assertTrue("CosmoRowLeading.IconPainter(painterResource(link.logo))" in code && "CosmoRowLeading.Icon(link.icon)" in code, "a folder with a logo shows it")
-        assertTrue(Regex("""Icon\(CosmoIcons\.ChevronRight, contentDescription = null, tint = Color\(palette\.textTertiary\), modifier = Modifier\.size\(20\.dp\)\)""").containsMatchIn(code), "the chevron: 20 dp, textTertiary")
-        assertTrue(Regex("""CARD_GAP_ACROSS = 12\.dp""").containsMatchIn(code) && Regex("""CARD_GAP_DOWN = 20\.dp""").containsMatchIn(code), "DESIGN_SYSTEM.md 3.3, 4.8: 12 across, 20 down")
+        assertTrue("OrbitSectionHeader(stringResource(Res.string.cosmo_library_folders)" in code)
+        assertTrue("OrbitSectionHeader(stringResource(Res.string.on_device)" in code)
+        assertTrue("painterResource(it)" in code && "link.icon" in code, "a folder with a logo shows it")
+        assertTrue("CosmoIcons.ChevronRight" in code, "the chevron")
+        assertTrue(Regex("""recordGrid\("device"""").containsMatchIn(code))
     }
 
-    @Test fun theArtistsAreRoundCoversAndTheAlbumsAreCards() {
+    @Test fun theArtistsArePortraitsTheAlbumsRecordsAndTheSongsHomesRows() {
         val code = SourceContract.code(lib("CosmoLibrary"))
-        assertTrue("CosmoRowLeading.Cover(item.thumbnailUrl, circle = true)" in code)
-        assertTrue(Regex("""cardRows\("albums"""").containsMatchIn(code))
-        assertTrue("libraryGrid(maxWidth - CosmoSpacing.margin * 2).columns" in code, "wider windows take libraryGrid's columns")
+        assertTrue(Regex("""recordGrid\("albums"""").containsMatchIn(code))
+        assertTrue("recordGrid(\"artist\", items, onClick, onLongPress, page, portraits = true)" in code)
+        assertTrue("OrbitPortrait(" in code && "OrbitRecord(" in code && "OrbitSongRow(" in code)
+        assertTrue("library.librarySongs.ifEmpty { library.likedSongs }" in code, "Songs: the library's tracks")
+        assertTrue("playingRowMatcher(songs, currentSong)" in code, "only the played row lights")
+        assertTrue("orbitRecordGrid(maxWidth, side)" in code, "wider windows take more records to a row")
     }
 
     @Test fun theGridIsFixedColumnsFromLibraryGridWithTheOldSpacingAndALeadingCell() {

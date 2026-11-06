@@ -4979,6 +4979,11 @@ fun CosmotuneDesktopApp() {
                             links = libraryLinks,
                             deviceItems = libraryDeviceItems,
                             showTitle = false,
+                            // Orbit's Songs chip and the Liked card's Play.
+                            currentSong = playback.song,
+                            isPlaying = playback.isPlaying,
+                            onSongClick = { songs, index -> playSongs(songs, index, source = DesktopQueueSource(DesktopStrings["library", "Library"], PlaybackSourceType.BROWSE)) },
+                            onSongLongPress = ::openMenu,
                         )
                         destination == DesktopDestination.HISTORY -> DesktopHistoryPage(
                             // The account's history when there is one, and what

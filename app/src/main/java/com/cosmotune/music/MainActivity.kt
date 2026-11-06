@@ -3538,6 +3538,11 @@ private fun CosmotuneApp(
                             contentPadding = listPadding,
                             links = libraryLinks(),
                             deviceItems = libraryDeviceItems(downloadedReleases) + localPlaylistItems,
+                            // Orbit's Songs chip and the Liked card's Play.
+                            currentSong = player.song,
+                            isPlaying = player.isPlaying,
+                            onSongClick = { songs, index -> playFrom(songs, index, QueueSource(libraryLabel, PlaybackSourceType.BROWSE)) },
+                            onSongLongPress = openSongMenu,
                         )
                     }
                 }
