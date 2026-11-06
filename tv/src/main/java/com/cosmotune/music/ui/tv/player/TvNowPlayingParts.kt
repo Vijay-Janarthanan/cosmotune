@@ -236,7 +236,8 @@ internal fun TvNowPlayingStage(
                     .width(captionWidth)
                     .graphicsLayer {
                         alpha = captionShown
-                        translationY = lerp(0f, -ring.toPx() * (1f - sideScale), side)
+                        // The disc shrinks about its centre beside the lyrics, so its foot rises by half of what it loses.
+                        translationY = lerp(0f, -ring.toPx() * (1f - sideScale) / 2f, side)
                     },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {

@@ -121,7 +121,10 @@ fun TvNowPlayingScreen(
     }
 
     var lyricsHidden by rememberSaveable { mutableStateOf(false) }
-    val hasLyrics = !lyrics.isNullOrEmpty()
+    // Lyrics are looked up once the song's length is known, so until then (and for a live station, which has none) the lines on
+    // hand are the last song's: they are not shown.
+    val knownLength = durationMs > 0
+    val hasLyrics = knownLength && !lyrics.isNullOrEmpty()
     val showLyrics = hasLyrics && !lyricsHidden
 
     var controlsVisible by remember { mutableStateOf(true) }
@@ -275,7 +278,7 @@ fun TvNowPlayingScreen(
             durationMs = durationMs,
             lyrics = lyrics.orEmpty(),
             showLyrics = showLyrics,
-            lyricsLoading = !lyricsChecked && lyrics == null && !lyricsHidden,
+            lyricsLoading = knownLength && !lyricsChecked && lyrics == null && !lyricsHidden,
             controlsVisible = controlsVisible,
             onSeek = { mediaController?.seekTo(it) },
             modifier = Modifier.graphicsLayer { alpha = dim },
