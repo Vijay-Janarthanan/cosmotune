@@ -108,8 +108,22 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     val profileAction: (@Composable () -> Unit)? = if (shell != null && (mode == AppMode.MANGA || mode == AppMode.READ || mode == AppMode.PODIO || mode == AppMode.WATCH)) {
         { com.cosmotune.ui.chrome.PhoneModeProfileButton(shell.settings, mode) }
     } else null
+    // Live now, around every mode while the new look is on: the pill under each page's top bar, its sheet, and the reminders.
+    val liveContext = LocalContext.current
+    val liveSettings = com.cosmotune.ui.live.rememberLiveNowSettings()
+    val live = remember(shell, liveSettings, liveContext) {
+        shell?.let {
+            com.cosmotune.ui.live.LiveNowHost(
+                events = { com.cosmotune.music.watch.AndroidWatch.repository(liveContext).liveEvents() },
+                settings = liveSettings,
+                play = com.cosmotune.ui.live.watchModePlay(it.settings),
+            )
+        }
+    }
+    if (live != null) com.cosmotune.ui.live.LiveNowReminders(live)
     // The room, around every mode: "Play in room" on any page, the room icon, the full-screen room and its video ([RoomVideo]).
     com.cosmotune.music.ui.room.PhoneRoomRoot(RoomVideo) {
+    CompositionLocalProvider(com.cosmotune.ui.live.LocalLiveNow provides live, com.cosmotune.ui.live.LocalLiveNowInPage provides (live != null)) {
     CompositionLocalProvider(com.cosmotune.ui.blocks.LocalModeProfileAction provides profileAction) {
     CompositionLocalProvider(LocalModeLinks provides links?.takeIf { AppModes.available(AppMode.VIDEO) }) {
         // The same call tree whether the new look is on or off: the look switch must not rebuild Music's root (part one, D2).
@@ -159,6 +173,7 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
         // has one picture; the holder keeps what they saved, as on a mode flip.
         else if (RoomVideo.covered) Unit
         else holder.SaveableStateProvider("video") { PhoneVideo(videoShell, windowWidth, windowHeight, asked) }
+    }
     }
     }
     }

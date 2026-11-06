@@ -69,6 +69,12 @@ internal object DesktopAwtTray {
         }
     }
 
+    /** Shows a short message from the tray icon (a "Live now" reminder); false when there is no icon to show it from. */
+    fun notify(title: String, text: String): Boolean = synchronized(lock) {
+        val current = icon ?: return false
+        runCatching { current.displayMessage(title, text, TrayIcon.MessageType.INFO) }.isSuccess
+    }
+
     fun stop() {
         val remove = Runnable {
             synchronized(lock) {

@@ -165,6 +165,7 @@ fun OrbitHome(
             val side = if (wide) 28.dp else 16.dp
 
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
+                item(key = "orbit:live") { com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = side).padding(top = 10.dp)) }
                 item(key = "orbit:greeting") { OrbitGreeting(fonts, look, Modifier.padding(start = side + 6.dp, end = side, top = 18.dp)) }
 
                 if (currentSong != null || shelves.isNotEmpty()) item(key = "orbit:hero") {

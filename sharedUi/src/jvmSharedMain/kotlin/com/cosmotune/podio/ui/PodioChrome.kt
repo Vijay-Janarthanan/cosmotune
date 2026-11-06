@@ -73,6 +73,7 @@ internal val LocalPodioModeSwitcher = staticCompositionLocalOf { false }
                 val account = LocalModeProfileAction.current
                 if (account != null) account() else if (onMusic != null) PodioTextAction("Music", look, fonts, onMusic)
             }
+            com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = side).padding(top = 12.dp))
         }
         OrbitPageHeading(title, label, fonts, look, Modifier.padding(start = side + 4.dp, end = side, top = if (phone) 18.dp else 30.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)

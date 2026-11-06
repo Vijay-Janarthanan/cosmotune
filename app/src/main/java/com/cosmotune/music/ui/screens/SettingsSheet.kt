@@ -1673,6 +1673,12 @@ fun SettingsScreen(
                 ModeLinkRow(AppMode.VIDEO, Icons.Rounded.SmartDisplay, openVideoTitle, openVideoSummary)
             }
         }
+        // ---- Live now: the Live pill of every mode, the sports and the teams it follows (kept on this phone) ----
+        SearchableSettingsGroup(search, category = SettingsCategory.VIDEO, header = "Live now") {
+            row("Live pill", "live", "scores", "cricket", "football", "sports", "teams", summary = "The match or live show you follow, in every mode") {
+                com.cosmotune.ui.live.LiveNowSettingsSection()
+            }
+        }
         SearchableSettingsGroup(search, category = SettingsCategory.READ) {
             val openReadTitle = SettingsText.OPEN_READ.text()
             val openReadSummary = SettingsText.OPEN_READ_SUMMARY.text()
