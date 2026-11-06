@@ -305,18 +305,22 @@ internal fun OrbitSongRow(
     SwipeToDismissBox(
         state = state,
         modifier = modifier.then(faded).onSizeChanged { width = it.width.toFloat() },
-        backgroundContent = { SwipeUnder(fonts, look) },
+        backgroundContent = { SwipeUnder(state, fonts, look) },
     ) { row(Modifier) }
 }
 
-/** What a swipe uncovers: the row's own fill with what letting go does, at both ends. */
+/** What a swipe uncovers, only while the row is moving (the row's fill is see-through): what letting go does, on the side it shows. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeUnder(fonts: OrbitFonts, look: OrbitLook) {
+private fun SwipeUnder(state: SwipeToDismissBoxState, fonts: OrbitFonts, look: OrbitLook) {
+    val direction = state.dismissDirection
+    if (direction == SwipeToDismissBoxValue.Settled) return
     val playNext by AppUi.host.swipeToPlayNext.collectAsStateWithLifecycle()
-    val label = if (playNext) "Play next" else "Add to queue"
     Box(Modifier.fillMaxSize().clip(RoundedCornerShape(22.dp)).background(look.chip).padding(horizontal = 20.dp)) {
-        Text(label, style = fonts.chip, color = look.ink, modifier = Modifier.align(Alignment.CenterStart))
-        Text(label, style = fonts.chip, color = look.ink, modifier = Modifier.align(Alignment.CenterEnd))
+        Text(
+            if (playNext) "Play next" else "Add to queue", style = fonts.chip, color = look.ink,
+            modifier = Modifier.align(if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd),
+        )
     }
 }
 
@@ -383,8 +387,8 @@ internal fun OrbitPortrait(
 
 /**
  * A mood or a genre as a colour tile: radius 26, 110 dp tall, filled with the deep form of YouTube's stripe colour for it (or
- * the colour of its cover while there is none), the title in the wide face at the top, and its cover as a disc peeking out of
- * the bottom-end corner, clear of the title.
+ * the colour of its cover while there is none), the title in the wide face at the top (two lines at most), and its cover as a
+ * disc peeking out of the bottom-end corner, below the title.
  */
 @Composable
 internal fun OrbitMoodTile(
@@ -398,13 +402,14 @@ internal fun OrbitMoodTile(
 ) {
     val (fill, ink) = if (stripe != null) vivid(stripe.toInt()).let { it.fill to it.ink } else coverFill(cover, title)
     Box(modifier.height(110.dp).clip(RoundedCornerShape(26.dp)).background(fill).clickable(onClick = onClick)) {
+        // Two lines at most, above the disc: the words never stand on the cover.
         Text(
-            title, style = fonts.section.copy(fontSize = 19.sp, lineHeight = 22.sp), color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 64.dp),
+            title, style = fonts.section.copy(fontSize = 17.sp, lineHeight = 20.sp), color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp),
         )
-        val disc = Modifier.align(Alignment.BottomEnd).offset(x = 18.dp, y = 18.dp)
-        if (cover != null) Disc(cover, 86.dp, disc)
-        else Box(disc.size(86.dp).clip(CircleShape).background(ink.copy(alpha = 0.16f)))
+        val disc = Modifier.align(Alignment.BottomEnd).offset(x = 20.dp, y = 22.dp)
+        if (cover != null) Disc(cover, 76.dp, disc)
+        else Box(disc.size(76.dp).clip(CircleShape).background(ink.copy(alpha = 0.16f)))
     }
 }
 
