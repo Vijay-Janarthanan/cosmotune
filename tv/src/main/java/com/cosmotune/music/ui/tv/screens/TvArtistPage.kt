@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -320,21 +321,20 @@ private fun TvArtistHero(
                 Text(
                     text = name,
                     style = TvType.LargeTitle.copy(fontSize = 39.sp, lineHeight = 44.sp, fontWeight = FontWeight.W800),
-                    color = Color.White,
+                    color = TvGlass.Ink,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             if (stats.isNotBlank()) {
                 Spacer(Modifier.height(5.dp))
-                Text(text = stats, style = TvType.Callout, color = Color.White.copy(alpha = 0.72f), maxLines = 1)
+                Text(text = stats, style = TvType.Callout, color = TvGlass.Ink.copy(alpha = 0.72f), maxLines = 1)
             }
             Spacer(Modifier.height(16.dp))
             TvActionRow(
                 canPlay = canPlay,
                 onPlay = onPlay,
                 onShuffle = onShuffle,
-                playColor = appleArt?.keyColor?.let { Color(it) },
                 subscribed = subscribed,
                 onToggleSubscription = onToggleSubscription,
                 onFocused = onActionsFocused,
@@ -361,14 +361,14 @@ private fun TvLatestRelease(item: ShelfItem, onClick: () -> Unit, modifier: Modi
     Row(
         modifier = modifier
             .width(432.dp)
-            .tvLift(interaction, RoundedCornerShape(13.dp), focusedScale = 1.04f, elevation = 14.dp)
+            .tvLift(interaction, RoundedCornerShape(26.dp), focusedScale = 1.02f)
             .tvPlatter(interaction, resting = TvGlass.Fill)
             .tvClick(interaction, onClick = onClick)
             .padding(11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        TvArtwork(url = item.thumbnailUrl, shape = RoundedCornerShape(8.dp), modifier = Modifier.size(106.dp))
+        TvArtwork(url = item.thumbnailUrl, shape = CircleShape, modifier = Modifier.size(106.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.title,
@@ -402,7 +402,7 @@ private fun TvAbout(text: String?, stats: List<String>, modifier: Modifier = Mod
         modifier = modifier
             .widthIn(max = 656.dp)
             .heightIn(min = 42.dp)
-            .tvLift(interaction, RoundedCornerShape(13.dp), focusedScale = 1.02f, elevation = 11.dp)
+            .tvLift(interaction, RoundedCornerShape(13.dp), focusedScale = 1.02f)
             .tvPlatter(interaction, resting = Color.Transparent)
             .tvClick(interaction, onClick = { expanded = !expanded })
             .padding(13.dp),

@@ -4,7 +4,6 @@
  */
 package com.cosmotune.music.ui.tv.components
 
-import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -46,7 +45,6 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,211 +53,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil3.SingletonImageLoader
-import coil3.request.ImageRequest
-import coil3.request.SuccessResult
-import coil3.request.allowHardware
-import coil3.toBitmap
-import com.cosmotune.music.data.model.artworkAt
 import com.cosmotune.music.ui.tv.theme.TvGlass
+import com.cosmotune.music.ui.tv.theme.TvThemeColors
 import com.cosmotune.music.ui.tv.theme.TvType
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Artwork colour
-// ─────────────────────────────────────────────────────────────────────────────
-
-private val cardColorCache = androidx.collection.LruCache<String, Color>(300)
-
-/**
- * A deep, saturated colour taken from the artwork — the footer of a Top Picks
- * card and the tint of the canvas behind everything. Decodes a 24px copy through
- * the app's shared loader, so the disk cache already holding the cover serves it.
- */
-@Composable
-fun rememberDominantCardColor(artworkUrl: String?, defaultColor: Color = Color(0xFF2C2D31)): Color {
-    val context = LocalContext.current
-    var color by remember(artworkUrl) {
-        mutableStateOf(artworkUrl?.let { cardColorCache.get(it) } ?: defaultColor)
-    }
-    LaunchedEffect(artworkUrl) {
-        if (artworkUrl.isNullOrBlank()) {
-            color = defaultColor
-            return@LaunchedEffect
-        }
-        cardColorCache.get(artworkUrl)?.let {
-            color = it
-            return@LaunchedEffect
-        }
-        val extracted = withContext(Dispatchers.IO) {
-            runCatching {
-                val request = ImageRequest.Builder(context)
-                    .data(artworkUrl.artworkAt(120) ?: artworkUrl)
-                    .size(24, 24)
-                    .allowHardware(false)
-                    .build()
-                val result = SingletonImageLoader.get(context).execute(request)
-                (result as? SuccessResult)?.image?.toBitmap()?.let(::sampleDominantColor)
-            }.getOrNull()
-        } ?: return@LaunchedEffect
-        cardColorCache.put(artworkUrl, extracted)
-        color = extracted
-    }
-    return color
-}
-
-private fun sampleDominantColor(bitmap: Bitmap): Color {
-    var r = 0L
-    var g = 0L
-    var b = 0L
-    var weight = 0L
-    for (x in 0 until bitmap.width) {
-        for (y in 0 until bitmap.height) {
-            val pixel = bitmap.getPixel(x, y)
-            if ((pixel ushr 24) < 100) continue
-            val pr = (pixel shr 16) and 0xff
-            val pg = (pixel shr 8) and 0xff
-            val pb = pixel and 0xff
-            // Colourful pixels count for more than greys, so a cover with a
-            // splash of colour on white doesn't average out to beige.
-            val chroma = maxOf(pr, pg, pb) - minOf(pr, pg, pb)
-            val w = 1L + chroma / 16
-            r += pr * w
-            g += pg * w
-            b += pb * w
-            weight += w
-        }
-    }
-    if (weight == 0L) return Color(0xFF2C2D31)
-    val hsv = FloatArray(3)
-    android.graphics.Color.RGBToHSV((r / weight).toInt(), (g / weight).toInt(), (b / weight).toInt(), hsv)
-    hsv[1] = (hsv[1] * 1.3f).coerceIn(0.30f, 0.80f)
-    hsv[2] = 0.38f
-    return Color(android.graphics.Color.HSVToColor(hsv))
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Cards
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * The Apple Music "Top Picks" card: artwork over a footer tinted from it, title
- * and subtitle centred in the footer, an optional caption above the card.
- */
-@Composable
-fun TvCard(
-    title: String,
-    subtitle: String?,
-    artworkUrl: String?,
-    modifier: Modifier = Modifier,
-    cardWidth: Dp = 160.dp,
-    categoryLabel: String? = null,
-    aspectRatio: Float = 1.0f,
-    isCircle: Boolean = false,
-    isPlaying: Boolean = false,
-    badge: String? = null,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-) {
-    if (isCircle) {
-        TvLockup(
-            title = title,
-            subtitle = subtitle,
-            artworkUrl = artworkUrl,
-            onClick = onClick,
-            onLongClick = onLongClick,
-            width = cardWidth,
-            circle = true,
-            modifier = modifier,
-        )
-        return
-    }
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val footer = animateColorAsState(
-        targetValue = rememberDominantCardColor(artworkUrl),
-        animationSpec = tween(300),
-        label = "cardFooter",
-    )
-
-    Column(modifier = modifier.width(cardWidth)) {
-        if (!categoryLabel.isNullOrBlank()) {
-            Text(
-                text = categoryLabel,
-                style = TvType.Caption,
-                color = if (focused) TvGlass.TextPrimary else TvGlass.TextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .tvLift(interaction, RoundedCornerShape(11.dp), focusedScale = 1.07f, elevation = 18.dp)
-                .tvClick(interaction, onLongClick = onLongClick, onClick = onClick)
-                .drawBehind { drawRect(footer.value) },
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(aspectRatio),
-            ) {
-                TvArtwork(url = artworkUrl, shape = RectangleShape, modifier = Modifier.fillMaxSize())
-                if (isPlaying) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(8.dp)
-                            .size(21.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.55f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        TvMiniEqualizer(isPlaying = true, barColor = Color.White, maxHeight = 9.dp)
-                    }
-                }
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(if (subtitle.isNullOrBlank()) 42.dp else 51.dp)
-                    .padding(horizontal = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = title,
-                    style = TvType.CardTitle.copy(fontWeight = FontWeight.W600),
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                )
-                if (!subtitle.isNullOrBlank()) {
-                    Text(
-                        text = subtitle,
-                        style = TvType.Caption,
-                        color = Color.White.copy(alpha = 0.74f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-        }
-    }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Buttons
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The tvOS button: a translucent rounded platter that turns white and lifts on
- * focus. [isPrimary] only brightens the resting fill — on tvOS focus, not colour,
- * is what tells the buttons apart.
+ * A button: an Orbit pill at ink 8 % (a touch brighter when [isPrimary]) that
+ * turns to solid ink, ground text on it, with the peach ring when focused.
  */
 @Composable
 fun TvButton(
@@ -275,32 +79,32 @@ fun TvButton(
     val focused by interaction.collectIsFocusedAsState()
     val content = when {
         !enabled -> TvGlass.TextTertiary
-        destructive -> TvGlass.Destructive
         focused -> TvGlass.OnPlatter
+        destructive -> TvGlass.Destructive
         else -> TvGlass.TextPrimary
     }
     Row(
         modifier = modifier
-            .heightIn(min = 37.dp)
-            .tvLift(interaction, RoundedCornerShape(10.dp), focusedScale = 1.06f, elevation = 11.dp)
+            .heightIn(min = 44.dp)
+            .tvLift(interaction, CircleShape, focusedScale = 1.03f, ringGap = 3.dp)
             .tvPlatter(
                 interaction,
                 resting = when {
-                    !enabled -> Color.White.copy(alpha = 0.05f)
+                    !enabled -> TvGlass.Row
                     isPrimary -> TvGlass.FillStrong
                     else -> TvGlass.Fill
                 },
             )
             .tvClick(interaction, enabled = enabled, onClick = onClick)
-            .padding(horizontal = 21.dp, vertical = 9.dp),
+            .padding(horizontal = 22.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         if (icon != null) {
-            Icon(imageVector = icon, contentDescription = null, tint = content, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(7.dp))
+            Icon(imageVector = icon, contentDescription = null, tint = content, modifier = Modifier.size(17.dp))
+            Spacer(modifier = Modifier.width(8.dp))
         }
-        Text(text = text, style = TvType.Body.copy(fontWeight = FontWeight.W600), color = content, maxLines = 1)
+        Text(text = text, style = TvType.Body.copy(fontWeight = FontWeight.W700), color = content, maxLines = 1)
     }
 }
 
@@ -409,7 +213,7 @@ fun TvDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = progress }
-                .background(Color(0xF2111113)),
+                .background(TvThemeColors.current.ground.copy(alpha = 0.96f)),
             contentAlignment = Alignment.Center,
         ) {
             Column(

@@ -95,6 +95,8 @@ import com.cosmotune.music.ui.screens.MoodGenreSleeve
 import com.cosmotune.music.ui.tv.theme.TvDimensions
 import com.cosmotune.music.ui.tv.theme.TvGlass
 import com.cosmotune.music.ui.tv.theme.TvType
+import com.cosmotune.ui.orbit.OrbitRing
+import androidx.compose.ui.graphics.Brush
 import kotlin.math.floor
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -105,17 +107,17 @@ private val LiftSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 420f)
 private val LiftDpSpring = spring<Dp>(dampingRatio = 1f, stiffness = 420f)
 
 /**
- * tvOS focus: the focused element lifts towards the viewer — it grows and casts
- * a soft shadow — and is never outlined. Scale and shadow live on one render
- * layer and are read in the draw phase, so focus moves cost no recomposition of
- * anything beneath this modifier.
+ * Orbit focus on the TV: the thick peach ring a little outside the focused
+ * element ([drawFocusRing]), and a slight growth. Ring and content scale on one
+ * outer layer; the content is clipped to [shape] on an inner one. Everything is
+ * read in the draw phase, so focus moves cost no recomposition beneath this.
  */
 @Composable
 fun Modifier.tvLift(
     interactionSource: MutableInteractionSource,
     shape: Shape,
-    focusedScale: Float = 1.08f,
-    elevation: Dp = 14.dp,
+    focusedScale: Float = 1.04f,
+    ringGap: Dp = RingGap,
 ): Modifier {
     val focused by interactionSource.collectIsFocusedAsState()
     val pressed by interactionSource.collectIsPressedAsState()
@@ -131,22 +133,18 @@ fun Modifier.tvLift(
         animationSpec = LiftSpring,
         label = "tvLiftScale",
     )
-    val shadow = animateDpAsState(
-        targetValue = if (focused && !pressed) elevation else 0.dp,
-        animationSpec = LiftDpSpring,
-        label = "tvLiftShadow",
-    )
+    val ring = animateFloatAsState(if (focused) 1f else 0f, tween(120), label = "tvLiftRing")
     return this
         .focusRequester(requester)
         .zIndex(if (focused) 1f else 0f)
         .graphicsLayer {
             scaleX = scale.value
             scaleY = scale.value
-            shadowElevation = shadow.value.toPx()
+        }
+        .drawBehind { drawFocusRing(shape, ring.value, ringGap) }
+        .graphicsLayer {
             this.shape = shape
             clip = true
-            ambientShadowColor = Color.Black
-            spotShadowColor = Color.Black
         }
 }
 
@@ -214,6 +212,9 @@ class TvChrome {
 
     /** Whatever lifted element last had focus — read when a page is pushed, so Back can return to it. */
     var lastFocused: FocusRequester? = null
+
+    /** Focus is in the page rather than the chips at the top: the shelves it is not in step back ([TvShelf]). */
+    var pageFocused by mutableStateOf(false)
 }
 
 val LocalTvChrome = staticCompositionLocalOf { TvChrome() }
@@ -406,7 +407,7 @@ fun TvArtwork(
         Icon(
             imageVector = glyph,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.22f),
+            tint = TvGlass.Ink.copy(alpha = 0.22f),
             modifier = Modifier.fillMaxSize(0.34f),
         )
         if (!model.isNullOrBlank()) {
@@ -421,9 +422,11 @@ fun TvArtwork(
 }
 
 /**
- * The tvOS lockup: artwork that lifts on focus with its caption below. The
- * caption is never on a platter; it brightens and steps down out of the way
- * of the grown artwork instead.
+ * A cover with its caption below (Orbit rule 1): a song, album, playlist or
+ * artist is a disc; anything that is not square (a video, a mood) keeps its
+ * shape with rounded corners. Focus puts the peach ring round it; the caption
+ * brightens and steps down out of the ring's way. [now] is the playing item: its
+ * disc wears the orbit.
  */
 @Composable
 fun TvLockup(
@@ -435,44 +438,53 @@ fun TvLockup(
     width: Dp = 128.dp,
     circle: Boolean = false,
     aspectRatio: Float = 1f,
+    now: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     overlay: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val shape = if (circle) CircleShape else RoundedCornerShape(10.dp)
-    val captionDrop = animateDpAsState(if (focused) 7.dp else 0.dp, LiftDpSpring, label = "captionDrop")
+    val disc = circle || aspectRatio == 1f
+    val shape = if (disc) CircleShape else RoundedCornerShape(18.dp)
+    val captionDrop = animateDpAsState(if (focused) 9.dp else 0.dp, LiftDpSpring, label = "captionDrop")
 
     Column(
         // Dp.Unspecified fills the cell it's given — a grid column rather than a shelf slot.
         modifier = modifier.then(if (width != Dp.Unspecified) Modifier.width(width) else Modifier.fillMaxWidth()),
         horizontalAlignment = if (circle) Alignment.CenterHorizontally else Alignment.Start,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(aspectRatio)
-                .tvLift(interaction, shape)
-                .tvClick(interaction, onLongClick = onLongClick, onClick = onClick),
-        ) {
-            TvArtwork(
-                url = artworkUrl,
-                shape = shape,
-                modifier = Modifier.fillMaxSize(),
-            )
-            overlay?.invoke(this)
+        Box(modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (now) Modifier.padding(7.dp) else Modifier)
+                    .tvLift(interaction, shape, ringGap = if (now) 9.dp else RingGap)
+                    .tvClick(interaction, onLongClick = onLongClick, onClick = onClick),
+            ) {
+                TvArtwork(
+                    url = artworkUrl,
+                    shape = shape,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                overlay?.invoke(this)
+            }
+            if (now && disc) {
+                androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+                    OrbitRing(maxWidth, TvGlass.Peach, progress = null, spinning = true, stroke = 2.dp, moon = 4.dp)
+                }
+            }
         }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { translationY = captionDrop.value.toPx() }
-                .padding(top = 8.dp),
+                .padding(top = 10.dp),
             horizontalAlignment = if (circle) Alignment.CenterHorizontally else Alignment.Start,
         ) {
             Text(
                 text = title,
                 style = TvType.CardTitle,
-                color = if (focused) TvGlass.TextPrimary else TvGlass.TextPrimary.copy(alpha = 0.86f),
+                color = if (now) TvGlass.Peach else if (focused) TvGlass.TextPrimary else TvGlass.TextPrimary.copy(alpha = 0.88f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = if (circle) TextAlign.Center else TextAlign.Start,
@@ -508,18 +520,19 @@ fun TvShelfTitle(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = TvType.Headline,
-                color = TvGlass.TextPrimary.copy(alpha = 0.88f),
+                style = TvType.Section,
+                color = TvGlass.TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
-                    style = TvType.Caption,
+                    style = TvType.Callout,
                     color = TvGlass.TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
                 )
             }
         }
@@ -529,8 +542,9 @@ fun TvShelfTitle(
 
 /**
  * A titled horizontal shelf. Rows run edge to edge — the first card starts at the
- * safe margin and the rest bleed off the right edge, as on Apple TV — with room
- * above and below for a lifted card's growth and shadow.
+ * safe margin and the rest bleed off the right edge — with room above and below
+ * for the focus ring. One row is in focus at a time: while focus is in a page,
+ * the shelves it is not in step back.
  */
 @Composable
 fun <T> TvShelf(
@@ -544,7 +558,15 @@ fun <T> TvShelf(
     trailing: (@Composable RowScope.() -> Unit)? = null,
     itemContent: @Composable (T) -> Unit,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
+    val chrome = LocalTvChrome.current
+    var focused by remember { mutableStateOf(false) }
+    val alpha by animateFloatAsState(if (focused || !chrome.pageFocused) 1f else 0.55f, tween(220), label = "shelfFocus")
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .onFocusChanged { focused = it.hasFocus }
+            .graphicsLayer { this.alpha = alpha },
+    ) {
         TvShelfTitle(title = title, subtitle = subtitle, trailing = trailing)
         TvRow(
             items = items,
@@ -562,9 +584,9 @@ fun <T> TvShelf(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * One segment of the tab bar or a segmented control. Focus inverts it to the
- * white platter; the selected segment keeps a lighter capsule while focus is
- * elsewhere.
+ * An Orbit chip, for the chips at the top and for filters: 40 dp, ink at 8 %;
+ * the selected one is solid ink with ground-coloured text. Focus is the peach
+ * ring round it.
  */
 @Composable
 fun TvTabPill(
@@ -578,31 +600,33 @@ fun TvTabPill(
     val focused by interactionSource.collectIsFocusedAsState()
     Row(
         modifier = modifier
-            // No growth on focus: a segment that scaled would pull its rounded
-            // ends off-centre from the capsule around it.
-            .height(29.dp)
-            .tvLift(interactionSource, CircleShape, focusedScale = 1f, elevation = 0.dp)
-            .tvPlatter(interactionSource, resting = if (selected) TvGlass.FillSelected else Color.Transparent)
+            .height(40.dp)
+            .tvLift(interactionSource, CircleShape, focusedScale = 1f, ringGap = 3.dp)
+            .tvPlatter(
+                interactionSource,
+                resting = if (selected) TvGlass.Ink else TvGlass.Fill,
+                focused = if (selected) TvGlass.Ink else TvGlass.FillSelected,
+            )
             .tvClick(interactionSource, onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(start = if (leading != null) 12.dp else 18.dp, end = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         leading?.invoke()
         Text(
             text = label,
             style = TvType.Tab,
             color = when {
-                focused -> TvGlass.OnPlatter
-                selected -> TvGlass.TextPrimary
-                else -> TvGlass.TextPrimary.copy(alpha = 0.66f)
+                selected -> TvGlass.OnPlatter
+                focused -> TvGlass.TextPrimary
+                else -> TvGlass.TextPrimary.copy(alpha = 0.86f)
             },
             maxLines = 1,
         )
     }
 }
 
-/** A round icon segment, for Search and Settings at the end of the tab bar. */
+/** A round chip with a glyph, for Now Playing and Settings at the end of the chips. */
 @Composable
 fun TvTabIcon(
     icon: ImageVector,
@@ -612,29 +636,28 @@ fun TvTabIcon(
     modifier: Modifier = Modifier,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
-    val focused by interactionSource.collectIsFocusedAsState()
     Box(
         modifier = modifier
-            .size(29.dp)
-            .tvLift(interactionSource, CircleShape, focusedScale = 1f, elevation = 0.dp)
-            .tvPlatter(interactionSource, resting = if (selected) TvGlass.FillSelected else Color.Transparent)
+            .size(40.dp)
+            .tvLift(interactionSource, CircleShape, focusedScale = 1f, ringGap = 3.dp)
+            .tvPlatter(
+                interactionSource,
+                resting = if (selected) TvGlass.Ink else TvGlass.Fill,
+                focused = if (selected) TvGlass.Ink else TvGlass.FillSelected,
+            )
             .tvClick(interactionSource, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = when {
-                focused -> TvGlass.OnPlatter
-                selected -> TvGlass.TextPrimary
-                else -> TvGlass.TextPrimary.copy(alpha = 0.66f)
-            },
-            modifier = Modifier.size(15.dp),
+            tint = if (selected) TvGlass.OnPlatter else TvGlass.TextPrimary,
+            modifier = Modifier.size(19.dp),
         )
     }
 }
 
-/** A capsule of [TvTabPill]s, for filters and two-or-three-way choices. */
+/** A run of [TvTabPill]s, for filters and two-or-three-way choices. */
 @Composable
 fun TvSegmented(
     options: List<String>,
@@ -643,11 +666,8 @@ fun TvSegmented(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .clip(CircleShape)
-            .background(TvGlass.Bar)
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         options.forEachIndexed { index, label ->
@@ -660,9 +680,13 @@ fun TvSegmented(
     }
 }
 
+/** A row's fill while it has focus: a step up from [TvGlass.Row], the ring doing the rest. */
+private val RowFocused = TvGlass.Ink.copy(alpha = 0.13f)
+
 /**
- * The tvOS list row, as in Settings and in action menus: title on the left,
- * the current value or a glyph on the right, and a white platter on focus.
+ * An Orbit row, as in Settings and in action menus (rule 8): radius 22, ink at
+ * 5 %, the title on the left, the current value or a glyph on the right. Focus
+ * brightens it and puts the peach ring round it.
  */
 @Composable
 fun TvListRow(
@@ -675,7 +699,7 @@ fun TvListRow(
     trailingIcon: ImageVector? = null,
     destructive: Boolean = false,
     enabled: Boolean = true,
-    resting: Color = Color.White.copy(alpha = 0.06f),
+    resting: Color = TvGlass.Row,
     onFocused: (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -685,31 +709,29 @@ fun TvListRow(
     }
     val titleColor = when {
         !enabled -> TvGlass.TextTertiary
-        focused && destructive -> TvGlass.Destructive
-        focused -> TvGlass.OnPlatter
         destructive -> TvGlass.Destructive
         else -> TvGlass.TextPrimary
     }
-    val secondaryColor = if (focused) TvGlass.OnPlatterSecondary else TvGlass.TextSecondary
+    val secondaryColor = TvGlass.TextSecondary
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 42.dp)
-            .tvLift(interaction, RoundedCornerShape(11.dp), focusedScale = 1.03f, elevation = 11.dp)
-            .tvPlatter(interaction, resting = resting)
+            .heightIn(min = 52.dp)
+            .tvLift(interaction, RoundedCornerShape(22.dp), focusedScale = 1.01f)
+            .tvPlatter(interaction, resting = resting, focused = RowFocused)
             .tvClick(interaction, enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(11.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (leadingIcon != null) {
-            Icon(
-                imageVector = leadingIcon,
-                contentDescription = null,
-                tint = if (focused) TvGlass.OnPlatter else titleColor,
-                modifier = Modifier.size(18.dp),
-            )
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(TvGlass.Fill),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(imageVector = leadingIcon, contentDescription = null, tint = titleColor, modifier = Modifier.size(17.dp))
+            }
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -749,20 +771,22 @@ fun TvListRow(
     }
 }
 
-/** Uppercase-free tvOS group header above a run of [TvListRow]s. */
+/** A group's heading above a run of [TvListRow]s: the mono label. */
 @Composable
 fun TvListHeader(title: String, modifier: Modifier = Modifier) {
     Text(
-        text = title,
-        style = TvType.Caption.copy(fontSize = 12.sp),
+        text = title.uppercase(),
+        style = TvType.Label,
         color = TvGlass.TextSecondary,
-        modifier = modifier.padding(start = 16.dp, top = 14.dp, bottom = 6.dp),
+        modifier = modifier.padding(start = 18.dp, top = 16.dp, bottom = 8.dp),
     )
 }
 
 /**
- * A track in an album, playlist or library list: number (or artwork), title and
- * artist, duration. Long-press opens the song's actions.
+ * The Orbit song row (rule 8) for an album, playlist or library list: a disc (or
+ * the track number) at the start, title over artist, the length at the end. The
+ * playing song has the peach wash, a peach title and the orbit round its disc.
+ * Long-press opens the song's actions.
  */
 @Composable
 fun TvSongRow(
@@ -776,45 +800,39 @@ fun TvSongRow(
     onLongClick: (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val primary = if (focused) TvGlass.OnPlatter else TvGlass.TextPrimary
-    val secondary = if (focused) TvGlass.OnPlatterSecondary else TvGlass.TextSecondary
+    val wash = if (isCurrent) Brush.horizontalGradient(listOf(TvGlass.Peach.copy(alpha = 0.26f), TvGlass.Row)) else null
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(if (showArtwork) 48.dp else 42.dp)
-            .tvLift(interaction, RoundedCornerShape(10.dp), focusedScale = 1.025f, elevation = 10.dp)
-            .tvPlatter(interaction, resting = Color.Transparent)
+            .height(if (showArtwork) 60.dp else 52.dp)
+            .tvLift(interaction, RoundedCornerShape(22.dp), focusedScale = 1.01f)
+            .tvPlatter(interaction, resting = if (wash != null) Color.Transparent else TvGlass.Row, focused = RowFocused)
+            .then(if (wash != null) Modifier.background(wash) else Modifier)
             .tvClick(interaction, onLongClick = onLongClick, onClick = onClick)
-            .padding(horizontal = 11.dp),
+            .padding(start = 8.dp, end = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(11.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (showArtwork) {
-            TvArtwork(
-                url = song.thumbnailUrl,
-                px = 160,
-                shape = RoundedCornerShape(5.dp),
-                modifier = Modifier.size(34.dp),
-            )
+            Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                TvArtwork(url = song.thumbnailUrl, px = 160, shape = CircleShape, modifier = Modifier.size(40.dp))
+                if (isCurrent) OrbitRing(48.dp, TvGlass.Peach, progress = null, spinning = isPlaying, stroke = 1.5.dp, moon = 3.dp)
+            }
         } else {
-            Box(modifier = Modifier.width(21.dp), contentAlignment = Alignment.CenterStart) {
+            Box(modifier = Modifier.width(30.dp), contentAlignment = Alignment.Center) {
                 if (isCurrent) {
-                    TvMiniEqualizer(
-                        isPlaying = isPlaying,
-                        barColor = if (focused) TvGlass.OnPlatter else TvGlass.AppleRed,
-                    )
+                    TvMiniEqualizer(isPlaying = isPlaying, barColor = TvGlass.Peach)
                 } else if (number != null) {
-                    Text(text = number.toString(), style = TvType.Callout, color = secondary)
+                    Text(text = number.toString(), style = TvType.Label, color = TvGlass.TextSecondary)
                 }
             }
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
-                style = TvType.Body.copy(fontSize = 13.sp),
-                color = if (isCurrent && !focused) TvGlass.AppleRed else primary,
+                style = TvType.Body,
+                color = if (isCurrent) TvGlass.Peach else TvGlass.TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -822,7 +840,7 @@ fun TvSongRow(
                 Text(
                     text = song.artist,
                     style = TvType.Caption,
-                    color = secondary,
+                    color = TvGlass.TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -830,7 +848,7 @@ fun TvSongRow(
         }
         val duration = song.durationText
         if (!duration.isNullOrBlank()) {
-            Text(text = duration, style = TvType.Caption, color = secondary)
+            Text(text = duration, style = TvType.Label, color = TvGlass.TextSecondary)
         }
     }
 }
@@ -851,7 +869,7 @@ fun TvMoodCard(
         titleStyle = TvType.Body.copy(fontSize = 14.sp),
         modifier = modifier
             .aspectRatio(MOOD_CARD_ASPECT)
-            .tvLift(interaction, RoundedCornerShape(13.dp), focusedScale = 1.07f)
+            .tvLift(interaction, RoundedCornerShape(13.dp), focusedScale = 1.04f)
             .tvClick(interaction, onClick = onClick),
     )
 }
@@ -865,7 +883,7 @@ fun TvMoodCard(
 fun TvActivityIndicator(
     modifier: Modifier = Modifier,
     size: Dp = 24.dp,
-    color: Color = Color.White,
+    color: Color = TvGlass.Ink,
 ) {
     val transition = rememberInfiniteTransition(label = "tvSpinner")
     val step = transition.animateFloat(
@@ -904,9 +922,9 @@ fun TvShelfPlaceholder(
         Box(
             modifier = Modifier
                 .padding(horizontal = TvDimensions.SafeMarginHorizontal)
-                .size(width = 144.dp, height = 14.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(Color.White.copy(alpha = 0.06f)),
+                .size(width = 160.dp, height = 18.dp)
+                .clip(CircleShape)
+                .background(TvGlass.Row),
         )
         Spacer(modifier = Modifier.height(14.dp))
         Row(
@@ -918,8 +936,8 @@ fun TvShelfPlaceholder(
                     modifier = Modifier
                         .width(width)
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.White.copy(alpha = 0.06f)),
+                        .clip(CircleShape)
+                        .background(TvGlass.Row),
                 )
             }
         }
@@ -931,8 +949,8 @@ fun TvShelfPlaceholder(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The tvOS text field: a translucent rounded field that turns into the white
- * platter, dark text on it, while focused. Typing goes through the system's TV
+ * The text field: an Orbit pill at ink 8 % that turns to solid ink, ground text
+ * on it, with the peach ring while focused. Typing goes through the system's TV
  * keyboard.
  */
 @Composable
@@ -982,12 +1000,12 @@ fun TvTextField(
                 }
             }
             .fillMaxWidth()
-            .height(43.dp)
-            .tvLift(interaction, RoundedCornerShape(10.dp), focusedScale = 1.03f, elevation = 11.dp)
+            .height(46.dp)
+            .tvLift(interaction, CircleShape, focusedScale = 1.01f, ringGap = 3.dp)
             .tvPlatter(interaction, resting = TvGlass.Fill),
         decorationBox = { inner ->
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp),
+                modifier = Modifier.padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {

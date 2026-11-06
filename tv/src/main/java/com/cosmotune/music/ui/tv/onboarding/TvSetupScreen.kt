@@ -147,7 +147,7 @@ fun TvSetupScreen(
                     Icon(
                         imageVector = Icons.Rounded.CheckCircle,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = com.cosmotune.music.ui.tv.theme.TvGlass.Ink,
                         modifier = Modifier.size(77.dp),
                     )
                 },
@@ -307,7 +307,7 @@ private fun TvThemeSwatch(
                 .width(168.dp)
                 .aspectRatio(16f / 10f)
                 .tvInitialFocus(initialFocus)
-                .tvLift(interaction, RoundedCornerShape(11.dp), focusedScale = 1.08f, elevation = 18.dp)
+                .tvLift(interaction, RoundedCornerShape(11.dp), focusedScale = 1.08f)
                 .tvClick(interaction, onClick = onClick)
                 .background(
                     Brush.verticalGradient(
@@ -328,7 +328,7 @@ private fun TvThemeSwatch(
                         modifier = Modifier
                             .size(34.dp)
                             .clip(RoundedCornerShape(5.dp))
-                            .background(Color.White.copy(alpha = 0.16f)),
+                            .background(com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.16f)),
                     )
                 }
             }
@@ -336,7 +336,7 @@ private fun TvThemeSwatch(
                 Icon(
                     imageVector = Icons.Rounded.CheckCircle,
                     contentDescription = "Selected",
-                    tint = Color.White,
+                    tint = com.cosmotune.music.ui.tv.theme.TvGlass.Ink,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .size(19.dp)

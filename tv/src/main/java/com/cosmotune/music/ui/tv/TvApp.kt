@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -71,7 +70,11 @@ import com.cosmotune.music.ui.tv.components.TvArtwork
 import com.cosmotune.music.ui.tv.components.TvChrome
 import com.cosmotune.music.ui.tv.components.TvTabIcon
 import com.cosmotune.music.ui.tv.components.TvTabPill
-import com.cosmotune.music.ui.tv.components.rememberDominantCardColor
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.music.ui.icons.CosmotuneIcons
+import com.cosmotune.music.ui.tv.theme.TvDimensions
+import androidx.compose.foundation.layout.Spacer
 import com.cosmotune.music.ui.tv.components.tvClick
 import com.cosmotune.music.ui.tv.components.tvLift
 import com.cosmotune.music.ui.tv.dialogs.TvAccountDialog
@@ -87,13 +90,17 @@ import com.cosmotune.music.ui.tv.theme.TvGlass
 import com.cosmotune.music.ui.tv.theme.TvThemeColors
 import kotlinx.coroutines.delay
 
-/** The tabs of the top bar. Now Playing is a tab too, but it opens the player rather than a page. */
+/**
+ * The chips at the top (board batch-be section E: Home, Search, Library, Watch, Radio), with Explore beside Search and Settings
+ * as a round chip at the end. Radio is Podio's radio and podcasts.
+ */
 enum class TvDestination(val label: String) {
     HOME("Home"),
+    SEARCH("Search"),
     EXPLORE("Explore"),
     LIBRARY("Library"),
-    PODIO("Podio"),
-    SEARCH("Search"),
+    WATCH("Watch"),
+    PODIO("Radio"),
     SETTINGS("Settings"),
 }
 
@@ -237,30 +244,22 @@ fun TvApp(
 }
 
 /**
- * The screen-filling background: a soft top-to-bottom gradient with a wash of the
- * playing song's artwork colour across the top, as Apple Music tints its canvas.
- * Drawn behind everything in one pass; the tint animates in the draw phase.
+ * The page wears the cover (Orbit rule 10): the flat ground, washed from the top
+ * in the playing cover's own colour, strong at the top and gone by four fifths
+ * down (board `.wash`). Nothing playing, or the Pure Black theme: the ground alone.
  */
 @Composable
 private fun Modifier.tvCanvas(artworkUrl: String?): Modifier {
     val palette = TvThemeColors.current
-    val tintSource = rememberDominantCardColor(
-        artworkUrl = if (palette.tintsCanvas) artworkUrl else null,
-        defaultColor = palette.canvasTop,
-    )
-    val tint = animateColorAsState(tintSource, tween(900), label = "canvasTint")
-    val top = palette.canvasTop
-    val bottom = palette.canvasBottom
+    val url = artworkUrl.takeIf { palette.tintsCanvas }
+    val (fill, _) = coverFill(url, "canvas")
+    val tint = animateColorAsState(if (url == null) Color.Transparent else fill, tween(900), label = "canvasTint")
+    val ground = palette.ground
     return drawBehind {
-        drawRect(Brush.verticalGradient(listOf(top, bottom)))
-        if (palette.tintsCanvas) {
-            drawRect(
-                Brush.radialGradient(
-                    colors = listOf(tint.value.copy(alpha = 0.55f), Color.Transparent),
-                    center = Offset(size.width * 0.5f, -size.height * 0.15f),
-                    radius = size.width * 0.75f,
-                ),
-            )
+        drawRect(ground)
+        val t = tint.value
+        if (t.alpha > 0f) {
+            drawRect(Brush.verticalGradient(0f to t.copy(alpha = 0.6f * t.alpha), 0.4f to t.copy(alpha = 0.2f * t.alpha), 0.8f to Color.Transparent))
         }
     }
 }
@@ -372,6 +371,7 @@ private fun TvMainShell(
     // page home, rather than leaving the bar floating over scrolled content.
     LaunchedEffect(barHasFocus) {
         if (barHasFocus) chrome.scrollToTopRequests++
+        chrome.pageFocused = !barHasFocus
     }
     var wasCovered by remember { mutableStateOf(false) }
     LaunchedEffect(covered) {
@@ -419,10 +419,12 @@ private fun TvMainShell(
                 ) {
                     stateHolder.SaveableStateProvider(destination.name) {
                         when (destination) {
-                            TvDestination.PODIO -> com.cosmotune.music.ui.tv.screens.TvPodioScreen(mediaController, openNowPlaying)
+                            TvDestination.PODIO -> com.cosmotune.music.ui.tv.screens.TvPodioScreen(mediaController, playerState, openNowPlaying)
+                            TvDestination.WATCH -> com.cosmotune.music.ui.tv.screens.TvWatchScreen()
                             TvDestination.HOME -> TvHomeScreen(
                                 viewModel = viewModel,
                                 mediaController = mediaController,
+                                playerState = playerState,
                                 onNavigateToDetail = openDetail,
                                 onNavigateToNowPlaying = openNowPlaying,
                             )
@@ -485,6 +487,7 @@ private fun TvMainShell(
             TvTopBar(
                 destination = destination,
                 viewModel = viewModel,
+                playerState = playerState,
                 tabFocus = tabFocus,
                 // Down from the bar goes into whatever page is on top.
                 contentFocus = if (activeDetail != null) detailFocus else contentFocus,
@@ -505,14 +508,21 @@ private fun TvMainShell(
 }
 
 /**
- * The Apple Music tvOS tab bar: a translucent capsule centred at the top holding
- * the four tabs and, at its end, Search and Settings. Home, Explore and Library
- * switch as focus lands on them, the way tvOS tabs do; the rest act on select.
+ * The chips at the top (board batch-be section E): Home, Search, Explore,
+ * Library, Watch and Radio as Orbit chips from the safe margin, the selected one
+ * solid ink; at the far end Now Playing (the playing cover as a small disc with
+ * its orbit), Settings and the account. Home, Explore, Library and Radio switch
+ * as focus lands on them, as TV tabs do; Search and Watch act on select.
+ *
+ * D-pad: Left and Right walk the chips in this order and stop at the ends; Down
+ * from any of them enters the page on top ([contentFocus]); coming back up lands
+ * on the selected chip ([tabFocus], by [focusRestorer]).
  */
 @Composable
 private fun TvTopBar(
     destination: TvDestination,
     viewModel: MainViewModel,
+    playerState: PlayerState,
     tabFocus: FocusRequester,
     contentFocus: FocusRequester,
     onSelect: (TvDestination) -> Unit,
@@ -533,83 +543,95 @@ private fun TvTopBar(
             ?: account?.thumbnailUrl
     }
 
-    // Pages fill the screen from its top edge so they can scroll under this bar,
-    // which puts them outside a plain "below" search from a tab. Point Down at them.
+    // Pages fill the screen from its top edge so they can scroll under the chips,
+    // which puts them outside a plain "below" search from a chip. Point Down at them.
     val downToContent = Modifier.focusProperties { down = contentFocus }
+    val chips = listOf(TvDestination.HOME, TvDestination.SEARCH, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.WATCH, TvDestination.PODIO)
+    val onFocusTabs = setOf(TvDestination.HOME, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.PODIO)
 
-    Box(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 18.dp, start = 38.dp, end = 38.dp),
+            .padding(top = 26.dp, start = TvDimensions.SafeMarginHorizontal, end = TvDimensions.SafeMarginHorizontal)
+            .focusRestorer(tabFocus)
+            .focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The mark only, as the phone's Home heading shows it.
-        Icon(
-            painter = painterResource(R.drawable.ic_logo),
-            contentDescription = "Cosmotune",
-            tint = TvGlass.TextPrimary,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .height(21.dp)
-                .aspectRatio(730f / 484f),
-        )
-        TvAvatarButton(
-            imageUrl = if (signedIn) avatarUrl else null,
-            onClick = onOpenAccount,
-            modifier = Modifier.align(Alignment.CenterEnd).then(downToContent),
-        )
-        Row(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .clip(CircleShape)
-                .background(TvGlass.Bar)
-                .padding(4.dp)
-                .focusRestorer(tabFocus)
-                .focusGroup(),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            listOf(TvDestination.HOME, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.PODIO).forEach { tab ->
-                val interaction = remember { MutableInteractionSource() }
-                val focused by interaction.collectIsFocusedAsState()
+        chips.forEach { tab ->
+            val interaction = remember { MutableInteractionSource() }
+            val focused by interaction.collectIsFocusedAsState()
+            if (tab in onFocusTabs) {
                 LaunchedEffect(focused) {
                     if (focused && destination != tab) {
                         delay(140)
                         onSelect(tab)
                     }
                 }
-                TvTabPill(
-                    label = tab.label,
-                    selected = destination == tab,
-                    interactionSource = interaction,
-                    onClick = { onSelect(tab) },
-                    modifier = downToContent.then(if (destination == tab) Modifier.focusRequester(tabFocus) else Modifier),
-                )
             }
             TvTabPill(
-                label = "Now Playing",
-                selected = false,
-                modifier = downToContent,
-                onClick = onOpenNowPlaying,
-            )
-            TvTabIcon(
-                icon = Icons.Rounded.Search,
-                contentDescription = "Search",
-                selected = destination == TvDestination.SEARCH,
-                onClick = { onSelect(TvDestination.SEARCH) },
-                modifier = downToContent.then(if (destination == TvDestination.SEARCH) Modifier.focusRequester(tabFocus) else Modifier),
-            )
-            TvTabIcon(
-                icon = Icons.Rounded.Settings,
-                contentDescription = "Settings",
-                selected = destination == TvDestination.SETTINGS,
-                onClick = { onSelect(TvDestination.SETTINGS) },
-                modifier = downToContent.then(if (destination == TvDestination.SETTINGS) Modifier.focusRequester(tabFocus) else Modifier),
+                label = tab.label,
+                selected = destination == tab,
+                interactionSource = interaction,
+                onClick = { onSelect(tab) },
+                modifier = downToContent.then(if (destination == tab) Modifier.focusRequester(tabFocus) else Modifier),
             )
         }
+        Spacer(Modifier.weight(1f))
+        TvNowPlayingChip(
+            playerState = playerState,
+            onClick = onOpenNowPlaying,
+            modifier = downToContent,
+        )
+        TvTabIcon(
+            icon = Icons.Rounded.Settings,
+            contentDescription = "Settings",
+            selected = destination == TvDestination.SETTINGS,
+            onClick = { onSelect(TvDestination.SETTINGS) },
+            modifier = downToContent.then(if (destination == TvDestination.SETTINGS) Modifier.focusRequester(tabFocus) else Modifier),
+        )
+        TvAvatarButton(
+            imageUrl = if (signedIn) avatarUrl else null,
+            onClick = onOpenAccount,
+            modifier = downToContent,
+        )
     }
 }
 
-/** The account's picture at the bar's leading edge; opens Account. */
+/**
+ * Now Playing at the end of the chips: the playing cover as a small disc with
+ * its orbit (rule 2), or a plain round chip with the note while nothing plays.
+ */
+@Composable
+private fun TvNowPlayingChip(playerState: PlayerState, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val song = playerState.song
+    if (song == null) {
+        TvTabIcon(icon = CosmotuneIcons.MusicNote, contentDescription = "Now Playing", selected = false, onClick = onClick, modifier = modifier)
+        return
+    }
+    val interaction = remember { MutableInteractionSource() }
+    val duration = playerState.durationMs
+    val position = playerState.position
+    Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = modifier
+                .size(30.dp)
+                .tvLift(interaction, CircleShape, focusedScale = 1f, ringGap = 8.dp)
+                .tvClick(interaction, onClick = onClick),
+        ) {
+            TvArtwork(url = song.thumbnailUrl, px = 120, shape = CircleShape, modifier = Modifier.fillMaxSize())
+        }
+        OrbitRing(
+            40.dp, TvGlass.Peach,
+            progress = { if (duration > 0) position.positionMs.toFloat() / duration else null },
+            spinning = playerState.isPlaying,
+            stroke = 1.5.dp,
+            moon = 3.dp,
+        )
+    }
+}
+
+/** The account's picture at the end of the chips; opens Account. */
 @Composable
 private fun TvAvatarButton(
     imageUrl: String?,
@@ -619,8 +641,8 @@ private fun TvAvatarButton(
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
-            .size(32.dp)
-            .tvLift(interaction, CircleShape, focusedScale = 1.15f, elevation = 8.dp)
+            .size(40.dp)
+            .tvLift(interaction, CircleShape, focusedScale = 1f, ringGap = 3.dp)
             .tvClick(interaction, onClick = onClick)
             .background(TvGlass.Fill),
         contentAlignment = Alignment.Center,
@@ -630,7 +652,7 @@ private fun TvAvatarButton(
                 imageVector = Icons.Rounded.Person,
                 contentDescription = "Account",
                 tint = TvGlass.TextSecondary,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(20.dp),
             )
         } else {
             TvArtwork(url = imageUrl, px = 256, shape = CircleShape, modifier = Modifier.fillMaxSize())

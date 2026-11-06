@@ -116,7 +116,7 @@ private fun TvMoodGrid(
                         .fillMaxWidth()
                         .aspectRatio(MOOD_CARD_ASPECT)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(Color.White.copy(alpha = 0.06f)),
+                        .background(TvGlass.Row),
                 )
             }
             is UiState.Error -> item(span = { GridItemSpan(maxLineSpan) }) {
