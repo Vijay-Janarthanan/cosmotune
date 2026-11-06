@@ -11,6 +11,17 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import com.cosmotune.ui.orbit.OrbitMenu
+import com.cosmotune.ui.orbit.OrbitMenuItem
+import com.cosmotune.ui.orbit.OrbitReaderButton
+import com.cosmotune.ui.orbit.OrbitReaderCard
+import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import kotlin.math.roundToInt
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,19 +33,16 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.manga.ui.*
 import com.cosmotune.reading.data.*
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.kit.KitButton
-import com.cosmotune.ui.kit.KitButtonKind
-import com.cosmotune.ui.kit.KitIconButton
-import com.cosmotune.ui.kit.KitPill
 import com.cosmotune.ui.kit.KitSheet
 import com.cosmotune.ui.theme.LocalCosmoColors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * The book reader (DESIGN_SYSTEM.md 4.19 and 6.5): the document on the reading theme, a top bar (back to the library, the title
- * and the chapter, the overflow) and a bottom bar (the previous and next section around "3 / 12", then Contents, Search, Aa and
- * Bookmarks). Contents, bookmarks and the typography live in sheets. The tools can be hidden for an uncluttered page.
+ * The book reader (board D, the phone): the document on its reading theme with nothing over it until the small round tools
+ * button at its foot is pressed; then the slim card in the book's colour: back to the library, the mono "CHAPTER 3 OF 12 · 35 %",
+ * the page line with its moon (tap or drag to go to a chapter), and the round buttons (previous and next chapter, type, theme,
+ * contents, bookmark and more: search, bookmarks, hide). Contents, bookmarks and the typography live in sheets.
  */
 @Composable
 fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack: () -> Unit) {
@@ -47,7 +55,8 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
     var search by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var tools by remember { mutableStateOf(true) }
+    var tools by remember { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
     fun saveLocation(value: ReadingLocator) {
         locator = value
         scope.launch {
@@ -64,65 +73,66 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
             catch (failure: Exception) { error = "Reader settings could not be saved." }
         }
     }
+    fun bookmarkHere(epub: ReadingDocument.Epub?, section: Int) {
+        scope.launch {
+            try { repository.saveBookmark(book.id, if (epub != null) "Chapter ${section + 1} · ${(locator.progression * 100).toInt()}%" else "Page ${locator.page + 1}", locator) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { error = "The bookmark could not be saved." }
+        }
+    }
     val epub = document as? ReadingDocument.Epub
     val section = epub?.spine?.indexOfFirst { it.href.substringBefore('#') == locator.resourceHref?.substringBefore('#') }?.takeIf { it >= 0 } ?: 0
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
+    val (fill, ink) = coverFill(null, book.id)
     MangaBackHandler(true, onBack)
-    Column(Modifier.fillMaxSize().background(Color(palette.backgroundBottom)).testTag("books:reader")) {
-        if (tools) {
-            Row(Modifier.fillMaxWidth().background(Color(palette.surface).copy(alpha = 0.92f)).windowInsetsPadding(WindowInsets.statusBars).height(64.dp).padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                KitIconButton(CosmoIcons.ArrowLeft, "Library", onBack, Modifier.testTag("books:reader-back"))
-                Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                    Text(book.title, style = ReadType.rowTitle(), color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val chapter = epub?.spine?.getOrNull(section)?.title?.takeIf { it.isNotBlank() } ?: if (epub != null) "Chapter ${section + 1} of ${epub.spine.size}" else "Page ${locator.page + 1}"
-                    Text(chapter, style = ReadType.meta(), color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                KitIconButton(Icons.Outlined.BookmarkBorder, "Bookmarks", { panel = "Bookmarks" }, Modifier.testTag("books:bookmarks"))
-                KitIconButton(CosmoIcons.MoreVertical, "Tools", { panel = "Tools" }, Modifier.testTag("books:reader-menu"))
-            }
-            if (searching) ReadSearchField(search, { search = it }, if (epub != null) "Find in this chapter" else "Find in this document", Modifier.testTag("books:find-text"))
-            if (searching) Text(if (epub != null) "Matches are highlighted in this chapter." else "Find matching pages on desktop and Android 15+. Earlier Android versions support EPUB search.",
-                style = ReadType.caption(), color = Color(palette.textTertiary), modifier = Modifier.padding(horizontal = ReadMargin))
-        } else Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(8.dp), horizontalArrangement = Arrangement.End) {
-            KitPill("Show reading tools", onClick = { tools = true }, modifier = Modifier.testTag("books:show-tools"))
+    Box(Modifier.fillMaxSize().background(look.ground).testTag("books:reader")) {
+        Column(Modifier.fillMaxSize()) {
+            error?.let { message -> ReadInlineBanner(message, Modifier.windowInsetsPadding(WindowInsets.statusBars), onDismiss = { error = null }) }
+            ReadingDocumentView(document, locator, preferences, search, onLocatorChanged = ::saveLocation,
+                onError = { error = it }, modifier = Modifier.weight(1f).fillMaxWidth().testTag("books:document"))
         }
-        error?.let { message -> ReadInlineBanner(message, onDismiss = { error = null }) }
-        ReadingDocumentView(document, locator, preferences, search, onLocatorChanged = ::saveLocation,
-            onError = { error = it }, modifier = Modifier.weight(1f).fillMaxWidth().testTag("books:document"))
-        if (tools) Column(Modifier.fillMaxWidth().background(Color(palette.surface).copy(alpha = 0.92f)).windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 8.dp, vertical = 4.dp)) {
-            if (epub != null) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                KitIconButton(Icons.Rounded.SkipPrevious, "Previous", { if (section > 0) saveLocation(ReadingLocator(resourceHref = epub.spine[section - 1].href)) },
-                    Modifier.testTag("books:previous-section"))
-                Slider(value = section.toFloat(), onValueChange = { value -> epub.spine.getOrNull(value.toInt())?.let { saveLocation(ReadingLocator(resourceHref = it.href)) } },
-                    enabled = epub.spine.size > 1, valueRange = 0f..(epub.spine.size - 1).coerceAtLeast(1).toFloat(), modifier = Modifier.weight(1f),
-                    colors = SliderDefaults.colors(thumbColor = Color(palette.accent), activeTrackColor = Color(palette.accent), inactiveTrackColor = Color(palette.textPrimary).copy(alpha = 0.16f)))
-                Text("${section + 1} / ${epub.spine.size}", style = ReadType.meta().copy(fontFeatureSettings = "tnum"), color = Color(palette.textPrimary), modifier = Modifier.padding(horizontal = 8.dp))
-                KitIconButton(Icons.Rounded.SkipNext, "Next", { if (section + 1 < epub.spine.size) saveLocation(ReadingLocator(resourceHref = epub.spine[section + 1].href)) },
-                    Modifier.testTag("books:next-section"))
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().widthIn(max = 620.dp).windowInsetsPadding(WindowInsets.navigationBars).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (searching) Column(Modifier.fillMaxWidth().clip(ReadShape.md).background(look.ground).padding(vertical = 6.dp)) {
+                ReadSearchField(search, { search = it }, if (epub != null) "Find in this chapter" else "Find in this document", Modifier.testTag("books:find-text"))
+                Text(if (epub != null) "Matches are highlighted in this chapter." else "Find matching pages on desktop and Android 15+. Earlier Android versions support EPUB search.",
+                    style = ReadType.caption(), color = look.dim, modifier = Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 4.dp))
             }
-            Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
-                if (epub != null) KitIconButton(CosmoIcons.List, "Contents", { panel = "Contents" }, Modifier.testTag("books:contents"))
-                KitIconButton(CosmoIcons.Search, "Search", { searching = !searching }, Modifier.testTag("books:reader-search"))
-                KitIconButton(Icons.Rounded.FormatSize, "Appearance", { panel = "Appearance" }, Modifier.testTag("books:appearance"))
-                KitIconButton(Icons.Outlined.BookmarkBorder, "Bookmark this position", {
-                    scope.launch {
-                        try { repository.saveBookmark(book.id, if (epub != null) "Chapter ${section + 1} · ${(locator.progression * 100).toInt()}%" else "Page ${locator.page + 1}", locator) }
-                        catch (cancelled: CancellationException) { throw cancelled }
-                        catch (failure: Exception) { error = "The bookmark could not be saved." }
-                    }
-                })
+            if (!tools) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                OrbitReaderButton(CosmoIcons.MoreVertical, "Show reading tools", ink, fill, { tools = true }, Modifier.background(fill, CircleShape).testTag("books:show-tools"))
+            } else OrbitReaderCard(
+                label = bookReaderLabel(epub, section, locator),
+                progress = { if (epub != null && epub.spine.size > 1) section / (epub.spine.size - 1f) else locator.progression.toFloat().coerceIn(0f, 1f) },
+                fill = fill, ink = ink,
+                onSeek = if (epub != null && epub.spine.size > 1) ({ f -> epub.spine.getOrNull((f * (epub.spine.size - 1)).roundToInt())?.let { saveLocation(ReadingLocator(resourceHref = it.href)) } }) else null,
+                leading = { OrbitReaderButton(CosmoIcons.ChevronLeft, "Library", ink, fill, onBack, Modifier.testTag("books:reader-back")) },
+                modifier = Modifier.testTag("books:reader-card"),
+            ) {
+                if (epub != null) {
+                    OrbitReaderButton(Icons.Rounded.SkipPrevious, "Previous", ink, fill, { if (section > 0) saveLocation(ReadingLocator(resourceHref = epub.spine[section - 1].href)) },
+                        Modifier.testTag("books:previous-section"))
+                    OrbitReaderButton(Icons.Rounded.SkipNext, "Next", ink, fill, { if (section + 1 < epub.spine.size) saveLocation(ReadingLocator(resourceHref = epub.spine[section + 1].href)) },
+                        Modifier.testTag("books:next-section"))
+                }
+                Spacer(Modifier.weight(1f))
+                OrbitReaderButton(Icons.Rounded.FormatSize, "Appearance", ink, fill, { panel = "Appearance" }, Modifier.testTag("books:appearance"))
+                OrbitReaderButton(Icons.Outlined.DarkMode, "Page theme: " + preferences.theme.name.lowercase(), ink, fill, {
+                    updatePreferences(preferences.copy(theme = ReadingTheme.entries[(preferences.theme.ordinal + 1) % ReadingTheme.entries.size]))
+                }, Modifier.testTag("books:theme"))
+                if (epub != null) OrbitReaderButton(CosmoIcons.List, "Contents", ink, fill, { panel = "Contents" }, Modifier.testTag("books:contents"))
+                OrbitReaderButton(Icons.Outlined.BookmarkBorder, "Bookmark this position", ink, fill, { bookmarkHere(epub, section) })
+                Box {
+                    OrbitReaderButton(CosmoIcons.MoreVertical, "Tools", ink, fill, { more = true }, Modifier.testTag("books:reader-menu"))
+                    OrbitMenu(more, { more = false }, listOf(
+                        OrbitMenuItem("Search", icon = CosmoIcons.Search, selected = searching) { searching = !searching; if (!searching) search = "" },
+                        OrbitMenuItem("Bookmarks", icon = Icons.Outlined.BookmarkBorder) { panel = "Bookmarks" },
+                        OrbitMenuItem("Hide tools", icon = CosmoIcons.Close) { tools = false },
+                    ), orbitFonts(), look, header = book.title)
+                }
             }
         }
     }
     when (panel) {
-        "Tools" -> KitSheet(onDismiss = { panel = "" }, title = book.title) {
-            ReadSheetRow("Search", CosmoIcons.Search, { panel = ""; searching = !searching }, Modifier.testTag("books:reader-search-row"))
-            ReadSheetRow("Appearance", Icons.Rounded.FormatSize, { panel = "Appearance" })
-            ReadSheetRow("Bookmarks", Icons.Outlined.BookmarkBorder, { panel = "Bookmarks" })
-            ReadSheetRow("Hide tools", CosmoIcons.Close, { panel = ""; tools = false })
-            Spacer(Modifier.height(16.dp))
-        }
         "Contents" -> KitSheet(onDismiss = { panel = "" }) {
             ReadSheetHeader("Contents", onDone = { panel = "" }, doneLabel = "Close")
             val navigation = epub?.navigation.orEmpty().flatNavigation()
@@ -139,19 +149,13 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
             ReadSheetHeader("Bookmarks", onDone = { panel = "" }, doneLabel = "Close")
             val bookmarks = state.bookmarks.filter { it.bookId == book.id }
             Box(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-                KitButton("Bookmark this position", {
-                    scope.launch {
-                        try { repository.saveBookmark(book.id, if (epub != null) "Chapter ${section + 1} · ${(locator.progression * 100).toInt()}%" else "Page ${locator.page + 1}", locator) }
-                        catch (cancelled: CancellationException) { throw cancelled }
-                        catch (failure: Exception) { error = "The bookmark could not be saved." }
-                    }
-                }, kind = KitButtonKind.TONAL, icon = Icons.Outlined.BookmarkBorder, modifier = Modifier.testTag("books:add-bookmark"))
+                ReadButton("Bookmark this position", { bookmarkHere(epub, section) }, kind = ReadKind.TONAL, icon = Icons.Outlined.BookmarkBorder, modifier = Modifier.testTag("books:add-bookmark"))
             }
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
-                if (bookmarks.isEmpty()) item { Text("Save a passage to return to it later.", style = ReadType.body(), color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
+                if (bookmarks.isEmpty()) item { Text("Save a passage to return to it later.", style = ReadType.body(), color = orbitLook().dim, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
                 items(bookmarks, key = { it.id }) { bookmark ->
                     ReadSheetRow(bookmark.name, Icons.Outlined.BookmarkBorder, { saveLocation(bookmark.locator); panel = "" }, trailing = {
-                        KitIconButton(CosmoIcons.Close, "Remove bookmark", { scope.launch { try { repository.removeBookmark(bookmark.id) }
+                        ReadIconButton(CosmoIcons.Close, "Remove bookmark", { scope.launch { try { repository.removeBookmark(bookmark.id) }
                             catch (cancelled: CancellationException) { throw cancelled }
                             catch (failure: Exception) { error = "The bookmark could not be removed." }
                         } })
@@ -191,19 +195,19 @@ private fun ReaderAppearance(preferences: ReadingPreferences, reflowable: Boolea
                 item {
                     ReadSheetSection("Text size · ${(preferences.fontScale * 100).toInt()}%") {
                         Slider(preferences.fontScale, { onChange(preferences.copy(fontScale = it)) }, valueRange = .75f..2.5f, steps = 6, modifier = Modifier.testTag("books:font-size"),
-                            colors = SliderDefaults.colors(thumbColor = Color(palette.accent), activeTrackColor = Color(palette.accent)))
+                            colors = SliderDefaults.colors(thumbColor = orbitLook().accent, activeTrackColor = orbitLook().accent))
                     }
                 }
                 item {
                     ReadSheetSection("Line spacing · ${"%.1f".format(preferences.lineHeight)}") {
                         Slider(preferences.lineHeight, { onChange(preferences.copy(lineHeight = it)) }, valueRange = 1.1f..2.2f, steps = 10,
-                            colors = SliderDefaults.colors(thumbColor = Color(palette.accent), activeTrackColor = Color(palette.accent)))
+                            colors = SliderDefaults.colors(thumbColor = orbitLook().accent, activeTrackColor = orbitLook().accent))
                     }
                 }
                 item {
                     ReadSheetSection("Margins · ${preferences.marginDp}") {
                         Slider(preferences.marginDp.toFloat(), { onChange(preferences.copy(marginDp = it.toInt())) }, valueRange = 8f..64f, steps = 6,
-                            colors = SliderDefaults.colors(thumbColor = Color(palette.accent), activeTrackColor = Color(palette.accent)))
+                            colors = SliderDefaults.colors(thumbColor = orbitLook().accent, activeTrackColor = orbitLook().accent))
                     }
                 }
                 item {
@@ -221,4 +225,11 @@ private fun ReaderAppearance(preferences: ReadingPreferences, reflowable: Boolea
             item { Spacer(Modifier.height(16.dp)) }
         }
     }
+}
+
+/** "Chapter 3 of 12 · 35 %" for a book with chapters, "Page 6 · 35 %" for a PDF. */
+internal fun bookReaderLabel(epub: ReadingDocument.Epub?, section: Int, locator: ReadingLocator): String {
+    val percent = "${(locator.progression * 100).toInt()} %"
+    return if (epub != null) "Chapter ${section + 1} of ${epub.spine.size} · " + (epub.spine.getOrNull(section)?.title?.takeIf { it.isNotBlank() } ?: percent)
+    else "Page ${locator.page + 1} · $percent"
 }

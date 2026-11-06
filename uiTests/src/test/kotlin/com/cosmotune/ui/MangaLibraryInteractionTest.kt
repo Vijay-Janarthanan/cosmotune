@@ -77,25 +77,28 @@ class MangaLibraryInteractionTest {
         compose.onNode(hasText("Net source", substring = true) and hasClickAction()).performClick()
         waitText("Network series")
         compose.onNodeWithText("Network series").performClick()
-        waitText("Download 2 unread chapters")
-        compose.onNodeWithText("Download 2 unread chapters").performScrollTo().performClick()
+        waitText("Download · 2")
+        compose.onNodeWithText("Download · 2").performScrollTo().performClick()
         compose.waitUntil(10_000) { store.state.value.downloads.keys == setOf("net:c1", "net:c2") }
         assertEquals(4, requests.get(), "two pages for each of the two chapters")
         assertTrue(store.state.value.books.any { it.id == "net:book" }, "downloading adds the series to the library")
         compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Remove download").fetchSemanticsNodes().size == 2 }
-        compose.onNodeWithText("Download 2 unread chapters").assertDoesNotExist()
+        compose.onNodeWithText("Download · 2").assertDoesNotExist()
 
+        // Back from the series to the source's catalogue, then back to the tabs.
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNode(hasText("Library") and isSelectable()).performClick()
-        waitText("2 unread")
+        waitText("2 unread", substring = true)
         // Updates checks the library: its refresh action, or a pull.
         compose.onNode(hasText("Updates") and isSelectable()).performClick()
         compose.onNodeWithContentDescription("Check for updates").performClick()
         waitText("1 new chapter in 1 series")
         compose.onNode(hasText("Library") and isSelectable()).performClick()
-        compose.onNodeWithText("3 unread · 1 new").assertExists()
+        compose.onNodeWithText("3 unread · 1 new", substring = true).assertExists()
         assertEquals(setOf("net:c3"), MangaStore(store.root).state.value.newChapters, "the mark survives a restart")
-        compose.onNodeWithText("Network series").performClick()
+        // The new chapter's row comes first on the page; the series' cover is the last of its name.
+        compose.onAllNodesWithText("Network series").onLast().performClick()
         waitText("New", substring = true)
         compose.onNodeWithTag("manga:chapter:net:c3").performScrollTo().performTouchInput { longClick() }
         compose.onNodeWithText("Mark read").performClick()

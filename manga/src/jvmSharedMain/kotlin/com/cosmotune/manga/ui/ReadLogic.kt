@@ -19,38 +19,37 @@ import java.util.Locale
  */
 
 /**
- * The tabs of Manga, in dock order (DESIGN_SYSTEM.md 5.2: Home, Discover, Following, Library). The strings are also what
+ * The tabs of Manga, in order (board D: Library, Updates, Browse, Sources, History). The strings are also what
  * [com.cosmotune.ui.blocks.ModeNav.mangaTab] carries between the page and the desktop sidebar.
  */
 internal object MangaTabs {
-    const val HOME = "Home"
-    const val BROWSE = "Browse"
-    const val UPDATES = "Updates"
     const val LIBRARY = "Library"
-    val all = listOf(HOME, BROWSE, UPDATES, LIBRARY)
+    const val UPDATES = "Updates"
+    const val BROWSE = "Browse"
+    const val SOURCES = "Sources"
+    const val HISTORY = "History"
+    val all = listOf(LIBRARY, UPDATES, BROWSE, SOURCES, HISTORY)
 
-    /** A tab name from the shared channel; one this mode does not have ("Bookmarks", the old "Discover") maps onto its own. */
+    /** A tab name from the shared channel; one this mode does not have (Read's "Bookmarks", the old "Home") maps onto its own. */
     fun of(name: String): String = when (name) {
         in all -> name
         "Discover" -> BROWSE
-        "History" -> LIBRARY
-        else -> HOME
+        else -> LIBRARY
     }
 }
 
-/** The tabs of Read (books), in dock order; slot 3 is Bookmarks, the design system's documented exception. */
+/** The tabs of Read (books), in order: the library first (with the book being read on top), then Browse and Bookmarks. */
 internal object BookTabs {
-    const val HOME = "Home"
+    const val LIBRARY = "Library"
     const val BROWSE = "Browse"
     const val BOOKMARKS = "Bookmarks"
-    const val LIBRARY = "Library"
-    val all = listOf(HOME, BROWSE, BOOKMARKS, LIBRARY)
+    val all = listOf(LIBRARY, BROWSE, BOOKMARKS)
 
     fun of(name: String): String = when (name) {
         in all -> name
-        "Discover" -> BROWSE
+        "Discover", "Sources" -> BROWSE
         "Updates" -> BOOKMARKS
-        else -> HOME
+        else -> LIBRARY
     }
 }
 

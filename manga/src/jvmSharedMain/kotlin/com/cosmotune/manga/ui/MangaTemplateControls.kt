@@ -45,7 +45,7 @@ fun MangaTemplateControls(repository: MangaRepository) {
         raw = config?.settings?.get("template") ?: MangaHtmlTemplate.presets.first().encode()
         local = config?.settings?.get("allowLocalNetwork") == "true"; editor = true; error = null; result = null
     }
-    TextButton(onClick = { open = true }) { Text(mangaText("Custom websites and templates")) }
+    ReadButton(mangaText("Custom websites and templates"), { open = true }, kind = ReadKind.TONAL)
     if (!open) return
     AlertDialog(onDismissRequest = { if (!busy) { open = false; editor = false } }, title = { Text(if (editor) "Custom manga website" else "Custom manga sources") },
         text = { Column(Modifier.heightIn(max = 540.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {

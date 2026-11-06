@@ -112,9 +112,9 @@ class ModeProfileNavigationTest {
         compose.onNodeWithText("No manga found. Try another search or source.").assertDoesNotExist()
         compose.runOnIdle { assertEquals(listOf(""), queries.toList(), "Home browses immediately without a search or source choice") }
         compose.onNode(hasText("Browse") and isSelectable()).performClick().assertIsSelected()
-        compose.onNodeWithText("Manage sources").performClick()
+        compose.onNodeWithContentDescription("Manage sources").performClick()
         compose.onNodeWithTag("manga:sources:list").assertExists()
-        compose.onNodeWithText("Done").performClick()
+        compose.onNode(hasText("Browse") and isSelectable()).performClick()
         compose.onNode(hasText("Browse") and isSelectable()).assertIsSelected()
         compose.onNodeWithContentDescription("Profile and modes").performClick()
         compose.onNode(hasText("Manga") and isSelectable()).assertIsSelected()
@@ -122,7 +122,7 @@ class ModeProfileNavigationTest {
         compose.onNodeWithText("Back to Manga").performClick()
         compose.onNode(hasText("Browse") and isSelectable()).assertIsSelected()
         compose.onNodeWithContentDescription("Profile and modes").assertIsDisplayed()
-        compose.onNodeWithText("Reading catalogue", substring = true).assertIsDisplayed()
+        compose.onAllNodesWithText("Reading catalogue", substring = true).onFirst().assertIsDisplayed()
         snapshot("manga-phone-header.png")
     }
 

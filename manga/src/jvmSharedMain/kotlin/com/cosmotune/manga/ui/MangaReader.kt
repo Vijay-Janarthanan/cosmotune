@@ -24,8 +24,6 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.ZoomOut
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -42,17 +40,17 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.cosmotune.manga.data.*
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.kit.KitButton
-import com.cosmotune.ui.kit.KitButtonKind
-import com.cosmotune.ui.kit.KitIconButton
 import com.cosmotune.ui.kit.KitSheet
-import com.cosmotune.ui.kit.KitTextButton
-import com.cosmotune.ui.theme.LocalCosmoColors
+import com.cosmotune.ui.orbit.OrbitReaderButton
+import com.cosmotune.ui.orbit.OrbitReaderCard
+import com.cosmotune.ui.orbit.WatchRoundButton
+import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.ui.orbit.orbitLook
 import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
@@ -62,14 +60,14 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 /**
- * The manga reader (DESIGN_SYSTEM.md 4.19, Mihon's chrome): the pages full screen on black, and over them, while shown, a top bar
- * (back, the series and the chapter, zoom, the reader settings) and a bottom bar (the page slider with "12 / 48", then the
- * previous page, the chapter list, the settings and the next page or chapter). The chrome is up when a chapter opens and goes
- * away as soon as a page is swiped; a tap on the middle third brings it back, the outer thirds turn the page (mirrored for
- * right-to-left). Pinch and double-tap zoom. Music keeps playing; the dock is hidden.
+ * The manga reader (board D): the pages full screen on black with nothing over them until a tap on the middle third, which brings
+ * up the slim card at the foot in the series' colour: back, the mono "CHAPTER 12 · PAGE 6 OF 22", the page line with its moon
+ * (tap or drag to go to a page), and the round buttons (previous, next page or chapter, zoom out and in, the reading mode, the
+ * chapters). A swipe puts the card away again; the outer thirds turn the page (mirrored for right-to-left). Pinch and double-tap
+ * zoom. Music keeps playing.
  */
 @Composable
-internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, seriesTitle: String, hasNext: Boolean, onBack: () -> Unit, onNext: () -> Unit) {
+internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, book: MangaBook?, hasNext: Boolean, onBack: () -> Unit, onNext: () -> Unit) {
     key(chapter.id) {
         MangaBackHandler(true, onBack)
         var pages by remember { mutableStateOf(emptyList<MangaPage>()) }
@@ -77,7 +75,7 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, ser
         var verificationAddress by remember { mutableStateOf<String?>(null) }
         var retry by remember { mutableIntStateOf(0) }
         var loading by remember { mutableStateOf(true) }
-        var controls by rememberSaveable { mutableStateOf(true) }
+        var controls by rememberSaveable { mutableStateOf(false) }
         var settings by remember { mutableStateOf(false) }
         val saved = remember { repository.store.state.value.progress[chapter.bookId]?.takeIf { it.chapterId == chapter.id } }
         var mode by rememberSaveable { mutableStateOf(saved?.mode ?: repository.store.state.value.readerMode) }
@@ -113,18 +111,20 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, ser
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             when {
                 loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White.copy(alpha = 0.7f)) }
-                error != null -> Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 72.dp, start = 24.dp, end = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(mangaText("This chapter could not be opened"), style = ReadType.titleLarge(), color = Color.White)
-                    Text(error.orEmpty(), style = ReadType.body(), color = Color.White.copy(alpha = 0.72f))
-                    KitButton(mangaText("Retry"), { retry++ }, kind = KitButtonKind.TONAL)
+                // The problem stands on a card of the page's own ground, so it reads in both palettes over the black.
+                error != null -> Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 72.dp, start = 16.dp, end = 16.dp).widthIn(max = 560.dp)
+                    .clip(ReadShape.md).background(orbitLook().ground).padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(mangaText("This chapter could not be opened"), style = ReadType.titleLarge(), color = orbitLook().ink)
+                    Text(error.orEmpty(), style = ReadType.body(), color = orbitLook().dim)
+                    ReadButton(mangaText("Retry"), { retry++ })
                     if (chapter.sourceId != "local") MangaVerificationControls(repository, chapter.sourceId, verificationAddress)
                 }
-                else -> ReaderPages(repository, chapter, pages, saved?.page ?: 0, saved?.pageOffsetPx ?: 0, mode, fit, zoom, { current = it }, ::zoomBy, focus,
+                else -> ReaderPages(repository, chapter, book, pages, saved?.page ?: 0, saved?.pageOffsetPx ?: 0, mode, fit, zoom, { current = it }, ::zoomBy, focus,
                     controls, hasNext, { controls = !controls }, { controls = false }, { settings = true }, onBack, onNext)
             }
-            if (controls || loading || error != null) ReaderTopBar(seriesTitle, chapter.title, onBack, onZoomOut = { zoomBy(0.8f) }, onZoomIn = { zoomBy(1.25f) },
-                onSettings = { settings = true }, modifier = Modifier.align(Alignment.TopCenter))
+            // While the chapter loads or fails there are no pages to tap, so the way back stays in the corner.
+            if (loading || error != null) WatchRoundButton(CosmoIcons.ChevronLeft, mangaText("Back"), orbitLook(), onBack, ink = Color.White,
+                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp))
         }
         if (settings) KitSheet(onDismiss = { settings = false; runCatching { focus.requestFocus() } }) {
             ReadSheetHeader(mangaText("Reading mode"), onDone = { settings = false; runCatching { focus.requestFocus() } })
@@ -146,34 +146,15 @@ internal fun MangaReader(repository: MangaRepository, chapter: MangaChapter, ser
                     catch (failure: Exception) { error = failure.message ?: "Reader setting could not be saved" }
                 } })
             Text(mangaText("The direction you choose is remembered with this chapter's reading position."), style = ReadType.meta(),
-                color = Color(LocalCosmoColors.current.palette.textSecondary), modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                color = orbitLook().dim, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             Spacer(Modifier.height(16.dp))
         }
     }
 }
 
-/** The reader's top bar: back, the series over the chapter, zoom out and in, the reader settings; `surface1` at 92 %. */
-@Composable
-private fun ReaderTopBar(series: String, chapter: String, onBack: () -> Unit, onZoomOut: () -> Unit, onZoomIn: () -> Unit, onSettings: () -> Unit, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    Row(
-        modifier.fillMaxWidth().background(Color(palette.surface).copy(alpha = 0.92f)).windowInsetsPadding(WindowInsets.statusBars).height(64.dp).padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        KitIconButton(CosmoIcons.ArrowLeft, mangaText("Back"), onBack)
-        Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-            if (series.isNotBlank()) Text(series, style = ReadType.rowTitle(), color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(chapter, style = ReadType.meta(), color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        KitIconButton(Icons.Rounded.ZoomOut, mangaText("Zoom out"), onZoomOut)
-        KitIconButton(Icons.Rounded.ZoomIn, mangaText("Zoom in"), onZoomIn)
-        KitIconButton(Icons.Rounded.Tune, mangaText("Reader settings"), onSettings, Modifier.testTag("manga:reader:settings"))
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
-private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChapter, pages: List<MangaPage>, initialPage: Int, initialOffset: Int,
+private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChapter, book: MangaBook?, pages: List<MangaPage>, initialPage: Int, initialOffset: Int,
     mode: MangaReaderMode, fit: MangaReaderFit, zoom: MutableMap<String, Float>, onCurrent: (String) -> Unit, zoomBy: (Float) -> Unit, focus: FocusRequester,
     controls: Boolean, hasNext: Boolean, toggleControls: () -> Unit, hideControls: () -> Unit, openSettings: () -> Unit, onBack: () -> Unit, onNext: () -> Unit) {
     val initial = initialPage.coerceIn(pages.indices)
@@ -311,29 +292,35 @@ private fun BoxScope.ReaderPages(repository: MangaRepository, chapter: MangaChap
         }
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
-    val palette = LocalCosmoColors.current.palette
-    Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-        if (progressError) Row(Modifier.fillMaxWidth().background(Color(palette.surface).copy(alpha = 0.92f)).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(mangaText("Reading progress could not be saved."), style = ReadType.body(), color = Color(palette.textPrimary), modifier = Modifier.weight(1f))
-            KitTextButton(mangaText("Retry save"), { progressRetry++ })
-        }
-        if (controls) Column(Modifier.fillMaxWidth().background(Color(palette.surface).copy(alpha = 0.92f)).windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 8.dp, vertical = 4.dp)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Slider(value = page.toFloat(), onValueChange = { go(it.roundToInt()) }, enabled = pages.size > 1,
-                    valueRange = 0f..(pages.size - 1).coerceAtLeast(1).toFloat(), modifier = Modifier.weight(1f),
-                    colors = SliderDefaults.colors(thumbColor = Color(palette.accent), activeTrackColor = Color(palette.accent), inactiveTrackColor = Color(palette.textPrimary).copy(alpha = 0.16f)))
-                Spacer(Modifier.width(12.dp))
-                Text("${page + 1} / ${pages.size}", style = ReadType.meta().copy(fontFeatureSettings = "tnum"), color = Color(palette.textPrimary))
-            }
-            Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
-                KitIconButton(Icons.Rounded.SkipPrevious, mangaText("Previous"), ::back)
-                KitIconButton(CosmoIcons.List, mangaText("Chapters"), onBack)
-                KitIconButton(Icons.Rounded.Tune, mangaText("Reading mode"), openSettings)
-                KitIconButton(if (finished) Icons.AutoMirrored.Rounded.ArrowForward else Icons.Rounded.SkipNext,
-                    mangaText(if (!finished) "Next" else if (hasNext) "Next chapter" else "Finish"), ::advance)
-            }
+    val (fill, ink) = coverFill(book?.colourUrl(), book?.id ?: chapter.bookId)
+    Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().widthIn(max = 620.dp).windowInsetsPadding(WindowInsets.navigationBars).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (progressError) ReadInlineBanner(mangaText("Reading progress could not be saved."), Modifier.background(orbitLook().ground, ReadShape.md),
+            actionLabel = mangaText("Retry save"), onAction = { progressRetry++ })
+        if (controls) OrbitReaderCard(
+            label = readerLabel(chapter, page, pages.size),
+            progress = { if (pages.size <= 1) 1f else page / (pages.size - 1f) },
+            fill = fill, ink = ink,
+            onSeek = if (pages.size > 1) ({ fraction -> go((fraction * (pages.size - 1)).roundToInt()) }) else null,
+            leading = { OrbitReaderButton(CosmoIcons.ChevronLeft, mangaText("Back"), ink, fill, onBack) },
+            modifier = Modifier.testTag("manga:reader:card"),
+        ) {
+            OrbitReaderButton(Icons.Rounded.SkipPrevious, mangaText("Previous"), ink, fill, ::back)
+            OrbitReaderButton(if (finished) Icons.AutoMirrored.Rounded.ArrowForward else Icons.Rounded.SkipNext,
+                mangaText(if (!finished) "Next" else if (hasNext) "Next chapter" else "Finish"), ink, fill, ::advance)
+            Spacer(Modifier.weight(1f))
+            OrbitReaderButton(Icons.Rounded.ZoomOut, mangaText("Zoom out"), ink, fill, { zoomBy(0.8f) })
+            OrbitReaderButton(Icons.Rounded.ZoomIn, mangaText("Zoom in"), ink, fill, { zoomBy(1.25f) })
+            OrbitReaderButton(Icons.Rounded.Tune, mangaText("Reading mode"), ink, fill, openSettings, Modifier.testTag("manga:reader:settings"))
+            OrbitReaderButton(CosmoIcons.List, mangaText("Chapters"), ink, fill, onBack)
         }
     }
+}
+
+/** "Chapter 12 · page 6 of 22" (the chapter's title when it has no number). */
+internal fun readerLabel(chapter: MangaChapter, page: Int, pages: Int): String {
+    val name = chapterName(chapter).takeIf { it != "reading" }?.replaceFirstChar(Char::uppercase) ?: chapter.title
+    return "$name · page ${page + 1} of $pages"
 }
 
 /** Pages fetched ahead of the reader: a small window, so a slow source never downloads a whole chapter just by being opened. */
@@ -385,7 +372,7 @@ private fun MangaImage(repository: MangaRepository, page: MangaPage, sourceId: S
         else if (failure == null) CircularProgressIndicator(color = Color.White.copy(alpha = 0.7f))
         failure?.let { message -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
             Text(message, style = ReadType.body(), color = Color.White)
-            KitTextButton(mangaText("Retry page"), { latestReady.value(false); file = null; retry++ })
+            ReadTextButton(mangaText("Retry page"), { latestReady.value(false); file = null; retry++ })
         } }
     }
 }

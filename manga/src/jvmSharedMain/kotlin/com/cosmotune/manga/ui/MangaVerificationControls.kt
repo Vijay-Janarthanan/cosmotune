@@ -1,5 +1,6 @@
 package com.cosmotune.manga.ui
 
+import com.cosmotune.ui.components.CosmoIcons
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,10 +18,11 @@ import kotlinx.coroutines.*
     if (enabled.isEmpty()) return
     Column {
         Box {
-            TextButton(onClick = { expanded = true }) { Text("Website verification${enabled.find { it.id == selected }?.let { ": ${it.name}" }.orEmpty()}") }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                enabled.forEach { source -> DropdownMenuItem(text = { Text(source.name) }, onClick = { selected = source.id; expanded = false }) }
-            }
+            ReadButton(mangaText("Website verification") + enabled.find { it.id == selected }?.let { ": ${it.name}" }.orEmpty(), { expanded = true }, kind = ReadKind.TONAL,
+                icon = CosmoIcons.ChevronDown)
+            com.cosmotune.ui.orbit.OrbitMenu(expanded, { expanded = false }, enabled.map { source ->
+                com.cosmotune.ui.orbit.OrbitMenuItem(source.name, selected = source.id == selected) { selected = source.id }
+            }, com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook(), header = mangaText("Verify a website"))
         }
         enabled.find { it.id == selected }?.let { key(it.id) { MangaVerificationControls(repository, it.id) } }
     }
@@ -45,8 +47,8 @@ import kotlinx.coroutines.*
     val palette = com.cosmotune.ui.theme.LocalCosmoColors.current.palette
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            com.cosmotune.ui.kit.KitButton(mangaText(if (busy) "Waiting for source verification…" else "Verify source website"), enabled = !busy,
-                kind = com.cosmotune.ui.kit.KitButtonKind.TONAL, modifier = Modifier.testTag("manga:verify:$sourceId"), onClick = {
+            ReadButton(mangaText(if (busy) "Waiting for source verification…" else "Verify source website"), enabled = !busy,
+                kind = ReadKind.TONAL, modifier = Modifier.testTag("manga:verify:$sourceId"), onClick = {
                 busy = true; message = null
                 scope.launch {
                     try { launch(withContext(Dispatchers.IO) { repository.beginVerification(sourceId, address) }) }
@@ -54,7 +56,7 @@ import kotlinx.coroutines.*
                     catch (failure: Exception) { busy = false; message = failure.message ?: "Source browser unavailable." }
                 }
             })
-            if (active) com.cosmotune.ui.kit.KitTextButton(mangaText("Reset verification"), { repository.invalidateSource(sourceId); active = false; message = "Source verification cleared." })
+            if (active) ReadTextButton(mangaText("Reset verification"), { repository.invalidateSource(sourceId); active = false; message = "Source verification cleared." })
         }
         Text("Complete the check yourself in an isolated browser. Only this website's cookies and browser identity are used temporarily. Some websites may reject embedded browsers.",
             style = ReadType.meta(), color = androidx.compose.ui.graphics.Color(palette.textSecondary))

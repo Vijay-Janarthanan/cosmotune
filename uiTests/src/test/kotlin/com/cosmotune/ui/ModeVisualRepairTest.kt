@@ -155,21 +155,21 @@ class ModeVisualRepairTest {
         compose.onNode(hasText("Library") and isSelectable()).assertIsDisplayed()
         compose.onNode(hasText("Browse") and isSelectable()).assertIsDisplayed()
         compose.onNodeWithText("An evening story").assertExists()
-        // Home shows the enabled catalogue's first page without a provider prompt or a search.
+        snapshot("manga-phone.png", "manga:root")
+        // Browse shows the enabled catalogue's first page without a provider prompt or a search.
+        compose.onNode(hasText("Browse") and isSelectable()).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("A story to discover").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("A story to discover").assertExists()
         compose.onNodeWithText("Enter at least two characters to search enabled sources").assertDoesNotExist()
-        compose.runOnIdle { assertEquals(listOf(""), queries.toList(), "Home opens the enabled catalogue without a provider prompt") }
-        snapshot("manga-phone.png", "manga:root")
-        compose.onNode(hasText("Browse") and isSelectable()).performClick()
-        compose.onNodeWithText("Reading catalogue", substring = true).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(listOf(""), queries.toList(), "Browse opens the enabled catalogue without a provider prompt") }
+        compose.onAllNodesWithText("Reading catalogue", substring = true).onFirst().assertIsDisplayed()
         snapshot("manga-discovery-phone.png", "manga:root")
         compose.onNode(hasText("Library") and isSelectable()).performClick()
         snapshot("manga-library-phone.png", "manga:root")
         compose.onNodeWithTag("manga:options").performClick()
         compose.onNodeWithText("Manage sources").performClick()
         compose.onNodeWithTag("manga:sources:list").assertExists()
-        compose.onNodeWithText("Done").performClick()
+        compose.onNode(hasText("Library") and isSelectable()).performClick()
         compose.onNode(hasText("Library") and isSelectable()).assertIsSelected()
         compose.onNodeWithText("An evening story").assertIsDisplayed()
     }

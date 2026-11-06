@@ -12,6 +12,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.rounded.ZoomIn
+import androidx.compose.material.icons.rounded.ZoomOut
 import com.cosmotune.reading.data.*
 import java.io.File
 import java.io.InputStream
@@ -89,17 +91,21 @@ internal expect fun openReadingPdf(file: File): ReadingPdfEngine
         }
     }
     Column(modifier) {
-        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { navigate(page - 1) }, enabled = page > 0) { Text("Previous page") }
-            Text(if (pageCount > 0) "${page + 1} / $pageCount" else "Opening…", Modifier.heightIn(min = 48.dp).wrapContentHeight())
-            TextButton(onClick = { zoom = (zoom - .25f).coerceAtLeast(.5f) }) { Text("−") }
-            Text("${(zoom * 100).toInt()}%", Modifier.heightIn(min = 48.dp).wrapContentHeight())
-            TextButton(onClick = { zoom = (zoom + .25f).coerceAtMost(4f) }) { Text("+") }
-            TextButton(onClick = { navigate(page + 1) }, enabled = page + 1 < pageCount) { Text("Next page") }
-            if (searchQuery.isNotBlank() && engine?.supportsSearch == true) TextButton(onClick = { searchNext++ }) { Text("Next match") }
+        // The publisher's page keeps its own quiet strip: the page and the zoom as a mono line between round buttons.
+        val look = com.cosmotune.ui.orbit.orbitLook()
+        val fonts = com.cosmotune.ui.orbit.orbitFonts()
+        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+            com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.ChevronLeft, "Previous page", look, { navigate(page - 1) }, size = 36.dp, enabled = page > 0)
+            com.cosmotune.ui.orbit.OrbitLabel(if (pageCount > 0) "Page ${page + 1} of $pageCount · ${(zoom * 100).toInt()} %" else "Opening…", fonts, look.dim,
+                Modifier.heightIn(min = 36.dp).wrapContentHeight())
+            com.cosmotune.ui.orbit.WatchRoundButton(com.cosmotune.ui.components.CosmoIcons.ChevronRight, "Next page", look, { navigate(page + 1) }, size = 36.dp, enabled = page + 1 < pageCount)
+            com.cosmotune.ui.orbit.WatchRoundButton(androidx.compose.material.icons.Icons.Rounded.ZoomOut, "Zoom out", look, { zoom = (zoom - .25f).coerceAtLeast(.5f) }, size = 36.dp)
+            com.cosmotune.ui.orbit.WatchRoundButton(androidx.compose.material.icons.Icons.Rounded.ZoomIn, "Zoom in", look, { zoom = (zoom + .25f).coerceAtMost(4f) }, size = 36.dp)
+            if (searchQuery.isNotBlank() && engine?.supportsSearch == true)
+                com.cosmotune.ui.orbit.WatchCardChip("Next match", look.ink, fonts, { searchNext++ }, icon = com.cosmotune.ui.components.CosmoIcons.Search)
         }
-        searchMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium) }
+        searchMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp), style = fonts.body, color = look.dim) }
         if (searching) LinearProgressIndicator(Modifier.fillMaxWidth())
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val viewportWidth = maxWidth

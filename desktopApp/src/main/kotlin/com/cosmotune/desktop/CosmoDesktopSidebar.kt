@@ -143,14 +143,18 @@ internal fun CosmoDesktopSidebar(
                         OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.NewReleases, "Episodes", null, podioTab == "Episodes" && !library) { go("Episodes", false) }
                         OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.LibraryMusic, "Library", null, library) { go("Library", false) }
                     } else {
-                        // Manga's and Read's four tabs (DESIGN_SYSTEM.md 5.2) as the sidebar's rows; the page listens to the same channel.
+                        // Manga's tabs (board D: Library, Updates, Browse, Sources, History) and Read's (Library, Browse, Bookmarks) as the
+                        // sidebar's rows; the page listens to the same channel.
                         val read = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value == com.cosmotune.design.AppMode.READ
                         fun go(tab: String) { com.cosmotune.ui.blocks.ModeNav.mangaTab.value = tab }
-                        OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Home, "Home", null, mangaTab == "Home") { go("Home") }
+                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.CollectionsBookmark, "Library", null, mangaTab == "Library") { go("Library") }
+                        if (!read) OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Bell, "Updates", null, mangaTab == "Updates") { go("Updates") }
                         OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Explore, "Browse", null, mangaTab == "Browse") { go("Browse") }
                         if (read) OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.BookmarkBorder, "Bookmarks", null, mangaTab == "Bookmarks") { go("Bookmarks") }
-                        else OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Bell, "Updates", null, mangaTab == "Updates") { go("Updates") }
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.CollectionsBookmark, "Library", null, mangaTab == "Library") { go("Library") }
+                        else {
+                            OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Settings, "Sources", null, mangaTab == "Sources") { go("Sources") }
+                            OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Replay, "History", null, mangaTab == "History") { go("History") }
+                        }
                     }
                 }
             }
