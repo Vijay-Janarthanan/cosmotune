@@ -31,6 +31,7 @@ internal object DesktopExtras {
         NetworkPolicy.installAsDefault()
         Extras.install(Store(Preferences.userRoot().node("com.cosmotune.desktop").node("extras")))
         com.cosmotune.lyrics.autosync.LyricsAutoOffset.configure(DesktopMediaCache.directory.resolve("lyrics").toFile())
+        com.cosmotune.music.data.recognition.SongRecognition.microphone = DesktopMicrophone
     }
 
     /**
@@ -94,8 +95,39 @@ internal object DesktopExtras {
 
 /** The shared Extras dialog with the rows only the desktop has. */
 @androidx.compose.runtime.Composable
-internal fun DesktopExtrasDialog(onDismiss: () -> Unit) {
-    com.cosmotune.ui.extras.ExtrasSettingsDialog(onDismiss = onDismiss)
+internal fun DesktopExtrasDialog(onDismiss: () -> Unit, onPlay: ((List<com.cosmotune.music.data.model.Song>, Int) -> Unit)? = null) {
+    com.cosmotune.ui.extras.ExtrasSettingsDialog(onDismiss = onDismiss, onPlay = onPlay)
+}
+
+/** The default capture device for song recognition: mono 16-bit at 44.1 kHz through Java Sound. */
+internal object DesktopMicrophone : com.cosmotune.music.data.recognition.SongRecognition.Microphone {
+    override suspend fun record(millis: Long): com.cosmotune.music.data.recognition.SongRecognition.Recording? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val rate = 44_100f
+            val format = javax.sound.sampled.AudioFormat(rate, 16, 1, true, false)
+            val line = runCatching {
+                (javax.sound.sampled.AudioSystem.getLine(javax.sound.sampled.DataLine.Info(javax.sound.sampled.TargetDataLine::class.java, format))
+                    as javax.sound.sampled.TargetDataLine).apply { open(format) }
+            }.getOrNull() ?: return@withContext null
+            val total = (rate * millis / 1_000).toInt() * 2
+            val bytes = ByteArray(total)
+            var filled = 0
+            try {
+                line.start()
+                while (filled < total) {
+                    ensureActive()
+                    val read = line.read(bytes, filled, minOf(8_192, total - filled))
+                    if (read <= 0) break
+                    filled += read
+                }
+            } finally {
+                runCatching { line.stop() }
+                line.close()
+            }
+            if (filled < 2) return@withContext null
+            val samples = ShortArray(filled / 2) { ((bytes[2 * it + 1].toInt() shl 8) or (bytes[2 * it].toInt() and 0xFF)).toShort() }
+            com.cosmotune.music.data.recognition.SongRecognition.Recording(samples, rate.toInt())
+        }
 }
 
 /** Draws whichever Extras dialog a menu asked for; placed once at the top of the window. */

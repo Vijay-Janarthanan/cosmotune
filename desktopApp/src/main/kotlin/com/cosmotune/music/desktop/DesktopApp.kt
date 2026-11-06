@@ -6611,7 +6611,7 @@ private fun DesktopSettingsScreen(
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     var editingSubsonic by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     var showingExtras by remember { mutableStateOf(false) }
-    if (showingExtras) DesktopExtrasDialog(onDismiss = { showingExtras = false })
+    if (showingExtras) DesktopExtrasDialog(onDismiss = { showingExtras = false }, onPlay = onPlayProviderSongs)
     val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
     val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
     val sourceProbeKey = sourceConfigs

@@ -41,6 +41,7 @@ import com.cosmotune.settings.Extras
 import com.cosmotune.settings.ExtrasSettings
 import com.cosmotune.settings.ProxySetting
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 /**
  * The "Extras" options both apps share, in a plain dialog: one settings row opens it on each platform. Deliberately
@@ -48,7 +49,14 @@ import kotlin.math.roundToInt
  * The strings are English for now.
  */
 @Composable
-fun ExtrasSettingsDialog(onDismiss: () -> Unit, extraRows: @Composable ColumnScope.() -> Unit = {}) {
+fun ExtrasSettingsDialog(
+    onDismiss: () -> Unit,
+    /** Plays a song the recognition found; null hides the Play button. */
+    onPlay: ((List<com.cosmotune.music.data.model.Song>, Int) -> Unit)? = null,
+    /** Asks for the microphone where the platform needs a runtime permission, then answers whether it may be used. */
+    ensureMicrophone: ((Boolean) -> Unit) -> Unit = { it(true) },
+    extraRows: @Composable ColumnScope.() -> Unit = {},
+) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             shape = RoundedCornerShape(24.dp),
@@ -58,6 +66,7 @@ fun ExtrasSettingsDialog(onDismiss: () -> Unit, extraRows: @Composable ColumnSco
             Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Extras", style = MaterialTheme.typography.headlineSmall)
                 ExtrasSettingsPanel(Extras.settings, extraRows)
+                RecognitionRows(Extras.settings, onPlay, ensureMicrophone)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text("Done") }
                 }
@@ -251,6 +260,73 @@ fun <T> ExtrasChoice(title: String, detail: String, options: List<T>, selected: 
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
                 FilterChip(selected = option == selected, onClick = { onSelect(option) }, label = { Text(label(option)) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecognitionRows(
+    settings: ExtrasSettings,
+    onPlay: ((List<com.cosmotune.music.data.model.Song>, Int) -> Unit)?,
+    ensureMicrophone: ((Boolean) -> Unit) -> Unit,
+) {
+    val enabled by settings.songRecognition.collectAsState()
+    val state by com.cosmotune.music.data.recognition.SongRecognition.state.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    ExtrasHeader("Song recognition")
+    ExtrasSwitch(
+        title = "Identify songs playing nearby",
+        detail = "Off by default. Records ten seconds from the microphone, makes a fingerprint on this device and sends only " +
+            "the fingerprint to Shazam's unofficial endpoint (amp.shazam.com), which is not an official or supported API " +
+            "and may stop working. The recording itself never leaves the device.",
+        checked = enabled,
+        onChange = settings::setSongRecognition,
+    )
+    if (!enabled) return
+    val busy = state is com.cosmotune.music.data.recognition.SongRecognition.State.Listening ||
+        state is com.cosmotune.music.data.recognition.SongRecognition.State.Asking
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        androidx.compose.material3.Button(
+            enabled = !busy,
+            onClick = {
+                ensureMicrophone { allowed ->
+                    if (allowed) {
+                        scope.launch { com.cosmotune.music.data.recognition.SongRecognition.identify() }
+                    }
+                }
+            },
+        ) { Text(if (busy) "Listening…" else "Listen") }
+        Text(
+            when (val shown = state) {
+                com.cosmotune.music.data.recognition.SongRecognition.State.Idle -> "Hold the device near the music."
+                com.cosmotune.music.data.recognition.SongRecognition.State.Listening -> "Listening for ten seconds…"
+                com.cosmotune.music.data.recognition.SongRecognition.State.Asking -> "Asking Shazam…"
+                com.cosmotune.music.data.recognition.SongRecognition.State.NoMatch -> "No match. Try again closer to the music."
+                is com.cosmotune.music.data.recognition.SongRecognition.State.Failed -> shown.reason
+                is com.cosmotune.music.data.recognition.SongRecognition.State.Found ->
+                    "${shown.match.title} · ${shown.match.artist}" + (shown.match.album?.let { " ($it)" } ?: "")
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+    }
+    (state as? com.cosmotune.music.data.recognition.SongRecognition.State.Found)?.let { found ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            found.match.shazamUrl?.let { link ->
+                TextButton(onClick = { runCatching { uri.openUri(link) } }) { Text("Open in Shazam") }
+            }
+            val song = found.song
+            if (song != null && onPlay != null) {
+                TextButton(onClick = { onPlay(listOf(song), 0) }) { Text("Play") }
+            } else if (song == null) {
+                Text(
+                    "Not found on YouTube Music as this exact recording.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                )
             }
         }
     }

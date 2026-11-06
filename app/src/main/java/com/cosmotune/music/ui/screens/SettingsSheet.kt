@@ -1911,7 +1911,28 @@ fun SettingsScreen(
     }
 
     if (showingExtras) {
-        com.cosmotune.ui.extras.ExtrasSettingsDialog(onDismiss = { showingExtras = false })
+        // Song recognition needs the microphone; asked for only when Listen is pressed.
+        val extrasContext = androidx.compose.ui.platform.LocalContext.current
+        var micAnswer by remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
+        val micLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+        ) { granted -> micAnswer?.invoke(granted); micAnswer = null }
+        com.cosmotune.ui.extras.ExtrasSettingsDialog(
+            onDismiss = { showingExtras = false },
+            onPlay = onPlayProviderSongs,
+            ensureMicrophone = { answer ->
+                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    extrasContext,
+                    android.Manifest.permission.RECORD_AUDIO,
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (granted) {
+                    answer(true)
+                } else {
+                    micAnswer = answer
+                    micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                }
+            },
+        )
     }
     if (pickingAutomixPerformance) {
         ModalBottomSheet(

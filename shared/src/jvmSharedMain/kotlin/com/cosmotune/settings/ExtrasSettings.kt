@@ -23,6 +23,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val autoLyricsOffsetFlow = MutableStateFlow(store.getBoolean(KEY_AUTO_LYRICS_OFFSET, true))
     private val spatialPresetFlow = MutableStateFlow(SpatialPreset.named(store.getString(KEY_SPATIAL_PRESET, SpatialPreset.DEFAULT.name)))
     private val spatialSurroundFlow = MutableStateFlow(store.getBoolean(KEY_SPATIAL_SURROUND, false))
+    private val songRecognitionFlow = MutableStateFlow(store.getBoolean(KEY_SONG_RECOGNITION, false))
 
     /** The loudest the app plays, in percent of full scale; 100 is no cap. Applied after every other stage. */
     val maxVolumePercent: StateFlow<Int> = maxVolumeFlow.asStateFlow()
@@ -48,8 +49,19 @@ class ExtrasSettings(private val store: KeyValueStore) {
     /** With the spatial switch on, a 5.1 or 7.1 stream is rendered to two ears instead of folded down. */
     val spatialSurround: StateFlow<Boolean> = spatialSurroundFlow.asStateFlow()
 
+    /**
+     * Song recognition, off until turned on: it records the microphone and sends a fingerprint to Shazam's unofficial
+     * endpoint (see `com.cosmotune.music.data.recognition.SongRecognition`).
+     */
+    val songRecognition: StateFlow<Boolean> = songRecognitionFlow.asStateFlow()
+
     init {
         publishNetwork()
+    }
+
+    fun setSongRecognition(value: Boolean) {
+        songRecognitionFlow.value = value
+        store.putBoolean(KEY_SONG_RECOGNITION, value)
     }
 
     fun setSpatialPreset(value: SpatialPreset) {
@@ -127,6 +139,7 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_AUTO_LYRICS_OFFSET = "extras_auto_lyrics_offset"
         const val KEY_SPATIAL_PRESET = "extras_spatial_preset"
         const val KEY_SPATIAL_SURROUND = "extras_spatial_surround"
+        const val KEY_SONG_RECOGNITION = "extras_song_recognition"
 
         const val MIN_VOLUME_PERCENT = 10
 

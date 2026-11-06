@@ -24,5 +24,6 @@ object ExtrasStore {
         NetworkPolicy.installAsDefault()
         Extras.install(Store(context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)))
         com.cosmotune.lyrics.autosync.LyricsAutoOffset.configure(java.io.File(context.filesDir, "lyrics"))
+        com.cosmotune.music.data.recognition.SongRecognition.microphone = AndroidMicrophone(context.applicationContext)
     }
 }

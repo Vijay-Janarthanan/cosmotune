@@ -104,6 +104,10 @@ its Mochy source in its comment, and the list below is kept up to date with `UPS
 - Spatial audio: the bs2b crossfeed and Brown and Duda's spherical-head renderer of Mochy's `eq/audio/SpatialAudioProcessor.kt`
   (virtual speakers, binaural surround, mono), in `shared/.../audio/SpatialDsp.kt`, which names its source. bs2b is Boris
   Mikhaylov's Bauer stereophonic-to-binaural filter (https://bs2b.sourceforge.net/); only its published coefficients are used.
+- Song recognition: Mochy's `recognition/ShazamSignatureGenerator.kt` (ported, `shared/.../music/data/recognition/`) and the
+  request and answer of its `providers/shazamkit/.../Shazam.kt`. The signature format is Shazam's, as worked out by the
+  SongRec project (https://github.com/marin-m/SongRec, GPL-3.0). It is sent to Shazam's unofficial endpoint, only when the
+  listener has turned the feature on; Cosmotune is not affiliated with Shazam or Apple.
 
 ## Video mode
 
