@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -131,6 +132,9 @@ fun ReorderPlaylistSheet(
  * reduced by exactly the distance its slot just moved, so the row stays under
  * the finger rather than jumping with the swap.
  */
+/** The reorder list's share of the window's height: the sheet holds 85 % of it, its title and grabber the rest. */
+private const val REORDER_LIST_SHARE = 0.68f
+
 @Composable
 private fun ReorderableSongList(order: MutableList<Song>, enabled: Boolean) {
     val listState = rememberLazyListState()
@@ -194,7 +198,10 @@ private fun ReorderableSongList(order: MutableList<Song>, enabled: Boolean) {
         }
     }
 
-    LazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
+    // Bounded: the Orbit sheet's surface scrolls its content, and a lazy list measured inside a scroll with no height of its own
+    // crashes ("measured with an infinity maximum height"). Under the sheet's title, within the sheet's own 85 % of the window.
+    val windowHeight = with(density) { androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height.toDp() }
+    LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = windowHeight * REORDER_LIST_SHARE)) {
         itemsIndexed(order, key = { _, song -> song.setVideoId ?: song.videoId }) { _, song ->
             val key = song.setVideoId ?: song.videoId
             val dragging = held == key

@@ -236,8 +236,13 @@ internal fun RoomEntrySheets(entry: RoomEntry, landing: Boolean, onJoined: () ->
                     entry.failure = null
                     entry.sheet = PartySheet.JoinCode
                 },
-                // On a short window the landing scrolls inside the sheet rather than pushing its buttons off the foot.
-                modifier = Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = 24.dp),
+                // On a short window the landing scrolls inside the sheet rather than pushing its buttons off the foot. The Orbit
+                // sheet's surface already scrolls its content: a second vertical scroll inside it is measured with an unbounded
+                // height and crashed the app the moment Home's "Start a room" card opened this sheet.
+                modifier = Modifier
+                    .then(if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp),
                 compact = true,
             )
 
