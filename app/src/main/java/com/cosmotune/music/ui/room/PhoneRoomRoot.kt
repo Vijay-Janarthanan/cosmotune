@@ -75,6 +75,8 @@ fun PhoneRoomRoot(video: RoomVideoHost?, content: @Composable () -> Unit) {
     val entry = rememberRoomEntry()
 
     SideEffect { video?.follow(shell?.settings) }
+    val watchContext = androidx.compose.ui.platform.LocalContext.current
+    SideEffect { com.cosmotune.music.watch.RoomWatch.follow(watchContext) }
     LaunchedEffect(code.value) { if (code.value == null) open.value = false }
     LaunchedEffect(room.value != null, pending) {
         val item = pending ?: return@LaunchedEffect
@@ -90,14 +92,20 @@ fun PhoneRoomRoot(video: RoomVideoHost?, content: @Composable () -> Unit) {
     }
     LaunchedEffect(Unit) {
         RoomNotices.skipped.collect { track ->
-            Toast.makeText(context, context.getString(R.string.room_item_skipped, track.title.ifBlank { track.videoId }), Toast.LENGTH_LONG).show()
+            // A kind from a newer app is never played as a song: the person is asked to update instead.
+            val text = when {
+                track.needsUpdate -> context.getString(R.string.room_item_needs_update)
+                track.kind == PartyTrack.KIND_WATCH -> context.getString(R.string.room_item_not_in_watch, track.title.ifBlank { track.videoId })
+                else -> context.getString(R.string.room_item_skipped, track.title.ifBlank { track.videoId })
+            }
+            Toast.makeText(context, text, Toast.LENGTH_LONG).show()
         }
     }
 
     val track = room.value?.playback?.track
     val inRoom = code.value != null
     // The room's video drawn in the room screen: Video's own pages step aside meanwhile ([RoomVideoHost.cover]).
-    val media = if (inRoom && open.value) video?.media(track) else null
+    val media = if (inRoom && open.value) video?.media(track) ?: com.cosmotune.music.watch.RoomWatch.media(track) else null
     SideEffect { video?.cover(media != null && mode == AppMode.VIDEO) }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {

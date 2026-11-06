@@ -8,7 +8,6 @@ import com.cosmotune.video.graph.androidVideoGraph
 import com.cosmotune.watch.DefaultWatchRepository
 import com.cosmotune.watch.WatchConfig
 import com.cosmotune.watch.WatchLinks
-import com.cosmotune.watch.WatchPlayer
 import com.cosmotune.watch.player.EngineWatchPlayer
 import com.cosmotune.watch.store.WatchStore
 import java.io.File
@@ -21,7 +20,7 @@ import java.io.File
 object AndroidWatch {
     @Volatile private var storeRef: WatchStore? = null
     @Volatile private var repositoryRef: DefaultWatchRepository? = null
-    @Volatile private var playerRef: WatchPlayer? = null
+    @Volatile private var playerRef: EngineWatchPlayer? = null
 
     @Synchronized
     fun store(context: Context): WatchStore = storeRef ?: WatchStore(File(File(context.applicationContext.filesDir, "watch"), "watch.json")).also { storeRef = it }
@@ -43,7 +42,7 @@ object AndroidWatch {
 
     /** The player, on Video mode's Media3 engine. */
     @Synchronized
-    fun player(context: Context): WatchPlayer = playerRef ?: run {
+    fun player(context: Context): EngineWatchPlayer = playerRef ?: run {
         val graph = androidVideoGraph(context.applicationContext)
         EngineWatchPlayer(repository(context), graph.playback.engine, onYouTube = { id, at -> graph.playback.play(id, at) },
             stopOthers = { runCatching { graph.playback.stop() } })

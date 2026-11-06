@@ -67,6 +67,14 @@ class RoomPartyKindsTest {
         assertEquals(RoomKinds.Player.MUSIC, RoomKinds.playerOf(station))
         assertEquals(RoomKinds.Player.MUSIC, RoomKinds.playerOf(episode))
         assertEquals(RoomKinds.Player.VIDEO, RoomKinds.playerOf(video))
+        val watch = PartyTrack("m:tmdb:603", "The Matrix", kind = PartyTrack.KIND_WATCH)
+        assertEquals(RoomKinds.Player.WATCH, RoomKinds.playerOf(watch))
+        assertTrue(RoomKinds.playableHere(watch, videoAvailable = false))
+        // A kind from a newer app sits out on the music player, never played as a song.
+        val newer = song.copy(kind = "hologram")
+        assertEquals(RoomKinds.Player.MUSIC, RoomKinds.playerOf(newer))
+        assertFalse(RoomKinds.playableHere(newer, videoAvailable = true))
+        assertTrue(newer.needsUpdate)
     }
 
     // ---- video: followed like music, on the video player ----

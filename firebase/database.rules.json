@@ -137,10 +137,54 @@
               ".validate": "newData.isBoolean()"
             },
             "kind": {
-              ".validate": "newData.isString() && (newData.val() === 'music' || newData.val() === 'video' || newData.val() === 'radio' || newData.val() === 'podcast')"
+              ".validate": "newData.isString() && (newData.val() === 'music' || newData.val() === 'video' || newData.val() === 'radio' || newData.val() === 'podcast' || newData.val() === 'watch')"
             },
             "url": {
               ".validate": "newData.isString() && newData.val().length <= 500 && newData.val().matches(/^https:[/][/].+/)"
+            },
+            "watch": {
+              "tmdb": {
+                ".validate": "newData.isNumber()"
+              },
+              "imdb": {
+                ".validate": "newData.isString() && newData.val().length <= 16"
+              },
+              "season": {
+                ".validate": "newData.isNumber()"
+              },
+              "episode": {
+                ".validate": "newData.isNumber()"
+              },
+              "year": {
+                ".validate": "newData.isNumber()"
+              },
+              "runtimeMin": {
+                ".validate": "newData.isNumber()"
+              },
+              "size": {
+                ".validate": "newData.isNumber()"
+              },
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 200"
+              },
+              "durationMs": {
+                ".validate": "newData.isNumber()"
+              },
+              "binge": {
+                ".validate": "newData.isString() && newData.val().length <= 100"
+              },
+              "plugin": {
+                ".validate": "newData.isString() && newData.val().length <= 32"
+              },
+              "tvgId": {
+                ".validate": "newData.isString() && newData.val().length <= 64"
+              },
+              "channel": {
+                ".validate": "newData.isString() && newData.val().length <= 80"
+              },
+              "$other": {
+                ".validate": false
+              }
             },
             "$other": {
               ".validate": false
@@ -194,10 +238,54 @@
                 ".validate": "newData.isBoolean()"
               },
               "kind": {
-                ".validate": "newData.isString() && (newData.val() === 'music' || newData.val() === 'video' || newData.val() === 'radio' || newData.val() === 'podcast')"
+                ".validate": "newData.isString() && (newData.val() === 'music' || newData.val() === 'video' || newData.val() === 'radio' || newData.val() === 'podcast' || newData.val() === 'watch')"
               },
               "url": {
                 ".validate": "newData.isString() && newData.val().length <= 500 && newData.val().matches(/^https:[/][/].+/)"
+              },
+              "watch": {
+                "tmdb": {
+                  ".validate": "newData.isNumber()"
+                },
+                "imdb": {
+                  ".validate": "newData.isString() && newData.val().length <= 16"
+                },
+                "season": {
+                  ".validate": "newData.isNumber()"
+                },
+                "episode": {
+                  ".validate": "newData.isNumber()"
+                },
+                "year": {
+                  ".validate": "newData.isNumber()"
+                },
+                "runtimeMin": {
+                  ".validate": "newData.isNumber()"
+                },
+                "size": {
+                  ".validate": "newData.isNumber()"
+                },
+                "name": {
+                  ".validate": "newData.isString() && newData.val().length <= 200"
+                },
+                "durationMs": {
+                  ".validate": "newData.isNumber()"
+                },
+                "binge": {
+                  ".validate": "newData.isString() && newData.val().length <= 100"
+                },
+                "plugin": {
+                  ".validate": "newData.isString() && newData.val().length <= 32"
+                },
+                "tvgId": {
+                  ".validate": "newData.isString() && newData.val().length <= 64"
+                },
+                "channel": {
+                  ".validate": "newData.isString() && newData.val().length <= 80"
+                },
+                "$other": {
+                  ".validate": false
+                }
               },
               "$other": {
                 ".validate": false

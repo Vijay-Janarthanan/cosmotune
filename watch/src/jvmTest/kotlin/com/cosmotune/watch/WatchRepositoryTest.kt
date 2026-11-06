@@ -214,3 +214,49 @@ class WatchRepositoryTest {
         assertEquals("Resume S2 E4", fake.nextUp(WatchKey.tmdbSeries(101))?.label)
     }
 }
+
+class WatchRoomTest {
+    private val summary = TitleSummary(WatchKey.tmdbSeries(1399), TitleType.SERIES, "Game of Thrones", 2011, posterUrl = "https://img/p.jpg", ids = ExternalIds(tmdb = 1399, imdb = "tt0944947"))
+
+    @Test fun aRoomItemCarriesTheKeyIdsAndReleaseButNoPrivateAddress() = runBlocking<Unit> {
+        val target = PlayTarget.EpisodeOf(WatchKey.tmdbEpisode(1399, 1, 2), summary.ids, "Game of Thrones", 1, 2, episodeName = "The Kingsroad", year = 2011)
+        val server = Stream(StreamSource("jf-abc12", "Home", "JF"), "Direct play", url = "http://192.168.1.5:8096/Videos/x/stream", protocol = StreamProtocol.PROGRESSIVE,
+            headers = mapOf("X-Emby-Token" to "secret"), sizeBytes = 2_254_857_830, filename = "GoT.S01E02.mkv", durationMs = 3_360_000, bingeGroup = "jf-1080")
+        val item = WatchRoom.trackOf(target, summary, server)
+        assertEquals("e:tmdb:1399:1:2", item.videoId)
+        assertEquals(com.cosmotune.music.data.listentogether.PartyTrack.KIND_WATCH, item.kind)
+        assertEquals("S1 · E2 · The Kingsroad", item.artist)
+        assertEquals(null, item.url, "a server's address never travels")
+        assertEquals("jellyfin", item.watch?.plugin)
+        assertEquals("GoT.S01E02.mkv", item.watch?.name)
+        assertEquals("tt0944947", item.watch?.imdb)
+        assertFalse(item.toString().contains("secret") || item.toString().contains("192.168"))
+        val public = Stream(StreamSource("ia", "Internet Archive", "ARC"), "MP4", url = "https://archive.org/download/x/x.mp4", protocol = StreamProtocol.PROGRESSIVE, isPublic = true)
+        assertEquals("https://archive.org/download/x/x.mp4", WatchRoom.trackOf(PlayTarget.Film(WatchKey("m:ia:x"), ExternalIds(), "X"), null, public).url)
+        val tokened = public.copy(url = "https://cdn.example/live.m3u8?jwt=abc")
+        assertEquals(null, WatchRoom.trackOf(PlayTarget.Film(WatchKey("m:ia:x"), ExternalIds(), "X"), null, tokened).url)
+
+        // A member turns it back into what to ask their own plugins for, with the host's release as the hint.
+        val back = WatchRoom.targetOf(item, FakeWatchRepository()) as PlayTarget.EpisodeOf
+        assertEquals(1, back.season); assertEquals(2, back.episode)
+        assertEquals("tt0944947", back.seriesIds.imdb)
+        assertEquals("GoT.S01E02.mkv", WatchRoom.hintOf(item)?.filename)
+        assertEquals(null, WatchRoom.fallbackOf(item))
+        assertFalse(WatchRoom.canPlay(item.copy(videoId = "nonsense")))
+    }
+
+    @Test fun differentCutsAreNoted() {
+        assertEquals(null, WatchRoom.lengthNote(6_720_000, 6_750_000))
+        assertEquals("Your copy is 4 min longer: a different cut, so positions may not line up", WatchRoom.lengthNote(6_720_000, 6_960_000))
+        assertEquals("Your copy is 2 min shorter: a different cut, so positions may not line up", WatchRoom.lengthNote(6_720_000, 6_600_000))
+        assertEquals(null, WatchRoom.lengthNote(null, 6_600_000))
+    }
+
+    @Test fun aPackCanBeOfferedInTheRoomChat() {
+        val link = PluginPack.encode(listOf(PluginPack.Item("https://addon.example/manifest.json", "Plain")))
+        val message = WatchRoom.packOffer(link, "Ana")!!
+        assertEquals(link, WatchRoom.packIn(message))
+        assertEquals(null, WatchRoom.packIn("hello"))
+        assertEquals(null, WatchRoom.packOffer("https://not-a-pack", "Ana"))
+    }
+}

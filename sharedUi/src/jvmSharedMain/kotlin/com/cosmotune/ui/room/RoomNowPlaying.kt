@@ -106,7 +106,8 @@ private fun NowPlayingList(
     val track = room.playback.track
     val queue = room.queue.items
     val canControl = state.canControl
-    val kind = track?.kind?.takeIf { it in PartyTrack.KINDS } ?: PartyTrack.KIND_MUSIC
+    // A kind from a newer app is kept as it is: it is not drawn as a song, and its titles say to update.
+    val kind = track?.kind ?: PartyTrack.KIND_MUSIC
     val live = track?.isLive == true
     LazyColumn(
         Modifier.fillMaxSize().testTag(RoomTags.PAGE_NOW_PLAYING),
@@ -116,7 +117,7 @@ private fun NowPlayingList(
         if (track == null) {
             item(key = "empty") { NothingPlaying(canControl, actions) }
         } else {
-            if (kind == PartyTrack.KIND_VIDEO) {
+            if (kind == PartyTrack.KIND_VIDEO || kind == PartyTrack.KIND_WATCH) {
                 item(key = "video") { VideoFrame(track, videoMax, media) }
             } else {
                 item(key = "cover") { Cover(track, coverMax) }
@@ -142,7 +143,7 @@ private fun NowPlayingList(
                 )
             }
             // Quality, captions and speed are each person's own, so this is open to everyone, host-only room or not.
-            if (kind == PartyTrack.KIND_VIDEO || kind == PartyTrack.KIND_PODCAST) {
+            if (kind == PartyTrack.KIND_VIDEO || kind == PartyTrack.KIND_PODCAST || kind == PartyTrack.KIND_WATCH) {
                 item(key = "options") { PlaybackOptions(actions) }
             }
             item(key = "ask") {
@@ -268,7 +269,8 @@ private fun Titles(track: PartyTrack, kind: String, startedBy: String?) {
             PartyTrack.KIND_VIDEO -> Res.string.cosmo_room_kind_video
             PartyTrack.KIND_RADIO -> Res.string.cosmo_room_kind_radio
             PartyTrack.KIND_PODCAST -> Res.string.cosmo_room_kind_podcast
-            else -> null
+            PartyTrack.KIND_WATCH -> Res.string.cosmo_room_kind_watch
+            else -> if (track.needsUpdate) Res.string.cosmo_room_needs_update else null
         }
         if (kindLabel != null) {
             Text(

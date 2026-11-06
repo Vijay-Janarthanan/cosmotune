@@ -35,6 +35,8 @@ data class WatchPlayerState(
     val failover: String? = null,
     val error: String? = null,
     val isLive: Boolean = false,
+    /** In a room: "Your copy is 4 min longer: a different cut, so positions may not line up". */
+    val lengthNote: String? = null,
 )
 
 /**
@@ -48,9 +50,11 @@ interface WatchPlayer {
 
     /**
      * Starts [target]. [stream] plays that copy (from the "Play from" list) instead of the best one; [startMs] null resumes
-     * from saved progress (0 for a channel); [hint] ranks a matching copy first (rooms, the last release played).
+     * from saved progress (0 for a channel); [hint] ranks a matching copy first (rooms, the last release played); [fallback]
+     * plays when no plugin has a copy (a room's public stream).
      */
-    fun open(target: PlayTarget, summary: TitleSummary? = null, stream: Stream? = null, startMs: Long? = null, hint: StreamHint? = null)
+    fun open(target: PlayTarget, summary: TitleSummary? = null, stream: Stream? = null, startMs: Long? = null, hint: StreamHint? = null,
+        fallback: Stream? = null)
     fun switchStream(stream: Stream)
     fun selectAudio(trackId: String)
     /** Null turns subtitles off. A subtitle with a url is loaded on first selection. */

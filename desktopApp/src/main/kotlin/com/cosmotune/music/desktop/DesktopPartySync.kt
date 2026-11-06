@@ -498,7 +498,10 @@ internal class DesktopPartySync(
                 PartyTrack.KIND_VIDEO -> "This video can't be played here. You'll rejoin on the next item."
                 PartyTrack.KIND_RADIO -> "This station can't be played here. You'll rejoin on the next item."
                 PartyTrack.KIND_PODCAST -> "This episode can't be played here. You'll rejoin on the next item."
-                else -> "This song can't be played here. You'll rejoin on the next one."
+                PartyTrack.KIND_WATCH -> "This isn't in your Watch plugins. You'll rejoin on the next item."
+                // A kind from a newer app is never played as a song.
+                else -> if (track.needsUpdate) "Update Cosmotune to play this. You'll rejoin on the next item."
+                    else "This song can't be played here. You'll rejoin on the next one."
             },
         )
     }

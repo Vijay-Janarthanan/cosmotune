@@ -130,12 +130,25 @@ class RoomLogicTest {
         assertEquals("podcast", RoomMapping.trackOf(RoomMapping.trackJson(PartyTrack("e1", "Episode", "Show", null, 1_000, kind = "podcast", url = "https://cdn.example.org/e1.mp3")))!!.kind)
     }
 
-    @Test fun aLinkThatIsNotHttpsIsNeverTrustedAndAnUnknownKindIsMusic() {
+    @Test fun aWatchItemKeepsItsKeyAndReleaseHint() {
+        val item = PartyTrack("e:tmdb:1399:1:2", "Game of Thrones", "S1 · E2", null, 3_360_000, kind = PartyTrack.KIND_WATCH,
+            watch = com.cosmotune.music.data.listentogether.PartyWatch(tmdb = 1399, imdb = "tt0944947", season = 1, episode = 2, size = 2_254_857_830, name = "GoT.S01E02.mkv"))
+        val json = RoomMapping.trackJson(item)
+        val read = RoomMapping.trackOf(json)!!
+        assertEquals(item, read)
+        assertTrue(!read.needsUpdate)
+        assertTrue(PartyTrack("c:iptv:BBCOne.uk", "BBC One", kind = PartyTrack.KIND_WATCH).isLive)
+        assertNull(RoomMapping.trackJson(item.copy(kind = PartyTrack.KIND_MUSIC))["watch"], "only a Watch item carries a watch object")
+    }
+
+    @Test fun aLinkThatIsNotHttpsIsNeverTrustedAndAnUnknownKindIsNeverMusic() {
         val bad = kotlinx.serialization.json.buildJsonObject {
             put("videoId", "x"); put("title", "t"); put("kind", "movie"); put("url", "http://evil.example/x.mp3")
         }
         val read = RoomMapping.trackOf(bad)!!
-        assertEquals(PartyTrack.KIND_MUSIC, read.kind)
+        // A kind from a newer app is kept, so no player here takes it for a song; the room says to update.
+        assertEquals("movie", read.kind)
+        assertTrue(read.needsUpdate)
         assertNull(read.url)
         assertNull(RoomMapping.trackJson(read.copy(url = "http://evil.example/x.mp3"))["url"])
     }

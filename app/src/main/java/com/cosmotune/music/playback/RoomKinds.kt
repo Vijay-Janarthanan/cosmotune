@@ -14,10 +14,18 @@ import com.cosmotune.ui.room.roomItemId
  */
 internal object RoomKinds {
 
-    enum class Player { MUSIC, VIDEO }
+    enum class Player { MUSIC, VIDEO, WATCH }
 
-    /** The player that plays [track] here. A kind this version does not know is the music player's, which then sits it out. */
-    fun playerOf(track: PartyTrack): Player = if (track.kind == PartyTrack.KIND_VIDEO) Player.VIDEO else Player.MUSIC
+    /**
+     * The player that plays [track] here: Watch's for a Watch item (found in this phone's own Watch plugins). A kind this version
+     * does not know is the music player's, which sits it out ([playableHere] is false) and says to update; it is never played as
+     * a song.
+     */
+    fun playerOf(track: PartyTrack): Player = when (track.kind) {
+        PartyTrack.KIND_VIDEO -> Player.VIDEO
+        PartyTrack.KIND_WATCH -> Player.WATCH
+        else -> Player.MUSIC
+    }
 
     fun onMusicPlayer(track: PartyTrack): Boolean = playerOf(track) == Player.MUSIC
 
@@ -40,6 +48,7 @@ internal object RoomKinds {
         PartyTrack.KIND_VIDEO -> videoAvailable
         PartyTrack.KIND_RADIO -> isHttps(track.url)
         PartyTrack.KIND_PODCAST -> isHttps(track.url) || YouTubePodcasts.videoId(mediaIdOf(track)) != null
+        PartyTrack.KIND_WATCH -> com.cosmotune.watch.WatchRoom.canPlay(track)
         else -> false
     }
 

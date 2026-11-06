@@ -98,7 +98,7 @@ private class ServiceLive(
         val (url, headers) = streamOf(cid, l.slug?.replace("{id}", cid)) ?: return emptyList()
         val all = buildMap { l.userAgent?.let { put("User-Agent", it) }; putAll(headers) }
         return listOf(Stream(StreamSource(id, displayName, badge), "Live", channel.categories.firstOrNull(), url, StreamGuess.protocol(url),
-            headers = all, isLive = true, hasAds = true, isPublic = headers.isEmpty() && StreamGuess.isHttps(url)))
+            headers = all, isLive = true, hasAds = true, isPublic = headers.isEmpty() && StreamGuess.isHttps(url) && '?' !in url))
     }
 
     override suspend fun health(): String? = runCatching { if (load().channels.isEmpty()) "Not offered in your region" else null }.getOrElse { it.message }

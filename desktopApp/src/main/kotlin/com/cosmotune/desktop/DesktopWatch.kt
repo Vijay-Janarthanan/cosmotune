@@ -36,7 +36,7 @@ object DesktopWatch {
     }
 
     /** The player, on Video mode's libmpv engine (built on first use). */
-    val player: WatchPlayer by lazy {
+    val player: com.cosmotune.watch.player.EngineWatchPlayer by lazy {
         val graph = requireNotNull(desktopVideoGraph(build = true))
         com.cosmotune.watch.player.EngineWatchPlayer(repository, graph.playback.engine, onYouTube = { id, startMs -> graph.playback.play(id, startMs) },
             stopOthers = { runCatching { graph.playback.stop() } })

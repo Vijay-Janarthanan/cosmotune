@@ -31,8 +31,25 @@ const track = {
   durationMs: num,
   fromAutoplay: bool,
   // what the item is, and for radio and podcasts where to fetch it: https only, because every member's device fetches it
-  kind: { '.validate': "newData.isString() && (newData.val() === 'music' || newData.val() === 'video' || newData.val() === 'radio' || newData.val() === 'podcast')" },
+  kind: { '.validate': "newData.isString() && (newData.val() === 'music' || newData.val() === 'video' || newData.val() === 'radio' || newData.val() === 'podcast' || newData.val() === 'watch')" },
   url: { '.validate': "newData.isString() && newData.val().length <= 500 && newData.val().matches(/^https:[/][/].+/)" }, // slashes in a character class, so no escape has to survive the string
+  // a Watch item (kind 'watch'): ids and the host's release, each short; never a stream address, a server or a credential
+  watch: {
+    tmdb: num,
+    imdb: str(16),
+    season: num,
+    episode: num,
+    year: num,
+    runtimeMin: num,
+    size: num,
+    name: str(200),
+    durationMs: num,
+    binge: str(100),
+    plugin: str(32),
+    tvgId: str(64),
+    channel: str(80),
+    $other: { '.validate': false },
+  },
   $other: { '.validate': false },
 }
 

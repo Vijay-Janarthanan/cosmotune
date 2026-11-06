@@ -71,7 +71,12 @@ class EngineWatchPlayer(
         scope.launch { engine.tracks.collect { tracks -> mutable.update { it.copy(audioTracks = audioOf(tracks), subtitles = subtitlesOf(tracks)) } } }
     }
 
-    override fun open(target: PlayTarget, summary: TitleSummary?, stream: Stream?, startMs: Long?, hint: StreamHint?) {
+    /** The room host's length for what plays (a room item); a copy that differs by more than a minute is noted in the state. */
+    @Volatile var roomDurationMs: Long? = null
+    private var fallback: Stream? = null
+
+    override fun open(target: PlayTarget, summary: TitleSummary?, stream: Stream?, startMs: Long?, hint: StreamHint?, fallback: Stream?) {
+        this.fallback = fallback
         saveNow()
         job?.cancel(); ticker?.cancel()
         tried.clear(); external = emptyList(); added.clear(); countdownCancelled = false; autoNextDone = false
@@ -105,12 +110,14 @@ class EngineWatchPlayer(
             }
             if (s.done && !started) {
                 val found = s.best
+                val backup = fallback
                 if (found != null) { started = true; play(found, startWith!!) }
+                else if (backup != null) { started = true; mutable.update { it.copy(streams = listOf(backup)) }; play(backup, startWith!!) }
                 else mutable.update { it.copy(status = WatchPlayerStatus.NOT_FOUND, error = "Not on your sources") }
             }
         }
         // A list that settled while waiting for a slow plugin: start with what there is.
-        if (!started) state.value.streams.firstOrNull { it.isPlayable }?.let { play(it, startWith!!) }
+        if (!started) (state.value.streams.firstOrNull { it.isPlayable } ?: fallback)?.let { play(it, startWith!!) }
             ?: mutable.update { if (it.stream == null) it.copy(status = WatchPlayerStatus.NOT_FOUND, error = "Not on your sources") else it }
     }
 
@@ -172,7 +179,9 @@ class EngineWatchPlayer(
         val remaining = duration - position
         val next = s.nextEpisode
         val countdown = if (next != null && !countdownCancelled && !s.isLive && duration > 0 && remaining in 0..countdownMs) remaining else null
-        mutable.update { it.copy(status = status, durationMs = duration, nextEpisodeInMs = countdown, failover = if (status == WatchPlayerStatus.PLAYING) null else it.failover) }
+        val note = if (s.isLive) null else com.cosmotune.watch.WatchRoom.lengthNote(roomDurationMs, snap.durationMs.takeIf { it > 0 })
+        mutable.update { it.copy(status = status, durationMs = duration, nextEpisodeInMs = countdown, lengthNote = note,
+            failover = if (status == WatchPlayerStatus.PLAYING) null else it.failover) }
         if (!s.isLive && (status == WatchPlayerStatus.PLAYING) && now() - lastSavedAt >= saveEveryMs) saveNow()
         if (status == WatchPlayerStatus.PAUSED && now() - lastSavedAt >= saveEveryMs) saveNow()
         if (status == WatchPlayerStatus.ENDED) {
