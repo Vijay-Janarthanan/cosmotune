@@ -360,7 +360,8 @@ class MainActivity : AppCompatActivity() {
         if (!com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent)) {
             PlayerDeepLink.consume(intent)
             JamInviteLink.consume(intent)
-            com.cosmotune.music.watch.AndroidWatch.consume(intent)
+            // A Watch install or pack link is Watch's alone; anything else is Music's.
+            if (!com.cosmotune.music.watch.AndroidWatch.consume(intent))
             // Likewise for a link tapped or shared from another app â€” see [MusicLink].
             MusicLink.consume(intent)
         }
@@ -466,8 +467,8 @@ class MainActivity : AppCompatActivity() {
         if (com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent)) return
         PlayerDeepLink.consume(intent)
         JamInviteLink.consume(intent)
-        com.cosmotune.music.watch.AndroidWatch.consume(intent)
-        MusicLink.consume(intent)
+        // A Watch install or pack link is Watch's alone; anything else is Music's.
+        if (!com.cosmotune.music.watch.AndroidWatch.consume(intent)) MusicLink.consume(intent)
     }
 }
 

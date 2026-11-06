@@ -62,6 +62,16 @@ class DesktopSingleInstanceTest {
         }
     }
 
+    @Test fun aLaterLaunchHandsItsLinkToTheFirst() = withDirectory { directory ->
+        val links = java.util.concurrent.LinkedBlockingQueue<String>()
+        DesktopSingleInstance.acquire(directory, onLink = { links += it }) {}!!.use {
+            assertNull(DesktopSingleInstance.acquire(directory, link = "stremio://example.org/manifest.json") { error("Second owner") })
+            assertEquals("stremio://example.org/manifest.json", links.poll(5, TimeUnit.SECONDS))
+            assertNull(DesktopSingleInstance.acquire(directory) { error("Second owner") })
+            assertNull(links.poll(1_500, TimeUnit.MILLISECONDS), "a launch without a link hands nothing over")
+        }
+    }
+
     private fun withDirectory(block: (java.nio.file.Path) -> Unit) {
         val directory = Files.createTempDirectory("cosmotune-instance-test")
         try { block(directory) } finally { directory.toFile().deleteRecursively() }
