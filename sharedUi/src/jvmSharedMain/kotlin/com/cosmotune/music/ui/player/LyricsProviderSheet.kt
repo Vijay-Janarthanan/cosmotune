@@ -1,26 +1,17 @@
 package com.cosmotune.music.ui.player
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,10 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.sharedui.resources.*
@@ -41,13 +29,15 @@ import com.cosmotune.music.data.lyrics.LyricsSource
 import com.cosmotune.music.ui.LyricsProviderState
 import com.cosmotune.music.ui.haptics.Haptic
 import com.cosmotune.music.ui.haptics.rememberHaptics
+import com.cosmotune.ui.orbit.OrbitOptionRow
+import com.cosmotune.ui.orbit.orbitLook
 import dev.chrisbanes.haze.HazeState
 
 /**
  * Manual provider chooser for the lyrics half-player.
  *
- * It deliberately uses [PlayerDrawer], [ROW_SHAPE], and the same row geometry
- * as [AudioOutputSheet], so it behaves like another player destination rather
+ * It deliberately uses [PlayerDrawer] and the kit's option row ([OrbitOptionRow])
+ * as [AudioOutputSheet] does, so it behaves like another player destination rather
  * than a settings dialog. A row that the automatic lookup already completed is
  * entirely local: hits switch immediately and misses cannot be requested twice.
  */
@@ -75,7 +65,7 @@ internal fun LyricsProviderSheet(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             sources.forEach { source ->
                 LyricsProviderRow(
@@ -94,6 +84,10 @@ internal fun LyricsProviderSheet(
     }
 }
 
+/**
+ * One source: its state on the disc (a spinner while it is being asked, a check once it has the lines, a cross when it has none,
+ * a magnifier before it is asked), its name and what it said. The one in use is checked; one that found nothing is faded.
+ */
 @Composable
 private fun LyricsProviderRow(
     source: LyricsSource,
@@ -102,6 +96,7 @@ private fun LyricsProviderRow(
     onClick: () -> Unit,
 ) {
     val haptics = rememberHaptics()
+    val look = orbitLook()
     // A running automatic request can still be selected: it is marked as the
     // requested source and applied when that same in-flight call completes.
     val enabled = !current && state != LyricsProviderState.NOT_FOUND
@@ -112,74 +107,24 @@ private fun LyricsProviderRow(
         state == LyricsProviderState.FETCHING -> stringResource(Res.string.lyrics_provider_fetching)
         else -> stringResource(Res.string.lyrics_provider_not_fetched)
     }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = if (current) 0.10f else 0.05f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                enabled = enabled,
-            ) {
-                haptics.play(Haptic.Select)
-                onClick()
+    OrbitOptionRow(
+        title = source.label,
+        subtitle = status,
+        icon = when {
+            current || state == LyricsProviderState.FOUND -> Icons.Rounded.Check
+            state == LyricsProviderState.NOT_FOUND -> Icons.Rounded.Close
+            else -> Icons.Rounded.Search
+        },
+        onClick = if (enabled) ({
+            haptics.play(Haptic.Select)
+            onClick()
+        }) else null,
+        checked = current,
+        dimmed = state == LyricsProviderState.NOT_FOUND,
+        discContent = if (state == LyricsProviderState.FETCHING) ({
+            Box(Modifier.size(40.dp).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = look.ink, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
             }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = if (current) 0.16f else 0.08f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            when {
-                state == LyricsProviderState.FETCHING -> CircularProgressIndicator(
-                    color = Color.White.copy(alpha = 0.8f),
-                    strokeWidth = 2.dp,
-                    modifier = Modifier.size(20.dp),
-                )
-                current || state == LyricsProviderState.FOUND -> Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = if (current) 1f else 0.75f),
-                    modifier = Modifier.size(21.dp),
-                )
-                state == LyricsProviderState.NOT_FOUND -> Icon(
-                    imageVector = Icons.Rounded.Close,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.4f),
-                    modifier = Modifier.size(20.dp),
-                )
-                else -> Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
-        Spacer(Modifier.width(13.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = source.label,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
-                ),
-                color = Color.White.copy(alpha = if (current) 1f else 0.85f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = status,
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = if (current) 0.7f else 0.5f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+        }) else null,
+    )
 }

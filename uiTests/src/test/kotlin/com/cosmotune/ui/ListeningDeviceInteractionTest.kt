@@ -2,7 +2,11 @@ package com.cosmotune.ui
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.CompositionLocalProvider
 import com.cosmotune.ui.theme.CosmoBrandPalettes
+import com.cosmotune.ui.theme.CosmoColors
+import com.cosmotune.ui.theme.CosmoPaletteState
+import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.toColorScheme
 import androidx.compose.ui.graphics.toAwtImage
 import java.io.File
@@ -23,8 +27,12 @@ class ListeningDeviceInteractionTest {
         val key = listeningRouteKey("test", "headphones", "confirmed")
         val original = ListeningEq(enabled = true, manual = true, bands = listOf(2f, 1f, 0f, -1f, 0f, 1f, 2f), balance = .2f)
         var applied: ListeningEq? = null
+        // The sheet is an Orbit dialog, which reads the look's colours.
+        val colors = CosmoColors::class.java.getConstructor(CosmoPaletteState::class.java).newInstance(CosmoPaletteState(CosmoBrandPalettes.of(true), true))
         compose.setContent { MaterialTheme(colorScheme = CosmoBrandPalettes.of(true).toColorScheme(darkColorScheme())) {
-            ListeningDeviceSheet(ListeningDeviceFacts(key, "Confirmed headphones"), store, { original }, { applied = it }, null, {}, {})
+            CompositionLocalProvider(LocalCosmoColors provides colors) {
+                ListeningDeviceSheet(ListeningDeviceFacts(key, "Confirmed headphones"), store, { original }, { applied = it }, null, {}, {})
+            }
         } }
         compose.onNodeWithText("Save current EQ for this device").performScrollTo().performClick()
         compose.runOnIdle { assertFalse(assertNotNull(store.forRoute(key)).restoreOnConnect); assertNull(applied) }
@@ -35,6 +43,6 @@ class ListeningDeviceInteractionTest {
         compose.onNodeWithText("Restore saved EQ on reconnect").performScrollTo().performClick()
         compose.runOnIdle { assertTrue(assertNotNull(store.forRoute(key)).restoreOnConnect) }
         val out = File("../build/video-playback-review/listening-device-sheet.png").apply { parentFile.mkdirs() }
-        ImageIO.write(compose.onNode(isRoot() and hasAnyDescendant(hasText("Listening device", substring = false))).captureToImage().toAwtImage(), "png", out)
+        ImageIO.write(compose.onNode(isRoot() and hasAnyDescendant(hasText("LISTENING DEVICE", substring = false))).captureToImage().toAwtImage(), "png", out)
     }
 }

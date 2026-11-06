@@ -9,9 +9,6 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,7 +25,6 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -70,14 +66,15 @@ import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.playback.AudioOutputStatus
 import com.cosmotune.music.playback.dsd.DsdFilter
 import com.cosmotune.music.playback.dsd.DsdFormat
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.orbit.orbitPopupGround
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.isActive
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-
-private val PIPELINE_ICON_TINT = Color.White.copy(alpha = 0.6f)
 
 /**
  * Whether decoded samples are reaching the output unaltered, and what is
@@ -147,11 +144,11 @@ internal fun bitExactVerdict(
  * Displays live, authoritative details for each stage in the audio pipeline:
  * Track Info -> Decoder -> Resampler -> DSP -> Output Device.
  *
- * Same frosted card shape as [LyricsSourcesDialog] and [UpdateAvailableDialog] —
- * header with a title and subtitle, hairline-separated groups, a full-width
- * closing action — fixed to this player's own dark palette rather than the
- * theme-adaptive one those settings dialogs use, since everything else on this
- * screen is drawn in [Color.White] alphas regardless of the app's light/dark theme.
+ * Drawn in [AudioPopupCard], an Orbit dialog: the title as its question and the
+ * subtitle under it, hairline-separated stages with their mono overlines, and
+ * Done as the one peach action. Drawn in the player's own ink, so it reads in
+ * the light theme as in the dark; the signal line behind the stage icons is
+ * the same ink on the card's own ground.
  */
 @Composable
 fun AudioPipelineDialog(
@@ -222,6 +219,9 @@ fun AudioPipelineDialog(
     val stageCenters = remember { mutableStateMapOf<Int, Offset>() }
     val interactionRadiusPx = with(density) { 24.dp.toPx() }
 
+    val ink = orbitLook().ink
+    val ground = orbitPopupGround()
+
     val stageActivation: (Int) -> Float = { idx ->
         calculateStageActivation(idx, pulseProgress, flowAlpha, stageCenters, interactionRadiusPx)
     }
@@ -246,7 +246,7 @@ fun AudioPipelineDialog(
                 .matchParentSize()
                 .graphicsLayer {}
                 .drawBehind {
-                    drawSignalFlow(stageCenters, flowAlpha, pulseProgress, interactionRadiusPx)
+                    drawSignalFlow(stageCenters, flowAlpha, pulseProgress, interactionRadiusPx, ink, ground)
                 },
         )
         Column(
@@ -559,6 +559,8 @@ private fun DrawScope.drawSignalFlow(
     flowAlpha: Float,
     pulseProgress: Float,
     interactionRadiusPx: Float,
+    ink: Color,
+    ground: Color,
 ) {
     if (stageCenters.size < 5) return
 
@@ -588,7 +590,7 @@ private fun DrawScope.drawSignalFlow(
         val yEnd = stagePoints[i + 1].y - nodeRadius
         if (yEnd > yStart) {
             drawLine(
-                color = Color.White.copy(alpha = busAlpha),
+                color = ink.copy(alpha = busAlpha),
                 start = Offset(xCenter, yStart),
                 end = Offset(xCenter, yEnd),
                 strokeWidth = busStroke,
@@ -598,7 +600,7 @@ private fun DrawScope.drawSignalFlow(
             // Subtle ambient under-glow along the bus when powered
             if (currentFlowAlpha > 0f) {
                 drawLine(
-                    color = Color.White.copy(alpha = 0.05f * currentFlowAlpha),
+                    color = ink.copy(alpha = 0.05f * currentFlowAlpha),
                     start = Offset(xCenter, yStart),
                     end = Offset(xCenter, yEnd),
                     strokeWidth = 4.5.dp.toPx(),
@@ -636,8 +638,8 @@ private fun DrawScope.drawSignalFlow(
                     val haloBrush = Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.60f to Color.White.copy(alpha = 0.14f * pulseVisibility),
-                            0.88f to Color.White.copy(alpha = 0.28f * pulseVisibility),
+                            0.60f to ink.copy(alpha = 0.14f * pulseVisibility),
+                            0.88f to ink.copy(alpha = 0.28f * pulseVisibility),
                             1.0f to Color.Transparent,
                         ),
                         startY = yPulse - tailLength,
@@ -655,8 +657,8 @@ private fun DrawScope.drawSignalFlow(
                     val coreBrush = Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.50f to Color.White.copy(alpha = 0.45f * pulseVisibility),
-                            0.86f to Color.White.copy(alpha = 0.98f * pulseVisibility),
+                            0.50f to ink.copy(alpha = 0.45f * pulseVisibility),
+                            0.86f to ink.copy(alpha = 0.98f * pulseVisibility),
                             1.0f to Color.Transparent,
                         ),
                         startY = yPulse - tailLength,
@@ -676,7 +678,7 @@ private fun DrawScope.drawSignalFlow(
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    Color.White.copy(alpha = 0.35f * pulseVisibility),
+                                    ink.copy(alpha = 0.35f * pulseVisibility),
                                     Color.Transparent,
                                 ),
                                 center = headCenter,
@@ -686,7 +688,7 @@ private fun DrawScope.drawSignalFlow(
                             center = headCenter,
                         )
                         drawCircle(
-                            color = Color.White.copy(alpha = 0.98f * pulseVisibility),
+                            color = ink.copy(alpha = 0.98f * pulseVisibility),
                             radius = 1.75.dp.toPx(),
                             center = headCenter,
                         )
@@ -696,25 +698,25 @@ private fun DrawScope.drawSignalFlow(
         }
     }
 
-    // 3. Precision Node Anchors & White Outline Glow at Each Stage
+    // 3. Precision Node Anchors & Ink Outline Glow at Each Stage
     for (i in stagePoints.indices) {
         val stageCenter = Offset(xCenter, stagePoints[i].y)
         val act = calculateStageActivation(i, currentProgress, currentFlowAlpha, stageCenters, interactionRadiusPx)
 
-        // A. Dark Backing Base (Seamless with card, guarantees zero bleed into icon interior)
+        // A. Backing Base in the card's own ground (seamless with it, guarantees zero bleed into icon interior)
         drawCircle(
-            color = Color(0xFF131315),
+            color = ground,
             radius = nodeRadius,
             center = stageCenter,
         )
 
-        // B. Subtle White Ambient Halo (Restrained when idle, blooms gently when active)
+        // B. Subtle Ink Ambient Halo (Restrained when idle, blooms gently when active)
         val haloAlpha = 0.10f + 0.24f * act * currentFlowAlpha
         drawCircle(
             brush = Brush.radialGradient(
                 colorStops = arrayOf(
-                    0.0f to Color.White.copy(alpha = haloAlpha * 0.40f),
-                    0.45f to Color.White.copy(alpha = haloAlpha),
+                    0.0f to ink.copy(alpha = haloAlpha * 0.40f),
+                    0.45f to ink.copy(alpha = haloAlpha),
                     1.0f to Color.Transparent,
                 ),
                 center = stageCenter,
@@ -727,17 +729,17 @@ private fun DrawScope.drawSignalFlow(
         // C. Active Outer Luminous Flare Ring (When pulse arrives)
         if (currentFlowAlpha > 0f && act > 0.02f) {
             drawCircle(
-                color = Color.White.copy(alpha = 0.20f * act * currentFlowAlpha),
+                color = ink.copy(alpha = 0.20f * act * currentFlowAlpha),
                 radius = nodeRadius + 1.2.dp.toPx(),
                 center = stageCenter,
                 style = Stroke(width = 2.dp.toPx()),
             )
         }
 
-        // D. Precision White Outline Micro-Ring (Crisp hardware boundary)
+        // D. Precision Ink Outline Micro-Ring (Crisp hardware boundary)
         val ringAlpha = (0.35f + 0.55f * act * currentFlowAlpha).coerceIn(0f, 1f)
         drawCircle(
-            color = Color.White.copy(alpha = ringAlpha),
+            color = ink.copy(alpha = ringAlpha),
             radius = nodeRadius,
             center = stageCenter,
             style = Stroke(width = 1.dp.toPx()),
@@ -746,7 +748,7 @@ private fun DrawScope.drawSignalFlow(
         // E. High-Luminance Core Edge (When peak active)
         if (currentFlowAlpha > 0f && act > 0.05f) {
             drawCircle(
-                color = Color.White.copy(alpha = 0.60f * act * currentFlowAlpha),
+                color = ink.copy(alpha = 0.60f * act * currentFlowAlpha),
                 radius = nodeRadius,
                 center = stageCenter,
                 style = Stroke(width = 1.5.dp.toPx()),
@@ -817,10 +819,12 @@ private fun PipelineSection(
         reportCenter(iconCoordinates, columnCoordinates)
     }
 
+    val look = orbitLook()
+    val fonts = orbitFonts()
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 14.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+            .padding(start = 22.dp, end = 24.dp, top = 12.dp, bottom = 12.dp),
     ) {
         // Left Column: Dedicated Icon / Signal Node lane (icon size strictly preserved at 15dp)
         Box(
@@ -830,7 +834,7 @@ private fun PipelineSection(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Color.White,
+                tint = look.ink,
                 modifier = Modifier
                     .size(15.dp)
                     .onGloballyPositioned { coords ->
@@ -855,12 +859,8 @@ private fun PipelineSection(
         ) {
             Text(
                 text = title.uppercase(),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.W600,
-                    letterSpacing = 0.5.sp,
-                ),
-                color = Color.White,
+                style = fonts.label,
+                color = look.ink,
                 modifier = Modifier
                     .padding(top = 3.dp)
                     .graphicsLayer {
@@ -876,22 +876,24 @@ private fun PipelineSection(
 
 @Composable
 private fun PipelineRow(label: String, value: String) {
+    val look = orbitLook()
+    val fonts = orbitFonts()
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 1.dp),
     ) {
         val text = buildAnnotatedString {
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Color.White)) {
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = look.ink)) {
                 append("$label: ")
             }
-            withStyle(SpanStyle(fontWeight = FontWeight.Normal, color = Color.White.copy(alpha = 0.82f))) {
+            withStyle(SpanStyle(color = look.dim)) {
                 append(value)
             }
         }
         Text(
             text = text,
-            style = MaterialTheme.typography.bodySmall.copy(
+            style = fonts.body.copy(
                 fontSize = 12.5.sp,
                 lineHeight = 17.sp,
             ),
@@ -899,55 +901,26 @@ private fun PipelineRow(label: String, value: String) {
     }
 }
 
-/** Hairline separator between stages, indented to align with the text column and clear the signal lane. */
+/** Hairline separator between stages (the ink at 10 %), indented to align with the text column and clear the signal lane. */
 @Composable
-internal fun PipelineRule(modifier: Modifier = Modifier.padding(start = 52.dp, end = 16.dp)) {
+internal fun PipelineRule(modifier: Modifier = Modifier.padding(start = 60.dp, end = 24.dp)) {
+    val ink = orbitLook().ink
     Box(
         modifier
             .fillMaxWidth()
-            .height(0.5.dp)
-            .background(Color.White.copy(alpha = 0.14f)),
+            .height(1.dp)
+            .background(ink.copy(alpha = 0.10f)),
     )
-}
-
-/** Full-bleed closing action, [AlertAction]'s shape fixed to this screen's white-on-dark palette. */
-@Composable
-internal fun PipelineDoneAction(label: String, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(ACTION_HEIGHT)
-            .background(
-                if (pressed) Color.White.copy(alpha = 0.09f) else Color.Transparent,
-            )
-            .clickable(
-                indication = null,
-                interactionSource = interactionSource,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontSize = 17.sp,
-                fontWeight = FontWeight.W600,
-            ),
-            color = Color.White,
-        )
-    }
 }
 
 @Composable
 private fun PipelineNote(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodySmall.copy(
+        style = orbitFonts().body.copy(
             fontSize = 11.sp,
             lineHeight = 14.sp,
-            color = Color.White.copy(alpha = 0.60f),
+            color = orbitLook().dim,
         ),
         modifier = Modifier
             .fillMaxWidth()
