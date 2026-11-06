@@ -23,6 +23,7 @@ class PodioLocalTest {
         assertEquals("Single · Anirudh Ravichander", topSongLine(single))
         val track = Song("b", "Bindaas", "Anirudh Ravichander", null, albumName = "Jailer 2 (Original Motion Picture Soundtrack)")
         assertEquals("Jailer 2 (Original Motion Picture Soundtrack)", topSongLine(track))
-        assertEquals("Single", topSongLine(Song("c", "Anirudh", "Anirudh", null)))
+        assertEquals("Anirudh Ravichander", topSongLine(Song("c", "Hukum", "Anirudh Ravichander", null)), "no album known: the artists")
+        assertEquals("Song", topSongLine(Song("d", "Anirudh", "Anirudh", null)))
     }
 }

@@ -224,15 +224,18 @@ fun OrbitArtistPage(
 private const val SHELF_PREVIEW = 5
 
 /**
- * A top song's second line: its album, never the title over again (a single's album is named as the song is), else "Single" with
- * the artists on it.
+ * A top song's second line: its album, never the title over again. A single (its album named as the song is) says "Single" with
+ * its artists; a song with no album known says its artists.
  */
 internal fun topSongLine(song: Song): String {
     fun plain(text: String) = text.lowercase().filter { it.isLetterOrDigit() }
-    val album = song.albumName?.trim()?.takeIf { it.isNotEmpty() && plain(it) != plain(song.title) }
-    if (album != null) return album
+    val album = song.albumName?.trim()?.takeIf { it.isNotEmpty() }
+    if (album != null && plain(album) != plain(song.title)) return album
     val artist = song.artist.trim().takeIf { it.isNotEmpty() && plain(it) != plain(song.title) }
-    return if (artist != null) "Single · $artist" else "Single"
+    return when {
+        album != null -> if (artist != null) "Single · $artist" else "Single"
+        else -> artist ?: "Song"
+    }
 }
 
 /** The first top songs shown; the rest behind "Show all". */
