@@ -31,6 +31,12 @@ val lastfmApiKey: String = (
     ).trim()
 // Watch mode's metadata (TMDB v3 API key or v4 read token), supplied locally and never committed; blank falls back to Cinemeta.
 val tmdbApiKey: String = (localProps.getProperty("TMDB_API_KEY") ?: System.getenv("TMDB_API_KEY") ?: "").trim()
+// Watch's live scores (the Live now strip): free keys from cricketdata.org and football-data.org, supplied locally and never
+// committed; blank leaves that sport to TheSportsDB's free public key (next match and last result only).
+fun watchKey(name: String): String = (localProps.getProperty(name) ?: System.getenv(name) ?: "").trim()
+val cricketDataApiKey: String = watchKey("CRICKETDATA_API_KEY")
+val footballDataApiKey: String = watchKey("FOOTBALL_DATA_API_KEY")
+val theSportsDbApiKey: String = watchKey("THESPORTSDB_API_KEY")
 val lastfmSecret: String = (
     localProps.getProperty("LASTFM_SECRET")
         ?: System.getenv("LASTFM_SECRET")
@@ -92,6 +98,9 @@ android {
         buildConfigField("String", "LASTFM_API_KEY", "\"${lastfmApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "LASTFM_SECRET", "\"${lastfmSecret.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "CRICKETDATA_API_KEY", "\"${cricketDataApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "FOOTBALL_DATA_API_KEY", "\"${footballDataApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "THESPORTSDB_API_KEY", "\"${theSportsDbApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField(
             "String",
             "LISTEN_TOGETHER_SERVER",

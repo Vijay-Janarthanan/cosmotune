@@ -40,6 +40,17 @@ import com.cosmotune.watch.plugins.servers.JellyfinPlugin
 import com.cosmotune.watch.plugins.servers.PlexPlugin
 import com.cosmotune.watch.plugins.stremio.StremioClient
 import com.cosmotune.watch.plugins.stremio.StremioPlugin
+import com.cosmotune.watch.live.CricketDataScores
+import com.cosmotune.watch.live.FootballDataScores
+import com.cosmotune.watch.live.LiveChannelNow
+import com.cosmotune.watch.live.LiveEventsHub
+import com.cosmotune.watch.live.LiveScoreKeys
+import com.cosmotune.watch.live.ScoreSource
+import com.cosmotune.watch.live.SportsDbScores
+import com.cosmotune.watch.model.LiveEvent
+import com.cosmotune.watch.plugins.youtube.OfficialLivePlugin
+import com.cosmotune.watch.plugins.youtube.PrasarBharatiPlugin
+import com.cosmotune.watch.plugins.youtube.YouTubeLivePlugin
 import com.cosmotune.watch.store.StoredSource
 import com.cosmotune.watch.store.WatchState
 import com.cosmotune.watch.store.WatchStore
@@ -93,6 +104,8 @@ data class WatchConfig(
     val timeoutMs: Long = 15_000,
     /** The viewer's country and language (Music's discovery preferences): their channels and chips come first. */
     val place: () -> WatchPlace = WatchPlace::current,
+    /** The free score services' keys for the Live now strip (`CRICKETDATA_API_KEY`, `FOOTBALL_DATA_API_KEY`); blank leaves one out. */
+    val scoreKeys: LiveScoreKeys = LiveScoreKeys(),
 )
 
 data class Endpoints(
@@ -109,10 +122,13 @@ data class Endpoints(
     val publicDomain: String = BuiltInPlugins.PUBLIC_DOMAIN_URL,
     val openSubtitles: String = BuiltInPlugins.OPENSUBTITLES_URL,
     val watchHub: String = BuiltInPlugins.WATCHHUB_URL,
+    val cricketData: String = "https://api.cricapi.com/v1",
+    val footballData: String = "https://api.football-data.org/v4",
+    val theSportsDb: String = "https://www.thesportsdb.com/api/v1/json",
 )
 
 /**
- * The real [WatchRepository]: the nine built-in plugins, the user's own sources, TMDB (or Cinemeta) for metadata, and the
+ * The real [WatchRepository]: the built-in plugins, the user's own sources, TMDB (or Cinemeta) for metadata, and the
  * sealed [WatchStore] for switches, sources, progress, My list and favourites.
  */
 class DefaultWatchRepository(
@@ -145,6 +161,8 @@ class DefaultWatchRepository(
             IptvOrgPlugin(http, e.iptvOrg, { guideUrls() }, guideCache),
             FreeServices.pluto(http, lists, device, com.cosmotune.watch.plugins.free.PlutoVod(http, BuiltInPlugins.PLUTO, device, e.plutoBoot, e.plutoVod, config.now)),
             FreeServices.samsung(http, lists),
+            PrasarBharatiPlugin(config.videoSource, config.now),
+            YouTubeLivePlugin(config.videoSource, config.now),
             FreeServices.plex(http, lists, device, e.plexVod, e.plexTv, e.plexEpg),
             InternetArchivePlugin(http, e.archive),
             YouTubeFreePlugin(config.videoSource),
@@ -462,14 +480,51 @@ class DefaultWatchRepository(
     override suspend fun liveNow(limit: Int): List<LiveNowItem> {
         val all = channelsByKey()
         val order = ChannelRank.order(store.state.value.favourites, config.place()) { all[it.key].orEmpty() }
-        val picked = all.values.map(::merged).sortedWith(order).take(limit)
+        val ranked = all.values.map(::merged).sortedWith(order)
         val t = config.now()
-        val window = guide(picked, t - 6 * WatchHttp.HOUR, t + 12 * WatchHttp.HOUR)
-        return window.rows.map { row ->
-            val i = row.programmes.indexOfFirst { it.isOnAt(t) }
-            LiveNowItem(row.channel, row.programmes.getOrNull(i), if (i >= 0) row.programmes.getOrNull(i + 1) else row.programmes.firstOrNull { it.startMs > t })
+        // A channel played from a YouTube live (DD, Live on YouTube) is only "live now" while it has something live; the row
+        // looks a little further down the ranking (a few pages at most) to stay full.
+        val out = mutableListOf<LiveNowItem>()
+        for (page in ranked.chunked(limit.coerceAtLeast(1)).take(LIVE_NOW_PAGES)) {
+            val window = guide(page, t - 6 * WatchHttp.HOUR, t + 12 * WatchHttp.HOUR)
+            out += window.rows.map { row ->
+                val i = row.programmes.indexOfFirst { it.isOnAt(t) }
+                LiveNowItem(row.channel, row.programmes.getOrNull(i), if (i >= 0) row.programmes.getOrNull(i + 1) else row.programmes.firstOrNull { it.startMs > t })
+            }.filter { it.now != null || it.channel.pluginId !in LIVE_ON_YOUTUBE }
+            if (out.size >= limit) break
         }
+        return out.take(limit)
     }
+
+    // ── Live events ──────────────────────────────────────────────────────
+
+    /** The score services the keys allow: CricketData.org and football-data.org with a key, TheSportsDB for a sport without one. */
+    private fun scoreSources(): List<ScoreSource> {
+        val keys = config.scoreKeys
+        val e = config.endpoints
+        val fallback = (if (keys.cricket == null) SportsDbScores.CRICKET else emptyList()) + (if (keys.football == null) SportsDbScores.FOOTBALL else emptyList())
+        return listOfNotNull(
+            keys.cricket?.let { CricketDataScores(http, it, e.cricketData) },
+            keys.football?.let { FootballDataScores(http, it, e.footballData) },
+            fallback.takeIf { it.isNotEmpty() }?.let { SportsDbScores(http, keys.sportsDb, it, e.theSportsDb) },
+        )
+    }
+
+    /** The DD and YouTube channels whose live videos can be a special or carry a match, of the plugins that are on. */
+    private suspend fun eventChannels(): List<LiveChannelNow> = coroutineScope {
+        activePlugins().filterIsInstance<OfficialLivePlugin>().flatMap { p -> p.channelList.filter { it.slug in EVENT_CHANNELS }.map { p to it } }.map { (p, def) ->
+            async {
+                runCatching { p.liveOf(def) }.getOrNull()?.let { LiveChannelNow(p.channelOf(def), p.badge, def.allDay, it.lives, it.upcoming) }
+            }
+        }.awaitAll().filterNotNull()
+    }
+
+    private val liveEventsHub = LiveEventsHub(::scoreSources, ::eventChannels, config.place, config.now, config.timeoutMs)
+
+    override fun liveEvents(): Flow<List<LiveEvent>> = liveEventsHub.flow()
+
+    /** The events once, without polling (tests and a pull-to-refresh). */
+    suspend fun liveEventsNow(): List<LiveEvent> = liveEventsHub.current()
 
     // ── Pages ────────────────────────────────────────────────────────────
 
@@ -713,6 +768,11 @@ class DefaultWatchRepository(
         /** The built-in plugins that play films for free, asked for the featured card. */
         private val FREE_FILM_PLUGINS = setOf(BuiltInPlugins.PLUTO, BuiltInPlugins.PLEX, BuiltInPlugins.YOUTUBE, BuiltInPlugins.ARCHIVE, BuiltInPlugins.PUBLIC_DOMAIN)
         private const val FEATURED_PROBE_MS = 6_000L
+        /** The plugins whose channels play a YouTube live, so have nothing to play when nothing is live. */
+        private val LIVE_ON_YOUTUBE = setOf(BuiltInPlugins.PRASAR_BHARATI, BuiltInPlugins.YOUTUBE_LIVE)
+        private const val LIVE_NOW_PAGES = 3
+        /** The DD channels whose live videos are events or carry matches: DD National's and DD Sports' lives, DD News' and DD India's specials. */
+        private val EVENT_CHANNELS = setOf("DDNational", PrasarBharatiPlugin.DD_SPORTS, "DDNews", "DDIndia")
         fun hash(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.trim().lowercase().toByteArray()).take(5).joinToString("") { "%02x".format(it) }
     }
 }

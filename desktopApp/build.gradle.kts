@@ -129,6 +129,10 @@ val googleDesktopClientSecret = localProperty("GOOGLE_DESKTOP_CLIENT_SECRET")
 // Watch mode's metadata (TMDB v3 API key or v4 read token). Supplied locally and never committed or printed; without one
 // Watch falls back to Cinemeta and the plugins' own details.
 val tmdbApiKey = localProperty("TMDB_API_KEY")
+// Watch's live scores (the Live now strip): free keys from cricketdata.org and football-data.org, local only; blank leaves that
+// sport to TheSportsDB's free public key.
+val watchScoreKeys = listOf("CRICKETDATA_API_KEY" to "cosmotune.cricketdata.key", "FOOTBALL_DATA_API_KEY" to "cosmotune.footballdata.key",
+    "THESPORTSDB_API_KEY" to "cosmotune.thesportsdb.key").map { (name, property) -> property to localProperty(name) }.filter { it.second.isNotBlank() }
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
@@ -534,6 +538,7 @@ val windowsPortableAssemble by tasks.registering {
     val googleClientId = googleDesktopClientId
     val googleClientSecret = googleDesktopClientSecret
     val tmdbKey = tmdbApiKey
+    val scoreKeys = watchScoreKeys
     val mainClass = composeMainClass
     // Declared, not implied.
     inputs.file(appJar)
@@ -576,6 +581,7 @@ val windowsPortableAssemble by tasks.registering {
                     append(" -Dcosmotune.lastfm.key=$lastfmKey -Dcosmotune.lastfm.secret=$lastfmSharedSecret")
                 }
                 if (tmdbKey.isNotBlank()) append(" -Dcosmotune.tmdb.key=$tmdbKey")
+                scoreKeys.forEach { (property, value) -> append(" -D$property=$value") }
                 if (googleClientId.isNotBlank()) {
                     append(" -Dcosmotune.google.client.id=$googleClientId -Dcosmotune.google.client.secret=$googleClientSecret")
                 }
@@ -668,6 +674,7 @@ compose.desktop {
         if (tmdbApiKey.isNotBlank()) {
             jvmArgs("-Dcosmotune.tmdb.key=$tmdbApiKey")
         }
+        watchScoreKeys.forEach { (property, value) -> jvmArgs("-D$property=$value") }
         if (googleDesktopClientId.isNotBlank()) {
             jvmArgs("-Dcosmotune.google.client.id=$googleDesktopClientId", "-Dcosmotune.google.client.secret=$googleDesktopClientSecret")
         }
