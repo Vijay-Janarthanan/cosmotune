@@ -22,7 +22,7 @@ class PodioToolsInteractionTest {
     @get:Rule val compose = createComposeRule()
     @get:Rule val temporary = TemporaryFolder()
 
-    private fun libraryTab() = compose.onNode(hasText("Library") and isSelectable())
+    private fun libraryTab() = compose.onNode(hasText("Following") and isSelectable())
 
     @Test fun nativeFileCallbacksDownloadsAndOfflineEpisodesUseTheSameIdentity() {
         MockWebServer().use { server ->
@@ -45,7 +45,7 @@ class PodioToolsInteractionTest {
                     onImportOpmlFile = { imported++; """<opml><body><outline text="Stories" xmlUrl="${server.url("/feed")}"/></body></opml>""" },
                     onExportOpmlFile = { exports += it; true }, onShareOpmlFile = { shares += it })
             } } }
-            // The subscription tools are in the Library tab (design system 5.2, slot 4).
+            // The subscription tools are at the foot of Following.
             libraryTab().performClick()
             compose.onNodeWithText("Import OPML").performScrollTo().performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Stories").fetchSemanticsNodes().isNotEmpty() }
@@ -63,9 +63,9 @@ class PodioToolsInteractionTest {
             val local = temporary.newFile("episode.mp3")
             compose.runOnIdle { offline.value = listOf(episode.copy(downloadedUri = local.toURI().toString(), downloadedPath = local.absolutePath)) }
             compose.onNodeWithContentDescription("Episode downloaded").assertIsNotEnabled()
-            // Back from the show to the Library, whose Downloaded chip lists the saved episodes.
+            // Back from the show, then Downloads lists the saved episodes.
             compose.onNodeWithContentDescription("Back").performClick()
-            compose.onNode(hasText("Downloaded", substring = false) and isSelectable()).performClick()
+            compose.onNode(hasText("Downloads", substring = false) and isSelectable()).performClick()
             compose.onNodeWithText("Downloaded episodes").assertIsDisplayed()
             compose.onNodeWithText("First story").performClick()
             compose.runOnIdle {
@@ -106,7 +106,7 @@ class PodioToolsInteractionTest {
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Stories").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Stories").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("First story").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Resume at 1:25", substring = true).assertExists()
+            compose.onAllNodesWithText("8 min left", substring = true).onFirst().assertExists()
             compose.onNodeWithText("First story").performClick()
             compose.runOnIdle { assertEquals(listOf(85_000L), resumed.toList()) }
             compose.onNodeWithTag("podio:older-episodes").performScrollTo().performClick()

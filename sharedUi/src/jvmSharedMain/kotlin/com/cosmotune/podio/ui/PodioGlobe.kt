@@ -4,15 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Remove
-import androidx.compose.material.icons.outlined.Satellite
-import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material3.MaterialTheme
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
-import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.theme.LocalCosmoColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -78,24 +70,45 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
 }
 
 /**
+ * Where the globe looks (its centre and zoom), held outside it so the page can put the globe's controls round it, never on it
+ * (Orbit rule 9). Saveable: the globe keeps its place when its list item scrolls away and back, and across a rotation.
+ */
+internal class GlobeView(latitude: MutableState<Float>, longitude: MutableState<Float>, zoom: MutableState<Float>) {
+    var latitude by latitude
+    var longitude by longitude
+    var zoom by zoom
+    fun zoomTo(next: Float) { zoom = next.coerceIn(MIN_ZOOM, MAX_ZOOM) }
+    fun zoomIn() = zoomTo(zoom * 1.6f)
+    fun zoomOut() = zoomTo(zoom / 1.6f)
+    /** Jumps to a random place among [stations]. */
+    fun random(stations: List<RadioStation>) {
+        PodioPlaces.group(stations).randomOrNull()?.let {
+            latitude = it.latitude.toFloat().coerceIn(-75f, 75f); longitude = it.longitude.toFloat(); zoomTo(max(zoom, if (it.approximate) 4f else 8f))
+        }
+    }
+}
+
+@Composable internal fun rememberGlobeView(): GlobeView {
+    val latitude = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(20f) }
+    val longitude = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(78f) }
+    val zoom = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(1f) }
+    return remember(latitude, longitude, zoom) { GlobeView(latitude, longitude, zoom) }
+}
+
+/**
  * Orthographic world view (the way radio.garden shows it): bundled public-domain coastlines, no map account or tile service.
  * Stations are grouped into places. The ring in the middle of the view picks: [onCentre] gets every station of the places inside it
  * whenever the view stops moving, so two neighbouring places are both offered and the person chooses in the list. A tap on a dot
- * brings it under the ring (and zooms in on a crowd), the wheel and a pinch zoom, and the buttons jump to a random place.
+ * brings it under the ring (and zooms in on a crowd), the wheel and a pinch zoom. Its buttons (zoom, a random place, satellite,
+ * full screen) are the page's, drawn round the globe from [view].
  */
 @Composable internal fun PodioGlobe(stations: List<RadioStation>, selected: String?, onCentre: (List<RadioStation>) -> Unit,
-    modifier: Modifier = Modifier, focus: RadioStation? = null, controlsPadding: PaddingValues = PaddingValues(10.dp), tiles: PodioTiles? = null,
-    /** Where the zoom and random-place buttons sit (the phone puts them beside the globe, clear of the cards at the bottom). */
-    controlsAlignment: Alignment = Alignment.BottomEnd,
-    /** Held on [focus]: no dragging, zooming, ring or buttons (the station page). */ locked: Boolean = false,
-    /** NASA GIBS satellite imagery under the dots; off draws the flat vector globe (the default map style). */ imagery: Boolean = true,
-    /** Shows a "Satellite" toggle among the buttons when given. */ onImagery: ((Boolean) -> Unit)? = null,
-    /** Shows a full-screen button among the buttons when given; [fullScreen] names it "Close full screen map" instead. */
-    onFullScreen: (() -> Unit)? = null, fullScreen: Boolean = false) {
-    // Saveable: the globe keeps its place when its list item scrolls away and back, and across a rotation.
-    var latitude by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(20f) }
-    var longitude by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(78f) }
-    var zoom by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(1f) }
+    modifier: Modifier = Modifier, focus: RadioStation? = null, tiles: PodioTiles? = null, view: GlobeView = rememberGlobeView(),
+    /** Held on [focus]: no dragging, zooming or ring (the station page). */ locked: Boolean = false,
+    /** NASA GIBS satellite imagery under the dots; off draws the flat vector globe (the default map style). */ imagery: Boolean = true) {
+    var latitude by view::latitude
+    var longitude by view::longitude
+    var zoom by view::zoom
     var dimensions by remember { mutableStateOf(IntSize.Zero) }
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     val land by produceState<List<List<GlobePoint>>>(emptyList()) {
@@ -160,7 +173,7 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
     val ocean = Color(palette.surface)
     val landFill = Color(palette.surfaceVariant)
     val night = Color(palette.backgroundBottom)
-    fun zoomTo(next: Float) { zoom = next.coerceIn(MIN_ZOOM, MAX_ZOOM) }
+    fun zoomTo(next: Float) = view.zoomTo(next)
     Box(modifier.clipToBounds().testTag("podio:globe-box")) {
         Canvas(Modifier.fillMaxSize().testTag("podio:globe").clipToBounds().onSizeChanged { dimensions = it }
             .pointerInput(places, locked) { if (!locked) detectTapGestures(onDoubleTap = { zoomTo(zoom * 2f) }) { tap ->
@@ -270,18 +283,7 @@ private fun project(latitude: Double, longitude: Double, centreLat: Float, centr
                 } else drawCircle(tone, base, p.point)
             }
         }
-        if (imagery && images.isNotEmpty()) Text(PodioTiles.ATTRIBUTION, Modifier.align(Alignment.BottomEnd).padding(end = if (controlsAlignment == Alignment.BottomEnd) 62.dp else 10.dp, bottom = 4.dp),
+        if (imagery && images.isNotEmpty()) Text(PodioTiles.ATTRIBUTION, Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 6.dp),
             style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .6f))
-        if (!locked) Column(Modifier.align(controlsAlignment).padding(controlsPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (onFullScreen != null) CosmoIconButton(if (fullScreen) CosmoIcons.Close else CosmoIcons.Expand, if (fullScreen) "Close full screen map" else "Full screen map",
-                onFullScreen, style = CosmoIconButtonStyle.GLASS, size = 40.dp)
-            CosmoIconButton(Icons.Outlined.Shuffle, "Random place", {
-                places.randomOrNull()?.let { latitude = it.latitude.toFloat().coerceIn(-75f, 75f); longitude = it.longitude.toFloat(); zoomTo(max(zoom, if (it.approximate) 4f else 8f)) }
-            }, style = CosmoIconButtonStyle.GLASS, size = 40.dp)
-            CosmoIconButton(Icons.Outlined.Add, "Zoom in", { zoomTo(zoom * 1.6f) }, style = CosmoIconButtonStyle.GLASS, size = 40.dp)
-            CosmoIconButton(Icons.Outlined.Remove, "Zoom out", { zoomTo(zoom / 1.6f) }, style = CosmoIconButtonStyle.GLASS, size = 40.dp)
-            if (onImagery != null) CosmoIconButton(Icons.Outlined.Satellite, if (imagery) "Satellite imagery on" else "Satellite imagery off", { onImagery(!imagery) },
-                style = CosmoIconButtonStyle.GLASS, size = 40.dp, on = imagery)
-        }
     }
 }

@@ -22,7 +22,7 @@ internal val LANGUAGES = listOf("" to "All languages", "Tamil" to "Tamil", "Telu
     "Arabic" to "Arabic", "Spanish" to "Spanish", "French" to "French", "German" to "German", "Portuguese" to "Portuguese", "Italian" to "Italian", "Russian" to "Russian",
     "Japanese" to "Japanese", "Korean" to "Korean", "Chinese" to "Chinese", "Turkish" to "Turkish", "Indonesian" to "Indonesian")
 
-/** An episode of a followed show, for the Episodes tab (AntennaPod's inbox): the episode and the show it came from. */
+/** An episode of a followed show, for Following and the Podcasts home (AntennaPod's inbox): the episode and the show it came from. */
 internal data class InboxEpisode(val episode: PodcastEpisode, val show: PodcastShow) {
     /** The playable item, with the show's art when the episode has none of its own. */
     fun item(): PodioItem = episode.item().let { if (it.artwork.isBlank() && show.artwork.isNotBlank()) it.copy(artwork = show.artwork) else it }
@@ -49,7 +49,7 @@ internal class PodioModel(
     private val scope: CoroutineScope,
     var host: PodioHost,
     queryState: MutableState<String>, languageState: MutableState<String>, countryState: MutableState<String>, genreState: MutableState<String>,
-    searchingState: MutableState<Boolean>, searchShowsState: MutableState<Boolean>, libraryFilterState: MutableState<SavedFilter>,
+    searchingState: MutableState<Boolean>, searchShowsState: MutableState<Boolean>,
     satelliteState: MutableState<Boolean>, globeFullState: MutableState<Boolean>,
 ) {
     var query by queryState
@@ -59,7 +59,6 @@ internal class PodioModel(
     /** The search page is open; [searchShows] chooses its scope (shows, or stations). */
     var searching by searchingState
     var searchShows by searchShowsState
-    var libraryFilter by libraryFilterState
     var satellite by satelliteState
     var globeFull by globeFullState
 

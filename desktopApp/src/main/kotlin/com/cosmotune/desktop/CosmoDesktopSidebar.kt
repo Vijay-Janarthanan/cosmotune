@@ -3,8 +3,7 @@ package com.cosmotune.desktop
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Explore
-import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Podcasts
 import androidx.compose.material.icons.outlined.Radio
 import androidx.compose.material.icons.outlined.Movie
@@ -136,12 +135,14 @@ internal fun CosmoDesktopSidebar(
                 Column(verticalArrangement = Arrangement.spacedBy(NAV_LIST_GAP)) {
                     if (podio) {
                         fun go(tab: String, saved: Boolean) { com.cosmotune.ui.blocks.ModeNav.podioTab.value = tab; com.cosmotune.ui.blocks.ModeNav.podioSaved.value = saved }
-                        // Podio's four tabs (DESIGN_SYSTEM.md 5.2): Radio, Podcasts, Episodes (new from followed shows), Library (stations, shows, downloads).
-                        val library = podioSaved || podioTab == "Library"
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Radio, "Radio", null, podioTab == "Radio" && !library) { go("Radio", false) }
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Podcasts, "Podcasts", null, podioTab == "Podcasts" && !library) { go("Podcasts", false) }
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.NewReleases, "Episodes", null, podioTab == "Episodes" && !library) { go("Episodes", false) }
-                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.LibraryMusic, "Library", null, library) { go("Library", false) }
+                        // Podio's five sections (board batch-be, section C): Radio, Podcasts, the Globe, Following (new episodes, shows and
+                        // stations you keep) and Downloads. The old "Episodes" and "Library" names, and the old saved rows, mean Following.
+                        val following = podioSaved || podioTab == "Following" || podioTab == "Episodes" || podioTab == "Library" || podioTab == "Saved"
+                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Radio, "Radio", null, podioTab == "Radio" && !following) { go("Radio", false) }
+                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Podcasts, "Podcasts", null, podioTab == "Podcasts" && !following) { go("Podcasts", false) }
+                        OrbitNavRow(androidx.compose.material.icons.Icons.Outlined.Public, "Globe", null, podioTab == "Globe" && !following) { go("Globe", false) }
+                        OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Heart, "Following", null, following) { go("Following", false) }
+                        OrbitNavRow(com.cosmotune.ui.components.CosmoIcons.Download, "Downloads", null, podioTab == "Downloads" && !following) { go("Downloads", false) }
                     } else {
                         // Manga's and Read's four tabs (DESIGN_SYSTEM.md 5.2) as the sidebar's rows; the page listens to the same channel.
                         val read = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings?.mode?.collectAsState()?.value == com.cosmotune.design.AppMode.READ

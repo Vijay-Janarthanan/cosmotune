@@ -8,13 +8,10 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * The four sections of Podio, in the design system's fixed slots (home, discover, following, library): the dock's tabs on a phone,
- * the rail's on a tablet, the sidebar's rows on the desktop.
+ * The sections of Podio (board section C): Radio, Podcasts, the Globe, Following and Downloads. The desktop sidebar and a tablet's
+ * rail carry all five; the phone's dock carries four, the Globe opening full screen from the Radio page.
  */
-internal enum class PodioSection(val label: String) { RADIO("Radio"), PODCASTS("Podcasts"), EPISODES("Episodes"), LIBRARY("Library") }
-
-/** What the Library section shows: everything, or one kind of thing. */
-internal enum class SavedFilter(val label: String) { ALL("All"), STATIONS("Stations"), SHOWS("Shows"), DOWNLOADED("Downloaded") }
+internal enum class PodioSection(val label: String) { RADIO("Radio"), PODCASTS("Podcasts"), GLOBE("Globe"), FOLLOWING("Following"), DOWNLOADS("Downloads") }
 
 /**
  * The words and numbers Podio's pages print, kept apart from the composables so they can be tested: clocks, durations, publication
@@ -68,14 +65,6 @@ internal object PodioFormat {
     /** When an episode was published, in epoch milliseconds, for putting the newest first; null when the feed's date is unreadable. */
     fun publishedAt(published: String): Long? = published.trim().takeIf(String::isNotEmpty)?.let(::parseInstant)?.toEpochMilli()
 
-    /** "Played", "Resume at 1:25" or nothing, by what the library holds for the episode. */
-    fun progress(completed: Boolean, positionMs: Long, durationMs: Long): String = when {
-        completed -> "Played"
-        positionMs <= 0 -> ""
-        PodioPlaybackPolicy.isFinished(positionMs, durationMs) -> "Played"
-        else -> "Resume at ${clock(positionMs)}"
-    }
-
     /** How far the playhead is through a started (and not finished) episode, 0..1; 0 when nothing is known. */
     fun progressFraction(completed: Boolean, positionMs: Long, durationMs: Long): Float = when {
         completed || durationMs <= 0 || positionMs <= 0 -> 0f
@@ -89,13 +78,6 @@ internal object PodioFormat {
     /** A station's line under its name: the place, the language and the stream ("Chennai, India · tamil · MP3 128 kbps"). */
     fun stationMeta(place: String, language: String, codec: String, bitrate: Int): String =
         episodeMeta(place, language, episodeMeta(codec, if (bitrate > 0) "$bitrate kbps" else "").replace(" · ", " "))
-
-    /** Up to two initials for a station with no logo ("Hello FM" -> "HF"); "FM" when the name has no letters to take. */
-    fun initials(name: String): String =
-        name.split(' ', '-', '.', '_').filter(String::isNotBlank).take(2).joinToString("") { it.first().uppercase() }.ifBlank { "FM" }
-
-    /** A station's own hue (0..359), the same for the same name, for the tile of a station with no logo. */
-    fun hue(name: String): Int = (name.fold(7) { total, char -> total * 31 + char.code } and 0x7fffffff) % 360
 
     /** A show note as plain text: tags out, paragraphs and line breaks kept as new lines, the common entities decoded. */
     fun plainText(html: String, limit: Int = 4000): String {
@@ -111,22 +93,20 @@ internal object PodioFormat {
     }
 
     /**
-     * The section a desktop sidebar row stands for: [tab] is its name ("Saved" is the Library's old name), [saved] the old
-     * "Favourite stations" / "Following" rows, which open the Library.
+     * The section a desktop sidebar row stands for: [tab] is its name. The old names still land somewhere sensible: "Episodes",
+     * "Library" and "Saved" (and the old [saved] rows) open Following, where the follows, the new episodes and the saved stations are.
      */
     fun section(tab: String, saved: Boolean): PodioSection = when {
-        saved || tab == PodioSection.LIBRARY.label || tab == "Saved" -> PodioSection.LIBRARY
-        tab == PodioSection.PODCASTS.label -> PodioSection.PODCASTS
-        tab == PodioSection.EPISODES.label -> PodioSection.EPISODES
-        else -> PodioSection.RADIO
+        saved || tab == "Library" || tab == "Saved" || tab == "Episodes" -> PodioSection.FOLLOWING
+        else -> PodioSection.entries.firstOrNull { it.label == tab } ?: PodioSection.RADIO
     }
 
-    /** The Library filter the old "Favourite stations" and "Following" rows open on. */
-    fun savedFilter(tab: String, saved: Boolean): SavedFilter? = when {
-        !saved -> null
-        tab == PodioSection.RADIO.label -> SavedFilter.STATIONS
-        tab == PodioSection.PODCASTS.label -> SavedFilter.SHOWS
-        else -> null
+    /** An episode's state in its row: "18 min left" (or "Resume at 1:25" with no length known), "Played", or "New" when untouched. */
+    fun heard(completed: Boolean, positionMs: Long, durationMs: Long): String = when {
+        completed || positionMs > 0 && PodioPlaybackPolicy.isFinished(positionMs, durationMs) -> "Played"
+        positionMs <= 0 -> ""
+        durationMs > 0 -> remaining(positionMs, durationMs)
+        else -> "Resume at ${clock(positionMs)}"
     }
 
     /**
