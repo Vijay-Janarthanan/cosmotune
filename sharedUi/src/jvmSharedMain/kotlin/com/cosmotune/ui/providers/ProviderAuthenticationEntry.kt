@@ -1,12 +1,14 @@
 package com.cosmotune.ui.providers
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.cosmotune.providers.*
+import com.cosmotune.ui.orbit.OrbitErrorText
+import com.cosmotune.ui.orbit.OrbitFormField
+import com.cosmotune.ui.sheets.CosmoDialogQuietButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
@@ -56,33 +58,32 @@ fun ProviderAuthenticationEntry(manager: ProviderManager, installed: ProviderIns
     } }
     if (signedProvider) {
         val operator = runCatching { java.net.URI(installed.manifest.signedSession?.get("baseUrl")?.jsonPrimitive?.content).host }.getOrNull()
-        Text("Verification service: ${operator ?: "Configured provider"}", style = MaterialTheme.typography.bodySmall)
-        if (authenticated) Text("Provider access verified", style = MaterialTheme.typography.bodySmall)
-        if (!authenticated && (pending == null || expired || completedGrant)) TextButton(enabled = !busy && installed.enabled && installed.manifest.permissions.storage,
+        ProviderNote("Verification service: ${operator ?: "Configured provider"}")
+        if (authenticated) ProviderNote("Provider access verified")
+        if (!authenticated && (pending == null || expired || completedGrant)) ProviderButton(when { expired -> "Restart provider verification"; completedGrant -> "Finish provider verification"; else -> "Verify provider access" },
+            enabled = !busy && installed.enabled && installed.manifest.permissions.storage,
             onClick = { scope.launch {
                 busy = true; error = false
                 try { if (!manager.verifyProviderAccess(installed.manifest.name)) open = true }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { error = true }
                 finally { busy = false }
-            } }) { Text(when { expired -> "Restart provider verification"; completedGrant -> "Finish provider verification"; else -> "Verify provider access" }) }
+            } })
     }
     if (pending != null && !expired && (pending["completed"] as? JsonPrimitive)?.booleanOrNull != true) {
-        TextButton(onClick = { open = true }, enabled = !busy && installed.enabled && installed.manifest.permissions.storage) { Text("Continue provider sign-in") }
-    } else if (pending != null && !expired) Text(if (pending["kind"] == JsonPrimitive("signed-grant"))
+        ProviderButton("Continue provider sign-in", { open = true }, enabled = !busy && installed.enabled && installed.manifest.permissions.storage)
+    } else if (pending != null && !expired) ProviderNote(if (pending["kind"] == JsonPrimitive("signed-grant"))
         "Verification received. Finish provider verification to establish the session."
-        else "Authorization code received. Use this provider’s sign-in or check action to finish.", style = MaterialTheme.typography.bodySmall)
-    if (expired) Text("Provider sign-in expired. Restart verification or cancel it.", style = MaterialTheme.typography.bodySmall)
-    if (hasCredentials && access == ProviderAccessState.RENEWAL_REQUIRED && pending == null) Text(
+        else "Authorization code received. Use this provider’s sign-in or check action to finish.")
+    if (expired) ProviderNote("Provider sign-in expired. Restart verification or cancel it.")
+    if (hasCredentials && access == ProviderAccessState.RENEWAL_REQUIRED && pending == null) ProviderNote(
         if (signedProvider) "Session renewal is needed. Verify provider access to check the saved connection; disconnect only if you want to remove it."
-        else "Session renewal is needed. Use this provider’s sign-in or check action; its saved connection has been retained.",
-        style = MaterialTheme.typography.bodySmall)
-    if (access == ProviderAccessState.CONFIGURATION_CHANGED) Text(
-        "This package uses updated connection settings. Verify provider access to establish a compatible session.",
-        style = MaterialTheme.typography.bodySmall)
-    if (hasCredentials || pending != null) TextButton(onClick = ::disconnect, enabled = !busy) { Text(if (hasCredentials) "Disconnect provider account" else "Cancel provider sign-in") }
-    if (error && !open) Text(if (completedGrant) "Verification received, but session setup failed. Finish provider verification to retry."
-        else "Provider sign-in could not be updated. Check its settings and retry.", color = MaterialTheme.colorScheme.error)
+        else "Session renewal is needed. Use this provider’s sign-in or check action; its saved connection has been retained.")
+    if (access == ProviderAccessState.CONFIGURATION_CHANGED) ProviderNote(
+        "This package uses updated connection settings. Verify provider access to establish a compatible session.")
+    if (hasCredentials || pending != null) ProviderButton(if (hasCredentials) "Disconnect provider account" else "Cancel provider sign-in", ::disconnect, enabled = !busy)
+    if (error && !open) OrbitErrorText(if (completedGrant) "Verification received, but session setup failed. Finish provider verification to retry."
+        else "Provider sign-in could not be updated. Check its settings and retry.")
     if (!open) return
     com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = { if (!busy) { open = false; callback = "" } },
@@ -92,7 +93,7 @@ fun ProviderAuthenticationEntry(manager: ProviderManager, installed: ProviderIns
             Text(if (signedProvider) "Complete verification with this provider's service. If the browser does not return, use Copy link on its page and paste the callback URL or grant=… text below."
                 else if (automatic) "Finish signing in with this provider, then return to Cosmotune. If the browser cannot return the result, paste its complete callback URL below."
                 else "Sign in with this provider in your browser. Cosmotune can receive supported local callbacks automatically; otherwise return the complete callback URL here.")
-            TextButton(enabled = !busy, onClick = {
+            CosmoDialogQuietButton("Open sign-in page", enabled = !busy, onClick = {
                 scope.launch {
                     busy = true; error = false; browserError = false
                     var request: ProviderBrowserAuthentication? = null
@@ -102,11 +103,11 @@ fun ProviderAuthenticationEntry(manager: ProviderManager, installed: ProviderIns
                     catch (_: Exception) { request?.close(); browserError = true; error = true }
                     finally { busy = false }
                 }
-            }) { Text("Open sign-in page") }
-            OutlinedTextField(callback, { if (it.length <= 16_384) callback = it }, enabled = !busy, label = { Text(if (signedProvider) "Callback URL or grant=…" else "Callback URL") },
-                visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
-            if (error) Text(if (browserError) "The sign-in page could not be opened. Restart sign-in or return its complete callback URL here."
-                else "The callback was not accepted. Check that it is from this sign-in and has not expired.", color = MaterialTheme.colorScheme.error)
+            })
+            OrbitFormField(callback, { if (it.length <= 16_384) callback = it }, if (signedProvider) "Callback URL or grant=…" else "Callback URL",
+                enabled = !busy, secret = true)
+            if (error) OrbitErrorText(if (browserError) "The sign-in page could not be opened. Restart sign-in or return its complete callback URL here."
+                else "The callback was not accepted. Check that it is from this sign-in and has not expired.")
         }
     },
         confirmLabel = "Continue",

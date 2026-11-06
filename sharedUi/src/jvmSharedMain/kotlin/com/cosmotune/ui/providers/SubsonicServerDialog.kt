@@ -4,13 +4,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.cosmotune.ui.orbit.OrbitBusyRing
+import com.cosmotune.ui.orbit.OrbitChip
+import com.cosmotune.ui.orbit.OrbitFormField
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.sheets.CosmoDialogQuietButton
 import com.cosmotune.music.data.subsonic.SubsonicClient
 import com.cosmotune.music.data.subsonic.SubsonicCredential
 import com.cosmotune.music.data.subsonic.SubsonicException
@@ -75,30 +82,30 @@ fun SubsonicServerDialog(isNew: Boolean, label: String, address: String, setting
         onDismissRequest = onDismiss,
         title = if (isNew) "Add a Subsonic server" else label.ifBlank { "Subsonic server" },
         content = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val fonts = orbitFonts()
+        val look = orbitLook()
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Navidrome, Gonic, Airsonic, Ampache and other Subsonic or OpenSubsonic servers. Cosmotune searches, browses and streams your own files from it.",
-                style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(server, { server = it; message = null }, Modifier.fillMaxWidth().testTag("subsonic-address"), singleLine = true,
-                enabled = !checking, label = { Text("Server address") }, placeholder = { Text("https://music.example.com") })
-            OutlinedTextField(user, { user = it; message = null }, Modifier.fillMaxWidth().testTag("subsonic-user"), singleLine = true,
-                enabled = !checking, label = { Text(if (useKey) "User name (optional)" else "User name") })
+                color = look.dim)
+            OrbitFormField(server, { server = it; message = null }, "https://music.example.com", fieldModifier = Modifier.testTag("subsonic-address"),
+                label = "Server address", enabled = !checking)
+            OrbitFormField(user, { user = it; message = null }, if (useKey) "User name (optional)" else "User name", fieldModifier = Modifier.testTag("subsonic-user"),
+                label = if (useKey) "User name (optional)" else "User name", enabled = !checking)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !useKey, onClick = { useKey = false; secret = "" }, label = { Text("Password") })
-                FilterChip(selected = useKey, onClick = { useKey = true; secret = "" }, label = { Text("API key") })
+                OrbitChip("Password", fonts, look, onClick = { useKey = false; secret = "" }, selected = !useKey, leading = null)
+                OrbitChip("API key", fonts, look, onClick = { useKey = true; secret = "" }, selected = useKey, leading = null)
             }
             val saved = !isNew && !(if (useKey) settings[SubsonicCatalogue.KEY_API_KEY] else settings[SubsonicCatalogue.KEY_PASSWORD]).isNullOrEmpty()
-            OutlinedTextField(secret, { secret = it; message = null }, Modifier.fillMaxWidth().testTag("subsonic-secret"), singleLine = true,
-                enabled = !checking, visualTransformation = PasswordVisualTransformation(),
-                label = { Text(if (useKey) "API key" else "Password") },
-                supportingText = if (saved) ({ Text("Leave empty to keep the saved one") }) else null)
-            OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth().testTag("subsonic-label"), singleLine = true,
-                enabled = !checking, label = { Text("Name (optional)") })
-            if (checking) LinearProgressIndicator(Modifier.fillMaxWidth())
-            message?.let { Text(it, color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("subsonic-message")) }
+            OrbitFormField(secret, { secret = it; message = null }, if (useKey) "API key" else "Password", fieldModifier = Modifier.testTag("subsonic-secret"),
+                enabled = !checking, secret = true, supporting = if (saved) "Leave empty to keep the saved one" else null)
+            OrbitFormField(name, { name = it }, "Name (optional)", fieldModifier = Modifier.testTag("subsonic-label"),
+                label = "Name (optional)", enabled = !checking)
+            if (checking) OrbitBusyRing()
+            message?.let { Text(it, color = if (failed) MaterialTheme.colorScheme.error else look.accent,
+                style = fonts.body.copy(fontSize = 12.5.sp), modifier = Modifier.testTag("subsonic-message")) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { check(thenSave = false) }, enabled = !checking) { Text("Test") }
-                if (onRemove != null) TextButton(onClick = onRemove, enabled = !checking) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+                CosmoDialogQuietButton("Test", { check(thenSave = false) }, enabled = !checking)
+                if (onRemove != null) CosmoDialogQuietButton("Remove", onRemove, enabled = !checking)
             }
         }
     },
