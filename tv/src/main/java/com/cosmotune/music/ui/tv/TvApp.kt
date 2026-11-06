@@ -323,6 +323,10 @@ private fun TvMainShell(
         returnFocus.add(chrome.lastFocused)
         detailStack.add(TvDetailRoute(browseId, title, subtitle, thumb, type))
     }
+    // A Watch install or pack link opened from another app ([com.cosmotune.music.watch.AndroidWatch.consume]) opens Watch, where its
+    // sheet waits ([com.cosmotune.ui.watch.WatchApp] draws it).
+    val watchLink by com.cosmotune.watch.WatchLinks.pending.collectAsState()
+    LaunchedEffect(watchLink != null) { if (watchLink != null) select(TvDestination.WATCH) }
     val activeDetail = detailStack.lastOrNull()
     val contentFocus = remember { FocusRequester() }
     val detailFocus = remember { FocusRequester() }

@@ -279,6 +279,21 @@
                     android:scheme="cosmotune"
                     android:host="party" />
             </intent-filter>
+            <!-- Watch mode's one-tap add-on install links (stremio://host/manifest.json) and shared plugin packs
+                 (cosmotune://watch/pack?d=...), as on the phone: Watch opens with the Install sheet showing the add-on first;
+                 nothing installs without a press. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="stremio" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="cosmotune" android:host="watch" />
+            </intent-filter>
 
             <!--
               Share → Cosmotune, from YT Music's own share sheet or from

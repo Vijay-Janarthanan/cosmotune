@@ -69,7 +69,8 @@ class TvActivity : ComponentActivity() {
         if (com.cosmotune.providers.ProviderAuthCallbackBridge.consume(this, intent)) return
         PlayerDeepLink.consume(intent)
         JamInviteLink.consume(intent)
-        MusicLink.consume(intent)
+        // A Watch install or pack link (stremio://, cosmotune://watch/...) is Watch's alone; anything else is Music's.
+        if (!com.cosmotune.music.watch.AndroidWatch.consume(intent)) MusicLink.consume(intent)
     }
 
     override fun onDestroy() {
