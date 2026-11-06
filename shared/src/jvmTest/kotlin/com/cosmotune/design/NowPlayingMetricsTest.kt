@@ -162,15 +162,6 @@ class NowPlayingMetricsTest {
         assertEquals(NowPlayingLayout.PORTRAIT, NowPlayingLayout.choose(1000f, 1000f))
     }
 
-    @Test
-    fun theWideFloorIsWhatTheWideLayoutNeedsAndTheDesktopWindowNeverGoesBelowIt() {
-        // the layout's fixed heights: the video card starts 96 dp down and the player bar takes 100 dp at the foot, so at the
-        // floor the card is still 404 dp tall (more than half of the board's 704) and the lyrics have 342 dp
-        val plan = WideNowPlayingMetrics.plan(NowPlayingLayout.WIDE_MIN_DP, NowPlayingLayout.WIDE_MIN_HEIGHT_DP)
-        assertTrue(plan.video.height >= 400f, "a video card at the floor: ${plan.video}")
-        assertTrue(plan.lyrics.height >= 340f, "lyrics at the floor: ${plan.lyrics}")
-    }
-
     // ---- the glow and the stack ------------------------------------------------------------------------------------
 
     @Test

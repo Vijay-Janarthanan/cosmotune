@@ -150,7 +150,7 @@ internal fun OrbitVolume(ink: Color, modifier: Modifier = Modifier) {
  *
  * [wide] (the desktop with a video, section 1): the title on the left, [buttons] top right, the [volume] under them, the
  * [format] under the artists and the seek line across the foot. Otherwise (the record, the phone, sections 3 and 5): one column,
- * the seek line when [showLine], the buttons along the foot beside the bite and the format after them.
+ * the format under the artists, the seek line when [showLine], the buttons along the foot beside the bite and the volume after them.
  */
 @Composable
 internal fun NowPlayingSongCard(
@@ -189,14 +189,18 @@ internal fun NowPlayingSongCard(
                 OrbitingLabel(t, fonts, ink)
                 Spacer(Modifier.height(12.dp))
                 CardTitle(t, fonts, ink, 26, maxLines = 2)
+                if (format) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 6.dp))
                 if (showLine) {
                     Spacer(Modifier.height(16.dp))
                     OrbitProgressLine(t::progress, ink, onSeek = t::seek)
                 }
                 Spacer(Modifier.height(16.dp))
-                Row(Modifier.padding(end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
                     CardButtons(buttons, ink, fill, buttonSize, 8.dp)
-                    if (format) OrbitFormatLabel(fonts, ink, Modifier.padding(start = 12.dp).weight(1f, fill = false))
+                    if (volume) {
+                        Spacer(Modifier.weight(1f))
+                        OrbitVolume(ink, Modifier.padding(start = 12.dp))
+                    }
                 }
             }
         }

@@ -8,8 +8,7 @@ import kotlin.test.assertTrue
 
 /**
  * What cannot be seen without a window, pinned by reading the source (there is no Compose UI test harness here and none is to
- * be added): the rules the wide Now Playing (the desktop, `V2.deskNow`) was written under. The numbers themselves are
- * `WideNowPlayingMetricsTest`'s.
+ * be added): the wide Now Playing of the Orbit board (sections 1 and 3).
  */
 class NowPlayingWideContractTest {
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }
@@ -24,91 +23,79 @@ class NowPlayingWideContractTest {
 
     private val wide get() = code(nowPlaying("NowPlayingWide.kt"))
     private val screen get() = code(nowPlaying("CosmoNowPlaying.kt"))
+    private val top get() = code(nowPlaying("NowPlayingTopRow.kt"))
+    private val card get() = code(nowPlaying("NowPlayingCard.kt"))
 
-    // ---- the page --------------------------------------------------------------------------------------------------------
-
-    @Test fun thePiecesAreWhereThePlanSaysAndKeepClearOfTheSystemBars() {
-        val src = wide
-        assertTrue(src.contains("WideNowPlayingMetrics.plan(windowWidth.value - (left + right).value, windowHeight.value - (top + bottom).value, fontScale)"), "the plan accounts for insets and the user's text size")
-        assertFalse(src.contains("BoxWithConstraints"), "nothing is composed during layout: the lyrics' follow effect scrolls a list, which must not happen in a measure pass")
-        assertTrue(src.contains("WindowInsets.systemBars.union(WindowInsets.displayCutout)"), "clear of the cutout and the bars on all four sides")
-        for (piece in listOf("plan.cover", "plan.video", "plan.header", "plan.lyrics")) assertTrue(src.contains("placed($piece, left, top)"), "$piece is placed")
-        assertTrue(src.contains("Modifier.offset(left + plan.bar.x.dp, top + plan.bar.y.dp).width(plan.bar.width.dp)"), "the bar gets its place and width; it is 80 dp tall by itself")
-        // the ambient ground, with the media over it, is what the sheets blur
-        assertTrue(src.contains("Box(Modifier.fillMaxSize().hazeSource(hazeState))"))
-        assertTrue(src.indexOf("cosmoAmbientGround(artwork = true)") in 0 until src.indexOf("media(Modifier.placed(plan.cover"), "the artwork backdrop is under the media")
-        assertTrue(src.indexOf("media(Modifier.placed(plan.cover") < src.indexOf("header(Modifier.placed"), "and the header, the lyrics and the bar are over it")
-    }
-
-    @Test fun theWidePageIsOnlyMadeInAWideWindowAndDoesNotReadThePlayhead() {
-        assertFalse(wide.contains("position.positionMs"), "the page reads no playhead: the bar and the lyrics read it, in their own draw phases")
-        assertFalse(wide.contains("LocalReducedMotion"), "reduced motion arrives as a parameter, from the screen")
-        // wide is a layout of the one chooser; nothing else in the screen decides it
-        assertEquals(1, Regex("""NowPlayingLayout\.choose\(""").findAll(screen).count())
-        assertTrue(screen.contains("val wide = layout == NowPlayingLayout.WIDE"))
-    }
-
-    // ---- the header ------------------------------------------------------------------------------------------------------
-
-    @Test fun theHeaderIsTheCoverTheTitleTheTabsAndTheButtonsInThatOrder() {
-        val src = wide
-        val header = src.substring(src.indexOf("internal fun NowPlayingWideHeader("), src.indexOf("internal fun NowPlayingWidePanels("))
-        val at = listOf(
-            "CoverImage(coverUrl, WideNowPlayingMetrics.HEADER_COVER_DP.dp, CosmoRadii.coverDesktopHead)",
-            "Text(song.title, style = title",
-            "CosmoSegmented(listOf(stringResource(Res.string.open_lyrics), stringResource(Res.string.queue)), if (queueSelected) 1 else 0, onSelectTab)",
-            "CosmoIcons.More",
-            "CosmoIcons.ChevronDown",
-        ).map { header.indexOf(it).also { i -> assertTrue(i >= 0, "$it is in the header") } }
+    @Test fun theTopRowIsCloseTheSourceTheChipsAndMoreInThatOrder() {
+        val body = SourceContract.functionBody(top, "NowPlayingTopRow")
+        val at = listOf("CosmoIcons.ChevronDown", "\"FROM · \${source.uppercase()}\"", "PanelChips(", "CosmoIcons.More", "OrbitMenu(")
+            .map { body.indexOf(it).also { i -> assertTrue(i >= 0, "$it is in the top row") } }
         assertEquals(at.sorted(), at, "in the order of the board")
-        assertTrue(header.contains("spacedBy(WideNowPlayingMetrics.HEADER_GAP_DP.dp)"), "14 dp apart")
-        assertTrue(header.contains("fontSize = 17.sp") && header.contains("FontWeight.Bold") && header.contains("fontSize = 13.5.sp"), "17 sp over 13.5 sp")
-        assertTrue(header.contains("LocalCosmoPlayerDismiss.current") && header.contains("Res.string.cosmo_collapse_player"), "the last button closes the player")
-        assertTrue(header.contains("if (hasVideo) {"), "the video button is there when the song has a video: otherwise nothing could turn it on")
-        assertTrue(header.contains("""joinToString(" · ")"""), "artist, then where it is playing from")
+        assertTrue(body.contains("LocalCosmoPlayerDismiss.current"), "the chevron closes the player")
+        val chips = SourceContract.functionBody(top, "PanelChips")
+        for (name in listOf("\"Lyrics\"", "\"Up next\"", "\"Related\"")) assertTrue(chips.contains(name), "$name is a chip")
+        assertTrue(chips.contains("selected = on"), "the chip showing is the solid one")
     }
 
-    // ---- the media -------------------------------------------------------------------------------------------------------
-
-    @Test fun theCardIsASuperellipseOf32WithAGlowShadowAndTheCoverTellsTheShellWhereItRests() {
+    @Test fun theMediaIsOverTheCardOnTheLeftAndThePanelOnTheRightClearOfTheBars() {
         val src = wide
-        assertTrue(src.contains("RoundedCornerShape(CosmoRadii.rMd)"), "the token's corners")
-        assertTrue(src.contains("CoverImage(coverUrl, coverSide, CosmoRadii.rMd, shadow = false)"), "the cover has the player cover's radius, which the grow lands on")
-        assertTrue(src.contains("shell?.playerCoverBounds = it.boundsInRoot()"), "the resting rectangle goes to the shell")
-        assertTrue(src.contains("colors.live(CoverField.GLOW)") && src.contains("GLOW_SHADOW_ALPHA = 0.55f"), "the key shadow is the glow at 55 %")
-        // the shadow's colour is the lambda that reads the live palette: a draw-phase lambda of the layer
-        val spot = src.indexOf("spot = {")
-        assertEquals(src.lastIndexOf(".live("), src.indexOf(".live(", spot), "the only live colour is inside the shadow's lambda")
-        assertTrue(src.contains("NowPlayingVideo("), "the video is shown as its view says")
-        assertTrue(src.contains("compositingStrategy = CompositingStrategy.ModulateAlpha"), "the cover's shadow is not cut at its bounds while it fades")
+        assertTrue(src.contains("WindowInsets.systemBars.union(WindowInsets.displayCutout)"), "clear of the cutout and the bars on all four sides")
+        assertTrue(src.contains("Box(modifier.fillMaxSize().hazeSource(hazeState))"), "the page is what the sheets blur")
+        assertTrue(src.indexOf("cosmoAmbientGround(artwork = true)") < src.indexOf("media(Modifier.weight(1f)"), "the ground wears the cover, under everything")
+        assertTrue(src.indexOf("media(Modifier.weight(1f)") < src.indexOf("card(Modifier.fillMaxWidth()"), "the card is under the media")
+        assertTrue(src.indexOf("card(Modifier.fillMaxWidth()") < src.indexOf("panel(Modifier.weight(1f - split)"), "the panel is the right column")
+        assertTrue(src.contains("WindowCaptionArea("), "the top row is the window's caption: an empty stretch of it still moves the window")
+        assertFalse(src.contains("position.positionMs"), "the page reads no playhead")
     }
 
-    // ---- what the screen gives it ----------------------------------------------------------------------------------------
-
-    @Test fun theBarInsideThePlayerIsTheCapsuleAsAnEmbeddedBarWithEveryControlOfItsOwn() {
+    @Test fun theVideoIsRounded34AndWithoutOneTheRecordIsTheProgress() {
         val src = screen
-        val call = src.substring(src.indexOf("CosmoPlayerBar("), src.indexOf("embedded = true") + "embedded = true".length)
-        for (arg in listOf(
-            "liked = likeStatus == LikeStatus.LIKE", "shuffle = shuffleEnabled", "repeatMode = repeatMode", "controlsLocked = controlsLocked",
-            "lyricsOn = !panels.queueOpen", "queueOn = panels.queueOpen", "onLyrics = panels::openLyrics", "onQueue = panels::openQueue",
-            "onOutput = openAudioOutput", "onBlockedControl = onBlockedControl", "hazeState = playerHaze", "onSeekFraction = onSeekFraction",
-            "onPlayPause = onPlayPause", "onPrevious = onPrevious", "onNext = onNext", "onToggleLike = onToggleLike",
-        )) assertTrue(call.contains(arg), arg)
-        assertTrue(call.contains("embedded = true"), "inside the player the bar is not the capsule the player grows out of")
+        val media = src.substring(src.indexOf("media = { m ->"), src.indexOf("card = { m, wideCard ->"))
+        assertTrue(media.contains("radius = 34.dp"), "the video is rounded 34")
+        assertTrue(media.contains("onDoubleTap = { cinema = true }"), "a double click enters Cinema")
+        assertTrue(media.contains("RecordBox("), "without a video, the record")
+        val record = SourceContract.functionBody(code(nowPlaying("NowPlayingVideo.kt")), "NowPlayingRecord")
+        assertTrue(record.contains("OrbitRing("), "the ring round the disc is the progress")
+        assertTrue(record.contains("detectDragGestures("), "drag round the ring to seek")
+        assertTrue(src.contains("progress = transport::progress, playing = isPlaying, onSeek = transport::seek"))
     }
 
-    @Test fun theWideLyricsAreTitleLWithTheBoardsScalesAndTheQueueIsTheSamePanelAsEverywhere() {
-        val src = screen
-        assertTrue(src.contains("LyricsStyle(WideNowPlayingMetrics.LYRICS_BASE_STEP, WideNowPlayingMetrics.LYRICS_CURRENT_SCALE, WideNowPlayingMetrics.LYRICS_PAST_SCALE)"))
-        val panel = src.substring(src.indexOf("panel = { m ->"), src.indexOf("media = { cover, video, side ->"))
-        assertTrue(panel.contains("lyricsPanel(Modifier.fillMaxSize(), WIDE_LYRICS_STYLE, WIDE_LYRICS_TOP_PADDING)") && panel.contains("queuePanel(Modifier.fillMaxSize())"), "the same panels as portrait and landscape")
-        assertTrue(src.contains("onSelectTab = { if (it == 0) panels.openLyrics() else panels.openQueue() }"), "the tabs are the panels' flags")
+    @Test fun theSongCardIsTheBiteCardWithPlayInTheBiteAndEveryControl() {
+        val body = SourceContract.functionBody(card, "NowPlayingSongCard")
+        assertTrue(body.contains("coverFill(t.coverUrl, t.song.title)"), "the cover's colour")
+        assertTrue(body.contains("OrbitBiteCard(fill, modifier, bite = { OrbitPlayButton(t.isPlaying, t.onPlayPause, look) })"), "play / pause in the bite")
+        assertTrue(body.contains("OrbitProgressLine(t::progress, ink"), "the seek line")
+        assertTrue(card.contains("\"NOW ORBITING\""), "the mono label")
+        val call = screen.substring(screen.indexOf("card = { m, wideCard ->"), screen.indexOf("panel = { m ->"))
+        for (b in listOf("CosmoIcons.Shuffle", "CosmoIcons.Repeat", "CosmoIcons.Previous", "CosmoIcons.Next", "CosmoIcons.Heart", "screenButton")) {
+            assertTrue(call.contains(b), "$b is on the card")
+        }
+        assertTrue(call.contains("volume = true"), "the desktop's volume is on the card: there is no bar inside the player")
     }
 
-    @Test fun inAWideWindowThePageStaysInTheThemeAndTheTabsAreNotLayersBackPeelsOff() {
+    @Test fun thePanelIsUpNextAsSongRowsTheLyricsInTheWideFaceOrRelated() {
         val src = screen
-        assertTrue(src.contains("hasVideo = canvas != null && !wide, videoShown = videoShown && !wide"), "a card of video on the ground does not turn the page dark")
-        assertTrue(src.contains("PlayerStatusBarIcons(reveal = if (wide) noReveal else reveal, lightTheme = lightTheme)"))
-        assertTrue(src.contains("PlayerBackHandler(enabled = panels.lyricsOpen && !wide)") && src.contains("PlayerBackHandler(enabled = panels.queueOpen && !wide)"), "Escape closes the player, not a tab")
+        assertTrue(src.contains("WIDE_LYRICS_STYLE.copy(fontFamily = orbitType.wide)"), "the lyrics in the wide heading face")
+        assertTrue(src.contains("NowPlayingUpNext(") && src.contains("NowPlayingRelated("))
+        val upNext = code(nowPlaying("NowPlayingUpNext.kt"))
+        assertTrue(upNext.contains("OrbitSongRow("), "Home's song rows")
+        for (keep in listOf("onJumpTo(track.timelineIndex)", "onRemove(track.timelineIndex)", "drag.start(track.key, section)", "onClear", "onToggleAutoplay")) {
+            assertTrue(upNext.contains(keep), "the queue still does $keep")
+        }
+        assertTrue(src.contains("onPanel = { panels.panel = it }"), "the chips are the panel")
+    }
+
+    @Test fun theMoreMenuKeepsEveryActionTheOldTopBarHad() {
+        val src = screen
+        val more = src.substring(src.indexOf("val moreItems"), src.indexOf("val sourceLabel"))
+        for (a in listOf("onOpenMenu", "openAudioOutput", "together", "watchMusicVideo", "visualsOpen = true", "sheets.details = true", "sheets.providers = true")) {
+            assertTrue(more.contains(a), "$a is in more")
+        }
+    }
+
+    @Test fun fEntersCinemaOnTheWidePage() {
+        val src = screen
+        assertTrue(src.contains("event.key == Key.F"))
+        assertTrue(src.contains("modifier = Modifier.cinemaKey(enabled = canvas != null && !videoHidden) { cinema = true }"))
     }
 }

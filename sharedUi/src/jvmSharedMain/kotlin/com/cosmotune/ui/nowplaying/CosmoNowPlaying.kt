@@ -1,6 +1,24 @@
 package com.cosmotune.ui.nowplaying
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import com.cosmotune.design.TypeScale
+import com.cosmotune.music.ui.player.RepeatModes
+import com.cosmotune.music.sharedui.resources.played_by
+import com.cosmotune.music.sharedui.resources.playing_radio
+import com.cosmotune.music.sharedui.resources.queue
+import com.cosmotune.ui.orbit.OrbitMenuItem
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -43,8 +61,6 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.OrbitMenu
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
-import com.cosmotune.design.WideNowPlayingMetrics
-import com.cosmotune.ui.shell.CosmoPlayerBar
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoShell
@@ -200,12 +216,12 @@ fun CosmoNowPlaying(
     val sheets = remember { NowPlayingSheetFlags() }
     val openAudioOutput = rememberOutputPicker { sheets.output = true }
     val panels = remember { NowPlayingPanels(PlayerSettings.lastPlayerScreen.value) }
-    LaunchedEffect(panels.lyricsOpen, panels.queueOpen) { PlayerSettings.setLastPlayerScreen(panels.screen) }
+    LaunchedEffect(panels.panel) { PlayerSettings.setLastPlayerScreen(panels.screen) }
     // In a wide window the lyrics or the queue is always there (the tabs of the header choose between them), so they are not
     // layers that back peels off, and the lyrics are showing unless the queue is.
-    KeepScreenOn(enabled = if (wide) !panels.queueOpen else panels.lyricsOpen)
     PlayerBackHandler(enabled = panels.lyricsOpen && !wide) { panels.closeLyrics() }
     PlayerBackHandler(enabled = panels.queueOpen && !wide) { panels.closeQueue() }
+    PlayerBackHandler(enabled = panels.relatedOpen && !wide) { panels.closeRelated() }
 
     // ---- the lyrics: the playhead their clock reads, the romanisation and translation, where a tap on a line goes ----------
     val haptics = rememberHaptics()
@@ -236,14 +252,6 @@ fun CosmoNowPlaying(
     var videoMenuOpen by remember { mutableStateOf(false) }
     val cinemaShown = cinema && wantVideo
     PlayerBackHandler(enabled = cinemaShown) { cinema = false }
-    val orbitType = orbitFonts()
-    val orbitInk = orbitLook()
-    val videoMenu: @Composable () -> Unit = {
-        OrbitMenu(
-            open = videoMenuOpen, onDismiss = { videoMenuOpen = false }, fonts = orbitType, look = orbitInk, header = "Show the video",
-            items = videoViewItems(keptView, cinema, !videoHidden, setView, { cinema = it }, { videoHidden = !it }),
-        )
-    }
     // Keyed on the clip (a version switch that keeps it carries this through) and on whether it is wanted at all: a clip that
     // is mounted again has to show a frame again before the cover gives way.
     var rendered by remember(canvas?.url, wantVideo) { mutableStateOf(false) }
@@ -255,6 +263,41 @@ fun CosmoNowPlaying(
     // ground and the page stays in the theme.
     val colors = rememberPlayerColors(shell, hasVideo = canvas != null && !wide, videoShown = videoShown && !wide, reduced = reduced)
     val lightTheme = shell != null && !LocalCosmoColors.current.dark
+    // The lyrics keep the screen on while they show, and so does Cinema.
+    KeepScreenOn(enabled = (if (wide) panels.widePanel == NowPlayingPanel.LYRICS else panels.lyricsOpen) || cinemaShown)
+
+    // ---- the Orbit pieces: the look of the colours above, the screen button's menu, the more menu ------------------------
+    val orbitType = orbitFonts()
+    val orbitInk = orbitLook(colors)
+    val videoMenu: @Composable () -> Unit = {
+        OrbitMenu(
+            open = videoMenuOpen, onDismiss = { videoMenuOpen = false }, fonts = orbitType, look = orbitInk, header = "Show the video",
+            items = videoViewItems(keptView, cinema, !videoHidden, setView, { cinema = it }, { videoHidden = !it }),
+        )
+    }
+    val screenButton: CardButton? = if (canvas == null) null else CardButton(
+        VIDEO_VIEW_ICON, "How the video is shown", { videoMenuOpen = true }, on = videoMenuOpen, menu = videoMenu,
+    )
+    var visualsOpen by rememberSaveable { mutableStateOf(false) }
+    if (visualsOpen) LocalVisualsPresentation.current({ visualsOpen = false }) { PlayerVisualsContent(song, { visualsOpen = false }) }
+    val together: () -> Unit = { if (inParty) sheets.members = true else onListenTogether() }
+    // The rarer actions, in the top row's "more" (the phone adds shuffle and repeat, which its card has no room for).
+    val moreItems: (Boolean) -> List<OrbitMenuItem> = { phone ->
+        buildList {
+            add(OrbitMenuItem("Song options", "Playlists, sharing, quality and the rest", CosmoIcons.MoreVertical, onClick = onOpenMenu))
+            if (phone) {
+                add(OrbitMenuItem(if (shuffleEnabled) "Shuffle is on" else "Shuffle", null, CosmoIcons.Shuffle, selected = shuffleEnabled, keepOpen = true, onClick = onToggleShuffle))
+                add(OrbitMenuItem(repeatLabel(repeatMode), null, if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, selected = repeatMode != RepeatModes.OFF, keepOpen = true, onClick = onCycleRepeat))
+            }
+            add(OrbitMenuItem("Play on", "Speakers, headphones and other devices", CosmoIcons.Devices, onClick = openAudioOutput))
+            add(OrbitMenuItem("Listen together", if (inParty) "Who is in the room" else "Start or join a room", CosmoIcons.Together, onClick = together))
+            watchMusicVideo?.let { add(OrbitMenuItem("Watch the music video", "In Video mode, from this moment", CosmoIcons.Video, onClick = it)) }
+            add(OrbitMenuItem("Visuals", "Artwork, pulse or waveform, full screen", CosmoIcons.Waveform) { visualsOpen = true })
+            add(OrbitMenuItem("Audio details", "The signal path, from source to output", CosmoIcons.Equaliser) { sheets.details = true })
+            add(OrbitMenuItem("Lyrics source", "Choose where the lyrics come from", CosmoIcons.Lyrics) { sheets.providers = true })
+        }
+    }
+    val sourceLabel = nowPlayingSource(song, playedBy)
 
     // NP-1: over a video on the portrait page the controls can be minimized to a slim bar and expanded again; the video is not
     // touched. It applies under the same condition as the dark scrims, with no lyrics or queue open (see [rememberControlsSheet]).
@@ -324,7 +367,7 @@ fun CosmoNowPlaying(
     val landscapeQueue: @Composable BoxScope.() -> Unit = { queuePanel(Modifier.fillMaxSize().padding(vertical = 8.dp)) }
     val page: @Composable BoxScope.() -> Unit = {
         NowPlayingBackdrop(
-            canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal, lyricsOpen = panels.lyricsOpen,
+            canvas = canvas, wantVideo = wantVideo && !cinemaShown, isPlaying = isPlaying, reveal = reveal, lyricsOpen = panels.lyricsOpen,
             onRenderedChanged = { rendered = it }, hazeState = playerHaze, modifier = Modifier.fillMaxSize(),
             controls = controlsSheet.progressState, controlsHeightPx = stackHeightPx,
             view = keptView, aspect = videoAspect, onAspect = { videoAspect = it }, onDoubleTap = { cinema = true },
@@ -361,7 +404,7 @@ fun CosmoNowPlaying(
             hazeState = playerHaze,
             media = {
                 NowPlayingLandscapeMedia(
-                    canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal,
+                    canvas = canvas, wantVideo = wantVideo && !cinemaShown, isPlaying = isPlaying, reveal = reveal,
                     onRenderedChanged = { rendered = it }, coverUrl = remoteArt, shell = shell,
                     view = keptView, aspect = videoAspect, onAspect = { videoAspect = it },
                 )
@@ -373,47 +416,78 @@ fun CosmoNowPlaying(
         )
     }
 
-    // The wide page. The lyrics and the queue are the header's two tabs (the queue's flag is the tab); the bar is the desktop's
-    // player capsule drawn inside the player (`embedded`), so it has the transport, the scrubber, like, the panels and the volume.
+    // The wide page (board sections 1 and 3): the top row with the chips, the video or the record over the song card on the
+    // left, the chosen panel on the right. The chips are the panel; one always shows.
+    val coverPlaced: (androidx.compose.ui.geometry.Rect) -> Unit = { shell?.playerCoverBounds = it }
+    val upNextPanel: @Composable (Modifier, Boolean) -> Unit = { m, header ->
+        NowPlayingUpNext(
+            queue = queue, queueIndex = queueIndex, autoplayEnabled = autoplayEnabled, controlsLocked = controlsLocked,
+            isPlaying = isPlaying, progress = transport::progress, onJumpTo = onJumpTo, onRemove = onRemoveFromQueue,
+            onMove = onMoveInQueue, onClear = onClearQueue, onToggleAutoplay = onToggleAutoplay,
+            onDragActiveChange = onQueueDragActiveChange, fonts = orbitType, look = orbitInk, modifier = m, header = header,
+        )
+    }
+    val relatedPanel: @Composable (Modifier, Boolean) -> Unit = { m, header ->
+        NowPlayingRelated(
+            song = song, queue = queue, queueIndex = queueIndex, sourceLabel = sourceLabel, autoplayEnabled = autoplayEnabled,
+            controlsLocked = controlsLocked, onOpenArtist = onOpenArtist, onOpenAlbum = onOpenAlbum, onOpenOrigin = openOrigin,
+            onJumpTo = onJumpTo, onToggleAutoplay = onToggleAutoplay, fonts = orbitType, look = orbitInk, modifier = m, header = header,
+        )
+    }
+    val record: @Composable (Dp) -> Unit = { disc ->
+        NowPlayingRecord(
+            coverUrl = remoteArt, disc = disc, ink = orbitInk.ink, moon = orbitInk.accent,
+            progress = transport::progress, playing = isPlaying, onSeek = transport::seek,
+            modifier = Modifier.fadedBy(reveal), onPlaced = coverPlaced,
+        )
+    }
     val widePage: @Composable BoxScope.() -> Unit = {
         NowPlayingWide(
-            windowWidth = windowWidth, windowHeight = windowHeight, hazeState = playerHaze,
-            header = { m ->
-                NowPlayingWideHeader(
-                    song = song, playedBy = playedBy, coverUrl = remoteArt, queueSelected = panels.queueOpen,
-                    onSelectTab = { if (it == 0) panels.openLyrics() else panels.openQueue() },
-                    hasVideo = canvas != null, videoOn = canvas != null && !videoHidden, onToggleVideo = { videoMenuOpen = true },
-                    onOpenOrigin = openOrigin, onOpenMenu = onOpenMenu, modifier = m, onWatchMusicVideo = watchMusicVideo,
-                    videoMenu = videoMenu,
+            hazeState = playerHaze, video = canvas != null && !videoHidden,
+            topRow = { m ->
+                NowPlayingTopRow(
+                    source = sourceLabel, onOpenOrigin = openOrigin, panel = panels.widePanel, onPanel = { panels.panel = it },
+                    more = moreItems(false), fonts = orbitType, look = orbitInk, modifier = m,
+                )
+            },
+            media = { m ->
+                Box(m) {
+                    if (wantVideo && !cinemaShown && canvas != null) {
+                        RecordBox(Modifier.fillMaxSize()) { record(it) }
+                        NowPlayingVideo(
+                            canvas = canvas, isPlaying = isPlaying, view = keptView, aspect = videoAspect, onAspect = { videoAspect = it },
+                            reveal = reveal, onRenderedChanged = { rendered = it }, coverUrl = remoteArt, radius = 34.dp,
+                            modifier = Modifier.fillMaxSize(), onDoubleTap = { cinema = true }, onFramePlaced = coverPlaced,
+                        )
+                    } else {
+                        RecordBox(Modifier.fillMaxSize()) { record(it) }
+                    }
+                    if (blockedByMobileData) Box(Modifier.padding(4.dp)) { PlayerPlatform.host.CanvasMobileDataHint(Modifier) }
+                }
+            },
+            card = { m, wideCard ->
+                NowPlayingSongCard(
+                    transport, orbitType, orbitInk, modifier = m, wide = wideCard, showLine = wideCard, format = true, volume = true,
+                    buttons = listOfNotNull(
+                        CardButton(CosmoIcons.Shuffle, if (shuffleEnabled) "Shuffle on" else "Shuffle off", onToggleShuffle, on = shuffleEnabled),
+                        CardButton(if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, repeatLabel(repeatMode), onCycleRepeat, on = repeatMode != RepeatModes.OFF),
+                        CardButton(CosmoIcons.Previous, "Previous", transport.onPrevious, enabled = hasPrevious),
+                        CardButton(CosmoIcons.Next, "Next", transport.onNext, enabled = hasNext),
+                        CardButton(if (transport.liked) CosmoIcons.HeartFill else CosmoIcons.Heart, if (transport.liked) "Remove from liked" else "Like", onToggleLike, on = transport.liked),
+                        screenButton,
+                    ),
                 )
             },
             panel = { m ->
-                NowPlayingWidePanels(
-                    queueSelected = panels.queueOpen, reduced = reduced, modifier = m,
-                    lyrics = { lyricsPanel(Modifier.fillMaxSize(), WIDE_LYRICS_STYLE, WIDE_LYRICS_TOP_PADDING) },
-                    queue = { queuePanel(Modifier.fillMaxSize()) },
+                NowPlayingPanelSwitch(
+                    panels.widePanel, modifier = m,
+                    lyrics = { lm -> lyricsPanel(lm, WIDE_LYRICS_STYLE.copy(fontFamily = orbitType.wide), WIDE_LYRICS_TOP_PADDING) },
+                    upNext = { um -> upNextPanel(um, true) },
+                    related = { rm -> relatedPanel(rm, true) },
                 )
             },
-            media = { cover, video, side ->
-                NowPlayingWideMedia(
-                    canvas = canvas, wantVideo = wantVideo, isPlaying = isPlaying, reveal = reveal, onRenderedChanged = { rendered = it },
-                    blockedByMobileData = blockedByMobileData, coverUrl = remoteArt, shell = shell,
-                    coverModifier = cover, videoModifier = video, coverSide = side,
-                    view = keptView, aspect = videoAspect, onAspect = { videoAspect = it }, onDoubleTap = { cinema = true },
-                )
-            },
-            bar = { m ->
-                CosmoPlayerBar(
-                    song = song, isPlaying = isPlaying, isLoading = isLoading, position = position, durationMs = durationMs,
-                    liked = likeStatus == LikeStatus.LIKE, shuffle = shuffleEnabled, repeatMode = repeatMode, controlsLocked = controlsLocked,
-                    lyricsOn = !panels.queueOpen, queueOn = panels.queueOpen,
-                    onPlayPause = onPlayPause, onPrevious = onPrevious, onNext = onNext,
-                    onToggleShuffle = onToggleShuffle, onCycleRepeat = onCycleRepeat, onToggleLike = onToggleLike,
-                    onSeekFraction = onSeekFraction, onLyrics = panels::openLyrics, onQueue = panels::openQueue,
-                    onOutput = openAudioOutput, onExpand = {}, onBlockedControl = onBlockedControl,
-                    hazeState = playerHaze, modifier = m, embedded = true,
-                )
-            },
+            // F (or a double click on the video) enters Cinema.
+            modifier = Modifier.cinemaKey(enabled = canvas != null && !videoHidden) { cinema = true },
         )
     }
 
@@ -435,8 +509,7 @@ fun CosmoNowPlaying(
                         CardButton(CosmoIcons.Previous, "Previous", transport.onPrevious, enabled = hasPrevious),
                         CardButton(CosmoIcons.Next, "Next", transport.onNext, enabled = hasNext),
                         CardButton(if (transport.liked) CosmoIcons.HeartFill else CosmoIcons.Heart, "Like", onToggleLike, on = transport.liked),
-                        CardButton(VIDEO_VIEW_ICON, "How the video is shown", { videoMenuOpen = true }, on = videoMenuOpen, menu = videoMenu),
-                    ),
+                    ) + listOfNotNull(screenButton),
                 )
             }
             NowPlayingSheets(
@@ -453,8 +526,8 @@ fun CosmoNowPlaying(
 /** Where the first line starts in the landscape lyrics: just under the top of their pane, there is little room to spare. */
 private val LANDSCAPE_LYRICS_TOP_PADDING = 8.dp
 
-/** The wide page's lyrics: title-l, the line being sung 1.35 times as big, the lines already sung 0.82 (`.dn-lyrics .ln`). */
-private val WIDE_LYRICS_STYLE = LyricsStyle(WideNowPlayingMetrics.LYRICS_BASE_STEP, WideNowPlayingMetrics.LYRICS_CURRENT_SCALE, WideNowPlayingMetrics.LYRICS_PAST_SCALE)
+/** The wide page's lyrics (board section 3): title-m in the Orbit heading face, the line being sung a little larger, the sung ones smaller. */
+private val WIDE_LYRICS_STYLE = LyricsStyle(TypeScale.TITLE_M, 1.12f, 0.9f)
 
 /** The wide column starts where the board's first line does (150 dp down), so the list needs only a little air at its top. */
 private val WIDE_LYRICS_TOP_PADDING = 8.dp
@@ -522,30 +595,42 @@ private fun rememberInParty(): Boolean {
 }
 
 /**
- * The lyrics and queue panels' open flags, restored from the last-screen setting when the player opens and written back when
- * they change. At most one is open; the back handlers close them.
+ * Which panel is open: the lyrics, Up next or Related (or none, on the phone), restored from the last-screen setting when the
+ * player opens and written back when it changes (Related is kept as the main screen). The lyrics and queue flags are the old
+ * pages' view of it.
  */
 @Stable
 internal class NowPlayingPanels(restored: LastPlayerScreen) {
-    var lyricsOpen by mutableStateOf(restored == LastPlayerScreen.LYRICS)
-        private set
-    var queueOpen by mutableStateOf(restored == LastPlayerScreen.QUEUE)
-        private set
+    var panel by mutableStateOf(
+        when (restored) {
+            LastPlayerScreen.LYRICS -> NowPlayingPanel.LYRICS
+            LastPlayerScreen.QUEUE -> NowPlayingPanel.UP_NEXT
+            else -> NowPlayingPanel.NONE
+        },
+    )
+
+    val lyricsOpen: Boolean get() = panel == NowPlayingPanel.LYRICS
+    val queueOpen: Boolean get() = panel == NowPlayingPanel.UP_NEXT
+    val relatedOpen: Boolean get() = panel == NowPlayingPanel.RELATED
 
     /** What to remember as the last screen. */
     val screen: LastPlayerScreen
-        get() = when {
-            lyricsOpen -> LastPlayerScreen.LYRICS
-            queueOpen -> LastPlayerScreen.QUEUE
+        get() = when (panel) {
+            NowPlayingPanel.LYRICS -> LastPlayerScreen.LYRICS
+            NowPlayingPanel.UP_NEXT -> LastPlayerScreen.QUEUE
             else -> LastPlayerScreen.MAIN
         }
 
-    fun openLyrics() { lyricsOpen = true; queueOpen = false }
-    fun closeLyrics() { lyricsOpen = false }
+    /** The wide page always shows one: the lyrics unless another is chosen. */
+    val widePanel: NowPlayingPanel get() = if (panel == NowPlayingPanel.NONE) NowPlayingPanel.LYRICS else panel
+
+    fun openLyrics() { panel = NowPlayingPanel.LYRICS }
+    fun closeLyrics() { if (lyricsOpen) panel = NowPlayingPanel.NONE }
     fun toggleLyrics() = if (lyricsOpen) closeLyrics() else openLyrics()
-    fun openQueue() { queueOpen = true; lyricsOpen = false }
-    fun closeQueue() { queueOpen = false }
+    fun openQueue() { panel = NowPlayingPanel.UP_NEXT }
+    fun closeQueue() { if (queueOpen) panel = NowPlayingPanel.NONE }
     fun toggleQueue() = if (queueOpen) closeQueue() else openQueue()
+    fun closeRelated() { if (relatedOpen) panel = NowPlayingPanel.NONE }
 }
 
 /** Which of the player's own sheets is up. */
@@ -627,5 +712,34 @@ private fun NowPlayingSheets(
     }
     if (lyricsOffsetOpen) {
         LyricsOffsetSheet(hazeState = hazeState, onDismiss = onDismissLyricsOffset)
+    }
+}
+
+/** "Repeat off", "Repeat all", "Repeat one", for the button and the menu. */
+internal fun repeatLabel(mode: Int): String = when (mode) {
+    RepeatModes.OFF -> "Repeat off"
+    RepeatModes.ONE -> "Repeat one"
+    else -> "Repeat all"
+}
+
+/** Where the music comes from, for the top row's "FROM ·": who queued it in a party, the radio, the source, the album or the queue. */
+@Composable
+internal fun nowPlayingSource(song: Song, playedBy: String?): String =
+    playedBy?.let { stringResource(Res.string.played_by, it) }
+        ?: song.radioName?.let { stringResource(Res.string.playing_radio, it) }
+        ?: song.playbackSource?.takeIf { it.isNotBlank() }
+        ?: song.albumName?.takeIf { it.isNotBlank() }
+        ?: stringResource(Res.string.queue)
+
+/**
+ * F enters Cinema ([onCinema]) on a page that has the keyboard: the page takes focus when it opens, so the key reaches it even
+ * when nothing on it was clicked.
+ */
+@Composable
+private fun Modifier.cinemaKey(enabled: Boolean, onCinema: () -> Unit): Modifier {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    return focusRequester(focus).focusable().onKeyEvent { event ->
+        if (enabled && event.type == KeyEventType.KeyDown && event.key == Key.F && !event.isCtrlPressed && !event.isMetaPressed && !event.isAltPressed) { onCinema(); true } else false
     }
 }

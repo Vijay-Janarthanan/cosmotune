@@ -150,8 +150,10 @@ internal fun orbitFonts(): OrbitFonts {
 internal class OrbitLook(val dark: Boolean, val ink: Color, val dim: Color, val chip: Color, val row: Color, val accent: Color, val ground: Color)
 
 @Composable
-internal fun orbitLook(): OrbitLook {
-    val colors = LocalCosmoColors.current
+internal fun orbitLook(): OrbitLook = orbitLook(LocalCosmoColors.current)
+
+/** The look for [colors] (a screen that provides its own colours reads them before providing them). */
+internal fun orbitLook(colors: com.cosmotune.ui.theme.CosmoColors): OrbitLook {
     val dark = colors.dark
     val ink = Color(colors.palette.textPrimary)
     return OrbitLook(

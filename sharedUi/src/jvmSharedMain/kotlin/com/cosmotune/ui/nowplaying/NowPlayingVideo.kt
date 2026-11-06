@@ -208,6 +208,9 @@ internal fun NowPlayingRecord(
     }
 }
 
+/** Gone as far as [reveal] has come in: the record under a video that is arriving. Read in the layer, so nothing recomposes. */
+internal fun Modifier.fadedBy(reveal: State<Float>): Modifier = graphicsLayer { alpha = 1f - reveal.value.coerceIn(0f, 1f) }
+
 /** How far the record's orbit sits outside the disc, all round. */
 internal val RECORD_RING_GAP = 26.dp
 
