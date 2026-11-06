@@ -214,7 +214,7 @@ class LyricsParityContractTest {
         assertTrue(view.contains("LyricRows.Mark.PICKED -> ink.accent.copy(alpha = PICKED_WASH)"))
         assertTrue(view.contains("LyricRows.Mark.OTHER -> ink.primary.copy(alpha = OTHER_WASH)"))
         assertTrue(view.contains("semantics { selected = mark == LyricRows.Mark.PICKED }"))
-        assertTrue(share.contains("CosmoButton(stringResource(Res.string.cancel)") && share.contains("CosmoButtonKind.PRIMARY"), "B buttons from the new components")
+        assertTrue(share.contains("OrbitSheetButton(stringResource(Res.string.cancel)") && share.contains("primary = true"), "the kit's pills: Cancel quiet, Share the peach one")
         assertTrue(share.contains("enabled = shareEnabled"))
     }
 }

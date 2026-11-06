@@ -194,7 +194,7 @@ internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 
 /**
  * A one-line field of a settings page (the proxy's address, user and password): the chip's pill (radius 22, at least 48 dp), the
  * [placeholder] in the dim ink while it is empty, the words in the body face and the ink. [error] rings it in the theme's error
- * colour; [secret] hides what is typed.
+ * colour; [secret] hides what is typed. [minLines] above 1 makes it a field of several lines (a pasted curve).
  */
 @Composable
 internal fun OrbitTextField(
@@ -206,12 +206,16 @@ internal fun OrbitTextField(
     modifier: Modifier = Modifier,
     error: Boolean = false,
     secret: Boolean = false,
+    minLines: Int = 1,
+    maxLines: Int = minLines,
 ) {
     val shape = RoundedCornerShape(22.dp)
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        singleLine = true,
+        singleLine = minLines <= 1,
+        minLines = minLines,
+        maxLines = maxOf(minLines, maxLines),
         textStyle = fonts.body.copy(color = look.ink),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
