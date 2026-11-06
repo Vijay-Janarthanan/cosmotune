@@ -98,6 +98,8 @@ internal fun CosmoDesktopTopBar(
                     CosmoIconButton(CosmoIcons.Search, DesktopStrings["search", "Search"], onSearch, style = CosmoIconButtonStyle.TONAL, size = 40.dp)
                     Spacer(Modifier.width(8.dp))
                 }
+                // Live now, in every mode: the pill of the match or live show followed, which opens its panel; nothing when none is live.
+                DesktopLiveNowPill()
                 // The room, on every page and in every mode (the bar is the one piece of chrome they all keep): one click opens it.
                 // It draws nothing outside a room.
                 com.cosmotune.ui.room.LocalRoomLauncher.current?.takeIf { it.inRoom }?.let { launcher ->
@@ -114,6 +116,28 @@ internal fun CosmoDesktopTopBar(
                 )
             }
         }
+    }
+}
+
+/**
+ * The Live pill of the top bar ([com.cosmotune.ui.live.LiveNowTopBarPill]) on the desktop's Watch repository: a free stream plays in
+ * Watch's player (Watch becomes the mode), and a reminder is told through the tray when there is one. It takes 8 dp after it only
+ * when it shows.
+ */
+@Composable
+private fun DesktopLiveNowPill() {
+    val settings = com.cosmotune.ui.live.rememberLiveNowSettings()
+    val look = com.cosmotune.ui.theme.LocalCosmoShell.current?.settings
+    val host = androidx.compose.runtime.remember(settings, look) {
+        com.cosmotune.ui.live.LiveNowHost(
+            events = { DesktopWatch.repository.liveEvents() },
+            settings = settings,
+            play = com.cosmotune.ui.live.watchModePlay(look),
+            notify = { title, text -> com.cosmotune.music.desktop.DesktopAwtTray.notify(title, text) },
+        )
+    }
+    androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.live.LocalLiveNow provides host) {
+        com.cosmotune.ui.live.LiveNowTopBarPill(Modifier.padding(end = 8.dp))
     }
 }
 

@@ -141,6 +141,7 @@ internal fun ReadModeFrame(
                     Spacer(Modifier.weight(1f))
                     if (showAccount) ReadAccountAction(onMusic)
                 }
+                com.cosmotune.ui.live.LiveNowStrip(Modifier.padding(horizontal = ReadMargin).padding(top = 12.dp))
                 // The chosen tab is scrolled into view, so History or Sources on a narrow phone is never off the edge.
                 val row = androidx.compose.foundation.rememberScrollState()
                 val starts = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }

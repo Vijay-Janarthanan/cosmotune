@@ -6567,6 +6567,7 @@ private enum class DesktopSettingsSection(val category: com.cosmotune.ui.setting
     APPEARANCE(com.cosmotune.ui.settings.SettingsCategory.APPEARANCE),
     LANGUAGE(com.cosmotune.ui.settings.SettingsCategory.APPEARANCE),
     VIDEO(com.cosmotune.ui.settings.SettingsCategory.VIDEO),
+    LIVE_NOW(com.cosmotune.ui.settings.SettingsCategory.VIDEO),
     READ(com.cosmotune.ui.settings.SettingsCategory.READ),
     PODIO(com.cosmotune.ui.settings.SettingsCategory.PODIO),
     LISTENING(com.cosmotune.ui.settings.SettingsCategory.LISTENING),
@@ -7625,6 +7626,12 @@ private fun DesktopSettingsScreen(
             }
             DesktopSettingsSection.VIDEO -> {
                 DesktopModeLink(AppMode.VIDEO, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO.text(), com.cosmotune.ui.settings.SettingsText.OPEN_VIDEO_SUMMARY.text())
+            }
+            DesktopSettingsSection.LIVE_NOW -> {
+                // The Live pill of every mode, the sports and the teams it follows (kept on this computer).
+                SettingsGroup("Live now") {
+                    if (settingsRowVisible("Live pill", "sports teams cricket football scores")) com.cosmotune.ui.live.LiveNowSettingsSection()
+                }
             }
             DesktopSettingsSection.READ -> {
                 DesktopModeLink(AppMode.MANGA, section.category, com.cosmotune.ui.settings.SettingsText.OPEN_READ.text(), com.cosmotune.ui.settings.SettingsText.OPEN_READ_SUMMARY.text())
