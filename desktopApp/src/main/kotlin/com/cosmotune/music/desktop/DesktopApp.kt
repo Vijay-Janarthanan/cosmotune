@@ -3814,6 +3814,10 @@ fun CosmotuneDesktopApp() {
                                 onMove = ::moveInQueue,
                                 onClear = ::clearQueue,
                                 modifier = Modifier.fillMaxSize(),
+                                // The playing row's orbit and AutoPlay, as the phone's Up next has them. The playhead is read while drawing.
+                                isPlaying = playback.isPlaying,
+                                progress = { if (playback.durationMs > 0L) (playerPosition.positionMs.toFloat() / playback.durationMs).coerceIn(0f, 1f) else 0f },
+                                onToggleAutoplay = { setAutoplay(!DesktopAutoplay.enabled(partyState, autoplay)) },
                             )
                         }
                     }

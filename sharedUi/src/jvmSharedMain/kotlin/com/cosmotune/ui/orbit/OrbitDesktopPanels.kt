@@ -80,8 +80,11 @@ fun OrbitWindowColours(dark: Boolean, content: @Composable () -> Unit) {
 /** The colours of an [OrbitDoorCard]: its [fill], the [ink] of its title and buttons, the [dim] of its label and line. */
 class OrbitDoorColors(val fill: Color, val ink: Color, val dim: Color)
 
-/** The room's own door: the room card's indigo with its lavender ink, deep in both themes as a colour card is. */
-fun orbitRoomDoor(): OrbitDoorColors = OrbitDoorColors(ROOM_FILL, ROOM_INK, ROOM_TEXT)
+/**
+ * The room's own door: the room card's colours ([roomCardColors]), the indigo with its lavender ink in dark and the pale lavender
+ * with the indigo as its ink in light, so the door is never a deep slab on a light page.
+ */
+fun orbitRoomDoor(look: OrbitLook): OrbitDoorColors = roomCardColors(look).let { OrbitDoorColors(it.fill, it.ink, it.text) }
 
 /** A quiet door on the page: the row's ink at 5 % with the page's own ink. */
 fun orbitPlainDoor(look: OrbitLook): OrbitDoorColors = OrbitDoorColors(look.row, look.ink, look.dim)

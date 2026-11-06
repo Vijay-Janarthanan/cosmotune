@@ -45,6 +45,11 @@ import com.cosmotune.ui.orbit.OrbitSongRow
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
 
+/** The page's ink and its dim (Orbit), so this window's words read on a light page as on a dark one. */
+private val inkColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().ink
+private val dimColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().dim
+private val groundColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().ground
+
 /**
  * What the download queue is doing, and the two things that can be done to it.
  *
@@ -64,11 +69,11 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(DesktopStrings["downloads", "Downloads"], style = MaterialTheme.typography.titleLarge, color = Color.White)
+                Text(DesktopStrings["downloads", "Downloads"], style = MaterialTheme.typography.titleLarge, color = inkColor)
                 Text(
                     summary(items.size, failed, busy),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (failed > 0 && !busy) DesktopDestructive else DesktopSecondary,
+                    color = if (failed > 0 && !busy) DesktopDestructive else dimColor,
                 )
             }
             if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
@@ -79,11 +84,11 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
                 }
             } else if (busy) {
                 TextButton(onClick = DesktopDownloadQueue::cancelAll) {
-                    Text(DesktopStrings["cancel_all", "Cancel all"], color = DesktopSecondary)
+                    Text(DesktopStrings["cancel_all", "Cancel all"], color = dimColor)
                 }
             } else if (items.isNotEmpty()) {
                 TextButton(onClick = DesktopDownloadQueue::clearFinished) {
-                    Text(DesktopStrings["clear", "Clear"], color = DesktopSecondary)
+                    Text(DesktopStrings["clear", "Clear"], color = dimColor)
                 }
             }
         }
@@ -91,7 +96,7 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
         storageError?.let { Text(it, color = DesktopAccent, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) }
         if (items.isEmpty()) {
             Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.Center) {
-                Text(DesktopStrings["nothing_downloading", "Nothing downloading."], color = DesktopSecondary)
+                Text(DesktopStrings["nothing_downloading", "Nothing downloading."], color = dimColor)
             }
         } else {
             LazyColumn(
@@ -123,7 +128,7 @@ private fun DownloadRow(item: DesktopDownloadItem) {
             Text(
                 item.song.title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White,
+                color = inkColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -131,7 +136,7 @@ private fun DownloadRow(item: DesktopDownloadItem) {
                 is DesktopDownloadState.Queued -> Text(
                     DesktopStrings["queued", "Queued"],
                     style = MaterialTheme.typography.bodySmall,
-                    color = DesktopSecondary,
+                    color = dimColor,
                 )
                 is DesktopDownloadState.Running -> Column {
                     Text(
@@ -141,7 +146,7 @@ private fun DownloadRow(item: DesktopDownloadItem) {
                             "Downloading"
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = DesktopSecondary,
+                        color = dimColor,
                     )
                     Spacer(Modifier.height(4.dp))
                     // A length the server never stated leaves the bar indeterminate rather than
@@ -151,13 +156,13 @@ private fun DownloadRow(item: DesktopDownloadItem) {
                             progress = { state.fraction },
                             modifier = Modifier.fillMaxWidth().height(3.dp),
                             color = DesktopAccent,
-                            trackColor = Color.White.copy(alpha = 0.15f),
+                            trackColor = inkColor.copy(alpha = 0.15f),
                         )
                     } else {
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth().height(3.dp),
                             color = DesktopAccent,
-                            trackColor = Color.White.copy(alpha = 0.15f),
+                            trackColor = inkColor.copy(alpha = 0.15f),
                         )
                     }
                 }
@@ -181,11 +186,11 @@ private fun DownloadRow(item: DesktopDownloadItem) {
         }
         if (item.state is DesktopDownloadState.Failed) {
             IconButton(onClick = { DesktopDownloadQueue.retry(item.song.videoId) }) {
-                Icon(Icons.Rounded.Refresh, DesktopStrings["retry", "Retry"], tint = DesktopSecondary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Rounded.Refresh, DesktopStrings["retry", "Retry"], tint = dimColor, modifier = Modifier.size(18.dp))
             }
         }
         IconButton(onClick = { DesktopDownloadQueue.cancel(item.song.videoId) }) {
-            Icon(Icons.Rounded.Close, DesktopStrings["cancel", "Cancel"], tint = DesktopSecondary, modifier = Modifier.size(18.dp))
+            Icon(Icons.Rounded.Close, DesktopStrings["cancel", "Cancel"], tint = dimColor, modifier = Modifier.size(18.dp))
         }
     }
 }

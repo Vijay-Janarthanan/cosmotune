@@ -45,6 +45,11 @@ import com.cosmotune.ui.theme.CosmoRadii
 import java.util.Locale
 import kotlin.math.roundToInt
 
+/** The page's ink and its dim (Orbit), so this window's words read on a light page as on a dark one. */
+private val inkColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().ink
+private val dimColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().dim
+private val groundColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().ground
+
 /**
  * Everything the account integrations can be told, on one panel.
  *
@@ -73,7 +78,7 @@ internal fun DesktopIntegrationsDialog(
                 DesktopStrings["account_integrations", "Account & integrations"],
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = inkColor,
                 modifier = Modifier.padding(start = panelInset(20.dp), end = panelInset(20.dp), top = 18.dp, bottom = 12.dp),
             )
             SpotifySection(spotify)
@@ -487,7 +492,7 @@ private fun RichPresencePreview(
             "$verb $heading".uppercase(Locale.ROOT),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.W700,
-            color = Color.White,
+            color = inkColor,
         )
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.Top) {
@@ -505,7 +510,7 @@ private fun RichPresencePreview(
                     title,
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
                     fontWeight = if (useDetails) FontWeight.W700 else FontWeight.W400,
-                    color = Color.White,
+                    color = inkColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -513,7 +518,7 @@ private fun RichPresencePreview(
                     artist,
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                     fontWeight = if (useDetails) FontWeight.W400 else FontWeight.W700,
-                    color = Color.White,
+                    color = inkColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -521,7 +526,7 @@ private fun RichPresencePreview(
                     Text(
                         it,
                         style = MaterialTheme.typography.bodySmall,
-                        color = DesktopSecondary,
+                        color = dimColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -557,13 +562,13 @@ private fun PreviewButton(label: String) {
     Box(
         Modifier
             .clip(RoundedCornerShape(CosmoRadii.rXs))
-            .background(Color.White.copy(alpha = 0.12f))
+            .background(inkColor.copy(alpha = 0.12f))
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
             label,
             style = MaterialTheme.typography.labelMedium,
-            color = Color.White,
+            color = inkColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -600,7 +605,7 @@ private fun PanelGroup(
             Text(
                 it.uppercase(Locale.ROOT),
                 style = MaterialTheme.typography.labelSmall,
-                color = DesktopSecondary,
+                color = dimColor,
                 modifier = Modifier.padding(start = panelInset(6.dp), top = 14.dp, bottom = 6.dp),
             )
         }
@@ -611,7 +616,7 @@ private fun PanelGroup(
             Text(
                 it,
                 style = MaterialTheme.typography.bodySmall,
-                color = DesktopSecondary,
+                color = dimColor,
                 modifier = Modifier.padding(start = panelInset(6.dp), end = panelInset(6.dp), top = 6.dp),
             )
         }
@@ -635,9 +640,9 @@ private fun PanelSwitchRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = if (enabled) Color.White else DesktopSecondary)
+            Text(title, color = if (enabled) inkColor else dimColor)
             subtitle?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
+                Text(it, style = MaterialTheme.typography.bodySmall, color = dimColor)
             }
         }
         Spacer(Modifier.width(10.dp))
@@ -655,8 +660,8 @@ private fun PanelValueRow(title: String, value: String, onClick: () -> Unit) {
         Modifier.fillMaxWidth().desktopRowClickable(onClick = onClick).padding(horizontal = panelInset(14.dp), vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, color = Color.White, modifier = Modifier.weight(1f))
-        Text(value, color = DesktopSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, color = inkColor, modifier = Modifier.weight(1f))
+        Text(value, color = dimColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -667,8 +672,8 @@ private fun PanelActionRow(title: String, subtitle: String, destructive: Boolean
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = if (destructive) DesktopDestructive else Color.White)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
+            Text(title, color = if (destructive) DesktopDestructive else inkColor)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = dimColor)
         }
     }
 }
@@ -686,10 +691,10 @@ private fun PanelSliderRow(
     Column(Modifier.fillMaxWidth().padding(horizontal = panelInset(14.dp), vertical = 9.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, color = Color.White)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
+                Text(title, color = inkColor)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = dimColor)
             }
-            Text(readout, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+            Text(readout, color = dimColor, style = MaterialTheme.typography.bodySmall)
         }
         if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
             // The Orbit line with its moon; a drag moves the value as it goes, on the slider's own steps. The seek is remembered so
@@ -740,12 +745,12 @@ internal fun DesktopChoiceDialog(
             Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = Color.White)
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = inkColor)
             Text(
                 message,
                 modifier = Modifier.padding(top = 5.dp),
                 style = MaterialTheme.typography.bodySmall,
-                color = DesktopSecondary,
+                color = dimColor,
             )
         }
         options.forEach { option ->
@@ -758,8 +763,8 @@ internal fun DesktopChoiceDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(option.label, color = Color.White)
-                    Text(option.detail, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
+                    Text(option.label, color = inkColor)
+                    Text(option.detail, style = MaterialTheme.typography.bodySmall, color = dimColor)
                 }
                 if (option.id == selected) {
                     Icon(CosmotuneIcons.Check, DesktopStrings["selected", "Selected"], tint = DesktopAccent, modifier = Modifier.size(18.dp))

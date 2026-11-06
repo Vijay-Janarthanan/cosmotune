@@ -229,7 +229,7 @@ private fun DesktopRoomLanding(autoplayEnabled: Boolean, onDismiss: () -> Unit) 
             ) {
                 item {
                     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        val room = orbitRoomDoor()
+                        val room = orbitRoomDoor(com.cosmotune.ui.orbit.orbitLook())
                         OrbitDoorCard(
                             label = "New room",
                             title = "Start a room",
@@ -310,8 +310,8 @@ private fun RoomJoinConfirmation(preview: RoomPreview, busy: Boolean, error: Str
     ) {
         val names = preview.memberNames.filter { it.isNotBlank() }
         if (names.isEmpty()) {
-            Box(Modifier.size(72.dp).clip(CircleShape).background(orbitRoomDoor().fill), contentAlignment = Alignment.Center) {
-                Icon(CosmoIcons.Together, null, tint = orbitRoomDoor().ink, modifier = Modifier.size(32.dp))
+            Box(Modifier.size(72.dp).clip(CircleShape).background(orbitRoomDoor(com.cosmotune.ui.orbit.orbitLook()).fill), contentAlignment = Alignment.Center) {
+                Icon(CosmoIcons.Together, null, tint = orbitRoomDoor(com.cosmotune.ui.orbit.orbitLook()).ink, modifier = Modifier.size(32.dp))
             }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

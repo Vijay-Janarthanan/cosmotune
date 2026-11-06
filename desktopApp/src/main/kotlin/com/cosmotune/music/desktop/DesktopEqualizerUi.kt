@@ -62,6 +62,11 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** The page's ink and its dim (Orbit), so this window's words read on a light page as on a dark one. */
+private val inkColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().ink
+private val dimColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().dim
+private val groundColor: Color @Composable get() = com.cosmotune.ui.orbit.orbitLook().ground
+
 /**
  * The app's own equaliser, in the two shapes people have already been taught to read one in.
  *
@@ -99,12 +104,12 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
                 Text(
                     DesktopStrings["equalizer", "Equalizer"],
                     style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
+                    color = inkColor,
                 )
                 Text(
                     DesktopStrings["equalizer_footer", "Shapes the sound inside Cosmotune, before it reaches the system."],
                     style = MaterialTheme.typography.bodySmall,
-                    color = DesktopSecondary,
+                    color = dimColor,
                 )
             }
             if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
@@ -135,7 +140,7 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Text("Full boost headroom", style = MaterialTheme.typography.titleSmall)
                     Text("Compensates the full estimated peak instead of half. The limiter still handles transients.",
-                        style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
+                        style = MaterialTheme.typography.bodySmall, color = dimColor)
                 }
                 if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
                     OrbitSwitch(headroom, DesktopEqualizerSettings::setFullHeadroom, orbitLook(), "Full boost headroom", enabled = enabled)
@@ -154,7 +159,7 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
             Text(
                 DesktopStrings["equalizer_balance_footer", "Shifts the sound towards one ear by quietening the other."],
                 style = MaterialTheme.typography.bodySmall,
-                color = DesktopSecondary,
+                color = dimColor,
                 modifier = Modifier.padding(horizontal = panelInset(22.dp), vertical = 6.dp),
             )
             Spacer(Modifier.height(8.dp))
@@ -171,7 +176,7 @@ private fun ModeTabs(mode: DesktopEqualizerMode, onSelect: (DesktopEqualizerMode
             .padding(horizontal = panelInset(22.dp))
             .fillMaxWidth()
             .clip(RoundedCornerShape(CosmoRadii.rSm))
-            .background(Color.White.copy(alpha = 0.08f))
+            .background(inkColor.copy(alpha = 0.08f))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -181,7 +186,7 @@ private fun ModeTabs(mode: DesktopEqualizerMode, onSelect: (DesktopEqualizerMode
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(CosmoRadii.rSm))
-                    .background(if (selected) Color.White.copy(alpha = 0.92f) else Color.Transparent)
+                    .background(if (selected) inkColor.copy(alpha = 0.92f) else Color.Transparent)
                     .clickable { onSelect(option) }
                     .padding(vertical = 7.dp),
                 contentAlignment = Alignment.Center,
@@ -193,7 +198,7 @@ private fun ModeTabs(mode: DesktopEqualizerMode, onSelect: (DesktopEqualizerMode
                     },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (selected) Color.Black else Color.White,
+                    color = if (selected) groundColor else inkColor,
                 )
             }
         }
@@ -205,7 +210,7 @@ private fun SectionLabel(text: String) {
     Text(
         text.uppercase(Locale.ROOT),
         style = MaterialTheme.typography.labelSmall,
-        color = DesktopSecondary,
+        color = dimColor,
         modifier = Modifier.padding(start = panelInset(22.dp), top = 18.dp, bottom = 6.dp),
     )
 }
@@ -243,7 +248,7 @@ private fun DynamicTab() {
             DesktopStrings["equalizer_broad_footer", "Drag left for a warmer sound and right for a brighter one; down scoops the middle, up brings it forward. Broad moves wide stretches of the spectrum at once."]
         },
         style = MaterialTheme.typography.bodySmall,
-        color = DesktopSecondary,
+        color = dimColor,
         modifier = Modifier.padding(horizontal = panelInset(22.dp), vertical = 8.dp),
     )
 }
@@ -251,12 +256,12 @@ private fun DynamicTab() {
 @Composable
 private fun Readout(label: String, value: Int) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = dimColor)
         Spacer(Modifier.width(8.dp))
         Text(
             if (value > 0) "+$value" else value.toString(),
             style = MaterialTheme.typography.bodyLarge,
-            color = Color.White,
+            color = inkColor,
         )
     }
 }
@@ -266,7 +271,7 @@ private fun WidthChoice(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .clip(RoundedCornerShape(CosmoRadii.rSm))
-            .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+            .background(if (selected) inkColor.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -274,7 +279,7 @@ private fun WidthChoice(label: String, selected: Boolean, onClick: () -> Unit) {
         Text(
             label,
             style = MaterialTheme.typography.labelLarge,
-            color = if (selected) Color.White else DesktopSecondary,
+            color = if (selected) inkColor else dimColor,
         )
         if (selected) {
             Spacer(Modifier.width(6.dp))
@@ -291,6 +296,7 @@ private fun WidthChoice(label: String, selected: Boolean, onClick: () -> Unit) {
  */
 @Composable
 private fun TonePad(x: Int, y: Int, onChange: (Int, Int) -> Unit) {
+    val canvasInk = inkColor
     val steps = EqLayout.TONE_STEPS
     // The gesture block is keyed on something that never changes, so it captures whatever was in
     // scope then. Read through these and a second drag starts from where the puck actually is.
@@ -357,7 +363,7 @@ private fun TonePad(x: Int, y: Int, onChange: (Int, Int) -> Unit) {
                 // without a reading.
                 val onAxis = column == steps || row == steps
                 drawCircle(
-                    color = Color.White.copy(alpha = if (onAxis) 0.45f else 0.22f),
+                    color = canvasInk.copy(alpha = if (onAxis) 0.45f else 0.22f),
                     radius = DOT_RADIUS.toPx(),
                     center = Offset(
                         inset + usableWidth * column / columns,
@@ -417,7 +423,7 @@ private fun ManualTab() {
         Text(
             DesktopStrings["equalizer_bands_footer", "Moving a band leaves the preset behind and the curve becomes your own."],
             style = MaterialTheme.typography.bodySmall,
-            color = DesktopSecondary,
+            color = dimColor,
             modifier = Modifier.weight(1f),
         )
         if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
@@ -451,7 +457,7 @@ private fun BandSliders(bands: List<Float>, modifier: Modifier = Modifier, onCha
                 Text(
                     formatGain(value),
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (abs(value) < 0.05f) DesktopSecondary else DesktopAccent,
+                    color = if (abs(value) < 0.05f) dimColor else DesktopAccent,
                     maxLines = 1,
                 )
                 Spacer(Modifier.height(6.dp))
@@ -462,7 +468,7 @@ private fun BandSliders(bands: List<Float>, modifier: Modifier = Modifier, onCha
                 Text(
                     formatFrequency(hz),
                     style = MaterialTheme.typography.labelSmall,
-                    color = DesktopSecondary,
+                    color = dimColor,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                 )
@@ -473,6 +479,7 @@ private fun BandSliders(bands: List<Float>, modifier: Modifier = Modifier, onCha
 
 @Composable
 private fun BandFader(value: Float, onChange: (Float) -> Unit) {
+    val canvasInk = inkColor
     val range = EqLayout.MANUAL_RANGE_DB
     val latest by rememberUpdatedState(value)
     // The caller's lambda closes over the whole band list; a stale one writes the other bands back.
@@ -521,7 +528,7 @@ private fun BandFader(value: Float, onChange: (Float) -> Unit) {
         val knobY = inset + usable * (1f - (value / range + 1f) / 2f)
 
         drawRoundRect(
-            color = Color.White.copy(alpha = 0.18f),
+            color = canvasInk.copy(alpha = 0.18f),
             topLeft = Offset(centreX - trackWidth / 2, inset),
             size = Size(trackWidth, usable),
             cornerRadius = CornerRadius(trackWidth / 2),
@@ -536,7 +543,7 @@ private fun BandFader(value: Float, onChange: (Float) -> Unit) {
         }
         // The zero line, over the track so it survives a full-scale fill.
         drawLine(
-            color = Color.White.copy(alpha = 0.35f),
+            color = canvasInk.copy(alpha = 0.35f),
             start = Offset(centreX - trackWidth, centreY),
             end = Offset(centreX + trackWidth, centreY),
             strokeWidth = 1.dp.toPx(),
@@ -561,7 +568,7 @@ private fun PresetList(selected: EqualizerPreset, modifier: Modifier = Modifier)
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(CosmoRadii.rSm))
-                    .background(if (chosen) Color.White.copy(alpha = 0.09f) else Color.Transparent)
+                    .background(if (chosen) inkColor.copy(alpha = 0.09f) else Color.Transparent)
                     .clickable(enabled = preset != EqualizerPreset.CUSTOM) {
                         DesktopEqualizerSettings.setPreset(preset)
                     }
@@ -572,7 +579,7 @@ private fun PresetList(selected: EqualizerPreset, modifier: Modifier = Modifier)
                     presetLabel(preset),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
-                    color = Color.White,
+                    color = inkColor,
                     modifier = Modifier.weight(1f),
                 )
                 if (chosen) {
@@ -591,19 +598,20 @@ private fun PresetList(selected: EqualizerPreset, modifier: Modifier = Modifier)
  */
 @Composable
 private fun BalanceControl(balance: Float, onChange: (Float) -> Unit) {
+    val canvasInk = inkColor
     val latest by rememberUpdatedState(balance)
     val currentOnChange by rememberUpdatedState(onChange)
     Column(Modifier.padding(horizontal = panelInset(22.dp))) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(DesktopStrings["equalizer_balance_left", "L"], style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            Text(DesktopStrings["equalizer_balance_left", "L"], style = MaterialTheme.typography.bodyMedium, color = inkColor)
             Text(
                 String.format(Locale.ROOT, "%.2f", balance),
                 style = MaterialTheme.typography.bodyMedium,
-                color = DesktopSecondary,
+                color = dimColor,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
             )
-            Text(DesktopStrings["equalizer_balance_right", "R"], style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            Text(DesktopStrings["equalizer_balance_right", "R"], style = MaterialTheme.typography.bodyMedium, color = inkColor)
         }
         Spacer(Modifier.height(6.dp))
         Canvas(
@@ -649,7 +657,7 @@ private fun BalanceControl(balance: Float, onChange: (Float) -> Unit) {
             val knobX = inset + usable * (balance + 1f) / 2f
 
             drawRoundRect(
-                color = Color.White.copy(alpha = 0.18f),
+                color = canvasInk.copy(alpha = 0.18f),
                 topLeft = Offset(inset, centreY - trackHeight / 2),
                 size = Size(usable, trackHeight),
                 cornerRadius = CornerRadius(trackHeight / 2),
