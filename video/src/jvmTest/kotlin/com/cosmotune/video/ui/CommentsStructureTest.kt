@@ -45,24 +45,24 @@ class CommentsStructureTest {
         assertEquals(32f, VideoMetrics.COMMENT_AVATAR_DP)
         assertEquals(6, VideoMetrics.COMMENT_MAX_LINES)
         val item = code("CommentItem")
-        assertTrue("ChannelAvatar(comment.authorAvatarUrl, VideoMetrics.COMMENT_AVATAR_DP.dp)" in item, "a 32 dp avatar")
+        assertTrue("ChannelAvatar(comment.authorAvatarUrl, VideoMetrics.COMMENT_AVATAR_DP.dp, name = comment.authorName)" in item, "a 32 dp disc avatar")
         assertTrue("Spacer(Modifier.width(CosmoSpacing.gutter))" in item, "12 dp between the avatar and the words")
-        assertTrue(Regex("""padding\(horizontal = CosmoSpacing\.margin, vertical = 10\.dp\)""").containsMatchIn(item), "padding 10 16")
-        assertTrue("rememberTitleStyle(author)" in item, "the author: the One rowTitle")
-        assertTrue("rememberMetaStyle(age)" in item && "color = Color(palette.textTertiary)" in item, "the age: meta in textTertiary")
+        assertTrue("RoundedCornerShape(22.dp)" in item && "background(look.row)" in item, "an Orbit row: radius 22, the row fill")
+        assertTrue("fonts.title.copy(fontSize = 14.sp)" in item, "the author: the Orbit title face")
+        assertTrue("style = fonts.label" in item && "color = look.dim" in item, "the age: the mono label in the dim ink")
         assertTrue("type.forText(type.bodyText, " in item, "the text: the One body")
         assertTrue("LIKE_ICON = 16.dp" in item && "VideoIcons.ThumbUp" in item && "Modifier.size(LIKE_ICON)" in item, "a 16 dp thumb")
-        assertTrue(Regex("""rememberMetaStyle\(count\)""").containsMatchIn(item), "the like count: meta")
+        assertTrue(Regex("""fonts\.label""").containsMatchIn(item), "the like count: the mono label")
         assertTrue("CosmoIcons.HeartFill" in item && "Res.string.video_hearted" in item, "the creator's heart, read out as 'Hearted by the creator'")
         assertTrue("Res.string.video_likes_cd" in item, "the likes are read out as a count")
     }
 
     @Test fun thePinnedPillAndTheCreatorMark() {
         val item = code("CommentItem")
-        assertTrue("PILL_HEIGHT = 18.dp" in item && "type.forText(type.caption, text)" in item, "18 dp, caption")
+        assertTrue("PILL_HEIGHT = 18.dp" in item && "style = fonts.label" in item, "18 dp, the mono label")
         assertTrue("if (comment.pinned)" in item && "CommentPill(stringResource(Res.string.video_pinned), strong = true)" in item)
         assertTrue("if (comment.byCreator)" in item && "CommentPill(stringResource(Res.string.video_creator), strong = false)" in item)
-        assertTrue("colors.live(CoverField.SURFACE_VARIANT)" in item && "CoverField.ACCENT" !in item, "Pinned is neutral: the accent's list has no such pill")
+        assertTrue("look.accent.copy(alpha = 0.22f)" in item && "look.ink.copy(alpha = CREATOR_WASH)" in item, "Pinned is the peach wash, Creator the ink wash")
     }
 
     @Test fun aTextOfMoreThanSixLinesIsCutAndHasReadMore() {
@@ -74,7 +74,7 @@ class CommentsStructureTest {
         val more = squash(body("CommentItem", "ReadMore"))
         assertTrue("if (!cut && !expanded) return" in more, "a short text has no button")
         assertTrue("SharedRes.string.cosmo_show_less else SharedRes.string.cosmo_read_more" in more)
-        assertTrue("KitTextButton(" in more)
+        assertTrue("CommentLink(" in more)
         val item = squash(code("CommentItem"))
         assertTrue("rememberSaveable(comment.id, comment.text)" in item, "the cut is kept for a row that scrolled away and back")
         // one state for both: the text reports into it and the button reads it (two remembered states would never meet: the button stayed hidden)
@@ -88,7 +88,7 @@ class CommentsStructureTest {
         assertTrue("pluralStringResource(Res.plurals.video_replies, replies, replies)" in item)
         val actions = squash(body("CommentItem", "CommentActions"))
         assertTrue("if (likes == null && !hearted && !canOpen) return" in actions, "nothing to show, no row")
-        assertTrue("KitTextButton(" in actions, "a text button of the kit")
+        assertTrue("CommentLink(" in actions, "a text action of the Orbit comment")
     }
 
     @Test fun theOpenCommentsAreKeptByTheListNotTheRow() {
@@ -153,8 +153,8 @@ class CommentsStructureTest {
 
     @Test fun theWatchPagesSheetIsTheKitsWithABoundedListInIt() {
         val sheet = squash(VideoSourceContract.functionBody(read("CommentsSheet"), "CommentsSheet"))
-        assertTrue("KitSheet(onDismiss = onDismiss) {" in sheet, "the kit's sheet, its grabber, scrim and dismissal")
-        assertTrue("Modifier.fillMaxWidth().fillMaxHeight(SHEET_HEIGHT_SHARE)" in sheet, "the sheet sizes itself to its content, so the lazy list needs a bound")
+        assertTrue("SurfaceSheetSwitch(onDismissRequest = onDismiss" in sheet, "the Orbit sheet, its grabber, scrim and dismissal")
+        assertTrue("Modifier.fillMaxWidth().height(listHeight)" in sheet, "the sheet scrolls its content, so the lazy list needs a bound")
         assertTrue("CommentsPanelBody(feed, sheet = true, onDismiss, listState, expanded, replyTo, onReplyTo = { replyTo = it })" in sheet, "the same body as the panel")
         assertTrue("CachedCommentsLoader(graph.source, videoId, SharedCommentsCache)" in sheet, "the first page the tile already loaded")
         assertTrue("onDispose { feed.close() }" in sheet)
@@ -162,7 +162,7 @@ class CommentsStructureTest {
 
     @Test fun theComposerIsAKitRowAndSignedOutOpensTheSharedAccountSheet() {
         val composer = squash(VideoSourceContract.functionBody(read("CommentComposer"), "CommentComposer"))
-        assertTrue("KitMediaRow(" in composer && "art = KitArt.ROUND" in composer, "the prompt is the kit's row with the account's picture")
+        assertTrue("OrbitSongRow(" in composer && "cover = avatar" in composer, "the prompt is the Orbit row with the account's picture")
         assertTrue("Res.string.video_comment_add else Res.string.video_comment_sign_in" in composer)
         assertTrue("onClick = { if (writes.ensureSignedIn()) open = true }" in composer, "pressing it signed out asks for the sign-in")
         val account = squash(VideoSourceContract.functionBody(read("CommentComposer"), "CommentsAccount"))
@@ -201,23 +201,23 @@ class CommentsStructureTest {
         val header = squash(code("CommentsPanelBody"))
         assertTrue("HEADER_START = 20.dp" in header && "HEADER_TOP = 4.dp" in header && "HEADER_END = 20.dp" in header && "HEADER_BOTTOM = 8.dp" in header, "padding 4 20 8")
         val body = squash(body("CommentsPanelBody", "CommentsHeader"))
-        assertTrue("type.titleLarge" in body && "Res.string.video_comments)" in body, "the sheet's title in titleLarge")
+        assertTrue("fonts.section" in body && "Res.string.video_comments)" in body, "the sheet's title in the wide section face")
         assertTrue("Res.string.video_comments_count, VideoText.compact(total)" in body, "the count")
-        assertTrue("rememberMetaStyle(count)" in body, "meta")
+        assertTrue("OrbitLabel(count, fonts, look.dim)" in body, "the mono label")
         assertTrue("if (state.sortable) {" in body, "Top and Newest only when the source offers them")
         assertTrue("Res.string.video_comments_top" in body && "Res.string.video_comments_newest" in body && "for (sort in CommentSort.entries)" in body)
-        assertTrue("floating = sheet" in body, "the sheet's chips are C, the column's B")
+        assertTrue("OrbitSelectChip(" in body, "the order chips are Orbit chips")
         assertTrue("if (sheet) CommentsCloseButton(onDismiss)" in body, "a close button on the sheet only")
         val close = squash(body("CommentsPanelBody", "CommentsCloseButton"))
-        assertTrue("size = 40.dp" in close && "SharedRes.string.cosmo_close" in close, "a 40 dp close button with a name")
+        assertTrue("OrbitRoundButton(" in close && "SharedRes.string.cosmo_close" in close, "a 40 dp Orbit round close button with a name")
     }
 
     @Test fun theSheetIsAttachedWithTheGrabberThatTheCallerPlacesUnderThePlayer() {
         val panel = squash(code("CommentsPanelBody"))
-        assertTrue("SHEET_SHAPE = RoundedCornerShape(topStart = CosmoRadii.rXl, topEnd = CosmoRadii.rXl)" in panel, "28 dp top corners (DESIGN_SYSTEM.md 4.13)")
+        assertTrue("SHEET_SHAPE = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)" in panel, "32 dp top corners (Orbit sheet)")
         assertTrue("SHEET_MAX_HEIGHT_SHARE = 0.85f" in panel)
         assertFalse("sheetInset" in panel || "cosmoGlass" in panel, "attached, no glass")
-        assertTrue(".drawBehind { drawRect(colors.live(CoverField.SURFACE_HIGH)) }" in panel, "surface2")
+        assertTrue(".drawBehind { drawRect(ground) }" in panel && "orbitSheetGroundColor(orbitLook())" in panel, "the Orbit sheet ground")
         assertTrue("CosmoSheetHandle()" in panel)
         assertTrue(".heightIn(max = windowHeight * SHEET_MAX_HEIGHT_SHARE) .fillMaxHeight()" in panel, "as high as the caller's room allows, bounded")
         assertTrue(".pointerInput(Unit) {}" in panel, "the page behind does not get the touches")

@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.comments
 
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -103,8 +107,8 @@ internal fun RepliesList(
 /** The back row: the arrow, "N replies" as the title, and on the sheet the close button at the end. */
 @Composable
 private fun RepliesBackRow(count: Int, sheet: Boolean, onBack: () -> Unit, onDismiss: () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val replies = count.coerceAtLeast(1)
     val title = pluralStringResource(Res.plurals.video_replies, replies, replies)
     Row(
@@ -113,18 +117,17 @@ private fun RepliesBackRow(count: Int, sheet: Boolean, onBack: () -> Unit, onDis
             .padding(start = BACK_ROW_START, top = 4.dp, end = BACK_ROW_END, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CosmoIconButton(
+        OrbitRoundButton(
             icon = CosmoIcons.ArrowLeft,
-            contentDescription = stringResource(SharedRes.string.cosmo_back),
+            label = stringResource(SharedRes.string.cosmo_back),
+            ink = look.ink,
             onClick = onBack,
-            size = 40.dp,
-            floating = sheet,
         )
         Spacer(Modifier.width(4.dp))
         Text(
             text = title,
-            style = type.forText(type.titleMedium, title),
-            color = Color(palette.textPrimary),
+            style = fonts.title.copy(fontSize = 17.sp),
+            color = look.ink,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
         if (sheet) CommentsCloseButton(onDismiss)
@@ -134,14 +137,14 @@ private fun RepliesBackRow(count: Int, sheet: Boolean, onBack: () -> Unit, onDis
 /** A hairline under the comment whose replies these are: ink at 10 %, inside the page margin. */
 @Composable
 private fun Rule() {
-    val colors = LocalCosmoColors.current
+    val rule = orbitLook().ink.copy(alpha = RULE_ALPHA)
     Spacer(Modifier.height(4.dp))
     Box(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = CosmoSpacing.margin)
             .height(1.dp)
-            .drawBehind { drawRect(colors.live(CoverField.TEXT_PRIMARY).copy(alpha = RULE_ALPHA)) },
+            .drawBehind { drawRect(rule) },
     )
     Spacer(Modifier.height(4.dp))
 }

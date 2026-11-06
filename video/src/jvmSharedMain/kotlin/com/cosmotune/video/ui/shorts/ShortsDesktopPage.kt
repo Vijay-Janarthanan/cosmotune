@@ -1,5 +1,6 @@
 package com.cosmotune.video.ui.shorts
 
+import com.cosmotune.video.ui.player.PlayerButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,8 +41,6 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.CosmoLoadingBlob
 import com.cosmotune.video.design.VideoMetrics
@@ -250,19 +249,17 @@ private fun ShortsSideButtons(
 ) {
     val queueButtons: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(QUEUE_GAP)) {
-            CosmoIconButton(
+            PlayerButton(
                 icon = CosmoIcons.ChevronUp,
                 contentDescription = stringResource(Res.string.video_previous_short),
                 onClick = { onStep(-1) },
-                style = CosmoIconButtonStyle.TONAL,
                 size = BUTTON,
                 enabled = canPrevious,
             )
-            CosmoIconButton(
+            PlayerButton(
                 icon = CosmoIcons.ChevronDown,
                 contentDescription = stringResource(Res.string.video_next_short),
                 onClick = { onStep(1) },
-                style = CosmoIconButtonStyle.TONAL,
                 size = BUTTON,
                 enabled = canNext,
             )

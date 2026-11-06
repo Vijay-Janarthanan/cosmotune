@@ -83,6 +83,7 @@ internal object PreviewKit {
         dark: Boolean,
         frames: Int = 60,
         providers: Array<androidx.compose.runtime.ProvidedValue<*>> = emptyArray(),
+        outDir: String = "build/ui-preview",
         content: @Composable () -> Unit,
     ) {
         val scene = ImageComposeScene(widthDp, heightDp, Density(1f)) {
@@ -110,8 +111,8 @@ internal object PreviewKit {
         bitmap.readPixels(pixels)
         val distinct = pixels.asSequence().distinct().take(64).count()
         scene.close()
-        File("build/ui-preview").mkdirs()
-        File("build/ui-preview/$name.png").writeBytes(bytes)
+        File(outDir).mkdirs()
+        File("$outDir/$name.png").writeBytes(bytes)
         check(bytes.size > 4_000 && distinct > 8) { "$name is blank (${bytes.size} bytes, $distinct colours)" }
     }
 }

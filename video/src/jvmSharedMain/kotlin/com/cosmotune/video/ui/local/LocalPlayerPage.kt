@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.local
 
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.ui.library.OrbitGroupLabel
+import com.cosmotune.video.ui.library.OrbitInfoRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -47,9 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.cosmotune.ui.blocks.CosmoListRow
-import com.cosmotune.ui.blocks.CosmoRowLeading
-import com.cosmotune.ui.blocks.CosmoSectionHeader
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
@@ -318,19 +319,19 @@ private class LocalContent(
             LinkRow(CosmoIcons.Queue, stringResource(Res.string.video_local_subtitle_load), null, { picker.openSubtitle() }, Modifier.padding(horizontal = side))
         }
         if (upNext.isNotEmpty()) {
-            item(key = "next-header") { CosmoSectionHeader(stringResource(Res.string.video_local_up_next), Modifier.padding(horizontal = side)) }
+            item(key = "next-header") { OrbitGroupLabel(stringResource(Res.string.video_local_up_next), Modifier.padding(horizontal = side)) }
             items(upNext, key = { "next:" + it.id }) { file ->
-                CosmoListRow(
+                OrbitInfoRow(
                     title = file.title,
                     onClick = { replaceTop(VideoRoute.LocalPlayer(file.id)) },
                     modifier = Modifier.padding(horizontal = side),
-                    leading = CosmoRowLeading.Icon(CosmoIcons.Video),
+                    icon = CosmoIcons.Video,
                 )
             }
         }
         val others = recents.filter { it.id != entry?.id && upNext.none { next -> next.id == it.id } }
         if (others.isNotEmpty()) {
-            item(key = "recent-header") { CosmoSectionHeader(stringResource(Res.string.video_local_recent), Modifier.padding(horizontal = side)) }
+            item(key = "recent-header") { OrbitGroupLabel(stringResource(Res.string.video_local_recent), Modifier.padding(horizontal = side)) }
             items(others, key = { "recent:" + it.id }) { file ->
                 RecentRow(file, present = true, onClick = { opener.openRecent(file) }, onRemove = { store.remove(file.id) }, modifier = Modifier.padding(horizontal = side))
             }
@@ -340,13 +341,11 @@ private class LocalContent(
 
 @Composable
 private fun LocalTitle(title: String, side: androidx.compose.ui.unit.Dp) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val style = remember(type, title) { type.forText(type.titleMedium, title) }
+    val fonts = orbitFonts()
     Text(
         text = title,
-        style = style,
-        color = Color(palette.textPrimary),
+        style = fonts.section,
+        color = orbitLook().ink,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.fillMaxWidth().padding(start = side, end = side, top = 12.dp, bottom = 8.dp),

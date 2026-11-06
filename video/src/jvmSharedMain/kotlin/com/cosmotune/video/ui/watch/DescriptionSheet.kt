@@ -1,5 +1,8 @@
 package com.cosmotune.video.ui.watch
 
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.orbitSheetGroundColor
+import com.cosmotune.video.ui.library.OrbitGroupLabel
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
@@ -26,9 +29,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.blocks.CosmoOverline
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.CosmoSpacing
@@ -56,12 +56,12 @@ import androidx.compose.ui.draw.clip
 
 /*
  * The description sheet (spec 5.4: "the full text with tappable timestamps and links, then the chapters as rows with a 96 x 54
- * frame"). It stands where the comments sheet stands: an attached sheet (DESIGN_SYSTEM.md 4.13: `surface2`, `rXl` top corners, no glass) whose
+ * frame"). It stands where the comments sheet stands: an attached sheet (Orbit: the sheet ground, 32 dp top corners, no glass) whose
  * top sits at the bottom of the player, so the video keeps playing above it while a timestamp or a chapter is tried. The caller places
  * it with the modifier and closes it on Back.
  */
 
-private val SHEET_SHAPE = RoundedCornerShape(topStart = CosmoRadii.rXl, topEnd = CosmoRadii.rXl)
+private val SHEET_SHAPE = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
 private val HEADER_PAD_START = 20.dp
 private val HEADER_PAD_END = 8.dp
 private val HEADER_PAD_V = 4.dp
@@ -92,14 +92,14 @@ internal fun DescriptionSheet(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val heading = stringResource(Res.string.video_description)
     Column(
         modifier
             .fillMaxSize()
             .clip(SHEET_SHAPE)
-            .background(Color(palette.surfaceHigh)),
+            .background(orbitSheetGroundColor(look)),
     ) {
         Row(
             Modifier.fillMaxWidth().padding(start = HEADER_PAD_START, end = HEADER_PAD_END, top = HEADER_PAD_V, bottom = HEADER_PAD_V),
@@ -107,23 +107,22 @@ internal fun DescriptionSheet(
         ) {
             Text(
                 heading,
-                style = type.forText(type.titleLarge, heading),
-                color = Color(palette.textPrimary),
+                style = fonts.section,
+                color = look.ink,
                 modifier = Modifier.weight(1f).semantics { heading() },
             )
-            CosmoIconButton(
+            OrbitRoundButton(
                 icon = CosmoIcons.Close,
-                contentDescription = stringResource(SharedRes.string.cosmo_close),
+                label = stringResource(SharedRes.string.cosmo_close),
+                ink = look.ink,
                 onClick = onDismiss,
-                style = CosmoIconButtonStyle.PLAIN,
                 size = CLOSE_BUTTON,
-                floating = true,
             )
         }
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(top = BODY_GAP, bottom = SHEET_END)) {
             DescriptionBody(title, originalTitle, meta, description, onSeek)
             if (chapters.isNotEmpty()) {
-                CosmoOverline(stringResource(Res.string.video_chapters))
+                OrbitGroupLabel(stringResource(Res.string.video_chapters))
                 for (chapter in chapters) ChapterRow(chapter, onSeek)
             }
         }
@@ -133,21 +132,21 @@ internal fun DescriptionSheet(
 /** The sheet's text: the title, the original title, the meta line and the whole description with its links. */
 @Composable
 private fun DescriptionBody(title: String, originalTitle: String?, meta: String, description: Description, onSeek: (Long) -> Unit) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val type = LocalCosmoType.current
-    val titleStyle = remember(type, title) { type.forText(type.titleMedium, title) }
-    val metaStyle = rememberMetaStyle(meta)
+    val titleStyle = remember(fonts) { fonts.heroTitle.copy(fontSize = 21.sp, lineHeight = 25.sp) }
     val textStyle = remember(type, description.text) { type.descriptionStyle(description.text) }
     val text = rememberDescriptionText(description, onSeek)
     Column(Modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin)) {
-        Text(title, style = titleStyle, color = Color(palette.textPrimary))
+        Text(title, style = titleStyle, color = look.ink)
         if (originalTitle != null) {
             val line = stringResource(Res.string.video_original_title) + ": " + originalTitle
-            Text(line, style = rememberMetaStyle(line), color = Color(palette.textTertiary), modifier = Modifier.padding(top = ORIGINAL_GAP))
+            Text(line, style = fonts.body, color = look.dim, modifier = Modifier.padding(top = ORIGINAL_GAP))
         }
-        if (meta.isNotEmpty()) Text(meta, style = metaStyle, color = Color(palette.textSecondary), modifier = Modifier.padding(top = ORIGINAL_GAP))
+        if (meta.isNotEmpty()) Text(meta, style = fonts.label, color = look.dim, modifier = Modifier.padding(top = ORIGINAL_GAP))
         if (description.text.isNotEmpty()) {
-            Text(text, style = textStyle, color = Color(palette.textPrimary), modifier = Modifier.padding(top = TEXT_TOP))
+            Text(text, style = textStyle, color = look.ink, modifier = Modifier.padding(top = TEXT_TOP))
         }
     }
 }

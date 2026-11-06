@@ -209,18 +209,22 @@ fun OrbitTextField(
     secret: Boolean = false,
     onDone: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
+    singleLine: Boolean = true,
+    sentences: Boolean = false,
 ) {
     val shape = RoundedCornerShape(22.dp)
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        singleLine = true,
+        singleLine = singleLine,
         textStyle = fonts.body.copy(color = look.ink),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = if (secret) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password)
-        else if (onDone != null) androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done)
-        else androidx.compose.foundation.text.KeyboardOptions.Default,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = if (secret) androidx.compose.ui.text.input.KeyboardType.Password else androidx.compose.ui.text.input.KeyboardType.Text,
+            capitalization = if (sentences && !secret) androidx.compose.ui.text.input.KeyboardCapitalization.Sentences else androidx.compose.ui.text.input.KeyboardCapitalization.None,
+            imeAction = if (onDone != null) androidx.compose.ui.text.input.ImeAction.Done else androidx.compose.ui.text.input.ImeAction.Default,
+        ),
         keyboardActions = if (onDone != null) androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }) else androidx.compose.foundation.text.KeyboardActions.Default,
         modifier = modifier
             .heightIn(min = 48.dp)

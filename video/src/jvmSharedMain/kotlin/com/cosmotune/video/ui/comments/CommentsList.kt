@@ -1,5 +1,7 @@
 package com.cosmotune.video.ui.comments
 
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,7 +40,6 @@ import com.cosmotune.video.resources.video_error_parsing
 import com.cosmotune.video.resources.video_retry
 import com.cosmotune.video.ui.blocks.rememberMetaStyle
 import org.jetbrains.compose.resources.stringResource
-import com.cosmotune.ui.kit.KitTextButton
 import androidx.compose.runtime.getValue
 
 /*
@@ -134,7 +135,7 @@ internal fun CommentSkeletonRow(modifier: Modifier = Modifier) {
 /** A page that did not load, inside the list: what went wrong and "Try again". */
 @Composable
 private fun InlineFailure(failure: CommentsFailure, onRetry: () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
     val message = commentsFailureText(failure)
     Row(
         Modifier
@@ -144,11 +145,11 @@ private fun InlineFailure(failure: CommentsFailure, onRetry: () -> Unit) {
     ) {
         Text(
             text = message,
-            style = rememberMetaStyle(message),
-            color = Color(palette.textSecondary),
+            style = orbitFonts().body,
+            color = look.dim,
             modifier = Modifier.weight(1f),
         )
-        KitTextButton(
+        CommentLink(
             text = stringResource(Res.string.video_retry),
             onClick = onRetry,
         )

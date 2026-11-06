@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.watch
 
+import com.cosmotune.ui.orbit.OrbitActionPill
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.ui.player.PlayerButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,11 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cosmotune.ui.components.CosmoButton
-import com.cosmotune.ui.components.CosmoButtonKind
-import com.cosmotune.ui.components.CosmoButtonSize
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.graph.LocalVideoGraph
@@ -118,22 +117,18 @@ internal fun PipPlaceholder(playback: VideoPlayback, onReturn: () -> Unit, modif
                 )
             }
             CaptionsButton(playback, state, settings, onInput = noInput, floatingPlain = false)
-            CosmoIconButton(
+            PlayerButton(
                 icon = VideoIcons.Info,
                 contentDescription = stringResource(Res.string.video_stats),
                 onClick = { statsShown = !statsShown },
-                style = CosmoIconButtonStyle.TONAL,
-                floating = true,
                 size = VideoMetrics.CHROME_ICON_DP.dp,
                 on = statsShown,
             )
             Box {
-                CosmoIconButton(
+                PlayerButton(
                     icon = CosmoIcons.Settings,
                     contentDescription = stringResource(Res.string.video_player_settings),
                     onClick = { settingsOpen = true },
-                    style = CosmoIconButtonStyle.TONAL,
-                    floating = true,
                     size = VideoMetrics.CHROME_ICON_DP.dp,
                 )
                 if (settingsOpen) {
@@ -174,7 +169,7 @@ internal fun PipPlaceholder(playback: VideoPlayback, onReturn: () -> Unit, modif
             ) {
                 if (state.live) LiveStatus(playback, state, playhead, noInput) else TimeText(playhead, state.durationMs, onGlass = false, onInput = noInput)
                 Box(Modifier.weight(1f))
-                CosmoButton(stringResource(Res.string.video_pip_return), onReturn, kind = CosmoButtonKind.QUIET, size = CosmoButtonSize.SMALL, floating = true)
+                OrbitActionPill(label = stringResource(Res.string.video_pip_return), onClick = onReturn, fonts = orbitFonts(), look = orbitLook(), primary = true)
             }
         }
     }

@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.home
 
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.sheets.SurfaceSheetSwitch
 import com.cosmotune.ui.orbit.OrbitRoundButton
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
@@ -23,8 +27,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.kit.KitIconButton
-import com.cosmotune.ui.kit.KitSettingsRow
-import com.cosmotune.ui.kit.KitSheet
 import com.cosmotune.ui.kit.KitTextButton
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
@@ -42,6 +44,7 @@ import androidx.compose.runtime.setValue
  * Home's discovery controls on phone and desktop: one button at the head of the chip row that opens a sheet with the region and
  * language (they open the settings), Refresh, and the reset of what Home was told to hide, so nothing stands between the chips and the feed.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun HomeDiscoveryControls(region: String?, language: String?, feedbackCount: Int,
     onPreferences: () -> Unit, onRefresh: () -> Unit, onReset: () -> Unit) {
@@ -51,11 +54,13 @@ internal fun HomeDiscoveryControls(region: String?, language: String?, feedbackC
         language?.let { Locale.forLanguageTag(it).getDisplayLanguage(Locale.getDefault()) } ?: stringResource(Res.string.video_set_device))
     OrbitRoundButton(CosmoIcons.Settings, preferences, orbitLook().ink, { open = true })
     if (open) {
-        KitSheet(onDismiss = { open = false }) {
-            KitSettingsRow(preferences, icon = CosmoIcons.Settings, onClick = { open = false; onPreferences() })
-            KitSettingsRow(stringResource(Res.string.video_home_refresh), icon = CosmoIcons.Replay, onClick = { open = false; onRefresh() })
+        val fonts = orbitFonts()
+        val look = orbitLook()
+        SurfaceSheetSwitch(onDismissRequest = { open = false }) {
+            DiscoveryRow(preferences, CosmoIcons.Settings, fonts, look) { open = false; onPreferences() }
+            DiscoveryRow(stringResource(Res.string.video_home_refresh), CosmoIcons.Replay, fonts, look) { open = false; onRefresh() }
             if (feedbackCount > 0) {
-                KitSettingsRow(stringResource(Res.string.video_home_reset_feedback, feedbackCount), icon = CosmoIcons.Close, onClick = { open = false; onReset() })
+                DiscoveryRow(stringResource(Res.string.video_home_reset_feedback, feedbackCount), CosmoIcons.Close, fonts, look) { open = false; onReset() }
             }
         }
     }
@@ -76,4 +81,13 @@ internal fun HomeNotice(text: String, retry: String? = null, onRetry: () -> Unit
             Text(retry, style = fonts.chip, color = look.accent, modifier = Modifier.clip(CircleShape).clickable(onClick = onRetry).padding(horizontal = 12.dp, vertical = 8.dp))
         }
     }
+}
+
+/** One action of the discovery sheet: an Orbit row with the action's icon in a disc. */
+@Composable
+private fun DiscoveryRow(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
+    OrbitSongRow(
+        title = title, subtitle = "", cover = null, fonts = fonts, look = look, onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), height = 62.dp, icon = icon,
+    )
 }
