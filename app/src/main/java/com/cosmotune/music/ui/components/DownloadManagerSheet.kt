@@ -8,8 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,8 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.Close
@@ -31,29 +28,22 @@ import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Refresh
 import com.cosmotune.ui.bridge.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import com.cosmotune.ui.bridge.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import com.cosmotune.music.R
 import com.cosmotune.music.data.model.ROW_ART_PX
 import com.cosmotune.music.data.model.artworkAt
@@ -62,7 +52,16 @@ import com.cosmotune.music.download.DownloadSession
 import com.cosmotune.music.download.Downloads
 import com.cosmotune.music.ui.haptics.Haptic
 import com.cosmotune.music.ui.haptics.rememberHaptics
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.orbit.Disc
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitSheetAction
+import com.cosmotune.ui.orbit.OrbitSheetTitle
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 
 /**
  * The download indicator in the top bar, beside the account photo.
@@ -196,242 +195,131 @@ fun DownloadManagerSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val session by DownloadSession.state.collectAsStateWithLifecycle()
     val queueError by Downloads.queueStorageError.collectAsStateWithLifecycle()
+    val fonts = orbitFonts()
+    val look = orbitLook()
     // Newest ask last, the order the queue will actually reach them in.
     val items = remember(session.items) { session.items.sortedBy { it.sequence } }
 
     Column(modifier.fillMaxWidth()) {
-        queueError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(20.dp)) }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.downloads),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = session.summary(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (session.failed > 0 && !session.busy) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
-            if (session.busy) {
-                TextButton(
-                    onClick = {
-                        // Only what is still going. Cancelling a finished row
-                        // would drop it from the list, which is the one thing
-                        // this sheet exists to still be showing.
-                        items.filterNot { it.progress.settled }
-                            .forEach { Downloads.cancel(it.videoId) }
-                    },
-                ) {
-                    Text(stringResource(R.string.cancel_all))
+        queueError?.let { Text(it, style = fonts.body, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(18.dp)) }
+        OrbitSheetTitle(
+            title = stringResource(R.string.downloads),
+            subtitle = session.summary(),
+            // The batch's own ring, beside the heading it belongs to. The
+            // per-row rings below are about one track each; this is the one
+            // that answers "how much longer", which is what someone opening
+            // this sheet mid-album wants.
+            leading = if (session.busy) {
+                { OrbitRing(44.dp, look.ink, progress = { session.fraction }, spinning = false, stroke = 3.dp, moon = 5.dp) }
+            } else null,
+            trailing = {
+                if (session.busy) {
+                    OrbitSheetAction(
+                        label = stringResource(R.string.cancel_all),
+                        onClick = {
+                            // Only what is still going. Cancelling a finished row
+                            // would drop it from the list, which is the one thing
+                            // this sheet exists to still be showing.
+                            items.filterNot { it.progress.settled }
+                                .forEach { Downloads.cancel(it.videoId) }
+                        },
+                    )
+                } else {
+                    OrbitSheetAction(
+                        label = stringResource(R.string.clear),
+                        onClick = {
+                            DownloadSession.clear()
+                            onDismiss()
+                        },
+                    )
                 }
-            } else {
-                TextButton(
-                    onClick = {
-                        DownloadSession.clear()
-                        onDismiss()
-                    },
-                ) {
-                    Text(stringResource(R.string.clear))
-                }
-            }
-        }
-
-        // The batch's own bar, under the heading it belongs to. The per-row bars
-        // below are about one track each; this is the one that answers "how much
-        // longer", which is what someone opening this sheet mid-album wants.
-        if (session.busy) {
-            LinearProgressIndicator(
-                progress = { session.fraction },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .height(3.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                strokeCap = StrokeCap.Round,
-                gapSize = 0.dp,
-                drawStopIndicator = {},
-            )
-            Spacer(Modifier.height(8.dp))
-        }
-
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+            },
+        )
 
         // Capped rather than left to grow: a hundred-track playlist would
         // otherwise be a sheet that covers the screen and has to be scrolled
         // back up before anything else can be reached.
-        LazyColumn(Modifier.heightIn(max = LIST_MAX_HEIGHT)) {
+        LazyColumn(Modifier.heightIn(max = LIST_MAX_HEIGHT), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(items, key = { it.videoId }) { item ->
                 DownloadManagerRow(
                     item = item,
+                    fonts = fonts,
+                    look = look,
                     onCancel = { Downloads.cancel(item.videoId) },
                     onRetry = { Downloads.enqueue(context, item.song, item.from) },
                 )
             }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(12.dp))
     }
 }
 
-/** One track: its cover, what it is, and where it has got to. */
+/** One track: its cover as a disc with its own orbit ring, what it is, and where it has got to. */
 @Composable
 private fun DownloadManagerRow(
     item: DownloadSession.Item,
+    fonts: OrbitFonts,
+    look: OrbitLook,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
 ) {
     val progress = item.progress
     val failed = progress as? DownloadProgress.Failed
+    val running = progress as? DownloadProgress.Running
+    val credit = listOfNotNull(
+        item.song.artist.takeIf { it.isNotBlank() },
+        // The release is worth naming where there is one: in a list of
+        // forty rows off three albums, the credit alone does not say
+        // which batch a row belongs to.
+        item.from?.takeIf { it.isNotBlank() && it != item.song.artist },
+    ).joinToString(" · ").ifBlank { stringResource(R.string.unknown_artist) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(ART_SIZE), contentAlignment = Alignment.Center) {
-            AsyncImage(
-                model = item.song.artworkAt(ROW_ART_PX),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(ART_SIZE)
-                    .clip(RoundedCornerShape(CosmoRadii.rSm))
-                    .thumbnailBorder(RoundedCornerShape(CosmoRadii.rSm))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-            // A finished or failed track is stated over its own cover rather
-            // than in a fourth column: the list is scanned for the odd one out,
-            // and a mark on the artwork is what the eye actually lands on.
-            if (progress.settled) {
-                Box(
-                    modifier = Modifier
-                        .size(ART_SIZE)
-                        .clip(RoundedCornerShape(CosmoRadii.rSm))
-                        .background(Color.Black.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = if (failed != null) {
-                            Icons.Rounded.ErrorOutline
-                        } else {
-                            Icons.Rounded.DownloadDone
-                        },
-                        contentDescription = null,
-                        tint = if (failed != null) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            Color.White
-                        },
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
+    OrbitSongRow(
+        title = item.song.title,
+        subtitle = when (progress) {
+            is DownloadProgress.Done -> stringResource(R.string.saved_to_cosmotune_folder)
+            is DownloadProgress.Failed -> progress.reason
+            else -> credit
+        },
+        cover = item.song.artworkAt(ROW_ART_PX),
+        fonts = fonts,
+        look = look,
+        onClick = null,
+        endPadding = 8.dp,
+        titleContent = {
+            ExplicitSongTitle(song = item.song, style = fonts.title, color = look.ink)
+        },
+        discContent = {
+            Disc(item.song.artworkAt(ROW_ART_PX), 44.dp)
+            // The ring is the progress: indeterminate (the moon circles) until
+            // the first response names a length, a ring frozen at nothing
+            // reads as broken.
+            if (running != null) {
+                OrbitRing(
+                    52.dp, look.ink,
+                    progress = if (running.fraction > 0f) ({ running.fraction }) else null,
+                    spinning = true, stroke = 1.5.dp, moon = 3.dp,
+                )
             }
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            ExplicitSongTitle(
-                song = item.song,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                // The release is worth naming where there is one: in a list of
-                // forty rows off three albums, the credit alone does not say
-                // which batch a row belongs to.
-                text = listOfNotNull(
-                    item.song.artist.takeIf { it.isNotBlank() },
-                    item.from?.takeIf { it.isNotBlank() && it != item.song.artist },
-                ).joinToString(" · ").ifBlank { stringResource(R.string.unknown_artist) },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(4.dp))
-            when (progress) {
-                is DownloadProgress.Queued -> RowStatus(stringResource(R.string.queued))
-                is DownloadProgress.Running -> {
-                    LinearProgressIndicator(
-                        // Indeterminate until the first response names a
-                        // length — a bar frozen at nothing reads as broken.
-                        progress = { progress.fraction },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                        strokeCap = StrokeCap.Round,
-                        gapSize = 0.dp,
-                        drawStopIndicator = {},
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    RowStatus(
-                        if (progress.fraction > 0f) {
-                            stringResource(R.string.downloading_progress, (progress.fraction * 100).toInt())
-                        } else {
-                            stringResource(R.string.starting)
-                        },
-                    )
-                }
-                is DownloadProgress.Done -> RowStatus(stringResource(R.string.saved_to_cosmotune_folder))
-                is DownloadProgress.Failed ->
-                    RowStatus(progress.reason, MaterialTheme.colorScheme.error)
+        },
+        trailingText = when (progress) {
+            is DownloadProgress.Queued -> stringResource(R.string.queued)
+            is DownloadProgress.Running ->
+                if (progress.fraction > 0f) "${(progress.fraction * 100).toInt()}%" else stringResource(R.string.starting)
+            else -> null
+        },
+        trailing = {
+            Spacer(Modifier.width(8.dp))
+            // One control, and which one it is follows the row's state: a running
+            // track can be stopped, a failed one can be asked for again, and a
+            // finished one needs nothing at all.
+            when {
+                failed != null -> OrbitRoundButton(Icons.Rounded.Refresh, stringResource(R.string.retry), look.ink, onRetry, size = 36.dp)
+                !progress.settled -> OrbitRoundButton(Icons.Rounded.Close, stringResource(R.string.cancel), look.ink, onCancel, size = 36.dp)
+                else -> Icon(Icons.Rounded.DownloadDone, contentDescription = null, tint = look.dim, modifier = Modifier.size(22.dp))
             }
-        }
-        Spacer(Modifier.width(8.dp))
-        // One control, and which one it is follows the row's state: a running
-        // track can be stopped, a failed one can be asked for again, and a
-        // finished one needs nothing at all.
-        when {
-            failed != null -> RowAction(Icons.Rounded.Refresh, stringResource(R.string.retry), onRetry)
-            !progress.settled -> RowAction(Icons.Rounded.Close, stringResource(R.string.cancel), onCancel)
-            else -> Spacer(Modifier.width(36.dp))
-        }
-    }
-}
-
-@Composable
-private fun RowStatus(text: String, color: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = color,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
+        },
     )
-}
-
-@Composable
-private fun RowAction(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
-        )
-    }
 }
 
 /**
@@ -469,9 +357,6 @@ private val GLYPH_IN_RING = 15.dp
 
 /** With no ring around it, the glyph is a normal bar icon. */
 private val GLYPH_SIZE = 22.dp
-
-/** A row's cover: under a track row's 52dp, since this is a status list. */
-private val ART_SIZE = 44.dp
 
 /** How much of the screen the list may take before it scrolls instead. */
 private val LIST_MAX_HEIGHT = 380.dp

@@ -1,6 +1,9 @@
 package com.cosmotune.music.auth
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,12 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -27,6 +25,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.R
 import com.cosmotune.music.ui.MainViewModel
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitSheetAction
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 
 /**
  * The full-screen Google sign-in (or channel picker) over whichever mode asked for it: the bar with Close, the title and
@@ -54,30 +56,27 @@ fun YouTubeSignInOverlay(
     var captureFailed by remember(mode) { mutableStateOf(false) }
     var pageReady by remember(mode) { mutableStateOf(false) }
     var confirmingProfile by remember(mode) { mutableStateOf(false) }
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    Box(Modifier.fillMaxSize().background(look.ground)) {
         Column(Modifier.fillMaxSize()) {
             Row(
                 Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                IconButton(onClick = onClose) {
-                    Icon(
-                        Icons.Rounded.Close,
-                        contentDescription = stringResource(R.string.close),
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
+                OrbitRoundButton(Icons.Rounded.Close, stringResource(R.string.close), look.ink, onClose)
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = when (mode) {
                             WebSessionMode.SIGN_IN -> stringResource(R.string.sign_in_youtube_music)
                             WebSessionMode.SWITCH_CHANNEL -> stringResource(R.string.choose_profile)
                         },
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        style = fonts.title,
+                        color = look.ink,
                     )
                     if (pageReady) {
                         Text(
@@ -86,23 +85,24 @@ fun YouTubeSignInOverlay(
                             } else {
                                 stringResource(R.string.switch_profile_hint)
                             },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = fonts.body,
+                            color = look.dim,
                             maxLines = 2,
                         )
                     }
                 }
                 if (pageReady) {
-                    TextButton(onClick = {
-                        captureFailed = false
-                        confirmingProfile = true
-                        captureRequest++
-                    }, enabled = !confirmingProfile) {
-                        Text(
-                            if (confirmingProfile) stringResource(R.string.checking)
-                            else stringResource(R.string.use_this_profile),
-                        )
-                    }
+                    OrbitSheetAction(
+                        label = if (confirmingProfile) stringResource(R.string.checking)
+                        else stringResource(R.string.use_this_profile),
+                        onClick = {
+                            captureFailed = false
+                            confirmingProfile = true
+                            captureRequest++
+                        },
+                        primary = true,
+                        enabled = !confirmingProfile,
+                    )
                 }
             }
             YtMusicLoginScreen(
