@@ -66,7 +66,7 @@ internal val WATCH_ADD_FILL = Color(0xFF2E2758)
 internal val WATCH_ADD_INK = Color(0xFFECE8FF)
 
 /** A picture that has not loaded (or has no address): the deep stand-in for [key], lit from one corner like a poster. */
-internal fun pictureStandIn(key: String): Brush {
+fun pictureStandIn(key: String): Brush {
     val base = STAND_INS[Math.floorMod(key.hashCode(), STAND_INS.size)]
     val hsv = FloatArray(3)
     java.awt.Color.RGBtoHSB((base.red * 255).toInt(), (base.green * 255).toInt(), (base.blue * 255).toInt(), hsv)
@@ -88,7 +88,7 @@ internal fun WatchPicture(url: String?, key: String, modifier: Modifier = Modifi
 
 /** Play as a moon hanging off the bottom-end corner of a picture, ringed in the page's ground. Use inside the picture's box. */
 @Composable
-internal fun BoxScope.WatchPlayMoon(look: OrbitLook, onClick: () -> Unit, size: Dp = 42.dp, label: String = "Play") {
+fun BoxScope.WatchPlayMoon(look: OrbitLook, onClick: () -> Unit, size: Dp = 42.dp, label: String = "Play") {
     Box(
         Modifier.align(Alignment.BottomEnd).offset(x = 10.dp, y = 10.dp).size(size).clip(CircleShape).background(look.ground)
             .padding(4.dp).clip(CircleShape).background(PEACH).clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
@@ -98,7 +98,7 @@ internal fun BoxScope.WatchPlayMoon(look: OrbitLook, onClick: () -> Unit, size: 
 
 /** How far through: a 4 dp line, the watched part in the accent. */
 @Composable
-internal fun WatchProgressLine(fraction: Float, look: OrbitLook, modifier: Modifier = Modifier) {
+fun WatchProgressLine(fraction: Float, look: OrbitLook, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(look.ink.copy(alpha = 0.18f))) {
         Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).height(4.dp).clip(RoundedCornerShape(2.dp)).background(look.accent))
     }
@@ -106,7 +106,7 @@ internal fun WatchProgressLine(fraction: Float, look: OrbitLook, modifier: Modif
 
 /** A small mono badge ("HD", "CC", "FREE · PLUTO"). */
 @Composable
-internal fun WatchBadge(text: String, fonts: OrbitFonts, ink: Color, modifier: Modifier = Modifier) {
+fun WatchBadge(text: String, fonts: OrbitFonts, ink: Color, modifier: Modifier = Modifier) {
     Text(
         text.uppercase(), style = fonts.label.copy(fontSize = 10.sp, letterSpacing = 0.8.sp, fontWeight = FontWeight.Bold), color = ink, maxLines = 1,
         modifier = modifier.clip(RoundedCornerShape(10.dp)).background(ink.copy(alpha = 0.10f)).padding(horizontal = 8.dp, vertical = 3.dp),
@@ -115,7 +115,7 @@ internal fun WatchBadge(text: String, fonts: OrbitFonts, ink: Color, modifier: M
 
 /** A chip on a colour card ("＋ My list", "Watch together"): the card's [ink] at 12 %, or solid ink with [onSolid] text. */
 @Composable
-internal fun WatchCardChip(
+fun WatchCardChip(
     text: String,
     ink: Color,
     fonts: OrbitFonts,
@@ -185,7 +185,7 @@ internal fun WatchLogoTile(mark: String, fill: Color, fonts: OrbitFonts, modifie
  * Focusable with a ring; [onClick] null makes it a plain row.
  */
 @Composable
-internal fun WatchRowFrame(
+fun WatchRowFrame(
     look: OrbitLook,
     modifier: Modifier = Modifier,
     height: Dp = 62.dp,
@@ -256,7 +256,7 @@ internal fun WatchLiveLine(now: String?, fonts: OrbitFonts, look: OrbitLook, mod
 
 /** The switch of a plugin (board `.tog`): 46 by 28, the accent with a dark knob at the end when on, faint ink with a pale knob when off. */
 @Composable
-internal fun OrbitSwitch(checked: Boolean, onChange: (Boolean) -> Unit, look: OrbitLook, label: String, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun OrbitSwitch(checked: Boolean, onChange: (Boolean) -> Unit, look: OrbitLook, label: String, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val interaction = remember { MutableInteractionSource() }
     val knobOn = if (look.dark) Color(0xFF2A100A) else Color.White
     val knobOff = if (look.dark) Color(0xFFE3D0C6) else Color.White
@@ -299,13 +299,13 @@ internal fun WatchPluginCard(
 
 /** A quiet stand-in block while a row or a card loads. */
 @Composable
-internal fun WatchSkeleton(look: OrbitLook, modifier: Modifier, radius: Dp = 20.dp) {
+fun WatchSkeleton(look: OrbitLook, modifier: Modifier, radius: Dp = 20.dp) {
     Box(modifier.clip(RoundedCornerShape(radius)).background(look.row))
 }
 
 /** An empty or problem state: a mono label, a wide heading, a line and an optional action chip. */
 @Composable
-internal fun WatchMessage(label: String, title: String, text: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null) {
+fun WatchMessage(label: String, title: String, text: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null) {
     Column(modifier.widthIn(max = 560.dp).clip(RoundedCornerShape(26.dp)).background(look.row).padding(22.dp)) {
         OrbitLabel(label, fonts, look.dim)
         Text(title, style = fonts.section, color = look.ink, modifier = Modifier.padding(top = 10.dp))
@@ -319,7 +319,7 @@ internal fun WatchMessage(label: String, title: String, text: String, fonts: Orb
 
 /** A round tonal button that takes the focus (back, more, a star). */
 @Composable
-internal fun WatchRoundButton(icon: ImageVector, label: String, look: OrbitLook, onClick: () -> Unit, modifier: Modifier = Modifier, ink: Color = look.ink, size: Dp = 40.dp, on: Boolean = false, enabled: Boolean = true) {
+fun WatchRoundButton(icon: ImageVector, label: String, look: OrbitLook, onClick: () -> Unit, modifier: Modifier = Modifier, ink: Color = look.ink, size: Dp = 40.dp, on: Boolean = false, enabled: Boolean = true) {
     val interaction = remember { MutableInteractionSource() }
     Box(
         modifier.alpha(if (enabled) 1f else 0.45f).size(size).cosmoFocusRing(interaction, size / 2).clip(CircleShape).background(if (on) ink else ink.copy(alpha = 0.12f))

@@ -95,7 +95,7 @@ import kotlin.math.abs
 
 /** The page's search field: a 60 dp pill in ink at 8 %, the magnifier, the text, and a round clear button once something is typed. */
 @Composable
-internal fun OrbitSearchPill(
+fun OrbitSearchPill(
     query: String,
     onQueryChange: (String) -> Unit,
     onSubmit: () -> Unit,
@@ -138,7 +138,7 @@ internal fun OrbitSearchPill(
 
 /** A chip that can be the chosen one: ink at 8 %, or solid ink with the ground's colour for its text when [selected]. */
 @Composable
-internal fun OrbitSelectChip(
+fun OrbitSelectChip(
     title: String,
     selected: Boolean,
     fonts: OrbitFonts,
@@ -165,7 +165,7 @@ internal fun OrbitSelectChip(
 
 /** A row of chips that scrolls sideways, the page's gutter inside the scroll so the chips run to the edge. */
 @Composable
-internal fun OrbitChipRow(side: Dp, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+fun OrbitChipRow(side: Dp, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
     Row(
         modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = side),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -176,7 +176,7 @@ internal fun OrbitChipRow(side: Dp, modifier: Modifier = Modifier, content: @Com
 
 /** A page's heading, as Home's greeting: the mono [label] over the [title] in the wide face with its peach full stop, [trailing] at the end. */
 @Composable
-internal fun OrbitPageHeading(title: String, label: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, trailing: (@Composable RowScope.() -> Unit)? = null) {
+fun OrbitPageHeading(title: String, label: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, trailing: (@Composable RowScope.() -> Unit)? = null) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
             OrbitLabel(label, fonts, look.dim)
@@ -195,7 +195,7 @@ internal fun OrbitPageHeading(title: String, label: String, fonts: OrbitFonts, l
 
 /** The mono, tracked, upper-case label ("TOP RESULT · ARTIST"). */
 @Composable
-internal fun OrbitLabel(text: String, fonts: OrbitFonts, color: Color, modifier: Modifier = Modifier) {
+fun OrbitLabel(text: String, fonts: OrbitFonts, color: Color, modifier: Modifier = Modifier) {
     Text(text.uppercase(), style = fonts.label, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }
 
