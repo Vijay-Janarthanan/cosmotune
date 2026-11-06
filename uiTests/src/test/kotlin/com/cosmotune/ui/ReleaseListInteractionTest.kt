@@ -76,7 +76,7 @@ class ReleaseListInteractionTest {
                     Box(Modifier.size(360.dp, 850.dp)) {
                         CosmoReleasePage(page = DetailPage("release", "Fixture album", "Album", null,
                             songs = UiState.Success(rows), type = BrowseType.ALBUM),
-                            songs = rows, trackNumbers = mapOf("same" to 3, "alpha" to 2), currentSong = null,
+                            songs = rows, currentSong = null,
                             isPlaying = false, listState = rememberLazyListState(), contentPadding = PaddingValues(),
                             onSongClick = { songs, index -> played = songs; start = index }, onSongLongPress = {},
                             onSongSwipe = {}, onShuffle = { shuffled = it }, onMore = { more = it },
@@ -88,12 +88,11 @@ class ReleaseListInteractionTest {
         }
     }
 
-    @Test fun sortedRowPlaybackAndSelectionRetainTheExactDuplicateOccurrenceAndAlbumNumber() = hosts {
+    @Test fun sortedRowPlaybackAndSelectionRetainTheExactDuplicateOccurrence() = hosts {
         show()
         compose.onNodeWithTag("music:list:order").performScrollTo().performClick()
         compose.onNodeWithText("Title A–Z", useUnmergedTree = true).performClick()
         compose.onNodeWithTag("music:release:row:entry:last").performScrollTo()
-        compose.onNode(hasText("3", substring = false) and hasAnyAncestor(hasTestTag("music:release:row:entry:last")), useUnmergedTree = true).assertExists()
         compose.onNodeWithTag("music:release:row:entry:last").performTouchInput { click() }
         compose.runOnIdle {
             assertEquals(listOf("middle", "first", "last"), played.map { it.setVideoId })
@@ -111,9 +110,9 @@ class ReleaseListInteractionTest {
         show(fontScale = 2f)
         compose.onNodeWithTag("music:list:downloaded").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         compose.onNodeWithTag("music:release:row:entry:middle").assertDoesNotExist()
-        compose.onNodeWithTag("music:release:play").performScrollTo().performClick()
+        compose.onNodeWithTag("orbit:card:play").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(listOf("first", "last"), played.map { it.setVideoId }) }
-        compose.onNodeWithText("Shuffle").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Shuffle").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(listOf("first", "last"), shuffled.map { it.setVideoId }) }
         compose.onNodeWithTag("music:release:more").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(listOf("first", "last"), more.map { it.setVideoId }) }

@@ -190,7 +190,7 @@ class VisualPolishContractTest {
         assertTrue("CoverField.SKEL_BASE" in cosmo && "CoverField.SKEL_SHINE" in cosmo, "the cover's skeleton pair")
         // the new pages draw their own skeleton, at full strength and of the new rows' measure
         assertTrue("pageSkeleton(\"skeleton:release\", rowDp = PageMetrics.TRACK_ROW_DP)" in code("$ui/pages/CosmoReleasePage.kt"))
-        assertTrue("pageSkeleton(\"skeleton:artist\", rowDp = PageMetrics.ROW_DP)" in code("$ui/pages/CosmoArtistPage.kt"))
+        assertTrue("pageSkeleton(\"skeleton:artist\", rowDp = 66f)" in code("$ui/orbit/OrbitArtist.kt"), "the artist's skeleton is of its ranked rows")
         val parts = SourceContract.read("$ui/pages/PageParts.kt")
         val skeleton = SourceContract.functionBody(parts, "pageSkeleton")
         assertTrue(Regex("""CosmoShimmer\(""").findAll(skeleton).count() >= 5, "every block is the cover's shimmer")

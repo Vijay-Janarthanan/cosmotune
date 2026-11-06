@@ -367,34 +367,20 @@ private fun OrbitSongRows(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 pair.forEach { item ->
                     OrbitSongRow(
-                        item.title, item.subtitle, item.thumbnailUrl, fonts, look,
-                        onClick = { onClick(item) }, onLongClick = onLongPress?.let { { it(item) } },
-                        modifier = Modifier.weight(1f), now = isPlaying(item), playing = playing,
-                    ) { OrbitRowTime(item.song?.durationText, fonts, look) }
+                        item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, modifier = Modifier.weight(1f),
+                        now = isPlaying(item), playing = playing, onLongPress = onLongPress?.let { { it(item) } }, trailingText = item.song?.durationText,
+                    )
                 }
                 if (pair.size < columns) Spacer(Modifier.weight(1f))
             }
         }
-        if (shelf.items.size > first) {
-            Text(
-                if (all) "Show less" else "Show all ${shelf.items.size}", style = fonts.chip, color = look.accent,
-                modifier = Modifier.clip(CircleShape).clickable { all = !all }.padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-        }
+        if (shelf.items.size > first) OrbitShowAll(all, shelf.items.size, fonts, look, onToggle = { all = !all })
     }
 }
 
 @Composable
-private fun OrbitArtistRow(items: List<ShelfItem>, fonts: OrbitFonts, look: OrbitLook, side: Dp, onClick: (ShelfItem) -> Unit) {
-    LazyRow(contentPadding = PaddingValues(horizontal = side + 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        itemsIndexed(items, key = { i, it -> (it.browseId ?: it.title) + i }) { _, item ->
-            Column(Modifier.width(88.dp).clip(RoundedCornerShape(16.dp)).clickable { onClick(item) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                Disc(item.thumbnailUrl, 84.dp)
-                Text(item.title, style = fonts.body.copy(fontWeight = FontWeight(600)), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-            }
-        }
-    }
-}
+private fun OrbitArtistRow(items: List<ShelfItem>, fonts: OrbitFonts, look: OrbitLook, side: Dp, onClick: (ShelfItem) -> Unit) =
+    OrbitPortraitRow(items, fonts, look, side, onClick)
 
 // ---- which layout a shelf gets --------------------------------------------------------------------------------------------------
 
@@ -422,26 +408,10 @@ private fun planStyles(shelves: List<HomeShelf>): List<ShelfStyle> {
     }
 }
 
-/** Playlists: tall cards filled with their cover's colour, the title at the top and the cover as a disc rising out of the corner. */
-@OptIn(ExperimentalFoundationApi::class)
+/** Playlists: tall cards filled with their cover's colour (the kit's [OrbitColourCardRow]). */
 @Composable
-private fun OrbitCardRow(shelf: HomeShelf, fonts: OrbitFonts, side: Dp, onClick: (ShelfItem) -> Unit, onLongPress: ((ShelfItem) -> Unit)?) {
-    LazyRow(contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        itemsIndexed(shelf.items, key = { i, it -> (it.browseId ?: it.videoId ?: it.title) + i }) { _, item ->
-            val (fill, ink) = coverFill(item.thumbnailUrl, item.title)
-            Box(
-                Modifier.width(172.dp).height(224.dp).clip(RoundedCornerShape(28.dp)).background(fill)
-                    .combinedClickable(onClick = { onClick(item) }, onLongClick = onLongPress?.let { { it(item) } }),
-            ) {
-                Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp)) {
-                    Text(item.title, style = fonts.section.copy(fontSize = 17.sp, lineHeight = 20.sp), color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    if (item.subtitle.isNotBlank()) Text(item.subtitle, style = fonts.body.copy(fontSize = 12.sp), color = ink.copy(alpha = 0.72f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-                }
-                Disc(item.thumbnailUrl, 124.dp, Modifier.align(Alignment.BottomEnd).offset(x = 30.dp, y = 30.dp))
-            }
-        }
-    }
-}
+private fun OrbitCardRow(shelf: HomeShelf, fonts: OrbitFonts, side: Dp, onClick: (ShelfItem) -> Unit, onLongPress: ((ShelfItem) -> Unit)?) =
+    OrbitColourCardRow(shelf.items, fonts, side, onClick, onLongPress)
 
 private val FeatureBite = BiteShape(corner = 30.dp, bite = 34.dp, inset = 40.dp)
 
@@ -484,28 +454,10 @@ private fun OrbitFeature(shelf: HomeShelf, wide: Boolean, fonts: OrbitFonts, loo
     }
 }
 
-/** Albums as records: the cover as a disc with grooves and a spindle hole, the title under it. */
-@OptIn(ExperimentalFoundationApi::class)
+/** Albums as records: the cover as a disc with the play moon on its edge (the kit's [OrbitRecordRow]). */
 @Composable
-private fun OrbitDiscRow(shelf: HomeShelf, fonts: OrbitFonts, look: OrbitLook, side: Dp, onClick: (ShelfItem) -> Unit, onLongPress: ((ShelfItem) -> Unit)?) {
-    LazyRow(contentPadding = PaddingValues(horizontal = side + 4.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        itemsIndexed(shelf.items, key = { i, it -> (it.browseId ?: it.videoId ?: it.title) + i }) { _, item ->
-            Column(Modifier.width(152.dp).combinedClickable(onClick = { onClick(item) }, onLongClick = onLongPress?.let { { it(item) } })) {
-                Box(Modifier.size(152.dp)) {
-                    Disc(item.thumbnailUrl, 152.dp)
-                    // Play is a small moon on the disc's edge, so the cover itself stays clear.
-                    Box(
-                        Modifier.align(Alignment.BottomEnd).size(44.dp).clip(CircleShape).background(look.ground)
-                            .padding(4.dp).clip(CircleShape).background(PEACH).clickable { onClick(item) },
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(CosmoIcons.Play, contentDescription = "Play", tint = Color(0xFF2A100A), modifier = Modifier.size(17.dp)) }
-                }
-                Text(item.title, style = fonts.title, color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
-                if (item.subtitle.isNotBlank()) Text(item.subtitle, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
+private fun OrbitDiscRow(shelf: HomeShelf, fonts: OrbitFonts, look: OrbitLook, side: Dp, onClick: (ShelfItem) -> Unit, onLongPress: ((ShelfItem) -> Unit)?) =
+    OrbitRecordRow(shelf.items, fonts, look, side, onClick, onLongPress)
 
 /** A chart: big narrow numbers, the first in peach, five at first (ten in two columns when wide), the rest behind "Show all". */
 @OptIn(ExperimentalFoundationApi::class)
@@ -517,18 +469,7 @@ private fun OrbitRanked(shelf: HomeShelf, wide: Boolean, fonts: OrbitFonts, look
     val rows: @Composable (List<IndexedValue<ShelfItem>>, Modifier) -> Unit = { part, m ->
         Column(m) {
             part.forEach { (i, item) ->
-                Row(
-                    Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(18.dp))
-                        .combinedClickable(onClick = { onClick(item) }, onLongClick = onLongPress?.let { { it(item) } }).padding(horizontal = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("${i + 1}", style = fonts.number.copy(fontSize = 40.sp, lineHeight = 40.sp), color = if (i == 0) look.accent else look.ink.copy(alpha = 0.3f), modifier = Modifier.width(52.dp))
-                    Disc(item.thumbnailUrl, 48.dp)
-                    Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                        Text(item.title, style = fonts.title, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (item.subtitle.isNotBlank()) Text(item.subtitle, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
+                OrbitRankedRow(i + 1, item.title, item.subtitle, item.thumbnailUrl, fonts, look, onClick = { onClick(item) }, onLongPress = onLongPress?.let { { it(item) } })
             }
         }
     }
@@ -541,11 +482,6 @@ private fun OrbitRanked(shelf: HomeShelf, wide: Boolean, fonts: OrbitFonts, look
                 rows(indexed.drop(half), Modifier.weight(1f))
             }
         } else rows(indexed, Modifier.fillMaxWidth())
-        if (shelf.items.size > first) {
-            Text(
-                if (all) "Show less" else "Show all ${shelf.items.size}", style = fonts.chip, color = look.accent,
-                modifier = Modifier.padding(top = 6.dp).clip(CircleShape).clickable { all = !all }.padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-        }
+        if (shelf.items.size > first) OrbitShowAll(all, shelf.items.size, fonts, look, onToggle = { all = !all }, modifier = Modifier.padding(top = 6.dp))
     }
 }

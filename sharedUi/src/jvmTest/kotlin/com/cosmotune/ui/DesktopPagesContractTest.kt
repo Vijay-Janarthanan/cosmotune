@@ -42,7 +42,7 @@ class DesktopPagesContractTest {
         assertEquals(
             listOf(
                 "state", "fallbackName", "onRetry", "onPlaySongs", "onShuffle", "onOpenMenu", "onShelfItemClick", "onToggleSubscription",
-                "contentPadding",
+                "contentPadding", "artistId", "onStartRadio",
             ),
             SourceContract.names(SourceContract.parameters(src, "DesktopArtistPage")),
         )
@@ -138,49 +138,36 @@ class DesktopPagesContractTest {
         assertTrue(Regex("""style = CosmoIconButtonStyle\.PLAIN""").findAll(row).count() >= 4, "like, download, add and remove are PLAIN")
     }
 
-    @Test fun theCollectionPageHasTheHeroTheActionsAndTheFourColumns() {
+    @Test fun theCollectionPageIsTheOrbitCardAndHomesRows() {
         val page = SourceContract.code(SourceContract.read(collectionFile))
         assertTrue(Regex("""PAGE_PADDING_X = 28\.dp""").containsMatchIn(page) && Regex("""PAGE_PADDING_TOP = 16\.dp""").containsMatchIn(page), "padding 16 28")
-        assertTrue(Regex("""HERO_COVER = 232\.dp""").containsMatchIn(page), "the cover is 232 dp")
-        assertTrue(Regex("""HERO_GAP = 28\.dp""").containsMatchIn(page), "gap 28")
-        assertTrue(Regex("""ROW_GAP = 2\.dp""").containsMatchIn(page), "rows 2 dp apart")
-        assertTrue("CoverFrame(size = HERO_COVER, radius = CosmoRadii.rMd, shadow = false)" in page, "the cover has the token's corners and no glow, and the canvas is in the same frame")
-        assertTrue(Regex("""CoverFrame\(.*?DesktopCanvasView\(""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(page), "the canvas is drawn inside the cover's frame")
-        assertTrue("type.headline" in page, "the title is `headline`, a detail title (DESIGN_SYSTEM.md 3.2)")
-        assertTrue("CREDIT_CIRCLE = 28.dp" in page, "the credit's circle is 28 dp")
-        assertTrue("kind = CosmoButtonKind.PRIMARY" in page && "size = CosmoButtonSize.LARGE" in page, "Play is PRIMARY LARGE")
-        assertEquals(2, Regex("""style = CosmoIconButtonStyle\.TONAL""").findAll(page).count(), "Shuffle and find are TONAL")
-        assertTrue(Regex("""icon = CosmoIcons\.More,.*?style = CosmoIconButtonStyle\.PLAIN""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(page), "More is PLAIN")
+        assertTrue("OrbitReleaseCard(" in page, "the page leads with the shared colour card, Play in its bite")
+        assertTrue("motion = motion" in page && "albumCanvas?.toShared()" in page, "the album's motion artwork loops inside the card's disc")
+        assertTrue("OrbitCardButton(CosmoIcons.Shuffle" in page && "OrbitCardButton(CosmoIcons.Download" in page && "OrbitCardButton(CosmoIcons.MoreVertical" in page,
+            "Shuffle, Download and More are the card's round buttons")
+        assertTrue("OrbitTrackRow(" in page, "the songs are Home's rows")
+        assertTrue("OrbitPageButton(" in page, "find in the list is a round button by the list's controls")
         assertTrue("import com.cosmotune.ui.bridge.DropdownMenu\n" in SourceContract.read(collectionFile), "the menu is the bridge's")
-        assertTrue("weight(0.6f)" in page, "a playlist's rows have an album column")
     }
 
-    @Test fun theArtistPageHasTheBannerTheColumnsAndTheShelves() {
+    @Test fun theArtistPageIsTheSharedOrbitPage() {
         val page = SourceContract.code(SourceContract.read(artistFile))
-        assertTrue(Regex("""BANNER_HEIGHT = 400\.dp""").containsMatchIn(page), "the banner is 400 dp")
-        assertTrue(Regex("""BANNER_TEXT_START = 32\.dp""").containsMatchIn(page) && Regex("""BANNER_TEXT_BOTTOM = 22\.dp""").containsMatchIn(page), "the words are 32 in and 22 up")
-        assertTrue("blendMode = BlendMode.DstIn" in page && Regex("""BANNER_FADE_FROM = 0\.5f""").containsMatchIn(page), "the picture is clear to 50 % and then fades into the page, by an alpha mask")
-        assertTrue("type.headline" in page, "the name is `headline`, a detail title (DESIGN_SYSTEM.md 3.2)")
-        assertTrue(Regex("""PlayMorphButton\(.*?size = 56\.dp""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(page), "Play is the 56 dp morph button")
-        assertTrue(Regex("""kind = CosmoButtonKind\.TONAL,\s*size = CosmoButtonSize\.SMALL""").containsMatchIn(page), "Follow is TONAL SMALL")
-        assertTrue("onToggleSubscription != null" in page, "Follow only when the account can")
-        assertTrue(Regex("""POPULAR_WEIGHT = 1\.4f""").containsMatchIn(page) && Regex("""ABOUT_WEIGHT = 1f""").containsMatchIn(page), "columns 1.4 to 1")
-        assertTrue(Regex("""COLUMNS_GAP = 28\.dp""").containsMatchIn(page) && Regex("""COLUMNS_PADDING = ShellMetrics\.DESKTOP_PAGE_MARGIN_DP\.dp""").containsMatchIn(page), "gap 28, padding 0 28: the desktop page margin, not the older board's 32 (P4-22)")
-        assertTrue("fontSize = 14.sp, lineHeight = 14.sp * 1.6f" in page, "About is 14 sp on lines 1.6 tall")
-        assertTrue("CosmoShelf(" in page && "cardWidth = SHELF_CARD" in page && Regex("""SHELF_CARD = 150\.dp""").containsMatchIn(page), "the shelves are CosmoShelf with 150 dp cards")
-        assertTrue("onShelfItemClick(it, shelf.title)" in page, "a card calls onShelfItemClick(item, the shelf's title)")
-        assertTrue("onOpenMenu(song)" in page && "CosmoIcons.MoreVertical" in page, "the dots on a popular row open the song's menu")
-        assertTrue("UiState.Loading ->" in page && "CosmoLoadingBlob(" in page, "loading is the blob")
-        assertTrue("is UiState.Error -> MessageState(" in page && "onAction = onRetry" in page, "an error is a MessageState with a retry")
+        assertTrue("OrbitArtistPage(" in page, "the artist page is the one both hosts share")
+        assertTrue("onToggleFollow = subscription?.let" in page && "onToggleSubscription != null" in page, "Follow only when the account can")
+        assertTrue("onRadio = onStartRadio?.let" in page, "Radio starts a station from the first top song")
+        assertTrue("onItemClick = { item, shelf -> onShelfItemClick(item, shelf.title) }" in page, "a card calls onShelfItemClick(item, the shelf's title)")
+        assertTrue("onSongMore = onOpenMenu" in page && "onSongLongPress = onOpenMenu" in page, "the dots on a top song, and a right click, open the song's menu")
+        assertTrue("loading = state is UiState.Loading" in page, "while it loads the card stands over a skeleton")
+        assertTrue("MessageState(message = state.message" in page && "onAction = onRetry" in page, "an error is a MessageState with a retry")
     }
 
     @Test fun theOldPagesBehaviourIsKept() {
         val page = SourceContract.code(SourceContract.read(collectionFile))
         assertTrue("DesktopCanvasClient.lookupAlbum(collection.title" in page && "if (!animatedCanvas)" in page, "the album's motion artwork, only when animatedCanvas")
         assertTrue("song.isUnresolvedSpotify" in page && "enabled = !unresolved" in page, "an unresolved Spotify row is inert")
-        assertTrue("song.isMatchMissing" in page && "MISSING_ALPHA = 0.45f" in page, "a row with no match is dimmed")
-        assertTrue("position % 2 == 1" in page, "the stripe follows the place on screen, not the track number")
-        for (item in listOf("onShare?.let", "onRename?.let", "onDelete?.let", "onDownloadAll()")) assertTrue(item in page, "the more menu still has $item")
+        assertTrue("OrbitTrackRow(" in page, "a row with no match is dimmed by the shared row")
+        for (item in listOf("onShare?.let", "onRename?.let", "onReorder?.let", "onDelete?.let")) assertTrue(item in page, "the more menu still has $item")
+        assertTrue("onDownloadAll = { onDownloadAll(queue) }" in page, "Download on the card downloads the visible rows")
         assertTrue("onRemoveFromPlaylist?.takeIf { song.setVideoId != null }" in page, "only a row that came from the playlist can be removed")
         val filtering = SourceContract.code(SourceContract.read("shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/model/MusicSongList.kt"))
         assertTrue("MusicSongList.rows(songs, listQuery, listOrder, downloadedOnly, downloadedIds)" in page,
@@ -194,16 +181,15 @@ class DesktopPagesContractTest {
             .replace(Regex("\\s+"), " ")
         assertTrue("val queue = remember(shownSongs) { shownSongs.map { it.value } }" in body,
             "the playback queue follows the filtered and sorted rows")
-        assertTrue("onPlaySongs = { _, _ -> if (queue.isNotEmpty()) onPlaySongs(queue, 0) }" in body,
-            "header Play uses the visible queue, not the collection's unfiltered provider order")
+        assertTrue("ArtistPlay.Tap.PLAY_LIST -> if (queue.isNotEmpty()) onPlaySongs(queue, 0)" in body,
+            "the bite plays the visible queue, not the collection's unfiltered provider order")
         assertTrue("onShuffle = { if (queue.isNotEmpty()) onShuffle(queue) }" in body &&
             "onDownloadAll = { onDownloadAll(queue) }" in body,
             "header Shuffle and bulk download receive the same visible rows")
         assertTrue("else onPlaySongs(queue, position)" in body,
             "a row starts its visible queue at the visible position")
-        assertTrue("itemsIndexed(shownSongs, key = { _, entry -> MusicSongList.occurrence(entry) })" in body &&
-            "val (index, song) = entry" in body && "number = index + 1" in body,
-            "rows retain canonical occurrence identity and track numbers after sorting or filtering")
+        assertTrue("itemsIndexed(shownSongs, key = { _, entry -> MusicSongList.occurrence(entry) })" in body,
+            "rows retain canonical occurrence identity after sorting or filtering")
         assertTrue("MusicSongList.rows(songs, order = listOrder).filter { MusicSongList.occurrence(it) in keys }.map { it.value }" in body,
             "selected songs are resolved from exact occurrences in the current list order")
         assertTrue("onPlaySelection = { if (selectedSongs.isNotEmpty()) onPlaySongs(selectedSongs, 0) }" in body &&
@@ -217,8 +203,8 @@ class DesktopPagesContractTest {
         }
         val row = SourceContract.code(SourceContract.functionBody(SourceContract.read(collectionFile), "CollectionTrackRow"))
             .replace(Regex("\\s+"), " ")
-        assertTrue("onCheckedChange = { if (!unresolved) onClick() }, enabled = !unresolved" in row,
-            "selection checkboxes cannot bypass the disabled unresolved-track row")
+        assertTrue("onClick = { if (!unresolved) onClick() }" in row,
+            "selecting cannot bypass the disabled unresolved-track row")
     }
 
     @Test fun collectionPaginationFollowsContinuationChangesAndExposesAnExplicitRetry() {

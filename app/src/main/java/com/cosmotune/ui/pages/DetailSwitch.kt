@@ -15,6 +15,10 @@ import com.cosmotune.design.ReleaseMeta
 import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.music.R
 import com.cosmotune.music.data.canvas.AppleArtistArtRepository
+import com.cosmotune.music.data.canvas.CanvasArtwork
+import com.cosmotune.music.data.canvas.CanvasRepository
+import com.cosmotune.music.data.settings.AppSettings
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.data.model.BrowseType
 import com.cosmotune.music.data.model.DetailPage
 import com.cosmotune.music.data.model.HomeShelf
@@ -31,8 +35,8 @@ import com.cosmotune.music.ui.screens.DetailScreen
  * The one entry point of the album, playlist and artist pages: the new pages while the new look is on (the shell exists), the old
  * screen while it is off.
  *
- * The parameter list is [DetailScreen]'s, name for name, with the same defaults and in the same order, plus one more at the end,
- * [onPlayPause], which only the new artist page reads; and the old branch passes every argument of [DetailScreen] by name. That is the seam: when upstream adds a parameter to [DetailScreen] the old branch stops compiling (or the contract
+ * The parameter list is [DetailScreen]'s, name for name, with the same defaults and in the same order, plus the new pages' own at
+ * the end ([onPlayPause], [onDownloadAll], [onStartRadio]), which the old screen never reads; and the old branch passes every argument of [DetailScreen] by name. That is the seam: when upstream adds a parameter to [DetailScreen] the old branch stops compiling (or the contract
  * test fails), and this file is where the new parameter has to be decided on instead of silently going missing from the new pages.
  * With the new look off nothing here runs but the old call.
  *
@@ -66,9 +70,12 @@ fun DetailSwitch(
     onLoadReleaseLibrary: ((String) -> Unit)? = null,
     onToggleReleaseLibrary: ((String) -> Unit)? = null,
     songSort: SongSort = SongSort.DEFAULT,
-    // The one parameter the old screen does not have: the root's play/pause, for the new artist page's big button (the old one never
-    // needed it). Not passed on to [DetailScreen].
+    // A parameter the old screen does not have: the root's play/pause, for the bite of the artist and release cards while one of
+    // their songs is loaded (the old screen never needed it). Not passed on to [DetailScreen].
     onPlayPause: (() -> Unit)? = null,
+    // The Orbit pages' own actions, which the old screen never had: Download on a release's card, Radio on an artist's.
+    onDownloadAll: ((List<Song>) -> Unit)? = null,
+    onStartRadio: ((Song) -> Unit)? = null,
 ) {
     if (LocalCosmoShell.current != null) {
         if (page.type == BrowseType.ARTIST) {
@@ -93,18 +100,16 @@ fun DetailSwitch(
                 onToggleReleaseLibrary = onToggleReleaseLibrary,
                 modifier = modifier,
                 onPlayPause = onPlayPause,
+                onStartRadio = onStartRadio,
             )
         } else {
             val raw = (page.songs as? UiState.Success)?.data.orEmpty()
             val initialOrder = songSort.listOrder(raw.any { it.localDateAddedSeconds != null })
             val downloadedIds = AppUi.host.downloadedIds()
-            // What a numbered row shows whatever [songSort] says: an album's track numbers are the sleeve's own and must not
-            // relabel themselves to match wherever a sort put the row (`DetailScreen.kt`'s `originalTrackNumbers`).
-            val trackNumbers = remember(raw) { raw.withIndex().associate { (i, s) -> s.videoId to i + 1 } }
+            val albumCanvas = rememberAlbumCanvas(page, raw)
             CosmoReleasePage(
                 page = page,
                 songs = raw,
-                trackNumbers = trackNumbers,
                 currentSong = currentSong,
                 isPlaying = isPlaying,
                 listState = listState,
@@ -120,6 +125,9 @@ fun DetailSwitch(
                 modifier = modifier,
                 initialOrder = initialOrder,
                 downloadedIds = downloadedIds,
+                onDownloadAll = onDownloadAll,
+                albumCanvas = albumCanvas,
+                onPlayPause = onPlayPause,
             )
         }
     } else {
@@ -177,6 +185,27 @@ private fun rememberArtistPage(page: DetailPage): DetailPage {
     val subscribers = page.subscriberCountText?.let { stringResource(R.string.subscribers, it.substringBefore(' ')) }
     val listeners = page.monthlyListenerCount?.let { stringResource(R.string.monthly_listeners, it.substringBefore(' ')) }
     return remember(page, subscribers, listeners) { page.copy(subscriberCountText = subscribers, monthlyListenerCount = listeners) }
+}
+
+/**
+ * An album's animated cover, the old screen's lookup (`DetailScreen.kt`): an album only (a playlist's artwork is a collage), asked
+ * by the album's name and its credit while the animated-artwork switch is on, keeping a clip already found when a second pass (the
+ * credit filling in once the songs load) comes back empty. The page plays it under the motion rules of [rememberMotionAllowed].
+ */
+@Composable
+private fun rememberAlbumCanvas(page: DetailPage, songs: List<Song>): CanvasArtwork? {
+    val enabled by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
+    val spotifyFirst by AppSettings.prioritizeSpotifyCanvas.collectAsStateWithLifecycle()
+    val credit = ReleaseMeta.parts(page.subtitle, page.type, emptyList()).credit.ifBlank { songs.firstOrNull()?.artist.orEmpty() }
+    var canvas by remember(page.browseId) { mutableStateOf<CanvasArtwork?>(null) }
+    LaunchedEffect(page.browseId, page.title, credit, enabled, spotifyFirst) {
+        if (!enabled || page.type != BrowseType.ALBUM) {
+            canvas = null
+            return@LaunchedEffect
+        }
+        canvas = CanvasRepository.canvasForAlbum(page.title, credit) ?: canvas
+    }
+    return canvas
 }
 
 /**

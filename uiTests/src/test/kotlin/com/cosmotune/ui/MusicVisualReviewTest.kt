@@ -195,7 +195,7 @@ class MusicVisualReviewTest {
         page(OneTestPalette.dark(), true) {
             if (visible.value) CosmoReleasePage(
                 page = DetailPage("MPREx", "A fixture album", "Album • Fixture artist • 2026", art, songs = UiState.Success(rows), type = BrowseType.ALBUM),
-                songs = rows, trackNumbers = emptyMap(), currentSong = null, isPlaying = false, listState = rememberLazyListState(),
+                songs = rows, currentSong = null, isPlaying = false, listState = rememberLazyListState(),
                 contentPadding = PaddingValues(top = 56.dp), onSongClick = { _, _ -> }, onSongLongPress = {}, onSongSwipe = {}, onShuffle = {},
                 onMore = {}, onArtistClick = { _, _ -> }, onAddSuggested = {}, onToggleLibrary = null,
             )

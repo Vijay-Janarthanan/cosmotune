@@ -21,10 +21,9 @@ class PlayingRowContractTest {
         "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/search/CosmoSearchResults.kt",
         "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/search/CosmoSearch.kt",
         "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/pages/CosmoReleasePage.kt",
-        "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/pages/CosmoArtistPage.kt",
+        "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/orbit/OrbitArtist.kt",
         "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/library/CosmoHistory.kt",
         "desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopCollectionPage.kt",
-        "desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopArtistPage.kt",
     )
 
     private val shelves = listOf(

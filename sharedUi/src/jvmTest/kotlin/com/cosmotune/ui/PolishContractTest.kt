@@ -207,10 +207,9 @@ class PolishContractTest {
         val page = SourceContract.read("${shared}pages/CosmoArtistPage.kt")
         assertEquals("onPlayPause: (() -> Unit)? = null", SourceContract.parameters(page, "CosmoArtistPage").last(), "the last parameter is the optional toggle")
         val code = SourceContract.code(page).replace(Regex("\\s+"), " ")
-        assertTrue(code.contains("val artistPlaying = ArtistPlay.showsPause(songs, currentSong, isPlaying)"), "the button reads as pause by the shared rule")
+        assertTrue(code.contains("playing = ArtistPlay.showsPause(songs, currentSong, isPlaying)"), "the bite reads as pause by the shared rule")
         assertTrue(code.contains("ArtistPlay.tap(songs, currentSong, canToggle = onPlayPause != null)"), "the tap asks the shared rule")
-        assertTrue(code.contains("ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()") && code.contains("ArtistPlay.Tap.PLAY_LIST -> onSongClick(songs, 0)"), "a toggle toggles, otherwise the list plays from the top")
-        assertTrue(code.contains("onPlayPause = onPlayPause"), "the page hands the toggle down to the list")
+        assertTrue(code.contains("ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()") && code.contains("ArtistPlay.Tap.PLAY_LIST -> if (songs.isNotEmpty()) onSongClick(songs, 0)"), "a toggle toggles, otherwise the list plays from the top")
     }
 
     @Test fun theDetailSwitchPassesTheRootsToggleToTheArtistPageOnlyAndKeepsTheOldCallAsItWas() {
@@ -218,11 +217,12 @@ class PolishContractTest {
         val old = SourceContract.parameters(SourceContract.read("${app}ui/screens/DetailScreen.kt"), "DetailScreen")
         val own = SourceContract.parameters(switch, "DetailSwitch")
         assertEquals(old, own.take(old.size), "the switch starts with the old screen's parameters, as written")
-        assertEquals(listOf("onPlayPause: (() -> Unit)? = null"), own.drop(old.size), "and has one more, defaulted, at the end")
+        assertEquals("onPlayPause: (() -> Unit)? = null", own.drop(old.size).first(), "and has more, defaulted, at the end: the toggle first")
         val body = SourceContract.code(SourceContract.functionBody(switch, "DetailSwitch")).replace(Regex("\\s+"), " ")
         val artist = body.substringAfter("CosmoArtistPage(").substringBefore("CosmoReleasePage(")
         assertTrue(artist.contains("onPlayPause = onPlayPause"), "the artist page gets the toggle")
-        assertEquals(1, Regex("""onPlayPause = onPlayPause""").findAll(body).count(), "and only the artist page")
+        // Orbit: the release card's bite is the toggle too while one of its songs is loaded
+        assertEquals(2, Regex("""onPlayPause = onPlayPause""").findAll(body).count(), "the artist and the release page, nobody else")
         assertFalse(body.substringAfter("} else { DetailScreen(").contains("onPlayPause"), "the old screen's call does not know it")
     }
 

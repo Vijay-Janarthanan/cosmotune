@@ -76,11 +76,7 @@ fun rememberArtistVisuals(name: String): ArtistVisuals {
 /** The still remains behind the muted loop until frames arrive or if video fails. */
 @Composable
 fun ArtistMotionArtwork(art: AppleArtistArt?, fallbackUrl: String?, modifier: Modifier = Modifier) {
-    val settings = PlayerPlatform.host.settings
-    val animated by settings.animatedCanvas.collectAsStateWithLifecycle()
-    val cellular by settings.meteredConnection.collectAsStateWithLifecycle()
-    val overCellular by settings.canvasOverCellular.collectAsStateWithLifecycle()
-    val reduced = LocalReducedMotion.current
+    val allowed = rememberMotionAllowed()
     val clip = remember(art?.videoUrl) { art?.videoUrl?.let { CanvasArtwork(it) } }
     var rendered by remember(clip) { mutableStateOf(false) }
     Box(modifier) {
@@ -90,11 +86,24 @@ fun ArtistMotionArtwork(art: AppleArtistArt?, fallbackUrl: String?, modifier: Mo
         art?.heroUrl?.takeIf { it.isNotBlank() && it != fallbackUrl }?.let { hero ->
             AsyncImage(hero, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         }
-        if (clip != null && artistMotionPlays(animated, reduced, cellular, overCellular)) {
+        if (clip != null && allowed) {
             CanvasArtworkPlayer(clip, isPlaying = true, modifier = Modifier.fillMaxSize(), contentMode = CanvasContentMode.CROP,
                 onRenderedChanged = { rendered = it }, presentationAlpha = { if (rendered) 1f else 0f })
         }
     }
+}
+
+/**
+ * Whether a silent decorative loop (an artist's moving portrait, an album's animated cover) may play here now: [artistMotionPlays]
+ * over the player's own settings and the system's reduced motion.
+ */
+@Composable
+fun rememberMotionAllowed(): Boolean {
+    val settings = PlayerPlatform.host.settings
+    val animated by settings.animatedCanvas.collectAsStateWithLifecycle()
+    val cellular by settings.meteredConnection.collectAsStateWithLifecycle()
+    val overCellular by settings.canvasOverCellular.collectAsStateWithLifecycle()
+    return artistMotionPlays(animated, LocalReducedMotion.current, cellular, overCellular)
 }
 
 /**
