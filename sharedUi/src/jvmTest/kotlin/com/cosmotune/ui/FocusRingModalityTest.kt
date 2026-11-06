@@ -64,6 +64,6 @@ class FocusRingModalityTest {
         assertTrue("fun FocusModalityRoot(enabled: Boolean, content: @Composable () -> Unit) { Box(if (enabled) Modifier.trackFocusModality() else Modifier, propagateMinConstraints = true) { content() } }" in root, "a box that changes no constraint")
         assertTrue(".trackFocusModality()" in code("$ui/chrome/CosmoProfileDrawer.kt"), "the drawer's window")
         assertTrue("modifier .trackFocusModality() .fillMaxWidth()" in code("$ui/sheets/CosmoSheetSurface.kt"), "a sheet's window")
-        assertTrue("Box(Modifier.trackFocusModality().fillMaxSize().cosmoAmbientGround()" in code("$ui/settings/LookPreview.kt"), "the look preview's window")
+        assertTrue("Box(Modifier.trackFocusModality().fillMaxSize().background(look.ground)" in code("$ui/settings/LookPreview.kt"), "the look preview's window")
     }
 }

@@ -266,8 +266,9 @@ class LibraryContractTest {
         assertTrue("AppUi.host.pinnedPlaylists" in code && "AppUi.host.librarySort" in code, "pin and sort are read live")
         assertTrue("LibrarySegments.sorted(LibrarySegments.pinnedFirst(" in code, "pinned first, then the explicit sort")
         assertTrue("item(key = \"leading\")" in code && "if (onNewPlaylist != null)" in code, "the new-playlist cell leads, only when asked")
-        assertTrue(".size(width)" in code && "CosmoIcons.Plus" in code, "a square as wide as a cover, with the plus")
-        assertTrue("palette.surface" in code && "RoundedCornerShape(CosmoRadii.rMd)" in code, "flat surface1, the token's corners")
+        assertTrue(".size(width)" in code && "CosmoIcons.Plus" in code, "a disc as wide as a cover, with the plus")
+        assertTrue("clip(CircleShape).background(look.chip)" in code, "the quiet chip fill, round as every cover")
+        assertTrue("OrbitRecord(" in code && "onPlay = null" in code, "the cards are Orbit records, with no play moon")
         assertTrue("Res.string.new_playlist" in code && "Res.string.saved_to_youtube_music" in code)
         assertTrue("key = { index, item -> shelfKey(item, index) }" in code, "every card has a key that cannot repeat")
     }
