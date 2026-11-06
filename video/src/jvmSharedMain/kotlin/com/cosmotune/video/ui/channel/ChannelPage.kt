@@ -102,8 +102,8 @@ fun ChannelPage(route: VideoRoute.Channel, contentPadding: PaddingValues, wide: 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // The grid starts at 600 dp here (DESIGN_SYSTEM.md 6.2), below the shell's 840.
         val grid = wide || maxWidth >= GRID_MIN
-        // The phone's banner is full-bleed: it starts at the top of the window, under the clear bar.
-        val padding = if (grid) contentPadding else PaddingValues(bottom = contentPadding.calculateBottomPadding())
+        // The colour card stands under the bar on every width.
+        val padding = contentPadding
         when (val header = model.header) {
             is Loaded.Loading -> ChannelLoading(padding, grid, maxWidth.value)
             is Loaded.Failed -> ChannelFailed(contentPadding, onRetry = model::retry)
@@ -283,10 +283,12 @@ private fun PageHost(
 @Composable
 private fun HeaderParts(ui: ChannelUi, line: PageLine) {
     Column(Modifier.fillMaxWidth()) {
-        ChannelBanner(ui.page.bannerUrl, ui.wide, ui.widthDp, line.own)
-        ChannelHead(ui.page.channel, ui.wide, line.own, onAbout = if (ChannelSection.ABOUT in ui.sections) ({ ui.onSelect(ChannelSection.ABOUT) }) else null)
-        ChannelActions(ui.subscribed, ui.wide, line.own, ui.preparing, ui.onSubscribe, ui.onShare, ui.onDownload)
-        ChannelTabChips(ui.sections, ui.section, ui.onSelect, line.fit(Modifier))
+        ChannelCard(
+            channel = ui.page.channel, bannerUrl = ui.page.bannerUrl, subscribed = ui.subscribed, wide = ui.wide, margin = line.own,
+            preparing = ui.preparing, onSubscribe = ui.onSubscribe, onShare = ui.onShare, onDownload = ui.onDownload,
+            onAbout = if (ChannelSection.ABOUT in ui.sections) ({ ui.onSelect(ChannelSection.ABOUT) }) else null,
+        )
+        ChannelTabChips(ui.sections, ui.section, ui.onSelect, line.fit(Modifier.padding(top = 16.dp, bottom = 8.dp)))
     }
 }
 

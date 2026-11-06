@@ -1,27 +1,27 @@
 package com.cosmotune.video.ui.blocks
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.cosmotune.ui.orbit.OrbitSectionHeader
+import com.cosmotune.ui.orbit.OrbitShelfRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.model.VideoItem
-import com.cosmotune.music.ui.components.LocalShelfRowChrome
-import com.cosmotune.ui.kit.KitSectionHeader
 
 /**
- * A shelf of [VideoShelfCard]s (DESIGN_SYSTEM.md 4.5, 4.7): the heading ([KitSectionHeader], [title]), and a row of cards that scrolls sideways, 16 dp in from each side and 12 dp apart. A tap on a card calls [onItemClick]; its menu, [onItemMore].
- * [watched] gives a video's watched fraction by id (the watched bar of "Continue watching"), [downloaded] says whether a video is
- * downloaded, and [cardWidth] sets the cards. The cards are keyed by video id (a repeat in the list gets a
- * suffix, so a feed that lists a video twice cannot crash the row). On the desktop the row is wrapped in the platform's shelf
- * chrome (the arrows, the drag and the horizontal wheel), as part two's shelves are.
+ * A shelf of [VideoShelfCard]s (Orbit board B): the section heading in the wide face ([OrbitSectionHeader], [title]), and a row of cards
+ * that scrolls sideways in the kit's shelf row (the desktop's arrows, drag and wheel), 16 dp in from each side and 18 apart. A tap on
+ * a card calls [onItemClick]; its menu, [onItemMore]. [watched] gives a video's watched fraction by id (the watched line of "Continue
+ * watching"), [downloaded] says whether a video is downloaded, and [cardWidth] sets the cards. The cards are keyed by video id (a
+ * repeat in the list gets a suffix, so a feed that lists a video twice cannot crash the row).
  */
 @Composable
 fun VideoShelf(
@@ -35,26 +35,20 @@ fun VideoShelf(
     downloaded: (String) -> Boolean = { false },
 ) {
     val keys = remember(items) { uniqueKeys(items) }
-    val rowState = rememberLazyListState()
+    val indexed = remember(items) { items.indices.toList() }
     Column(modifier) {
-        KitSectionHeader(title = title)
-        LocalShelfRowChrome.current.Wrap(rowState) {
-            LazyRow(
-                state = rowState,
-                contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
-                horizontalArrangement = Arrangement.spacedBy(VideoMetrics.SHELF_GAP_DP.dp),
-            ) {
-                items(count = items.size, key = { keys[it] }) { index ->
-                    val item = items[index]
-                    VideoShelfCard(
-                        item = item,
-                        onClick = { onItemClick(item) },
-                        onMore = { onItemMore(item) },
-                        watchedFraction = watched(item.id),
-                        width = cardWidth,
-                        downloaded = downloaded(item.id),
-                    )
-                }
+        OrbitSectionHeader(title, "", orbitFonts(), orbitLook(), Modifier.padding(start = CosmoSpacing.margin + 6.dp, end = CosmoSpacing.margin, top = 20.dp, bottom = 14.dp))
+        OrbitShelfRow(CosmoSpacing.margin, 18.dp) {
+            items(indexed, key = { keys[it] }) { index ->
+                val item = items[index]
+                VideoShelfCard(
+                    item = item,
+                    onClick = { onItemClick(item) },
+                    onMore = { onItemMore(item) },
+                    watchedFraction = watched(item.id),
+                    width = cardWidth,
+                    downloaded = downloaded(item.id),
+                )
             }
         }
     }

@@ -464,8 +464,8 @@ class ShellStructureTest {
         assertTrue("items(shownChannels, key = { it.channelId })" in src, "stable keys")
         // the selected row follows the page on show and is filled with the neutral surface3, drawn from the live palette
         assertTrue("drawRect(colors.live(CoverField.SURFACE_VARIANT))" in src)
-        val music = read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopSidebar.kt")
-        assertTrue("NAV_HEIGHT = 44.dp" in music && "NAV_RADIUS = 22.dp" in music && "SEARCH_HEIGHT = 44.dp" in music, "Music's sidebar has the numbers this one copies")
+        // the rows are Orbit's navigation pieces, as Music's sidebar has them
+        assertTrue("OrbitNavModeChip(" in src && "OrbitNavChip(icon, label, selected, onClick)" in src && "OrbitNavPlaylist(channel.name" in src)
     }
 
     @Test fun theSearchFieldSharesItsStateWithThePageThroughTheDesktopState() {

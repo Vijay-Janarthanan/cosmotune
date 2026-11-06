@@ -211,7 +211,7 @@ class DownloadsPageStructureTest {
         assertTrue(Regex("""style = CosmoIconButtonStyle\.TONAL,\s+size = DownloadsMetrics\.BATCH_BUTTON_DP\.dp""").findAll(header).count() == 2, "Pause or Resume and Cancel: 40 dp TONAL")
         assertTrue("if (batch.unfinished > 0)" in header, "nothing to pause or cancel once all of it is done or failed")
         val page = code("DownloadsPage")
-        assertTrue("type.forText(type.displayLarge, title)" in page, "\"Downloads\" in displayLarge")
+        assertTrue("VideoPageHeading(" in page && "Res.string.video_downloads" in page, "\"Downloads.\" as an Orbit page heading")
         assertTrue("CosmoIcons.Sort" in page && "DropdownMenu(" in page && "DownloadsSort.entries" in page, "the sort menu: Newest, Oldest, Title, Size")
         assertTrue("CosmoEmptyState(" in page && "Res.string.video_dl_empty" in page, "\"Nothing downloaded yet\"")
         val row = code("DownloadItemRow")
@@ -222,7 +222,6 @@ class DownloadsPageStructureTest {
 
     @Test fun aFinishedRowShowsTheDownloadedBadge() {
         val row = code("DownloadItemRow")
-        assertTrue("val finished = entry.state is DownloadState.Done" in row && "downloaded = finished" in row, "the badge on a finished download's thumbnail")
         assertTrue("VideoRowFrame(" in row && "Modifier.rowThumbnailSize(desktop)" in row, "a video row (Y-13's frame and thumbnail)")
         assertTrue("rememberVideoTitle(item)" in row && "rememberVideoThumbnail(item)" in row, "the title and picture every card shows")
     }

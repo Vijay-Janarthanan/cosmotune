@@ -115,7 +115,8 @@ class ShortsStructureTest {
         assertTrue("Modifier.fillMaxSize().background(Color.Black)" in pager)
         val overlay = VideoSourceContract.code(shorts("ShortsOverlay"))
         assertTrue("CosmoIcons.Search" in overlay && "VideoIcons.ThumbDown" in overlay, "search in the top row, dislike on the rail")
-        assertTrue("type.forText(type.titleLarge, title)" in overlay && "type.caption" in overlay)
+        assertTrue("fonts.section.copy(fontSize = 22.sp)" in overlay && "style = fonts.label" in overlay, "\"Shorts.\" in the wide face, the counts in the mono label face")
+        assertTrue("MediaRoundButton(" in overlay, "the actions are round buttons at the edge")
         assertTrue("SCRIM_BOTTOM_SHARE = 0.35f" in overlay, "the scrim covers the bottom 35 %")
     }
 
@@ -130,7 +131,7 @@ class ShortsStructureTest {
             VideoSourceContract.parameters(stubs, "ShortsGrid"),
         )
         assertTrue("fun VideoNavigator.openShort(item: VideoItem, origin: ShortsOrigin, list: List<VideoItem>)" in stubs)
-        assertTrue("KitSectionHeader(title = title, onSeeAll = onSeeAll" in VideoSourceContract.functionBody(stubs, "ShortsShelf"))
+        assertTrue("VideoSectionHeading(title, onSeeAll = onSeeAll" in VideoSourceContract.functionBody(stubs, "ShortsShelf"))
         assertEquals(
             listOf("item: VideoItem", "width: Dp", "onClick: () -> Unit", "onMore: () -> Unit", "modifier: Modifier = Modifier", "downloaded: Boolean = false"),
             VideoSourceContract.parameters(shorts("ShortsCard"), "ShortsCard"),
@@ -174,7 +175,7 @@ class ShortsStructureTest {
         val overlay = shorts("ShortsOverlay")
         for (n in listOf(
             "PAGER_TOP_SCRIM_DP", "PAGER_TOP_SCRIM_ALPHA", "PAGER_BOTTOM_SCRIM_ALPHA", "PAGER_TOP_BUTTON_DP",
-            "PAGER_RAIL_BUTTON_DP", "PAGER_RAIL_GAP_DP", "PAGER_AVATAR_DP", "PAGER_CHIP_DP", "PAGER_PAUSE_GLYPH_DP", "PAGER_PAUSE_GLYPH_MS",
+            "PAGER_RAIL_BUTTON_DP", "PAGER_RAIL_GAP_DP", "PAGER_AVATAR_DP", "PAGER_CHIP_DP", "PAGER_PAUSE_GLYPH_MS",
         )) {
             assertTrue("VideoMetrics.$n" in overlay, n)
         }
@@ -186,11 +187,11 @@ class ShortsStructureTest {
         val heart = shorts("HeartBurst")
         assertTrue("VideoMetrics.HEART_BURST_DP" in heart && "VideoMetrics.HEART_BURST_MS" in heart && "Springs.REDUCED_MS" in heart && "CosmoIcons.HeartFill" in heart)
         val card = VideoSourceContract.code(shorts("ShortsCard"))
-        assertTrue("VideoMetrics.shortsCardHeightDp(width.value)" in card && "rememberTitleStyle(title)" in card && "rememberMetaStyle(views.orEmpty())" in card)
+        assertTrue("VideoMetrics.shortsCardHeightDp(pictureWidth.value)" in card && "DiscPlayMoon(look, onClick" in card, "the tall picture with the play moon off its corner")
         assertTrue("rememberVideoTitle(item)" in card && "rememberVideoThumbnail(item)" in card, "DeArrow, limited and batched")
-        assertTrue(Regex("""fun Modifier\.shortsCardScrim\(\): Modifier = drawWithCache""").containsMatchIn(card), "the scrim is drawn in drawWithCache")
+        assertFalse("Scrim" in card, "nothing is drawn on the picture: the words are under it")
         val stubs = VideoSourceContract.code(shorts("ShortsStubs"))
-        assertTrue("VideoMetrics.SHORTS_SHELF_W_DP" in stubs && "VideoMetrics.SHORTS_SHELF_GAP_DP" in stubs && "items(count = items.size, key = { keys[it] })" in stubs)
+        assertTrue("VideoMetrics.SHORTS_SHELF_W_DP" in stubs && "SHELF_GAP = 14.dp" in stubs && "items(count = items.size, key = { keys[it] })" in stubs)
         val desk = shorts("ShortsDesktopPage")
         assertTrue("VideoMetrics.DESKTOP_SHORTS_VMARGIN_DP" in desk && "RoundedCornerShape(CosmoRadii.rMd)" in desk && "VideoMetrics.SIDE_COLUMN_DP" in desk)
         for (k in listOf("Key.DirectionUp", "Key.DirectionDown", "Key.Spacebar", "Key.M", "PointerEventType.Scroll")) assertTrue(k in desk, k)

@@ -87,7 +87,7 @@ fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Mo
 
 /** Play as a small moon on the bottom-end edge of a disc, ringed in the page's ground so the cover stays clear. Use inside the disc's box. */
 @Composable
-internal fun BoxScope.DiscPlayMoon(look: OrbitLook, onClick: () -> Unit, size: Dp = 44.dp) {
+fun BoxScope.DiscPlayMoon(look: OrbitLook, onClick: () -> Unit, size: Dp = 44.dp) {
     Box(
         Modifier.align(Alignment.BottomEnd).size(size).clip(CircleShape).background(look.ground)
             .padding(4.dp).clip(CircleShape).background(PEACH).clickable(onClick = onClick),

@@ -1,5 +1,7 @@
 package com.cosmotune.video.ui.home
 
+import com.cosmotune.ui.orbit.OrbitShelfRow
+import com.cosmotune.video.ui.blocks.VideoSectionHeading
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -153,26 +155,19 @@ internal fun HomeShelf(
     onSeeAll: (() -> Unit)? = null,
 ) {
     val keys = remember(items) { uniqueKeys(items) }
-    val rowState = rememberLazyListState()
     Column(modifier.padding(bottom = SHELF_BOTTOM)) {
-        KitSectionHeader(title = title, onSeeAll = onSeeAll, seeAllLabel = stringResource(SharedRes.string.show_all))
-        LocalShelfRowChrome.current.Wrap(rowState) {
-            LazyRow(
-                state = rowState,
-                contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
-                horizontalArrangement = Arrangement.spacedBy(VideoMetrics.SHELF_GAP_DP.dp),
-            ) {
-                items(count = items.size, key = { keys[it] }) { index ->
-                    val item = items[index]
-                    VideoShelfCard(
-                        item = rememberBranded(item),
-                        onClick = { onOpen(item) },
-                        onMore = { onMore(item) },
-                        watchedFraction = watched[item.id],
-                        width = cardWidth,
-                        downloaded = downloaded(item.id),
-                    )
-                }
+        VideoSectionHeading(title, onSeeAll = onSeeAll, seeAllLabel = stringResource(SharedRes.string.show_all))
+        OrbitShelfRow(CosmoSpacing.margin, 18.dp) {
+            items(count = items.size, key = { keys[it] }) { index ->
+                val item = items[index]
+                VideoShelfCard(
+                    item = rememberBranded(item),
+                    onClick = { onOpen(item) },
+                    onMore = { onMore(item) },
+                    watchedFraction = watched[item.id],
+                    width = cardWidth,
+                    downloaded = downloaded(item.id),
+                )
             }
         }
     }
@@ -184,14 +179,14 @@ private val SKELETON_TITLE_HEIGHT = 16.dp
 private val SKELETON_META_HEIGHT = 13.dp
 private val SKELETON_TEXT_GAP = 6.dp
 
-/** A feed card's skeleton: a 16:9 picture, a 36 dp avatar and two lines of text, as the card it stands in for. */
+/** A feed card's skeleton: a 16:9 picture (the Orbit card's 24 dp corner), a 32 dp disc and two lines of text, as the card it stands in for. */
 @Composable
 internal fun CardSkeleton(modifier: Modifier = Modifier) {
     Column(modifier) {
-        CosmoShimmer(Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(CosmoRadii.rMd))
-        Row(Modifier.fillMaxWidth().padding(top = VideoMetrics.FEED_META_TOP_DP.dp)) {
-            CosmoShimmer(Modifier.size(VideoMetrics.FEED_AVATAR_DP.dp), CircleShape)
-            Column(Modifier.weight(1f).padding(start = VideoMetrics.FEED_GAP_DP.dp)) {
+        CosmoShimmer(Modifier.padding(end = 12.dp).fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(24.dp))
+        Row(Modifier.fillMaxWidth().padding(top = 14.dp)) {
+            CosmoShimmer(Modifier.size(32.dp), CircleShape)
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 CosmoShimmer(Modifier.fillMaxWidth(SKELETON_TITLE_FRACTION).height(SKELETON_TITLE_HEIGHT))
                 CosmoShimmer(Modifier.padding(top = SKELETON_TEXT_GAP).fillMaxWidth(SKELETON_META_FRACTION).height(SKELETON_META_HEIGHT))
             }

@@ -26,7 +26,9 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import com.cosmotune.design.ShellMetrics
-import com.cosmotune.ui.blocks.CosmoSearchField
+import com.cosmotune.ui.orbit.OrbitSearchPill
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.graph.LocalVideoGraph
@@ -184,13 +186,15 @@ fun VideoSearch(route: VideoRoute.Search, contentPadding: PaddingValues, wide: B
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (!sidebar) {
-            CosmoSearchField(
+            OrbitSearchPill(
                 query = typed,
                 onQueryChange = { own = it },
                 onSubmit = { submit(own) },
                 placeholder = stringResource(Res.string.video_search_hint),
-                modifier = Modifier.listWidth(wide).padding(horizontal = CosmoSpacing.margin).padding(bottom = FIELD_GAP),
+                fonts = orbitFonts(),
+                look = orbitLook(),
                 focusRequester = focusRequester,
+                modifier = Modifier.listWidth(wide).padding(horizontal = CosmoSpacing.margin).padding(top = 4.dp, bottom = FIELD_GAP + 4.dp),
             )
         }
         val bottom = contentPadding.calculateBottomPadding()

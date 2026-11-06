@@ -1,5 +1,12 @@
 package com.cosmotune.video.ui.library
 
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.ui.blocks.VideoPageHeading
+import com.cosmotune.video.ui.blocks.VideoSectionHeading
+import com.cosmotune.video.resources.video_library_label
+import com.cosmotune.video.resources.Res
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -114,50 +121,33 @@ internal fun LibraryList(
     ) { content(cell) }
 }
 
-/** A library page's heading: the kit's large light [title], [actions] at its end (40 dp tonal buttons). It scrolls away under the top bar, which then names the page. */
+/**
+ * A library page's heading (Orbit): the mono "YOURS" over [title] in the wide face with its peach full stop, [actions] at its end
+ * (round buttons). It scrolls away under the top bar, which then names the page.
+ */
 @Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun LibraryHeader(title: String, wide: Boolean, modifier: Modifier = Modifier, actions: @Composable RowScope.() -> Unit = {}) {
-    KitPageTitle(title = title, modifier = modifier, actions = actions)
+    VideoPageHeading(title, stringResource(Res.string.video_library_label), modifier, actions)
 }
 
 /**
- * A row of a hairline list group (DESIGN_SYSTEM.md 4.9): 56 dp, [icon] in `textSecondary` at 24 dp with no tile, [title] in `rowTitle`, the [count]
- * in `meta` at its end (when there is one) and a chevron; [divided] draws the hairline under it, inset 56 dp to the text. It leads to a page.
+ * A row that leads to a page (Orbit rule 8): the song row's shape (64 dp, radius 22, the page's ink at 5 %), [icon] in a 44 dp disc
+ * where a cover would be, [title] over [subtitle], the [count] in the mono label face at its end (when there is one) and a chevron.
+ * [divided] is kept for the callers: Orbit rows stand apart, 8 dp between them, rather than on hairlines.
  */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun LinkRow(icon: ImageVector, title: String, count: Int?, onClick: () -> Unit, modifier: Modifier = Modifier, subtitle: String? = null, divided: Boolean = true) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Column(modifier.fillMaxWidth()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = LINK_ROW)
-                .videoClickable(CosmoRadii.r0, onClick, null)
-                .padding(horizontal = CosmoSpacing.margin),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, contentDescription = null, tint = Color(palette.textSecondary), modifier = Modifier.size(LINK_ICON))
-            Spacer(Modifier.width(LINK_ICON_GAP))
-            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-                Text(title, style = type.forText(type.rowTitle, title), color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (!subtitle.isNullOrBlank()) Text(subtitle, style = type.forText(type.meta, subtitle), color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            if (count != null) {
-                Text(count.toString(), style = type.meta.tabular(), color = Color(palette.textSecondary), maxLines = 1)
-                Spacer(Modifier.width(8.dp))
-            }
-            Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = Color(palette.textTertiary), modifier = Modifier.size(CHEVRON))
-        }
-        if (divided) KitDivider()
-    }
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    OrbitSongRow(
+        title = title, subtitle = subtitle.orEmpty(), cover = null, fonts = fonts, look = look, onClick = onClick, icon = icon, height = 64.dp,
+        modifier = modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 4.dp),
+        trailingText = count?.toString(),
+        trailing = { Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = look.dim, modifier = Modifier.padding(start = 8.dp).size(CHEVRON)) },
+    )
 }
-
-/** A list group's row: 56 dp, the 24 dp icon, and 16 dp to the text, so the hairline's 56 dp lines up with it. */
-private val LINK_ROW = 56.dp
-private val LINK_ICON = 24.dp
-private val LINK_ICON_GAP = 16.dp
 
 /**
  * A [VideoRow] that shows what a card shows everywhere (Y-16): DeArrow's title and picture when the settings want them
@@ -209,12 +199,12 @@ internal fun LibraryShelf(
     val keys = remember(items) { uniqueKeys(items) }
     val rowState = rememberLazyListState()
     Column(modifier) {
-        KitSectionHeader(title = title, onSeeAll = onShowAll, seeAllLabel = stringResource(SharedRes.string.show_all))
+        VideoSectionHeading(title, onSeeAll = onShowAll, seeAllLabel = stringResource(SharedRes.string.show_all))
         LocalShelfRowChrome.current.Wrap(rowState) {
             LazyRow(
                 state = rowState,
                 contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
-                horizontalArrangement = Arrangement.spacedBy(VideoMetrics.SHELF_GAP_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 items(count = items.size, key = { keys[it] }) { index ->
                     val item = items[index]

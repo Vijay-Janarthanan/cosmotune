@@ -92,7 +92,7 @@ internal fun OrbitRankedRow(
 
 /** A shelf's horizontal row, in the platform's shelf chrome (the desktop's arrows, drag and wheel), settling on a card's edge. */
 @Composable
-internal fun OrbitShelfRow(side: Dp, gap: Dp, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+fun OrbitShelfRow(side: Dp, gap: Dp, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     val state = rememberLazyListState()
     LocalShelfRowChrome.current.Wrap(state) {
         LazyRow(
@@ -189,15 +189,19 @@ internal fun OrbitColourCardRow(items: List<ShelfItem>, fonts: OrbitFonts, side:
 // ---- video ----------------------------------------------------------------------------------------------------------------------
 
 /** The red of "LIVE": the only colour on a video card besides the play moon's peach. */
-internal fun liveRed(look: OrbitLook): Color = if (look.dark) Color(0xFFFF8A7A) else Color(0xFFB8402F)
+fun liveRed(look: OrbitLook): Color = if (look.dark) Color(0xFFFF8A7A) else Color(0xFFB8402F)
 
 /**
  * A video: the thumbnail as a rounded 16:9 rectangle with nothing on it, the play moon hanging off its bottom-end corner, and under
  * it the title and the meta line; a live performance's line starts with a red "● LIVE".
+ *
+ * [width] [Dp.Unspecified] fills the width it is given (a grid's cell). [picture] draws the picture in place of [thumbnail] (a
+ * screen's own loader or stand-in), [progress] (0..1) puts the watched line under it, and [avatar] (a channel's disc) stands before
+ * the title and the meta, as Video's feed has them.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun OrbitVideoCard(
+fun OrbitVideoCard(
     title: String,
     meta: String,
     thumbnail: String?,
@@ -208,16 +212,21 @@ internal fun OrbitVideoCard(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     width: Dp = 300.dp,
+    picture: (@Composable (Modifier) -> Unit)? = null,
+    progress: Float? = null,
+    avatar: (@Composable () -> Unit)? = null,
 ) {
-    Column(modifier.width(width).combinedClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick)) {
+    val sized = if (width == Dp.Unspecified) Modifier.fillMaxWidth() else Modifier.width(width)
+    Column(modifier.then(sized).combinedClickable(onClick = onClick, onLongClick = onLongClick).contextClick(onLongClick)) {
         // The moon hangs 12 dp past the picture's corner, so the frame leaves that room at its end and foot.
-        Box(Modifier.width(width).padding(end = 12.dp, bottom = 12.dp)) {
+        Box(Modifier.fillMaxWidth().padding(end = 12.dp, bottom = 12.dp)) {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(24.dp)).background(look.chip)) {
-                AsyncImage(thumbnail, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                if (picture != null) picture(Modifier.fillMaxSize())
+                else AsyncImage(thumbnail, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
             Box(Modifier.align(Alignment.BottomEnd).offset(x = 12.dp, y = 12.dp).size(44.dp)) { DiscPlayMoon(look, onClick) }
         }
-        Text(title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        if (progress != null) WatchProgressLine(progress, look, Modifier.padding(end = 56.dp, bottom = 6.dp))
         val line = buildAnnotatedString {
             if (live) {
                 withStyle(SpanStyle(color = liveRed(look), fontFamily = fonts.label.fontFamily, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, fontSize = 10.5.sp)) { append("● LIVE") }
@@ -225,7 +234,16 @@ internal fun OrbitVideoCard(
             }
             append(meta)
         }
-        if (line.isNotEmpty()) Text(line, style = fonts.body.copy(fontSize = 12.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(Modifier.padding(top = 2.dp)) {
+            if (avatar != null) {
+                avatar()
+                Spacer(Modifier.width(10.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (line.isNotEmpty()) Text(line, style = fonts.body.copy(fontSize = 12.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 }
 
@@ -252,7 +270,7 @@ internal fun OrbitVideoRow(
 
 /** "Show all 24" / "Show less": the peach text button under a list that shows its first rows. */
 @Composable
-internal fun OrbitShowAll(all: Boolean, count: Int, fonts: OrbitFonts, look: OrbitLook, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+fun OrbitShowAll(all: Boolean, count: Int, fonts: OrbitFonts, look: OrbitLook, onToggle: () -> Unit, modifier: Modifier = Modifier) {
     Text(
         if (all) "Show less" else "Show all $count", style = fonts.chip, color = look.accent,
         modifier = modifier.clip(CircleShape).clickable(onClick = onToggle).padding(horizontal = 12.dp, vertical = 8.dp),
@@ -261,7 +279,7 @@ internal fun OrbitShowAll(all: Boolean, count: Int, fonts: OrbitFonts, look: Orb
 
 /** A small round mark in the place of a row's disc: the check of a selected row. */
 @Composable
-internal fun OrbitCheckMark(selected: Boolean, look: OrbitLook) {
+fun OrbitCheckMark(selected: Boolean, look: OrbitLook) {
     Box(
         Modifier.size(28.dp).clip(CircleShape).background(if (selected) look.ink else look.chip),
         contentAlignment = Alignment.Center,

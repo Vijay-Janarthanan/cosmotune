@@ -1,5 +1,13 @@
 package com.cosmotune.video.ui.watch
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.resources.video_watch_description
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.mutableStateOf
@@ -38,8 +46,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
 /*
- * The description's text (DESIGN_SYSTEM.md 6.2): on the phone it is the sheet's; a wide page shows it under the title, on the page with no box
- * around it, collapsed to three lines with "more" and "Show less", its timestamps and links live.
+ * The description's text (DESIGN_SYSTEM.md 6.2): on the phone it is the sheet's; a wide page shows it under the card in a quiet Orbit card
+ * ("ABOUT THIS VIDEO"), collapsed to three lines with "more" and "Show less", its timestamps and links live.
  */
 
 private const val COLLAPSED_LINES = 3
@@ -50,18 +58,22 @@ internal fun CosmoType.descriptionStyle(text: String): TextStyle = forText(bodyT
 /** The wide page's description: [description] collapsed to three lines, its timestamps seeking ([onSeek]) and its links opening in the browser. */
 @Composable
 internal fun DescriptionInline(description: Description, onSeek: (Long) -> Unit, sidePadding: Dp, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val style = remember(type, description.text) { type.descriptionStyle(description.text) }
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val style = fonts.body.copy(fontSize = 14.sp, lineHeight = 21.sp)
     val text = rememberDescriptionText(description, onSeek)
     var expanded by rememberSaveable(description.text) { mutableStateOf(false) }
     val toggle = stringResource(if (expanded) Res.string.video_guide_show_less else Res.string.video_show_more)
-    Column(modifier.fillMaxWidth().padding(horizontal = sidePadding, vertical = 8.dp).animateContentSize()) {
-        Text(text, style = style, color = Color(palette.textSecondary), maxLines = if (expanded) Int.MAX_VALUE else COLLAPSED_LINES, overflow = TextOverflow.Ellipsis)
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = sidePadding, vertical = 8.dp).clip(RoundedCornerShape(28.dp)).background(look.chip)
+            .padding(20.dp).animateContentSize(),
+    ) {
+        OrbitLabel(stringResource(Res.string.video_watch_description), fonts, look.dim, Modifier.padding(bottom = 10.dp))
+        Text(text, style = style, color = look.ink.copy(alpha = 0.86f), maxLines = if (expanded) Int.MAX_VALUE else COLLAPSED_LINES, overflow = TextOverflow.Ellipsis)
         Text(
             toggle,
-            style = type.control,
-            color = Color(palette.textPrimary),
+            style = fonts.chip.copy(fontSize = 13.sp),
+            color = look.ink,
             modifier = Modifier.padding(top = 4.dp).clickable(role = Role.Button, onClickLabel = stringResource(Res.string.video_description)) { expanded = !expanded },
         )
     }

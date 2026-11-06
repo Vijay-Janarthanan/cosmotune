@@ -17,6 +17,7 @@ import com.cosmotune.video.resources.video_age_months
 import com.cosmotune.video.resources.video_age_now
 import com.cosmotune.video.resources.video_age_weeks
 import com.cosmotune.video.resources.video_age_years
+import com.cosmotune.video.resources.video_dl_done_cd
 import com.cosmotune.video.resources.video_views
 import com.cosmotune.video.resources.video_views_none
 import com.cosmotune.video.resources.video_watching
@@ -64,6 +65,25 @@ fun MetaLine(item: VideoItem, nowMs: Long, showChannel: Boolean = true): String 
     }
     return remember(channel, views, age) { listOfNotNull(channel, views, age).joinToString(SEPARATOR) }
 }
+
+/**
+ * The line under an Orbit card's title (board B: "Desk Lab · 12:04 · 2 days ago"): the channel when [showChannel] is set, the length
+ * (nothing is drawn on the picture, so the length is said here), then what [MetaLine] says after the channel (the views of a live
+ * stream, a premiere's own text, the age), and "Downloaded" for a [downloaded] video. A live card's "● LIVE" is the card's own.
+ */
+@Composable
+fun CardMetaLine(item: VideoItem, nowMs: Long, showChannel: Boolean = true, downloaded: Boolean = false): String {
+    val channel = if (showChannel) item.channelName?.takeIf { it.isNotBlank() } else null
+    val length = item.durationSec?.takeIf { it > 0 && !item.isLive && !item.isUpcoming }?.let { VideoText.duration(it) }
+    val rest = MetaLine(item, nowMs, showChannel = false)
+    val mark = if (downloaded) stringResource(Res.string.video_dl_done_cd) else null
+    return remember(channel, length, rest, mark) {
+        listOfNotNull(channel, length, rest.takeIf { it.isNotEmpty() && (item.isLive || item.isUpcoming || channel == null) } ?: ageOnly(rest), mark).joinToString(SEPARATOR)
+    }
+}
+
+/** The last part of a meta line (the age), for a card whose line is already long with the channel and the length. */
+private fun ageOnly(line: String): String? = line.substringAfterLast(SEPARATOR).takeIf { it.isNotBlank() }
 
 /** An [Age] in words, through the plural strings. */
 @Composable

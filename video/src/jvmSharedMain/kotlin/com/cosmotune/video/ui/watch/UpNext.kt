@@ -1,5 +1,13 @@
 package com.cosmotune.video.ui.watch
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.OrbitSwitch
+import com.cosmotune.ui.orbit.WatchCardChip
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -91,10 +99,10 @@ internal fun LazyListScope.upNextSection(
 @Composable
 internal fun UpNextSkeletonRow(desktop: Boolean) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = VideoMetrics.ROW_PAD_V_DP.dp),
+        Modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 4.dp).clip(RoundedCornerShape(22.dp)).background(orbitLook().row).padding(8.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        CosmoShimmer(Modifier.rowThumbnailSize(desktop), ThumbnailShape)
+        CosmoShimmer(Modifier.rowThumbnailSize(desktop), RoundedCornerShape(16.dp))
         Spacer(Modifier.width(CosmoSpacing.gutter))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(SKELETON_LINE_GAP)) {
             CosmoShimmer(Modifier.fillMaxWidth().height(SKELETON_TITLE_HEIGHT))
@@ -111,13 +119,13 @@ private const val SKELETON_META_FRACTION = 0.55f
 /** The line under the header when there is no list: "No suggestions for this video" or "Could not load the suggestions", and "Try again". */
 @Composable
 internal fun UpNextNote(failed: Boolean, onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val message = stringResource(if (failed) Res.string.video_up_next_error else Res.string.video_up_next_empty)
-    Column(modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = NOTE_PAD_V)) {
-        Text(message, style = type.forText(type.bodyText, message), color = Color(palette.textSecondary))
+    Column(modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = NOTE_PAD_V).clip(RoundedCornerShape(22.dp)).background(look.row).padding(18.dp)) {
+        Text(message, style = fonts.body, color = look.dim)
         Spacer(Modifier.height(NOTE_GAP))
-        KitButton(stringResource(Res.string.video_retry), onRetry, kind = KitButtonKind.TONAL, dense = true)
+        WatchCardChip(stringResource(Res.string.video_retry), look.ink, fonts, onRetry, solid = true, onSolid = look.ground)
     }
 }
 
@@ -126,24 +134,24 @@ private val NOTE_GAP = 12.dp
 
 /** The gap between "Autoplay" and its switch. */
 private val SWITCH_GAP = 8.dp
-private val HEADER_TOP = 16.dp
-private val HEADER_BOTTOM = 4.dp
+private val HEADER_TOP = 18.dp
+private val HEADER_BOTTOM = 8.dp
 
-/** "Up next" (`titleLarge`) with "Autoplay" and its switch at the end. */
+/** "Up next" in the wide section face with the mono "AUTOPLAY" and its Orbit switch at the end. */
 @Composable
 internal fun UpNextHeader(autoplay: Boolean, onAutoplay: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val label = stringResource(Res.string.video_autoplay)
     val title = stringResource(Res.string.video_up_next)
     Row(
-        modifier.fillMaxWidth().padding(start = CosmoSpacing.margin, end = CosmoSpacing.margin, top = HEADER_TOP, bottom = HEADER_BOTTOM),
+        modifier.fillMaxWidth().padding(start = CosmoSpacing.margin + 6.dp, end = CosmoSpacing.margin, top = HEADER_TOP, bottom = HEADER_BOTTOM),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = type.forText(type.titleLarge, title), color = Color(palette.textPrimary), maxLines = 1, modifier = Modifier.weight(1f).semantics { heading() })
-        Text(label, style = type.forText(type.meta, label), color = Color(palette.textSecondary), modifier = Modifier.clearAndSetSemantics { })
-        Spacer(Modifier.width(SWITCH_GAP))
-        CosmoSwitch(checked = autoplay, onCheckedChange = onAutoplay, modifier = Modifier.semantics { contentDescription = label })
+        Text(title, style = fonts.section, color = look.ink, maxLines = 1, modifier = Modifier.weight(1f).semantics { heading() })
+        OrbitLabel(label, fonts, look.dim, Modifier.clearAndSetSemantics { })
+        Spacer(Modifier.width(SWITCH_GAP + 2.dp))
+        OrbitSwitch(checked = autoplay, onChange = onAutoplay, look = look, label = label)
     }
 }
 

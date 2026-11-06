@@ -17,9 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.cosmotune.video.model.Description
 import com.cosmotune.video.nav.VideoRoute
-import com.cosmotune.video.ui.channel.ChannelActions
-import com.cosmotune.video.ui.channel.ChannelBanner
-import com.cosmotune.video.ui.channel.ChannelHead
+import com.cosmotune.video.ui.channel.ChannelCard
 import com.cosmotune.video.ui.channel.ChannelSection
 import com.cosmotune.video.ui.channel.ChannelTabChips
 import com.cosmotune.video.ui.comments.CommentsPreviewTile
@@ -182,19 +180,15 @@ class VideoPagePreviewTest {
         val sections = listOf(ChannelSection.VIDEOS, ChannelSection.SHORTS, ChannelSection.LIVE, ChannelSection.PLAYLISTS, ChannelSection.ABOUT)
         for (dark in listOf(false, true)) {
             val theme = if (dark) "dark" else "light"
-            render("page-channel-phone-$theme", 390, 520, dark) {
+            render("page-channel-phone-$theme", 390, 620, dark) {
                 Column {
-                    ChannelBanner("https://media.cosmotune.invalid/banner/${channel.id}.jpg", wide = false, widthDp = 390f, margin = 16.dp)
-                    ChannelHead(channel, wide = false, margin = 16.dp)
-                    ChannelActions(subscribed = false, wide = false, margin = 16.dp, preparing = false, onSubscribe = {}, onShare = {}, onDownload = {})
+                    ChannelCard(channel, "https://media.cosmotune.invalid/banner/${channel.id}.jpg", subscribed = false, wide = false, margin = 16.dp, preparing = false, onSubscribe = {}, onShare = {}, onDownload = {}, onAbout = {})
                     ChannelTabChips(sections, ChannelSection.VIDEOS, {})
                 }
             }
             render("page-channel-desktop-$theme", 1060, 520, dark) {
                 Column {
-                    ChannelBanner("https://media.cosmotune.invalid/banner/${channel.id}.jpg", wide = true, widthDp = 1060f, margin = 28.dp)
-                    ChannelHead(channel, wide = true, margin = 28.dp)
-                    ChannelActions(subscribed = true, wide = true, margin = 28.dp, preparing = false, onSubscribe = {}, onShare = {}, onDownload = {})
+                    ChannelCard(channel, "https://media.cosmotune.invalid/banner/${channel.id}.jpg", subscribed = true, wide = true, margin = 28.dp, preparing = false, onSubscribe = {}, onShare = {}, onDownload = {}, onAbout = {})
                     ChannelTabChips(sections, ChannelSection.VIDEOS, {}, Modifier.padding(horizontal = 12.dp))
                 }
             }

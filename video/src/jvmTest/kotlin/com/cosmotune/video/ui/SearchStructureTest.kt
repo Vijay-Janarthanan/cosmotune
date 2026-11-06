@@ -111,8 +111,7 @@ class SearchStructureTest {
 
     @Test fun theFieldIsPinnedAboveTheListAndFocusedWhenTheRouteOpensEmpty() {
         val page = code("VideoSearch")
-        assertTrue("CosmoSearchField(" in page)
-        assertFalse("height" in callArguments(page, "CosmoSearchField"), "the phone's field keeps its 52 dp")
+        assertTrue("OrbitSearchPill(" in page, "Orbit's 60 dp search pill")
         assertTrue("Res.string.video_search_hint" in page, "the hint")
         assertTrue("route.query.isEmpty()" in page && "focusRequester.requestFocus()" in page, "focused when the route opens empty")
         assertTrue("DesktopVideoState.query" in page, "the desktop's sidebar field is the field of the page")

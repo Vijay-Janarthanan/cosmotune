@@ -39,7 +39,7 @@ import com.cosmotune.video.ui.shell.VideoNavigator
 import com.cosmotune.music.ui.components.LocalShelfRowChrome
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
-import com.cosmotune.ui.kit.KitSectionHeader
+import com.cosmotune.video.ui.blocks.VideoSectionHeading
 import com.cosmotune.music.sharedui.resources.show_all
 import com.cosmotune.music.sharedui.resources.Res as SharedRes
 import org.jetbrains.compose.resources.stringResource
@@ -57,8 +57,8 @@ import androidx.compose.runtime.setValue
 private const val LOAD_MORE_ROWS = 3
 
 /**
- * A shelf of Shorts (spec 5.0, 5.15): 22 dp of room above, the heading ([CosmoSectionHeader]) with the Shorts mark before [title]
- * and its "Show all" button when [onSeeAll] is given, then a row of 132 dp [ShortsCard]s, 10 dp apart and 16 dp in from each side,
+ * A shelf of Shorts (Orbit board B): the section heading ([VideoSectionHeading]) with its "Show all" when [onSeeAll] is given, then a
+ * row of 132 dp tall [ShortsCard]s, 14 dp apart and 16 dp in from each side,
  * keyed by video id. [onOpen] opens one (the screens call [openShort]); a card's hold or right click opens the video sheet here,
  * whose actions go through the shared action handler (a Short's "Play" opens the pager with this shelf's Shorts). On the desktop
  * the row takes the platform's shelf chrome, as `VideoShelf` does.
@@ -71,12 +71,12 @@ fun ShortsShelf(title: String, items: List<VideoItem>, onOpen: (VideoItem) -> Un
     val keys = remember(items) { uniqueKeys(items) }
     val rowState = rememberLazyListState()
     Column(modifier.fillMaxWidth()) {
-        KitSectionHeader(title = title, onSeeAll = onSeeAll, seeAllLabel = stringResource(SharedRes.string.show_all))
+        VideoSectionHeading(title, onSeeAll = onSeeAll, seeAllLabel = stringResource(SharedRes.string.show_all))
         LocalShelfRowChrome.current.Wrap(rowState) {
             LazyRow(
                 state = rowState,
                 contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
-                horizontalArrangement = Arrangement.spacedBy(VideoMetrics.SHORTS_SHELF_GAP_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(SHELF_GAP),
             ) {
                 items(count = items.size, key = { keys[it] }) { index ->
                     val item = items[index]
@@ -101,6 +101,10 @@ fun ShortsShelf(title: String, items: List<VideoItem>, onOpen: (VideoItem) -> Un
         )
     }
 }
+
+/** Between the Shorts of a shelf, and between the rows of a grid, whose cards carry their words under the picture. */
+private val SHELF_GAP = 14.dp
+private val GRID_ROW_GAP = 16.dp
 
 /**
  * A grid of Shorts (spec 5.0: a channel's Shorts tab, the search's Shorts filter). On the phone 3 columns 4 dp apart inside the 16 dp
@@ -143,7 +147,7 @@ fun ShortsGrid(
             state = state,
             contentPadding = PaddingValues(start = start, top = contentPadding.calculateTopPadding(), end = end, bottom = contentPadding.calculateBottomPadding()),
             horizontalArrangement = Arrangement.spacedBy(layout.gapDp.dp),
-            verticalArrangement = Arrangement.spacedBy(layout.gapDp.dp),
+            verticalArrangement = Arrangement.spacedBy(GRID_ROW_GAP),
         ) {
             items(count = items.size, key = { keys[it] }) { index ->
                 val item = items[index]

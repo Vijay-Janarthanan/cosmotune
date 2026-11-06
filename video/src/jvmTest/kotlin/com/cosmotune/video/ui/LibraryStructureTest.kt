@@ -108,7 +108,7 @@ class LibraryStructureTest {
     @Test fun theLibraryHasItsHeadingTheTonalPlusTheShelfTheSevenRowsInOrderAndYourPlaylists() {
         val src = code("LibraryPage")
         assertTrue("LibraryHeader(" in src && "SharedRes.string.library" in src, "Library, the app's own translated word")
-        assertTrue("KitPageTitle(title = title, modifier = modifier, actions = actions)" in code("LibraryParts"), "the heading is the kit's large title")
+        assertTrue("VideoPageHeading(title, stringResource(Res.string.video_library_label), modifier, actions)" in code("LibraryParts"), "the heading is Orbit's page heading")
         assertTrue(Regex("""CosmoIconButton\(\s*CosmoIcons\.Plus,[\s\S]*?style = CosmoIconButtonStyle\.TONAL,\s*size = 40\.dp""").containsMatchIn(src), "the 40 dp tonal plus")
         assertTrue("NewPlaylistDialog(" in src && "createPlaylist(" in src, "the plus makes a playlist")
         assertTrue("LibraryPlan.fractions(" in src && "VideoRoute.History" in src, "the Library tab's History shelf has the watched bars and opens the history")
@@ -125,7 +125,7 @@ class LibraryStructureTest {
             assertTrue("VideoRoute.$route" in src, "a row pushes $route")
         }
         assertTrue("Res.string.video_your_playlists" in src && "VideoRoute.LocalPlaylist(" in src && "LibraryPlan.coverOf(" in src)
-        assertTrue("KitDivider()" in file("LibraryParts") && "LINK_ICON = 24.dp" in file("LibraryParts") && "LINK_ROW = 56.dp" in file("LibraryParts"), "a hairline list group: 56 dp rows, a 24 dp icon, no tile (DESIGN_SYSTEM.md 4.9)")
+        assertTrue("OrbitSongRow(" in file("LibraryParts") && "icon = icon, height = 64.dp" in file("LibraryParts"), "Orbit rows: 64 dp, the icon in a disc")
     }
 
     @Test fun continueWatchingTakesTenToNinetyPercentNewestFirstUpToTen() {

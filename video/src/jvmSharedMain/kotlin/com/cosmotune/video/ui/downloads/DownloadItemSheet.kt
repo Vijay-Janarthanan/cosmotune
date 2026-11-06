@@ -164,7 +164,6 @@ private fun SheetHead(entry: DownloadEntry) {
             url = entry.item.thumbnailUrl,
             modifier = Modifier.size(HEAD_THUMB_W, HEAD_THUMB_H),
             shape = HEAD_THUMB_SHAPE,
-            downloaded = entry.state is DownloadState.Done,
         )
         Spacer(Modifier.width(HEAD_GAP))
         Column(Modifier.weight(1f)) {

@@ -119,6 +119,6 @@ fun OrbitSongRow(
 
 /** A duration at a row's end, in the mono label face. */
 @Composable
-internal fun RowScope.OrbitRowTime(text: String?, fonts: OrbitFonts, look: OrbitLook) {
+fun RowScope.OrbitRowTime(text: String?, fonts: OrbitFonts, look: OrbitLook) {
     if (text != null) Text(text, style = fonts.label, color = look.dim, modifier = Modifier.padding(start = 10.dp))
 }

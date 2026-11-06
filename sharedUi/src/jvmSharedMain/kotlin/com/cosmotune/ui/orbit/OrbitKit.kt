@@ -123,7 +123,7 @@ internal val ROOM_FILL = Color(0xFF1F1C3D)
 internal val ROOM_INK = Color(0xFFECE8FF)
 internal val ROOM_DIM = Color(0xFFA9A3E6)
 internal val ROOM_TEXT = Color(0xFFC9C4F2)
-internal val LIVE = Color(0xFF7CE3A1)
+val LIVE = Color(0xFF7CE3A1)
 internal val CARD_FALLBACK = Color(0xFF3A2A2A)
 val CARD_INK = Color(0xFFFFEDE2)
 
@@ -184,7 +184,7 @@ fun rememberCoverTint(url: String?): CoverTint? {
  * The cover's own hue made into a card: saturated and deep enough for light ink to read on it (a near-grey cover stays a quiet
  * charcoal), and the ink a pale tint of the same hue.
  */
-internal fun vivid(argb: Int): CoverTint {
+fun vivid(argb: Int): CoverTint {
     val c = Color(argb)
     val max = maxOf(c.red, c.green, c.blue)
     val min = minOf(c.red, c.green, c.blue)
@@ -262,14 +262,14 @@ internal fun Color.compositeOver(under: Color): Color {
     return Color(red * a + under.red * (1 - a), green * a + under.green * (1 - a), blue * a + under.blue * (1 - a), 1f)
 }
 
-internal fun clock(ms: Long): String { val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60) }
+fun clock(ms: Long): String { val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60) }
 
 @Composable
 /**
  * A chip: 40 dp, ink at 8 %; [selected] makes it solid ink with ground-coloured text (a tab that is showing). [leading] is
  * optional (null: the title alone, padded evenly); [trailing] goes after the title (a count).
  */
-internal fun OrbitChip(
+fun OrbitChip(
     title: String,
     fonts: OrbitFonts,
     look: OrbitLook,

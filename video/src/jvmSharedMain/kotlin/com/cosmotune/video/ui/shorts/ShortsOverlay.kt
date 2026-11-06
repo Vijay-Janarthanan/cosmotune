@@ -1,5 +1,13 @@
 package com.cosmotune.video.ui.shorts
 
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.PEACH
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.clickable
@@ -36,6 +44,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -74,8 +83,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
 /*
- * What lies over a Short (DESIGN_SYSTEM.md 6.2): the scrims, the top row, the right rail, the bottom block, the pause glyph and the 2x pill.
- * Nothing here is glass. White text and black scrims over the video are the documented media exception.
+ * What lies at the edges of a Short (Orbit board B: "Shorts, a full-height vertical pager, the actions as round buttons beside, nothing
+ * over the video's centre"): the scrims, the top row (round back, "Shorts." in the wide face, round search and mute), the rail of
+ * round buttons at the end edge with their counts in the mono label face, the bottom block (the channel's disc, the name and the
+ * Subscribe pill, the title), the paused mark under the top row and the 2x pill. Nothing here is glass. White ink and black scrims
+ * over the video are the documented media exception.
  *
  * The numbers VideoMetrics does not carry: the top row's 8 dp under the status bar and 12 dp sides, 8 dp inside the channel row and between
  * it and the title; the chip's 12 dp sides.
@@ -89,6 +101,9 @@ private const val SCRIM_BOTTOM_SHARE = 0.35f
 
 /** The disc behind a rail button and the small glyphs over the video: black at 28 %, so white reads over a bright frame. */
 private val RAIL_DISC = Color.Black.copy(alpha = 0.28f)
+
+/** The pale wash over a round button's dark disc, so it reads over a dark frame as well as a bright one. */
+private val RAIL_LIFT = Color.White.copy(alpha = 0.14f)
 
 /** The disc of the pause glyph and the fill of the 2x pill: black at 56 %. */
 private val GLYPH_FILL = Color.Black.copy(alpha = 0.56f)
@@ -115,7 +130,7 @@ internal const val TITLE_LINES_OPEN = 5
 private val COUNT_GAP = 4.dp
 
 /** The pause glyph's icon inside its 64 dp circle. */
-private val GLYPH_ICON = 28.dp
+private val GLYPH_ICON = 22.dp
 
 /** The "2x speed" pill: 36 dp, 14 dp sides (the seek pill's look, spec 6.5). */
 private val PILL_SIDE = 14.dp
@@ -141,44 +156,53 @@ internal fun Modifier.shortsScrims(): Modifier = drawWithCache {
 }
 
 /**
- * The top row (DESIGN_SYSTEM.md 6.2): [topInset] plus 8 dp from the top, 12 dp from the sides: back, "Shorts" in `titleLarge`, and at the end
- * Search and mute (`CosmoIcons.Volume`, or `VideoIcons.VolumeOff` while [muted]); plain white icons over the video.
+ * The top row: [topInset] plus 8 dp from the top, 12 dp from the sides: the round back button, "Shorts." in the wide face with its
+ * peach full stop, and at the end round Search and mute (`CosmoIcons.Volume`, or `VideoIcons.VolumeOff` while [muted]); white over
+ * the video, on faint dark discs.
  */
 @Composable
 internal fun ShortsTopRow(muted: Boolean, onBack: () -> Unit, onToggleMute: () -> Unit, topInset: Dp, modifier: Modifier = Modifier, onSearch: () -> Unit = {}) {
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
     val title = stringResource(Res.string.video_shorts)
     Row(
         modifier.padding(start = TOP_ROW_SIDE, end = TOP_ROW_SIDE, top = topInset + TOP_ROW_TOP),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CosmoIconButton(
-            icon = CosmoIcons.ArrowLeft,
-            contentDescription = stringResource(SharedRes.string.cosmo_back),
-            onClick = onBack,
-            style = CosmoIconButtonStyle.PLAIN,
-            size = VideoMetrics.PAGER_TOP_BUTTON_DP.dp,
-            tint = Color.White,
+        MediaRoundButton(CosmoIcons.ArrowLeft, stringResource(SharedRes.string.cosmo_back), onBack, VideoMetrics.PAGER_TOP_BUTTON_DP.dp)
+        Spacer(Modifier.width(TOP_ROW_TITLE_GAP + 4.dp))
+        Text(
+            buildAnnotatedString { append(title); withStyle(SpanStyle(color = PEACH)) { append(".") } },
+            style = fonts.section.copy(fontSize = 22.sp), color = Color.White, maxLines = 1, modifier = Modifier.weight(1f).semantics { heading() },
         )
-        Spacer(Modifier.width(TOP_ROW_TITLE_GAP))
-        Text(title, style = type.forText(type.titleLarge, title), color = Color.White, maxLines = 1, modifier = Modifier.weight(1f).semantics { heading() })
-        CosmoIconButton(
-            icon = CosmoIcons.Search,
-            contentDescription = stringResource(Res.string.video_search),
-            onClick = onSearch,
-            style = CosmoIconButtonStyle.PLAIN,
-            size = VideoMetrics.PAGER_TOP_BUTTON_DP.dp,
-            tint = Color.White,
-        )
-        CosmoIconButton(
-            icon = if (muted) VideoIcons.VolumeOff else CosmoIcons.Volume,
-            contentDescription = stringResource(if (muted) Res.string.video_unmute else Res.string.video_mute),
-            onClick = onToggleMute,
-            style = CosmoIconButtonStyle.PLAIN,
-            size = VideoMetrics.PAGER_TOP_BUTTON_DP.dp,
-            tint = Color.White,
+        MediaRoundButton(CosmoIcons.Search, stringResource(Res.string.video_search), onSearch, VideoMetrics.PAGER_TOP_BUTTON_DP.dp)
+        Spacer(Modifier.width(8.dp))
+        MediaRoundButton(
+            if (muted) VideoIcons.VolumeOff else CosmoIcons.Volume,
+            stringResource(if (muted) Res.string.video_unmute else Res.string.video_mute),
+            onToggleMute, VideoMetrics.PAGER_TOP_BUTTON_DP.dp,
         )
     }
+}
+
+/**
+ * A round button over the video (Orbit's round button in the media's ink): white on a faint dark disc, or solid white with a dark
+ * glyph when [on]. [enabled] false fades it.
+ */
+@Composable
+internal fun MediaRoundButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, size: Dp, on: Boolean = false, enabled: Boolean = true, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier
+            .size(size)
+            .graphicsLayer { alpha = if (enabled) 1f else 0.45f }
+            .cosmoFocusRing(interaction, size / 2, floating = true)
+            .clip(CircleShape)
+            .background(if (on) Color.White else RAIL_DISC)
+            .background(if (on) Color.Transparent else RAIL_LIFT)
+            .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, contentDescription = null, tint = if (on) Color.Black else Color.White, modifier = Modifier.size(size * 0.45f)) }
 }
 
 /**
@@ -226,7 +250,10 @@ internal fun ShortsRail(
     }
 }
 
-/** One button of the rail: a 48 dp icon button and, when [count] is known, the count in `caption` under it. */
+/**
+ * One button of the rail: a round 48 dp button (over the video, [MediaRoundButton]; on the page, Orbit's tonal round button in the
+ * page's ink) and, when [count] is known, the count in the mono label face under it.
+ */
 @Composable
 private fun RailButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -238,29 +265,23 @@ private fun RailButton(
     enabled: Boolean = true,
     on: Boolean = false,
 ) {
-    val type = LocalCosmoType.current
-    val palette = LocalCosmoColors.current.palette
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val size = VideoMetrics.PAGER_RAIL_BUTTON_DP.dp
+    val marked = if (state != null) Modifier.semantics { stateDescription = state } else Modifier
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(if (overMedia) Modifier.clip(CircleShape).background(if (on) GLYPH_FILL else RAIL_DISC) else Modifier) {
-            CosmoIconButton(
-                icon = icon,
-                contentDescription = label,
-                onClick = onClick,
-                style = if (overMedia) CosmoIconButtonStyle.PLAIN else CosmoIconButtonStyle.TONAL,
-                size = VideoMetrics.PAGER_RAIL_BUTTON_DP.dp,
-                tint = if (overMedia) Color.White else null,
-                enabled = enabled,
-                on = on,
-                modifier = if (state != null) Modifier.semantics { stateDescription = state } else Modifier,
-            )
+        if (overMedia) {
+            MediaRoundButton(icon, label, onClick, size, on = on, enabled = enabled, modifier = marked)
+        } else {
+            OrbitRoundButton(icon, label, if (enabled) look.ink else look.ink.copy(alpha = 0.4f), { if (enabled) onClick() }, marked, size = size, on = on, onInk = look.ground)
         }
         if (count != null) {
             Text(
-                text = VideoText.compact(count),
-                style = type.caption,
-                color = if (overMedia) Color.White else Color(palette.textSecondary),
+                text = VideoText.compact(count).uppercase(),
+                style = fonts.label,
+                color = if (overMedia) Color.White else look.dim,
                 maxLines = 1,
-                modifier = Modifier.padding(top = COUNT_GAP).clearAndSetSemantics { },
+                modifier = Modifier.padding(top = COUNT_GAP + 2.dp).clearAndSetSemantics { },
             )
         }
     }
@@ -282,11 +303,11 @@ internal fun ShortsBottomBlock(
     onOpenChannel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
     val name = item.channelName?.takeIf { it.isNotBlank() }
-    val nameStyle = remember(type, name) { type.forText(type.rowTitle, name.orEmpty()) }
+    val nameStyle = fonts.title.copy(fontSize = 14.5.sp)
     val shown = if (expanded && !description.isNullOrBlank()) "$title\n${description.trim()}" else title
-    val titleStyle = remember(type, shown) { type.forText(type.bodyText, shown) }
+    val titleStyle = fonts.body.copy(fontSize = 14.sp, lineHeight = 19.sp)
     Column(modifier) {
         if (item.channelId != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -327,9 +348,10 @@ internal fun ShortsBottomBlock(
  */
 @Composable
 internal fun ShortsSubscribeChip(subscribed: Boolean, onClick: () -> Unit) {
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
     val label = stringResource(if (subscribed) Res.string.video_subscribed else Res.string.video_subscribe)
-    val style = remember(type, label) { type.forText(type.control, label) }
+    val style = fonts.chip.copy(fontSize = 13.sp)
+    val ink = if (subscribed) Color.White else Color.Black
     val interaction = remember { MutableInteractionSource() }
     Box(Modifier.minimumInteractiveComponentSize(), contentAlignment = Alignment.Center) {
         Row(
@@ -337,22 +359,23 @@ internal fun ShortsSubscribeChip(subscribed: Boolean, onClick: () -> Unit) {
                 .height(VideoMetrics.PAGER_CHIP_DP.dp)
                 .cosmoFocusRing(interaction, (VideoMetrics.PAGER_CHIP_DP / 2).dp, floating = true)
                 .clip(PILL_SHAPE)
-                .background(CHIP_FILL)
+                .background(if (subscribed) CHIP_FILL else Color.White)
                 .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
                 .padding(horizontal = CHIP_SIDE),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (subscribed) {
-                Icon(CosmoIcons.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(CosmoIcons.Check, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
             }
-            Text(label, style = style, color = Color.White, maxLines = 1)
+            Text(label, style = style, color = ink, maxLines = 1)
         }
     }
 }
 
 /**
- * The play glyph that comes up at the centre when a Short is paused (spec 5.15): a 64 dp circle of black at 56 % with a white
+ * The play glyph that comes up when a Short is paused (spec 5.15), under the top row and never at the video's centre (Orbit
+ * board B): a 48 dp circle of black at 56 % with a white
  * `CosmoIcons.Play`, fading in and out over [VideoMetrics.PAGER_PAUSE_GLYPH_MS]; [serial] starts it again (0: none yet). Reduced
  * motion: it shows without a fade for the same time. The fade is read in the layer block.
  */
@@ -380,7 +403,7 @@ internal fun PauseGlyph(serial: Int, modifier: Modifier = Modifier) {
     if (!shown) return
     Box(
         modifier
-            .size(VideoMetrics.PAGER_PAUSE_GLYPH_DP.dp)
+            .size(48.dp)
             .graphicsLayer { this.alpha = alpha.value }
             .clip(CircleShape)
             .background(GLYPH_FILL)

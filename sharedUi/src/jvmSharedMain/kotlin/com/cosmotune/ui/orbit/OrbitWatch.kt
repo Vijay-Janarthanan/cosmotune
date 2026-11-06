@@ -188,7 +188,7 @@ internal fun WatchLogoTile(mark: String, fill: Color, fonts: OrbitFonts, modifie
  * Focusable with a ring; [onClick] null makes it a plain row.
  */
 @Composable
-internal fun WatchRowFrame(
+fun WatchRowFrame(
     look: OrbitLook,
     modifier: Modifier = Modifier,
     height: Dp = 62.dp,

@@ -84,8 +84,12 @@ enum class PlayerLayout { PAGE, FULLSCREEN, WINDOW }
  * stats card; and the settings (a sheet on the phone, a menu in [PlayerLayout.WINDOW]).
  *
  * [desktopFullWindow] puts the controls in the full window's glass bar (spec 5.4: 80 dp, radius 28, 20 dp from the bottom, at most
- * 720 dp wide). [chrome] false draws the picture and its subtitles only (picture-in-picture). [onBoundsChanged] reports the box's
- * window bounds (picture-in-picture's source rectangle). The settings are read from [LocalVideoGraph].
+ * 720 dp wide). [chrome] false draws the picture and its subtitles only (picture-in-picture). [controls] false is the Orbit watch
+ * page's player (rule 9, nothing on the video): the picture, its subtitles, the gestures (a tap plays or pauses, double taps seek,
+ * the swipes collapse and go to Cinema), their feedback, the loading blob, the error and the stats, while the controls live in the
+ * colour card under it. [scale] sets the picture's fit in any layout (Whole or Fill), and [ground] is the colour round a fitted
+ * picture (the card's own colour on the page; black elsewhere). [onBoundsChanged] reports the box's window bounds
+ * (picture-in-picture's source rectangle). The settings are read from [LocalVideoGraph].
  *
  * Every C surface here is `cosmoGlass(hazeState = null, ...)`: no backdrop blur over the video. The playhead is never composition
  * state: the scrubber and the "Skip" line read `playback.positionMs()` while drawing, on a frame ticker that only invalidates drawing
@@ -104,19 +108,22 @@ fun VideoPlayerBox(
     title: String? = null,
     desktopFullWindow: Boolean = false,
     chrome: Boolean = true,
+    controls: Boolean = true,
+    scale: VideoScale? = null,
+    ground: Color = Color.Black,
 ) {
     val state by playback.state.collectAsState()
     val settings by LocalVideoGraph.current.settings.settings.collectAsState()
-    var scale by remember { mutableStateOf(VideoScale.FIT) }
-    val shownScale = if (layout == PlayerLayout.FULLSCREEN && chrome) scale else VideoScale.FIT
+    var pinched by remember { mutableStateOf(VideoScale.FIT) }
+    val shownScale = scale ?: if (layout == PlayerLayout.FULLSCREEN && chrome) pinched else VideoScale.FIT
     // A file on the device is shaped by the person's aspect choice, in every layout; the pinch then sets fit or fill.
     val localAspect = if (LocalVideo.isLocal(state.item?.id)) LocalPlayerSession.aspect else null
     val captionSp = subtitleSp(layout, desktopFullWindow)
 
     Box(
         modifier
-            // The black band around the picture (a media scrim, the documented exception to "colours come from the palette").
-            .background(Color.Black)
+            // The band around the picture: black (a media scrim, the documented exception), or the page card's colour.
+            .background(ground)
             .onGloballyPositioned { onBoundsChanged(it.boundsInWindow()) },
     ) {
         if (localAspect != null) surface?.Surface(Modifier.fillMaxSize(), localAspect) else surface?.Surface(Modifier.fillMaxSize(), shownScale)
@@ -125,9 +132,65 @@ fun VideoPlayerBox(
             SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp)
             return@Box
         }
+        if (!controls) {
+            PagePlayerLayer(playback, state, settings, layout, onCollapse, onToggleFullscreen, captionSp)
+            return@Box
+        }
         PlayerChrome(playback, state, settings, layout, desktopFullWindow, title, onCollapse, onToggleFullscreen, onEnterPip, captionSp) {
-            scale = it
+            pinched = it
             if (localAspect != null) LocalPlayerSession.aspect = if (it == VideoScale.FILL) VideoAspect.FILL else VideoAspect.FIT
+        }
+    }
+}
+
+/**
+ * The watch page's player with no controls on it (see [VideoPlayerBox]'s `controls`): the subtitles, the gestures and what they
+ * show, the loading blob, the error with "Try again" over the dimmed picture, and the stats card when they are on.
+ */
+@Composable
+private fun BoxScope.PagePlayerLayer(
+    playback: VideoPlayback,
+    state: PlaybackUiState,
+    settings: VideoSettings,
+    layout: PlayerLayout,
+    onCollapse: (() -> Unit)?,
+    onToggleFullscreen: () -> Unit,
+    captionSp: Float,
+) {
+    val feedback = remember { GestureFeedback() }
+    val platform = rememberPlayerPlatform(playback)
+    val playhead = rememberPlayhead(playback)
+    val statsShown = PlayerStatsSwitch.shown
+    RunPlayhead(playhead, if (statsShown) TickMode.SLOW else TickMode.OFF)
+    val buffering = state.status == PlayerStatus.BUFFERING || state.status == PlayerStatus.LOADING
+    val failed = state.error != null || state.status == PlayerStatus.ERROR
+    val metrics = ChromeMetrics.of(layout, false)
+    CompositionLocalProvider(LocalCosmoColors provides rememberDarkChromeColors()) {
+        val cues by playback.engine.cues.collectAsState()
+        SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp)
+        Box(
+            Modifier.matchParentSize().playerGestures(
+                playback = playback,
+                layout = layout,
+                platform = platform,
+                feedback = feedback,
+                stepSeconds = settings.doubleTapSeconds,
+                live = state.live,
+                onTap = { playback.togglePlayPause() },
+                onInput = {},
+                onCollapse = onCollapse,
+                onToggleFullscreen = onToggleFullscreen,
+                onScale = {},
+            ),
+        )
+        Box(Modifier.matchParentSize()) {
+            GestureOverlays(feedback, metrics, state, layout)
+            if (buffering && !failed) CosmoLoadingBlob(Modifier.align(Alignment.Center))
+            if (failed) {
+                Box(Modifier.matchParentSize().background(Color(LocalCosmoColors.current.palette.scrim).copy(alpha = VideoMetrics.SCRIM_BOTTOM_ALPHA)))
+                PlayerErrorState(state, onRetry = { state.item?.let { playback.play(it.id) } }, modifier = Modifier.align(Alignment.Center))
+            }
+            if (statsShown) PlayerStats(playback, state, playhead, metrics, Modifier.align(Alignment.TopStart))
         }
     }
 }

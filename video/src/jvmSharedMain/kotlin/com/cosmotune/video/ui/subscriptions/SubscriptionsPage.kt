@@ -1,5 +1,12 @@
 package com.cosmotune.video.ui.subscriptions
 
+import com.cosmotune.video.ui.blocks.VideoPageHeading
+import com.cosmotune.video.resources.video_subscriptions_label
+import com.cosmotune.ui.orbit.OrbitSelectChip
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.components.CosmoIcons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -209,7 +216,7 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
                         val rows = remember(groups, columns) { if (wide) groups.map { (group, list) -> group to list.chunked(columns) } else emptyList() }
                         val listState = rememberLazyListState()
                         LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
-                            item(key = KEY_TITLE, contentType = "title") { KitPageTitle(title, Modifier.padding(horizontal = if (wide) WIDE_INSET else 0.dp)) }
+                            item(key = KEY_TITLE, contentType = "title") { VideoPageHeading(title, stringResource(Res.string.video_subscriptions_label), Modifier.padding(horizontal = if (wide) WIDE_INSET else 0.dp)) }
                             if (onAccount.expired) {
                                 item(key = KEY_ACCOUNT, contentType = "account") {
                                     AccountExpiredNotice(Modifier.padding(horizontal = if (wide) WIDE_INSET else 0.dp))
@@ -364,10 +371,13 @@ private fun LazyListScope.feedHead(
 @Composable
 private fun OpenChannelChip(onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(Res.string.video_open_channel_chip)
-    KitChip(
-        label = label,
+    OrbitSelectChip(
+        title = label,
         selected = false,
+        fonts = orbitFonts(),
+        look = orbitLook(),
         onClick = onOpen,
+        icon = CosmoIcons.ChevronRight,
         modifier = modifier.clearAndSetSemantics {
             role = Role.Button
             contentDescription = label
@@ -391,7 +401,7 @@ private const val KEY_ACCOUNT = "feed:account"
 /** The day overline of a group, one item, keyed by the group. */
 private fun LazyListScope.groupHeader(group: FeedGroup, inset: Dp) {
     item(key = "feed:group:${group.name}", contentType = "overline") {
-        CosmoOverline(text = stringResource(group.label()), modifier = Modifier.padding(horizontal = inset))
+        OrbitLabel(stringResource(group.label()), orbitFonts(), orbitLook().dim, Modifier.padding(horizontal = inset).padding(start = CosmoSpacing.margin + 4.dp, top = 18.dp, bottom = 10.dp))
     }
 }
 

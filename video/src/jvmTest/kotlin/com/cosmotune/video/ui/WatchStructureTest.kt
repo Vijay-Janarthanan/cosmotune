@@ -380,7 +380,7 @@ class WatchStructureTest {
         assertEquals(listOf(WideSegment.UP_NEXT), wideSegments(hasChapters = false, comments = false), "offline")
         val wide = flat(file("WatchPageWide"))
         assertTrue("CommentsPanel( videoId = view.videoId, sheet = false," in wide)
-        assertTrue("KitChipRow(labels, selected, onSelect = { chosen = segments[it] }" in wide)
+        assertTrue("WatchSegmentChips(segments, shownSegment, { chosen = it }, fonts, look)" in wide, "the chips in the top row pick the side column")
         val page = flat(file("WatchPage"))
         assertTrue("CommentsSheet(videoId = view.videoId, onDismiss = { commentsOpen = false })" in page, "the phone's sheet from the tile, removed on dismiss")
         val phone = VideoSourceContract.code(VideoSourceContract.functionBody(file("WatchPage"), "WatchPagePhone"))
@@ -399,22 +399,23 @@ class WatchStructureTest {
 
     @Test fun theNumbersAreTheSpecs() {
         val page = flat(file("WatchPage"))
-        assertTrue("VideoMetrics.playerHeightDp(width.value, height.value, aspect).dp" in page, "the phone's player: 16:9, vertical capped at 0.56")
+        assertTrue("watchFrameHeight(width - FRAME_SIDE * 2, height * PHONE_FRAME_SHARE, aspect, WatchSession.fill)" in page, "the phone's video: whole at its shape, at most half the height")
         val wide = flat(file("WatchPageWide"))
-        for (n in listOf("VideoMetrics.DESKTOP_MARGIN_DP", "VideoMetrics.COLUMN_GAP_DP", "((contentWidth - gap) / 3).coerceAtLeast(SIDE_MIN)", "RoundedCornerShape(CosmoRadii.rMd)")) assertTrue(n in wide, n)
+        for (n in listOf("VideoMetrics.DESKTOP_MARGIN_DP", "VideoMetrics.COLUMN_GAP_DP", "((contentWidth - gap) / 3).coerceAtLeast(SIDE_MIN)")) assertTrue(n in wide, n)
         assertEquals(528f, WatchRules.theatreHeightDp(1004f, 704f, 16f / 9f), 0.01f, "theatre: at most 75 % of the page's height")
         assertEquals(1004f / (16f / 9f), WatchRules.theatreHeightDp(1004f, 2000f, 16f / 9f), 0.01f)
         val meta = flat(file("WatchMeta"))
-        for (n in listOf("TITLE_TOP = 12.dp", "CHANNEL_ROW = 56.dp", "CHANNEL_AVATAR = 40.dp", "CHANNEL_GAP = 12.dp", "ACTION_HEIGHT = 40.dp", "ACTION_ICON = 20.dp")) {
-            assertTrue(n in meta, n)
-        }
-        assertTrue("type.titleMedium" in meta && "maxLines = 2" in meta)
-        assertTrue("KitActionRow(" in meta && "FlowRow" !in meta, "one row of actions, which never wraps (DESIGN_SYSTEM.md 4.12)")
+        for (n in listOf("CHANNEL_ROW = 56.dp", "CHANNEL_AVATAR = 44.dp", "CHANNEL_GAP = 12.dp", "ACTION_HEIGHT = 40.dp")) assertTrue(n in meta, n)
+        assertTrue(".horizontalScroll(scroll)" in meta && "FlowRow" !in meta, "one row of actions, which never wraps")
         val inline = flat(file("DescriptionTile"))
-        assertTrue("cosmoTile" !in inline && "COLLAPSED_LINES = 3" in inline, "the wide page's description: on the page, no box, collapsed to three lines")
+        assertTrue("COLLAPSED_LINES = 3" in inline, "the wide page's description: collapsed to three lines")
         assertTrue("DescriptionTile(" !in page, "the phone's description is the sheet's")
         val sheet = flat(file("DescriptionSheet"))
         assertTrue("CHAPTER_FRAME_W = 96.dp" in sheet && "CHAPTER_FRAME_H = 54.dp" in sheet, "the chapters' 96 x 54 frame")
+        val frame = flat(file("WatchFrame"))
+        assertTrue("controls = false" in frame && "FRAME_SHAPE = RoundedCornerShape(28.dp)" in frame, "Orbit rule 9: nothing on the video, which stands in its rounded frame")
+        val card = flat(file("WatchCard"))
+        assertTrue("OrbitBiteCard(" in card && "OrbitPlayButton(playing, onPlay" in card && "ink = ink" in card, "the colour card with play in the bite and the seek line in its ink")
     }
 
     @Test fun theWatchedBarsComeFromTheHistory() {
@@ -474,7 +475,7 @@ class WatchStructureTest {
         // White text over the video, the black of the player and the full window, a black text shadow over the video.
         assertEquals(listOf("FullWindowLayer"), files.filter { "Color.White" in VideoSourceContract.code(it.second) }.map { it.first })
         assertEquals(
-            setOf("WatchPage", "WatchPageWide", "FullWindowLayer"),
+            setOf("WatchPage", "FullWindowLayer"),
             files.filter { "Color.Black" in VideoSourceContract.code(it.second) }.map { it.first }.toSet(),
         )
         assertTrue("android.graphics.Color.BLACK" in android, "the full screen window's own black")
@@ -494,6 +495,10 @@ class WatchStructureTest {
         val sheet = flat(file("DescriptionSheet"))
         assertTrue("contentDescription = stringResource(SharedRes.string.cosmo_close)" in sheet)
         val upNext = flat(file("UpNext"))
-        assertTrue("CosmoSwitch(checked = autoplay, onCheckedChange = onAutoplay, modifier = Modifier.semantics { contentDescription = label })" in upNext)
+        assertTrue("OrbitSwitch(checked = autoplay, onChange = onAutoplay, look = look, label = label)" in upNext)
+        val card = flat(file("WatchCard"))
+        for (label in listOf("video_previous", "video_next", "video_captions", "video_download", "video_watch_screen", "video_player_settings")) {
+            assertTrue("Res.string.$label" in card, "the card's $label button is labelled")
+        }
     }
 }
