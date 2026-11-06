@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -88,9 +89,11 @@ internal fun OrbitAccountCard(
     compact: Boolean = false,
 ) {
     val (fill, ink) = coverFill(pictureUrl, "account:$name")
-    val disc = if (compact) 72.dp else 96.dp
+    // A narrow card (the desktop's column beside the settings page) gives the words the room a big disc would take.
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+    val disc = if (compact || maxWidth < 400.dp) 72.dp else 96.dp
     Row(
-        modifier.fillMaxWidth().heightIn(min = if (compact) 120.dp else 150.dp).clip(RoundedCornerShape(32.dp)).background(fill)
+        Modifier.fillMaxWidth().heightIn(min = if (compact) 120.dp else 150.dp).clip(RoundedCornerShape(32.dp)).background(fill)
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(if (compact) 18.dp else 22.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -107,10 +110,12 @@ internal fun OrbitAccountCard(
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp),
             )
             if (!line.isNullOrBlank()) {
-                Text(line, style = fonts.body.copy(fontSize = 13.sp), color = ink.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                // The sync status wraps whole ("Cloud sync is off. Your library stays on this device."), never cut mid-word.
+                Text(line, style = fonts.body.copy(fontSize = 13.sp, lineHeight = 17.sp), color = ink.copy(alpha = 0.85f), maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
             }
         }
         if (onClick != null) Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = ink.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+    }
     }
 }
 
