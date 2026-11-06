@@ -48,8 +48,11 @@ import kotlinx.coroutines.launch
     if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
     val extensions = state.sources.filter { it.kind == "mihon" }.groupBy { it.settings["package"].orEmpty() }
     if (extensions.isNotEmpty()) ReadButton(mangaText("Installed extensions") + " (${extensions.size})", { installedPicker = true }, kind = ReadKind.TONAL)
-    if (installedPicker) AlertDialog(onDismissRequest = { installedPicker = false }, title = { Text("Installed extensions") },
-        confirmButton = { TextButton(onClick = { installedPicker = false }) { Text("Done") } }, text = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+    if (installedPicker) com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { installedPicker = false },
+        title = "Installed extensions",
+        scroll = false,
+        content = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
         extensions.forEach { (packageName, configs) ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${configs.first().name} · ${configs.first().settings["version"]}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
@@ -72,12 +75,18 @@ import kotlinx.coroutines.launch
                 } })
             } }
         }
-    } })
+    } },
+        confirmLabel = "Done",
+        onConfirm = { installedPicker = false },
+    )
     review?.let { candidate ->
         var accepted by remember(candidate.sha256) { mutableStateOf(false) }
         fun dismiss() { candidate.stagedFile.delete(); review = null }
-        AlertDialog(onDismissRequest = { if (!loading) dismiss() }, title = { Text("Enable this source extension?") },
-            text = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
+            onDismissRequest = { if (!loading) dismiss() },
+            title = "Enable this source extension?",
+            scroll = false,
+            content = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("${candidate.name} · ${candidate.version}", style = MaterialTheme.typography.titleMedium)
                 Text(candidate.packageName, style = MaterialTheme.typography.labelSmall)
                 Text("Extension APKs run code with Cosmotune's permissions. Enable an APK only if you trust its publisher. Each changed APK requires a new review.")
@@ -85,14 +94,18 @@ import kotlinx.coroutines.launch
                 candidate.signers.forEach { Text("Signer certificate SHA-256\n$it", style = MaterialTheme.typography.labelSmall) }
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(accepted, { accepted = it }); Text("I trust this extension publisher") }
             } },
-            confirmButton = { TextButton(enabled = accepted && !loading, onClick = { scope.launch {
+            confirmLabel = "Trust and enable",
+            onConfirm = { scope.launch {
                 loading = true
                 try { val added = manager.trust(candidate); added.forEach { repository.invalidateSource(it.id) }; review = null }
                 catch (cancelled: CancellationException) { throw cancelled }
                 catch (error: Exception) { onError(error.message ?: "Extension could not be enabled"); dismiss() }
                 finally { loading = false }
-            } }) { Text("Trust and enable") } },
-            dismissButton = { TextButton(enabled = !loading, onClick = ::dismiss) { Text("Cancel") } },
+            } },
+            confirmEnabled = accepted && !loading,
+            dismissLabel = "Cancel",
+            onDismiss = ::dismiss,
+            dismissEnabled = !loading,
         )
     }
 }

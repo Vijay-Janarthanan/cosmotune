@@ -313,24 +313,15 @@ private fun FindPlugins(repository: WatchRepository, fonts: OrbitFonts, look: Or
 
 // ---- dialogs ------------------------------------------------------------------------------------------------------------------
 
-/** An Orbit dialog: radius 28 on the menu's own ground, a mono label and a wide title, then [content]. */
+/**
+ * Watch's dialogs in Orbit's dialog card ([com.cosmotune.ui.sheets.CosmoDialog]): the mono [label] and the wide [title] as the card's
+ * heading, then [content], which ends with [com.cosmotune.ui.sheets.CosmoDialogActions] (one peach action and a quiet Cancel).
+ */
 @Composable
 internal fun WatchDialog(label: String, title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    val look = orbitLook()
-    val fonts = orbitFonts()
-    val ground = if (look.dark) Color(0xFF1C1418) else Color(0xFFFBF6F2)
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            Modifier.padding(16.dp).widthIn(max = 540.dp).fillMaxWidth().heightIn(max = 720.dp).clip(RoundedCornerShape(28.dp)).background(ground)
-                .border(1.dp, look.ink.copy(alpha = 0.08f), RoundedCornerShape(28.dp)).verticalScroll(rememberScrollState()).padding(22.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    OrbitLabel(label, fonts, look.dim)
-                    Text(title, style = fonts.section, color = look.ink, modifier = Modifier.padding(top = 8.dp))
-                }
-                WatchRoundButton(CosmoIcons.Close, "Close", look, onClick = onDismiss)
-            }
+    com.cosmotune.ui.sheets.CosmoDialog(onDismiss = onDismiss, maxWidth = 540.dp) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 16.dp)) {
+            com.cosmotune.ui.sheets.CosmoDialogHeading(label, title, null)
             Spacer(Modifier.height(16.dp))
             content()
         }
@@ -383,21 +374,25 @@ private fun AddSourceDialog(repository: WatchRepository, fonts: OrbitFonts, look
         if (kind != SourceKind.ADDON) WatchField("Name (optional)", name, { name = it }, fonts, look)
         preview?.let { InstallPreviewCard(it, fonts, look, Modifier.padding(bottom = 14.dp)) }
         message?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(bottom = 12.dp)) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (kind == SourceKind.ADDON && preview == null) {
-                WatchCardChip(if (busy) "Reading…" else "Preview", look.ink, fonts, solid = true, onSolid = look.ground, enabled = !busy && a.isNotBlank(), onClick = {
-                    busy = true; message = null
+        val previewing = kind == SourceKind.ADDON && preview == null
+        val ready = when (kind) {
+            SourceKind.ADDON -> preview?.installable == true
+            SourceKind.JELLYFIN, SourceKind.EMBY, SourceKind.XTREAM -> a.isNotBlank() && b.isNotBlank()
+            SourceKind.PLEX -> a.isNotBlank() && b.isNotBlank()
+            else -> a.isNotBlank()
+        }
+        com.cosmotune.ui.sheets.CosmoDialogActions(
+            confirmLabel = when {
+                previewing -> if (busy) "Reading…" else "Preview"
+                busy -> "Checking…"
+                kind == SourceKind.ADDON -> "Install"
+                else -> "Add"
+            },
+            onConfirm = {
+                busy = true; message = null
+                if (previewing) {
                     scope.launch { preview = runCatching { repository.previewInstallLink(a) }.getOrElse { e -> message = e.message ?: "Could not read that link."; null }; busy = false }
-                })
-            } else {
-                val ready = when (kind) {
-                    SourceKind.ADDON -> preview?.installable == true
-                    SourceKind.JELLYFIN, SourceKind.EMBY, SourceKind.XTREAM -> a.isNotBlank() && b.isNotBlank()
-                    SourceKind.PLEX -> a.isNotBlank() && b.isNotBlank()
-                    else -> a.isNotBlank()
-                }
-                WatchCardChip(if (busy) "Checking…" else if (kind == SourceKind.ADDON) "Install" else "Add", look.ink, fonts, solid = true, onSolid = look.ground, enabled = ready && !busy, onClick = {
-                    busy = true; message = null
+                } else {
                     scope.launch {
                         val result = runCatching {
                             when (kind) {
@@ -416,10 +411,12 @@ private fun AddSourceDialog(repository: WatchRepository, fonts: OrbitFonts, look
                             is AddSourceResult.Failed -> message = result.message
                         }
                     }
-                })
-            }
-            WatchCardChip("Cancel", look.ink, fonts, onDone)
-        }
+                }
+            },
+            confirmEnabled = !busy && if (previewing) a.isNotBlank() else ready,
+            dismissLabel = "Cancel",
+            onDismiss = onDone,
+        )
     }
 }
 
@@ -456,8 +453,9 @@ internal fun WatchInstallSheet(link: String, fonts: OrbitFonts, look: OrbitLook,
         if (p == null && message == null) Text("Reading the add-on…", style = fonts.body, color = look.dim)
         p?.let { InstallPreviewCard(it, fonts, look) }
         message?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(top = 10.dp)) }
-        Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            WatchCardChip(if (busy) "Installing…" else "Install", look.ink, fonts, solid = true, onSolid = look.ground, enabled = p?.installable == true && !busy, onClick = {
+        com.cosmotune.ui.sheets.CosmoDialogActions(
+            confirmLabel = if (busy) "Installing…" else "Install",
+            onConfirm = {
                 busy = true
                 scope.launch {
                     when (val r = runCatching { repository.installFromLink(link) }.getOrElse { AddSourceResult.Failed(it.message ?: "Could not install it.") }) {
@@ -465,9 +463,11 @@ internal fun WatchInstallSheet(link: String, fonts: OrbitFonts, look: OrbitLook,
                         is AddSourceResult.Failed -> { message = r.message; busy = false }
                     }
                 }
-            })
-            WatchCardChip("Cancel", look.ink, fonts, onDone)
-        }
+            },
+            confirmEnabled = p?.installable == true && !busy,
+            dismissLabel = "Cancel",
+            onDismiss = onDone,
+        )
     }
 }
 
@@ -490,10 +490,12 @@ private fun SharePackDialog(repository: WatchRepository, fonts: OrbitFonts, look
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(look.chip).padding(14.dp))
             Text("Add-on links only. Servers, playlists with passwords and sign-ins stay on this device.", style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim,
                 modifier = Modifier.padding(top = 10.dp))
-            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WatchCardChip(if (copied) "Copied" else "Copy link", look.ink, fonts, solid = true, onSolid = look.ground, onClick = { clipboard.setText(AnnotatedString(l)); copied = true })
-                WatchCardChip("Done", look.ink, fonts, onDone)
-            }
+            com.cosmotune.ui.sheets.CosmoDialogActions(
+                confirmLabel = if (copied) "Copied" else "Copy link",
+                onConfirm = { clipboard.setText(AnnotatedString(l)); copied = true },
+                dismissLabel = "Done",
+                onDismiss = onDone,
+            )
         }
     }
 }
@@ -527,25 +529,31 @@ internal fun ImportPackDialog(repository: WatchRepository, fonts: OrbitFonts, lo
             }
         }
         message?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(bottom = 12.dp)) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (items == null) WatchCardChip(if (busy) "Reading…" else "Read pack", look.ink, fonts, solid = true, onSolid = look.ground, enabled = link.isNotBlank() && !busy, onClick = {
-                busy = true; message = null
-                scope.launch {
-                    items = runCatching { repository.readPluginPack(link.trim()) }.getOrElse { message = it.message ?: "That is not a plugin pack."; null }
-                    chosen = items.orEmpty().filter { !it.alreadyInstalled }.map { it.manifestUrl }.toSet()
-                    busy = false
-                }
-            }) else WatchCardChip(if (busy) "Adding…" else "Add ${chosen.size}", look.ink, fonts, solid = true, onSolid = look.ground, enabled = chosen.isNotEmpty() && !busy, onClick = {
+        val reading = items == null
+        com.cosmotune.ui.sheets.CosmoDialogActions(
+            confirmLabel = if (reading) (if (busy) "Reading…" else "Read pack") else (if (busy) "Adding…" else "Add ${chosen.size}"),
+            onConfirm = {
                 busy = true
-                scope.launch {
-                    val r = runCatching { repository.importPluginPack(link.trim(), chosen) }.getOrNull()
-                    busy = false
-                    if (r == null) message = "Could not import the pack."
-                    else if (r.failed.isEmpty()) onDone()
-                    else message = "Added ${r.added.size}. Not added: " + r.failed.entries.joinToString { "${it.key.substringAfter("://").substringBefore('/')} (${it.value})" }
+                if (reading) {
+                    message = null
+                    scope.launch {
+                        items = runCatching { repository.readPluginPack(link.trim()) }.getOrElse { message = it.message ?: "That is not a plugin pack."; null }
+                        chosen = items.orEmpty().filter { !it.alreadyInstalled }.map { it.manifestUrl }.toSet()
+                        busy = false
+                    }
+                } else {
+                    scope.launch {
+                        val r = runCatching { repository.importPluginPack(link.trim(), chosen) }.getOrNull()
+                        busy = false
+                        if (r == null) message = "Could not import the pack."
+                        else if (r.failed.isEmpty()) onDone()
+                        else message = "Added ${r.added.size}. Not added: " + r.failed.entries.joinToString { "${it.key.substringAfter("://").substringBefore('/')} (${it.value})" }
+                    }
                 }
-            })
-            WatchCardChip("Cancel", look.ink, fonts, onDone)
-        }
+            },
+            confirmEnabled = !busy && if (reading) link.isNotBlank() else chosen.isNotEmpty(),
+            dismissLabel = "Cancel",
+            onDismiss = onDone,
+        )
     }
 }

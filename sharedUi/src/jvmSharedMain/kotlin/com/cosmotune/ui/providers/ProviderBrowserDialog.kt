@@ -159,9 +159,15 @@ fun CatalogueBrowserDialog(access: CatalogueBrowserAccess, onDismiss: () -> Unit
             }
         }
     }
-    selectedTrack?.let { track -> AlertDialog(onDismissRequest = { selectedTrack = null }, title = { Text(track.title) }, text = {
+    selectedTrack?.let { track -> com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { selectedTrack = null },
+        title = track.title,
+        content = {
         Column { links(track).forEach { (title, key) ->
             TextButton(onClick = { selectedTrack = null; path = path + key }) { Text("${if (key.kind == "artist") "Artist" else "Album"} · $title") }
         } }
-    }, confirmButton = { TextButton(onClick = { selectedTrack = null }) { Text("Close") } }) }
+    },
+        confirmLabel = "Close",
+        onConfirm = { selectedTrack = null },
+    ) }
 }

@@ -266,6 +266,16 @@ internal fun DesktopListenBrainzTokenDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun DialogHeading(title: String, message: String, isError: Boolean = false) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        com.cosmotune.ui.sheets.CosmoDialogHeading(
+            overline = null,
+            title = title,
+            message = message,
+            modifier = Modifier.padding(start = panelInset(24.dp), end = panelInset(24.dp), top = 24.dp, bottom = 10.dp),
+            messageIsError = isError,
+        )
+        return
+    }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 18.dp),
         horizontalAlignment = if (LocalDesktopPanelIsPage.current) Alignment.Start else Alignment.CenterHorizontally,
@@ -434,12 +444,7 @@ internal fun DesktopSpotifyImportDialog(
                     }
                 }
             }
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 12.dp),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = onDismiss) { Text(DesktopStrings["done", "Done"], color = DesktopAccent) }
-            }
+            DesktopDialogButtons(null, {}, DesktopStrings["done", "Done"], onDismiss)
         }
     }
 }
@@ -501,6 +506,9 @@ private fun DialogActions(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        return DesktopDialogButtons(confirm, onConfirm, DesktopStrings["cancel", "Cancel"], onDismiss, confirmEnabled = confirmEnabled, busy = busy)
+    }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 12.dp),
         horizontalArrangement = Arrangement.End,

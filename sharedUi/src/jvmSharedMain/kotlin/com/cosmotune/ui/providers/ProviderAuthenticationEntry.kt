@@ -84,7 +84,10 @@ fun ProviderAuthenticationEntry(manager: ProviderManager, installed: ProviderIns
     if (error && !open) Text(if (completedGrant) "Verification received, but session setup failed. Finish provider verification to retry."
         else "Provider sign-in could not be updated. Check its settings and retry.", color = MaterialTheme.colorScheme.error)
     if (!open) return
-    AlertDialog(onDismissRequest = { if (!busy) { open = false; callback = "" } }, title = { Text("${installed.manifest.title} sign-in") }, text = {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { if (!busy) { open = false; callback = "" } },
+        title = "${installed.manifest.title} sign-in",
+        content = {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (signedProvider) "Complete verification with this provider's service. If the browser does not return, use Copy link on its page and paste the callback URL or grant=… text below."
                 else if (automatic) "Finish signing in with this provider, then return to Cosmotune. If the browser cannot return the result, paste its complete callback URL below."
@@ -105,11 +108,18 @@ fun ProviderAuthenticationEntry(manager: ProviderManager, installed: ProviderIns
             if (error) Text(if (browserError) "The sign-in page could not be opened. Restart sign-in or return its complete callback URL here."
                 else "The callback was not accepted. Check that it is from this sign-in and has not expired.", color = MaterialTheme.colorScheme.error)
         }
-    }, confirmButton = { TextButton(enabled = !busy && callback.isNotBlank(), onClick = { scope.launch {
+    },
+        confirmLabel = "Continue",
+        onConfirm = { scope.launch {
         busy = true; error = false; browserError = false
         try { manager.completeAuthentication(installed.manifest.name, callback); callback = ""; open = false }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { error = true }
         finally { busy = false }
-    } }) { Text("Continue") } }, dismissButton = { TextButton(enabled = !busy, onClick = { open = false; callback = "" }) { Text("Close") } })
+    } },
+        confirmEnabled = !busy && callback.isNotBlank(),
+        dismissLabel = "Close",
+        onDismiss = { open = false; callback = "" },
+        dismissEnabled = !busy,
+    )
 }

@@ -35,20 +35,20 @@ fun DesktopLyricsShare(request: LyricsShareRequest, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(CosmoRadii.rLg)) {
-            Column(Modifier.widthIn(max = 480.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Share lyrics", style = MaterialTheme.typography.titleLarge)
+    com.cosmotune.ui.sheets.CosmoDialog(onDismiss = onDismiss, maxWidth = 480.dp) {
+        run {
+            Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                com.cosmotune.ui.sheets.CosmoDialogHeading(null, "Share lyrics", null)
                 image?.let { card ->
                     Image(remember(card) { card.toComposeImageBitmap() }, "Selected lyrics card preview",
                         Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 540.dp))
                 } ?: Text("Preparing your card…")
                 message?.let { Text(it) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onDismiss, enabled = !saving) { Text("Close") }
+                // The .lrc file and the video are quiet; the picture is the dialog's one action.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     val lrc = remember(request) { request.lrcText }
                     // The whole song's lyrics as a standard .lrc file, beside the picture of the chosen lines.
-                    if (lrc != null) TextButton(enabled = !saving, onClick = {
+                    if (lrc != null) com.cosmotune.ui.sheets.CosmoDialogQuietButton("Save as .lrc", enabled = !saving, onClick = {
                         scope.launch {
                             saving = true
                             try {
@@ -61,12 +61,12 @@ fun DesktopLyricsShare(request: LyricsShareRequest, onDismiss: () -> Unit) {
                             catch (_: Exception) { message = "The lyrics could not be saved. Try another location." }
                             finally { saving = false }
                         }
-                    }) { Text("Save as .lrc") }
+                    })
                     // A short MP4 of the chosen lines lighting up over the cover, with the song underneath (DesktopLyricsVideo).
                     val videoPlan = remember(request) {
                         com.cosmotune.lyrics.video.LyricsVideoPlan.forSelection(request.lrcLines, request.lines.filterNot { it.isGap }.map { it.text })
                     }
-                    if (videoPlan != null) TextButton(enabled = !saving, onClick = {
+                    if (videoPlan != null) com.cosmotune.ui.sheets.CosmoDialogQuietButton("Save as video", enabled = !saving, onClick = {
                         scope.launch {
                             saving = true
                             try {
@@ -82,8 +82,15 @@ fun DesktopLyricsShare(request: LyricsShareRequest, onDismiss: () -> Unit) {
                             catch (failure: Throwable) { message = "The video could not be made: ${failure.message}" }
                             finally { saving = false }
                         }
-                    }) { Text("Save as video") }
-                    Button(enabled = image != null && !saving, onClick = {
+                    })
+                }
+                com.cosmotune.ui.sheets.CosmoDialogActions(
+                    confirmLabel = if (saving) "Saving…" else "Save image",
+                    confirmEnabled = image != null && !saving,
+                    dismissLabel = "Close",
+                    onDismiss = onDismiss,
+                    dismissEnabled = !saving,
+                    onConfirm = {
                         scope.launch {
                             saving = true
                             try {
@@ -96,8 +103,8 @@ fun DesktopLyricsShare(request: LyricsShareRequest, onDismiss: () -> Unit) {
                             catch (_: Exception) { message = "The image could not be saved. Try another location." }
                             finally { saving = false }
                         }
-                    }) { Text(if (saving) "Saving…" else "Save image") }
-                }
+                    },
+                )
             }
         }
     }

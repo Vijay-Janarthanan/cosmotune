@@ -244,19 +244,7 @@ private fun NewPlaylistForm(
         }
     }
 
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (busy) {
-            CircularProgressIndicator(color = DesktopAccent, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(12.dp))
-        }
-        TextButton(onClick = submit, enabled = name.isNotBlank() && !busy) {
-            Text(DesktopStrings["create_playlist", "Create playlist"], color = if (name.isBlank() || busy) DesktopSecondary else DesktopAccent)
-        }
-    }
+    DesktopDialogButtons(DesktopStrings["create_playlist", "Create playlist"], submit, null, {}, confirmEnabled = name.isNotBlank() && !busy, busy = busy)
 }
 
 /** A name for something that already exists — renaming a playlist. */
@@ -464,6 +452,15 @@ private fun DesktopDialogFrame(onDismiss: () -> Unit, content: @Composable () ->
 
 @Composable
 private fun DialogHeading(title: String, subtitle: String) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        com.cosmotune.ui.sheets.CosmoDialogHeading(
+            overline = null,
+            title = title,
+            message = subtitle.takeIf { it.isNotBlank() },
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 6.dp),
+        )
+        return
+    }
     Text(
         title,
         style = MaterialTheme.typography.titleMedium,
@@ -542,20 +539,7 @@ private fun DialogButtons(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (busy) {
-            CircularProgressIndicator(color = DesktopAccent, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(12.dp))
-        }
-        TextButton(onClick = onDismiss, enabled = !busy) { Text(DesktopStrings["cancel", "Cancel"], color = DesktopSecondary) }
-        TextButton(onClick = onConfirm, enabled = confirmEnabled && !busy) {
-            Text(confirmLabel, color = if (confirmEnabled && !busy) DesktopAccent else DesktopSecondary)
-        }
-    }
+    DesktopDialogButtons(confirmLabel, onConfirm, DesktopStrings["cancel", "Cancel"], onDismiss, confirmEnabled = confirmEnabled && !busy, busy = busy)
 }
 
 @Composable

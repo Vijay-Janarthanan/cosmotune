@@ -296,7 +296,11 @@ private fun BookConnections(repository: ReadingRepository, onDismiss: () -> Unit
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val palette = LocalCosmoColors.current.palette
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Connect your library") }, text = {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = onDismiss,
+        title = "Connect your library",
+        scroll = false,
+        content = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item { Text("Use your library's OPDS endpoint. Credentials stay with this device.", style = ReadType.body(), color = Color(palette.textSecondary)) }
             items(state.sources, key = { it.id }) { source ->
@@ -312,12 +316,18 @@ private fun BookConnections(repository: ReadingRepository, onDismiss: () -> Unit
             item { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(insecure, { insecure = it }); Text("Allow HTTP on my local network", style = ReadType.body()) } }
             error?.let { message -> item { Text(message, style = ReadType.body(), color = Color(palette.danger)) } }
         }
-    }, confirmButton = { TextButton(enabled = name.isNotBlank() && url.isNotBlank() && !busy, onClick = {
+    },
+        confirmLabel = if (busy) "Connecting…" else "Connect",
+        onConfirm = {
         scope.launch { busy = true; error = null
             try { repository.saveOpdsSource(name, url, username, password, insecure); onDismiss() }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { error = "The library connection could not be saved. Check the address and storage access." }
             finally { busy = false }
         }
-    }) { Text(if (busy) "Connecting…" else "Connect") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } })
+    },
+        confirmEnabled = name.isNotBlank() && url.isNotBlank() && !busy,
+        dismissLabel = "Close",
+        onDismiss = onDismiss,
+    )
 }

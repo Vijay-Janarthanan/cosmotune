@@ -103,52 +103,15 @@ fun TranslationLanguageDialog(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(SCRIM_COLOR)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier
-                .width(ALERT_WIDTH)
-                .clip(shape)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
-                    } else {
-                        Modifier.optimizedHazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.regular(MaterialTheme.colorScheme.surface),
-                        )
-                    },
-                )
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = {},
-                ),
-        ) {
+    // Orbit's dialog card: the scrim that closes it and the card on the floating ground; its words and buttons are Orbit's.
+    Box(modifier.fillMaxSize()) {
+        com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = 420.dp) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 19.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.translation_language),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.W600,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                )
+                com.cosmotune.ui.sheets.CosmoDialogHeading(null, stringResource(R.string.translation_language), null)
                 Text(
                     text = stringResource(R.string.translation_language_description),
                     modifier = Modifier.padding(top = 4.dp),
@@ -156,8 +119,7 @@ fun TranslationLanguageDialog(
                         fontSize = 13.sp,
                         lineHeight = 17.sp,
                     ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -216,11 +178,12 @@ fun TranslationLanguageDialog(
 
             // Pinned under the list rather than scrolling away with it: on a
             // list this long the way out has to stay where it was put.
-            AlertRule()
-            AlertAction(
-                label = stringResource(R.string.done),
-                emphasised = true,
-                onClick = onDismiss,
+            com.cosmotune.ui.sheets.CosmoDialogActions(
+                confirmLabel = null,
+                onConfirm = {},
+                dismissLabel = stringResource(R.string.done),
+                onDismiss = onDismiss,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
             )
         }
     }

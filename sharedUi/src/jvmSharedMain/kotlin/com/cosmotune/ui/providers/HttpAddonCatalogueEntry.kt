@@ -61,8 +61,14 @@ fun HttpAddonCatalogueEntry(identity: String, title: String, enabled: Boolean, r
     }
     val ready = access
     if (ready != null) CatalogueBrowserDialog(ready, onDismiss = { open = false }, onPlay = onPlay)
-    else AlertDialog(onDismissRequest = { open = false }, title = { Text(title) }, text = {
-        if (error) Text("This source could not load its catalogue. Check its connection and required output.") else LinearProgressIndicator()
-    }, confirmButton = { if (error) TextButton(onClick = { attempt++ }) { Text("Retry") } },
-        dismissButton = { TextButton(onClick = { open = false }) { Text("Close") } })
+    else com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { open = false },
+        title = title,
+        message = if (error) "This source could not load its catalogue. Check its connection and required output." else null,
+        confirmLabel = if (error) "Retry" else null,
+        onConfirm = { attempt++ },
+        dismissLabel = "Close",
+        onDismiss = { open = false },
+        content = if (error) null else ({ LinearProgressIndicator() }),
+    )
 }

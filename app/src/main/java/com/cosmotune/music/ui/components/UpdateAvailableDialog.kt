@@ -91,82 +91,35 @@ fun UpdateAvailableDialog(
     onOpenReleasePage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val state by AppUpdateChecker.download.collectAsStateWithLifecycle()
-    val shape = RoundedCornerShape(ALERT_CORNER)
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(SCRIM_COLOR)
-            // Tapping the scrim reads the same as Remind Me Later — nothing
-            // about this update is mandatory, so backing out of it should be as
-            // easy as getting into it. Mid-download it only closes the sheet;
-            // the download keeps going and the top-bar icon reopens this.
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier
-                .width(ALERT_WIDTH)
-                .clip(shape)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
-                    } else {
-                        Modifier.optimizedHazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.regular(MaterialTheme.colorScheme.surface),
-                        )
-                    },
-                )
-                // Swallows the tap before it reaches the scrim behind, so
-                // touching the card itself never dismisses it.
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = {},
-                ),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 19.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+    // Tapping the scrim reads the same as Remind Me Later — nothing about this update is mandatory, so backing out of it should be
+    // as easy as getting into it. Mid-download it only closes the card; the download keeps going and the top-bar icon reopens this.
+    Box(modifier.fillMaxSize()) {
+        com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = 420.dp) {
+            val (confirm, dismiss) = when (state) {
+                is AppUpdateChecker.DownloadState.Downloading -> null to (stringResource(R.string.cancel) to onCancelDownload)
+                is AppUpdateChecker.DownloadState.Ready ->
+                    (stringResource(R.string.install_now) to onInstall) to (stringResource(R.string.later) to onDismiss)
+                is AppUpdateChecker.DownloadState.Failed ->
+                    (stringResource(R.string.try_again) to onDownload) to (stringResource(R.string.open_releases_page) to onOpenReleasePage)
+                else -> (stringResource(R.string.download_now) to onDownload) to (stringResource(R.string.remind_me_later) to onDismiss)
+            }
+            com.cosmotune.ui.sheets.CosmoDialogBody(
+                overline = null,
+                title = stringResource(R.string.software_update),
+                message = when (state) {
+                    is AppUpdateChecker.DownloadState.Downloading -> stringResource(R.string.update_downloading_body, version)
+                    is AppUpdateChecker.DownloadState.Ready -> stringResource(R.string.update_ready_body, version)
+                    is AppUpdateChecker.DownloadState.Failed -> stringResource(R.string.update_failed_body, version)
+                    else -> stringResource(R.string.update_available_body, version)
+                },
+                confirmLabel = confirm?.first,
+                onConfirm = { confirm?.second?.invoke() },
+                dismissLabel = dismiss.first,
+                onDismiss = dismiss.second,
+                scroll = false,
             ) {
-                Text(
-                    text = stringResource(R.string.software_update),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.W600,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = when (state) {
-                        is AppUpdateChecker.DownloadState.Downloading ->
-                            stringResource(R.string.update_downloading_body, version)
-                        is AppUpdateChecker.DownloadState.Ready ->
-                            stringResource(R.string.update_ready_body, version)
-                        is AppUpdateChecker.DownloadState.Failed ->
-                            stringResource(R.string.update_failed_body, version)
-                        else ->
-                            stringResource(R.string.update_available_body, version)
-                    },
-                    modifier = Modifier.padding(top = 4.dp),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 13.sp,
-                        lineHeight = 17.sp,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                )
-
                 // The download's progress, drawn as a thin fill across a
                 // hairline track — same weight as [AlertRule], so it reads as
                 // part of the card rather than a widget bolted onto it.
@@ -197,8 +150,7 @@ fun UpdateAvailableDialog(
                         modifier = Modifier.padding(top = 6.dp),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center,
-                    )
+                                            )
                 }
 
                 // The release's own notes, rendered as Markdown rather than
@@ -236,28 +188,6 @@ fun UpdateAvailableDialog(
                             }
                         }
                     }
-                }
-            }
-
-            AlertRule()
-            when (state) {
-                is AppUpdateChecker.DownloadState.Downloading -> {
-                    AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = onCancelDownload)
-                }
-                is AppUpdateChecker.DownloadState.Ready -> {
-                    AlertAction(label = stringResource(R.string.install_now), emphasised = true, onClick = onInstall)
-                    AlertRule()
-                    AlertAction(label = stringResource(R.string.later), emphasised = false, onClick = onDismiss)
-                }
-                is AppUpdateChecker.DownloadState.Failed -> {
-                    AlertAction(label = stringResource(R.string.try_again), emphasised = true, onClick = onDownload)
-                    AlertRule()
-                    AlertAction(label = stringResource(R.string.open_releases_page), emphasised = false, onClick = onOpenReleasePage)
-                }
-                else -> {
-                    AlertAction(label = stringResource(R.string.download_now), emphasised = true, onClick = onDownload)
-                    AlertRule()
-                    AlertAction(label = stringResource(R.string.remind_me_later), emphasised = false, onClick = onDismiss)
                 }
             }
         }

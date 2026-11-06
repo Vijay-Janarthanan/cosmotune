@@ -96,10 +96,10 @@ internal fun DesktopArtistSignatureSettings(settings: DesktopSignatureSettingsMo
         else DesktopStrings["connected", "Connected"],
         onClick = { editor = true },
     )
-    if (editor) AlertDialog(
+    if (editor) com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = { if (!busy) editor = false },
-        title = { Text(DesktopStrings["artist_signatures_url", "Signature API URL"]) },
-        text = {
+        title = DesktopStrings["artist_signatures_url", "Signature API URL"],
+        content = {
             Column {
                 Text(subtitle)
                 OutlinedTextField(
@@ -113,8 +113,8 @@ internal fun DesktopArtistSignatureSettings(settings: DesktopSignatureSettingsMo
                 error?.let { Text(it) }
             }
         },
-        confirmButton = {
-            TextButton(enabled = !busy, onClick = {
+        confirmLabel = DesktopStrings["save", "Save"],
+        onConfirm = {
                 busy = true
                 scope.launch {
                     when (settings.submit(draft)) {
@@ -124,8 +124,10 @@ internal fun DesktopArtistSignatureSettings(settings: DesktopSignatureSettingsMo
                     }
                     busy = false
                 }
-            }) { Text(DesktopStrings["save", "Save"]) }
-        },
-        dismissButton = { TextButton(enabled = !busy, onClick = { editor = false }) { Text(DesktopStrings["cancel", "Cancel"]) } },
+            },
+        confirmEnabled = !busy,
+        dismissLabel = DesktopStrings["cancel", "Cancel"],
+        onDismiss = { editor = false },
+        dismissEnabled = !busy,
     )
 }

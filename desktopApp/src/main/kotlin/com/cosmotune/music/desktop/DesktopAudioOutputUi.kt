@@ -113,10 +113,15 @@ internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
             }
         }
     }
-    if (confirmingDop) AlertDialog(onDismissRequest = { confirmingDop = false }, title = { Text("Confirm this DAC supports DoP") },
-        text = { Text("Check the DAC manufacturer's documentation for DoP support and the DSD rate you will play. A 24-bit PCM rate alone does not establish DoP support. This choice applies only to the selected device; software volume and DSP are bypassed.") },
-        confirmButton = { TextButton(onClick = { DesktopOutputMode.confirmDop(selected); confirmingDop = false }) { Text("This DAC supports DoP") } },
-        dismissButton = { TextButton(onClick = { confirmingDop = false }) { Text("Cancel") } })
+    if (confirmingDop) com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { confirmingDop = false },
+        title = "Confirm this DAC supports DoP",
+        message = "Check the DAC manufacturer's documentation for DoP support and the DSD rate you will play. A 24-bit PCM rate alone does not establish DoP support. This choice applies only to the selected device; software volume and DSP are bypassed.",
+        confirmLabel = "This DAC supports DoP",
+        onConfirm = { DesktopOutputMode.confirmDop(selected); confirmingDop = false },
+        dismissLabel = "Cancel",
+        onDismiss = { confirmingDop = false },
+    )
 }
 
 @Composable

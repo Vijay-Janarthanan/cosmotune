@@ -133,6 +133,32 @@ internal fun Modifier.desktopRowClickable(enabled: Boolean = true, onClick: () -
 }
 
 /**
+ * A dialog's buttons in Orbit (`CosmoDialogActions`): [dismiss] quiet, [confirm] the one peach action, or the dismiss alone as the
+ * peach one; [busy] puts a spinner before them and holds the dismiss. In line with the dialog body's 24 dp sides on a card.
+ */
+@Composable
+internal fun DesktopDialogButtons(
+    confirm: String?,
+    onConfirm: () -> Unit,
+    dismiss: String?,
+    onDismiss: () -> Unit,
+    confirmEnabled: Boolean = true,
+    dismissEnabled: Boolean = true,
+    busy: Boolean = false,
+) {
+    com.cosmotune.ui.sheets.CosmoDialogActions(
+        confirmLabel = confirm,
+        onConfirm = onConfirm,
+        dismissLabel = dismiss,
+        onDismiss = onDismiss,
+        confirmEnabled = confirmEnabled,
+        dismissEnabled = dismissEnabled,
+        busy = busy,
+        modifier = Modifier.padding(start = panelInset(24.dp), end = panelInset(24.dp), bottom = 8.dp),
+    )
+}
+
+/**
  * The dialog shell: the same card the song menu is drawn on — or, inside Settings, a page of it.
  *
  * [popup] keeps it a card even there, for a prompt a page opens over itself.

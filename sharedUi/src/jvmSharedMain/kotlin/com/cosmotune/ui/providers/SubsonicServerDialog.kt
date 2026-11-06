@@ -71,7 +71,10 @@ fun SubsonicServerDialog(isNew: Boolean, label: String, address: String, setting
         }
     }
 
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (isNew) "Add a Subsonic server" else label.ifBlank { "Subsonic server" }) }, text = {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = onDismiss,
+        title = if (isNew) "Add a Subsonic server" else label.ifBlank { "Subsonic server" },
+        content = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Navidrome, Gonic, Airsonic, Ampache and other Subsonic or OpenSubsonic servers. Cosmotune searches, browses and streams your own files from it.",
                 style = MaterialTheme.typography.bodySmall)
@@ -98,6 +101,11 @@ fun SubsonicServerDialog(isNew: Boolean, label: String, address: String, setting
                 if (onRemove != null) TextButton(onClick = onRemove, enabled = !checking) { Text("Remove", color = MaterialTheme.colorScheme.error) }
             }
         }
-    }, confirmButton = { TextButton(onClick = { check(thenSave = true) }, enabled = !checking) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+    },
+        confirmLabel = "Save",
+        onConfirm = { check(thenSave = true) },
+        confirmEnabled = !checking,
+        dismissLabel = "Cancel",
+        onDismiss = onDismiss,
+    )
 }

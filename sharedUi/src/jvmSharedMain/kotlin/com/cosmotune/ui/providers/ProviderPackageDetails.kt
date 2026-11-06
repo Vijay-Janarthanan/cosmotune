@@ -63,7 +63,11 @@ fun ProviderServiceReportView(report: ProviderServiceReport, modifier: Modifier 
 @Composable
 internal fun ProviderPackageDetails(installed: ProviderInstall, report: ProviderServiceReport?, onDismiss: () -> Unit) {
     val manifest = installed.manifest
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(manifest.title) }, text = {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = onDismiss,
+        title = manifest.title,
+        scroll = false,
+        content = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Version ${manifest.version}", style = MaterialTheme.typography.labelLarge) }
             if (manifest.description.isNotBlank()) item { Text(manifest.description) }
@@ -91,5 +95,8 @@ internal fun ProviderPackageDetails(installed: ProviderInstall, report: Provider
             item { Text("Package fingerprint", style = MaterialTheme.typography.titleSmall) }
             item { SelectionContainer { Text(installed.sha256, style = MaterialTheme.typography.labelSmall) } }
         }
-    }, confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } })
+    },
+        confirmLabel = "Done",
+        onConfirm = onDismiss,
+    )
 }

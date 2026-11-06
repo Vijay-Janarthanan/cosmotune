@@ -257,16 +257,28 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         m.episodeSheet?.let { entry -> EpisodeSheet(m, env, entry) { m.episodeSheet = null } }
     }
     }
-    if (m.addFeed) AlertDialog(onDismissRequest = { m.addFeed = false }, title = { Text("Open a podcast") },
-        text = { OutlinedTextField(m.feedAddress, { m.feedAddress = it }, label = { Text("Podcast feed or show link") }, supportingText = { Text("RSS, Spotify or YouTube Music") }, singleLine = true) },
-        confirmButton = { TextButton(onClick = { m.openLink(m.feedAddress) { if (section == PodioSection.RADIO) chooseSection(PodioSection.PODCASTS) } }) { Text("Open podcast") } },
-        dismissButton = { TextButton(onClick = { m.addFeed = false }) { Text("Cancel") } })
-    if (m.importingOpml) AlertDialog(onDismissRequest = { m.importingOpml = false }, title = { Text("Import podcast subscriptions") },
-        text = { Column {
+    if (m.addFeed) com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { m.addFeed = false },
+        title = "Open a podcast",
+        content = { OutlinedTextField(m.feedAddress, { m.feedAddress = it }, label = { Text("Podcast feed or show link") }, supportingText = { Text("RSS, Spotify or YouTube Music") }, singleLine = true) },
+        confirmLabel = "Open podcast",
+        onConfirm = { m.openLink(m.feedAddress) { if (section == PodioSection.RADIO) chooseSection(PodioSection.PODCASTS) } },
+        dismissLabel = "Cancel",
+        onDismiss = { m.addFeed = false },
+    )
+    if (m.importingOpml) com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { m.importingOpml = false },
+        title = "Import podcast subscriptions",
+        content = { Column {
             Text("Paste an OPML export from your podcast player. Existing follows and listening positions are kept.")
             OutlinedTextField(m.opmlText, { m.opmlText = it; m.opmlError = null }, label = { Text("OPML document") }, minLines = 5, maxLines = 10,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
             m.opmlError?.let { Text(it, color = Color(palette.danger)) }
-        } }, confirmButton = { TextButton(onClick = { m.importSubscriptions(m.opmlText) { chooseSection(PodioSection.FOLLOWING) } }, enabled = m.opmlText.isNotBlank()) { Text("Import subscriptions") } },
-        dismissButton = { TextButton(onClick = { m.importingOpml = false }) { Text("Cancel") } })
+        } },
+        confirmLabel = "Import subscriptions",
+        onConfirm = { m.importSubscriptions(m.opmlText) { chooseSection(PodioSection.FOLLOWING) } },
+        confirmEnabled = m.opmlText.isNotBlank(),
+        dismissLabel = "Cancel",
+        onDismiss = { m.importingOpml = false },
+    )
 }
