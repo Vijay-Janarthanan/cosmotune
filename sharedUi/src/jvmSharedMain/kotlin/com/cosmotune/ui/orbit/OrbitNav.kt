@@ -199,16 +199,17 @@ fun OrbitNavPlaylist(title: String, subtitle: String?, imageUrl: String?, select
 
 /**
  * Home's indigo room card made small, for the foot of the navigation: the live dot and "LIVE ROOM · n", "Your room", and the room
- * drawn as a small system at its corner (a moon per person). A click opens the room. Nothing outside a room.
+ * drawn as a small system at its corner (a moon per person). A click opens the room, after [onOpen] (the profile drawer closes
+ * itself there, so the room is not left under it). Nothing outside a room.
  */
 @Composable
-fun OrbitNavRoomCard(modifier: Modifier = Modifier) {
+fun OrbitNavRoomCard(modifier: Modifier = Modifier, onOpen: () -> Unit = {}) {
     val room = LocalRoomLauncher.current?.takeIf { it.inRoom } ?: return
     val fonts = orbitFonts()
     val tone = roomCardColors(orbitLook())
     Box(
         modifier.fillMaxWidth().height(96.dp).clip(RoundedCornerShape(26.dp)).background(tone.fill)
-            .clickable(role = Role.Button) { room.openRoom() }.pointerHoverIcon(PointerIcon.Hand),
+            .clickable(role = Role.Button) { onOpen(); room.openRoom() }.pointerHoverIcon(PointerIcon.Hand),
     ) {
         Canvas(Modifier.align(Alignment.TopEnd).offset(x = 40.dp, y = (-44).dp).size(140.dp)) {
             val c = center

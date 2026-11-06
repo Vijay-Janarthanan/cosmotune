@@ -365,7 +365,7 @@ private fun DrawerLayer(
                     Spacer(Modifier.height(14.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { for (entry in entries) EntryRow(entry) }
                     // In a room, the room's small card under the rows; a tap opens the room.
-                    com.cosmotune.ui.orbit.OrbitNavRoomCard(Modifier.padding(start = 12.dp, end = 12.dp, top = 14.dp))
+                    com.cosmotune.ui.orbit.OrbitNavRoomCard(Modifier.padding(start = 12.dp, end = 12.dp, top = 14.dp), onOpen = onDismiss)
                     Spacer(Modifier.height(12.dp))
                 }
                 Separator()

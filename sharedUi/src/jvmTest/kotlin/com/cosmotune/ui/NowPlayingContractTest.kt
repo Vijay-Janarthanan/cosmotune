@@ -123,8 +123,11 @@ class NowPlayingContractTest {
     @Test fun onlyTheLabelTheLineAndTheRingReadThePlayhead() {
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
         val reads = Regex("""position\.positionMs""").findAll(screen).toList()
-        assertEquals(1, reads.size, "the screen reads the playhead once")
-        assertTrue("musicVideoLink(links, canvas, song.title, song.artist) { position.positionMs }" in screen, "and only in the music video action, never in composition")
+        assertEquals(2, reads.size, "the screen reads the playhead twice")
+        assertTrue("musicVideoLink(links, canvas, song.title, song.artist) { position.positionMs }" in screen, "in the music video action")
+        // And in a derived state that changes once, when the song passes the point where previous restarts it (as the old
+        // transport had it): never per frame in composition.
+        assertTrue("remember(position) { derivedStateOf { position.positionMs > BACK_RESTARTS_AFTER_MS } }" in screen)
         val card = code(nowPlaying("NowPlayingCard.kt"))
         assertTrue(card.contains("fun progress(): Float = scrub.shown(position.positionMs, durationMs)"), "the line and the ring read it while drawing")
         assertEquals(2, Regex("""position\.positionMs""").findAll(card).count(), "the progress and the NOW ORBITING label")

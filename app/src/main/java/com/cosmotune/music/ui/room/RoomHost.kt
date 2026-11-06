@@ -194,6 +194,9 @@ private fun AskToPlaySheet(onPick: (Song) -> Unit, onDismiss: () -> Unit) {
                 fonts = fonts,
                 look = look,
                 modifier = Modifier.weight(1f),
+                // The keyboard's Search key searches, as the old pill field's did.
+                onSubmit = search,
+                imeAction = androidx.compose.ui.text.input.ImeAction.Search,
             )
             Spacer(Modifier.width(8.dp))
             com.cosmotune.ui.orbit.OrbitRoundButton(CosmoIcons.Search, stringResource(R.string.search), look.ink, search, size = 48.dp, enabled = query.isNotBlank() && !searching)

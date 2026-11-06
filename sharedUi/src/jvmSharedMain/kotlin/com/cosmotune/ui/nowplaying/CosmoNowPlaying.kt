@@ -45,6 +45,7 @@ import com.cosmotune.music.data.model.LikeStatus
 import com.cosmotune.music.data.model.PlaybackSourceType
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.LastPlayerScreen
+import com.cosmotune.music.playback.BACK_RESTARTS_AFTER_MS
 import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.lyrics_loading_lines
@@ -388,8 +389,11 @@ fun CosmoNowPlaying(
         }
     }
     val likeButton = CardButton(if (transport.liked) CosmoIcons.HeartFill else CosmoIcons.Heart, if (transport.liked) "Remove from liked" else "Like", onToggleLike, on = transport.liked)
-    val previousButton = CardButton(CosmoIcons.Previous, "Previous", transport.onPrevious, enabled = hasPrevious)
-    val nextButton = CardButton(CosmoIcons.Next, "Next", transport.onNext, enabled = hasNext)
+    // As the old transport: back restarts the song once it is a few seconds in, so it works on the first song too; in a party
+    // whose host holds the controls both stay enabled and say so (onBlockedControl) instead of acting.
+    val pastRestartPoint by remember(position) { derivedStateOf { position.positionMs > BACK_RESTARTS_AFTER_MS } }
+    val previousButton = CardButton(CosmoIcons.Previous, "Previous", transport.onPrevious, enabled = controlsLocked || hasPrevious || pastRestartPoint)
+    val nextButton = CardButton(CosmoIcons.Next, "Next", transport.onNext, enabled = controlsLocked || hasNext)
 
     // The wide page (board sections 1 and 3): the top row with the chips, the video or the record over the song card on the
     // left, the chosen panel on the right. The chips are the panel; one always shows.
