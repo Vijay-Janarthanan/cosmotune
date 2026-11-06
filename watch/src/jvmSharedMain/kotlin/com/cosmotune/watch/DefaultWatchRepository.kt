@@ -41,6 +41,7 @@ import com.cosmotune.watch.plugins.servers.PlexPlugin
 import com.cosmotune.watch.plugins.stremio.StremioClient
 import com.cosmotune.watch.plugins.stremio.StremioPlugin
 import com.cosmotune.watch.plugins.youtube.PrasarBharatiPlugin
+import com.cosmotune.watch.plugins.youtube.YouTubeLivePlugin
 import com.cosmotune.watch.store.StoredSource
 import com.cosmotune.watch.store.WatchState
 import com.cosmotune.watch.store.WatchStore
@@ -147,6 +148,7 @@ class DefaultWatchRepository(
             FreeServices.pluto(http, lists, device, com.cosmotune.watch.plugins.free.PlutoVod(http, BuiltInPlugins.PLUTO, device, e.plutoBoot, e.plutoVod, config.now)),
             FreeServices.samsung(http, lists),
             PrasarBharatiPlugin(config.videoSource, config.now),
+            YouTubeLivePlugin(config.videoSource, config.now),
             FreeServices.plex(http, lists, device, e.plexVod, e.plexTv, e.plexEpg),
             InternetArchivePlugin(http, e.archive),
             YouTubeFreePlugin(config.videoSource),

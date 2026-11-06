@@ -90,7 +90,7 @@ the failover message and errors. `switchStream`, `selectAudio`, `selectSubtitle(
 ## Built-in plugins
 
 `BuiltInPlugins.all`, in Plugins page order (default in brackets): iptv-org [on], Pluto TV [on], Samsung TV Plus [on],
-Prasar Bharati (DD) [on], Plex free [on], Internet Archive [on], Free on YouTube [on], Public Domain Movies (Stremio) [off], OpenSubtitles (Stremio)
+Prasar Bharati (DD) [on], Live on YouTube [on], Plex free [on], Internet Archive [on], Free on YouTube [on], Public Domain Movies (Stremio) [off], OpenSubtitles (Stremio)
 [on], WatchHub (Stremio) [off]. Nothing else is built in; no torrent, debrid or site-scraper plugin exists or may be added.
 
 Prasar Bharati (DD), id `dd`, badge "DD": DD News, DD India, DD National, DD Sports, DD Kisan, DD Urdu, DD Bharati, DD Tamil
@@ -99,6 +99,12 @@ DRM-protected), so each channel is its official YouTube channel and plays what t
 player like Free on YouTube. A channel that only goes live for programmes carries the label "Not 24/7"; when nothing is
 live, it has no stream ("Not on your sources"). Its guide is the live video's title (on now, with an approximate end) and
 the channel's scheduled streams (next).
+
+Live on YouTube, id `ytlive`, badge "YT LIVE": broadcasters' own 24x7 news streams on YouTube, Tamil first (Sun News,
+Polimer News, Thanthi TV, Puthiya Thalaimurai, News18 Tamil Nadu, Kalaignar Seithigal, News7 Tamil, Jaya Plus, Sathiyam),
+then Telugu, Malayalam, Kannada, Hindi and English news and Sansad TV (`c:ytlive:SunNews`). It plays the same way as DD.
+A single live video (a live special in the events strip) is `PlayTarget.Item(WatchKey.item(pluginId, videoId), pluginId,
+videoId, name)` with `pluginId` `ytlive` or `dd`.
 
 ## Rooms ("Watch together")
 

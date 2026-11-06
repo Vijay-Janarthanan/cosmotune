@@ -39,6 +39,8 @@ object BuiltInPlugins {
             setOf(Capability.LIVE, Capability.EPG, Capability.SEARCH)),
         Def(PRASAR_BHARATI, PluginKind.PRASAR_BHARATI, "Prasar Bharati (DD)", "Live TV · DD National, DD News, DD Sports, DD Tamil and the regional DD channels, from their official YouTube", "DD", true,
             setOf(Capability.LIVE, Capability.EPG, Capability.STREAMS)),
+        Def(YOUTUBE_LIVE, PluginKind.YOUTUBE_LIVE, "Live on YouTube", "Live TV · broadcasters' own 24x7 news streams: Tamil, Telugu, Malayalam, Kannada, Hindi, English", "YT LIVE", true,
+            setOf(Capability.LIVE, Capability.EPG, Capability.STREAMS)),
         Def(PLEX, PluginKind.PLEX_FREE, "Plex free", "Free films and series, live TV", "PLEX", true,
             setOf(Capability.CATALOG, Capability.SEARCH, Capability.STREAMS, Capability.LIVE, Capability.EPG, Capability.META)),
         Def(ARCHIVE, PluginKind.INTERNET_ARCHIVE, "Internet Archive", "Classic and public-domain films", "ARC", true,

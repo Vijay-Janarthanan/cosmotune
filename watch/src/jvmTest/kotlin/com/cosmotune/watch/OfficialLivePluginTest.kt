@@ -6,6 +6,7 @@ import com.cosmotune.watch.model.StreamProtocol
 import com.cosmotune.watch.model.WatchKey
 import com.cosmotune.watch.plugins.youtube.OfficialLivePlugin
 import com.cosmotune.watch.plugins.youtube.PrasarBharatiPlugin
+import com.cosmotune.watch.plugins.youtube.YouTubeLivePlugin
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -17,7 +18,7 @@ class OfficialLivePluginTest {
     private val ddSports = PrasarBharatiPlugin.CHANNELS.first { it.slug == PrasarBharatiPlugin.DD_SPORTS }
 
     @Test fun everyChannelIdIsAYouTubeChannelIdAndEverySlugIsUnique() {
-        for (list in listOf(PrasarBharatiPlugin.CHANNELS)) {
+        for (list in listOf(PrasarBharatiPlugin.CHANNELS, YouTubeLivePlugin.CHANNELS, PrasarBharatiPlugin.CHANNELS + YouTubeLivePlugin.CHANNELS)) {
             assertTrue(list.all { Regex("UC[A-Za-z0-9_-]{22}").matches(it.youTubeId) }, "a channel id, never a handle or a video")
             assertEquals(list.size, list.map { it.slug }.toSet().size)
             assertEquals(list.size, list.map { it.youTubeId }.toSet().size)
@@ -56,6 +57,21 @@ class OfficialLivePluginTest {
         val item = PlayTarget.Item(WatchKey.item("dd", "ddsportsUp1"), "dd", "ddsportsUp1", "India v Australia")
         assertEquals("https://www.youtube.com/watch?v=ddsportsUp1", plugin.streams(item).single().url)
         assertEquals(emptyList(), plugin.streams(PlayTarget.Item(WatchKey.item("ia", "x"), "ia", "x", "x")))
+    }
+
+    @Test fun liveOnYouTubeStartsWithTamilNewsAndCoversTheMainLanguages() = runBlocking<Unit> {
+        val list = YouTubeLivePlugin.CHANNELS
+        assertEquals(listOf("Sun News", "Polimer News", "Thanthi TV", "Puthiya Thalaimurai", "News18 Tamil Nadu", "Kalaignar Seithigal", "News7 Tamil", "Jaya Plus"),
+            list.take(8).map { it.name })
+        for (language in listOf("tam", "tel", "mal", "kan", "hin", "eng")) assertTrue(list.count { language in it.languages } >= 4, language)
+        val source = LiveVideoSource()
+        val sun = list.first()
+        source.live[sun.youTubeId] = listOf(video("sunnewsLiv1", "SUN NEWS LIVE", sun.youTubeId, live = true))
+        val plugin = YouTubeLivePlugin({ source }, { now })
+        val channel = plugin.channels().first()
+        assertEquals(WatchKey("c:ytlive:SunNews"), channel.key)
+        assertEquals(listOf("tam"), channel.languages)
+        assertEquals("YT LIVE", plugin.streams(PlayTarget.Live(channel)).single().source.badge)
     }
 
     @Test fun theGuideAsksYouTubeAtMostOncePerChannelInAFewMinutes() = runBlocking<Unit> {
