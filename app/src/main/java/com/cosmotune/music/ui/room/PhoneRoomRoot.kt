@@ -213,8 +213,13 @@ class PhoneRoomLauncher internal constructor(
             PhoneRooms.notify(context.getString(R.string.listen_together_host_only_notice))
             return
         }
-        // A video this device is already watching is shared from where it is, not from the start.
-        val watching = if (item.kind == PartyTrack.KIND_VIDEO) video()?.positionOf(item.videoId) else null
+        // A video, film or episode this device is already watching is shared from where it is, not from the start.
+        val watching = when {
+            item.isLive -> null
+            item.kind == PartyTrack.KIND_VIDEO -> video()?.positionOf(item.videoId)
+            item.kind == PartyTrack.KIND_WATCH -> com.cosmotune.music.watch.RoomWatch.positionOf(item.videoId)
+            else -> null
+        }
         PhoneRooms.control(RoomControl.SetTrack(item, positionMs = watching?.coerceAtLeast(0L) ?: 0L))
     }
 

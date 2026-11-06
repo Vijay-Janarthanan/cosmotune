@@ -188,6 +188,16 @@ object RoomWatch {
 
     @Volatile private var roomItemOpened: String? = null
 
+    /**
+     * Where this phone is in the Watch item [key] (a film, an episode), when that is what its player holds; null otherwise, and for
+     * a live channel, which has no position to share. "Watch together" from a playing item starts the room from here, not from 0.
+     */
+    fun positionOf(key: String): Long? {
+        val p = player ?: return null
+        if (p.state.value.target?.key?.value != key) return null
+        return p.engine.positionMs().takeIf { it > 0L }
+    }
+
     /** Whether the room opened [key] in Watch's player here, or plays it now (the player page then leaves it to the room). */
     fun holds(key: String): Boolean = roomItemOpened == key ||
         ListenTogether.state.value.let { it.inParty && it.playback.track?.let { t -> t.kind == PartyTrack.KIND_WATCH && t.videoId == key } == true }
