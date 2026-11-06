@@ -72,54 +72,15 @@ fun AccountChannelDialog(
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(ALERT_CORNER)
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(SCRIM_COLOR)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier
-                .width(ALERT_WIDTH)
-                .clip(shape)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
-                    } else {
-                        Modifier.hazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.regular(MaterialTheme.colorScheme.surface),
-                        )
-                    },
-                )
-                // Swallows the tap before it reaches the scrim behind, so
-                // touching the card itself never dismisses it.
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = {},
-                ),
-        ) {
+    // Orbit's dialog card: the scrim that closes it and the card on the floating ground; its words and buttons are Orbit's.
+    Box(modifier.fillMaxSize()) {
+        com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = 420.dp) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 19.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp),
             ) {
-                Text(
-                    text = "Listen as",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.W600,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                )
+                com.cosmotune.ui.sheets.CosmoDialogHeading(null, "Listen as", null)
                 Text(
                     text = when {
                         loading && channels.isEmpty() -> "Looking up your channels…"
@@ -135,8 +96,7 @@ fun AccountChannelDialog(
                         fontSize = 13.sp,
                         lineHeight = 17.sp,
                     ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (loading && channels.isEmpty()) {
                     Spacer(Modifier.padding(top = 12.dp))
@@ -160,18 +120,17 @@ fun AccountChannelDialog(
                 )
             }
 
-            AlertRule()
             // The route that cannot be wrong about what exists. YouTube's own
             // Accounts list is the authority on which channels this login has,
             // and picking there means the session is read from a page already
             // showing the chosen channel rather than assembled from ids.
-            AlertAction(
-                label = "Choose in YouTube Music",
-                emphasised = channels.isEmpty(),
-                onClick = onChooseInYouTube,
+            com.cosmotune.ui.sheets.CosmoDialogActions(
+                confirmLabel = "Choose in YouTube Music",
+                onConfirm = onChooseInYouTube,
+                dismissLabel = "Close",
+                onDismiss = onDismiss,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
             )
-            AlertRule()
-            AlertAction(label = "Close", emphasised = false, onClick = onDismiss)
         }
     }
 }

@@ -416,10 +416,15 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
             }
         }
     }
-    if (remove) AlertDialog(onDismissRequest = { remove = false }, title = { Text("Remove this book?") },
-        text = { Text("The imported copy, reading position and bookmarks will be removed from this device.") },
-        confirmButton = { TextButton(onClick = { remove = false; scope.action { scope.repository.removeBook(book.id); scope.navigation.book = null } }) { Text("Remove book", color = Color(palette.danger)) } },
-        dismissButton = { TextButton(onClick = { remove = false }) { Text("Keep book") } })
+    if (remove) com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { remove = false },
+        title = "Remove this book?",
+        message = "The imported copy, reading position and bookmarks will be removed from this device.",
+        confirmLabel = "Remove book",
+        onConfirm = { remove = false; scope.action { scope.repository.removeBook(book.id); scope.navigation.book = null } },
+        dismissLabel = "Keep book",
+        onDismiss = { remove = false },
+    )
 }
 
 /** Search (the heading's 🔍): the books in the library that match, then Open Library's results. */

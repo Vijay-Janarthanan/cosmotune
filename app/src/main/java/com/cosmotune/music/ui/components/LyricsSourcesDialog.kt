@@ -95,54 +95,15 @@ fun LyricsSourcesDialog(
     var showPaxSenixKeyDialog by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(ALERT_CORNER)
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(SCRIM_COLOR)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier
-                .width(ALERT_WIDTH)
-                .clip(shape)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
-                    } else {
-                        Modifier.optimizedHazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.regular(MaterialTheme.colorScheme.surface),
-                        )
-                    },
-                )
-                // Swallows the tap before it reaches the scrim behind, so
-                // touching the card itself never dismisses it.
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = {},
-                ),
-        ) {
+    // Orbit's dialog card: the scrim that closes it and the card on the floating ground; its words and buttons are Orbit's.
+    Box(modifier.fillMaxSize()) {
+        com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = 420.dp) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 19.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.lyrics_sources),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.W600,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                )
+                com.cosmotune.ui.sheets.CosmoDialogHeading(null, stringResource(R.string.lyrics_sources), null)
                 Text(
                     text = stringResource(R.string.lyrics_sources_order),
                     modifier = Modifier.padding(top = 4.dp),
@@ -150,8 +111,7 @@ fun LyricsSourcesDialog(
                         fontSize = 13.sp,
                         lineHeight = 17.sp,
                     ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -181,13 +141,13 @@ fun LyricsSourcesDialog(
             )
 
             AlertRule()
-            AlertAction(
+            com.cosmotune.ui.sheets.CosmoDialogQuietButton(
                 label = stringResource(
                     if (paxSenixApiKey.isBlank()) R.string.paxsenix_api_key_missing
                     else R.string.paxsenix_api_key_configured,
                 ),
-                emphasised = false,
                 onClick = { showPaxSenixKeyDialog = true },
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 10.dp),
             )
             AlertRule()
             SyllableSyncToggle(
@@ -195,23 +155,23 @@ fun LyricsSourcesDialog(
                 onToggle = { AppSettings.setPrioritizeSyllableSync(!prioritizeSyllableSync) },
             )
 
-            AlertRule()
-            AlertAction(
-                label = stringResource(R.string.reset_to_default),
-                emphasised = false,
-                onClick = AppSettings::resetLyricsSourceSettings,
+            // Reset is the quiet one; Done is the dialog's one action.
+            com.cosmotune.ui.sheets.CosmoDialogActions(
+                confirmLabel = stringResource(R.string.done),
+                onConfirm = onDismiss,
+                dismissLabel = stringResource(R.string.reset_to_default),
+                onDismiss = AppSettings::resetLyricsSourceSettings,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
             )
-            AlertRule()
-            AlertAction(label = stringResource(R.string.done), emphasised = true, onClick = onDismiss)
         }
     }
 
     if (showPaxSenixKeyDialog) {
         var input by remember(paxSenixApiKey) { mutableStateOf(paxSenixApiKey) }
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = { showPaxSenixKeyDialog = false },
-            title = { Text(stringResource(R.string.paxsenix_api_key)) },
-            text = {
+            title = stringResource(R.string.paxsenix_api_key),
+            content = {
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
@@ -224,17 +184,13 @@ fun LyricsSourcesDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
             },
-            confirmButton = {
-                TextButton(onClick = {
+            confirmLabel = stringResource(R.string.save),
+            onConfirm = {
                     AppSettings.setPaxSenixApiKey(input)
                     showPaxSenixKeyDialog = false
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPaxSenixKeyDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+                },
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = { showPaxSenixKeyDialog = false },
         )
     }
 }

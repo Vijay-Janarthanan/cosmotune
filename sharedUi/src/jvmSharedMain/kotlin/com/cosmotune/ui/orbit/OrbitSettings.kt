@@ -1,6 +1,7 @@
 package com.cosmotune.ui.orbit
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +29,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -186,4 +189,44 @@ internal fun OrbitTileGrid(count: Int, modifier: Modifier = Modifier, gap: Dp = 
             }
         }
     }
+}
+
+/**
+ * A one-line field of a settings page (the proxy's address, user and password): the chip's pill (radius 22, at least 48 dp), the
+ * [placeholder] in the dim ink while it is empty, the words in the body face and the ink. [error] rings it in the theme's error
+ * colour; [secret] hides what is typed.
+ */
+@Composable
+internal fun OrbitTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    fonts: OrbitFonts,
+    look: OrbitLook,
+    modifier: Modifier = Modifier,
+    error: Boolean = false,
+    secret: Boolean = false,
+) {
+    val shape = RoundedCornerShape(22.dp)
+    androidx.compose.foundation.text.BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = fonts.body.copy(color = look.ink),
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
+        visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        keyboardOptions = if (secret) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password) else androidx.compose.foundation.text.KeyboardOptions.Default,
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(shape)
+            .background(look.chip)
+            .then(if (error) Modifier.border(1.5.dp, androidx.compose.material3.MaterialTheme.colorScheme.error, shape) else Modifier)
+            .semantics { contentDescription = placeholder },
+        decorationBox = { inner ->
+            Box(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), contentAlignment = Alignment.CenterStart) {
+                if (value.isEmpty()) Text(placeholder, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                inner()
+            }
+        },
+    )
 }

@@ -44,7 +44,11 @@ fun HttpAddonSettingsEntry(title: String, values: Map<String, String>, enabled: 
     val valid = schema?.filter { it.type in setOf("number", "integer") }?.all { field ->
         fields[field.key] == JsonNull || (fields[field.key] as? JsonPrimitive)?.doubleOrNull?.let { it.isFinite() && (field.type != "integer" || it % 1.0 == 0.0) } == true
     } == true
-    AlertDialog(onDismissRequest = { open = false }, title = { Text(title) }, text = {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { open = false },
+        title = title,
+        scroll = false,
+        content = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (loading) item { LinearProgressIndicator() }
             if (failed) item {
@@ -58,9 +62,10 @@ fun HttpAddonSettingsEntry(title: String, values: Map<String, String>, enabled: 
                     change = { fields = JsonObject(fields + (field.key to it)) }, busy = loading || saving)
             }
         }
-    }, confirmButton = {
-        TextButton(enabled = !loading && !saving && !failed && valid, onClick = {
-            if (saving) return@TextButton
+    },
+        confirmLabel = "Save",
+        onConfirm = {
+            if (saving) return@CosmoAlertDialog
             saving = true; saveFailed = false
             scope.launch {
                 try {
@@ -71,6 +76,9 @@ fun HttpAddonSettingsEntry(title: String, values: Map<String, String>, enabled: 
                 catch (_: Exception) { saveFailed = true }
                 finally { saving = false }
             }
-        }) { Text("Save") }
-    }, dismissButton = { TextButton(onClick = { open = false }) { Text("Cancel") } })
+        },
+        confirmEnabled = !loading && !saving && !failed && valid,
+        dismissLabel = "Cancel",
+        onDismiss = { open = false },
+    )
 }

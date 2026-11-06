@@ -266,6 +266,16 @@ internal fun DesktopListenBrainzTokenDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun DialogHeading(title: String, message: String, isError: Boolean = false) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        com.cosmotune.ui.sheets.CosmoDialogHeading(
+            overline = null,
+            title = title,
+            message = message,
+            modifier = Modifier.padding(start = panelInset(24.dp), end = panelInset(24.dp), top = 24.dp, bottom = 10.dp),
+            messageIsError = isError,
+        )
+        return
+    }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 18.dp),
         horizontalAlignment = if (LocalDesktopPanelIsPage.current) Alignment.Start else Alignment.CenterHorizontally,
@@ -306,20 +316,20 @@ internal fun DesktopSpotifyImportDialog(
     var unmatched by remember { mutableStateOf<List<SpotifyImportTrack>?>(null) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    val title = DesktopStrings["spotify_import_title", "Import Spotify playlist"]
+    val title = DesktopStrings["spotify_import_title", "Import a playlist"]
 
     fun start() {
         if (working) return
         val id = SpotifyImporter.extractPlaylistId(link)
         // Apple Music and Deezer links are read the same way (PlaylistLinkImport) and matched exactly.
         if (id == null && com.cosmotune.music.data.spotify.PlaylistLinkImport.serviceOf(link) == null) {
-            status = DesktopStrings["spotify_import_invalid", "That isn't a Spotify playlist link."] + " Apple Music and Deezer links work too."
+            status = DesktopStrings["spotify_import_invalid", "That isn't a Spotify, Apple Music or Deezer playlist link."]
             failed = true
             return
         }
         working = true
         failed = false
-        status = DesktopStrings["spotify_import_fetching", "Reading the Spotify playlist…"]
+        status = DesktopStrings["spotify_import_fetching", "Reading the playlist…"]
         scope.launch {
             try {
                 val progress: (Int, Int) -> Unit = { done, total ->
@@ -365,11 +375,11 @@ internal fun DesktopSpotifyImportDialog(
             DialogHeading(
                 title = title,
                 message = if (signedIn) {
-                    DesktopStrings["spotify_import_description", "Paste a public playlist link. Songs are matched on YouTube Music."]
+                    DesktopStrings["spotify_import_description", "Paste a public Spotify, Apple Music or Deezer playlist link. Songs are matched on YouTube Music."]
                 } else {
                     DesktopStrings[
                         "spotify_import_description_local",
-                        "Paste a public playlist link. Songs are matched on YouTube Music and saved on this device.",
+                        "Paste a public Spotify, Apple Music or Deezer playlist link. Songs are matched on YouTube Music and saved on this device.",
                     ]
                 },
             )
@@ -434,12 +444,7 @@ internal fun DesktopSpotifyImportDialog(
                     }
                 }
             }
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 12.dp),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = onDismiss) { Text(DesktopStrings["done", "Done"], color = DesktopAccent) }
-            }
+            DesktopDialogButtons(null, {}, DesktopStrings["done", "Done"], onDismiss)
         }
     }
 }
@@ -501,6 +506,9 @@ private fun DialogActions(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        return DesktopDialogButtons(confirm, onConfirm, DesktopStrings["cancel", "Cancel"], onDismiss, confirmEnabled = confirmEnabled, busy = busy)
+    }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 12.dp),
         horizontalArrangement = Arrangement.End,

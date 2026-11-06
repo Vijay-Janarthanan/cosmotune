@@ -46,17 +46,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.data.settings.AppSettings
+import com.cosmotune.ui.sheets.CosmoDialogBody
+import com.cosmotune.ui.sheets.CosmoDialogCard
+import com.cosmotune.ui.sheets.CosmoDialogQuietButton
+import androidx.compose.foundation.layout.Arrangement
 import kotlinx.coroutines.launch
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 
 /**
- * Same UIAlertController shape as [UpdateAvailableDialog] — frosted card,
- * hairline rules, full-width stacked actions — but with a text field for the
- * one bit of input this alert needs.
+ * The token alert in Orbit: the dialog card ([AlertScaffold]) with Orbit's body, the question, a line, the field and Save as the one
+ * peach action beside a quiet Cancel.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun ListenBrainzTokenAlert(
     hazeState: HazeState,
@@ -66,25 +68,15 @@ fun ListenBrainzTokenAlert(
     onDismiss: () -> Unit,
 ) {
     AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 19.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        CosmoDialogBody(
+            overline = null,
+            title = stringResource(R.string.listenbrainz_token),
+            message = stringResource(R.string.listenbrainz_token_description),
+            confirmLabel = stringResource(R.string.save),
+            onConfirm = onSave,
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = onDismiss,
         ) {
-            Text(
-                text = stringResource(R.string.listenbrainz_token),
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = stringResource(R.string.listenbrainz_token_description),
-                modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
             PillTextField(
                 value = tokenInput,
                 onValueChange = onTokenInputChange,
@@ -93,14 +85,9 @@ fun ListenBrainzTokenAlert(
                 keyboardActions = KeyboardActions(onDone = { onSave() }),
             )
         }
-        AlertRule()
-        AlertAction(label = stringResource(R.string.save), emphasised = true, onClick = onSave)
-        AlertRule()
-        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = onDismiss)
     }
 }
 
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun LastfmLoginAlert(
     hazeState: HazeState,
@@ -114,25 +101,18 @@ fun LastfmLoginAlert(
     onDismiss: () -> Unit,
 ) {
     AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 19.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        CosmoDialogBody(
+            overline = null,
+            title = stringResource(R.string.lastfm_login),
+            message = null,
+            confirmLabel = if (loading) stringResource(R.string.signing_in) else stringResource(R.string.sign_in),
+            onConfirm = onSignIn,
+            confirmEnabled = !loading && usernameInput.isNotBlank() && passwordInput.isNotBlank(),
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = onDismiss,
+            dismissEnabled = !loading,
         ) {
-            Text(
-                text = stringResource(R.string.lastfm_login),
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = error ?: stringResource(R.string.lastfm_login_description),
-                modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
-                color = if (error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
+            AlertLine(error ?: stringResource(R.string.lastfm_login_description), isError = error != null)
             PillTextField(
                 value = usernameInput,
                 onValueChange = onUsernameInputChange,
@@ -153,20 +133,6 @@ fun LastfmLoginAlert(
                 ),
             )
         }
-        AlertRule()
-        AlertAction(
-            label = if (loading) stringResource(R.string.signing_in) else stringResource(R.string.sign_in),
-            emphasised = true,
-            onClick = onSignIn,
-            enabled = !loading && usernameInput.isNotBlank() && passwordInput.isNotBlank(),
-        )
-        AlertRule()
-        AlertAction(
-            label = stringResource(R.string.cancel),
-            emphasised = false,
-            onClick = onDismiss,
-            enabled = !loading,
-        )
     }
 }
 
@@ -178,7 +144,6 @@ fun LastfmLoginAlert(
  * was mistyped or has expired is indistinguishable from one that works until
  * Discord is asked about it.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun DiscordTokenAlert(
     hazeState: HazeState,
@@ -190,25 +155,18 @@ fun DiscordTokenAlert(
     onDismiss: () -> Unit,
 ) {
     AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 19.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        CosmoDialogBody(
+            overline = null,
+            title = stringResource(R.string.discord_token),
+            message = null,
+            confirmLabel = if (loading) stringResource(R.string.checking) else stringResource(R.string.save),
+            onConfirm = onSave,
+            confirmEnabled = !loading && tokenInput.isNotBlank(),
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = onDismiss,
+            dismissEnabled = !loading,
         ) {
-            Text(
-                text = stringResource(R.string.discord_token),
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = error ?: stringResource(R.string.discord_token_description),
-                modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
-                color = if (error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
+            AlertLine(error ?: stringResource(R.string.discord_token_description), isError = error != null)
             PillTextField(
                 value = tokenInput,
                 onValueChange = onTokenInputChange,
@@ -219,20 +177,6 @@ fun DiscordTokenAlert(
                 keyboardActions = KeyboardActions(onDone = { if (tokenInput.isNotBlank()) onSave() }),
             )
         }
-        AlertRule()
-        AlertAction(
-            label = if (loading) stringResource(R.string.checking) else stringResource(R.string.save),
-            emphasised = true,
-            onClick = onSave,
-            enabled = !loading && tokenInput.isNotBlank(),
-        )
-        AlertRule()
-        AlertAction(
-            label = stringResource(R.string.cancel),
-            emphasised = false,
-            onClick = onDismiss,
-            enabled = !loading,
-        )
     }
 }
 
@@ -242,7 +186,6 @@ fun DiscordTokenAlert(
  * [message] is where the caller explains the field, including which `{...}`
  * variables it accepts, since that is the only place a user would find out.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun TextValueAlert(
     hazeState: HazeState,
@@ -255,29 +198,20 @@ fun TextValueAlert(
     onDismiss: () -> Unit,
     /** False greys Save out — for a field that isn't worth saving empty. */
     saveEnabled: Boolean = true,
-    /** A third action between Save and Cancel, for a value that can be cleared. */
+    /** A further, quiet action under the field, for a value that can be cleared. */
     onRemove: (() -> Unit)? = null,
 ) {
     AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 19.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        CosmoDialogBody(
+            overline = null,
+            title = title,
+            message = message,
+            confirmLabel = stringResource(R.string.save),
+            onConfirm = onSave,
+            confirmEnabled = saveEnabled,
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = onDismiss,
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = message,
-                modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
             PillTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -285,20 +219,10 @@ fun TextValueAlert(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onSave() }),
             )
+            if (onRemove != null) {
+                CosmoDialogQuietButton(stringResource(R.string.remove), onRemove, Modifier.padding(top = 12.dp))
+            }
         }
-        AlertRule()
-        AlertAction(
-            label = stringResource(R.string.save),
-            emphasised = true,
-            onClick = onSave,
-            enabled = saveEnabled,
-        )
-        if (onRemove != null) {
-            AlertRule()
-            AlertAction(label = stringResource(R.string.remove), emphasised = false, onClick = onRemove)
-        }
-        AlertRule()
-        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = onDismiss)
     }
 }
 
@@ -317,12 +241,9 @@ data class EditorField(
 )
 
 /**
- * The shape every server editor in this app shares: a centered title, the
- * last test result in place of the description, the fields, then Test above
- * Save above Cancel — plus an optional destructive row between Save and
- * Cancel for an entry that can also be removed.
+ * The shape every server editor in this app shares: the title, the last test result in place of the description, the fields, then
+ * Test (and Remove, for an entry that can be removed) as quiet buttons under them, and Save as the one peach action beside Cancel.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun ServerEditorAlert(
     hazeState: HazeState,
@@ -343,29 +264,18 @@ fun ServerEditorAlert(
     onDismiss: () -> Unit,
 ) {
     AlertScaffold(hazeState = hazeState, onDismiss = { if (!testing) onDismiss() }) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 19.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        CosmoDialogBody(
+            overline = null,
+            title = title,
+            message = null,
+            confirmLabel = stringResource(R.string.save),
+            onConfirm = onSave,
+            confirmEnabled = canSubmit && !testing,
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = onDismiss,
+            dismissEnabled = !testing,
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = status ?: description,
-                modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
-                color = when {
-                    status == null -> MaterialTheme.colorScheme.onSurface
-                    statusIsGood -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.error
-                },
-                textAlign = TextAlign.Center,
-            )
+            AlertLine(status ?: description, isError = status != null && !statusIsGood, isGood = status != null && statusIsGood)
             fields.forEachIndexed { index, field ->
                 if (index > 0) Spacer(Modifier.height(8.dp))
                 PillTextField(
@@ -383,41 +293,18 @@ fun ServerEditorAlert(
                     ),
                 )
             }
+            // Test is worth running before Save; it and Remove are quiet, so Save stays the one peach action.
+            Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CosmoDialogQuietButton(
+                    label = if (testing) stringResource(R.string.testing) else stringResource(R.string.test),
+                    onClick = onTest,
+                    enabled = canSubmit && !testing,
+                )
+                if (onRemove != null && removeLabel != null) {
+                    CosmoDialogQuietButton(label = removeLabel, onClick = onRemove, enabled = !testing)
+                }
+            }
         }
-        AlertRule()
-        // Above Save rather than beside it: an address is worth checking before
-        // it is stored, and a row of three cramped buttons is what the Material
-        // dialog did badly.
-        AlertAction(
-            label = if (testing) stringResource(R.string.testing) else stringResource(R.string.test),
-            emphasised = false,
-            onClick = onTest,
-            enabled = canSubmit && !testing,
-        )
-        AlertRule()
-        AlertAction(
-            label = stringResource(R.string.save),
-            emphasised = true,
-            onClick = onSave,
-            enabled = canSubmit && !testing,
-        )
-        if (onRemove != null && removeLabel != null) {
-            AlertRule()
-            AlertAction(
-                label = removeLabel,
-                emphasised = false,
-                destructive = true,
-                onClick = onRemove,
-                enabled = !testing,
-            )
-        }
-        AlertRule()
-        AlertAction(
-            label = stringResource(R.string.cancel),
-            emphasised = false,
-            onClick = onDismiss,
-            enabled = !testing,
-        )
     }
 }
 
@@ -436,14 +323,13 @@ data class FieldConfig(
  * A server editor that owns its own state: field values, the last test
  * result and the testing flag. The caller hands over fixed field configs
  * plus what test and save mean for those values, and gets back the same
- * frosted card as [ServerEditorAlert] — without the dozen remembered states
+ * card as [ServerEditorAlert] — without the dozen remembered states
  * each host otherwise repeats.
  *
  * The configs are fixed per call site, so remembering once per opening is
  * sound; the host leaves composition on dismiss, which is when the next
  * opening starts over from the saved values.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun ServerEditorHost(
     hazeState: HazeState,
@@ -508,13 +394,7 @@ fun ServerEditorHost(
 /**
  * Add or edit a source that has an address — the addon editor.
  *
- * The same frosted card every other alert in this app uses, rather than the
- * Material `AlertDialog` this replaced. That one put a filled `OutlinedTextField`
- * and a row of cramped text buttons in the middle of a screen where nothing
- * else looks like that, and it read as a stock widget dropped into somebody
- * else's design.
- *
- * One field and up to four stacked actions. There is deliberately no name
+ * One field, Test and Remove as quiet buttons and Save as the one action. There is deliberately no name
  * field: an addon states its own name in its manifest, so asking the user to
  * invent one is asking for information the addon is about to supply anyway —
  * and a blank field would leave the row showing a bare hostname next to a
@@ -526,7 +406,6 @@ fun ServerEditorHost(
  * — so a result replaces the description in place, coloured by [statusIsGood],
  * the way [LastfmLoginAlert] surfaces a failed sign-in.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun AddonEditorAlert(
     hazeState: HazeState,
@@ -549,8 +428,7 @@ fun AddonEditorAlert(
      * What [onRemove] is called, for the callers that are not removing a source.
      *
      * The party server's address wears this same card — one field, an address
-     * to test, four stacked actions — and "Remove source" would be the one line
-     * on it still talking about addons.
+     * to test — and "Remove source" would be the one line on it still talking about addons.
      */
     removeLabel: String? = null,
     onDismiss: () -> Unit,
@@ -583,12 +461,10 @@ fun AddonEditorAlert(
  * A name clash mid-upload: the server already holds a file under the name a
  * track would land as.
  *
- * Three stacked outcomes rather than a yes/no — overwriting destroys the
- * server copy, so the non-destructive answer leads as the emphasised action.
- * [showApplyToAll] is only true mid-batch, where one answer can carry every
- * clash still queued behind this one.
+ * Three outcomes rather than a yes/no — overwriting destroys the server copy, so the non-destructive answer, Keep both, is the
+ * peach action, Skip the quiet one beside it and Overwrite a quiet button over them. [showApplyToAll] is only true mid-batch, where
+ * one answer can carry every clash still queued behind this one.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun WebDavConflictAlert(
     hazeState: HazeState,
@@ -602,62 +478,32 @@ fun WebDavConflictAlert(
     onDismiss: () -> Unit,
 ) {
     AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 19.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        CosmoDialogBody(
+            overline = null,
+            title = stringResource(R.string.webdav_conflict_title, fileName),
+            message = stringResource(R.string.webdav_conflict_message),
+            confirmLabel = stringResource(R.string.webdav_keep_both),
+            onConfirm = onKeepBoth,
+            dismissLabel = stringResource(R.string.webdav_skip),
+            onDismiss = onSkip,
         ) {
-            Text(
-                text = stringResource(R.string.webdav_conflict_title, fileName),
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = stringResource(R.string.webdav_conflict_message),
-                modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-        }
-        AlertRule()
-        AlertAction(
-            label = stringResource(R.string.webdav_keep_both),
-            emphasised = true,
-            onClick = onKeepBoth,
-        )
-        AlertRule()
-        AlertAction(
-            label = stringResource(R.string.webdav_overwrite),
-            emphasised = false,
-            onClick = onOverwrite,
-        )
-        AlertRule()
-        AlertAction(
-            label = stringResource(R.string.webdav_skip),
-            emphasised = false,
-            onClick = onSkip,
-        )
-        if (showApplyToAll) {
-            AlertRule()
-            ChoiceRow(
-                label = stringResource(R.string.webdav_apply_to_all),
-                detail = null,
-                checked = applyToAll,
-                onClick = { onApplyToAllChange(!applyToAll) },
-            )
+            CosmoDialogQuietButton(stringResource(R.string.webdav_overwrite), onOverwrite)
+            if (showApplyToAll) {
+                ChoiceRow(
+                    label = stringResource(R.string.webdav_apply_to_all),
+                    detail = null,
+                    checked = applyToAll,
+                    onClick = { onApplyToAllChange(!applyToAll) },
+                )
+            }
         }
     }
 }
 
 /**
- * A two-action confirmation using the same frosted UIAlertController shell as
- * the addon editor. Kept here so warnings opened from settings do not fall back
+ * A two-action confirmation in Orbit's dialog body. Kept here so warnings opened from settings do not fall back
  * to a visually unrelated Material dialog.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun ConfirmationAlert(
     hazeState: HazeState,
@@ -668,42 +514,25 @@ fun ConfirmationAlert(
     onDismiss: () -> Unit,
 ) {
     AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 19.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = description,
-                modifier = Modifier.padding(top = 4.dp),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-        }
-        AlertRule()
-        AlertAction(label = confirmLabel, emphasised = true, onClick = onConfirm)
-        AlertRule()
-        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = onDismiss)
+        CosmoDialogBody(
+            overline = null,
+            title = title,
+            message = description,
+            confirmLabel = confirmLabel,
+            onConfirm = onConfirm,
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = onDismiss,
+        )
     }
 }
 
 /**
  * Single-select list, ticked like [LyricsSourcesDialog] rather than with radio
- * buttons — same reasoning: a column of Material radios would be the one
- * Material thing left on an otherwise Apple-shaped alert.
+ * buttons.
  *
  * Picking commits immediately and closes, so there is no Save action to reach
  * for; Cancel is the only one, and it's the dismiss.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun <T> ChoiceAlert(
     hazeState: HazeState,
@@ -717,40 +546,40 @@ fun <T> ChoiceAlert(
     onDismiss: () -> Unit,
 ) {
     AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 19.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        CosmoDialogBody(
+            overline = null,
+            title = title,
+            message = message,
+            confirmLabel = null,
+            onConfirm = {},
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = onDismiss,
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            if (message != null) {
-                Text(
-                    text = message,
-                    modifier = Modifier.padding(top = 4.dp),
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
+            options.forEach { option ->
+                ChoiceRow(
+                    label = label(option),
+                    detail = detail(option),
+                    checked = option == selected,
+                    onClick = { onSelect(option) },
                 )
             }
         }
-        options.forEach { option ->
-            AlertRule()
-            ChoiceRow(
-                label = label(option),
-                detail = detail(option),
-                checked = option == selected,
-                onClick = { onSelect(option) },
-            )
-        }
-        AlertRule()
-        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = onDismiss)
     }
+}
+
+/** The line under an alert's title when it can turn into a result: the dim ink, the error red, or the accent for a good result. */
+@Composable
+private fun AlertLine(text: String, isError: Boolean = false, isGood: Boolean = false) {
+    Text(
+        text = text,
+        modifier = Modifier.padding(bottom = 14.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = when {
+            isError -> MaterialTheme.colorScheme.error
+            isGood -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
 }
 
 @Composable
@@ -804,48 +633,15 @@ private fun ChoiceRow(
     }
 }
 
-/** The scrim + frosted card frame shared by every UIAlertController-style dialog. */
-@OptIn(ExperimentalHazeMaterialsApi::class)
+/**
+ * The frame every alert of the phone shares: Orbit's dialog card ([CosmoDialogCard]: the scrim that closes it, the card on the
+ * floating ground, radius 32), over the whole app as an overlay. [hazeState] is kept for the callers; Orbit's cards are flat.
+ */
 @Composable
 internal fun AlertScaffold(
-    hazeState: HazeState,
+    @Suppress("UNUSED_PARAMETER") hazeState: HazeState,
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val shape = RoundedCornerShape(ALERT_CORNER)
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SCRIM_COLOR)
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier
-                .width(ALERT_WIDTH)
-                .clip(shape)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
-                    } else {
-                        Modifier.optimizedHazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.regular(MaterialTheme.colorScheme.surface),
-                        )
-                    },
-                )
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = {},
-                ),
-            content = content,
-        )
-    }
+    CosmoDialogCard(onDismiss = onDismiss, maxWidth = 420.dp, content = content)
 }

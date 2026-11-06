@@ -65,10 +65,15 @@ import kotlinx.coroutines.launch
             Spacer(Modifier.height(16.dp))
         }
     }
-    deleting?.let { collection -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("Delete ${collection.name}?") },
-        text = { Text(mangaText("The series and their reading progress stay in your library.")) },
-        confirmButton = { TextButton(onClick = { action { repository.store.deleteCollection(collection.id); deleting = null } }) { Text(mangaText("Delete collection"), color = Color(palette.danger)) } },
-        dismissButton = { TextButton(onClick = { deleting = null }) { Text(mangaText("Cancel")) } }) }
+    deleting?.let { collection -> com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { deleting = null },
+        title = "Delete ${collection.name}?",
+        message = mangaText("The series and their reading progress stay in your library."),
+        confirmLabel = mangaText("Delete collection"),
+        onConfirm = { action { repository.store.deleteCollection(collection.id); deleting = null } },
+        dismissLabel = mangaText("Cancel"),
+        onDismiss = { deleting = null },
+    ) }
 }
 
 /** The series card's "In library" chip (the collections it belongs to) and its sheet of collections to tick. */

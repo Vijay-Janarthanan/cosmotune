@@ -45,7 +45,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * Paste a Spotify playlist link, match its songs on YouTube Music, keep the result.
+ * Paste a Spotify, Apple Music or Deezer playlist link, match its songs on YouTube Music, keep the result.
  *
  * The same frosted card as the addon editor, rather than a Material dialog.
  * The "who can see it" row exists only for [signedIn]: it is a YouTube Music
@@ -76,7 +76,7 @@ fun SpotifyImportAlert(
         // Apple Music and Deezer links are read the same way (PlaylistLinkImport) and matched exactly.
         val other = if (id == null) com.cosmotune.music.data.spotify.PlaylistLinkImport.serviceOf(link) else null
         if (id == null && other == null) {
-            status = context.getString(R.string.spotify_import_invalid) + " Apple Music and Deezer links work too."
+            status = context.getString(R.string.spotify_import_invalid)
             failed = true
             return
         }
@@ -111,18 +111,17 @@ fun SpotifyImportAlert(
     }
 
     AlertScaffold(hazeState = hazeState, onDismiss = { if (!working) onDismiss() }) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 19.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        com.cosmotune.ui.sheets.CosmoDialogBody(
+            overline = null,
+            title = stringResource(R.string.spotify_import_title),
+            message = null,
+            confirmLabel = if (unmatched != null) null else stringResource(R.string.spotify_import_button),
+            onConfirm = ::start,
+            confirmEnabled = link.isNotBlank() && !working,
+            dismissLabel = stringResource(if (unmatched != null) R.string.done else R.string.cancel),
+            onDismiss = onDismiss,
+            dismissEnabled = !working,
         ) {
-            Text(
-                text = stringResource(R.string.spotify_import_title),
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
             val missed = unmatched
             if (missed != null) {
                 Text(
@@ -130,8 +129,7 @@ fun SpotifyImportAlert(
                     modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
                     color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                )
+                                    )
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -163,8 +161,7 @@ fun SpotifyImportAlert(
                         failed -> MaterialTheme.colorScheme.error
                         else -> MaterialTheme.colorScheme.primary
                     },
-                    textAlign = TextAlign.Center,
-                )
+                                    )
                 PillTextField(
                     value = link,
                     onValueChange = {
@@ -217,24 +214,6 @@ fun SpotifyImportAlert(
                     }
                 }
             }
-        }
-        AlertRule()
-        if (unmatched != null) {
-            AlertAction(label = stringResource(R.string.done), emphasised = true, onClick = onDismiss)
-        } else {
-            AlertAction(
-                label = stringResource(R.string.spotify_import_button),
-                emphasised = true,
-                onClick = ::start,
-                enabled = link.isNotBlank() && !working,
-            )
-            AlertRule()
-            AlertAction(
-                label = stringResource(R.string.cancel),
-                emphasised = false,
-                onClick = onDismiss,
-                enabled = !working,
-            )
         }
     }
 }

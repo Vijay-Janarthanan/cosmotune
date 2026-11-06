@@ -34,12 +34,16 @@ fun ListeningDeviceSheet(facts: ListeningDeviceFacts, store: ListeningDeviceProf
         try { store.save(value); if (apply && facts.tuningAvailable) applyEq(value.appliedEq()); error = null }
         catch (_: Exception) { error = "The device profile could not be saved. Your current tuning has not been changed." }
     }
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = MaterialTheme.shapes.extraLarge, tonalElevation = 6.dp, modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Listening device", style = MaterialTheme.typography.headlineSmall)
-                Text(facts.name, style = MaterialTheme.typography.titleMedium)
-                Text(facts.identityDetail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = onDismiss,
+        overline = "Listening device",
+        title = facts.name,
+        message = facts.identityDetail,
+        dismissLabel = "Done",
+        onDismiss = onDismiss,
+        maxWidth = 520.dp,
+    ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("Reported by the output", style = MaterialTheme.typography.labelLarge)
                 if (facts.measured.isEmpty()) Text("No active output measurements are available yet.", style = MaterialTheme.typography.bodyMedium)
                 facts.measured.forEach { (label, value) ->
@@ -80,7 +84,7 @@ fun ListeningDeviceSheet(facts: ListeningDeviceFacts, store: ListeningDeviceProf
                         persist(profile.copy(bypass = it), apply = true)
                     }
                     OutlinedButton(enabled = facts.tuningAvailable, onClick = { applyEq(profile.appliedEq()) }, modifier = Modifier.fillMaxWidth()) { Text("Apply saved tuning now") }
-                    Text("Saved balance: ${profile.eq.balance}; ${if (profile.eq.fullHeadroom) "full" else "standard"} headroom. Edit tuning and balance in Equalizer, then update this profile. Stereo widening is separate and is never enabled by a profile.", style = MaterialTheme.typography.bodySmall)
+                    Text("Saved balance: ${profile.eq.balance}; ${if (profile.eq.fullHeadroom) "full" else "standard"} headroom. Edit tuning and balance in Equalizer, then update this profile. Spatial audio is separate and is never enabled by a profile.", style = MaterialTheme.typography.bodySmall)
                     profile.measurement?.let { provenance -> Text("User-provided AutoEq source: ${provenance.measurement}. Seven-band approximation, not exact parametric correction.", style = MaterialTheme.typography.bodySmall)
                         TextButton(onClick = { onOpenGuide(provenance.sourceUrl) }) { Text("View recorded measurement source") } }
                     TextButton(onClick = { try { store.remove(profile.routeKey); error = null } catch (_: Exception) { error = "The profile could not be removed." } }) { Text("Forget this device profile") }
@@ -108,9 +112,7 @@ fun ListeningDeviceSheet(facts: ListeningDeviceFacts, store: ListeningDeviceProf
                 }
                 Text("No measurements or profiles are downloaded when a device connects. ANC, Bluetooth codec selection and headset firmware remain in system/vendor apps.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Done") }
             }
-        }
     }
 }
 

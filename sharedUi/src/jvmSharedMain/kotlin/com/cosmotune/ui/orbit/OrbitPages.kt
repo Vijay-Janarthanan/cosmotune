@@ -97,21 +97,8 @@ fun OrbitPageButton(icon: ImageVector, label: String, onClick: () -> Unit, modif
 
 /** A pill on a page's card (Following, Radio, Shuffle): solid ink with the card's colour for its words when [solid], else tonal. */
 @Composable
-fun OrbitCardChip(text: String, colors: OrbitCardColors, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, solid: Boolean = false) {
-    val fonts = orbitFonts()
-    val content = if (solid) colors.fill else colors.ink
-    Row(
-        modifier.height(40.dp).clip(CircleShape).background(if (solid) colors.ink else colors.ink.copy(alpha = 0.12f)).clickable(onClick = onClick)
-            .padding(start = if (icon != null) 12.dp else 16.dp, end = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-        }
-        Text(text, style = fonts.chip, color = content, maxLines = 1)
-    }
-}
+fun OrbitCardChip(text: String, colors: OrbitCardColors, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, solid: Boolean = false) =
+    WatchCardChip(text, colors.ink, orbitFonts(), onClick, modifier, icon = icon, solid = solid, onSolid = colors.fill, iconGap = 6.dp)
 
 /**
  * An album's or a playlist's card (board section 1): one flat card in the cover's colour with the cover as a big disc, the mono

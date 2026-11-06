@@ -96,12 +96,6 @@ internal object DesktopExtras {
             }
 }
 
-/** The shared Extras dialog with the rows only the desktop has. */
-@androidx.compose.runtime.Composable
-internal fun DesktopExtrasDialog(onDismiss: () -> Unit, onPlay: ((List<com.cosmotune.music.data.model.Song>, Int) -> Unit)? = null) {
-    com.cosmotune.ui.extras.ExtrasSettingsDialog(onDismiss = onDismiss, onPlay = onPlay)
-}
-
 /** The default capture device for song recognition: mono 16-bit at 44.1 kHz through Java Sound. */
 internal object DesktopMicrophone : com.cosmotune.music.data.recognition.SongRecognition.Microphone {
     override suspend fun record(millis: Long): com.cosmotune.music.data.recognition.SongRecognition.Recording? =

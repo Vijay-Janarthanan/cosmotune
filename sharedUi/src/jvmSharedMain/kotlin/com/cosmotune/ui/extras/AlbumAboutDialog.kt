@@ -48,62 +48,40 @@ fun AlbumAboutDialog(album: String, artist: String?, onDismiss: () -> Unit) {
         }
     }
     val uri = LocalUriHandler.current
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.padding(16.dp).widthIn(max = 520.dp).heightIn(max = 640.dp),
-        ) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("About this album", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                when (val shown = state) {
-                    AboutState.Loading -> {
-                        Text(album, style = MaterialTheme.typography.headlineSmall)
-                        CircularProgressIndicator(Modifier.size(28.dp))
-                    }
-                    AboutState.Offline -> {
-                        Text(album, style = MaterialTheme.typography.headlineSmall)
-                        Text("Offline mode is on, so Wikipedia was not asked.", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    AboutState.Missing -> {
-                        Text(album, style = MaterialTheme.typography.headlineSmall)
-                        Text("Wikipedia has no article for this album.", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    is AboutState.Found -> {
-                        val summary = shown.summary
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            summary.thumbnailUrl?.let {
-                                AsyncImage(
-                                    model = it,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)),
-                                )
-                            }
-                            Column(Modifier.weight(1f)) {
-                                Text(summary.title, style = MaterialTheme.typography.headlineSmall)
-                                summary.description?.let {
-                                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                        Text(summary.extract, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            "From Wikipedia, under CC BY-SA 4.0.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+    val found = (state as? AboutState.Found)?.summary
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = onDismiss,
+        overline = "About this album",
+        title = found?.title ?: album,
+        message = when (state) {
+            AboutState.Offline -> "Offline mode is on, so Wikipedia was not asked."
+            AboutState.Missing -> "Wikipedia has no article for this album."
+            else -> found?.description
+        },
+        confirmLabel = if (found != null) "Open article" else null,
+        onConfirm = { found?.let { runCatching { uri.openUri(it.pageUrl) } } },
+        dismissLabel = "Close",
+        onDismiss = onDismiss,
+        maxWidth = 520.dp,
+        content = when {
+            state == AboutState.Loading -> ({ CircularProgressIndicator(Modifier.size(28.dp)) })
+            found != null -> ({
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    found.thumbnailUrl?.let {
+                        AsyncImage(
+                            model = it,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(18.dp)),
                         )
                     }
+                    Text(found.extract)
+                    Text("From Wikipedia, under CC BY-SA 4.0.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    (state as? AboutState.Found)?.let { found ->
-                        TextButton(onClick = { runCatching { uri.openUri(found.summary.pageUrl) } }) { Text("Open article") }
-                    }
-                    TextButton(onClick = onDismiss) { Text("Close") }
-                }
-            }
-        }
-    }
+            })
+            else -> null
+        },
+    )
 }
 
 private sealed interface AboutState {

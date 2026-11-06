@@ -541,26 +541,18 @@ fun CosmotuneDesktopApp() {
     var availableUpdate by remember { mutableStateOf<DesktopUpdateChecker.UpdateInfo?>(null) }
     LaunchedEffect(Unit) { availableUpdate = DesktopUpdateChecker.check() }
     availableUpdate?.let { update ->
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = { availableUpdate = null },
-            title = { Text(DesktopStrings["d_update_available", "Update available"]) },
-            text = {
-                Text(
-                    "Cosmotune ${update.version} is out — you have ${DesktopUpdateChecker.currentVersion}." +
+            title = DesktopStrings["d_update_available", "Update available"],
+            message = "Cosmotune ${update.version} is out — you have ${DesktopUpdateChecker.currentVersion}." +
                         (update.notes?.takeIf { it.isNotBlank() }?.let { "\n\n${it.take(600)}" } ?: ""),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
+            confirmLabel = DesktopStrings["d_download", "Download"],
+            onConfirm = {
                     DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
                     availableUpdate = null
-                }) { Text(DesktopStrings["d_download", "Download"]) }
-            },
-            dismissButton = {
-                TextButton(onClick = { availableUpdate = null }) {
-                    Text(DesktopStrings["d_later", "Later"])
-                }
-            },
+                },
+            dismissLabel = DesktopStrings["d_later", "Later"],
+            onDismiss = { availableUpdate = null },
         )
     }
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
@@ -6722,8 +6714,6 @@ private fun DesktopSettingsScreen(
     val settingsScope = rememberCoroutineScope()
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     var editingSubsonic by remember { mutableStateOf<DesktopSourceConfig?>(null) }
-    var showingExtras by remember { mutableStateOf(false) }
-    if (showingExtras) DesktopExtrasDialog(onDismiss = { showingExtras = false }, onPlay = onPlayProviderSongs)
     val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
     val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
     val sourceProbeKey = sourceConfigs
@@ -6869,17 +6859,24 @@ private fun DesktopSettingsScreen(
                         onSkipSilenceChange,
                     )
                     SettingsToggle(
-                        DesktopStrings["stereo_widening", "Stereo widening"],
-                        DesktopStrings["stereo_widening_subtitle", "Optional stereo width and crossfeed"],
+                        DesktopStrings["stereo_widening", "Spatial audio"],
+                        DesktopStrings["stereo_widening_subtitle", "Crossfeed, virtual speakers or mono over headphones, in the style below"],
                         spatialAudio,
                         onSpatialAudioChange,
                     )
-                    // One row into the shared Extras dialog; see com.cosmotune.ui.extras.ExtrasSettingsDialog.
-                    SettingsNavigationRow(
-                        title = "Extras",
-                        subtitle = "Volume cap, pitch, spatial style, proxy, offline mode",
-                        onClick = { showingExtras = true },
-                    )
+                    // The style of the switch above and the rest of the options first seen in Mochy Music (the shared rows of the Sound page).
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.SPATIAL_STYLE, com.cosmotune.ui.settings.SoundExtrasText.SPATIAL_STYLE_LINE)) {
+                        com.cosmotune.ui.settings.SpatialStyleRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.SURROUND, com.cosmotune.ui.settings.SoundExtrasText.SURROUND_LINE)) {
+                        com.cosmotune.ui.settings.BinauralSurroundRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME, com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME_LINE)) {
+                        com.cosmotune.ui.settings.MaxVolumeRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.PITCH, com.cosmotune.ui.settings.SoundExtrasText.PITCH_LINE)) {
+                        com.cosmotune.ui.settings.PitchRow()
+                    }
                     SettingsToggle(
                         DesktopStrings["dolby_atmos", "Dolby Atmos"],
                         if (DesktopCodecs.supportsDolbyAtmos) {
@@ -6899,6 +6896,27 @@ private fun DesktopSettingsScreen(
                         },
                         onClick = onOpenEqualizer,
                     )
+                }
+                SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_LYRICS_TIMING) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.AUTO_OFFSET, com.cosmotune.ui.settings.SoundExtrasText.AUTO_OFFSET_LINE)) {
+                        com.cosmotune.ui.settings.AutoLyricsOffsetRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.FORGET_OFFSETS, com.cosmotune.ui.settings.SoundExtrasText.FORGET_OFFSETS_LINE)) {
+                        com.cosmotune.ui.settings.ForgetLyricsOffsetsRow()
+                    }
+                }
+                SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_NETWORK) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.OFFLINE, com.cosmotune.ui.settings.SoundExtrasText.OFFLINE_LINE)) {
+                        com.cosmotune.ui.settings.OfflineModeRow()
+                    }
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.PROXY, com.cosmotune.ui.settings.SoundExtrasText.PROXY_LINE)) {
+                        com.cosmotune.ui.settings.ProxyRows()
+                    }
+                }
+                SettingsGroup(com.cosmotune.ui.settings.SoundExtrasText.GROUP_RECOGNITION) {
+                    if (settingsRowVisible(com.cosmotune.ui.settings.SoundExtrasText.RECOGNITION, com.cosmotune.ui.settings.SoundExtrasText.RECOGNITION_LINE)) {
+                        com.cosmotune.ui.settings.SongRecognitionRows(onPlay = onPlayProviderSongs)
+                    }
                 }
             }
             DesktopSettingsSection.DESKTOP_PLAYBACK -> {
@@ -7474,24 +7492,18 @@ private fun DesktopSettingsScreen(
                     }
                 }
                 if (confirmCloudDelete) {
-                    AlertDialog(
+                    com.cosmotune.ui.sheets.CosmoAlertDialog(
                         onDismissRequest = { confirmCloudDelete = false },
-                        title = { Text("Delete cloud account and data?") },
-                        text = {
-                            Text(
-                                "Your synced playlists are removed from the cloud and the account is deleted. " +
+                        title = "Delete cloud account and data?",
+                        message = "Your synced playlists are removed from the cloud and the account is deleted. " +
                                     "Other devices stop syncing with it. Nothing on this computer is deleted.",
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
+                        confirmLabel = "Delete",
+                        onConfirm = {
                                 confirmCloudDelete = false
                                 DesktopCloud.deleteAccount()
-                            }) { Text("Delete") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { confirmCloudDelete = false }) { Text(DesktopStrings["cancel", "Cancel"]) }
-                        },
+                            },
+                        dismissLabel = DesktopStrings["cancel", "Cancel"],
+                        onDismiss = { confirmCloudDelete = false },
                     )
                 }
             }
@@ -8074,10 +8086,15 @@ private fun DesktopSourceEditorDialog(
         }
     }
 
-    AlertDialog(
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isNew) "Add a source" else config.displayName) },
-        text = {
+        title = if (isNew) "Add a source" else config.displayName,
+        confirmLabel = DesktopStrings["save", "Save"],
+        onConfirm = { identify(thenSave = true) },
+        confirmEnabled = candidate.baseUrl.isNotBlank() && !checking,
+        dismissLabel = DesktopStrings["cancel", "Cancel"],
+        onDismiss = onDismiss,
+        content = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = baseUrl,
@@ -8112,30 +8129,17 @@ private fun DesktopSourceEditorDialog(
                 (message ?: status)?.let {
                     Text(it, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
                 }
-            }
-        },
-        dismissButton = {
-            Row {
-                if (!isNew) TextButton(onClick = onRemove, enabled = !checking) { Text(DesktopStrings["remove", "Remove"]) }
-                TextButton(onClick = onDismiss) { Text(DesktopStrings["cancel", "Cancel"]) }
-            }
-        },
-        confirmButton = {
-            Row {
-                TextButton(
-                    onClick = {
-                        onTest(candidate)
-                        identify(thenSave = false)
-                    },
-                    enabled = candidate.baseUrl.isNotBlank() && !checking,
-                ) {
-                    Text(if (checking) "Checking…" else "Test")
-                }
-                TextButton(
-                    onClick = { identify(thenSave = true) },
-                    enabled = candidate.baseUrl.isNotBlank() && !checking,
-                ) {
-                    Text(DesktopStrings["save", "Save"])
+                // Test and Remove are quiet; Save is the dialog's one action.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.cosmotune.ui.sheets.CosmoDialogQuietButton(
+                        label = if (checking) "Checking…" else "Test",
+                        onClick = {
+                            onTest(candidate)
+                            identify(thenSave = false)
+                        },
+                        enabled = candidate.baseUrl.isNotBlank() && !checking,
+                    )
+                    if (!isNew) com.cosmotune.ui.sheets.CosmoDialogQuietButton(DesktopStrings["remove", "Remove"], onRemove, enabled = !checking)
                 }
             }
         },

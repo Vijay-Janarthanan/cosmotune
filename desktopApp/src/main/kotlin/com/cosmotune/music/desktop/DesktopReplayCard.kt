@@ -101,18 +101,22 @@ internal fun DesktopReplayShareDialog(summary: DesktopReplaySummary, holder: Str
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(CosmoRadii.rLg)) {
-            Column(Modifier.widthIn(max = 480.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Share your Replay", style = MaterialTheme.typography.titleLarge)
+    com.cosmotune.ui.sheets.CosmoDialog(onDismiss = onDismiss, maxWidth = 480.dp) {
+        run {
+            Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                com.cosmotune.ui.sheets.CosmoDialogHeading(null, "Share your Replay", null)
                 image?.let { card ->
                     Image(remember(card) { card.toComposeImageBitmap() }, "Replay card preview",
                         Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 540.dp))
                 } ?: Text("Preparing your card…")
                 message?.let { Text(it) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onDismiss, enabled = !saving) { Text("Close") }
-                    Button(enabled = image != null && !saving, onClick = {
+                com.cosmotune.ui.sheets.CosmoDialogActions(
+                    confirmLabel = if (saving) "Saving…" else "Save image",
+                    confirmEnabled = image != null && !saving,
+                    dismissLabel = "Close",
+                    onDismiss = onDismiss,
+                    dismissEnabled = !saving,
+                    onConfirm = {
                         scope.launch {
                             saving = true
                             try {
@@ -126,8 +130,8 @@ internal fun DesktopReplayShareDialog(summary: DesktopReplaySummary, holder: Str
                             catch (_: Exception) { message = "The card could not be saved. Try another location." }
                             finally { saving = false }
                         }
-                    }) { Text(if (saving) "Saving…" else "Save image") }
-                }
+                    },
+                )
             }
         }
     }

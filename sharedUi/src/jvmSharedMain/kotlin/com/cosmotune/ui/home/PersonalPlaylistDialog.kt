@@ -36,7 +36,11 @@ fun PersonalPlaylistDialog(songs: List<Song>, seed: Song?, onDismiss: () -> Unit
     val learning by LocalPreferenceLearning.status.collectAsState()
     val scope = rememberCoroutineScope()
     fun move(from: Int, to: Int) { preview = preview.toMutableList().apply { add(to, removeAt(from)) } }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Make my playlist") }, text = {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = onDismiss,
+        title = "Make my playlist",
+        scroll = false,
+        content = {
         Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Choose a mix, review its sources, then edit the order before saving. Ranking stays on this device; online pools use your enabled catalogues.", style = MaterialTheme.typography.bodySmall)
             Box {
@@ -108,8 +112,9 @@ fun PersonalPlaylistDialog(songs: List<Song>, seed: Song?, onDismiss: () -> Unit
                 }
             }
         }
-    }, confirmButton = {
-        TextButton(enabled = !busy && preview.isNotEmpty() && title.isNotBlank(), modifier = Modifier.testTag("playlist:save"), onClick = {
+    },
+        confirmLabel = "Save locally",
+        onConfirm = {
             busy = true
             scope.launch {
                 try { save(title.trim(), preview); onDismiss() }
@@ -117,6 +122,9 @@ fun PersonalPlaylistDialog(songs: List<Song>, seed: Song?, onDismiss: () -> Unit
                 catch (_: Exception) { message = "Could not save the playlist. Your edited preview is still here." }
                 finally { busy = false }
             }
-        }) { Text("Save locally") }
-    }, dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } })
+        },
+        confirmEnabled = !busy && preview.isNotEmpty() && title.isNotBlank(),
+        dismissLabel = "Close",
+        onDismiss = onDismiss,
+    )
 }

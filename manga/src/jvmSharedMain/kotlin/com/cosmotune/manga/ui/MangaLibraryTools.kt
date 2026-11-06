@@ -56,13 +56,20 @@ internal class MangaBackupTransfer(val export: (ByteArray) -> Unit, val restore:
             else "The last check did not finish; use Check for updates to retry.", style = ReadType.meta(), color = look.dim)
         message?.let { Text(it, style = ReadType.meta(), color = look.ink) }
     }
-    pending?.let { backup -> AlertDialog(onDismissRequest = { pending = null }, title = { Text(mangaText("Restore Manga library?")) },
-        text = { Text("Merge ${backup.books.size} online series and ${backup.collections.size} collections? Existing series and reading positions are kept. Sources must be configured separately.") },
-        confirmButton = { TextButton(enabled = !busy, onClick = { scope.launch {
+    pending?.let { backup -> com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { pending = null },
+        title = mangaText("Restore Manga library?"),
+        message = "Merge ${backup.books.size} online series and ${backup.collections.size} collections? Existing series and reading positions are kept. Sources must be configured separately.",
+        confirmLabel = mangaText("Merge library"),
+        onConfirm = { scope.launch {
             busy = true
             try { backup.merge(repository.store); pending = null; message = "Library metadata restored" }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { message = failure.message }
             finally { busy = false }
-        } }) { Text(mangaText("Merge library")) } }, dismissButton = { TextButton(onClick = { pending = null }) { Text(mangaText("Cancel")) } }) }
+        } },
+        confirmEnabled = !busy,
+        dismissLabel = mangaText("Cancel"),
+        onDismiss = { pending = null },
+    ) }
 }

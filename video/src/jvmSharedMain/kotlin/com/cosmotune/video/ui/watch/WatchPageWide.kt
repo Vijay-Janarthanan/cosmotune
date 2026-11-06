@@ -156,6 +156,7 @@ internal fun WatchPageWide(
     LaunchedEffect(fullWindow) { if (!fullWindow) runCatching { focus.requestFocus() } }
     val fonts = orbitFonts()
     val look = orbitLook()
+    KeepWatchFill()
 
     val margin = VideoMetrics.DESKTOP_MARGIN_DP.dp
     val gap = VideoMetrics.COLUMN_GAP_DP.dp

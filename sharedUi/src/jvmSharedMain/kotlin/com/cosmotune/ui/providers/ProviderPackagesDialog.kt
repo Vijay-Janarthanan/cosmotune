@@ -269,17 +269,27 @@ private fun ProviderPackageContent(manager: ProviderManager, onDismiss: () -> Un
     } }) }
     editing?.let { installed -> ProviderSettingsEditor(manager, installed, busy, error = error, run = ::run, onDismiss = { editing = null }) }
     browsing?.let { installed -> ProviderBrowserDialog(manager, installed, onDismiss = { browsing = null }, onPlay = onPlay) }
-    removing?.let { installed -> AlertDialog(onDismissRequest = { removing = null }, title = { Text("Remove ${installed.manifest.title}?") },
-        text = { Text("Its package and saved connection settings will be removed. Songs and playlists in your library stay in place.") },
-        confirmButton = { TextButton(enabled = !busy, onClick = { run { manager.remove(installed.manifest.name); removing = null } }) { Text("Remove") } },
-        dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel") } }) }
+    removing?.let { installed -> com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { removing = null },
+        title = "Remove ${installed.manifest.title}?",
+        message = "Its package and saved connection settings will be removed. Songs and playlists in your library stay in place.",
+        confirmLabel = "Remove",
+        onConfirm = { run { manager.remove(installed.manifest.name); removing = null } },
+        confirmEnabled = !busy,
+        dismissLabel = "Cancel",
+        onDismiss = { removing = null },
+    ) }
 }
 
 @Composable
 private fun ProviderPackageTrust(review: ProviderPackageReview, busy: Boolean, artworkDefault: Boolean, onDismiss: () -> Unit, onTrust: (Boolean) -> Unit) {
     var trusted by remember(review.sha256) { mutableStateOf(false) }
     var artwork by remember(review.sha256) { mutableStateOf(artworkDefault) }
-    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text("Review ${review.manifest.title}") }, text = {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = "Review ${review.manifest.title}",
+        scroll = false,
+        content = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item { Text("${review.manifest.name} · ${review.manifest.version}") }
             item { SelectionContainer { Text("SHA-256: ${review.sha256}", style = MaterialTheme.typography.labelSmall) } }
@@ -297,8 +307,14 @@ private fun ProviderPackageTrust(review: ProviderPackageReview, busy: Boolean, a
                 Text("I trust this package", modifier = Modifier.weight(1f))
             } }
         }
-    }, confirmButton = { TextButton(enabled = trusted && !busy, onClick = { onTrust(artwork) }) { Text("Trust and install") } },
-        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancel") } })
+    },
+        confirmLabel = "Trust and install",
+        onConfirm = { onTrust(artwork) },
+        confirmEnabled = trusted && !busy,
+        dismissLabel = "Cancel",
+        onDismiss = onDismiss,
+        dismissEnabled = !busy,
+    )
 }
 
 @Composable
@@ -310,7 +326,11 @@ private fun ProviderSettingsEditor(manager: ProviderManager, installed: Provider
     val valid = installed.manifest.settings.filter { it.type in setOf("number", "integer") }.all { field ->
         values[field.key] == JsonNull || (values[field.key] as? JsonPrimitive)?.doubleOrNull?.isFinite() == true
     }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(installed.manifest.title) }, text = {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = onDismiss,
+        title = installed.manifest.title,
+        scroll = false,
+        content = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (error != null) item { Text(error, color = MaterialTheme.colorScheme.error) }
             items(installed.manifest.settings, key = { it.key }) { field ->
@@ -330,6 +350,11 @@ private fun ProviderSettingsEditor(manager: ProviderManager, installed: Provider
                 Switch(localNetwork, { localNetwork = it }, enabled = !busy)
             } }
         }
-    }, confirmButton = { TextButton(enabled = valid && !busy, onClick = { run { manager.saveSettings(installed.manifest.name, values, localNetwork, artwork); onDismiss() } }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+    },
+        confirmLabel = "Save",
+        onConfirm = { run { manager.saveSettings(installed.manifest.name, values, localNetwork, artwork); onDismiss() } },
+        confirmEnabled = valid && !busy,
+        dismissLabel = "Cancel",
+        onDismiss = onDismiss,
+    )
 }

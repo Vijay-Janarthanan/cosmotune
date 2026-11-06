@@ -455,9 +455,11 @@ enum class DesktopReplayDetail { MINUTES, ARTISTS, SONGS, ALBUMS }
 @Composable
 private fun ReplayDetails(summary: DesktopReplaySummary, card: DesktopReplayHeroCard, close: () -> Unit,
     playSong: (Song) -> Unit, openArtist: (String) -> Unit) {
-    androidx.compose.material3.AlertDialog(onDismissRequest = close,
-        title = { Text(card.label) },
-        text = {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = close,
+        title = card.label,
+        scroll = false,
+        content = {
             LazyColumn(Modifier.fillMaxWidth().height(440.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     Text(card.value, style = MaterialTheme.typography.headlineSmall)
@@ -493,7 +495,10 @@ private fun ReplayDetails(summary: DesktopReplaySummary, card: DesktopReplayHero
                     }
                 }
             }
-        }, confirmButton = { androidx.compose.material3.TextButton(onClick = close) { Text("Close") } })
+        },
+        confirmLabel = "Close",
+        onConfirm = close,
+    )
 }
 
 internal fun DesktopReplaySummary.songRows(limit: Int): List<DesktopReplayRow> =

@@ -332,7 +332,6 @@ fun SettingsScreen(
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
-    var showingExtras by remember { mutableStateOf(false) }
     // What the last export or import did, shown on the row that did it rather
     // than as a toast: a backup is the one action here whose outcome nobody can
     // check by looking at the app afterwards. Held per direction, or an import's
@@ -813,16 +812,58 @@ fun SettingsScreen(
                     onClick = { AppSettings.setSpatialAudio(!spatialAudio) },
                 )
             }
-            // One row into the shared Extras dialog (volume cap, pitch, proxy, offline mode and the rest), kept to a single
-            // entry so the settings redesign can fold it wherever it fits.
-            val extrasTitle = "Extras"
-            val extrasSummary = "Volume cap, pitch, spatial style, proxy, offline mode"
-            row(extrasTitle, "maximum volume", "pitch", "proxy", "offline", "spatial", "crossfeed", summary = extrasSummary) {
-                SettingsRow(
-                    icon = Icons.Rounded.Tune,
-                    title = extrasTitle,
-                    subtitle = extrasSummary,
-                    onClick = { showingExtras = true },
+            // The style of the switch above and the rest of the options first seen in Mochy Music (the shared rows of the Sound page).
+            row(com.cosmotune.ui.settings.SoundExtrasText.SPATIAL_STYLE, "crossfeed", "virtual speakers", "mono", "spatial", summary = com.cosmotune.ui.settings.SoundExtrasText.SPATIAL_STYLE_LINE) {
+                com.cosmotune.ui.settings.SpatialStyleRow()
+            }
+            row(com.cosmotune.ui.settings.SoundExtrasText.SURROUND, "5.1", "7.1", "binaural", "surround", summary = com.cosmotune.ui.settings.SoundExtrasText.SURROUND_LINE) {
+                com.cosmotune.ui.settings.BinauralSurroundRow()
+            }
+            row(com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME, "volume cap", "hearing", "limit", summary = com.cosmotune.ui.settings.SoundExtrasText.MAX_VOLUME_LINE) {
+                com.cosmotune.ui.settings.MaxVolumeRow()
+            }
+            row(com.cosmotune.ui.settings.SoundExtrasText.PITCH, "key", "semitone", "transpose", summary = com.cosmotune.ui.settings.SoundExtrasText.PITCH_LINE) {
+                com.cosmotune.ui.settings.PitchRow()
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = com.cosmotune.ui.settings.SoundExtrasText.GROUP_LYRICS_TIMING) {
+            row(com.cosmotune.ui.settings.SoundExtrasText.AUTO_OFFSET, "lyrics", "sync", "offset", summary = com.cosmotune.ui.settings.SoundExtrasText.AUTO_OFFSET_LINE) {
+                com.cosmotune.ui.settings.AutoLyricsOffsetRow()
+            }
+            row(com.cosmotune.ui.settings.SoundExtrasText.FORGET_OFFSETS, "lyrics", "offset", "reset", summary = com.cosmotune.ui.settings.SoundExtrasText.FORGET_OFFSETS_LINE) {
+                com.cosmotune.ui.settings.ForgetLyricsOffsetsRow()
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = com.cosmotune.ui.settings.SoundExtrasText.GROUP_NETWORK) {
+            row(com.cosmotune.ui.settings.SoundExtrasText.OFFLINE, "offline", "internet", "airplane", summary = com.cosmotune.ui.settings.SoundExtrasText.OFFLINE_LINE) {
+                com.cosmotune.ui.settings.OfflineModeRow()
+            }
+            row(com.cosmotune.ui.settings.SoundExtrasText.PROXY, "proxy", "socks", "http", summary = com.cosmotune.ui.settings.SoundExtrasText.PROXY_LINE) {
+                com.cosmotune.ui.settings.ProxyRows()
+            }
+        }
+        SearchableSettingsGroup(search, category = SettingsCategory.PLAYBACK, header = com.cosmotune.ui.settings.SoundExtrasText.GROUP_RECOGNITION) {
+            row(com.cosmotune.ui.settings.SoundExtrasText.RECOGNITION, "shazam", "recognition", "identify", "microphone", summary = com.cosmotune.ui.settings.SoundExtrasText.RECOGNITION_LINE) {
+                // Song recognition needs the microphone; asked for only when Listen is pressed.
+                val micContext = androidx.compose.ui.platform.LocalContext.current
+                var micAnswer by remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
+                val micLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+                ) { granted -> micAnswer?.invoke(granted); micAnswer = null }
+                com.cosmotune.ui.settings.SongRecognitionRows(
+                    onPlay = onPlayProviderSongs,
+                    ensureMicrophone = { answer ->
+                        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                            micContext,
+                            android.Manifest.permission.RECORD_AUDIO,
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        if (granted) {
+                            answer(true)
+                        } else {
+                            micAnswer = answer
+                            micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
                 )
             }
         }
@@ -1912,30 +1953,6 @@ fun SettingsScreen(
         }
     }
 
-    if (showingExtras) {
-        // Song recognition needs the microphone; asked for only when Listen is pressed.
-        val extrasContext = androidx.compose.ui.platform.LocalContext.current
-        var micAnswer by remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
-        val micLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-            androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
-        ) { granted -> micAnswer?.invoke(granted); micAnswer = null }
-        com.cosmotune.ui.extras.ExtrasSettingsDialog(
-            onDismiss = { showingExtras = false },
-            onPlay = onPlayProviderSongs,
-            ensureMicrophone = { answer ->
-                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-                    extrasContext,
-                    android.Manifest.permission.RECORD_AUDIO,
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                if (granted) {
-                    answer(true)
-                } else {
-                    micAnswer = answer
-                    micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-                }
-            },
-        )
-    }
     if (pickingAutomixPerformance) {
         ModalBottomSheet(
             onDismissRequest = { pickingAutomixPerformance = false },
@@ -1953,47 +1970,35 @@ fun SettingsScreen(
 
     // Everything in the Cached songs folder goes with it, so say so first.
     if (confirmClearSongCache) {
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = { confirmClearSongCache = false },
-            title = { Text(stringResource(R.string.clear_song_cache_title)) },
-            text = { Text(stringResource(R.string.clear_song_cache_warning)) },
-            confirmButton = {
-                TextButton(onClick = {
+            title = stringResource(R.string.clear_song_cache_title),
+            message = stringResource(R.string.clear_song_cache_warning),
+            confirmLabel = stringResource(R.string.clear),
+            onConfirm = {
                     confirmClearSongCache = false
                     AudioCache.clear {
                         Toast.makeText(context, context.getString(R.string.song_cache_cleared), Toast.LENGTH_SHORT).show()
                     }
-                }) {
-                    Text(stringResource(R.string.clear))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmClearSongCache = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+                },
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = { confirmClearSongCache = false },
         )
     }
 
     // Says what stays as well as what goes: the playlists on this phone are untouched, which is the first thing anyone wonders.
     if (confirmCloudDelete) {
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = { confirmCloudDelete = false },
-            title = { Text(stringResource(R.string.cloud_delete)) },
-            text = { Text(stringResource(R.string.cloud_delete_warning)) },
-            confirmButton = {
-                TextButton(onClick = {
+            title = stringResource(R.string.cloud_delete),
+            message = stringResource(R.string.cloud_delete_warning),
+            confirmLabel = stringResource(R.string.delete),
+            onConfirm = {
                     confirmCloudDelete = false
                     onCloudDeleteAccount()
-                }) {
-                    Text(stringResource(R.string.delete))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmCloudDelete = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+                },
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = { confirmCloudDelete = false },
         )
     }
 
@@ -2001,36 +2006,27 @@ fun SettingsScreen(
     // thing being confirmed is that this device's own history is about to be
     // thrown away, and that is true whichever file gets picked.
     if (confirmImport) {
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = { confirmImport = false },
-            title = { Text(stringResource(R.string.import_backup_title)) },
-            text = {
-                Text(stringResource(R.string.import_backup_warning))
-            },
-            confirmButton = {
-                TextButton(onClick = {
+            title = stringResource(R.string.import_backup_title),
+            message = stringResource(R.string.import_backup_warning),
+            confirmLabel = stringResource(R.string.choose_file),
+            onConfirm = {
                     confirmImport = false
                     importPicker.launch(arrayOf("application/json", "text/plain", "*/*"))
-                }) {
-                    Text(stringResource(R.string.choose_file))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmImport = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+                },
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = { confirmImport = false },
         )
     }
 
     if (showPerformanceWarning) {
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = { showPerformanceWarning = false },
-            title = { Text(stringResource(R.string.high_performance_before_enabling)) },
-            text = { Text(stringResource(R.string.high_performance_battery_warning)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
+            title = stringResource(R.string.high_performance_before_enabling),
+            message = stringResource(R.string.high_performance_battery_warning),
+            confirmLabel = stringResource(R.string.open_battery_settings),
+            onConfirm = {
                         showPerformanceWarning = false
                         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                             data = Uri.fromParts("package", context.packageName, null)
@@ -2040,47 +2036,32 @@ fun SettingsScreen(
                         } ?: Intent(Settings.ACTION_SETTINGS)
                         batterySettingsLauncher.launch(settingsIntent)
                     },
-                ) {
-                    Text(stringResource(R.string.open_battery_settings))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPerformanceWarning = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = { showPerformanceWarning = false },
         )
     }
 
     if (showPerformanceConfirmation) {
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = { showPerformanceConfirmation = false },
-            title = { Text(stringResource(R.string.enable_high_performance_title)) },
-            text = { Text(stringResource(R.string.enable_high_performance_confirmation)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
+            title = stringResource(R.string.enable_high_performance_title),
+            message = stringResource(R.string.enable_high_performance_confirmation),
+            confirmLabel = stringResource(R.string.enable),
+            onConfirm = {
                         showPerformanceConfirmation = false
                         AppSettings.setHighPerformanceMode(true)
                     },
-                ) {
-                    Text(stringResource(R.string.enable))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPerformanceConfirmation = false }) {
-                    Text(stringResource(R.string.not_yet))
-                }
-            },
+            dismissLabel = stringResource(R.string.not_yet),
+            onDismiss = { showPerformanceConfirmation = false },
         )
     }
 
     if (showListenBrainzTokenDialog) {
         var tokenInput by remember { mutableStateOf(listenBrainzToken) }
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = { showListenBrainzTokenDialog = false },
-            title = { Text(stringResource(R.string.listenbrainz_token)) },
-            text = {
+            title = stringResource(R.string.listenbrainz_token),
+            content = {
                 OutlinedTextField(
                     value = tokenInput,
                     onValueChange = { tokenInput = it },
@@ -2089,19 +2070,13 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
             },
-            confirmButton = {
-                TextButton(onClick = {
+            confirmLabel = stringResource(R.string.save),
+            onConfirm = {
                     AppSettings.setListenBrainzToken(tokenInput.trim())
                     showListenBrainzTokenDialog = false
-                }) {
-                    Text(stringResource(R.string.save))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showListenBrainzTokenDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+                },
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = { showListenBrainzTokenDialog = false },
         )
     }
 
@@ -2110,10 +2085,10 @@ fun SettingsScreen(
         var passwordInput by remember { mutableStateOf("") }
         var lastfmError by remember { mutableStateOf<String?>(null) }
         var lastfmLoading by remember { mutableStateOf(false) }
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = { if (!lastfmLoading) showLastfmLoginDialog = false },
-            title = { Text(stringResource(R.string.lastfm_login)) },
-            text = {
+            title = stringResource(R.string.lastfm_login),
+            content = {
                 Column {
                     if (lastfmError != null) {
                         Text(
@@ -2140,9 +2115,8 @@ fun SettingsScreen(
                     )
                 }
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
+            confirmLabel = stringResource(if (lastfmLoading) R.string.signing_in else R.string.sign_in),
+            onConfirm = {
                         lastfmLoading = true
                         lastfmError = null
                         scrobbleScope.launch {
@@ -2169,16 +2143,10 @@ fun SettingsScreen(
                             }
                         }
                     },
-                    enabled = !lastfmLoading && usernameInput.isNotBlank() && passwordInput.isNotBlank(),
-                ) {
-                    Text(stringResource(if (lastfmLoading) R.string.signing_in else R.string.sign_in))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLastfmLoginDialog = false }, enabled = !lastfmLoading) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+            confirmEnabled = !lastfmLoading && usernameInput.isNotBlank() && passwordInput.isNotBlank(),
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = { showLastfmLoginDialog = false },
+            dismissEnabled = !lastfmLoading,
         )
     }
 

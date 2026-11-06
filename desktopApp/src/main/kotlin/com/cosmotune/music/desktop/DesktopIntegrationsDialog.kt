@@ -81,12 +81,7 @@ internal fun DesktopIntegrationsDialog(
             ScrobblingSection(onOpenLastfm, onOpenListenBrainz)
         }
         DesktopCardRule()
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 10.dp),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            TextButton(onClick = onDismiss) { Text(DesktopStrings["done", "Done"], color = DesktopAccent) }
-        }
+        DesktopDialogButtons(null, {}, DesktopStrings["done", "Done"], onDismiss)
     }
 
     choosing?.let { choice ->
@@ -742,8 +737,6 @@ internal fun DesktopChoiceDialog(
             }
         }
         DesktopCardRule()
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = onDismiss) { Text(DesktopStrings["cancel", "Cancel"], color = DesktopSecondary) }
-        }
+        DesktopDialogButtons(null, {}, DesktopStrings["cancel", "Cancel"], onDismiss)
     }
 }

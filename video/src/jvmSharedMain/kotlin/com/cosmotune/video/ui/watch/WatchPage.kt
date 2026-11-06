@@ -391,6 +391,7 @@ private fun WatchPagePhone(
     }
     val fonts = orbitFonts()
     val look = orbitLook()
+    KeepWatchFill()
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val playerHeight = watchFrameHeight(width - FRAME_SIDE * 2, height * PHONE_FRAME_SHARE, aspect, WatchSession.fill)
     val downloaded = rememberDownloadedIds()
@@ -673,6 +674,16 @@ private fun PlayDownloadWhenOffline(route: VideoRoute.Watch, playback: VideoPlay
 // ---- the rules (pure) ----------------------------------------------------------------------------------------------------------
 
 /** What the page remembers between its instances in this process (one window draws Video at a time). Main thread. */
+/** Ties [WatchSession.fill] to the look's kept Whole or Fill, the one Now Playing keeps, while a watch page is composed. */
+@androidx.compose.runtime.Composable
+internal fun KeepWatchFill() {
+    val settings = com.cosmotune.ui.settings.rememberCosmoLookSettings()
+    androidx.compose.runtime.remember(settings) { WatchSession.keepFillWith(settings); settings }
+    androidx.compose.runtime.LaunchedEffect(settings) {
+        settings.videoView.collect { WatchSession.showFill(it == com.cosmotune.design.VideoView.FILL) }
+    }
+}
+
 internal object WatchSession {
     /** The last route a watch page started or found playing: a page found again after the playback moved on follows it. */
     @Volatile
@@ -687,8 +698,28 @@ internal object WatchSession {
     /** Full screen was left while the phone was turned: the page stays upright until the last watch page leaves. */
     var portraitLock by mutableStateOf(false)
 
-    /** The page's video cut to fill its frame (the screen button's Fill) rather than shown whole; kept for the session. */
-    var fill by mutableStateOf(false)
+    /**
+     * The page's video cut to fill its frame (the screen button's Fill) rather than shown whole. Kept with Now Playing's choice (the
+     * look's `videoView`, `np_video_view`), so Music and Video remember one Whole or Fill; see [keepFillWith].
+     */
+    var fill: Boolean
+        get() = fillShown
+        set(value) {
+            fillShown = value
+            kept?.setVideoView(if (value) com.cosmotune.design.VideoView.FILL else com.cosmotune.design.VideoView.WHOLE)
+        }
+
+    private var fillShown by mutableStateOf(false)
+    private var kept: com.cosmotune.settings.CosmoLookSettings? = null
+
+    /** Reads the kept Whole or Fill from [settings] and writes the choice back to it from now on. */
+    fun keepFillWith(settings: com.cosmotune.settings.CosmoLookSettings) {
+        kept = settings
+        fillShown = settings.videoView.value == com.cosmotune.design.VideoView.FILL
+    }
+
+    /** Follows a choice made elsewhere (Now Playing) while a watch page is up. */
+    fun showFill(fill: Boolean) { fillShown = fill }
 
     /** The wide page's full window (key F, the button, a double click); it outlives a page replaced by the next video's. */
     var fullWindow by mutableStateOf(false)

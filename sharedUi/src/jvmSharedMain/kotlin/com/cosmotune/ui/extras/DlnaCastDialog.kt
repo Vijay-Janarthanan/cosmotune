@@ -56,56 +56,47 @@ fun DlnaCastDialog(song: Song?, onDismiss: () -> Unit) {
         DlnaCast.discovery.start()
         onDispose { DlnaCast.discovery.stop() }
     }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.padding(16.dp).widthIn(max = 520.dp).heightIn(max = 640.dp),
-        ) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Play on a TV or speaker", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "DLNA and UPnP renderers on this network. The song is served from this device, so keep it on the same network.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val connected = renderer
-                if (connected == null) {
-                    if (devices.isEmpty()) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            CircularProgressIndicator(Modifier.size(20.dp))
-                            Text("Looking for renderers…", style = MaterialTheme.typography.bodyMedium)
-                        }
+    val connected = renderer
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = onDismiss,
+        title = "Play on a TV or speaker",
+        message = "DLNA and UPnP renderers on this network. The song is served from this device, so keep it on the same network.",
+        confirmLabel = if (connected != null) "Stop casting" else null,
+        onConfirm = { scope.launch { DlnaCast.disconnect(stopPlayback = true) } },
+        dismissLabel = "Close",
+        onDismiss = onDismiss,
+        maxWidth = 520.dp,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (connected == null) {
+                if (devices.isEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CircularProgressIndicator(Modifier.size(20.dp))
+                        Text("Looking for renderers…", style = MaterialTheme.typography.bodyMedium)
                     }
-                    devices.forEach { device ->
-                        Row(
-                            Modifier.fillMaxWidth().clickable(enabled = connecting == null) {
-                                connecting = device.id
-                                scope.launch {
-                                    if (DlnaCast.connect(device) && song != null) DlnaCast.cast(song)
-                                    connecting = null
-                                }
-                            }.padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(device.name, style = MaterialTheme.typography.bodyLarge)
-                                Text(device.model, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                devices.forEach { device ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable(enabled = connecting == null) {
+                            connecting = device.id
+                            scope.launch {
+                                if (DlnaCast.connect(device) && song != null) DlnaCast.cast(song)
+                                connecting = null
                             }
-                            if (connecting == device.id) CircularProgressIndicator(Modifier.size(20.dp))
+                        }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(device.name, style = MaterialTheme.typography.bodyLarge)
+                            Text(device.model, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        if (connecting == device.id) CircularProgressIndicator(Modifier.size(20.dp))
                     }
-                } else {
-                    RendererControls(connected, casting, song)
                 }
-                error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    if (connected != null) {
-                        TextButton(onClick = { scope.launch { DlnaCast.disconnect(stopPlayback = true) } }) { Text("Stop casting") }
-                    }
-                    TextButton(onClick = onDismiss) { Text("Close") }
-                }
+            } else {
+                RendererControls(connected, casting, song)
             }
+            error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
         }
     }
 }

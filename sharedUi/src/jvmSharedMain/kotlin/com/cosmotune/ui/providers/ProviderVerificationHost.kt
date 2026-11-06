@@ -2,6 +2,7 @@ package com.cosmotune.ui.providers
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -87,17 +88,16 @@ private fun VerificationHelpSheet(manager: ProviderManager, request: ProviderVer
     var pasted by remember(request.id) { mutableStateOf("") }
     var error by remember(request.id) { mutableStateOf<String?>(null) }
     var busy by remember(request.id) { mutableStateOf(false) }
-    AlertDialog(
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = {},
-        modifier = Modifier.testTag("provider-verification:help"),
-        title = { Text("Waiting for ${request.target.title}") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        title = "Waiting for ${request.target.title}",
+        content = {
+            Column(Modifier.testTag("provider-verification:help"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Finish the check on the provider's page. It closes by itself when it is done. If it did not open or cannot return, open it again, copy its link into your browser, or paste the callback address or grant=… text here.",
                     style = MaterialTheme.typography.bodyMedium)
-                Column {
-                    TextButton(onClick = onOpenAgain, enabled = !busy) { Text("Open again") }
-                    TextButton(onClick = { clipboard.setText(AnnotatedString(request.target.url)) }, enabled = !busy) { Text("Copy link") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.cosmotune.ui.sheets.CosmoDialogQuietButton("Open again", onOpenAgain, enabled = !busy)
+                    com.cosmotune.ui.sheets.CosmoDialogQuietButton("Copy link", { clipboard.setText(AnnotatedString(request.target.url)) }, enabled = !busy)
                 }
                 OutlinedTextField(pasted, { if (it.length <= 16_384) { pasted = it; error = null } }, enabled = !busy,
                     label = { Text(if (request.target.signed) "Callback URL or grant=…" else "Callback URL") },
@@ -106,12 +106,12 @@ private fun VerificationHelpSheet(manager: ProviderManager, request: ProviderVer
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
         },
-        confirmButton = {
-            TextButton(enabled = !busy && pasted.isNotBlank(), onClick = {
+        confirmLabel = "Continue",
+        onConfirm = {
                 val value = pasted.trim()
                 if (!acceptsVerificationPaste(request.target, value)) {
                     error = "This is not the result of the current verification. Check that it is from this page and has not expired."
-                    return@TextButton
+                    return@CosmoAlertDialog
                 }
                 scope.launch {
                     busy = true
@@ -123,9 +123,11 @@ private fun VerificationHelpSheet(manager: ProviderManager, request: ProviderVer
                     catch (_: Exception) { error = "The provider did not accept this result. Open the page again to retry." }
                     finally { busy = false }
                 }
-            }) { Text("Continue") }
-        },
-        dismissButton = { TextButton(onClick = onCancel, enabled = !busy) { Text("Cancel") } },
+            },
+        confirmEnabled = !busy && pasted.isNotBlank(),
+        dismissLabel = "Cancel",
+        onDismiss = onCancel,
+        dismissEnabled = !busy,
     )
 }
 

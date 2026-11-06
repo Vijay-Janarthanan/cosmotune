@@ -47,8 +47,9 @@ fun MangaTemplateControls(repository: MangaRepository) {
     }
     ReadButton(mangaText("Custom websites and templates"), { open = true }, kind = ReadKind.TONAL)
     if (!open) return
-    AlertDialog(onDismissRequest = { if (!busy) { open = false; editor = false } }, title = { Text(if (editor) "Custom manga website" else "Custom manga sources") },
-        text = { Column(Modifier.heightIn(max = 540.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = { if (!busy) { open = false; editor = false } }, title = if (editor) "Custom manga website" else "Custom manga sources",
+        scroll = false,
+        content = { Column(Modifier.heightIn(max = 540.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (editor) {
                 Text("Choose a known HTML family, or paste a declarative template: CSS selectors over a site's pages (\"type\": \"html\") or field paths over its JSON API (\"type\": \"json\"). A template defines requests and selectors; it does not run site scripts. Some sites require browser verification.")
                 OutlinedTextField(name, { if (it.length <= 120) name = it }, label = { Text(mangaText("Source name")) }, modifier = Modifier.fillMaxWidth().testTag("manga-template:name"), singleLine = true)
@@ -81,9 +82,14 @@ fun MangaTemplateControls(repository: MangaRepository) {
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             result?.let { Text(it) }
         } },
-        confirmButton = { TextButton(enabled = !busy, onClick = {
+        confirmLabel = if (editor) "Save website" else "Done",
+        onConfirm = {
             if (editor) action { val config = configuration(); repository.store.source(config); repository.invalidateSource(config.id); editor = false }
             else open = false
-        }) { Text(if (editor) "Save website" else "Done") } },
-        dismissButton = { if (editor) TextButton(enabled = !busy, onClick = { editor = false; error = null }) { Text(mangaText("Back")) } })
+        },
+        confirmEnabled = !busy,
+        dismissLabel = if (editor) mangaText("Back") else null,
+        onDismiss = { editor = false; error = null },
+        dismissEnabled = !busy,
+    )
 }

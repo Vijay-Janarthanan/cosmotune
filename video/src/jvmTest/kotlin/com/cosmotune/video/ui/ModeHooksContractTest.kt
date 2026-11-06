@@ -208,6 +208,11 @@ class ModeHooksContractTest {
 
     // ---- The seam ---------------------------------------------------------------------------------------------------------------
 
+    private val watchHosts = listOf(
+        "app/src/main/java/com/cosmotune/music/watch/AndroidWatch.kt",
+        "app/src/main/java/com/cosmotune/music/watch/RoomWatch.kt",
+    )
+
     @Test fun nothingOfMusicImportsVideo() {
         val roots = listOf(
             File(VideoSourceContract.root, "sharedUi/src"),
@@ -226,7 +231,14 @@ class ModeHooksContractTest {
                 .map { it.relativeTo(VideoSourceContract.root).invariantSeparatorsPath }
                 .toList()
         }
-        assertEquals(emptyList(), offenders - accountBridges.toSet(), "Music never depends on :video")
+        assertEquals(emptyList(), offenders - accountBridges.toSet() - watchHosts.toSet(), "Music never depends on :video")
+        // Watch mode's phone host sits beside Music's code (com.cosmotune.music.watch) and plays on Video's engine: it is Watch, not
+        // Music, and reaches only the engine's graph and its picture scale.
+        for (host in watchHosts) {
+            val imports = Regex("""(?m)^\s*import\s+(com\.cosmotune\.video\.\S+)""").findAll(read(host)).map { it.groupValues[1] }.toList()
+            assertTrue(imports.isNotEmpty(), "$host plays on Video's engine")
+            assertTrue(imports.all { it.startsWith("com.cosmotune.video.graph.") || it.startsWith("com.cosmotune.video.player.") }, "$host imports only the engine: $imports")
+        }
         // the bridges are the one place Music's sign-in meets Video's account, and reach only the account logic of :shared
         for (bridge in accountBridges) {
             val imports = Regex("""(?m)^\s*import\s+(com\.cosmotune\.video\.\S+)""").findAll(read(bridge)).map { it.groupValues[1] }.toList()

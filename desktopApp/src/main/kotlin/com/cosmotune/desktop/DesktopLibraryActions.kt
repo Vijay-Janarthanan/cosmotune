@@ -13,14 +13,14 @@ import com.cosmotune.ui.theme.CosmoRadii
 
 @Composable
 fun DesktopLibraryActions(item: ShelfItem, pinned: Boolean, onPin: () -> Unit, onOpen: () -> Unit, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(CosmoRadii.rLg)) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(item.title, style = MaterialTheme.typography.titleLarge)
-                Button(onClick = { onPin(); onDismiss() }) { Text(if (pinned) "Unpin from library" else "Pin to library") }
-                TextButton(onClick = { onOpen(); onDismiss() }) { Text("Open") }
-                TextButton(onClick = onDismiss) { Text("Close") }
-            }
-        }
+    com.cosmotune.ui.sheets.CosmoAlertDialog(
+        onDismissRequest = onDismiss,
+        title = item.title,
+        confirmLabel = if (pinned) "Unpin from library" else "Pin to library",
+        onConfirm = { onPin(); onDismiss() },
+        dismissLabel = "Close",
+        onDismiss = onDismiss,
+    ) {
+        com.cosmotune.ui.sheets.CosmoDialogQuietButton("Open", { onOpen(); onDismiss() })
     }
 }

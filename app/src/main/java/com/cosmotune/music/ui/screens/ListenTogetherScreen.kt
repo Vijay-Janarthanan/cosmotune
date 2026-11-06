@@ -279,26 +279,19 @@ fun ListenTogetherScreen(
 
     pendingServerSwitchInvite?.let { (codeToJoin, serverToSet) ->
         val isSwitchToOfficial = serverToSet.isBlank()
-        AlertDialog(
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
             onDismissRequest = {
                 pendingServerSwitchInvite = null
                 onInviteHandled()
             },
-            title = {
-                Text(
-                    stringResource(
+            title = stringResource(
                         if (isSwitchToOfficial) {
                             R.string.listen_together_official_server_dialog_title
                         } else {
                             R.string.listen_together_custom_server_dialog_title
                         }
                     ),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-            },
-            text = {
-                Text(
-                    if (isSwitchToOfficial) {
+            message = if (isSwitchToOfficial) {
                         stringResource(R.string.listen_together_official_server_dialog_message, codeToJoin)
                     } else {
                         stringResource(
@@ -307,12 +300,8 @@ fun ListenTogetherScreen(
                             codeToJoin,
                         )
                     },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
+            confirmLabel = stringResource(R.string.listen_together_custom_server_switch_and_join),
+            onConfirm = {
                         val toJoin = codeToJoin
                         val toSet = serverToSet
                         pendingServerSwitchInvite = null
@@ -322,25 +311,11 @@ fun ListenTogetherScreen(
                         openPartyPreview(toJoin, toSet.ifBlank { null })
                         onInviteHandled()
                     },
-                ) {
-                    Text(
-                        stringResource(R.string.listen_together_custom_server_switch_and_join),
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
+            dismissLabel = stringResource(R.string.cancel),
+            onDismiss = {
                         pendingServerSwitchInvite = null
                         onInviteHandled()
                     },
-                ) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.surface,
         )
     }
 

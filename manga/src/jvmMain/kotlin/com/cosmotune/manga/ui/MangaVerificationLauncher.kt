@@ -16,9 +16,12 @@ import kotlinx.coroutines.*
     fun cancel() { val old = request; request = null; close(); old?.let { latest.value(it, Result.failure(IllegalStateException("Verification was cancelled."))) } }
     DisposableEffect(Unit) { onDispose { browser?.let { old -> Thread({ old.close() }, "Manga browser cleanup").apply { isDaemon = true; start() } } } }
     request?.let { pending ->
-        AlertDialog(onDismissRequest = { if (!busy) cancel() }, title = { Text("Verify Manga source") },
-            text = { Text(error ?: "Complete the website's check in the separate browser window. Then choose Use verified session here. Browser support depends on the website.") },
-            confirmButton = { TextButton(enabled = browser != null && !busy, onClick = {
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
+            onDismissRequest = { if (!busy) cancel() },
+            title = "Verify Manga source",
+            message = error ?: "Complete the website's check in the separate browser window. Then choose Use verified session here. Browser support depends on the website.",
+            confirmLabel = "Use verified session",
+            onConfirm = {
                 busy = true; error = null
                 scope.launch {
                     try {
@@ -28,8 +31,12 @@ import kotlinx.coroutines.*
                     catch (failure: Exception) { error = failure.message ?: "Complete the source check first." }
                     finally { busy = false }
                 }
-            }) { Text("Use verified session") } },
-            dismissButton = { TextButton(enabled = !busy, onClick = { cancel() }) { Text("Cancel") } })
+            },
+            confirmEnabled = browser != null && !busy,
+            dismissLabel = "Cancel",
+            onDismiss = { cancel() },
+            dismissEnabled = !busy,
+        )
     }
     return { pending ->
         request = pending; error = null; busy = true
