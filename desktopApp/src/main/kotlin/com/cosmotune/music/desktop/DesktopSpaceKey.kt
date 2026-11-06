@@ -2,7 +2,7 @@ package com.cosmotune.music.desktop
 
 import androidx.compose.ui.input.key.KeyEvent
 import com.cosmotune.design.AppMode
-import com.cosmotune.ui.kit.SpacePlayPause
+import com.cosmotune.ui.components.SpacePlayPause
 import com.cosmotune.video.player.PlayerStatus
 
 /**

@@ -1,4 +1,4 @@
-package com.cosmotune.ui.kit
+package com.cosmotune.ui.components
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent

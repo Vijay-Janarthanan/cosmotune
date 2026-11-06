@@ -18,7 +18,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyPress
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.kit.SpacePlayPause
+import com.cosmotune.ui.components.SpacePlayPause
 import java.awt.event.KeyEvent.KEY_PRESSED
 import java.awt.event.KeyEvent.KEY_RELEASED
 import java.awt.event.KeyEvent.KEY_TYPED
