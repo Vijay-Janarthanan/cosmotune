@@ -49,6 +49,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
         // First, before any store is opened: copies what was kept under the names before the rename.
         LegacyDataMigration.run(this)
+        // Before any HTTP client exists: the proxy and offline mode from Extras.
+        com.cosmotune.music.data.settings.ExtrasStore.install(this)
         // The player is drawn by the shared UI module; this is what it reads
         // underneath — settings, the Canvas decoder, outputs, the party.
         AndroidStreamHooks.installEarly()

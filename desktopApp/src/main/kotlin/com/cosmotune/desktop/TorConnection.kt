@@ -43,13 +43,21 @@ object TorConnection {
     }
 
     fun configureNative(options: org.bytedeco.ffmpeg.avutil.AVDictionary, url: String) {
-        val proxy = proxyUrl ?: return
+        if (File(url).isFile) return
+        // Offline mode (Extras): a remote media URL is refused before FFmpeg opens a socket.
+        com.cosmotune.music.data.NetworkPolicy.checkAllowed(url)
+        // Tor's tunnel while Tor is on, otherwise the listener's own HTTP proxy, if any.
+        val proxy = com.cosmotune.music.desktop.DesktopExtras.httpProxyUrl ?: return
         val scheme = runCatching { URI(url).scheme?.lowercase() }.getOrNull()
-        if (scheme == null || scheme == "file" || File(url).isFile) return
-        require(scheme == "https") { "Tor mode supports HTTPS media only" }
+        if (scheme == null || scheme == "file") return
+        val host = runCatching { URI(url).host }.getOrNull().orEmpty()
+        if (com.cosmotune.music.data.NetworkPolicy.isLocalHost(host)) return
+        if (active) require(scheme == "https") { "Tor mode supports HTTPS media only" }
         org.bytedeco.ffmpeg.global.avutil.av_dict_set(options, "http_proxy", proxy, 0)
-        org.bytedeco.ffmpeg.global.avutil.av_dict_set(options, "tls_verify", "1", 0)
-        org.bytedeco.ffmpeg.global.avutil.av_dict_set(options, "ca_file", nativeCaFile.absolutePath, 0)
+        if (active) {
+            org.bytedeco.ffmpeg.global.avutil.av_dict_set(options, "tls_verify", "1", 0)
+            org.bytedeco.ffmpeg.global.avutil.av_dict_set(options, "ca_file", nativeCaFile.absolutePath, 0)
+        }
     }
 
     fun select(enabled: Boolean) {

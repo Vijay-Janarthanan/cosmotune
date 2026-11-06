@@ -2177,6 +2177,7 @@ class PlaybackService : MediaLibraryService() {
             // Advanced Automix blend the active player is still easing off its
             // beatmatch stretch, and copying that would keep it for good.
             standbyPlayer.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+            applyPitch(standbyPlayer)
             standbyPlayer.volume = 0f
             standbyPlayer.setMediaItems(newItems, currentIndex, alignedStartPos)
             spareLoudness().track(mediaId, nextMediaIdOf(standbyPlayer))
@@ -6374,9 +6375,17 @@ class PlaybackService : MediaLibraryService() {
      * idle right now is the one the next transition will start a song on, so it
      * cannot be left on stale settings.
      */
+    /** The listener's pitch from Extras, on top of whatever speed [player] runs at. */
+    private fun applyPitch(player: ExoPlayer) {
+        val pitch = com.cosmotune.settings.Extras.settings.pitchFactor
+        val current = player.playbackParameters
+        if (current.pitch != pitch) player.playbackParameters = androidx.media3.common.PlaybackParameters(current.speed, pitch)
+    }
+
     private fun applySettings(player: ExoPlayer) {
         player.skipSilenceEnabled = AppSettings.skipSilence.value
         player.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+        applyPitch(player)
         // Restore persisted shuffle and repeat states on startup. Assign both
         // values: Android can destroy and recreate the service while retaining
         // this process, so QueueShuffle's process-wide object may still hold
@@ -6750,6 +6759,11 @@ class PlaybackService : MediaLibraryService() {
                 if (crossfade?.isTransitioning() == true) return@collect
                 crossfade?.applyPlaybackSpeed(speed) ?: eachPlayer { it.setPlaybackSpeed(speed) }
             }
+        }
+        scope.launch {
+            // Pitch apart from speed: setPlaybackSpeed keeps whatever pitch a player has, so it is set here and when a player
+            // is built, and every speed change after that (the listener's, Automix's stretch) leaves it alone.
+            com.cosmotune.settings.Extras.settings.pitchSemitones.collect { eachPlayer(::applyPitch) }
         }
         scope.launch {
             combine(

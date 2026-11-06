@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.PlaylistRemove
@@ -197,6 +198,7 @@ fun SongActionsSheet(
     presentation: SongActionsPresentation = SongActionsPresentation.Sheet,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
+    var aboutAlbum by remember { mutableStateOf(false) }
     val menu = presentation == SongActionsPresentation.Menu
     // Read from the thumbnail the row that opened this sheet was already
     // showing, not a larger copy of it: the tint is a blur and a handful of
@@ -361,6 +363,13 @@ fun SongActionsSheet(
                 accent = palette.accent,
                 onClick = it,
             )
+        }
+        // Wikipedia's summary of the album; see AlbumAboutDialog.
+        song.albumName?.takeIf { it.isNotBlank() }?.let { album ->
+            ActionRow(Icons.Rounded.Info, "About this album", accent = palette.accent) { aboutAlbum = true }
+            if (aboutAlbum) {
+                com.cosmotune.ui.extras.AlbumAboutDialog(album, song.artist, onDismiss = { aboutAlbum = false })
+            }
         }
         if (!isOffline) {
             onShare?.let {

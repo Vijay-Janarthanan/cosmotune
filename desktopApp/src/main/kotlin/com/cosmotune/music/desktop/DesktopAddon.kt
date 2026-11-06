@@ -546,7 +546,7 @@ internal class DesktopAddonClient(
 
         /** A ceiling on the whole call: the spec asks addons to answer in seconds, not minutes. */
         private val http = HttpClient(CIO) {
-            engine { com.cosmotune.desktop.TorConnection.proxyUrl?.let { proxy = io.ktor.client.engine.ProxyBuilder.http(io.ktor.http.Url(it)) } }
+            engine { com.cosmotune.music.desktop.DesktopExtras.httpProxyUrl?.let { proxy = io.ktor.client.engine.ProxyBuilder.http(io.ktor.http.Url(it)) } }
             install(HttpTimeout) { requestTimeoutMillis = CALL_TIMEOUT_MS }
         }
 
@@ -1017,7 +1017,7 @@ internal object DesktopSourceFormats {
     }
 
     private val http = HttpClient(CIO) {
-        engine { com.cosmotune.desktop.TorConnection.proxyUrl?.let { proxy = io.ktor.client.engine.ProxyBuilder.http(io.ktor.http.Url(it)) } }
+        engine { com.cosmotune.music.desktop.DesktopExtras.httpProxyUrl?.let { proxy = io.ktor.client.engine.ProxyBuilder.http(io.ktor.http.Url(it)) } }
         install(HttpTimeout) { requestTimeoutMillis = DesktopAddonClient.CALL_TIMEOUT_MS }
     }
 }

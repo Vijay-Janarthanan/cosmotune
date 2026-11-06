@@ -4223,6 +4223,8 @@ fun CosmotuneDesktopApp() {
                     if (overlays.audioOutput) {
                         DesktopAudioOutputDialog(onDismiss = { overlays.audioOutput = false })
                     }
+                    // Dialogs the Extras features open from menus (About this album and the like).
+                    DesktopExtrasHost()
                     if (overlays.pipeline) {
                         DesktopAudioPipelineDialog(
                             format = playback.streamFormat,
@@ -6601,6 +6603,8 @@ private fun DesktopSettingsScreen(
     val settingsScope = rememberCoroutineScope()
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     var editingSubsonic by remember { mutableStateOf<DesktopSourceConfig?>(null) }
+    var showingExtras by remember { mutableStateOf(false) }
+    if (showingExtras) DesktopExtrasDialog(onDismiss = { showingExtras = false })
     val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
     val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
     val sourceProbeKey = sourceConfigs
@@ -6752,6 +6756,12 @@ private fun DesktopSettingsScreen(
                         DesktopStrings["stereo_widening_subtitle", "Optional stereo width and crossfeed"],
                         spatialAudio,
                         onSpatialAudioChange,
+                    )
+                    // One row into the shared Extras dialog; see com.cosmotune.ui.extras.ExtrasSettingsDialog.
+                    SettingsNavigationRow(
+                        title = "Extras",
+                        subtitle = "Volume cap, pitch, spatial style, proxy, offline mode",
+                        onClick = { showingExtras = true },
                     )
                     SettingsToggle(
                         DesktopStrings["dolby_atmos", "Dolby Atmos"],

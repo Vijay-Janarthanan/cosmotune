@@ -84,6 +84,21 @@ no code, assets or copy taken from them:
 - **Librum** (GPLv3), **Kavita** (GPLv3) and **Booklore** (AGPL-3.0): the book library grid, the book page with its actions
   under the header, the typography settings and the Home shelves (continue reading, recently added, discover).
 
+## Mochy Music
+
+Several smaller features are ported from or follow **Mochy Music** by realidkroo and its contributors
+(https://github.com/realidkroo/Mochy-Music, GPL-3.0, the same licence as Cosmotune), at revision
+`8dd8f3b0` (6 November 2026). Mochy's files carry no copyright header of their own; each ported Cosmotune file names
+its Mochy source in its comment, and the list below is kept up to date with `UPSTREAM.md`:
+
+- The YouTube caption track as the last lyrics source: the track choice and the timed-text parsing of Mochy's
+  `YouTubeCaptionsLyricsProvider.kt` and `providers/innertube/Captions.kt`
+  (`shared/.../music/data/lyrics/YouTubeCaptionLyrics.kt`).
+- The listener's proxy and offline mode, after Mochy's `utils/AppProxy.kt` and `utils/OfflineMode.kt`
+  (`shared/.../music/data/NetworkPolicy.kt`, `shared/.../settings/ExtrasSettings.kt`).
+- "About this album" from Wikipedia, after Mochy's `utils/Wikipedia.kt` (`shared/.../music/data/about/WikipediaAbout.kt`).
+  The summaries are Wikipedia's text under CC BY-SA 4.0, read over the network and credited where they are shown.
+
 ## Video mode
 
 Video mode, the second mode of the profile drawer, reads a video site's public pages without an account and plays what it

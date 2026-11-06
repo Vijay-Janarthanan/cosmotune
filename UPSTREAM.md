@@ -28,3 +28,10 @@ The native integration includes artist artwork/signatures, decoder format displa
 The commit-by-commit native audit of `fe95bb60..edc1e6f3` is complete: every commit is mapped to a tracker row or a recorded decision in [docs/NATIVE_UPSTREAM_AUDIT.md](docs/NATIVE_UPSTREAM_AUDIT.md) (rows BC-27 to BC-37). Mapping a change is not importing it; the open rows say what is still to do.
 
 [FEATURE_TRACKER.md](FEATURE_TRACKER.md) inventories the native, companion, TV and browser features, including gaps and platform constraints. Preserve Cosmotune's identity, privacy settings, OpenCanvas boundary, tiny ranker, model compatibility fixes and target-native packaging when integrating further changes.
+
+## Mochy Music (selected ports)
+
+Mochy Music (https://github.com/realidkroo/Mochy-Music, GPL-3.0) is not an upstream: Cosmotune does not follow its history. Selected
+features were ported by hand from `main` at `8dd8f3b0` (6 November 2026), as listed in `NOTICE.md`; the comparison that chose them is
+`docs/superpowers/research/2026-11-06-mochy-music-comparison.md` in the planning repository. To review Mochy again, compare its
+`main` against `8dd8f3b0` and port by hand.

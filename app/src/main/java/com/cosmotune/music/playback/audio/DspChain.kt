@@ -84,7 +84,11 @@ class DspChain(
         // see; the loudness stage's limiter is what catches whatever survives.
         loudness.holdLimiter = equalizer.isShaping
         loudness.process(block)
+        // The listener's maximum-volume cap has the last word, after the limiter; it is a ceiling, not a level.
+        volumeCap.process(block.samples, block.sampleCount, com.cosmotune.settings.Extras.settings.maxVolumeGain)
     }
+
+    private val volumeCap = com.cosmotune.audio.VolumeCap()
 
     @Suppress("DEPRECATION")
     override fun flush() {
