@@ -46,7 +46,7 @@ import com.cosmotune.music.data.model.UserPlaylist
 import com.cosmotune.music.data.model.artworkAt
 import com.cosmotune.ui.orbit.OrbitRing
 import com.cosmotune.ui.orbit.OrbitRoundButton
-import com.cosmotune.ui.orbit.OrbitSheetAction
+import com.cosmotune.ui.orbit.OrbitSheetPill
 import com.cosmotune.ui.orbit.OrbitSheetTitle
 import com.cosmotune.ui.orbit.OrbitSongRow
 import com.cosmotune.ui.orbit.orbitFonts
@@ -89,7 +89,7 @@ fun ReorderPlaylistSheet(
                 if (saving) {
                     OrbitRing(40.dp, look.ink, progress = null, spinning = true)
                 } else {
-                    OrbitSheetAction(
+                    OrbitSheetPill(
                         label = stringResource(R.string.save_order),
                         onClick = { onSave(order.toList()) },
                         primary = true,

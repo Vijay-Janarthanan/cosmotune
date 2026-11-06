@@ -57,7 +57,7 @@ import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.orbit.OrbitRing
 import com.cosmotune.ui.orbit.OrbitRoundButton
-import com.cosmotune.ui.orbit.OrbitSheetAction
+import com.cosmotune.ui.orbit.OrbitSheetPill
 import com.cosmotune.ui.orbit.OrbitSheetTitle
 import com.cosmotune.ui.orbit.OrbitSongRow
 import com.cosmotune.ui.orbit.orbitFonts
@@ -214,7 +214,7 @@ fun DownloadManagerSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
             } else null,
             trailing = {
                 if (session.busy) {
-                    OrbitSheetAction(
+                    OrbitSheetPill(
                         label = stringResource(R.string.cancel_all),
                         onClick = {
                             // Only what is still going. Cancelling a finished row
@@ -225,7 +225,7 @@ fun DownloadManagerSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
                         },
                     )
                 } else {
-                    OrbitSheetAction(
+                    OrbitSheetPill(
                         label = stringResource(R.string.clear),
                         onClick = {
                             DownloadSession.clear()

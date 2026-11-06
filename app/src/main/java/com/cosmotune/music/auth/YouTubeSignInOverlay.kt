@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.cosmotune.music.R
 import com.cosmotune.music.ui.MainViewModel
 import com.cosmotune.ui.orbit.OrbitRoundButton
-import com.cosmotune.ui.orbit.OrbitSheetAction
+import com.cosmotune.ui.orbit.OrbitSheetPill
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
 
@@ -92,7 +92,7 @@ fun YouTubeSignInOverlay(
                     }
                 }
                 if (pageReady) {
-                    OrbitSheetAction(
+                    OrbitSheetPill(
                         label = if (confirmingProfile) stringResource(R.string.checking)
                         else stringResource(R.string.use_this_profile),
                         onClick = {

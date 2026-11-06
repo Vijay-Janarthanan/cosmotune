@@ -49,15 +49,32 @@ fun OrbitPickerSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() 
     SurfaceSheetSwitch(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), content = content)
 }
 
-/** A sheet's head: the mono [label] over the [title] in the wide face, [subtitle] in the dim ink under it. A heading for assistive technology. */
+/**
+ * A sheet's head: the mono [label] over the [title] in the wide face, [subtitle] in the dim ink under it, with an optional [leading]
+ * (a ring, a disc) and [trailing] (a chip or a round button) beside it. A heading for assistive technology.
+ */
 @Composable
-fun OrbitSheetTitle(title: String, modifier: Modifier = Modifier, label: String? = null, subtitle: String? = null) {
+fun OrbitSheetTitle(
+    title: String,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    subtitle: String? = null,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    Column(modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 12.dp)) {
-        if (label != null) OrbitLabel(label, fonts, look.dim, Modifier.padding(bottom = 6.dp))
-        Text(title, style = fonts.heroTitle.copy(fontSize = 21.sp, lineHeight = 24.sp), color = look.ink, modifier = Modifier.semantics { heading() })
-        if (!subtitle.isNullOrBlank()) Text(subtitle, style = fonts.body, color = look.dim, modifier = Modifier.padding(top = 6.dp))
+    Row(
+        modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (leading != null) { leading(); Spacer(Modifier.width(12.dp)) }
+        Column(Modifier.weight(1f)) {
+            if (label != null) OrbitLabel(label, fonts, look.dim, Modifier.padding(bottom = 6.dp))
+            Text(title, style = fonts.heroTitle.copy(fontSize = 21.sp, lineHeight = 24.sp), color = look.ink, modifier = Modifier.semantics { heading() })
+            if (!subtitle.isNullOrBlank()) Text(subtitle, style = fonts.body, color = look.dim, modifier = Modifier.padding(top = 6.dp))
+        }
+        if (trailing != null) { Spacer(Modifier.width(12.dp)); trailing() }
     }
 }
 
