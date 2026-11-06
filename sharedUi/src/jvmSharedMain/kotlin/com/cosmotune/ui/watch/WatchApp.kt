@@ -21,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.blocks.LocalModeProfileAction
@@ -50,11 +52,26 @@ import kotlinx.coroutines.launch
  * carries the tabs ([showNavigation] false); on the phone the page starts with the mode pill and the tabs as chips. Wide (840 dp
  * and up) lays cards side by side as the board does; narrower stacks them. [wideLayout], when set, decides that instead of the width (the TV,
  * which draws the pages larger, keeps the side-by-side layout).
+ *
+ * A host with its own chips and player (the TV) passes [side], the gutter rows start from (they still scroll out to the screen's
+ * edges, which the host then keeps clear of [contentPadding]'s sides), turns the home's All, Films, Series and Live TV chips off
+ * with [filterChips], keeps the page under its own player with [pageUnderPlayer] (so Back from the player lands where the page
+ * was), and hears through [onScrolled] whether the page is scrolled away from its top.
  */
 @Composable
-fun WatchApp(contentPadding: PaddingValues = PaddingValues(0.dp), showNavigation: Boolean = true, modifier: Modifier = Modifier, wideLayout: Boolean? = null) {
+fun WatchApp(
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    showNavigation: Boolean = true,
+    modifier: Modifier = Modifier,
+    wideLayout: Boolean? = null,
+    side: Dp? = null,
+    filterChips: Boolean = true,
+    pageUnderPlayer: Boolean = false,
+    onScrolled: ((Boolean) -> Unit)? = null,
+) {
     val tab by WatchNav.tab.collectAsState()
-    val stack by WatchNav.stack.collectAsState()
+    val fullStack by WatchNav.stack.collectAsState()
+    val stack = if (pageUnderPlayer && fullStack.lastOrNull() is WatchRoute.Play) fullStack.dropLast(1) else fullStack
     val pending by WatchNav.pendingInstall.collectAsState()
     val opened by com.cosmotune.watch.WatchLinks.pending.collectAsState()
     val fonts = orbitFonts()
@@ -67,15 +84,17 @@ fun WatchApp(contentPadding: PaddingValues = PaddingValues(0.dp), showNavigation
     BoxWithConstraints(modifier.fillMaxSize()) {
         val wide = wideLayout ?: (maxWidth >= 840.dp)
         val top = stack.lastOrNull()
+        val header: (@Composable () -> Unit)? = when {
+            top != null -> ({ WatchBackHeader(if (top is WatchRoute.Page && top.summary.type == TitleType.SERIES) "Series" else "Film", fonts, look) })
+            showNavigation -> ({ WatchPhoneHeader(tab, fonts, look) })
+            else -> null
+        }
         val frame = WatchFrame(
             wide = wide,
-            side = if (wide) 16.dp else 16.dp,
+            side = side ?: 16.dp,
             padding = contentPadding,
-            header = when {
-                top != null -> ({ WatchBackHeader(if (top is WatchRoute.Page && top.summary.type == TitleType.SERIES) "Series" else "Film", fonts, look) })
-                showNavigation -> ({ WatchPhoneHeader(tab, fonts, look) })
-                else -> null
-            },
+            header = if (onScrolled == null) header else ({ WatchScrollMark(contentPadding, onScrolled) { header?.invoke() } }),
+            filterChips = filterChips,
         )
         when (top) {
             is WatchRoute.Play -> WatchPlayerPage(top, actions, fonts, look, frame)
@@ -104,7 +123,20 @@ fun WatchApp(contentPadding: PaddingValues = PaddingValues(0.dp), showNavigation
 }
 
 /** How a page is laid out: wide or stacked, the side gutter, the host's padding and the phone's header (null on the desktop). */
-internal class WatchFrame(val wide: Boolean, val side: Dp, val padding: PaddingValues, val header: (@Composable () -> Unit)?)
+internal class WatchFrame(val wide: Boolean, val side: Dp, val padding: PaddingValues, val header: (@Composable () -> Unit)?, val filterChips: Boolean = true)
+
+/**
+ * The first item of every page's list, wrapped round its [content] (the page's header, or nothing): tells [onScrolled] whether the
+ * list has moved off its top, from where this item sits against the list's top padding, and that it has once it scrolls away.
+ */
+@Composable
+private fun WatchScrollMark(padding: PaddingValues, onScrolled: (Boolean) -> Unit, content: @Composable () -> Unit) {
+    val report by androidx.compose.runtime.rememberUpdatedState(onScrolled)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val rest = with(density) { padding.calculateTopPadding().toPx() - 24.dp.toPx() }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { report(true) } }
+    Box(Modifier.fillMaxWidth().onGloballyPositioned { report(it.positionInParent().y < rest) }) { content() }
+}
 
 /**
  * What every page does with a title, an episode or a channel: open, play, keep, download, and play for the room ("Watch together")

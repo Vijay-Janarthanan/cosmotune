@@ -21,6 +21,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,14 +37,15 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import com.cosmotune.music.wear.R
+import com.cosmotune.music.wear.data.Link
 import com.cosmotune.music.wear.data.NowPlaying
+import kotlinx.coroutines.delay
 import com.cosmotune.music.wear.data.PhoneOutput
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
@@ -66,12 +70,7 @@ fun QueueScreen(
     val live = queue?.takeIf { playingId == null || it.mediaId == playingId } ?: queue
 
     ScreenScaffold(scrollState = state) { padding ->
-        ScalingLazyColumn(
-            state = state,
-            contentPadding = padding,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.background(WearOrbit.Ground),
-        ) {
+        WearList(state = state, padding = padding) {
             item(key = "header") { Header(stringResource(R.string.up_next)) }
             when {
                 live == null -> item(key = "loading") { Hint(stringResource(R.string.loading)) }
@@ -140,12 +139,7 @@ fun MoreScreen(np: NowPlaying?, link: PhoneLink, onOpenOutput: () -> Unit, onOpe
     val state = rememberScalingLazyListState(initialCenterItemIndex = 1)
     val onWatch by link.watchSpeaker.collectAsStateWithLifecycle()
     ScreenScaffold(scrollState = state) { padding ->
-        ScalingLazyColumn(
-            state = state,
-            contentPadding = padding,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.background(WearOrbit.Ground),
-        ) {
+        WearList(state = state, padding = padding) {
             item(key = "header") { Header(stringResource(R.string.more)) }
             item(key = "podio") { ToggleCell(icon = R.drawable.ic_speaker, label = "Podio", value = null, active = false, onClick = onOpenPodio) }
             item(key = "output") {
@@ -159,7 +153,7 @@ fun MoreScreen(np: NowPlaying?, link: PhoneLink, onOpenOutput: () -> Unit, onOpe
             }
             if (np == null) {
                 item(key = "none") { Hint(stringResource(R.string.nothing_playing)) }
-                return@ScalingLazyColumn
+                return@WearList
             }
             item(key = "shuffle") {
                 ToggleCell(
@@ -289,9 +283,12 @@ private fun Hint(text: String) {
         textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .padding(horizontal = WearTextInset, vertical = 12.dp),
     )
 }
+
+/** How long Output waits for the phone's list before saying the phone is not there. */
+private const val OutputWaitMs = 6_000L
 
 /**
  * Where the music plays: this watch, or any output the phone has. Picking the
@@ -300,18 +297,24 @@ private fun Hint(text: String) {
  */
 @Composable
 fun OutputScreen(link: PhoneLink, onDone: () -> Unit) {
-    LaunchedEffect(Unit) { link.requestOutputs() }
     val outputs by link.outputs.collectAsStateWithLifecycle()
     val onWatch by link.watchSpeaker.collectAsStateWithLifecycle()
+    val connection by link.link.collectAsStateWithLifecycle()
+    // Asked again on Try again; the phone gets [OutputWaitMs] to answer before the screen says it is not there.
+    var attempt by remember { mutableIntStateOf(0) }
+    var waited by remember { mutableStateOf(false) }
+    LaunchedEffect(attempt) {
+        waited = false
+        if (attempt > 0) link.retry()
+        link.requestOutputs()
+        delay(OutputWaitMs)
+        waited = true
+    }
+    val unreachable = outputs == null && (connection == Link.NoPhone || waited)
     val context = LocalContext.current
     val state = rememberScalingLazyListState(initialCenterItemIndex = 1)
     ScreenScaffold(scrollState = state) { padding ->
-        ScalingLazyColumn(
-            state = state,
-            contentPadding = padding,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.background(WearOrbit.Ground),
-        ) {
+        WearList(state = state, padding = padding) {
             item(key = "header") { Header(stringResource(R.string.output)) }
             item(key = "watch") {
                 OutputCell(
@@ -326,8 +329,15 @@ fun OutputScreen(link: PhoneLink, onDone: () -> Unit) {
                 )
             }
             val list = outputs
-            if (list == null) {
-                item(key = "loading") { Hint(stringResource(R.string.loading)) }
+            if (list == null && unreachable) {
+                item(key = "nophone") { Hint("Connect your phone to choose one of its outputs. This watch can still play what it has.") }
+                item(key = "retry") {
+                    Cell(onClick = { attempt++ }) {
+                        Text("Try again", style = WearType.row, color = WearOrbit.Ink, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                    }
+                }
+            } else if (list == null) {
+                item(key = "loading") { Hint(if (connection == Link.Connecting) "Looking for your phone…" else stringResource(R.string.loading)) }
             } else {
                 items(list, key = { "out-${it.id}" }) { output ->
                     OutputCell(
@@ -387,7 +397,7 @@ private fun OutputCell(
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(label, style = WearType.row, color = WearOrbit.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(detail, style = WearType.rowSub, color = WearOrbit.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, style = WearType.rowSub, color = WearOrbit.Dim, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         if (selected) {
             Icon(

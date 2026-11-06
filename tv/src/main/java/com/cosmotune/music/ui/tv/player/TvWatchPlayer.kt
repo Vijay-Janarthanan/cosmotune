@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,14 +71,18 @@ import com.cosmotune.music.ui.tv.theme.TvType
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.OrbitRoundButton
 import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.ui.watch.LocalWatchRepository
+import com.cosmotune.ui.watch.WatchBackend
 import com.cosmotune.ui.watch.WatchNav
 import com.cosmotune.ui.watch.WatchPlayback
 import com.cosmotune.ui.watch.WatchRoute
 import com.cosmotune.ui.watch.WatchSurfaceScale
 import com.cosmotune.ui.watch.WatchTab
+import com.cosmotune.watch.LiveNowItem
 import com.cosmotune.watch.WatchPlayer
 import com.cosmotune.watch.WatchPlayerState
 import com.cosmotune.watch.WatchPlayerStatus
+import com.cosmotune.watch.model.PlayTarget
 import kotlinx.coroutines.delay
 
 /** Back and forward on the remote's left and right, as the film card's buttons do. */
@@ -339,6 +345,19 @@ private fun TvFilmCard(
     onMenu: (TvWatchMenu) -> Unit,
 ) {
     val summary = state.summary ?: route.summary
+    // A channel: what is on it now and what comes next, from the guide, asked again as each programme ends.
+    val channel = (route.target as? PlayTarget.Live)?.channel
+    val repository = LocalWatchRepository.current ?: WatchBackend.repository
+    val onAir by produceState<LiveNowItem?>(null, channel, repository) {
+        if (channel == null) return@produceState
+        while (true) {
+            val now = runCatching { repository.nowNext(channel) }.getOrNull()
+            value = now
+            val ends = now?.now?.stopMs?.minus(System.currentTimeMillis())
+            delay((ends ?: 60_000L).coerceIn(15_000L, 10 * 60_000L))
+        }
+    }
+    val programme = onAir?.now
     // The label is redrawn every half second, not every frame.
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(playing) { while (playing) { delay(500); tick++ } }
@@ -346,7 +365,7 @@ private fun TvFilmCard(
         tick
         val p = player.engine.positionMs()
         when {
-            state.isLive -> "● Live"
+            state.isLive -> if (programme != null) "● Live · " + (summary?.name ?: channel?.name.orEmpty()) else "● Live"
             state.status == WatchPlayerStatus.RESOLVING -> "Finding the best copy"
             state.status == WatchPlayerStatus.LOADING || state.status == WatchPlayerStatus.BUFFERING -> "Loading · ${clock(p)}"
             durationMs > 0 -> "${clock(p)} / ${clock(durationMs)}" + if (durationMs > p) " · " + left(durationMs - p) else ""
@@ -354,12 +373,20 @@ private fun TvFilmCard(
         }
     }
     val ink = coverFill(summary?.backdropUrl ?: summary?.posterUrl, summary?.key?.value ?: route.target.key.value).second
-    val subtitle = listOfNotNull(state.subtitleLine, state.failover, state.lengthNote).joinToString(" · ").ifBlank { null }
+    val liveLine = if (state.isLive && programme != null) {
+        listOfNotNull(
+            hourMinute(programme.startMs) + " – " + hourMinute(programme.stopMs),
+            onAir?.next?.let { "Next " + hourMinute(it.startMs) + " " + it.title.substringAfter(": ") },
+        ).joinToString(" · ")
+    } else null
+    // A channel's own "Live" line says nothing the label does not; the programme's times and what is next say more.
+    val subtitle = listOfNotNull(liveLine ?: state.subtitleLine.takeUnless { state.isLive && it.equals("Live", ignoreCase = true) }, state.failover, state.lengthNote)
+        .joinToString(" · ").ifBlank { null }
     TvColourCard(
         cover = summary?.posterUrl ?: summary?.backdropUrl,
         key = summary?.key?.value ?: route.target.key.value,
         label = label,
-        title = summary?.name ?: "Watch",
+        title = programme?.title?.substringAfter(": ") ?: summary?.name ?: "Watch",
         subtitle = subtitle,
         playing = playing,
         onPlay = onPlayPause,
@@ -368,8 +395,9 @@ private fun TvFilmCard(
         spinning = playing,
         playFocus = playFocus,
         below = {
+            // The row scrolls, so it keeps room inside itself for its buttons' focus rings.
             Row(
-                Modifier.padding(top = 16.dp).horizontalScroll(rememberScrollState()),
+                Modifier.padding(top = 6.dp).offset(x = (-10).dp).horizontalScroll(rememberScrollState()).padding(10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -385,6 +413,10 @@ private fun TvFilmCard(
         },
     )
 }
+
+/** "21:45", in the TV's own time zone. */
+private fun hourMinute(ms: Long): String =
+    java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
 
 /** Near the end of an episode: "Next episode in 8 s", what it is, Play now (focused) and Cancel. */
 @Composable

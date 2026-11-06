@@ -106,7 +106,7 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                 }
                 val title = when (fixed) { HomeFilter.FILMS -> "Films"; HomeFilter.SERIES -> "Series"; else -> "Tonight" }
                 val chips: @Composable () -> Unit = {
-                    if (fixed == null) {
+                    if (fixed == null && frame.filterChips) {
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(HomeFilter.ALL to "All", HomeFilter.FILMS to "Films", HomeFilter.SERIES to "Series", HomeFilter.LIVE to "Live TV").forEach { (f, name) ->
                                 OrbitSelectChip(name, chosen == f, fonts, look, onClick = { chosen = f }, haptic = false)

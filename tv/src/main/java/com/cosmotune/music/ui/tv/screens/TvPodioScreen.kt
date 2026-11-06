@@ -57,6 +57,7 @@ import com.cosmotune.podio.PodioLibrary
 import com.cosmotune.podio.RadioStation
 import com.cosmotune.podio.YouTubePodcasts
 import com.cosmotune.podio.item
+import com.cosmotune.podio.ui.PodioLocal
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -103,7 +104,8 @@ fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowP
     }
     fun search() = run {
         feed = null
-        if (tab == "Radio") stations = catalogue.stations(query)
+        // Stations near the listener first (their country in their language, then their country, then their language).
+        if (tab == "Radio") stations = PodioLocal.rank(catalogue.stations(query), PodioLocal.current())
         else if (tab == "Podcasts" && PodioCatalogue.httpUrl(query.trim()) != null) feed = catalogue.feed(query.trim())
         else if (tab == "Podcasts") shows = catalogue.podcasts(query)
     }

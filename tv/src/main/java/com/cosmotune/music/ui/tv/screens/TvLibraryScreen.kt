@@ -157,6 +157,8 @@ fun TvLibraryScreen(
             when (selected) {
                 LibraryCategory.RecentlyPlayed -> TvRecentlyPlayed(
                     viewModel = viewModel,
+                    signedIn = signedIn,
+                    onSignIn = onOpenAccount,
                     playingId = playerState.song?.videoId,
                     isPlaying = playerState.isPlaying,
                     onPlay = play,
@@ -206,14 +208,26 @@ fun TvLibraryScreen(
 @Composable
 private fun TvRecentlyPlayed(
     viewModel: MainViewModel,
+    signedIn: Boolean,
+    onSignIn: () -> Unit,
     playingId: String?,
     isPlaying: Boolean,
     onPlay: (List<Song>, Int) -> Unit,
     onSongMenu: (Song) -> Unit,
 ) {
-    LaunchedEffect(Unit) { viewModel.loadHistory() }
+    LaunchedEffect(signedIn) { viewModel.loadHistory() }
     val history by viewModel.history.collectAsState()
-    when (val state = history) {
+    val state = history
+    // Signed out, the account's history is not there to load: that is not a failure, so it asks for the account instead.
+    if (!signedIn && (state is UiState.Error || (state is UiState.Success && state.data.isEmpty()))) {
+        TvEmptyState(
+            title = "Sign In to See Your Library",
+            message = "What you play, love and save comes from your account. Downloaded songs and music on this device are here without one.",
+            action = { TvButton(text = "Sign In", onClick = onSignIn, isPrimary = true) },
+        )
+        return
+    }
+    when (state) {
         UiState.Loading -> TvPaneLoading()
         is UiState.Error -> TvErrorState(message = state.message, onRetry = { viewModel.loadHistory() })
         is UiState.Success -> if (state.data.isEmpty()) {

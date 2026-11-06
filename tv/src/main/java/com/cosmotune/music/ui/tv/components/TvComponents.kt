@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -179,9 +180,9 @@ fun TvEmptyState(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The tvOS alert: the app dims away and the alert's content floats centred
- * over it — title, an optional message, then its controls. No card, no border.
- * Back dismisses it.
+ * A dialog in Orbit for the sofa: the app dims away and the dialog is a flat Orbit card on the dimmed ground (radius 32, the
+ * ground lifted by a little ink), the title in the wide face with the peach full stop's colour kept for the page headings, an
+ * optional message, then its controls, each with the TV's peach focus ring outside it. Back dismisses it.
  */
 @Composable
 fun TvDialog(
@@ -199,6 +200,7 @@ fun TvDialog(
         animationSpec = tween(220),
         label = "tvDialogIn",
     )
+    val ground = TvThemeColors.current.ground
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -213,23 +215,25 @@ fun TvDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = progress }
-                .background(TvThemeColors.current.ground.copy(alpha = 0.96f)),
+                .background(ground.copy(alpha = 0.86f)),
             contentAlignment = Alignment.Center,
         ) {
             Column(
                 modifier = modifier
-                    .width(width)
+                    .width(width + DialogPadding * 2)
                     .graphicsLayer {
                         val s = 0.96f + 0.04f * progress
                         scaleX = s
                         scaleY = s
                     }
-                    .padding(vertical = 26.dp),
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(TvGlass.Ink.copy(alpha = 0.07f).compositeOver(ground))
+                    .padding(horizontal = DialogPadding, vertical = 30.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     text = title,
-                    style = TvType.Title,
+                    style = TvType.Title.copy(fontSize = 24.sp, lineHeight = 28.sp),
                     color = TvGlass.TextPrimary,
                     textAlign = TextAlign.Center,
                 )
@@ -242,12 +246,15 @@ fun TvDialog(
                         textAlign = TextAlign.Center,
                     )
                 }
-                Spacer(modifier = Modifier.height(21.dp))
+                Spacer(modifier = Modifier.height(24.dp))
                 content()
             }
         }
     }
 }
+
+/** Room inside a dialog's card round its controls, wider than their focus ring. */
+private val DialogPadding = 30.dp
 
 /** A full-width alert button, stacked one per row as tvOS alerts do. */
 @Composable
@@ -266,6 +273,8 @@ fun TvDialogButton(
         enabled = enabled,
         modifier = modifier
             .fillMaxWidth()
+            // Stacked buttons keep their focus rings apart.
+            .padding(vertical = 4.dp)
             .tvInitialFocus(initialFocus),
     )
 }
@@ -279,7 +288,8 @@ fun TvDialogList(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+        // Room between the rows for the focus ring.
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         content = content,
     )
 }

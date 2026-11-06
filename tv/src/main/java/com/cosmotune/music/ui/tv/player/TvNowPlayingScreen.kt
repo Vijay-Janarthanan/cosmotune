@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
@@ -194,17 +196,36 @@ fun TvNowPlayingScreen(
         }
     }
 
+    // Leaving: the screen fades out while the shell takes focus back, so it must not reach for it again.
+    var leaving by remember { mutableStateOf(false) }
     BackHandler(enabled = sheet == null) {
         when {
             upNextOpen -> upNextOpen = false
             controlsVisible -> hideControls()
-            else -> onBack()
+            else -> { leaving = true; onBack() }
+        }
+    }
+    // Something on screen always holds focus: if the piece that had it goes (the transport or Up Next stepping away mid-press),
+    // focus goes to whatever is showing now rather than falling to the root, where presses would do nothing.
+    var screenHasFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(screenHasFocus, controlsVisible, upNextOpen, sheet, leaving) {
+        if (screenHasFocus || sheet != null || leaving) return@LaunchedEffect
+        delay(90)
+        runCatching {
+            when {
+                upNextOpen -> upNextFocus.requestFocus()
+                controlsVisible -> scrubberFocus.requestFocus()
+                else -> stageFocus.requestFocus()
+            }
         }
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
+            // A group, so the focus it reports is anything's on the screen, not only the first piece in it.
+            .onFocusChanged { screenHasFocus = it.hasFocus }
+            .focusGroup()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 lastInput = System.nanoTime()
@@ -245,7 +266,8 @@ fun TvNowPlayingScreen(
                 .focusable(),
         )
 
-        val dim by animateFloatAsState(if (upNextOpen) 0.12f else 1f, tween(280), label = "stageDim")
+        // Up Next takes the screen: the disc and the lyrics go, rather than showing through round the card cut short.
+        val dim by animateFloatAsState(if (upNextOpen) 0f else 1f, tween(280), label = "stageDim")
         TvNowPlayingStage(
             song = song,
             isPlaying = isPlaying,

@@ -274,6 +274,9 @@ private class TvFeedScrollSpec(private val anchor: Float) : BringIntoViewSpec {
         offset - anchor
 }
 
+/** Room above a row's cards: the focus ring (its gap, its width and the lift) clears the shelf title above it. */
+internal val RowTop = 17.dp
+
 /**
  * A horizontal row of cards that scrolls by whole cards. It keeps its own index
  * of the first card in view and moves it only when focus passes an edge, then
@@ -293,7 +296,7 @@ fun <T> TvRow(
     leading: Dp = TvDimensions.SafeMarginHorizontal,
     trailing: Dp = TvDimensions.SafeMarginHorizontal,
     spacing: Dp = TvDimensions.CardSpacing,
-    top: Dp = 11.dp,
+    top: Dp = RowTop,
     bottom: Dp = 14.dp,
     contentType: (T) -> Any? = { null },
     itemContent: @Composable (index: Int, item: T) -> Unit,
@@ -398,23 +401,28 @@ fun TvArtwork(
     glyph: ImageVector = Icons.Rounded.MusicNote,
 ) {
     val model = remember(url, px) { url.artworkAt(px) ?: url }
+    // The glyph stands in only until the picture arrives: a logo with clear parts would otherwise show the note through it.
+    var loaded by remember(model) { mutableStateOf(false) }
     Box(
         modifier = modifier
             .clip(shape)
             .background(TvGlass.Placeholder),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = glyph,
-            contentDescription = null,
-            tint = TvGlass.Ink.copy(alpha = 0.22f),
-            modifier = Modifier.fillMaxSize(0.34f),
-        )
+        if (!loaded) {
+            Icon(
+                imageVector = glyph,
+                contentDescription = null,
+                tint = TvGlass.Ink.copy(alpha = 0.22f),
+                modifier = Modifier.fillMaxSize(0.34f),
+            )
+        }
         if (!model.isNullOrBlank()) {
             AsyncImage(
                 model = model,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                onSuccess = { loaded = true },
                 modifier = Modifier.fillMaxSize(),
             )
         }

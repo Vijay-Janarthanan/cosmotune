@@ -638,7 +638,8 @@ class DefaultWatchRepository(
         val byKey = LinkedHashMap<WatchKey, MutableList<Channel>>()
         for ((_, list) in lists) for (c in list.orEmpty()) byKey.getOrPut(c.key) { mutableListOf() } += c
         val result: Map<WatchKey, List<Channel>> = byKey
-        channelCache = config.now() to result
+        // Nothing from any plugin (offline, or each one still loading past its time) is not kept, so the next ask tries again.
+        if (result.isNotEmpty()) channelCache = config.now() to result
         result
     }
 
