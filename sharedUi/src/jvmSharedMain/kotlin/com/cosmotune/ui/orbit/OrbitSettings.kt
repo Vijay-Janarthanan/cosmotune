@@ -81,7 +81,7 @@ internal fun OrbitStatCard(
  * and the [line] under it (the sync status). No bite: nothing plays here. [compact] is the phone's (a 72 dp disc).
  */
 @Composable
-internal fun OrbitAccountCard(
+fun OrbitAccountCard(
     label: String,
     name: String,
     line: String?,
@@ -126,7 +126,8 @@ internal fun OrbitAccountCard(
  * A category of the settings home (board 2, `.tile`): radius 26, ink at 5 %, a 44 dp icon tile in the category's [fill] with a white
  * glyph, the [title] and the one-line [summary]. [stacked] puts the icon over the text (a narrow cell: the phone's two columns).
  * [selected] (not null: the tile is a tab, the desktop's list beside the page) true is solid ink with the ground's colour for its text.
- * [summaryLines] lets a search result say where it lives and what it does.
+ * [summaryLines] lets a search result say where it lives and what it does; a [stacked] tile (a narrow cell) gives its summary two lines
+ * at least, so "Wi-Fi: Lossless · Mobile data: Lossless" is read whole.
  */
 @Composable
 internal fun OrbitSettingsTile(
@@ -158,7 +159,7 @@ internal fun OrbitSettingsTile(
         val text = @Composable { m: Modifier ->
             Column(m) {
                 Text(title, style = fonts.title.copy(fontSize = 14.5.sp), color = ink, maxLines = if (stacked) 2 else 1, overflow = TextOverflow.Ellipsis)
-                Text(summary, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = dim, maxLines = summaryLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                Text(summary, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = dim, maxLines = if (stacked) maxOf(summaryLines, 2) else summaryLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
             }
         }
         if (stacked) {

@@ -183,6 +183,26 @@ class OrbitBatchA2ReviewTest {
         }
     }
 
+    @Test fun theProfileDrawer() = hosts {
+        val entries = listOf(
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Clock, "Your listening") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Replay, "Replay") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Together, "Listen together") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Download, "Downloads", aside = "2") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Equaliser, "Equalizer") {},
+            com.cosmotune.ui.chrome.CosmoDrawerEntry(CosmoIcons.Settings, "Settings") {},
+        )
+        for ((name, palette) in palettes) {
+            page(palette, 390.dp, 844.dp) {
+                com.cosmotune.ui.chrome.CosmoProfileDrawer(
+                    open = true, onDismiss = {}, name = "Vijay", subtitle = "Synced 2 minutes ago", avatarUrl = null,
+                    entries = entries, onAccount = {},
+                )
+            }
+            capture("profile-drawer-$name", popup = true)
+        }
+    }
+
     @Test fun theDockSheetsDialogsAndToasts() = hosts {
         val art = cover("d", 170, 90, 30)
         val song = Song("v1", "Golden Hour", "Mira and the Coast", art, durationText = "4:05")

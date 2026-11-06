@@ -159,8 +159,8 @@ class ChromeBlocksStructureTest {
     @Test fun thePanelRunsTheWholeHeightAndItsContentKeepsClearOfTheBarsByTheSharedMetrics() {
         val layer = SourceContract.code(SourceContract.functionBody(drawer, "DrawerLayer")).replace(Regex("\\s+"), " ")
         val chain = layer.substringAfter("Column( Modifier .align(Alignment.CenterStart)")
-        assertTrue(".fillMaxHeight()" in chain.substringBefore(".cosmoGlass("), "the panel is as tall as the window")
-        assertTrue(chain.indexOf(".cosmoGlass(") < chain.indexOf(".padding("), "the glass fills the panel, bars included; the padding is inside it")
+        assertTrue(".fillMaxHeight()" in chain.substringBefore(".clip(PANEL_SHAPE).background("), "the panel is as tall as the window")
+        assertTrue(chain.indexOf(".clip(PANEL_SHAPE).background(com.cosmotune.ui.orbit.orbitSheetGround(") in 0 until chain.indexOf(".padding("), "the Orbit sheet ground fills the panel, bars included; the padding is inside it")
         assertTrue("top = DrawerMetrics.panelTopPaddingDp(statusTop.value).dp" in chain, "8 dp under the status bar")
         assertTrue("bottom = DrawerMetrics.panelBottomPaddingDp(navBottom.value).dp" in chain, "28 dp over the bottom, or the navigation bar when it is taller")
     }
