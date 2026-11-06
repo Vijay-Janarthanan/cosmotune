@@ -73,8 +73,9 @@ internal class MpvPlayer(
         PAUSE("pause", MPV_FORMAT_FLAG, ofTheFile = false),
         SPEED("speed", MPV_FORMAT_DOUBLE, ofTheFile = false),
         CACHE_TIME("demuxer-cache-time", MPV_FORMAT_DOUBLE),
-        VIDEO_WIDTH("video-params/w", MPV_FORMAT_INT64),
-        VIDEO_HEIGHT("video-params/h", MPV_FORMAT_INT64),
+        // The display size (the pixels scaled to the picture's own shape), so a frame sized from it holds the picture without bars.
+        VIDEO_WIDTH("video-params/dw", MPV_FORMAT_INT64),
+        VIDEO_HEIGHT("video-params/dh", MPV_FORMAT_INT64),
         FRAME_DROPS("frame-drop-count", MPV_FORMAT_INT64),
         DECODER_DROPS("decoder-frame-drop-count", MPV_FORMAT_INT64),
         HWDEC("hwdec-current", MPV_FORMAT_STRING),

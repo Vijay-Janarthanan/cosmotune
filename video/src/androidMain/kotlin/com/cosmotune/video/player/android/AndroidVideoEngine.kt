@@ -720,7 +720,8 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
             durationMs = durationMs,
             bufferedMs = c?.bufferedPosition?.coerceAtLeast(0) ?: 0L,
             speed = nowSpeed,
-            videoWidth = size?.width ?: 0,
+            // The display width (the pixels scaled by their own shape), so a frame sized from it holds the picture without bars.
+            videoWidth = size?.let { if (it.pixelWidthHeightRatio > 0f) kotlin.math.round(it.width * it.pixelWidthHeightRatio).toInt() else it.width } ?: 0,
             videoHeight = size?.height ?: 0,
             audioOnly = audioOnly,
             muted = muted,
