@@ -24,7 +24,35 @@ sealed interface MediaInput {
 
     /** A downloaded file ([muxedPath]) or pair ([videoPath] and [audioPath]) on the device (spec 5.4 offline, 5.10). */
     data class LocalFiles(val muxedPath: String?, val videoPath: String?, val audioPath: String?) : MediaInput
+
+    /**
+     * One address of any kind (Watch mode): a single MP4, MKV, WebM or TS file, a remote DASH manifest, an HLS playlist, or a
+     * `file:` address, played with the request's headers. [kind] says which when the caller knows ([UrlKind.AUTO] lets the
+     * engine decide from the address and [mimeHint]).
+     */
+    data class Url(val url: String, val kind: UrlKind = UrlKind.AUTO, val mimeHint: String? = null) : MediaInput
 }
+
+/** What a [MediaInput.Url] addresses. */
+enum class UrlKind { AUTO, HLS, DASH, PROGRESSIVE }
+
+enum class TrackType { AUDIO, TEXT, VIDEO }
+
+/**
+ * One track of what is loaded (an MKV's audio languages and embedded subtitles, an HLS rendition, a side-loaded subtitle):
+ * the engine's own [id] for [VideoPlayerEngine.selectAudioTrack] and [VideoPlayerEngine.selectTextTrack].
+ */
+data class EngineTrack(
+    val id: String,
+    val type: TrackType,
+    val language: String?,
+    val label: String,
+    val codec: String? = null,
+    val channels: Int? = null,
+    val selected: Boolean = false,
+    /** Side-loaded, not inside the stream. */
+    val external: Boolean = false,
+)
 
 /**
  * A subtitle file saved beside a download (spec 5.10, 5.16): its [path] on the device (WebVTT), its language tag, the
@@ -186,9 +214,30 @@ interface VideoPlayerEngine {
     /** What smoothing truly does now (the status chip reads it); [SmoothnessReadout.None] for an engine that does none. */
     val smoothness: StateFlow<SmoothnessReadout> get() = NoSmoothness
 
+    /** The audio, text and video tracks of what is loaded; empty before it is loaded and for engines that do not list them. */
+    val tracks: StateFlow<List<EngineTrack>> get() = NoTracks
+
+    /** Plays the audio track [id] (from [tracks]). The default does nothing. */
+    fun selectAudioTrack(id: String) {}
+
+    /** Shows the text track [id] (embedded or side-loaded, from [tracks]), or none for null. The default does nothing. */
+    fun selectTextTrack(id: String?) {}
+
+    /**
+     * Adds the subtitle file at [url] (SRT, WebVTT, ASS/SSA, TTML) to what plays now and shows it: an OpenSubtitles result
+     * fetched mid-film. [mimeType] may be blank (the engine reads the type from the address). The default does nothing.
+     */
+    fun addSubtitle(url: String, language: String, label: String, mimeType: String = "") {}
+
+    /** Moves the subtitles [ms] later (negative: earlier). The default does nothing. */
+    fun setSubtitleDelay(ms: Long) {}
+
     /** Frees the player; the engine is not used again. */
     fun release()
 }
+
+/** The track list of an engine that lists none; shared, never changes. */
+private val NoTracks: StateFlow<List<EngineTrack>> = MutableStateFlow(emptyList())
 
 /** The readout of an engine that smooths nothing; shared, never changes. */
 private val NoSmoothness: StateFlow<SmoothnessReadout> = MutableStateFlow(SmoothnessReadout.None)

@@ -7,6 +7,7 @@ import com.cosmotune.video.local.VideoAspect
 import com.cosmotune.video.model.VideoStream
 import com.cosmotune.video.player.Edl
 import com.cosmotune.video.player.EngineCapabilities
+import com.cosmotune.video.player.EngineTrack
 import com.cosmotune.video.player.MediaInput
 import com.cosmotune.video.player.PlaybackRequest
 import com.cosmotune.video.player.PlayerError
@@ -73,6 +74,15 @@ class DesktopVideoEngine internal constructor(
 
     private val cueFlow = MutableStateFlow<List<SubtitleCue>>(emptyList())
     override val cues: StateFlow<List<SubtitleCue>> = cueFlow.asStateFlow()
+
+    private val trackFlow = MutableStateFlow<List<EngineTrack>>(emptyList())
+    override val tracks: StateFlow<List<EngineTrack>> = trackFlow.asStateFlow()
+
+    /** Watch's own choices for the loaded file (mpv ids, "no" for no subtitles); null follows the language rule of Video. */
+    @Volatile private var textChoice: String? = null
+    @Volatile private var audioChoice: String? = null
+    /** Subtitles added before the file was loaded: url, title, language. */
+    private val pendingExternal = java.util.concurrent.CopyOnWriteArrayList<Triple<String, String, String>>()
 
     private val exchange = FrameExchange()
 
@@ -270,6 +280,10 @@ class DesktopVideoEngine internal constructor(
         this.request = request
         pendingSeekMs = null
         addedSubtitles.clear()
+        textChoice = null
+        audioChoice = null
+        pendingExternal.clear()
+        trackFlow.value = emptyList()
         val target = target(request)
         if (target == null) {
             player.fail(number, PlayerError(PlayerErrorKind.UNSUPPORTED, "nothing this engine can play in the request"))
@@ -293,6 +307,12 @@ class DesktopVideoEngine internal constructor(
         is MediaInput.Hls -> {
             currentToken = null
             Target(input.url, remote = true, direct = true)
+        }
+        is MediaInput.Url -> {
+            // Watch's single address: a file, a remote DASH manifest or HLS, opened by mpv itself with the request's headers.
+            currentToken = null
+            if (input.url.startsWith("file:")) Target(java.io.File(java.net.URI(input.url)).path, remote = false, direct = false)
+            else Target(input.url, remote = true, direct = true)
         }
         is MediaInput.LocalFiles -> {
             currentToken = null
@@ -387,12 +407,52 @@ class DesktopVideoEngine internal constructor(
             player.seek(it)
         }
         applySubtitles()
+        refreshTracks()
+    }
+
+    private fun refreshTracks() {
+        val player = playerRef ?: return
+        if (player.isLoaded()) trackFlow.value = player.tracks()
+    }
+
+    override fun selectAudioTrack(id: String) {
+        audioChoice = id
+        post { playerRef?.takeIf { it.isLoaded() }?.let { it.set("aid", id); refreshTracks() } }
+    }
+
+    override fun selectTextTrack(id: String?) {
+        val choice = id ?: "no"
+        textChoice = choice
+        post { playerRef?.takeIf { it.isLoaded() }?.let { it.set("sid", choice); refreshTracks() } }
+    }
+
+    override fun addSubtitle(url: String, language: String, label: String, mimeType: String) {
+        post {
+            val player = playerRef
+            if (player == null || !player.isLoaded()) { pendingExternal += Triple(url, label, language); return@post }
+            if (player.command("sub-add", url, "select", label, language) >= 0) {
+                textChoice = player.string("sid")
+                refreshTracks()
+            }
+        }
+    }
+
+    override fun setSubtitleDelay(ms: Long) {
+        post { playerRef?.set("sub-delay", MpvPlayer.seconds(ms)) }
     }
 
     private fun applySubtitles() {
         val player = playerRef ?: return
         val current = request ?: return
         if (!player.isLoaded()) return // afterFileLoaded comes back
+        if (textChoice != null || audioChoice != null || pendingExternal.isNotEmpty()) {
+            // Watch chose for itself: its subtitles added while loading, then its tracks.
+            for ((url, title, language) in pendingExternal) if (player.command("sub-add", url, "select", title, language) >= 0) textChoice = player.string("sid")
+            pendingExternal.clear()
+            audioChoice?.let { player.set("aid", it) }
+            textChoice?.let { player.set("sid", it) }
+            return
+        }
         val choices = subtitleChoices(current)
         // Offline: every downloaded subtitle file is a track of the video (`sub-add <path> auto`), as the source offers them.
         for (local in current.localSubtitles) if (addedSubtitles.add(local.path)) player.addSubtitles(local.path, local.label, local.language)
