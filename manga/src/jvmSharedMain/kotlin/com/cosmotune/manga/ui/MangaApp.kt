@@ -383,22 +383,32 @@ private fun MangaLibrary(scope: MangaScope, busy: Boolean, onBusy: (Boolean) -> 
                 fresh.forEach { entry -> MangaUpdateRow(scope, entry) }
             }
         }
-        item(key = "collections", span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.readBleed(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReadSection("All series", subtitle = mangaText(sortLabel(sort)) + if (unreadOnly) " · " + mangaText("unread only") else "")
-                MangaCollections(repository, collection) { collection = it }
-                ReadChipRow {
-                    ReadPill(mangaText("Downloads"), icon = CosmoIcons.Downloaded, onClick = { scope.navigation.page = MangaPages.DOWNLOADS }, modifier = Modifier.testTag("manga:downloads"))
-                    ReadPill(mangaText("History"), icon = CosmoIcons.Replay, onClick = { scope.navigation.select(MangaTabs.HISTORY) }, modifier = Modifier.testTag("manga:history"))
-                }
+        val shortcuts: @Composable () -> Unit = {
+            ReadChipRow {
+                ReadPill(mangaText("Downloads"), icon = CosmoIcons.Downloaded, onClick = { scope.navigation.page = MangaPages.DOWNLOADS }, modifier = Modifier.testTag("manga:downloads"))
+                ReadPill(mangaText("History"), icon = CosmoIcons.Replay, onClick = { scope.navigation.select(MangaTabs.HISTORY) }, modifier = Modifier.testTag("manga:history"))
             }
         }
-        if (books.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.readBleed()) {
-                if (state.books.isEmpty()) ReadEmpty("Your library is empty", "Your next story starts here. Import a comic or add a series from Browse.",
+        // An empty library opens on its empty card; "All series", the order and the collection chips wait until there is a series.
+        if (state.books.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+            Column(Modifier.readBleed().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ReadEmpty("Your library is empty", "Your next story starts here. Import a comic or add a series from Browse.",
                     actionLabel = "Browse sources", onAction = { scope.navigation.select(MangaTabs.BROWSE) })
-                else ReadEmpty("Nothing here", if (unreadOnly) "Every series in this view is read." else "No series in this collection yet.")
-                if (state.books.isEmpty() && discovery != null) MangaDiscoverShelf(scope, discovery)
+                shortcuts()
+                if (discovery != null) MangaDiscoverShelf(scope, discovery)
+            }
+        } else {
+            item(key = "collections", span = { GridItemSpan(maxLineSpan) }) {
+                Column(Modifier.readBleed(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReadSection("All series", subtitle = mangaText(sortLabel(sort)) + if (unreadOnly) " · " + mangaText("unread only") else "")
+                    MangaCollections(repository, collection) { collection = it }
+                    shortcuts()
+                }
+            }
+            if (books.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                Column(Modifier.readBleed()) {
+                    ReadEmpty("Nothing here", if (unreadOnly) "Every series in this view is read." else "No series in this collection yet.")
+                }
             }
         }
         items(books, key = { it.id }) { book -> MangaBookCard(scope, book, mangaLibraryLine(book, state), inLibrary = true) }
