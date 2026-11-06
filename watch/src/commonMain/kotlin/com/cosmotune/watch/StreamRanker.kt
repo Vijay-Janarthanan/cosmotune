@@ -63,6 +63,7 @@ object LanguageCodes {
         setOf("it", "ita", "italian"), setOf("pt", "por", "portuguese", "pob", "pt-br"), setOf("ja", "jpn", "japanese"),
         setOf("ko", "kor", "korean"), setOf("zh", "zho", "chi", "chinese"), setOf("ar", "ara", "arabic"), setOf("ru", "rus", "russian"),
         setOf("nl", "nld", "dut", "dutch"), setOf("tr", "tur", "turkish"), setOf("pl", "pol", "polish"), setOf("sv", "swe", "swedish"),
+        setOf("pa", "pan", "punjabi"), setOf("gu", "guj", "gujarati"), setOf("or", "ori", "ory", "odia"), setOf("as", "asm", "assamese"), setOf("ur", "urd", "urdu"),
     )
 
     fun normalise(code: String): String {

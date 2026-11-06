@@ -54,7 +54,8 @@ class InternetArchivePlugin(
 
     override suspend fun catalogPage(catalog: CatalogDef, skip: Int): List<TitleSummary> {
         val query = rows.firstOrNull { it.first == catalog.id }?.third ?: return emptyList()
-        return searchRaw(query, rows = catalog.pageSize, page = skip / catalog.pageSize + 1)
+        // The built-in rows leave out what the Archive or its uploader marks adult, and exploitation films by their titles.
+        return searchRaw("$query AND NOT ${ArchiveTitles.ADULT_QUERY}", rows = catalog.pageSize, page = skip / catalog.pageSize + 1, safe = true)
     }
 
     override suspend fun search(query: String, type: TitleType?): List<TitleSummary> {
@@ -63,16 +64,25 @@ class InternetArchivePlugin(
         return searchRaw("title:(\"$q\") AND mediatype:(movies) AND collection:(feature_films OR silent_films OR film_noir OR SciFi_Horror OR classic_cartoons)", 20, 1)
     }
 
-    private suspend fun searchRaw(query: String, rows: Int, page: Int): List<TitleSummary> {
+    private suspend fun searchRaw(query: String, rows: Int, page: Int, safe: Boolean = false): List<TitleSummary> {
         val url = "$base/advancedsearch.php?q=${query.urlEncode()}&fl[]=identifier&fl[]=title&fl[]=year&fl[]=description&fl[]=runtime&fl[]=subject" +
-            "&sort[]=downloads+desc&rows=$rows&page=$page&output=json"
-        return http.getJson(url, ttlMs = 12 * WatchHttp.HOUR).child("response").list("docs").mapNotNull(::summaryOf)
+            "&fl[]=collection&fl[]=downloads&sort[]=downloads+desc&rows=$rows&page=$page&output=json"
+        val docs = http.getJson(url, ttlMs = 12 * WatchHttp.HOUR).child("response").list("docs")
+            .filter { !safe || !ArchiveTitles.adult(text(it, "title").orEmpty(), strings(it, "subject") + strings(it, "collection")) }
+        // Most downloaded first (the search already sorts so; kept when a page comes back in another order).
+        return docs.sortedByDescending { it.long("downloads") ?: it.str("downloads")?.toLongOrNull() ?: 0L }.mapNotNull(::summaryOf)
+    }
+
+    private fun strings(e: JsonElement, name: String): List<String> = when (val v = e.child(name)) {
+        is kotlinx.serialization.json.JsonArray -> v.mapNotNull { (it as? JsonPrimitive)?.content }
+        is JsonPrimitive -> listOf(v.content)
+        else -> emptyList()
     }
 
     private fun summaryOf(doc: JsonElement): TitleSummary? {
         val identifier = doc.str("identifier") ?: return null
-        val title = text(doc, "title") ?: return null
-        return TitleSummary(WatchKey.film(id, identifier), TitleType.FILM, title, text(doc, "year")?.take(4)?.toIntOrNull(),
+        val (title, yearInTitle) = ArchiveTitles.clean(text(doc, "title") ?: return null)
+        return TitleSummary(WatchKey.film(id, identifier), TitleType.FILM, title, text(doc, "year")?.take(4)?.toIntOrNull() ?: yearInTitle,
             posterUrl = "$base/services/img/$identifier", overview = text(doc, "description")?.replace(Regex("<[^>]+>"), "")?.take(600),
             runtimeMin = text(doc, "runtime")?.let(::minutes), origin = id, badge = "FREE · ARCHIVE")
     }
@@ -80,8 +90,9 @@ class InternetArchivePlugin(
     override suspend fun title(key: WatchKey): Title? {
         if (key.namespace != id) return null
         val meta = http.getJson("$base/metadata/${key.id.urlEncode()}", ttlMs = WatchHttp.DAY).child("metadata") ?: return null
-        val summary = TitleSummary(key, TitleType.FILM, text(meta, "title") ?: key.id, text(meta, "year")?.take(4)?.toIntOrNull()
-            ?: text(meta, "date")?.take(4)?.toIntOrNull(), posterUrl = "$base/services/img/${key.id}",
+        val (title, yearInTitle) = ArchiveTitles.clean(text(meta, "title") ?: key.id)
+        val summary = TitleSummary(key, TitleType.FILM, title, text(meta, "year")?.take(4)?.toIntOrNull()
+            ?: text(meta, "date")?.take(4)?.toIntOrNull() ?: yearInTitle, posterUrl = "$base/services/img/${key.id}",
             overview = text(meta, "description")?.replace(Regex("<[^>]+>"), "")?.take(1200), runtimeMin = text(meta, "runtime")?.let(::minutes),
             genres = (meta.child("subject") as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }?.take(3).orEmpty(),
             ids = ExternalIds(imdb = text(meta, "imdb")?.takeIf { it.startsWith("tt") }), origin = id, badge = "FREE · ARCHIVE")

@@ -90,7 +90,8 @@ data class SourcesState(
     val notFound: Boolean get() = done && best == null
 }
 
-data class Facet(val id: String, val name: String, val count: Int)
+/** A chip of Live TV; [yours] marks the viewer's own country or language (listed first). */
+data class Facet(val id: String, val name: String, val count: Int, val yours: Boolean = false)
 
 /** The chips of Live TV. Countries are ISO codes ("in"), languages ISO 639-3 ("tam"), categories as sources name them. */
 data class ChannelFacets(val countries: List<Facet>, val languages: List<Facet>, val categories: List<Facet>, val total: Int)

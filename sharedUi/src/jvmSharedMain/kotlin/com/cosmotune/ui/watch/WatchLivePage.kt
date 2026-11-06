@@ -112,8 +112,13 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
             item(key = "live:chips") {
                 val f = facets
                 OrbitChipRow(side, Modifier.padding(top = 18.dp)) {
-                    f?.countries?.take(3)?.forEach { c -> OrbitSelectChip(c.name, country == c.id, fonts, look, onClick = { country = c.id.takeIf { country != it } }, haptic = false) }
-                    f?.languages?.take(3)?.forEach { l -> OrbitSelectChip(l.name, language == l.id, fonts, look, onClick = { language = l.id.takeIf { language != it } }, haptic = false) }
+                    // The viewer's own country and language first (India, Tamil), then the countries and languages with most channels.
+                    val countryChip: @Composable (com.cosmotune.watch.Facet) -> Unit = { c -> OrbitSelectChip(c.name, country == c.id, fonts, look, onClick = { country = c.id.takeIf { country != it } }, haptic = false) }
+                    val languageChip: @Composable (com.cosmotune.watch.Facet) -> Unit = { l -> OrbitSelectChip(l.name, language == l.id, fonts, look, onClick = { language = l.id.takeIf { language != it } }, haptic = false) }
+                    f?.countries?.filter { it.yours }?.forEach { countryChip(it) }
+                    f?.languages?.filter { it.yours }?.forEach { languageChip(it) }
+                    f?.countries?.filterNot { it.yours }?.take(3 - (f.countries.count { it.yours }).coerceAtMost(1))?.forEach { countryChip(it) }
+                    f?.languages?.filterNot { it.yours }?.take(3 - (f.languages.count { it.yours }).coerceAtMost(1))?.forEach { languageChip(it) }
                     if (f != null && f.languages.isNotEmpty()) OrbitSelectChip("All languages", language == null, fonts, look, onClick = { language = null }, haptic = false)
                     f?.categories?.take(6)?.forEach { c -> OrbitSelectChip(categoryName(c.name), category == c.id, fonts, look, onClick = { category = c.id.takeIf { category != it } }, haptic = false) }
                     OrbitSelectChip("Favourites", favouritesOnly, fonts, look, onClick = { favouritesOnly = !favouritesOnly }, icon = CosmoIcons.Pin, haptic = false)
@@ -184,7 +189,9 @@ private fun GuideGrid(window: GuideWindow, now: Long, favourites: Set<com.cosmot
                 Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(scroll)) {
                     Box(Modifier.width(gridWidth).fillMaxHeight()) {
                         if (row.programmes.isEmpty()) {
-                            ProgrammeCell(null, "No guide for this channel", null, false, perMinute * minOf(span, 120), 0.dp, fonts, look) { actions.playChannel(row.channel) }
+                            // A quiet line, not a cell: there is nothing to choose here.
+                            Text("No guide", style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, maxLines = 1,
+                                modifier = Modifier.align(Alignment.CenterStart).padding(start = 15.dp))
                         }
                         row.programmes.forEach { p ->
                             val start = maxOf(p.startMs, window.fromMs)

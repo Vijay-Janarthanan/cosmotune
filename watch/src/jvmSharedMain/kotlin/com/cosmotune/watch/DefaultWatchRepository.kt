@@ -91,6 +91,8 @@ data class WatchConfig(
     val endpoints: Endpoints = Endpoints(),
     /** Per-plugin answer time for sources, rows and search. */
     val timeoutMs: Long = 15_000,
+    /** The viewer's country and language (Music's discovery preferences): their channels and chips come first. */
+    val place: () -> WatchPlace = WatchPlace::current,
 )
 
 data class Endpoints(
@@ -381,12 +383,57 @@ class DefaultWatchRepository(
         if (filter == HomeFilter.LIVE) return@coroutineScope WatchHome(null, emptyList(), live.await(), emptyList(), empty = live.await().isEmpty())
         val pluginRows = async { pluginRows(type) }
         val metaRows = async { runCatching { withTimeoutOrNull(config.timeoutMs) { metadata.rows(type) } }.getOrNull().orEmpty() }
+        // While the plugins' rows load, the free plugins are asked whether they can play the most popular films.
+        val probed = async { if (type == TitleType.SERIES) emptyMap() else probeFree(popularFilms(metaRows.await())) }
         val free = pluginRows.await()
         val rows = free + metaRows.await()
         val cw = continueWatching.value.filter { type == null || it.summary.type == type }
-        val featuredSummary = free.firstOrNull { it.items.isNotEmpty() }?.items?.firstOrNull { it.backdropUrl != null } ?: rows.firstOrNull()?.items?.firstOrNull()
-        val featured = featuredSummary?.let { s -> Featured(s, listOfNotNull(s.badge), store.state.value.progress[s.key.value]) }
+        val featured = (featuredPopular(popularFilms(metaRows.await()), free, probed.await()) ?: bestFree(free, rows))
+            ?.let { (s, badge) -> Featured(s, listOfNotNull(badge), store.state.value.progress[s.key.value]) }
         WatchHome(featured, cw, live.await(), rows, empty = rows.isEmpty() && live.await().isEmpty() && cw.isEmpty())
+    }
+
+    /** The trending and popular films of the metadata rows, in their order, with a picture for the featured card. */
+    private fun popularFilms(meta: List<HomeRow>): List<TitleSummary> =
+        meta.filter { it.id.startsWith("tmdb:trending:film") || it.id.startsWith("tmdb:popular:film") || it.id == "cinemeta:movie/top" }
+            .flatMap { it.items }.filter { it.type == TitleType.FILM && (it.backdropUrl != null || it.posterUrl != null) }.distinctBy { it.key }
+
+    /**
+     * Which of the first few [films] a free plugin (Pluto TV, Plex, YouTube's free films, the Archive, Public Domain Movies)
+     * can play, with the badge of the copy found. Bounded in time: the home never waits long for it.
+     */
+    private suspend fun probeFree(films: List<TitleSummary>): Map<WatchKey, String> = coroutineScope {
+        val plugins = activePlugins().filter { it.id in FREE_FILM_PLUGINS && Capability.STREAMS in it.capabilities }
+        if (plugins.isEmpty() || films.isEmpty()) return@coroutineScope emptyMap()
+        withTimeoutOrNull(FEATURED_PROBE_MS) {
+            films.take(4).map { film ->
+                async {
+                    val target = targetOf(film)
+                    val found = plugins.map { p -> async { runCatching { p.streams(target) }.getOrNull().orEmpty().firstOrNull { it.isPlayable } } }.awaitAll().filterNotNull().firstOrNull()
+                    found?.let { film.key to "FREE · " + it.source.pluginName.removePrefix("Free on ").uppercase() }
+                }
+            }.awaitAll().filterNotNull().toMap()
+        }.orEmpty()
+    }
+
+    /** The first popular film a free plugin has: listed in a free plugin's row by name, or found by [probeFree]. */
+    private fun featuredPopular(films: List<TitleSummary>, free: List<HomeRow>, probed: Map<WatchKey, String>): Pair<TitleSummary, String?>? {
+        val freeItems = free.filter { it.pluginId in FREE_FILM_PLUGINS }.flatMap { it.items }
+        for (film in films.take(12)) {
+            probed[film.key]?.let { return film to it }
+            freeItems.firstOrNull { com.cosmotune.watch.meta.NameMatch.same(it.name, film.name) && (film.year == null || it.year == null || kotlin.math.abs(it.year - film.year) <= 1) }
+                ?.let { return film to it.badge }
+        }
+        return null
+    }
+
+    /** The best free title when no popular film is free: a free service's film with a wide picture first, then the first of the rows. */
+    private fun bestFree(free: List<HomeRow>, rows: List<HomeRow>): Pair<TitleSummary, String?>? {
+        val pick = free.filter { it.pluginId != BuiltInPlugins.ARCHIVE }.flatMap { it.items }.firstOrNull { it.backdropUrl != null }
+            ?: free.flatMap { it.items }.firstOrNull { it.backdropUrl != null }
+            ?: free.firstOrNull { it.items.isNotEmpty() }?.items?.first()
+            ?: rows.firstOrNull()?.items?.firstOrNull()
+        return pick?.let { it to it.badge }
     }
 
     private suspend fun pluginRows(type: TitleType?): List<HomeRow> {
@@ -414,8 +461,8 @@ class DefaultWatchRepository(
 
     override suspend fun liveNow(limit: Int): List<LiveNowItem> {
         val all = channelsByKey()
-        val favourites = store.state.value.favourites
-        val picked = (all.keys.filter { it.value in favourites } + all.keys.filter { it.value !in favourites }).take(limit).mapNotNull { all[it]?.first() }
+        val order = ChannelRank.order(store.state.value.favourites, config.place()) { all[it.key].orEmpty() }
+        val picked = all.values.map(::merged).sortedWith(order).take(limit)
         val t = config.now()
         val window = guide(picked, t - 6 * WatchHttp.HOUR, t + 12 * WatchHttp.HOUR)
         return window.rows.map { row ->
@@ -551,24 +598,28 @@ class DefaultWatchRepository(
     override suspend fun channels(filter: ChannelFilter): List<Channel> {
         val favourites = store.state.value.favourites
         val q = filter.query?.trim()?.lowercase()
-        return channelsByKey().values.map { list -> if (filter.pluginId != null) list.firstOrNull { it.pluginId == filter.pluginId } else merged(list) }
+        val byKey = channelsByKey()
+        return byKey.values.map { list -> if (filter.pluginId != null) list.firstOrNull { it.pluginId == filter.pluginId } else merged(list) }
             .filterNotNull().filter { c ->
                 (filter.country == null || filter.country.lowercase() in c.countries) &&
                     (filter.language == null || c.languages.any { LanguageCodes.same(it, filter.language) }) &&
                     (filter.category == null || c.categories.any { it.equals(filter.category, true) }) &&
                     (!filter.favouritesOnly || c.key.value in favourites) && (q.isNullOrEmpty() || c.name.lowercase().contains(q))
-            }.sortedWith(compareBy({ it.key.value !in favourites }, { it.number ?: Int.MAX_VALUE }, { it.name.lowercase() }))
+            }.sortedWith(ChannelRank.order(favourites, config.place()) { byKey[it.key].orEmpty() })
     }
 
     override suspend fun channel(key: WatchKey): Channel? = channelsByKey()[key]?.let(::merged)
 
     override suspend fun channelFacets(): ChannelFacets {
         val all = channelsByKey().values.map(::merged)
-        fun facets(values: List<String>, name: (String) -> String) = values.groupingBy { it }.eachCount().map { (id, n) -> Facet(id, name(id), n) }.sortedByDescending { it.count }
+        val place = config.place()
+        // The viewer's own country and language first, then by how many channels each has.
+        fun facets(values: List<String>, yours: (String) -> Boolean, name: (String) -> String) = values.groupingBy { it }.eachCount()
+            .map { (id, n) -> Facet(id, name(id), n, yours(id)) }.sortedWith(compareBy({ !it.yours }, { -it.count }))
         return ChannelFacets(
-            facets(all.flatMap { it.countries }) { Locale("", it.uppercase().let { c -> if (c == "UK") "GB" else c }).displayCountry.ifBlank { it.uppercase() } },
-            facets(all.flatMap { it.languages.map(LanguageCodes::normalise) }) { Locale(it).displayLanguage.ifBlank { it } },
-            facets(all.flatMap { it.categories }) { it }, all.size)
+            facets(all.flatMap { it.countries.distinct() }, place::isCountry) { Locale("", it.uppercase().let { c -> if (c == "UK") "GB" else c }).getDisplayCountry(Locale.ENGLISH).ifBlank { it.uppercase() } },
+            facets(all.flatMap { it.languages.map(LanguageCodes::normalise).distinct() }, place::isLanguage) { Locale(it).getDisplayLanguage(Locale.ENGLISH).ifBlank { it } },
+            facets(all.flatMap { it.categories }, { false }) { it }, all.size)
     }
 
     override suspend fun guide(channels: List<Channel>, fromMs: Long, toMs: Long): GuideWindow {
@@ -659,6 +710,9 @@ class DefaultWatchRepository(
 
     companion object {
         private val SERVER_KINDS = setOf(PluginKind.JELLYFIN, PluginKind.EMBY, PluginKind.PLEX_SERVER, PluginKind.LOCAL_FOLDER)
+        /** The built-in plugins that play films for free, asked for the featured card. */
+        private val FREE_FILM_PLUGINS = setOf(BuiltInPlugins.PLUTO, BuiltInPlugins.PLEX, BuiltInPlugins.YOUTUBE, BuiltInPlugins.ARCHIVE, BuiltInPlugins.PUBLIC_DOMAIN)
+        private const val FEATURED_PROBE_MS = 6_000L
         fun hash(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.trim().lowercase().toByteArray()).take(5).joinToString("") { "%02x".format(it) }
     }
 }
