@@ -453,8 +453,8 @@ private fun ModeSwitch(onChosen: () -> Unit, onLater: (AppMode) -> Unit) {
 
 /**
  * One mode as an Orbit navigation chip (the desktop sidebar's, [com.cosmotune.ui.orbit.OrbitNavChip]): 44 dp, round, 12 dp in from the
- * panel, the mode's own glyph and its name; the current one solid ink with the ground's colour for its words and the small peach
- * dot at its end, the others a faint wash under the finger. [summary] is what a screen reader hears after the name. A mode that is
+ * panel, the mode's own glyph and its name; the current one solid ink with the ground's colour for its words and a small dot of
+ * that colour at its end, the others a faint wash under the finger. [summary] is what a screen reader hears after the name. A mode that is
  * not available is still a focusable radio button that says "Later".
  */
 @Composable
@@ -484,8 +484,8 @@ private fun ModeRow(icon: ImageVector, title: String, summary: String, selected:
         Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
         Text(title, style = type.forText(fonts.chip, title), color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         if (later) LaterTag()
-        // Peach is "here": the dark peach on a light chip, the light one on a dark chip.
-        if (selected) Box(Modifier.size(7.dp).clip(CircleShape).background(if (look.dark) com.cosmotune.ui.orbit.PEACH_INK else com.cosmotune.ui.orbit.PEACH))
+        // The moon dot in the chip's own ink, not peach: peach is "playing now" alone.
+        if (selected) Box(Modifier.size(7.dp).clip(CircleShape).background(ink))
     }
 }
 

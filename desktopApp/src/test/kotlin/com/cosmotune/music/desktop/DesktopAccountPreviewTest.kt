@@ -46,7 +46,7 @@ class DesktopAccountPreviewTest {
 
     @OptIn(ExperimentalComposeUiApi::class)
     private fun render(name: String, palette: CosmoPaletteState, content: @Composable () -> Unit) {
-        val scene = ImageComposeScene(1100, 760, Density(1.5f)) {
+        val scene = ImageComposeScene(1100, 1100, Density(1.5f)) {
             val colors = remember { CosmoColors::class.java.getConstructor(CosmoPaletteState::class.java).newInstance(palette) }
             val type = rememberCosmoType()
             MaterialTheme {

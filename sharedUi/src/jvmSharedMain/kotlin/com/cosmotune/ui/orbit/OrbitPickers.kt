@@ -39,7 +39,7 @@ import com.cosmotune.ui.sheets.SurfaceSheetSwitch
 /*
  * The Orbit pickers: a sheet that asks for one choice (the mode, an audio quality, a download quality, a room's door), its title and
  * its rows. The sheet is the song sheet's (SurfaceSheetSwitch on CosmoSheetSurface: flat, its own ground, the grabber); a row is the
- * kit's row (radius 22, the ink at 5 %), the chosen one solid ink with the ground's colour for its words and the peach dot.
+ * kit's row (radius 22, the ink at 5 %), the chosen one solid ink with the ground's colour for its words and a check in that colour.
  */
 
 /** A picker sheet: opened whole (never half way), the Orbit sheet surface, [content] scrolling inside it. */
@@ -63,7 +63,7 @@ fun OrbitSheetTitle(title: String, modifier: Modifier = Modifier, label: String?
 
 /**
  * One choice of a picker: at least 56 dp, radius 22, [icon] (when given) and the [title] over its [detail]; [selected] is solid ink
- * with the ground's colour for its words and the small peach dot at its end. A radio button for assistive technology; [enabled]
+ * with the ground's colour for its words and a check in that colour at its end. A radio button for assistive technology; [enabled]
  * false dims it to 45 % and stops the tap. [trailing] is a short word at the end ("Ctrl+1").
  */
 @Composable
@@ -103,7 +103,8 @@ fun OrbitPickRow(
             if (!detail.isNullOrBlank()) Text(detail, style = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 16.sp), color = dim, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
         if (trailing != null) Text(trailing, style = fonts.label, color = dim, modifier = Modifier.padding(start = 10.dp))
-        if (selected) Box(Modifier.padding(start = 10.dp).size(7.dp).clip(CircleShape).background(if (look.dark) PEACH_INK else PEACH))
+        // A check in the row's own ink, not peach: peach is "playing now" alone.
+        if (selected) Icon(com.cosmotune.ui.components.CosmoIcons.Check, contentDescription = null, tint = ink, modifier = Modifier.padding(start = 10.dp).size(20.dp))
     }
 }
 
