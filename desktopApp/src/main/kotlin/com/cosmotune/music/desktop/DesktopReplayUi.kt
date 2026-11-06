@@ -1,66 +1,50 @@
 package com.cosmotune.music.desktop
 
-import com.cosmotune.music.ui.replay.ReplayCreditCard
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.artworkAt
-import com.cosmotune.music.ui.icons.CosmotuneIcons
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.listening.ListeningActivityPanel
+import com.cosmotune.ui.orbit.OrbitChip
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.replay.OrbitReplayChartRow
+import com.cosmotune.ui.replay.OrbitReplayEmpty
+import com.cosmotune.ui.replay.OrbitReplayHeading
+import com.cosmotune.ui.replay.OrbitReplayHero
+import com.cosmotune.ui.replay.OrbitReplayRow
+import com.cosmotune.ui.replay.OrbitReplayStat
+import com.cosmotune.ui.replay.OrbitReplayStats
+import com.cosmotune.ui.replay.OrbitReplayTile
+import com.cosmotune.ui.replay.OrbitReplayTiles
+import com.cosmotune.ui.replay.orbitReplayChart
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -68,10 +52,13 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// ── The banner on the Library page ──────────────────────────────────────────
-
 // ── The page ────────────────────────────────────────────────────────────────
 
+/**
+ * Replay on the desktop, in Orbit and drawn from the phone's pieces ([com.cosmotune.ui.replay]): the heading with the period
+ * chips and the share chip, the hero colour card in the top song's colours (Play in its bite plays it), the headline cards, the
+ * ranked charts and the listening's shape as stat tiles. The desktop has no story, so a card opens its details.
+ */
 @Composable
 internal fun DesktopReplayPage(
     summary: DesktopReplaySummary,
@@ -82,325 +69,134 @@ internal fun DesktopReplayPage(
     onOpenArtist: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
-    var sharing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    var detail by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<DesktopReplayHeroCard?>(null) }
+    var sharing by remember { mutableStateOf(false) }
+    var detail by remember { mutableStateOf<DesktopReplayHeroCard?>(null) }
     if (sharing) DesktopReplayShareDialog(summary, holder, onDismiss = { sharing = false })
     detail?.let { card -> ReplayDetails(summary, card, { detail = null }, onPlaySong, onOpenArtist) }
-    // The mesh behind this page is painted by the frame, so the chrome is tinted by it too.
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
-            item("heading") {
-                // No arrow of its own: the top bar's back is the way out, as the gesture is on
-                // Android.
-                Spacer(Modifier.height(8.dp))
-                Column {
-                    Column(Modifier.padding(horizontal = GUTTER)) {
-                        Spacer(Modifier.height(20.dp))
-                        Text(
-                            DesktopStrings["replay", "Replay"],
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.W800,
-                            color = Color.White,
-                        )
-                        Text(
-                            summary.label.ifBlank { period.chip },
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White.copy(alpha = 0.6f),
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            PeriodPicker(period, onPeriodChange)
-                            if (!summary.isEmpty) {
-                                Spacer(Modifier.width(12.dp))
-                                androidx.compose.material3.TextButton(onClick = { sharing = true }) {
-                                    Text("Share card", color = Color.White, fontWeight = FontWeight.W700)
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(18.dp))
-                    }
-                }
-            }
-
-            if (summary.isEmpty) {
-                item("empty") { EmptyReplay(period) }
-                return@LazyColumn
-            }
-
-            item("cards") {
-                DesktopScrollableRow(gutter = GUTTER, spacing = 12.dp) {
-                    items(summary.heroCards(), key = { it.label }) { card ->
-                        ReplayCreditCard(
-                            label = card.label,
-                            value = card.value,
-                            detail = card.detail,
-                            artworkUrl = card.artworkUrl,
-                            holder = holder,
-                            memberSince = summary.memberSince(),
-                            onClick = { detail = card },
-                            modifier = Modifier.width(300.dp),
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
+        item("heading") {
+            // No arrow of its own: the top bar's back is the way out, as the gesture is on Android.
+            OrbitReplayHeading(
+                title = DesktopStrings["replay", "Replay"],
+                label = summary.label.ifBlank { period.chip },
+                chips = DesktopReplayPeriod.entries.map { it.chip },
+                selected = DesktopReplayPeriod.entries.indexOf(period),
+                onSelect = { onPeriodChange(DesktopReplayPeriod.entries[it]) },
+                side = GUTTER,
+                trailing = if (summary.isEmpty) null else {
+                    {
+                        OrbitChip(
+                            "Share card", fonts, look, onClick = { sharing = true },
+                            leading = { Icon(CosmoIcons.Share, contentDescription = null, modifier = Modifier.padding(2.dp)) },
                         )
                     }
-                }
+                },
+            )
+        }
+
+        if (summary.isEmpty) {
+            item("empty") {
+                OrbitReplayEmpty(
+                    title = DesktopStrings["not_enough_listening", "Not enough listening yet"],
+                    body = when (period) {
+                        DesktopReplayPeriod.THIS_MONTH -> "Nothing this month. Play some music and it will fill up."
+                        else -> "Play some music and your Replay will build itself."
+                    },
+                    side = GUTTER,
+                )
             }
-
-            chart(
-                key = "songs",
-                title = DesktopStrings["top_songs", "Top Songs"],
-                rows = summary.songRows(CHART_LENGTH),
-                onClick = { index -> summary.songs.getOrNull(index)?.let { onPlaySong(it.song) } },
-            )
-            chart(
-                key = "artists",
-                title = DesktopStrings["top_artists", "Top Artists"],
-                rows = summary.artistRows(CHART_LENGTH),
-                circular = true,
-                onClick = { index -> summary.artists.getOrNull(index)?.let { onOpenArtist(it.title) } },
-            )
-            chart(
-                key = "albums",
-                title = DesktopStrings["top_albums", "Top Albums"],
-                rows = summary.albumRows(CHART_LENGTH),
-                onClick = { index -> summary.albums.getOrNull(index)?.let {
-                    detail = DesktopReplayHeroCard("Album", it.title, "${formatListening(it.ms)} · ${plays(it.plays)}",
-                        it.artworkUrl, DesktopReplayDetail.ALBUMS)
-                } },
-            )
-
-            item("habits") { Habits(summary) }
-            item("tail") { Spacer(Modifier.height(32.dp)) }
+            return@LazyColumn
         }
-    }
-}
 
-@Composable
-private fun PeriodPicker(selected: DesktopReplayPeriod, onSelect: (DesktopReplayPeriod) -> Unit) {
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(CosmoRadii.rMd))
-            .background(Color.White.copy(alpha = 0.10f))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        DesktopReplayPeriod.entries.forEach { period ->
-            val active = period == selected
-            val background by animateColorAsState(
-                if (active) Color.White.copy(alpha = 0.92f) else Color.Transparent,
-                tween(160),
-                label = "periodChip",
-            )
-            Text(
-                period.chip,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.W700,
-                color = if (active) Color.Black else Color.White.copy(alpha = 0.75f),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(CosmoRadii.rSm))
-                    .background(background)
-                    .clickable { onSelect(period) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+        val cards = summary.heroCards()
+        item("hero") {
+            val minutes = cards.first()
+            OrbitReplayHero(
+                label = minutes.label,
+                value = minutes.value,
+                unit = null,
+                detail = minutes.detail,
+                cover = minutes.artworkUrl,
+                playLabel = "Play your top song",
+                onPlay = { summary.songs.firstOrNull()?.let { onPlaySong(it.song) } },
+                onClick = { detail = minutes },
+                side = GUTTER,
             )
         }
-    }
-}
+        item("cards") {
+            val tiles = cards.filter { it.kind != DesktopReplayDetail.MINUTES }
+            OrbitReplayTiles(
+                tiles = tiles.map { OrbitReplayTile(it.label, it.label, it.value, it.detail, it.artworkUrl) },
+                side = GUTTER,
+                onClick = { detail = tiles[it] },
+            )
+        }
 
-// ── The credit card ─────────────────────────────────────────────────────────
-
-// ── Charts ──────────────────────────────────────────────────────────────────
-
-private fun LazyListScope.chart(
-    key: String,
-    title: String,
-    rows: List<DesktopReplayRow>,
-    onClick: (Int) -> Unit,
-    circular: Boolean = false,
-) {
-    if (rows.isEmpty()) return
-    item("$key-title") {
-        Text(
-            title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.W800,
-            color = Color.White,
-            modifier = Modifier.padding(start = GUTTER, end = GUTTER, top = 8.dp, bottom = 10.dp),
+        orbitReplayChart(
+            key = "songs",
+            title = DesktopStrings["top_songs", "Top Songs"],
+            rows = summary.songRows(CHART_LENGTH).map { it.orbit() },
+            side = GUTTER,
+            onClick = { index -> summary.songs.getOrNull(index)?.let { onPlaySong(it.song) } },
         )
-    }
-    items(rows, key = { "$key-${it.key}" }) { row ->
-        ChartRow(row, circular) { onClick(row.rank - 1) }
-    }
-    item("$key-gap") { Spacer(Modifier.height(20.dp)) }
-}
-
-@Composable
-private fun ChartRow(row: DesktopReplayRow, circular: Boolean, onClick: () -> Unit) {
-    val shape = if (circular) CircleShape else RoundedCornerShape(CosmoRadii.rSm)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = GUTTER, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RankBadge(row.rank)
-        if (row.artworkUrl != null) {
-            DesktopArtwork(row.artworkUrl, Modifier.size(48.dp).clip(shape), px = ROW_ART_PX)
-        } else {
-            InitialTile(row.title, 48.dp, shape)
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                row.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.W600,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                listOfNotNull(row.subtitle, formatListening(row.ms)).joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.55f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (row.plays > 0) {
-            Text(
-                row.plays.toString(),
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.45f),
-            )
-        }
-    }
-}
-
-/** Number one is the accent; the rest are quiet, because a chart where every position shouts has
- * no first place. */
-@Composable
-private fun RankBadge(rank: Int) {
-    Text(
-        rank.toString(),
-        style = if (rank == 1) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.W800,
-        color = if (rank == 1) DesktopAccent else Color.White.copy(alpha = 0.45f),
-        modifier = Modifier.width(28.dp),
-    )
-}
-
-/** A stand-in cover for a row that has no artwork, coloured from the word itself. */
-@Composable
-private fun InitialTile(text: String, size: Dp, shape: Shape) {
-    val hue = (text.hashCode().toFloat() % 360f + 360f) % 360f
-    val color = Color.hsl(hue, 0.55f, 0.45f)
-    Box(
-        Modifier.size(size).clip(shape)
-            .background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.55f)))),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text.take(1).uppercase(Locale.ROOT),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.W800,
-            color = Color.White,
+        orbitReplayChart(
+            key = "artists",
+            title = DesktopStrings["top_artists", "Top Artists"],
+            rows = summary.artistRows(CHART_LENGTH).map { it.orbit() },
+            side = GUTTER,
+            onClick = { index -> summary.artists.getOrNull(index)?.let { onOpenArtist(it.title) } },
         )
+        orbitReplayChart(
+            key = "albums",
+            title = DesktopStrings["top_albums", "Top Albums"],
+            rows = summary.albumRows(CHART_LENGTH).map { it.orbit() },
+            side = GUTTER,
+            onClick = { index ->
+                summary.albums.getOrNull(index)?.let {
+                    detail = DesktopReplayHeroCard(
+                        "Album", it.title, "${formatListening(it.ms)} · ${plays(it.plays)}", it.artworkUrl, DesktopReplayDetail.ALBUMS,
+                    )
+                }
+            },
+        )
+
+        item("habits") { Habits(summary) }
+        item("tail") { Spacer(Modifier.height(32.dp)) }
     }
 }
+
+/** [this] row as the shared chart's: the subtitle and the listening on one line. */
+private fun DesktopReplayRow.orbit() = OrbitReplayRow(
+    key = key,
+    rank = rank,
+    title = title,
+    subtitle = listOfNotNull(subtitle, formatListening(ms)).joinToString(" · "),
+    cover = artworkUrl,
+    plays = plays,
+)
 
 // ── Tail ────────────────────────────────────────────────────────────────────
 
+/** The listening's shape: the counts as stat tiles, the peak hour and the biggest day under them, the daily activity. */
 @Composable
 private fun Habits(summary: DesktopReplaySummary) {
-    Column(Modifier.padding(horizontal = GUTTER)) {
-        Text(
-            DesktopStrings["d_listening_shape", "Listening shape"],
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.W800,
-            color = Color.White,
-            modifier = Modifier.padding(top = 8.dp, bottom = 10.dp),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("SONGS", summary.distinctSongs.toString(), Modifier.weight(1f))
-            StatTile("ARTISTS", summary.distinctArtists.toString(), Modifier.weight(1f))
-            StatTile("ALBUMS", summary.distinctAlbums.toString(), Modifier.weight(1f))
-        }
-        summary.peakHour?.let {
-            Spacer(Modifier.height(10.dp))
-            Note("You listen most around ${formatHour(it)}.")
-        }
-        summary.busiestDay?.let {
-            Spacer(Modifier.height(6.dp))
-            Note("Your biggest day was ${formatDay(it)} — ${formatListening(summary.busiestDayMs)}.")
-        }
-        Spacer(Modifier.height(20.dp))
-        com.cosmotune.ui.listening.ListeningActivityPanel(summary.dailyMs, summary.hourOfDay, textColor = Color.White)
-    }
-}
-
-@Composable
-private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(CosmoRadii.rMd))
-            .background(Color.White.copy(alpha = 0.09f))
-            .padding(vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            value,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.W800,
-            color = Color.White,
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.55f),
-            letterSpacing = 1.sp,
-        )
-    }
-}
-
-@Composable
-private fun Note(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = Color.White.copy(alpha = 0.6f),
-        modifier = modifier,
+    OrbitReplayStats(
+        title = DesktopStrings["d_listening_shape", "Listening shape"],
+        stats = listOf(
+            OrbitReplayStat("Songs", grouped(summary.distinctSongs.toLong())),
+            OrbitReplayStat("Artists", grouped(summary.distinctArtists.toLong())),
+            OrbitReplayStat("Albums", grouped(summary.distinctAlbums.toLong())),
+        ),
+        notes = listOfNotNull(
+            summary.peakHour?.let { "You listen most around ${formatHour(it)}." },
+            summary.busiestDay?.let { "Your biggest day was ${formatDay(it)} — ${formatListening(summary.busiestDayMs)}." },
+        ),
+        dailyMs = summary.dailyMs,
+        hourly = summary.hourOfDay,
+        side = GUTTER,
     )
-}
-
-@Composable
-private fun EmptyReplay(period: DesktopReplayPeriod) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 36.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(
-            Icons.Rounded.Schedule,
-            contentDescription = null,
-            tint = Color.White.copy(alpha = 0.4f),
-            modifier = Modifier.size(44.dp),
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            DesktopStrings["not_enough_listening", "Not enough listening yet"],
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            when (period) {
-                DesktopReplayPeriod.THIS_MONTH -> "Nothing this month. Play some music and it will fill up."
-                else -> "Play some music and your Replay will build itself."
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.6f),
-            textAlign = TextAlign.Center,
-        )
-    }
 }
 
 // ── The mesh behind all of it ───────────────────────────────────────────────
@@ -452,45 +248,61 @@ data class DesktopReplayHeroCard(
 
 enum class DesktopReplayDetail { MINUTES, ARTISTS, SONGS, ALBUMS }
 
+/**
+ * A headline card opened: the figure in the wide face, its detail and the period, then what it is made of as the kit's ranked
+ * rows (the songs, the artists, an album's tracks) or, for the minutes, the daily activity.
+ */
 @Composable
 private fun ReplayDetails(summary: DesktopReplaySummary, card: DesktopReplayHeroCard, close: () -> Unit,
     playSong: (Song) -> Unit, openArtist: (String) -> Unit) {
+    val fonts = orbitFonts()
+    val look = orbitLook()
     com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = close,
         title = card.label,
         scroll = false,
         content = {
-            LazyColumn(Modifier.fillMaxWidth().height(440.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().height(440.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 item {
-                    Text(card.value, style = MaterialTheme.typography.headlineSmall)
-                    card.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                    Text(summary.label.ifBlank { summary.period.chip }, style = MaterialTheme.typography.labelMedium)
+                    Column(Modifier.padding(bottom = 10.dp)) {
+                        Text(card.value, style = fonts.section, color = look.ink)
+                        card.detail?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(top = 4.dp)) }
+                        OrbitLabel(summary.label.ifBlank { summary.period.chip }, fonts, look.dim, Modifier.padding(top = 8.dp))
+                    }
                 }
                 when (card.kind) {
                     DesktopReplayDetail.MINUTES -> item {
-                        com.cosmotune.ui.listening.ListeningActivityPanel(summary.dailyMs, summary.hourOfDay)
-                    }
-                    DesktopReplayDetail.SONGS -> items(summary.songs.take(30), key = { it.song.videoId }) { entry ->
-                        Column(Modifier.fillMaxWidth().clickable { close(); playSong(entry.song) }.padding(vertical = 8.dp)) {
-                            Text(entry.song.title, style = MaterialTheme.typography.titleMedium)
-                            Text("${entry.song.artist} · ${formatListening(entry.listenedMs)} · ${plays(entry.plays)}")
+                        // The heat in the page's ink: peach is only for what plays.
+                        MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(primary = look.ink), typography = MaterialTheme.typography, shapes = MaterialTheme.shapes) {
+                            ListeningActivityPanel(summary.dailyMs, summary.hourOfDay, textColor = look.ink)
                         }
                     }
-                    DesktopReplayDetail.ARTISTS -> items(summary.artists.take(30)) { artist ->
-                        Column(Modifier.fillMaxWidth().clickable { close(); openArtist(artist.title) }.padding(vertical = 8.dp)) {
-                            Text(artist.title, style = MaterialTheme.typography.titleMedium)
-                            Text("${formatListening(artist.ms)} · ${plays(artist.plays)}")
-                        }
+                    DesktopReplayDetail.SONGS -> itemsIndexed(summary.songs.take(30), key = { _, it -> it.song.videoId }) { index, entry ->
+                        OrbitReplayChartRow(
+                            OrbitReplayRow(entry.song.videoId, index + 1, entry.song.title,
+                                "${entry.song.artist} · ${formatListening(entry.listenedMs)} · ${plays(entry.plays)}", entry.song.thumbnailUrl, 0),
+                            onClick = { close(); playSong(entry.song) },
+                        )
+                    }
+                    DesktopReplayDetail.ARTISTS -> itemsIndexed(summary.artists.take(30)) { index, artist ->
+                        OrbitReplayChartRow(
+                            OrbitReplayRow(artist.title, index + 1, artist.title, "${formatListening(artist.ms)} · ${plays(artist.plays)}", artist.artworkUrl, 0),
+                            onClick = { close(); openArtist(artist.title) },
+                        )
                     }
                     DesktopReplayDetail.ALBUMS -> {
                         val tracks = summary.songs.filter { it.song.albumName == card.value }
-                        if (tracks.isNotEmpty()) items(tracks, key = { it.song.videoId }) { entry ->
-                            Column(Modifier.fillMaxWidth().clickable { close(); playSong(entry.song) }.padding(vertical = 8.dp)) {
-                                Text(entry.song.title, style = MaterialTheme.typography.titleMedium)
-                                Text("${formatListening(entry.listenedMs)} · ${plays(entry.plays)}")
-                            }
-                        } else items(summary.albums.take(30)) { album ->
-                            Column { Text(album.title); Text("${formatListening(album.ms)} · ${plays(album.plays)}") }
+                        if (tracks.isNotEmpty()) itemsIndexed(tracks, key = { _, it -> it.song.videoId }) { index, entry ->
+                            OrbitReplayChartRow(
+                                OrbitReplayRow(entry.song.videoId, index + 1, entry.song.title,
+                                    "${formatListening(entry.listenedMs)} · ${plays(entry.plays)}", entry.song.thumbnailUrl, 0),
+                                onClick = { close(); playSong(entry.song) },
+                            )
+                        } else itemsIndexed(summary.albums.take(30)) { index, album ->
+                            OrbitReplayChartRow(
+                                OrbitReplayRow(album.title, index + 1, album.title, "${formatListening(album.ms)} · ${plays(album.plays)}", album.artworkUrl, 0),
+                                onClick = null,
+                            )
                         }
                     }
                 }

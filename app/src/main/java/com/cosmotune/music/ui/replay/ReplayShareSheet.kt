@@ -15,13 +15,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,8 +25,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.IosShare
 import com.cosmotune.ui.bridge.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -51,11 +45,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.cosmotune.music.data.stats.ReplaySummary
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.replay.OrbitReplayShareBody
+import com.cosmotune.ui.replay.OrbitReplayShareNote
 import com.cosmotune.ui.theme.CosmoRadii
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -70,11 +66,11 @@ import java.util.Locale
  * Deliberately not the system chooser on its own. A chooser is a modal list of
  * app names with no sight of what is about to be sent, and what is about to be
  * sent here is the entire point — nobody shares a Replay they have not looked
- * at. So the image is the sheet, full size, and the apps sit under it as a row
- * of icons the way every story-sharing surface does.
+ * at. So the picture is the sheet, and Save and Share sit under it; Share hands
+ * the picture to the system's own chooser.
  *
- * "More" still opens the chooser, because the row is only ever the handful that
- * fit and the right app is sometimes the twelfth one.
+ * The body of an Orbit sheet ([OrbitReplayShareBody]); its host is the Orbit
+ * sheet, [com.cosmotune.ui.sheets.SurfaceSheetSwitch], which paints the ground.
  */
 @Composable
 fun ReplayShareSheet(
@@ -97,96 +93,33 @@ fun ReplayShareSheet(
             .getOrNull()
     }
 
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 20.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.share_my_replay),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.W800,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(bottom = 4.dp),
-        )
-        Text(
-            text = if (page == null) {
-                stringResource(R.string.replay_share_summary_description)
-            } else {
-                stringResource(R.string.replay_share_card_description)
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(16.dp))
-
-        // Small enough that the row of apps under it is on screen with it. A
-        // preview that pushes the share targets below the fold is a preview
-        // nobody scrolls past, and the targets are the point of the sheet.
-        Box(
-            Modifier
-                .fillMaxWidth(0.42f)
-                .align(Alignment.CenterHorizontally)
-                .aspectRatio(9f / 16f)
-                .clip(RoundedCornerShape(CosmoRadii.rLg))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            val image = poster
-            when {
-                image != null -> Image(
-                    bitmap = image.asImageBitmap(),
-                    contentDescription = stringResource(R.string.your_replay),
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                failed -> Text(
-                    text = stringResource(R.string.couldnt_draw_picture),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                else -> CircularProgressIndicator()
-            }
-        }
-
-        Spacer(Modifier.height(22.dp))
-
-        // Two buttons, not a row of app icons.
-        //
-        // Resolving the apps that accept an image and drawing their launcher
-        // icons was the first version. It looked like a share sheet because it
-        // was imitating one — and the system already has a share sheet, kept up
-        // to date, ordered by what this user actually shares to, and reachable
-        // in one tap. Reimplementing it meant asking the package manager for
-        // every app on the device, loading five icons out of other APKs, and
-        // still showing a worse list than the one Android would have shown.
-        //
-        // Disabled rather than hidden while the poster renders: buttons that
-        // appear a second after the sheet does are buttons that get tapped at
-        // exactly the moment they move.
-        val ready = poster != null
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ShareAction(
-                label = if (saved) stringResource(R.string.saved) else stringResource(R.string.save),
-                icon = Icons.Rounded.Download,
-                accent = false,
-                enabled = ready && !saved,
-                modifier = Modifier.weight(1f),
-            ) {
-                val image = poster ?: return@ShareAction
-                scope.launch { saved = saveToGallery(context, image, summary.label) }
-            }
-            ShareAction(
-                label = stringResource(R.string.share),
-                icon = Icons.Rounded.IosShare,
-                accent = true,
-                enabled = ready,
-                modifier = Modifier.weight(1f),
-            ) {
-                val image = poster ?: return@ShareAction
+    // Two buttons, not a row of app icons.
+    //
+    // Resolving the apps that accept an image and drawing their launcher icons
+    // was the first version. It looked like a share sheet because it was
+    // imitating one — and the system already has a share sheet, kept up to date,
+    // ordered by what this user actually shares to, and reachable in one tap.
+    //
+    // Disabled rather than hidden while the poster renders: buttons that appear
+    // a second after the sheet does are buttons that get tapped at exactly the
+    // moment they move. The picture is kept small enough that both are on
+    // screen with it.
+    OrbitReplayShareBody(
+        overline = stringResource(R.string.replay),
+        title = stringResource(R.string.share_my_replay),
+        description = if (page == null) {
+            stringResource(R.string.replay_share_summary_description)
+        } else {
+            stringResource(R.string.replay_share_card_description)
+        },
+        saveLabel = if (saved) stringResource(R.string.saved) else stringResource(R.string.save),
+        saved = saved,
+        onSave = {
+            poster?.let { image -> scope.launch { saved = saveToGallery(context, image, summary.label) } }
+        },
+        shareLabel = stringResource(R.string.share),
+        onShare = {
+            poster?.let { image ->
                 scope.launch {
                     val uri = cacheForSharing(context, image) ?: return@launch
                     context.startActivity(
@@ -195,6 +128,20 @@ fun ReplayShareSheet(
                     onDismiss()
                 }
             }
+        },
+        ready = poster != null,
+        modifier = Modifier.navigationBarsPadding(),
+    ) {
+        val image = poster
+        when {
+            image != null -> Image(
+                bitmap = image.asImageBitmap(),
+                contentDescription = stringResource(R.string.your_replay),
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            failed -> OrbitReplayShareNote(stringResource(R.string.couldnt_draw_picture))
+            else -> CircularProgressIndicator(color = orbitLook().dim)
         }
     }
 }

@@ -59,6 +59,7 @@ import com.cosmotune.ui.components.CosmoIcons
 /**
  * A row of a ranking (a chart, an artist's top songs): [OrbitSongRow] with no fill of its own, the place as a big narrow number in
  * its [leading] (the first in peach) and a 48 dp disc. The playing row ([now]) has its title in peach and the orbit round its disc.
+ * A null [onClick] with no [onLongClick] leaves the row inert (a Replay story's runners-up, where a tap turns the page).
  */
 @Composable
 internal fun OrbitRankedRow(
@@ -68,17 +69,19 @@ internal fun OrbitRankedRow(
     cover: String?,
     fonts: OrbitFonts,
     look: OrbitLook,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     now: Boolean = false,
     playing: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     trailingText: String? = null,
+    /** Stands in for a missing [cover] (a genre, which has no picture of its own). */
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     OrbitSongRow(
         title, subtitle, cover, fonts, look, onClick, modifier.fillMaxWidth(), now = now, playing = playing, onLongClick = onLongClick,
-        height = 66.dp, discSize = 48.dp, gap = 6.dp, radius = 18.dp, plain = true, endPadding = 6.dp, trailingText = trailingText, trailing = trailing,
+        icon = icon, height = 66.dp, discSize = 48.dp, gap = 6.dp, radius = 18.dp, plain = true, endPadding = 6.dp, trailingText = trailingText, trailing = trailing,
         leading = {
             Text(
                 "$rank", style = fonts.number.copy(fontSize = 40.sp, lineHeight = 40.sp), color = if (rank == 1) look.accent else look.ink.copy(alpha = 0.3f),
