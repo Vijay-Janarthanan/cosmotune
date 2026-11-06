@@ -66,7 +66,7 @@ class EmulatorFindingsContractTest {
         assertTrue("showAlbum = showAlbum," in page, "and the rows get its answer")
         assertFalse("showAlbum = !isAlbum" in page, "the old rule, which drew a dash on every row of a playlist without albums, is gone")
         val row = SourceContract.code(SourceContract.functionBody(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopCollectionPage.kt"), "CollectionTrackRow")).replace(Regex("\\s+"), " ")
-        assertTrue("if (showAlbum) { Text(" in row && "Column(Modifier.weight(1f))" in row, "without the column the title and the artist (weight 1) take its room")
+        assertTrue("song.albumName?.takeIf { showAlbum && it.isNotBlank() }" in row, "a row names its album only where the rule says rows name one")
     }
 
     // ---- the desktop page scrolls to the window's edge: the bar's room is content padding, and only while the bar is there --------------

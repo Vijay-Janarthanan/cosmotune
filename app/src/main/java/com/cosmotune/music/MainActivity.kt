@@ -3201,6 +3201,22 @@ private fun CosmotuneApp(
                             songSort = songSort,
                             contentPadding = listPadding,
                             onPlayPause = togglePlayPause,
+                            // The release card's Download: the same request the sheet's "Download all" makes, filed under the
+                            // release. Nothing on this device needs fetching, so a local page has none.
+                            onDownloadAll = { songs: List<Song> ->
+                                startDownload(
+                                    songs.map(withAlbum),
+                                    page.browseId.takeIf { page.type != BrowseType.ARTIST }?.let { id ->
+                                        DownloadTarget(
+                                            id = id,
+                                            title = page.title,
+                                            subtitle = page.subtitle,
+                                            thumbnailUrl = page.thumbnailUrl,
+                                            playlist = page.type == BrowseType.PLAYLIST,
+                                        )
+                                    },
+                                )
+                            }.takeIf { !page.browseId.startsWith("local:") },
                         )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> com.cosmotune.ui.home.HomeSwitch(

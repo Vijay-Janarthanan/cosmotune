@@ -77,8 +77,8 @@ internal object PageMetrics {
     /** The rows of an artist's list (`.mrow`), which the artist page's skeleton stands for. */
     const val ROW_DP = BlockMetrics.ROW_DP
 
-    /** Where the find-in-list field stands once open: after the cover, the meta and the actions. */
-    const val SEARCH_ITEM_INDEX = 3
+    /** Where the find-in-list field stands once open: after the card and the list controls. */
+    const val SEARCH_ITEM_INDEX = 2
 
     /** About: three lines of body text until "Read more". */
     const val ABOUT_LINES = 3

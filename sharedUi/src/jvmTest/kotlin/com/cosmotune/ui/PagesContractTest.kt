@@ -81,9 +81,13 @@ class PagesContractTest {
         val old = parameters(SourceContract.read(screenPath), "DetailScreen")
         val switch = parameters(SourceContract.read(switchPath), "DetailSwitch")
         assertEquals(23, old.size, "DetailScreen has 23 parameters; if this changed, DetailSwitch has to decide about the new one")
-        // P4-20: one more at the end, defaulted: the root's play/pause toggle, which only the artist page uses (the old call does not pass it)
+        // P4-20 and Orbit: more at the end, defaulted, that the old call does not pass: the root's play/pause toggle and the release
+        // card's Download
         assertEquals(old, switch.take(old.size), "DetailSwitch starts with DetailScreen's parameters: same names, types, defaults and order")
-        assertEquals(listOf("onPlayPause: (() -> Unit)? = null"), switch.drop(old.size), "and has the one extra of P4-20")
+        assertEquals(
+            listOf("onPlayPause: (() -> Unit)? = null", "onDownloadAll: ((List<Song>) -> Unit)? = null"),
+            switch.drop(old.size), "and has the extras of P4-20 and Orbit",
+        )
     }
 
     @Test fun theOldBranchPassesEveryParameterByName() {
@@ -126,8 +130,9 @@ class PagesContractTest {
     @Test fun theSignaturesOfThePagesAreThoseOfTheBrief() {
         assertEquals(
             listOf(
-                "page", "songs", "trackNumbers", "currentSong", "isPlaying", "listState", "contentPadding", "onSongClick", "onSongLongPress",
+                "page", "songs", "currentSong", "isPlaying", "listState", "contentPadding", "onSongClick", "onSongLongPress",
                 "onSongSwipe", "onShuffle", "onMore", "onArtistClick", "onAddSuggested", "onToggleLibrary", "modifier", "initialOrder", "downloadedIds",
+                "onDownloadAll", "albumCanvas", "onPlayPause",
             ),
             names(page("CosmoReleasePage"), "CosmoReleasePage"),
         )
@@ -246,8 +251,9 @@ class PagesContractTest {
         val artist = SourceContract.code(page("CosmoArtistPage"))
         assertTrue("PaddingValues(bottom = contentPadding.calculateBottomPadding())" in artist, "only the foot of the padding is the artist list's")
         val release = SourceContract.code(page("CosmoReleasePage"))
-        assertTrue("PaddingValues(bottom = contentPadding.calculateBottomPadding())" in release, "the cover colour runs up under the bar: only the foot of the padding is the list's")
-        assertTrue("top = contentPadding.calculateTopPadding() + PageMetrics.COVER_TOP_DP.dp" in release, "and the cover stands below the bar")
+        assertTrue("OrbitReleaseCard(" in release && "OrbitTrackRow(" in release, "the release is the colour card and Home's rows")
+        assertTrue("motion = albumCanvas" in release, "the album's animated cover plays in the card's disc")
+        assertTrue("top = contentPadding.calculateTopPadding() + PageMetrics.COVER_TOP_DP.dp" in release, "the card stands below the bar")
         assertTrue("state = listState" in release && "state = listState" in artist, "both lists use the caller's state")
     }
 
@@ -280,7 +286,7 @@ class PagesContractTest {
         assertEquals("64f", const("LATEST_COVER_DP"))
         assertEquals("5", const("SHELF_PREVIEW_ITEMS"))
         assertEquals("3", const("ABOUT_LINES"))
-        assertEquals("3", const("SEARCH_ITEM_INDEX"))
+        assertEquals("2", const("SEARCH_ITEM_INDEX"))
         assertTrue("TRACK_ROW_DP = BlockMetrics.TRACK_ROW_DP" in metrics, "the track rows are the 60 dp of the blocks")
         assertEquals(60f, BlockMetrics.TRACK_ROW_DP)
     }

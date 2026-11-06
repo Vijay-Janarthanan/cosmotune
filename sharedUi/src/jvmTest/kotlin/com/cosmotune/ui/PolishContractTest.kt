@@ -218,11 +218,12 @@ class PolishContractTest {
         val old = SourceContract.parameters(SourceContract.read("${app}ui/screens/DetailScreen.kt"), "DetailScreen")
         val own = SourceContract.parameters(switch, "DetailSwitch")
         assertEquals(old, own.take(old.size), "the switch starts with the old screen's parameters, as written")
-        assertEquals(listOf("onPlayPause: (() -> Unit)? = null"), own.drop(old.size), "and has one more, defaulted, at the end")
+        assertEquals("onPlayPause: (() -> Unit)? = null", own.drop(old.size).first(), "and has more, defaulted, at the end: the toggle first")
         val body = SourceContract.code(SourceContract.functionBody(switch, "DetailSwitch")).replace(Regex("\\s+"), " ")
         val artist = body.substringAfter("CosmoArtistPage(").substringBefore("CosmoReleasePage(")
         assertTrue(artist.contains("onPlayPause = onPlayPause"), "the artist page gets the toggle")
-        assertEquals(1, Regex("""onPlayPause = onPlayPause""").findAll(body).count(), "and only the artist page")
+        // Orbit: the release card's bite is the toggle too while one of its songs is loaded
+        assertEquals(2, Regex("""onPlayPause = onPlayPause""").findAll(body).count(), "the artist and the release page, nobody else")
         assertFalse(body.substringAfter("} else { DetailScreen(").contains("onPlayPause"), "the old screen's call does not know it")
     }
 
