@@ -40,10 +40,10 @@ class PodioFormatTest {
     }
 
     @Test fun progressFollowsTheLibrary() {
-        assertEquals("Played", PodioFormat.progress(completed = true, positionMs = 0, durationMs = 0))
-        assertEquals("", PodioFormat.progress(false, 0, 600_000))
-        assertEquals("Resume at 1:25", PodioFormat.progress(false, 85_000, 600_000))
-        assertEquals("Played", PodioFormat.progress(false, 599_000, 600_000))
+        assertEquals("Played", PodioFormat.heard(completed = true, positionMs = 0, durationMs = 0))
+        assertEquals("", PodioFormat.heard(false, 0, 600_000))
+        assertEquals("8 min left", PodioFormat.heard(false, 85_000, 600_000))
+        assertEquals("Played", PodioFormat.heard(false, 599_000, 600_000))
         assertEquals(0.5f, PodioFormat.progressFraction(false, 300_000, 600_000))
         assertEquals(0f, PodioFormat.progressFraction(true, 300_000, 600_000))
         assertEquals(0f, PodioFormat.progressFraction(false, 300_000, 0))
@@ -53,9 +53,6 @@ class PodioFormatTest {
         assertEquals("12 Oct · 45 min · Downloaded", PodioFormat.episodeMeta("12 Oct", " ", "45 min", "", "Downloaded"))
         assertEquals("Chennai, India · tamil · MP3 128 kbps", PodioFormat.stationMeta("Chennai, India", "tamil", "MP3", 128))
         assertEquals("India · AAC", PodioFormat.stationMeta("India", "", "AAC", 0))
-        assertEquals("HF", PodioFormat.initials("Hello FM"))
-        assertEquals("FM", PodioFormat.initials("  "))
-        assertEquals(PodioFormat.hue("Radio One"), PodioFormat.hue("Radio One"))
     }
 
     @Test fun showNotesBecomePlainText() {
@@ -64,16 +61,25 @@ class PodioFormatTest {
         assertEquals("abc", PodioFormat.plainText("abcdef", limit = 3))
     }
 
-    @Test fun sidebarRowsMapToSectionsAndFilters() {
+    @Test fun sidebarRowsMapToSections() {
         assertEquals(PodioSection.RADIO, PodioFormat.section("Radio", false))
         assertEquals(PodioSection.PODCASTS, PodioFormat.section("Podcasts", false))
-        assertEquals(PodioSection.EPISODES, PodioFormat.section("Episodes", false))
-        assertEquals(PodioSection.LIBRARY, PodioFormat.section("Library", false))
-        assertEquals(PodioSection.LIBRARY, PodioFormat.section("Saved", false))
-        assertEquals(PodioSection.LIBRARY, PodioFormat.section("Radio", true))
-        assertEquals(SavedFilter.STATIONS, PodioFormat.savedFilter("Radio", true))
-        assertEquals(SavedFilter.SHOWS, PodioFormat.savedFilter("Podcasts", true))
-        assertEquals(null, PodioFormat.savedFilter("Saved", false))
+        assertEquals(PodioSection.GLOBE, PodioFormat.section("Globe", false))
+        assertEquals(PodioSection.FOLLOWING, PodioFormat.section("Following", false))
+        assertEquals(PodioSection.DOWNLOADS, PodioFormat.section("Downloads", false))
+        // The old names land on Following, where the follows, the new episodes and the saved stations now are.
+        assertEquals(PodioSection.FOLLOWING, PodioFormat.section("Episodes", false))
+        assertEquals(PodioSection.FOLLOWING, PodioFormat.section("Library", false))
+        assertEquals(PodioSection.FOLLOWING, PodioFormat.section("Saved", false))
+        assertEquals(PodioSection.FOLLOWING, PodioFormat.section("Radio", true))
+        assertEquals(PodioSection.RADIO, PodioFormat.section("Anything else", false))
+    }
+
+    @Test fun anEpisodeSaysHowMuchIsLeft() {
+        assertEquals("", PodioFormat.heard(false, 0, 600_000))
+        assertEquals("8 min left", PodioFormat.heard(false, 85_000, 600_000))
+        assertEquals("Resume at 1:25", PodioFormat.heard(false, 85_000, 0))
+        assertEquals("Played", PodioFormat.heard(true, 0, 600_000))
     }
 
     @Test fun theSheetSettlesOnTheNearestAnchorOrFlingsToTheNext() {

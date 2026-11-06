@@ -3,117 +3,110 @@ package com.cosmotune.podio.ui
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Stop
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.unit.Velocity
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import com.cosmotune.podio.RadioStation
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
+import com.cosmotune.podio.item
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.kit.KitArt
-import com.cosmotune.ui.kit.KitArtwork
-import com.cosmotune.ui.theme.CosmoRadii
-import com.cosmotune.ui.theme.CosmoSpacing
-import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoType
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitHeardDisc
+import com.cosmotune.ui.orbit.OrbitLogoDisc
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitMenu
+import com.cosmotune.ui.orbit.OrbitMenuItem
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.OrbitStationRecord
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.LocalReducedMotion
 import kotlinx.coroutines.launch
 
 /*
- * Podio's own pieces, written in the kit's manner (Cosmo palette and type, rows on the page, thin chips, one accent) for what the kit
- * does not have yet: a station's logo tile, a station row with a heart and the song on air, an episode row with its progress and
- * download state, a chip that opens a menu, a draggable sheet that stays over a map, and a round play button that can say Stop.
- * Each is a candidate for promotion into com.cosmotune.ui.kit.
+ * Podio's own pieces, built of the Orbit kit: a station as a song row (its logo disc, the heart at its end), a station as a record in
+ * a grid with its menu on a hold, an episode as a song row whose disc carries how much is heard, the heart, and the sheet that stays
+ * over the full-screen globe.
  */
 
-/** The station's logo; a station with none (or one that does not load) gets a tile in its own colour with its initials. */
-@Composable internal fun StationLogo(station: RadioStation, size: Dp, radius: Dp = CosmoRadii.rSm) {
-    var loaded by remember(station.artwork) { mutableStateOf(false) }
-    val type = LocalCosmoType.current
-    val tile = remember(station.name) { Color.hsv(PodioFormat.hue(station.name).toFloat(), .45f, .42f) }
-    Box(Modifier.size(size).clip(RoundedCornerShape(radius)).background(if (loaded) Color.White else tile), contentAlignment = Alignment.Center) {
-        if (!loaded) Text(PodioFormat.initials(station.name), color = Color.White, style = type.label.copy(fontSize = (size.value * .34f).sp, fontWeight = FontWeight(600)), maxLines = 1)
-        if (station.artwork.isNotBlank()) AsyncImage(station.artwork, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit, onSuccess = { loaded = true })
-    }
+/** The heart of a station: a round button, solid ink when [saved]. */
+@Composable internal fun HeartButton(saved: Boolean, onClick: () -> Unit, look: OrbitLook, ink: Color = look.ink, onInk: Color = look.ground, size: Dp = 40.dp) {
+    OrbitRoundButton(if (saved) CosmoIcons.HeartFill else CosmoIcons.Heart, if (saved) "Remove favourite" else "Save favourite", ink, onClick, size = size, on = saved, onInk = onInk)
 }
 
-/** The small red dot of a live stream, with "LIVE" beside it when [label] is set. */
-@Composable internal fun LiveMark(label: Boolean = true, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.size(7.dp).clip(CircleShape).background(Color(palette.danger)))
-        if (label) Text("LIVE", style = type.overline, color = Color(palette.textSecondary), maxLines = 1)
+/** A station's logo disc in a row's disc slot, wearing the orbit while it is the one on air. */
+@Composable internal fun StationRowDisc(station: RadioStation, onAir: Boolean, playing: Boolean, fonts: OrbitFonts, look: OrbitLook, size: Dp = 44.dp) {
+    Box(Modifier.size(size + 8.dp), contentAlignment = Alignment.Center) {
+        OrbitLogoDisc(station.artwork, station.name, size, fonts)
+        if (onAir) OrbitRing(size + 8.dp, look.accent, progress = null, spinning = playing, stroke = 1.5.dp, moon = 3.dp)
     }
-}
-
-/** The heart of a station or a show: a toggle, the filled heart in the accent when [saved]. */
-@Composable internal fun HeartButton(saved: Boolean, onClick: () -> Unit, savedLabel: String = "Remove favourite", unsavedLabel: String = "Save favourite") {
-    CosmoIconButton(if (saved) CosmoIcons.HeartFill else CosmoIcons.Heart, if (saved) savedLabel else unsavedLabel, onClick,
-        style = CosmoIconButtonStyle.PLAIN, size = 40.dp, on = saved, accentWhenOn = true)
 }
 
 /**
- * A station in a list (the kit's media row with a logo): the logo, the name over the place, language and stream, or over what is on
- * air while it plays ([onAir]); the heart at the end. A tap plays it; the one that is on draws its name in the accent.
+ * A station in a list (the search, the stations under the globe's ring): the song row with the logo disc, the name over the place,
+ * language and stream, or over what is on air while it plays ([onAir]); the heart at the end. A tap plays it; the one that is on
+ * is the peach row.
  */
-@Composable internal fun StationRow(station: RadioStation, saved: Boolean, current: Boolean, onPlay: () -> Unit, onSave: () -> Unit, onAir: String? = null, showHeart: Boolean = true) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).combinedClickable(role = Role.Button, onClickLabel = "Play", onClick = onPlay)
-        .padding(start = CosmoSpacing.margin, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        StationLogo(station, 48.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(station.name, style = type.forText(type.rowTitle, station.name),
-                color = Color(if (current) palette.accentStrong else palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (current) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                LiveMark(label = false)
-                Text(onAir?.let { "On air: $it" } ?: "On air now", style = type.meta, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            } else {
-                val meta = PodioFormat.stationMeta(station.placeLine(), station.language, station.codec, station.bitrate)
-                if (meta.isNotBlank()) Text(meta, style = type.meta, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+@Composable internal fun StationRow(station: RadioStation, saved: Boolean, current: Boolean, playing: Boolean, onPlay: () -> Unit, onSave: () -> Unit,
+    fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier, onAir: String? = null, showHeart: Boolean = true) {
+    val line = if (current) onAir?.let { "On air: $it" } ?: "On air now"
+        else PodioFormat.stationMeta(station.placeLine(), station.language, station.codec, station.bitrate)
+    OrbitSongRow(station.name, line, null, fonts, look, onPlay, modifier.fillMaxWidth(), now = current, playing = playing, endPadding = if (showHeart) 8.dp else 16.dp,
+        discContent = { StationRowDisc(station, current, playing, fonts, look) },
+        trailing = if (showHeart) ({ HeartButton(saved, onSave, look) }) else null)
+}
+
+/**
+ * The stations as a grid of records (board section C, "Stations"): [columns] to a row, each [cell] wide; the one on air wears the
+ * orbit. A hold (or a right click) opens the station's menu: save or remove it, play it.
+ */
+internal fun LazyListScope.stationGrid(key: String, stations: List<RadioStation>, columns: Int, cell: Dp, side: Dp, env: PodioEnv, m: PodioModel,
+    fonts: OrbitFonts, look: OrbitLook) {
+    val rows = stations.chunked(columns.coerceAtLeast(1))
+    items(rows.size, key = { "$key-" + rows[it].first().id }) { index ->
+        Row(Modifier.fillMaxWidth().padding(horizontal = side).padding(top = if (index == 0) 4.dp else 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            rows[index].forEach { station -> StationTile(station, env, m, fonts, look, cell) }
+            repeat(columns - rows[index].size) { Spacer(Modifier.width(cell + 12.dp)) }
         }
-        if (showHeart) HeartButton(saved, onSave) else Spacer(Modifier.width(12.dp))
+    }
+}
+
+/** One station of a grid or a shelf: its record, and its menu on a hold. */
+@Composable internal fun StationTile(station: RadioStation, env: PodioEnv, m: PodioModel, fonts: OrbitFonts, look: OrbitLook, size: Dp) {
+    var menu by remember { mutableStateOf(false) }
+    val onAir = env.playback.id == station.item().id
+    val saved = env.saved.stations.any { it.id == station.id }
+    Box {
+        OrbitStationRecord(station.name, if (onAir) "On air" else station.shortPlace(), station.artwork, fonts, look, onClick = { m.playStation(station) },
+            onAir = onAir, playing = onAir && env.playback.playing, onLongClick = { menu = true }, size = size)
+        OrbitMenu(menu, { menu = false }, listOf(
+            OrbitMenuItem(if (onAir) "Playing" else "Play", icon = CosmoIcons.Play, enabled = !onAir) { m.playStation(station) },
+            OrbitMenuItem(if (saved) "Remove from your stations" else "Save to your stations", icon = if (saved) CosmoIcons.HeartFill else CosmoIcons.Heart) { m.toggleFavourite(station) },
+        ), fonts, look, header = station.name)
     }
 }
 
@@ -121,91 +114,26 @@ import kotlinx.coroutines.launch
 internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
 
 /**
- * An episode in a show's list (Prism's and AntennaPod's): the art, the title on up to two lines, "date · length · progress ·
- * download" under it, a thin progress line for a started episode, and the download button at the end. A tap plays it (or resumes);
- * [onMore] opens the episode's sheet.
+ * An episode as the song row (board section C, "show page = the album page"): the cover as a disc with how much is [heard] as its
+ * faint orbit, the title, "date · length · 18 min left" under it, and the download and details buttons at the end. The one that is
+ * on ([now]) is the peach row, its orbit moving with [progress]. A tap plays it (or resumes); a hold or [onMore] opens its sheet.
  */
-@Composable internal fun EpisodeRow(title: String, meta: String, artUrl: String?, progress: Float, current: Boolean, download: DownloadMark,
-    onPlay: () -> Unit, onDownload: () -> Unit, onMore: (() -> Unit)?) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).combinedClickable(role = Role.Button, onClickLabel = "Play", onClick = onPlay, onLongClick = onMore)
-        .padding(start = CosmoSpacing.margin, end = 4.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        KitArtwork(artUrl?.takeIf(String::isNotBlank), KitArt.SQUARE, 56.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, style = type.forText(type.rowTitle, title),
-                color = Color(if (current) palette.accentStrong else palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (meta.isNotBlank()) Text(meta, style = type.meta, color = Color(palette.textSecondary), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (progress > 0f) Box(Modifier.padding(top = 4.dp).fillMaxWidth(.6f).height(3.dp).clip(CircleShape).background(Color(palette.track))) {
-                Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(palette.accent)))
+@Composable internal fun EpisodeRow(title: String, meta: String, artUrl: String?, heard: Float, now: Boolean, playing: Boolean, progress: (() -> Float?)?,
+    download: DownloadMark, onPlay: () -> Unit, onDownload: () -> Unit, onMore: (() -> Unit)?, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+    val art = artUrl?.takeIf(String::isNotBlank)
+    OrbitSongRow(title, meta, art, fonts, look, onPlay, modifier.fillMaxWidth(), now = now, playing = playing, progress = progress, onLongClick = onMore, endPadding = 6.dp,
+        discContent = if (now) null else ({ OrbitHeardDisc(art, 44.dp, heard, look) }),
+        trailing = {
+            when (download) {
+                DownloadMark.NONE -> {}
+                DownloadMark.AVAILABLE -> OrbitRoundButton(CosmoIcons.Download, "Download episode", look.ink, onDownload, size = 36.dp)
+                DownloadMark.RUNNING -> OrbitRoundButton(CosmoIcons.Close, "Cancel episode download", look.ink, onDownload, size = 36.dp)
+                DownloadMark.DONE -> Box(Modifier.size(36.dp).semantics { contentDescription = "Episode downloaded"; disabled() }, contentAlignment = Alignment.Center) {
+                    Icon(CosmoIcons.Downloaded, null, tint = look.dim, modifier = Modifier.size(18.dp))
+                }
             }
-        }
-        when (download) {
-            DownloadMark.NONE -> {}
-            DownloadMark.AVAILABLE -> CosmoIconButton(CosmoIcons.Download, "Download episode", onDownload, style = CosmoIconButtonStyle.PLAIN, size = 40.dp)
-            DownloadMark.RUNNING -> CosmoIconButton(CosmoIcons.Close, "Cancel episode download", onDownload, style = CosmoIconButtonStyle.PLAIN, size = 40.dp)
-            DownloadMark.DONE -> CosmoIconButton(CosmoIcons.Downloaded, "Episode downloaded", onDownload, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, enabled = false)
-        }
-        if (onMore != null) CosmoIconButton(CosmoIcons.MoreVertical, "Episode details", onMore, style = CosmoIconButtonStyle.PLAIN, size = 40.dp)
-    }
-}
-
-/**
- * A thin chip (the kit's chip, design system 4.4's dropdown chip) that opens a menu of [choices] (id to label): it reads the chosen
- * label with a chevron after it, and takes the inverse neutral while a choice other than the first ("World", "All languages") is made.
- */
-@Composable internal fun MenuChip(title: String, value: String, choices: List<Pair<String, String>>, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    var expanded by remember { mutableStateOf(false) }
-    val active = value != choices.firstOrNull()?.first
-    val label = choices.firstOrNull { it.first == value }?.second ?: value
-    // The kit chip's colours (DESIGN_SYSTEM.md 4.4): surface2 at rest, the inverse neutral when a choice is made; never the accent.
-    val ink = Color(if (active) palette.backgroundBottom else palette.textPrimary)
-    Box(modifier) {
-        Row(Modifier.minimumInteractiveComponentSize().height(34.dp).clip(RoundedCornerShape(50)).background(Color(if (active) palette.textPrimary else palette.surfaceHigh))
-            .clickable(role = Role.Button, onClickLabel = "Choose $title") { expanded = true }
-            .semantics { stateDescription = "$title: $label" }
-            .padding(start = 14.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(label, style = type.control, color = ink, maxLines = 1)
-            Icon(CosmoIcons.ChevronDown, null, tint = ink, modifier = Modifier.size(16.dp))
-        }
-        DropdownMenu(expanded, { expanded = false }, modifier = Modifier.heightIn(max = 360.dp)) {
-            choices.forEach { (id, name) -> DropdownMenuItem(text = { Text(name) }, onClick = { expanded = false; onSelect(id) },
-                trailingIcon = if (id == value) ({ Icon(CosmoIcons.Check, null, Modifier.size(18.dp)) }) else null) }
-        }
-    }
-}
-
-/**
- * The round play button of Podio's pages: the accent filled circle with the play, pause or (a live station) stop glyph, a spinner
- * while it loads. Named for what a press does.
- */
-@Composable internal fun PodioPlayButton(playing: Boolean, loading: Boolean, live: Boolean, onClick: () -> Unit, size: Dp = 48.dp, modifier: Modifier = Modifier,
-    /** The accent circle (a player, a station page); false is the mini player's plain glyph on the neutral dock. */ filled: Boolean = true) {
-    val palette = LocalCosmoColors.current.palette
-    val label = when { playing && live -> "Stop"; playing -> "Pause"; else -> "Play" }
-    val ink = Color(if (filled) palette.onAccent else palette.textPrimary)
-    Box(modifier.minimumInteractiveComponentSize().size(size).clip(CircleShape).then(if (filled) Modifier.background(Color(palette.accent)) else Modifier)
-        .clickable(role = Role.Button, onClickLabel = label, onClick = onClick).semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
-        if (loading) CircularProgressIndicator(Modifier.size(size * .45f), color = if (filled) ink else Color(palette.textSecondary), strokeWidth = 2.dp)
-        else Icon(when { playing && live -> Icons.Outlined.Stop; playing -> CosmoIcons.Pause; else -> CosmoIcons.Play }, null,
-            tint = ink, modifier = Modifier.size(if (filled) size * .5f else 24.dp))
-    }
-}
-
-/** A labelled text-and-icon pill that toggles, for the player's speed and timer ("1.5×", "Sleep timer"). */
-@Composable internal fun ToolPill(text: String, icon: ImageVector?, onClick: () -> Unit, modifier: Modifier = Modifier, active: Boolean = false) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val ink = Color(palette.textPrimary)
-    Row(modifier.minimumInteractiveComponentSize().heightIn(min = 36.dp).clip(RoundedCornerShape(50))
-        .background(Color(if (active) palette.surfaceVariant else palette.surfaceHigh)).clickable(role = Role.Button, onClick = onClick)
-        .padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (icon != null) Icon(icon, null, tint = ink, modifier = Modifier.size(16.dp))
-        Text(text, style = type.control, color = ink, maxLines = 1)
-    }
+            if (onMore != null) { Spacer(Modifier.width(4.dp)); OrbitRoundButton(CosmoIcons.MoreVertical, "Episode details", look.ink, onMore, size = 36.dp) }
+        })
 }
 
 /**
@@ -217,7 +145,7 @@ internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
  */
 @Composable internal fun MapSheet(peek: Dp, maxHeight: Dp, modifier: Modifier = Modifier, expand: Int = 0,
     header: @Composable ColumnScope.() -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
     val density = LocalDensity.current
     val reduced = LocalReducedMotion.current
     val scope = rememberCoroutineScope()
@@ -255,13 +183,13 @@ internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
         }
     } }
     Column(modifier.fillMaxWidth().height(with(density) { now().toDp() })
-        .clip(RoundedCornerShape(topStart = CosmoRadii.rXl, topEnd = CosmoRadii.rXl)).background(Color(palette.backgroundBottom)).testTag("podio:sheet")) {
+        .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)).background(look.ground).testTag("podio:sheet")) {
         Column(Modifier.fillMaxWidth().draggable(drag, Orientation.Vertical, onDragStopped = { velocity -> settle(PodioFormat.snap(now(), velocity, anchors)) })) {
             Box(Modifier.fillMaxWidth().height(24.dp)
                 .clickable(role = Role.Button, onClickLabel = if (open) "Hide stations" else "Show stations") {
                     scope.launch { settle(if (open) peekPx else anchors[1]) }
                 }.semantics { contentDescription = if (open) "Hide stations" else "Show stations" }, contentAlignment = Alignment.Center) {
-                Box(Modifier.size(36.dp, 4.dp).clip(CircleShape).background(Color(palette.textTertiary).copy(alpha = .6f)))
+                Box(Modifier.size(36.dp, 4.dp).clip(CircleShape).background(look.ink.copy(alpha = .3f)))
             }
             header()
         }
@@ -270,3 +198,6 @@ internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
 }
 
 internal fun RadioStation.placeLine(): String = listOf(state, country).filter(String::isNotBlank).distinct().joinToString(", ")
+
+/** The shortest useful place of a station under its disc: the state or the country, else the language. */
+internal fun RadioStation.shortPlace(): String = state.ifBlank { country }.ifBlank { language.replaceFirstChar { it.uppercase() } }

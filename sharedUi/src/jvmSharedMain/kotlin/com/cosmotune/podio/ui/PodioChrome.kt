@@ -1,156 +1,127 @@
 package com.cosmotune.podio.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cosmotune.design.TypeScale
-import com.cosmotune.podio.PodcastShow
-import com.cosmotune.podio.RadioStation
+import com.cosmotune.podio.PodioItem
+import com.cosmotune.podio.PodioSaved
 import com.cosmotune.ui.blocks.LocalModeProfileAction
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.kit.KitArt
-import com.cosmotune.ui.kit.KitArtwork
-import com.cosmotune.ui.kit.KitLargeTopBar
 import com.cosmotune.ui.kit.KitModeSwitcher
-import com.cosmotune.ui.kit.KitTextButton
-import com.cosmotune.ui.theme.CosmoRadii
-import com.cosmotune.ui.theme.CosmoSpacing
-import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoType
-import com.cosmotune.ui.theme.tabular
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitPageButton
+import com.cosmotune.ui.orbit.OrbitPageHeading
+import com.cosmotune.ui.orbit.WatchMessage
+import com.cosmotune.ui.orbit.WatchSkeleton
 
-/** A round icon button of Podio's bars (search, add, refresh): the kit's 40 dp tonal button, a plain button for screen readers. */
-@Composable internal fun BarButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
-    CosmoIconButton(icon, label, onClick, style = CosmoIconButtonStyle.TONAL, size = 40.dp, enabled = enabled)
+/*
+ * The frame of Podio's pages in Orbit (board section C): the phone's mode pill, the page heading with its peach full stop and its
+ * round buttons, the head of a page opened over a section (back and the mono kind), the notice along the foot, and the quiet states.
+ */
+
+/** What every Podio page reads besides the model: the library, the playback, the downloads and where the page ends. */
+internal class PodioEnv(
+    val saved: PodioSaved,
+    val playback: PodioPlayback,
+    val downloaded: List<PodioItem>,
+    val downloadStatus: Map<String, String>,
+    val downloadsRunning: Set<String>,
+    /** Room under the last row: the dock (phone) or a gap. */
+    val bottom: Dp,
+    val onMusic: (() -> Unit)?,
+    val chooseSection: (PodioSection) -> Unit,
+    /** True on the desktop and tablets: the player is a bar along the foot. */
+    val wide: Boolean,
+    /** Play or pause what is loaded. */
+    val onToggle: () -> Unit,
+) {
+    /** How far through what is playing, 0..1, or null for a live stream or nothing known. */
+    fun playedFraction(): Float? = playback.durationMs.takeIf { it > 0 }?.let { (playback.positionMs.toFloat() / it).coerceIn(0f, 1f) }
 }
 
+/** Whether Podio's pages lead with the mode pill: on the phone yes; the rail and the desktop sidebar have their own. */
+internal val LocalPodioModeSwitcher = staticCompositionLocalOf { false }
+
 /**
- * A root page's top bar (design system 4.1): the kit's large light title that collapses on scroll, the mode switcher's pill in the
- * leading slot ([modeSwitcher]: the phone's root pages; the rail and the desktop sidebar carry their own), then the page's own
- * action, Search and the account at the end. [onHeight] hears the bar's height, for the list under it to start below the title.
+ * A section's head (board section C, "Radio."): on the phone the mode pill and the account first; then the mono [label] over the
+ * [title] in the wide face with its peach full stop, and the page's round buttons at the end ([actions]).
  */
-@Composable internal fun PodioTopBar(title: String, collapse: () -> Float, onSearch: (() -> Unit)?, onMusic: (() -> Unit)?, onHeight: (Dp) -> Unit,
-    modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null, modeSwitcher: Boolean = LocalPodioModeSwitcher.current) {
-    val density = LocalDensity.current
-    val account = LocalModeProfileAction.current
-    KitLargeTopBar(title, collapse, modifier.onSizeChanged { onHeight(with(density) { it.height.toDp() }) },
-        leading = if (modeSwitcher) ({ KitModeSwitcher() }) else null,
-        actions = {
-            action?.invoke()
-            if (onSearch != null) BarButton(CosmoIcons.Search, "Search", onSearch)
-            when {
-                account != null -> account()
-                onMusic != null -> KitTextButton("Music", onMusic)
+@Composable internal fun PodioHead(title: String, label: String, fonts: OrbitFonts, look: OrbitLook, side: Dp, onMusic: (() -> Unit)?,
+    modifier: Modifier = Modifier, actions: @Composable RowScope.() -> Unit = {}) {
+    val phone = LocalPodioModeSwitcher.current
+    Column(modifier.fillMaxWidth()) {
+        if (phone) {
+            Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = side, end = side, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                KitModeSwitcher()
+                Spacer(Modifier.weight(1f))
+                val account = LocalModeProfileAction.current
+                if (account != null) account() else if (onMusic != null) PodioTextAction("Music", look, fonts, onMusic)
             }
-        })
-}
-
-/** Whether Podio's root pages lead their bar with the mode pill: on the phone yes; the rail and the desktop sidebar have their own. */
-internal val LocalPodioModeSwitcher = androidx.compose.runtime.staticCompositionLocalOf { false }
-
-/**
- * A pushed page's small bar (a show, the search page): back, a title that fades in once the page's own header has scrolled away
- * ([titleShown], 0..1, read in the layer phase), and the page's actions. Ground and hairline appear with the title.
- */
-@Composable internal fun PodioSmallBar(title: String, titleShown: () -> Float, onBack: () -> Unit, modifier: Modifier = Modifier, backLabel: String = "Back",
-    actions: @Composable RowScope.() -> Unit = {}) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    Box(modifier.fillMaxWidth().drawBehind {
-        val shown = titleShown().coerceIn(0f, 1f)
-        drawRect(Color(palette.backgroundBottom).copy(alpha = shown))
-        if (shown > 0f) drawRect(Color(palette.textPrimary).copy(alpha = .08f * shown), Offset(0f, size.height - 1f), Size(size.width, 1f))
-    }.windowInsetsPadding(WindowInsets.statusBars).height(56.dp)) {
-        Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            CosmoIconButton(CosmoIcons.ArrowLeft, backLabel, onBack, style = CosmoIconButtonStyle.TONAL, size = 40.dp)
-            Box(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
         }
-        Text(title, style = type.titleLarge, color = Color(palette.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.Center).padding(horizontal = 64.dp).graphicsLayer { alpha = titleShown().coerceIn(0f, 1f) })
-    }
-}
-
-/** A notice or an error along the foot of the page, over the content (design system 4.21): one line, one action. */
-@Composable internal fun PodioBanner(text: String, actionLabel: String, onAction: () -> Unit, danger: Boolean, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Row(modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 8.dp).clip(RoundedCornerShape(CosmoRadii.rMd)).background(Color(palette.surfaceHigh))
-        .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (danger) Box(Modifier.size(8.dp).clip(RoundedCornerShape(CosmoRadii.rXs)).background(Color(palette.danger)))
-        if (danger) Spacer(Modifier.width(10.dp))
-        Text(text, Modifier.weight(1f).padding(vertical = 10.dp), style = type.bodyText, color = Color(if (danger) palette.danger else palette.textPrimary), maxLines = 3, overflow = TextOverflow.Ellipsis)
-        KitTextButton(actionLabel, onAction)
-    }
-}
-
-/** A light page heading in the list itself (the desktop shows its title as the first item of the page, design system 4.1). */
-@Composable internal fun PageHeading(text: String, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Text(text, modifier.padding(horizontal = CosmoSpacing.margin, vertical = 8.dp).semantics { heading() }, style = type.forText(type.titleLarge, text),
-        color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
-}
-
-/** One line of secondary text on the page (a count, a hint, a credit). */
-@Composable internal fun MetaLine(text: String, modifier: Modifier = Modifier, small: Boolean = false) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Text(text, modifier.padding(horizontal = CosmoSpacing.margin), style = (if (small) type.caption else type.meta),
-        color = Color(if (small) palette.textTertiary else palette.textSecondary), maxLines = 3, overflow = TextOverflow.Ellipsis)
-}
-
-/** A chart's row (design system 6.3, "Top in Portugal"): the rank, the 56 dp cover, the show over its publisher. */
-@Composable internal fun ShowRow(show: PodcastShow, rank: Int?, onClick: () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).combinedClickable(role = Role.Button, onClick = onClick)
-        .padding(horizontal = CosmoSpacing.margin, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (rank != null) Text(rank.toString(), Modifier.width(32.dp), style = type.meta.tabular(), color = Color(palette.textTertiary), maxLines = 1)
-        KitArtwork(show.artwork.takeIf(String::isNotBlank), KitArt.SQUARE, 56.dp)
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(show.title.ifBlank { "Podcast" }, style = type.forText(type.rowTitle, show.title), color = Color(palette.textPrimary),
-                maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (show.author.isNotBlank()) Text(show.author, style = type.meta, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        OrbitPageHeading(title, label, fonts, look, Modifier.padding(start = side + 4.dp, end = side, top = if (phone) 18.dp else 30.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
         }
     }
 }
 
-/** A station on a shelf (Favourites): its logo tile, its name, its place; a tap plays it. */
-@Composable internal fun StationCard(station: RadioStation, onClick: () -> Unit, width: Dp = 120.dp) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Column(Modifier.width(width).combinedClickable(role = Role.Button, onClickLabel = "Play", onClick = onClick)) {
-        StationLogo(station, width, radius = CosmoRadii.rMd)
-        Spacer(Modifier.height(8.dp))
-        Text(station.name, style = type.forText(type.rowTitle, station.name), color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        val place = station.placeLine()
-        if (place.isNotBlank()) Text(place, style = type.meta, color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+/** The head of a page opened over a section (a show, a station): the round back button and the mono [kind]. */
+@Composable internal fun PodioBackHead(kind: String, onBack: () -> Unit, fonts: OrbitFonts, look: OrbitLook, side: Dp, modifier: Modifier = Modifier,
+    backLabel: String = "Back", actions: @Composable RowScope.() -> Unit = {}) {
+    Row(modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = side, end = side, top = 14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        OrbitPageButton(CosmoIcons.ChevronLeft, backLabel, onBack)
+        OrbitLabel(kind, fonts, look.dim, Modifier.weight(1f))
+        actions()
     }
+}
+
+/** A word in the accent that does something ("Music", "Clear", "Load older episodes"). */
+@Composable internal fun PodioTextAction(text: String, look: OrbitLook, fonts: OrbitFonts, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    Text(text, style = fonts.chip, color = if (enabled) look.accent else look.dim, maxLines = 1,
+        modifier = modifier.clip(CircleShape).clickable(enabled = enabled, onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp))
+}
+
+/** A notice or an error along the foot of the page, over the content: a raised rounded row, one line, one action. */
+@Composable internal fun PodioBanner(text: String, actionLabel: String, onAction: () -> Unit, danger: Boolean, look: OrbitLook, fonts: OrbitFonts, modifier: Modifier = Modifier) {
+    val ground = if (look.dark) Color(0xFF1C1418) else Color(0xFFFBF6F2)
+    Row(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(22.dp)).background(ground)
+        .border(1.dp, look.ink.copy(alpha = 0.08f), RoundedCornerShape(22.dp))
+        .padding(start = 18.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (danger) { Box(Modifier.size(8.dp).clip(CircleShape).background(look.accent)); Spacer(Modifier.width(10.dp)) }
+        Text(text, Modifier.weight(1f).padding(vertical = 10.dp), style = fonts.body, color = look.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        PodioTextAction(actionLabel, look, fonts, onAction)
+    }
+}
+
+/** An empty or problem state of a page: the mono label, the wide heading, a line and an optional action. */
+@Composable internal fun PodioMessage(label: String, title: String, text: String, fonts: OrbitFonts, look: OrbitLook, side: Dp, action: String? = null, onAction: (() -> Unit)? = null) {
+    WatchMessage(label, title, text, fonts, look, Modifier.padding(horizontal = side).padding(top = 18.dp).fillMaxWidth(), action, onAction)
+}
+
+/** Rows standing in while a list loads. */
+@Composable internal fun PodioSkeletonRows(count: Int, look: OrbitLook, side: Dp, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().padding(horizontal = side).padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(count) { WatchSkeleton(look, Modifier.fillMaxWidth().height(68.dp), radius = 22.dp) }
+    }
+}
+
+/** The quiet credit at the foot of a page ("Stations: Radio Browser"). */
+@Composable internal fun PodioCredit(text: String, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
+    Text(text, style = fonts.body.copy(fontSize = 11.5.sp), color = look.dim.copy(alpha = 0.8f), modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 20.dp))
 }

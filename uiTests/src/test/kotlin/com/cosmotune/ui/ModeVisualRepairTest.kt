@@ -110,7 +110,7 @@ class ModeVisualRepairTest {
                 PodioApp(storage, PodioPlayback(), { item, _ -> played += item }, {}, {}, {}, {},
                     directory = catalogue)
             } } }
-            // Search is the top bar's button; on a wide window its page takes the list pane, the globe stays beside it.
+            // Search is the heading's round button; its page lists the stations, the Globe is its own section.
             compose.onNodeWithContentDescription("Search").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Tamil Two").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("All languages").performClick()
@@ -119,10 +119,12 @@ class ModeVisualRepairTest {
             compose.onNodeWithText("Tamil Two").performClick()
             compose.runOnIdle { assertEquals("Tamil Two", played.single().title) }
             snapshot("podio-desktop.png", "podio:root")
+            compose.onNodeWithText("Find a station").assertIsDisplayed()
+            compose.onNodeWithContentDescription("Close search").performClick()
+            compose.onNode(hasText("Globe") and isSelectable()).performClick()
             compose.onNodeWithTag("podio:globe").performTouchInput { click(center) }
             compose.onNodeWithContentDescription("Zoom in").performClick()
             snapshot("podio-map.png", "podio:root")
-            compose.onNodeWithText("Find a station").assertIsDisplayed()
             compose.onNode(hasText("Podcasts") and isSelectable()).performClick()
             compose.onNode(hasText("Podcasts") and isSelectable()).assertIsSelected()
             try {

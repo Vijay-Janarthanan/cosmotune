@@ -69,7 +69,7 @@ class PodioInteractionTest {
                     onToggle = {}, onSeek = {}, onSpeed = {}, onMusic = {},
                     directory = directory)
             } } }
-            // Search is the top bar's button (design system 5.2); its page lists every station of the directory's answer.
+            // Search is the heading's round button; its page lists every station of the directory's answer.
             compose.onNodeWithContentDescription("Search").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test Radio").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithContentDescription("Save favourite").performClick()
@@ -108,9 +108,10 @@ class PodioInteractionTest {
             compose.setContent { PodioTestTheme { Box(Modifier.size(412.dp, 892.dp)) {
                 PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = directory)
             } } }
-            // The phone's Radio page: the globe, the place under the ring, the dock's four labelled tabs.
-            compose.onNodeWithTag("podio:globe").assertExists()
-            listOf("Radio", "Podcasts", "Episodes", "Library").forEach { compose.onNode(hasText(it) and isSelectable()).assertExists() }
+            // The phone's Radio page: the stations as discs, the Globe chip, the dock's four labelled tabs.
+            compose.onNodeWithTag("podio:radio").assertExists()
+            compose.onNodeWithText("Globe").assertExists()
+            listOf("Radio", "Podcasts", "Following", "Downloads").forEach { compose.onNode(hasText(it) and isSelectable()).assertExists() }
             snapshot("podio-phone-radio.png")
             compose.onNodeWithContentDescription("Search").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Test Radio").fetchSemanticsNodes().isNotEmpty() }
@@ -134,23 +135,20 @@ class PodioInteractionTest {
             compose.setContent { PodioTestTheme { Box(Modifier.size(412.dp, 892.dp)) {
                 PodioApp(file, PodioPlayback(), { item, _ -> played += item }, {}, {}, {}, {}, directory = fixture.catalogue)
             } } }
-            // The full-screen globe: the dock steps aside, the sheet of stations stays over its foot.
-            compose.onNodeWithContentDescription("Full screen map").performClick()
+            // The Globe chip opens the globe on the whole phone: the dock steps aside, the sheet of stations stays over its foot.
+            compose.onNodeWithText("Globe").performClick()
             compose.onNodeWithTag("podio:radio-full").assertExists()
             compose.onNodeWithTag("podio:sheet").assertExists()
-            compose.onNode(hasText("Episodes") and isSelectable()).assertDoesNotExist()
+            compose.onNode(hasText("Following") and isSelectable()).assertDoesNotExist()
             compose.onNodeWithContentDescription("Close full screen map").performClick()
-            // Episodes: the newest episodes of the followed shows.
-            compose.onNode(hasText("Episodes") and isSelectable()).performClick()
+            // Following: the newest episodes of the followed shows.
+            compose.onNode(hasText("Following") and isSelectable()).performClick()
             compose.waitUntil(20_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }
             snapshot("podio-phone-episodes.png")
             compose.onNodeWithText("A real episode").performClick()
             compose.runOnIdle { assertEquals("https://audio.example/episode.mp3", played.single().url) }
-            // Library: the followed show on its shelf, the chips narrow it to shows.
-            compose.onNode(hasText("Library") and isSelectable()).performClick()
-            compose.onNodeWithText("Test podcast").assertExists()
-            compose.onNode(hasText("Shows") and isSelectable()).performClick()
-            compose.onNodeWithText("Test podcast").assertIsDisplayed()
+            // Following keeps the followed show as a record (its title over its publisher) under the new episodes.
+            compose.onNode(hasText("Test podcast") and hasText("A host")).assertExists()
             snapshot("podio-phone-library.png")
         }
     }
@@ -170,14 +168,14 @@ class PodioInteractionTest {
             compose.onNodeWithText("Retry").performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }
             assertEquals(2, calls.get())
-            compose.onNodeWithText("Refresh").performSemanticsAction(SemanticsActions.OnClick) { it() }
+            compose.onNodeWithContentDescription("Refresh").performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(5_000) { calls.get() == 3 }
             compose.onNode(hasText("Radio") and isSelectable()).performSemanticsAction(SemanticsActions.OnClick) { it() }
             // Let the delayed response finish: it must not replace the newly selected Radio page.
             Thread.sleep(500)
             compose.waitForIdle()
             compose.onNodeWithTag("podio:show").assertDoesNotExist()
-            compose.onNodeWithTag("podio:globe").assertIsDisplayed()
+            compose.onNodeWithTag("podio:radio").assertIsDisplayed()
         }
     }
     /** The Podcasts tab of the dock or the rail (the page's own title says "Podcasts" too). */
