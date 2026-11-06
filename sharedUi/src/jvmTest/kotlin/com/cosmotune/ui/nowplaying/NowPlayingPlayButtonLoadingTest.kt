@@ -7,7 +7,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.playback.PlaybackPosition
@@ -60,6 +62,21 @@ class NowPlayingPlayButtonLoadingTest {
         } finally {
             scene.close()
         }
+    }
+
+    /** The size the button takes in its bite: the ring must not grow it, or the bite would place the button off centre. */
+    private fun laidOutSize(loading: Boolean): IntSize {
+        var measured = IntSize.Zero
+        val scene = ImageComposeScene(width = 200, height = 200, density = Density(1f)) {
+            Box(Modifier.onSizeChanged { measured = it }) { NowPlayingPlayButton(transport(loading), look, 66.dp, HERO_BITE_RING) }
+        }
+        try { scene.render() } finally { scene.close() }
+        return measured
+    }
+
+    @Test fun theRingDoesNotMoveTheButton() {
+        assertEquals(IntSize(66, 66), laidOutSize(loading = false))
+        assertEquals(IntSize(66, 66), laidOutSize(loading = true), "loading, the button keeps its place in the bite")
     }
 
     @Test fun aLoadingSongCirclesThePlayButton() = assertTrue(ringPixels(loading = true) > 100, "the orbit is drawn in the bite's ring")

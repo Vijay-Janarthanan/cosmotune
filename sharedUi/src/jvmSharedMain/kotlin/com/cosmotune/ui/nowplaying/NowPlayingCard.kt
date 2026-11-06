@@ -232,7 +232,8 @@ private fun CardTitle(t: NowPlayingTransport, fonts: OrbitFonts, ink: Color, siz
  */
 @Composable
 internal fun NowPlayingPlayButton(t: NowPlayingTransport, look: OrbitLook, size: Dp, ring: Dp) {
-    Box(contentAlignment = Alignment.Center) {
+    // The button's own size, so the bite places the button where it always was; the ring spills out round it, centred.
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         if (t.isLoading) {
             OrbitRing(ring, look.accent, progress = null, spinning = true, stroke = 1.5.dp, moon = 3.dp,
                 modifier = Modifier.requiredSize(ring).semantics { contentDescription = "Loading" })
