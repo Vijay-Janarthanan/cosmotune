@@ -117,17 +117,17 @@ import kotlin.math.sin
 
 // ---- the look -----------------------------------------------------------------------------------------------------------------
 
-internal val PEACH = Color(0xFFFFB98F)
-internal val PEACH_INK = Color(0xFFC9663A)
+val PEACH = Color(0xFFFFB98F)
+val PEACH_INK = Color(0xFFC9663A)
 internal val ROOM_FILL = Color(0xFF1F1C3D)
 internal val ROOM_INK = Color(0xFFECE8FF)
 internal val ROOM_DIM = Color(0xFFA9A3E6)
 internal val ROOM_TEXT = Color(0xFFC9C4F2)
 internal val LIVE = Color(0xFF7CE3A1)
 internal val CARD_FALLBACK = Color(0xFF3A2A2A)
-internal val CARD_INK = Color(0xFFFFEDE2)
+val CARD_INK = Color(0xFFFFEDE2)
 
-internal class OrbitFonts(val wide: FontFamily, val narrow: FontFamily, val text: FontFamily) {
+class OrbitFonts(val wide: FontFamily, val narrow: FontFamily, val text: FontFamily) {
     val greeting = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 38.sp, lineHeight = 38.sp, letterSpacing = (-0.6).sp)
     val heroTitle = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 26.sp, lineHeight = 27.sp, letterSpacing = (-0.4).sp)
     val section = TextStyle(fontFamily = wide, fontWeight = FontWeight(800), fontSize = 21.sp, lineHeight = 24.sp, letterSpacing = (-0.3).sp)
@@ -139,7 +139,7 @@ internal class OrbitFonts(val wide: FontFamily, val narrow: FontFamily, val text
 }
 
 @Composable
-internal fun orbitFonts(): OrbitFonts {
+fun orbitFonts(): OrbitFonts {
     val wide = Font(Res.font.archivo_variable, FontWeight(800), FontStyle.Normal, FontVariation.Settings(FontVariation.weight(800), FontVariation.width(125f)))
     val narrow = Font(Res.font.archivo_variable, FontWeight(900), FontStyle.Normal, FontVariation.Settings(FontVariation.weight(900), FontVariation.width(62f)))
     val text = cosmoFontFamilies().second
@@ -147,13 +147,13 @@ internal fun orbitFonts(): OrbitFonts {
 }
 
 /** The page's own colours: ink and its dim from the theme, peach for what is playing, a quiet fill for chips and rows. */
-internal class OrbitLook(val dark: Boolean, val ink: Color, val dim: Color, val chip: Color, val row: Color, val accent: Color, val ground: Color)
+class OrbitLook(val dark: Boolean, val ink: Color, val dim: Color, val chip: Color, val row: Color, val accent: Color, val ground: Color)
 
 @Composable
-internal fun orbitLook(): OrbitLook = orbitLook(LocalCosmoColors.current)
+fun orbitLook(): OrbitLook = orbitLook(LocalCosmoColors.current)
 
 /** The look for [colors] (a screen that provides its own colours reads them before providing them). */
-internal fun orbitLook(colors: com.cosmotune.ui.theme.CosmoColors): OrbitLook {
+fun orbitLook(colors: com.cosmotune.ui.theme.CosmoColors): OrbitLook {
     val dark = colors.dark
     val ink = Color(colors.palette.textPrimary)
     return OrbitLook(
@@ -168,10 +168,10 @@ internal fun orbitLook(colors: com.cosmotune.ui.theme.CosmoColors): OrbitLook {
 }
 
 /** One deep colour from a cover and the ink that reads on it; always the dark palette, so the card is deep in both themes. */
-internal class CoverTint(val fill: Color, val ink: Color)
+class CoverTint(val fill: Color, val ink: Color)
 
 @Composable
-internal fun rememberCoverTint(url: String?): CoverTint? {
+fun rememberCoverTint(url: String?): CoverTint? {
     val context = LocalPlatformContext.current
     val follow = LocalCosmoShell.current?.settings?.coverColours?.value != false
     val tint by produceState<CoverTint?>(null, url, follow) {
@@ -202,11 +202,11 @@ internal fun vivid(argb: Int): CoverTint {
 }
 
 /** Deep colours a card wears until its cover's colour is known, picked by the item so a row is not a run of grey. */
-internal val STAND_INS = listOf(0xFF5E2A1C, 0xFF1C4C49, 0xFF2E2758, 0xFF4E3C12, 0xFF44203F, 0xFF1D3656, 0xFF3F4A16).map { Color(it) }
+val STAND_INS = listOf(0xFF5E2A1C, 0xFF1C4C49, 0xFF2E2758, 0xFF4E3C12, 0xFF44203F, 0xFF1D3656, 0xFF3F4A16).map { Color(it) }
 
 /** The fill and ink of a card for [url]: the stand-in for [key] first, then the cover's colour fading in. */
 @Composable
-internal fun coverFill(url: String?, key: String): Pair<Color, Color> {
+fun coverFill(url: String?, key: String): Pair<Color, Color> {
     val tint = rememberCoverTint(url)
     val fill by animateColorAsState(tint?.fill ?: STAND_INS[Math.floorMod(key.hashCode(), STAND_INS.size)], tween(450), label = "fill")
     return fill to (tint?.ink ?: CARD_INK)
@@ -215,7 +215,7 @@ internal fun coverFill(url: String?, key: String): Pair<Color, Color> {
 // ---- the shapes -----------------------------------------------------------------------------------------------------------------
 
 /** A rounded card with a round bite out of its bottom-end corner: the bite's centre is [inset] in from both edges. */
-internal class BiteShape(private val corner: Dp, private val bite: Dp, private val inset: Dp) : Shape {
+class BiteShape(private val corner: Dp, private val bite: Dp, private val inset: Dp) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline = with(density) {
         val card = Path().apply { addRoundRect(RoundRect(Rect(Offset.Zero, size), CornerRadius(corner.toPx()))) }
         val x = if (layoutDirection == LayoutDirection.Ltr) size.width - inset.toPx() else inset.toPx()
@@ -224,7 +224,7 @@ internal class BiteShape(private val corner: Dp, private val bite: Dp, private v
     }
 }
 
-internal val HeroBite = BiteShape(corner = 34.dp, bite = 41.dp, inset = 46.dp)
+val HeroBite = BiteShape(corner = 34.dp, bite = 41.dp, inset = 46.dp)
 
 @Composable
 internal fun Disc(url: String?, size: Dp, modifier: Modifier = Modifier) {
@@ -338,7 +338,7 @@ internal fun OrbitRoomCard(room: RoomLauncher, fonts: OrbitFonts, modifier: Modi
 // ---- sections -------------------------------------------------------------------------------------------------------------------
 
 @Composable
-internal fun OrbitSectionHeader(title: String, subtitle: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
+fun OrbitSectionHeader(title: String, subtitle: String, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier) {
     Column(modifier.fillMaxWidth()) {
         Text(title, style = fonts.section, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (subtitle.isNotBlank()) Text(subtitle, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
