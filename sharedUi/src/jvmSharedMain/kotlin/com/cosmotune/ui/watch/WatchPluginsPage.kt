@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
+import com.cosmotune.ui.components.cosmoFocusRing
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.AnnotatedString
@@ -124,7 +125,6 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
             PackCard(fonts, look, onShare = { sharing = true }, onImport = { importing = true })
             LocalWatchRoomPacks.current?.let { packs -> RoomPacksCard(packs, repository, fonts, look, onImport = { importLink = it }) }
             LocalWatchLinkHandler.current?.let { handler -> LinkHandlerCard(handler, fonts, look) }
-            FindPlugins(repository, fonts, look)
             if (metadata == MetadataSource.FALLBACK) {
                 Text("No TMDB key is set, so pages come from Cinemeta and your plugins.", style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp))
@@ -138,6 +138,10 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
             item(key = "plugins:heading") {
                 OrbitPageHeading("Plugins", "${builtIn.size} built in · ${builtIn.count { it.enabled }} on · plays from the start", fonts, look,
                     Modifier.padding(start = side + 6.dp, end = side, top = if (frame.wide) 24.dp else 18.dp))
+            }
+            // Where to find more, first and plain to see: the directories open in the browser; a link found there is added below.
+            item(key = "plugins:find") {
+                FindPlugins(repository, fonts, look, frame.wide, Modifier.padding(horizontal = side).padding(top = if (frame.wide) 22.dp else 18.dp))
             }
             item(key = "plugins:body") {
                 if (frame.wide) {
@@ -292,22 +296,52 @@ private fun PackCard(fonts: OrbitFonts, look: OrbitLook, onShare: () -> Unit, on
     }
 }
 
-/** "Find plugins": directories to browse in the web browser. Links only. */
+/**
+ * "Find plugins" (the head of the page): a flat teal card that says where more plugins, playlists and servers are found, with each
+ * directory as a row that opens in the web browser (two to a line when the page is wide). Links only: nothing is fetched from them,
+ * and a link found there is added with "Add a plugin or source".
+ */
 @Composable
-private fun FindPlugins(repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook) {
+private fun FindPlugins(repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook, wide: Boolean, modifier: Modifier = Modifier) {
     val uri = LocalUriHandler.current
-    Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OrbitLabel("Find plugins · opens in your browser", fonts, look.dim, Modifier.padding(horizontal = 6.dp))
-        repository.pluginDirectories.forEach { d ->
-            WatchRowFrame(look, height = 68.dp, onClick = { runCatching { uri.openUri(d.url) } }) {
-                WatchLogoTile(d.title.take(1).uppercase(), logoFill(d.title), fonts, size = 42.dp)
-                Column(Modifier.weight(1f)) {
-                    Text(d.title, style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(d.description, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = look.dim, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    val ink = FIND_INK
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp)).background(FIND_FILL).padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 18.dp)) {
+        OrbitLabel("Find plugins · opens in your browser", fonts, ink.copy(alpha = 0.75f))
+        Text("More to watch", style = fonts.section.copy(fontSize = 22.sp, lineHeight = 26.sp), color = ink, modifier = Modifier.padding(top = 10.dp))
+        Text("Directories of free add-ons, channel playlists and servers. Copy a link from one and add it under \"Add a plugin or source\".",
+            style = fonts.body.copy(fontSize = 13.sp), color = ink.copy(alpha = 0.82f), modifier = Modifier.padding(top = 6.dp))
+        Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            repository.pluginDirectories.chunked(if (wide) 2 else 1).forEach { line ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    line.forEach { d -> DirectoryRow(d, ink, fonts, Modifier.weight(1f)) { runCatching { uri.openUri(d.url) } } }
+                    if (line.size == 1 && wide) Spacer(Modifier.weight(1f))
                 }
-                Icon(CosmoIcons.Share, contentDescription = "Open in the browser", tint = look.dim, modifier = Modifier.size(18.dp))
             }
         }
+    }
+}
+
+/** The teal of "Find plugins" and the pale ink on it. */
+private val FIND_FILL = Color(0xFF1C4C49)
+private val FIND_INK = Color(0xFFE6F6F2)
+
+/** One directory on the "Find plugins" card: its letter tile, name and line, and the open mark; a tap opens it in the browser. */
+@Composable
+private fun DirectoryRow(d: com.cosmotune.watch.DirectoryLink, ink: Color, fonts: OrbitFonts, modifier: Modifier, onOpen: () -> Unit) {
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Row(
+        modifier.height(64.dp).cosmoFocusRing(interaction, 20.dp).clip(RoundedCornerShape(20.dp)).background(ink.copy(alpha = 0.10f))
+            .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClickLabel = "Open ${d.title} in the browser", onClick = onOpen)
+            .padding(start = 10.dp, end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        WatchLogoTile(d.title.take(1).uppercase(), logoFill(d.title), fonts, size = 40.dp)
+        Column(Modifier.weight(1f)) {
+            Text(d.title, style = fonts.title.copy(fontSize = 14.sp), color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(d.description, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = ink.copy(alpha = 0.72f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = ink.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
     }
 }
 
