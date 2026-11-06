@@ -3659,10 +3659,8 @@ private fun CosmotuneApp(
                     }
                     "replay" -> {
                         if (showReplay && !showReplayShare) {
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.background,
-                            ) {
+                            // On the Orbit ground (the page's own gradient), opaque over the Settings page kept under it.
+                            com.cosmotune.music.ui.components.OrbitPageGround {
                                 ReplayScreen(
                                     state = replay,
                                     holder = account?.name.orEmpty(),
@@ -4421,15 +4419,9 @@ private fun CosmotuneApp(
         // ---- Share the Replay ----
         if (showReplayShare) {
             replay.summary?.takeUnless { it.isEmpty }?.let { summary ->
-                ModalBottomSheet(
-                    onDismissRequest = { showReplayShare = false },
-                    // Straight to full height. The sheet is a picture and two
-                    // buttons, and half-open it showed the picture with both
-                    // buttons below the fold â€” a sheet whose only two controls
-                    // need a drag to reach.
-                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                    containerColor = MaterialTheme.colorScheme.background,
-                ) {
+                // Straight to full height, on the Orbit sheet: the sheet is a picture and two buttons, and half-open it showed the
+                // picture with both buttons below the fold.
+                com.cosmotune.music.ui.components.OrbitSheetHost(onDismiss = { showReplayShare = false }) {
                     ReplayShareSheet(
                         summary = summary,
                         holder = account?.name.orEmpty(),
@@ -4792,10 +4784,7 @@ private fun CosmotuneApp(
                 DownloadSession.markSeen()
             }
             BackHandler(onBack = closeDownloadManager)
-            ModalBottomSheet(
-                onDismissRequest = closeDownloadManager,
-                containerColor = MaterialTheme.colorScheme.background,
-            ) {
+            com.cosmotune.music.ui.components.OrbitSheetHost(onDismiss = closeDownloadManager) {
                 DownloadManagerSheet(onDismiss = closeDownloadManager)
             }
         }
@@ -5099,11 +5088,7 @@ private fun CosmotuneApp(
                     override suspend fun onPostFling(consumed: Velocity, available: Velocity) = available
                 }
             }
-            ModalBottomSheet(
-                onDismissRequest = close,
-                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                containerColor = MaterialTheme.colorScheme.background,
-            ) {
+            com.cosmotune.music.ui.components.OrbitSheetHost(onDismiss = close) {
                 ReorderPlaylistSheet(
                     modifier = Modifier.nestedScroll(keepSheetStill),
                     playlist = target,
