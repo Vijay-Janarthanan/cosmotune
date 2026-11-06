@@ -64,7 +64,9 @@ class DownloadSheetStructureTest {
         assertTrue("SurfaceSheetSwitch(" in code("$downloadsUi/DownloadOptionsSheet.kt"), "the phone's sheet is part two's sheet host")
         assertTrue("SurfaceSheetSwitch(" in code("$downloadsUi/SubtitleLanguageList.kt"), "the language list too")
         val surface = code("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/sheets/CosmoSheetSurface.kt")
-        assertTrue(".cosmoGlass(hazeState = null, shape = SHEET_SHAPE)" in surface, "whose surface has no backdrop blur")
+        // Orbit's sheet is flat on its own ground: no glass and no backdrop blur at all.
+        assertTrue("orbitSheetGround(orbitLook())" in surface, "whose surface is Orbit's flat sheet ground")
+        assertFalse(Regex("""hazeEffect|hazeChild|\.blur\(|cosmoGlass""").containsMatchIn(surface), "whose surface has no backdrop blur")
         assertTrue("CosmoDialogCard(onDismiss = onDismiss, maxWidth = cardWidth, hazeState = null)" in code("$downloadsUi/DownloadOptionsDialog.kt"))
         assertTrue(".cosmoGlass(hazeState = null, shape = TOAST_SHAPE)" in code("$downloadsUi/DownloadToast.kt"))
         for (path in mine) {

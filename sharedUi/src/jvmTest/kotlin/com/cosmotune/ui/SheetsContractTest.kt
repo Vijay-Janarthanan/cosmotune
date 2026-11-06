@@ -58,7 +58,7 @@ class SheetsContractTest {
             SourceContract.parameters(sheet("CosmoToast"), "CosmoToast"),
         )
         assertEquals(
-            listOf("onDismiss: () -> Unit", "maxWidth: Dp", "hazeState: HazeState? = null", "content: @Composable ColumnScope.() -> Unit"),
+            listOf("onDismiss: () -> Unit", "maxWidth: Dp", "hazeState: HazeState? = null", "scrim: Boolean = true", "content: @Composable ColumnScope.() -> Unit"),
             SourceContract.parameters(sheet("CosmoDialogCard"), "CosmoDialogCard"),
         )
         assertEquals(emptyList(), SourceContract.parameters(sheet("CosmoMenuSurface"), "cosmoMenuSurface"))

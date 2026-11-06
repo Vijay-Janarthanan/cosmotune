@@ -20,9 +20,9 @@ import kotlin.test.assertTrue
  * and the moment are run; what needs a window is pinned by reading the source.
  */
 class MusicLinkContractTest {
-    private val controls = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/nowplaying/NowPlayingControls.kt"
-    private val nowPlaying = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/nowplaying/CosmoNowPlaying.kt"
-    private val wide = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/nowplaying/NowPlayingWide.kt"
+    // Orbit's Now Playing decides the link and offers it in its more menu, on the phone and wide alike.
+    private val controls = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/nowplaying/CosmoNowPlaying.kt"
+    private val nowPlaying = controls
     private val modeLinks = "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/modes/ModeLinks.kt"
     private val phoneHost = "app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt"
     private val desktopHost = "desktopApp/src/main/kotlin/com/cosmotune/video/host/DesktopModeHost.kt"
@@ -126,21 +126,14 @@ class MusicLinkContractTest {
         val screen = flat(nowPlaying)
         assertEquals(1, count(screen, "val watchMusicVideo = rememberWatchMusicVideo(song, canvas, position)"))
         assertTrue(screen.indexOf("val canvas = rememberCanvasArtwork(song)") < screen.indexOf("rememberWatchMusicVideo("), "after the canvas")
-        assertEquals(2, count(screen, "onWatchMusicVideo = watchMusicVideo"), "the stack's tools and the wide header")
+        assertEquals(1, count(screen, "watchMusicVideo?.let { add(OrbitMenuItem("), "offered once, in the more menu both faces share")
     }
 
-    @Test fun theToolIsTheVideoIconWithItsDescriptionInTheToolsRowAndTheWideHeaderOnlyWhenThereIsAnAction() {
-        val tools = body(controls, "Tools")
-        val button = "CosmoIconButton(CosmoIcons.Video, stringResource(Res.string.cosmo_watch_music_video), onWatchMusicVideo, style = CosmoIconButtonStyle.PLAIN, size = 40.dp, tint = resting)"
-        assertEquals(1, count(tools, "if (onWatchMusicVideo != null) { $button }"), "behind the decision, the other tools' look")
-        assertTrue(tools.indexOf("CosmoIcons.Together") < tools.indexOf("CosmoIcons.Video") && tools.indexOf("CosmoIcons.Video") < tools.indexOf("CosmoIcons.MoreVertical"), "after the tools, before the overflow")
-        assertEquals("onWatchMusicVideo: (() -> Unit)? = null", VideoSourceContract.parameters(read(controls), "NowPlayingStack").last(), "one more optional parameter, at the end")
-        assertTrue("Tools(lyricsOpen, onToggleLyrics, onOpenOutput, onTogether, queueOpen, onToggleQueue, onWatchMusicVideo, onOpenMenu)" in body(controls, "NowPlayingStack"))
-        val header = body(wide, "NowPlayingWideHeader")
-        assertEquals("onWatchMusicVideo: (() -> Unit)? = null", VideoSourceContract.parameters(read(wide), "NowPlayingWideHeader").last(), "one more optional parameter, at the end")
-        val wideButton = "if (onWatchMusicVideo != null) { CosmoIconButton(CosmoIcons.Video, stringResource(Res.string.cosmo_watch_music_video), onWatchMusicVideo, style = CosmoIconButtonStyle.TONAL, size = HEADER_BUTTON) }"
-        assertEquals(1, count(header, wideButton), "the wide page has no tools row: the header's buttons")
-        assertTrue(header.indexOf(wideButton) < header.indexOf("if (hasVideo) {"), "beside the video toggle")
+    @Test fun theLinkIsAMenuItemWithTheVideoIconOnlyWhenThereIsAnAction() {
+        val screen = flat(nowPlaying)
+        val item = "watchMusicVideo?.let { add(OrbitMenuItem(\"Watch the music video\", \"In Video mode, from this moment\", CosmoIcons.Video, onClick = it)) }"
+        assertEquals(1, count(screen, item), "behind the decision, with the video icon and what it does")
+        assertTrue(screen.indexOf("OrbitMenuItem(\"Listen together\"") < screen.indexOf(item) && screen.indexOf(item) < screen.indexOf("OrbitMenuItem(\"Visuals\""), "after Listen together, before Visuals")
     }
 
     // ---- The seam ---------------------------------------------------------------------------------------------------------------

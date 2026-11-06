@@ -261,8 +261,11 @@ class WiringStructureTest {
         assertTrue("ReadApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true)" in phoneManga, "Read, the books mode, is routed beside Manga")
         assertTrue("if (request.value != null) shell.settings.setMode(AppMode.MUSIC)" in phoneManga, "a music link opened while reading returns to Music")
         val desktop = VideoSourceContract.code(read("desktopApp/src/main/kotlin/com/cosmotune/video/host/DesktopModeHost.kt"))
-        assertTrue("fun desktopMangaShown()" in desktop && "fun DesktopVideoPage(" in desktop)
-        val desktopManga = desktop.substringAfter("fun desktopMangaShown()").substringBefore("fun DesktopVideoPage(")
+        assertTrue("fun desktopMangaShown()" in desktop && "fun DesktopMangaPage(" in desktop && "fun DesktopVideoPage(" in desktop)
+        // Watch's pages sit between the two since Watch mode landed (its player pauses Music by design): the Manga branch is the
+        // shown check and the page itself.
+        val desktopManga = desktop.substringAfter("fun desktopMangaShown()").substringBefore("fun desktopPodioShown()") +
+            desktop.substringAfter("fun DesktopMangaPage(").substringBefore("fun DesktopVideoPage(")
         for (branch in listOf(phoneManga, desktopManga)) for (call in listOf("pause", "PlayPause", "stopVideoForMusic", "playSong", ".stop(")) {
             assertFalse(call in branch, "the Manga branch never calls $call")
         }
