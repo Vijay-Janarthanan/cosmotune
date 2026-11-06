@@ -1,0 +1,53 @@
+package com.cosmotune.watch.plugin
+
+/**
+ * The plugins that ship inside the app, in the Plugins page order, with their default switch. This list is the whole
+ * built-in set: no torrent, debrid or site-scraper plugin is bundled or pre-configured, and none may be added here.
+ */
+object BuiltInPlugins {
+    data class Def(val id: String, val kind: PluginKind, val name: String, val description: String, val badge: String,
+        val defaultEnabled: Boolean, val capabilities: Set<Capability>)
+
+    const val IPTV_ORG = "iptv"
+    const val PLUTO = "pluto"
+    const val SAMSUNG = "samsung"
+    const val PLEX = "plex"
+    const val ARCHIVE = "ia"
+    const val YOUTUBE = "youtube"
+    const val PUBLIC_DOMAIN = "pdm"
+    const val OPENSUBTITLES = "opensubtitles"
+    const val WATCHHUB = "watchhub"
+
+    /** The Stremio-protocol add-ons the built-ins use (read-only HTTP JSON). */
+    const val PUBLIC_DOMAIN_URL = "https://pdm.strem.fun/manifest.json"
+    const val OPENSUBTITLES_URL = "https://opensubtitles-v3.strem.io/manifest.json"
+    const val WATCHHUB_URL = "https://watchhub.strem.io/manifest.json"
+
+    val all: List<Def> = listOf(
+        Def(IPTV_ORG, PluginKind.IPTV_ORG, "iptv-org free channels", "Live TV · public channel lists · guide where available", "IPTV", true,
+            setOf(Capability.LIVE, Capability.EPG, Capability.SEARCH)),
+        Def(PLUTO, PluginKind.PLUTO_TV, "Pluto TV", "Live TV and free films and series", "PLUTO", true,
+            setOf(Capability.LIVE, Capability.EPG, Capability.CATALOG, Capability.SEARCH, Capability.STREAMS, Capability.META)),
+        Def(SAMSUNG, PluginKind.SAMSUNG_TV_PLUS, "Samsung TV Plus", "Live TV · free", "TV+", true,
+            setOf(Capability.LIVE, Capability.EPG, Capability.SEARCH)),
+        Def(PLEX, PluginKind.PLEX_FREE, "Plex free", "Free films and series, live TV", "PLEX", true,
+            setOf(Capability.CATALOG, Capability.SEARCH, Capability.STREAMS, Capability.LIVE, Capability.EPG, Capability.META)),
+        Def(ARCHIVE, PluginKind.INTERNET_ARCHIVE, "Internet Archive", "Classic and public-domain films", "ARC", true,
+            setOf(Capability.CATALOG, Capability.SEARCH, Capability.STREAMS, Capability.META)),
+        Def(YOUTUBE, PluginKind.YOUTUBE_FREE, "Free on YouTube", "Full films and episodes from official channels", "YT", true,
+            setOf(Capability.CATALOG, Capability.STREAMS)),
+        Def(PUBLIC_DOMAIN, PluginKind.STREMIO_ADDON, "Public Domain Movies (Stremio)", "Free classic films", "PD", false,
+            setOf(Capability.CATALOG, Capability.STREAMS, Capability.META)),
+        Def(OPENSUBTITLES, PluginKind.STREMIO_ADDON, "OpenSubtitles (Stremio)", "Subtitles in 60+ languages", "SUB", true,
+            setOf(Capability.SUBTITLES)),
+        Def(WATCHHUB, PluginKind.STREMIO_ADDON, "WatchHub (Stremio)", "Where a title streams: Netflix, Prime, Hotstar…", "HUB", false,
+            setOf(Capability.WHERE_TO_WATCH)),
+    )
+
+    fun def(id: String): Def? = all.firstOrNull { it.id == id }
+
+    fun info(def: Def, enabled: Boolean = def.defaultEnabled, status: String? = null) = PluginInfo(
+        id = def.id, kind = def.kind, name = def.name, description = def.description, badge = def.badge, builtIn = true,
+        enabled = enabled, defaultEnabled = def.defaultEnabled, capabilities = def.capabilities, status = status,
+    )
+}
