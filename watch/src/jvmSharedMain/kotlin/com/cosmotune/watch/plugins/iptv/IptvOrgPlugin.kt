@@ -12,6 +12,8 @@ import com.cosmotune.watch.plugin.Capability
 import com.cosmotune.watch.plugin.PluginKind
 import com.cosmotune.watch.plugin.WatchPlugin
 import com.cosmotune.watch.plugins.StreamGuess
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -48,11 +50,14 @@ class IptvOrgPlugin(
         val ttl = WatchHttp.DAY
         // The four lists are about 26 MB of JSON. Each is read as it streams in, straight into the few fields used here,
         // never held whole as text or as a tree of JSON objects (as trees they came to well over the 192 MB a TV gives an
-        // app, and the app closed when Watch opened). They are read one after another for the same reason.
-        val channels = list("channels", ttl, ApiChannel.serializer())
-        val streams = list("streams", 6 * WatchHttp.HOUR, ApiStream.serializer())
-        val feeds = runCatching { list("feeds", ttl, ApiFeed.serializer()) }.getOrNull()
-        val logos = runCatching { list("logos", ttl, ApiLogo.serializer()) }.getOrNull()
+        // app, and the app closed when Watch opened), so they can still be fetched side by side.
+        val (channels, streams, feeds, logos) = coroutineScope {
+            val c = async { list("channels", ttl, ApiChannel.serializer()) }
+            val s = async { list("streams", 6 * WatchHttp.HOUR, ApiStream.serializer()) }
+            val f = async { runCatching { list("feeds", ttl, ApiFeed.serializer()) }.getOrNull() }
+            val l = async { runCatching { list("logos", ttl, ApiLogo.serializer()) }.getOrNull() }
+            Lists(c.await(), s.await(), f.await(), l.await())
+        }
         val languages = HashMap<String, MutableSet<String>>()
         feeds?.forEach { f -> f.channel?.let { ch -> languages.getOrPut(ch) { mutableSetOf() } += f.languages } }
         val logoOf = HashMap<String, String>()
@@ -113,6 +118,8 @@ class IptvOrgPlugin(
     }
 
     override suspend fun health(): String? = runCatching { load(); null }.getOrElse { it.message ?: "iptv-org is unreachable" }
+
+    private data class Lists(val channels: List<ApiChannel>, val streams: List<ApiStream>, val feeds: List<ApiFeed>?, val logos: List<ApiLogo>?)
 
     // The fields of the API's lists that are read; everything else in them is skipped while decoding.
     @Serializable private class ApiChannel(
