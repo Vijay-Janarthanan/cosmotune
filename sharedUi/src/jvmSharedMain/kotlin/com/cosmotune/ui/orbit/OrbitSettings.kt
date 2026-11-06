@@ -240,7 +240,10 @@ fun OrbitTextField(
             capitalization = if (sentences && !secret) androidx.compose.ui.text.input.KeyboardCapitalization.Sentences else androidx.compose.ui.text.input.KeyboardCapitalization.None,
             imeAction = imeAction ?: if (submit != null) androidx.compose.ui.text.input.ImeAction.Done else androidx.compose.ui.text.input.ImeAction.Default,
         ),
-        keyboardActions = if (submit != null) androidx.compose.foundation.text.KeyboardActions(onDone = { submit() }) else androidx.compose.foundation.text.KeyboardActions.Default,
+        // The key the keyboard shows submits whichever it is (Done, Search, Go, Send); Next keeps moving to the next field.
+        keyboardActions = if (submit != null) androidx.compose.foundation.text.KeyboardActions(
+            onDone = { submit() }, onSearch = { submit() }, onGo = { submit() }, onSend = { submit() },
+        ) else androidx.compose.foundation.text.KeyboardActions.Default,
         modifier = modifier
             .then(if (enabled) Modifier else Modifier.alpha(0.45f))
             .heightIn(min = 48.dp)
