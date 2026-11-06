@@ -17,6 +17,8 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -88,6 +91,8 @@ import com.cosmotune.music.ui.tv.screens.TvSearchScreen
 import com.cosmotune.music.ui.tv.screens.TvSettingsScreen
 import com.cosmotune.music.ui.tv.theme.TvGlass
 import com.cosmotune.music.ui.tv.theme.TvThemeColors
+import com.cosmotune.ui.watch.WatchNav
+import com.cosmotune.ui.watch.WatchTab
 import kotlinx.coroutines.delay
 
 /**
@@ -308,11 +313,16 @@ private fun TvMainShell(
         }
     }
 
+    var pendingReturn by remember { mutableStateOf<FocusRequester?>(null) }
+    var hadDetail by remember { mutableStateOf(false) }
     val select: (TvDestination) -> Unit = { next ->
         if (detailStack.isNotEmpty()) {
             detailStack.clear()
             returnFocus.clear()
             viewModel.clearDetail()
+            // Left by a chip, not by Back: focus stays on the chips, so the card that opened the page is not given it back.
+            hadDetail = false
+            pendingReturn = null
         }
         if (next != destination) {
             chrome.contentScrolled = false
@@ -330,7 +340,6 @@ private fun TvMainShell(
     val activeDetail = detailStack.lastOrNull()
     val contentFocus = remember { FocusRequester() }
     val detailFocus = remember { FocusRequester() }
-    var pendingReturn by remember { mutableStateOf<FocusRequester?>(null) }
     val popDetail: () -> Unit = {
         detailStack.removeAt(detailStack.lastIndex)
         pendingReturn = returnFocus.removeLastOrNull()
@@ -338,7 +347,6 @@ private fun TvMainShell(
         viewModel.closeDetail()
     }
     // Leaving the last pushed page: put focus back on the card that opened it.
-    var hadDetail by remember { mutableStateOf(false) }
     LaunchedEffect(activeDetail == null) {
         if (activeDetail != null) {
             hadDetail = true
@@ -551,37 +559,73 @@ private fun TvTopBar(
     // which puts them outside a plain "below" search from a chip. Point Down at them.
     val downToContent = Modifier.focusProperties { down = contentFocus }
     val chips = listOf(TvDestination.HOME, TvDestination.SEARCH, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.WATCH, TvDestination.PODIO)
-    val onFocusTabs = setOf(TvDestination.HOME, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.PODIO)
+    val onFocusTabs = setOf(TvDestination.HOME, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.WATCH, TvDestination.PODIO)
+    // In Watch, Watch's own tabs follow the Watch chip in this one row (the Watch chip is Watch's home), rather than a second row.
+    val watchTab by WatchNav.tab.collectAsState()
+    val inWatch = destination == TvDestination.WATCH
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 26.dp, start = TvDimensions.SafeMarginHorizontal, end = TvDimensions.SafeMarginHorizontal)
+            .padding(top = 26.dp - ChipRowBleed, start = TvDimensions.SafeMarginHorizontal - ChipRowBleed, end = TvDimensions.SafeMarginHorizontal)
             .focusRestorer(tabFocus)
             .focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        chips.forEach { tab ->
-            val interaction = remember { MutableInteractionSource() }
-            val focused by interaction.collectIsFocusedAsState()
-            if (tab in onFocusTabs) {
-                LaunchedEffect(focused) {
-                    if (focused && destination != tab) {
-                        delay(140)
-                        onSelect(tab)
+        val chipScroll = rememberScrollState()
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .chipEdgeFade(chipScroll)
+                .horizontalScroll(chipScroll)
+                .padding(ChipRowBleed),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            chips.forEach { tab ->
+                val interaction = remember { MutableInteractionSource() }
+                val focused by interaction.collectIsFocusedAsState()
+                val selected = destination == tab && (tab != TvDestination.WATCH || watchTab == WatchTab.HOME)
+                if (tab in onFocusTabs) {
+                    LaunchedEffect(focused) {
+                        if (focused && !selected) {
+                            delay(TabSwitchDelayMs)
+                            if (tab == TvDestination.WATCH && destination == TvDestination.WATCH) WatchNav.go(WatchTab.HOME) else onSelect(tab)
+                        }
+                    }
+                }
+                TvTabPill(
+                    label = tab.label,
+                    selected = selected,
+                    interactionSource = interaction,
+                    onClick = { if (tab == TvDestination.WATCH && inWatch) WatchNav.go(WatchTab.HOME) else onSelect(tab) },
+                    modifier = downToContent.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier),
+                )
+                if (tab == TvDestination.WATCH && inWatch) {
+                    WatchTab.entries.filter { it != WatchTab.HOME }.forEach { sub ->
+                        val subInteraction = remember { MutableInteractionSource() }
+                        val subFocused by subInteraction.collectIsFocusedAsState()
+                        val subSelected = watchTab == sub
+                        if (sub != WatchTab.SEARCH) {
+                            LaunchedEffect(subFocused) {
+                                if (subFocused && !subSelected) {
+                                    delay(TabSwitchDelayMs)
+                                    WatchNav.go(sub)
+                                }
+                            }
+                        }
+                        TvTabPill(
+                            label = sub.label,
+                            selected = subSelected,
+                            interactionSource = subInteraction,
+                            onClick = { WatchNav.go(sub) },
+                            modifier = downToContent.then(if (subSelected) Modifier.focusRequester(tabFocus) else Modifier),
+                        )
                     }
                 }
             }
-            TvTabPill(
-                label = tab.label,
-                selected = destination == tab,
-                interactionSource = interaction,
-                onClick = { onSelect(tab) },
-                modifier = downToContent.then(if (destination == tab) Modifier.focusRequester(tabFocus) else Modifier),
-            )
         }
-        Spacer(Modifier.weight(1f))
         TvNowPlayingChip(
             playerState = playerState,
             onClick = onOpenNowPlaying,
@@ -601,6 +645,34 @@ private fun TvTopBar(
         )
     }
 }
+
+/**
+ * How long a chip that switches on focus waits for focus to stay before it switches: long enough that walking along the chips
+ * at a normal pace does not open (and load) every page passed on the way, which on a TV also piled up the feeds' memory.
+ */
+private const val TabSwitchDelayMs = 350L
+
+/** The chips fade out at an edge they carry on past, rather than being cut there. */
+private fun Modifier.chipEdgeFade(scroll: androidx.compose.foundation.ScrollState): Modifier = this
+    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val fade = 56.dp.toPx() / size.width
+        val start = if (scroll.value > 0) 0f else 1f
+        val end = if (scroll.value < scroll.maxValue) 0f else 1f
+        drawRect(
+            Brush.horizontalGradient(
+                0f to Color.Black.copy(alpha = start),
+                fade to Color.Black,
+                1f - fade to Color.Black,
+                1f to Color.Black.copy(alpha = end),
+            ),
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+        )
+    }
+
+/** Room round the scrolling chips for the focus ring, taken back out of the row's margins so the chips stay where they were. */
+private val ChipRowBleed = 10.dp
 
 /**
  * Now Playing at the end of the chips: the playing cover as a small disc with
