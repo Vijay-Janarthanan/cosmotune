@@ -158,21 +158,21 @@ class LegalTextsTest {
         assertFalse("YouTube" in src || Regex("""\bYT\b""").containsMatchIn(src), "the name is in the resource only")
     }
 
-    @Test fun theNoticeIsACGlassCardOfSuperellipse36WithAPrimaryButton() {
+    @Test fun theNoticeIsAFlatOrbitCardWithAPrimaryButton() {
         val src = VideoSourceContract.code(noticeSource())
-        assertTrue("RoundedCornerShape(CosmoRadii.rXl)" in src, "28 dp corners (DESIGN_SYSTEM.md 4.14)")
-        assertEquals(28f, com.cosmotune.ui.theme.CosmoRadii.rXl.value)
-        assertTrue("cosmoGlass(hazeState = null" in src, "solid glass: nothing to blur over a page that scrolls and a video that plays")
+        assertTrue("RoundedCornerShape(34.dp)" in src, "the Orbit dialog card's 34 dp corners")
+        assertTrue(".background(orbitFloatGroundColor(look))" in src, "flat on the dialog's ground: nothing to blur over a page that scrolls and a video that plays")
+        assertFalse("cosmoGlass(" in src, "no glass")
         assertTrue("CosmoSpacing.s5" in src && com.cosmotune.ui.theme.CosmoSpacing.s5.value == 20f, "padding 20")
-        assertTrue("kind = KitButtonKind.PRIMARY" in src, "a primary button")
-        assertTrue(Regex("""KitButton\(\s*ok,\s*onDismiss""").containsMatchIn(src), "Got it calls onDismiss")
+        assertTrue(Regex("""OrbitActionPill\(\s*label = ok,\s*onClick = onDismiss""").containsMatchIn(src), "Got it is the Orbit pill and calls onDismiss")
+        assertTrue("primary = true" in src, "the primary pill")
     }
 
-    @Test fun theNoticeTakesItsColoursFromThePaletteAndDrawsNothingPerFrame() {
+    @Test fun theNoticeTakesItsColoursFromTheOrbitLookAndDrawsNothingPerFrame() {
         val src = VideoSourceContract.code(noticeSource())
         assertFalse(Regex("""Color\(0x""").containsMatchIn(src), "no colour picked by hand")
         assertEquals(1, Regex("""Color\.Black""").findAll(src).count(), "the one black is the scrim, the documented exception")
-        assertTrue("LocalCosmoColors.current.palette" in src && "LocalCosmoType.current" in src)
+        assertTrue("orbitLook()" in src && "orbitFonts()" in src, "the look's ink and the kit's faces")
         assertFalse("positionMs(" in src || ".live(" in src, "no position and no live colour")
         assertFalse("clickable(" in src, "the scrim is no button: it swallows touches without a role or a label")
     }

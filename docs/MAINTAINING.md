@@ -228,6 +228,8 @@ Video's own wiring. Our own files that know about the stored mode and the drawer
    Watch mode plays its films, episodes and channels on Video's engine, so its player goes with the Video code: in `:watch`,
    `watch/src/commonMain/kotlin/com/cosmotune/watch/WatchPlayer.kt`, `watch/src/jvmSharedMain/kotlin/com/cosmotune/watch/DefaultWatchRepository.kt`,
    `WatchDownloads.kt`, `player/EngineWatchPlayer.kt` and `plugins/free/YouTubeFreePlugin.kt` (and `watch/src/jvmTest/kotlin/com/cosmotune/watch/EngineWatchPlayerTest.kt`);
+   the Live now channels read through Video's source, `live/LiveEventsHub.kt`, `plugins/youtube/OfficialLivePlugin.kt`,
+   `PrasarBharatiPlugin.kt` and `YouTubeLivePlugin.kt` (and the test double `watch/src/jvmTest/kotlin/com/cosmotune/watch/LiveVideoSource.kt`);
    the phone's host `app/src/main/java/com/cosmotune/music/watch/AndroidWatch.kt` and its room follower `RoomWatch.kt` (they reach
    only the engine's graph and picture scale; `ModeHooksContractTest` lists the two); the desktop's
    `desktopApp/src/main/kotlin/com/cosmotune/desktop/DesktopWatch.kt`; the TV's

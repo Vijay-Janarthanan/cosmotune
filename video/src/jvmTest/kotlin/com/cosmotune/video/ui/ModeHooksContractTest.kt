@@ -188,7 +188,7 @@ class ModeHooksContractTest {
             "measured, not placed",
         )
         assertTrue(card.indexOf("desktopVideoShown()") > card.indexOf("LocalCosmoShell.current == null"), "the look-off answer comes first")
-        assertTrue(card.endsWith(".cosmoGlass(LocalDesktopHaze.current, shape) }"), "Music's card is what it was")
+        assertTrue(card.endsWith(".clip(ORBIT_SIDE_PANEL_SHAPE) .background(fill) }"), "Music's card is the flat Orbit panel")
     }
 
     // ---- The drawer's switch ----------------------------------------------------------------------------------------------------
