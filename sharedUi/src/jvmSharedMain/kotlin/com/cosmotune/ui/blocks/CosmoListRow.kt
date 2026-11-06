@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -59,6 +60,9 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.CoverImage
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.components.tonalFill
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.CosmoColors
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.CosmoRadii
@@ -100,12 +104,13 @@ sealed interface CosmoRowLeading {
 }
 
 /**
- * A row of a list. [onClick] null makes the row a plain display (no press, no role); [onLongPress] is what a hold, and a right
- * click on the desktop, does, through the same modifiers the old rows used, so the held-row menu still lifts the row. [height]
- * is a minimum: a row grows with a large system font instead of cutting its text.
+ * A row of a list, in Orbit: the one Orbit row ([OrbitSongRow]), radius 22 on the ink at 5 %, inset by the page's margin and 3 dp
+ * from its neighbours. A cover (an artist's too) is a disc, a track number stands in the disc's place in the narrow face, an icon sits
+ * on a quiet disc. The row that [isCurrent] has the peach wash, a peach title and the orbit round its disc (circling while
+ * [isPlaying]). [onClick] null makes the row a plain display (no press, no role); [onLongPress] is what a hold, and a right click on
+ * the desktop, does. [height] is clamped to Orbit's 62 to 68 dp. [why], the third line, follows the subtitle on its line.
  *
- * [titleContent] replaces the title text (the song row draws its explicit mark with it) and is drawn in [rowTitleStyle] and
- * [rowTitleColor]. [trailing] follows the text after a gap.
+ * [titleContent] replaces the title text (the song row draws its explicit mark with it). [trailing] follows the text.
  */
 @Composable
 fun CosmoListRow(
@@ -122,22 +127,48 @@ fun CosmoListRow(
     titleContent: (@Composable () -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
-    CosmoRowFrame(
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val line = listOfNotNull(subtitle?.takeIf { it.isNotBlank() }, why?.takeIf { it.isNotBlank() }).joinToString(" · ")
+    val none = leading is CosmoRowLeading.None
+    OrbitSongRow(
         title = title,
+        subtitle = line,
+        cover = (leading as? CosmoRowLeading.Cover)?.url,
+        fonts = fonts,
+        look = look,
         onClick = onClick,
-        modifier = modifier,
-        subtitle = subtitle,
-        why = why,
-        isCurrent = isCurrent,
-        isPlaying = isPlaying,
-        washed = isCurrent,
-        hasLeading = leading !is CosmoRowLeading.None,
-        numbered = leading is CosmoRowLeading.Number,
-        onLongPress = onLongPress,
-        onSecondaryClick = onLongPress,
-        height = height,
+        modifier = modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 3.dp),
+        now = isCurrent,
+        playing = isPlaying,
+        onLongClick = onLongPress,
+        height = height.coerceIn(62.dp, 68.dp),
+        icon = (leading as? CosmoRowLeading.Icon)?.icon,
+        // No leading: the disc's box shrinks to a sliver, so the words start near the row's edge.
+        discSize = if (none) 0.dp else 44.dp,
+        gap = if (none) 6.dp else 12.dp,
         titleContent = titleContent,
-        leadingContent = { RowLeadingContent(leading, isCurrent, isPlaying) },
+        discContent = when (leading) {
+            is CosmoRowLeading.Number -> {
+                {
+                    Text(
+                        "${leading.number}",
+                        style = fonts.number.copy(fontSize = 26.sp, lineHeight = 26.sp),
+                        color = if (isCurrent) look.accent else look.ink.copy(alpha = 0.4f),
+                        maxLines = 1,
+                    )
+                }
+            }
+            is CosmoRowLeading.IconPainter -> {
+                {
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
+                        Icon(leading.painter, contentDescription = null, tint = Color.Unspecified, modifier = Modifier.size(22.dp))
+                    }
+                }
+            }
+            CosmoRowLeading.None -> { {} }
+            else -> null
+        },
         trailing = trailing,
     )
 }

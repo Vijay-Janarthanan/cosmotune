@@ -33,10 +33,10 @@ class VisualPolishContractTest {
         val mood = SourceContract.functionBody(SourceContract.read("$ui/blocks/CosmoMood.kt"), "CosmoMoodTile")
         assertTrue(".background(Color(palette.surface))" in mood && "RoundedCornerShape(CosmoRadii.rMd)" in mood, "the mood tile too")
         assertFalse("rotationZ" in mood || "tileLift" in mood, "no tilted cover, no lift")
-        // the sign-in banner is the tile fill (Search's top result is Orbit's colour card now)
+        // the sign-in banner is Orbit's quiet card, the ink at 5 % (Search's top result is Orbit's colour card now)
         for ((file, call) in listOf(
-            "states/CosmoSignInBanner.kt" to ".cosmoTile(SuperellipseShape(BANNER_RADIUS))",
-        )) assertTrue(call in code("$ui/$file"), "$file draws its tile with cosmoTile")
+            "states/CosmoSignInBanner.kt" to ".background(look.row)",
+        )) assertTrue(call in code("$ui/$file"), "$file draws Orbit's quiet card")
     }
 
     @Test fun theLiftAndTheEdgeReadThePaletteWhileDrawingWithTheNumbersOfTileDepth() {
@@ -64,7 +64,8 @@ class VisualPolishContractTest {
     @Test fun aChipCanStayQuietAndTheSearchFiltersDoOnATapOfTheChosenOne() {
         val chip = SourceContract.read("$ui/components/CosmoChip.kt")
         assertEquals("haptic: Boolean = true", SourceContract.parameters(chip, "CosmoChip").last(), "one more optional parameter, at the end")
-        assertTrue("onClick = { if (haptic) haptics.play(Haptic.Select); onClick() }" in SourceContract.code(chip), "the select haptic only when asked")
+        assertTrue("haptic = haptic" in SourceContract.code(chip), "the chip hands its haptic to Orbit's chip")
+        assertTrue(".clickable { if (haptic) haptics.play(Haptic.Select); onClick() }" in code("$ui/orbit/OrbitBrowse.kt"), "the select haptic only when asked")
         assertTrue("haptic = entry != filter" in code("$ui/search/CosmoSearch.kt"), "a filter chip buzzes only when the filter changes")
         for (file in listOf("search/CosmoBrowseBlocks.kt", "settings/LookPreview.kt")) assertFalse("haptic =" in code("$ui/$file"), "$file keeps the haptic")
     }
@@ -72,7 +73,8 @@ class VisualPolishContractTest {
     @Test fun anIconButtonTakesARestingTint() {
         val button = SourceContract.read("$ui/components/CosmoIconButton.kt")
         assertEquals("tint: Color? = null", SourceContract.parameters(button, "CosmoIconButton").last(), "one more optional parameter, at the end")
-        assertTrue("val ink = if (!isOn && tint != null) tint else Color(" in SourceContract.code(button), "the tint is the resting ink; an on state keeps its own")
+        val ink = SourceContract.code(button).substringAfter("val ink = when {").substringBefore("}")
+        assertTrue(ink.indexOf("isOn -> look.ink") in 0 until ink.indexOf("tint != null -> tint"), "the tint is the resting ink; an on state keeps its own")
     }
 
     // ---- the album, playlist and add-to-playlist sheets on the song sheet's surface ------------------------------------------------
@@ -166,8 +168,8 @@ class VisualPolishContractTest {
         val body = SourceContract.functionBody(SourceContract.read("$ui/states/CosmoSignInBanner.kt"), "CosmoSignInBanner")
         val click = ".clickable(interactionSource = interaction, indication = LocalIndication.current, onClickLabel = action, role = Role.Button, onClick = onSignIn)"
         assertTrue(click in body, "the tile is a button with the same action")
-        assertTrue(body.indexOf(".cosmoFocusRing(interaction, BANNER_RADIUS)") in 0 until body.indexOf(".cosmoTile(SuperellipseShape(BANNER_RADIUS))"), "a focus ring round the tile")
-        assertTrue(body.indexOf(".cosmoTile(SuperellipseShape(BANNER_RADIUS))") < body.indexOf(click) && body.indexOf(click) < body.indexOf(".padding(BANNER_PADDING)"), "the press fills the tile")
+        assertTrue(body.indexOf(".cosmoFocusRing(interaction, BANNER_RADIUS)") in 0 until body.indexOf(".background(look.row)"), "a focus ring round the card")
+        assertTrue(body.indexOf(".background(look.row)") < body.indexOf(click) && body.indexOf(click) < body.indexOf(".padding(BANNER_PADDING)"), "the press fills the card")
         assertTrue("val action = stringResource(Res.string.sign_in)" in body, "the action is read as \"Sign in\"")
         assertTrue("CosmoButton(text = stringResource(Res.string.sign_in), onClick = onSignIn" in body, "the button at the end stays")
     }

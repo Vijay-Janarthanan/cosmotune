@@ -1,75 +1,60 @@
 package com.cosmotune.ui.states
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.cosmotune.design.TypeScale
 import com.cosmotune.ui.components.CosmoButton
 import com.cosmotune.ui.components.CosmoButtonKind
 import com.cosmotune.ui.components.CosmoIcons
-import com.cosmotune.ui.components.CosmoLoadingBlob
-import com.cosmotune.ui.components.SuperellipseShape
-import com.cosmotune.ui.components.heroFill
-import com.cosmotune.ui.components.tileEdge
-import com.cosmotune.ui.components.tonalFill
-import com.cosmotune.ui.theme.CosmoColors
-import com.cosmotune.ui.theme.CosmoType
-import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoType
+import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 
 /*
- * The empty state (DESIGN_SYSTEM.md 4.15; a glyph, a headline, one sentence and one action; earlier: "three 64 dp tiles, radius 18; secondary fill at 60 % and 80 %,
- * the front tile in the play gradient"). The same state stands for "nothing here", "no results" and "could not load" with a retry.
+ * The empty state in Orbit: a glyph on a quiet disc, a headline in the wide face, one sentence in the dim ink and one peach action.
+ * The same state stands for "nothing here", "no results" and "could not load" with a retry. Loading is Orbit's progress: the ring
+ * with its moon going round.
  */
 
-private val ICON_SIZE = 48.dp
+/** The disc the glyph stands on, and the glyph. */
+private val ART_DISC = 64.dp
+private val ICON_SIZE = 28.dp
 
-/** The state's own rhythm: the gap of the column (`gap: 10px`), the room around it, and how wide the message may run. */
+/** The state's own rhythm: the gap of the column, the room around it, and how wide the message may run. */
 private val GAP = 10.dp
 private val PADDING_V = 48.dp
 private val PADDING_H = 22.dp
 private val MESSAGE_MAX_WIDTH = 300.dp
 
-/** The loading page's gap between the blob and its label, and the blob's size. */
+/** The loading page's gap between the orbit and its label, and the orbit's size. */
 private val LOADING_GAP = 14.dp
-private val LOADING_BLOB = 40.dp
-
-
-
+private val LOADING_ORBIT = 44.dp
 
 /**
- * A centred column on the page: the art (three superellipse tiles, two turned and tinted behind a front one in the play gradient that
- * carries [icon]), the [title] in Archivo when there is one, the [message] in [textSecondary][com.cosmotune.theme.CoverColors.textSecondary]
- * and, when both [actionLabel] and [onAction] are given, a primary button. It is a block of the page (B), so the buttons are B.
+ * A centred column on the page: [icon] on a quiet disc (the ink at 8 %), the [title] in the wide face when there is one, the
+ * [message] in the dim ink and, when both [actionLabel] and [onAction] are given, the one peach action ([CosmoButton] PRIMARY).
  *
  * The old phone `MessageState` calls it with no title, no icon and the old parameters; the desktop's error and empty pages call it
- * with a title and, for the empty page, the icon of what is missing (an icon that is not one of ours still reads in the front tile: it
- * is drawn in `onAccent` whatever it is).
+ * with a title and, for the empty page, the icon of what is missing.
  */
 @Composable
 fun CosmoEmptyState(
@@ -80,9 +65,8 @@ fun CosmoEmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Column(
         modifier
             .fillMaxWidth()
@@ -90,58 +74,54 @@ fun CosmoEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(GAP),
     ) {
-        EmptyArt(icon, colors)
+        EmptyArt(icon, look)
         if (title != null) {
             Text(
                 text = title,
-                color = Color(palette.textPrimary),
-                style = type.forText(type.emptyTitleStyle(), title),
+                color = look.ink,
+                style = fonts.section,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() },
             )
         }
         Text(
             text = message,
-            color = Color(palette.textSecondary),
-            style = type.forText(type.emptyMessageStyle(), message),
+            color = look.dim,
+            style = fonts.body,
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = MESSAGE_MAX_WIDTH),
         )
         if (actionLabel != null && onAction != null) {
-            CosmoButton(text = actionLabel, onClick = onAction, kind = CosmoButtonKind.PRIMARY)
+            CosmoButton(text = actionLabel, onClick = onAction, kind = CosmoButtonKind.PRIMARY, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
 
 /**
- * The page of a screen that is loading, on the desktop: the loading blob (40 dp, the cover's accent) over [label], 14 dp apart,
- * centred in the room the page has. Under reduced motion the blob stands still as a circle.
+ * The page of a screen that is loading, on the desktop: Orbit's progress (the ring, 44 dp, its moon going round in the ink) over
+ * [label], 14 dp apart, centred in the room the page has.
  */
 @Composable
 fun CosmoLoadingState(label: String, modifier: Modifier = Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(LOADING_GAP)) {
-            CosmoLoadingBlob(Modifier.size(LOADING_BLOB))
+            OrbitRing(LOADING_ORBIT, look.ink, progress = null, spinning = true)
             Text(
                 text = label,
-                color = Color(palette.textSecondary),
-                style = type.forText(type.emptyMessageStyle(), label),
+                color = look.dim,
+                style = fonts.body,
                 textAlign = TextAlign.Center,
             )
         }
     }
 }
 
-/** The state's glyph (DESIGN_SYSTEM.md 4.15): 48 dp in the tertiary ink, no illustration. Decoration: the title and the message say it. */
+/** The state's glyph on a quiet disc. Decoration: the title and the message say it. */
 @Composable
-private fun EmptyArt(icon: ImageVector, colors: CosmoColors) {
-    Icon(icon, contentDescription = null, tint = Color(colors.palette.textTertiary), modifier = Modifier.size(ICON_SIZE))
+private fun EmptyArt(icon: ImageVector, look: OrbitLook) {
+    Box(Modifier.padding(bottom = 4.dp).size(ART_DISC).clip(CircleShape).background(look.chip), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = null, tint = look.ink, modifier = Modifier.size(ICON_SIZE))
+    }
 }
-
-/** The headline: `titleMedium`. */
-private fun CosmoType.emptyTitleStyle(): TextStyle = titleMedium
-
-/** The sentence under it: `body`. */
-private fun CosmoType.emptyMessageStyle(): TextStyle = bodyText

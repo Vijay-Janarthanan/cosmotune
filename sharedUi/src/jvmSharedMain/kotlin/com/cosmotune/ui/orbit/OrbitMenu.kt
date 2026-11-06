@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +45,8 @@ class OrbitMenuItem(
     val enabled: Boolean = true,
     /** Keep the menu open after the pick (a toggle whose new state the person wants to see). */
     val keepOpen: Boolean = false,
+    /** The line's test tag, for a screen whose tests pick from the menu. */
+    val testTag: String? = null,
     val onClick: () -> Unit,
 )
 
@@ -86,6 +89,7 @@ fun OrbitMenu(
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (item.selected) look.ink else Color.Transparent)
                         .clickable(enabled = item.enabled) { if (!item.keepOpen) onDismiss(); item.onClick() }
+                        .then(if (item.testTag != null) Modifier.testTag(item.testTag) else Modifier)
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

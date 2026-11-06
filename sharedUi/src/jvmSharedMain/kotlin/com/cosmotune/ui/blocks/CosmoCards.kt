@@ -1,58 +1,44 @@
 package com.cosmotune.ui.blocks
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.design.BlockMetrics
-import com.cosmotune.ui.components.CoverImage
-import com.cosmotune.ui.theme.CosmoRadii
+import com.cosmotune.ui.orbit.OrbitPortrait
+import com.cosmotune.ui.orbit.OrbitRecord
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitShelfRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.CosmoSpacing
-import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoType
-import com.cosmotune.music.ui.components.LocalShelfRowChrome
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.model.playingShelfItemMatcher
-import com.cosmotune.music.ui.components.rememberShelfFlingBehavior
-import com.cosmotune.music.ui.components.contextClick
-import com.cosmotune.music.ui.components.longPressMenuClickable
 import com.cosmotune.music.ui.screens.localizeCardSubtitle
 import com.cosmotune.music.ui.screens.localizeShelfSubtitle
 import com.cosmotune.music.ui.screens.localizeShelfTitle
 
 /*
- * Cards and shelves (DESIGN_SYSTEM.md 4.7): a square cover, or a circle for an artist, with two lines of title and a line of meta
- * under it, and a row of them under a heading.
+ * Cards and shelves in Orbit: an album or a playlist is a record (the cover as a disc, the title and a line under it), an artist a
+ * round portrait with the name under it, and a shelf is a row of them under a section heading.
  */
 
 /**
- * A card (DESIGN_SYSTEM.md 4.7): the cover [width] square, 12 dp corners, or a circle when [circle]; 8 dp under it the title on up to
- * two lines (one, centred, under a circle) and [subtitle] on one. No shadow, no container. A [playing] card shows the equaliser over
- * the corner of its cover and its title in the accent. Hold (or right click) calls [onLongPress].
+ * A card in Orbit: [OrbitRecord] (the cover as a disc [width] across, the title on up to two lines and [subtitle] on one), or, when
+ * [circle], [OrbitPortrait] (an artist's round photo and the name, centred). No play moon: a tap opens the card, a hold or a right
+ * click calls [onLongPress]. A [playing] card has the peach orbit round its disc, its moon circling, clear of the cover.
  */
 @Composable
 fun CosmoCard(
@@ -66,65 +52,29 @@ fun CosmoCard(
     onLongPress: (() -> Unit)? = null,
     playing: Boolean = false,
 ) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    val align = if (circle) TextAlign.Center else TextAlign.Start
-    Column(
-        modifier
-            .width(width)
-            .semantics(mergeDescendants = true) { role = Role.Button }
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
-            .contextClick(onLongPress),
-        horizontalAlignment = if (circle) Alignment.CenterHorizontally else Alignment.Start,
-    ) {
-        Box {
-            if (circle) CircleCover(imageUrl, width, shadow = false)
-            else CoverImage(imageUrl, width, CosmoRadii.rMd, shadow = false)
-            if (playing) {
-                // White bars on a dark plate: the bars sit on a picture, whose colours the palette does not know.
-                Box(
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(8.dp)
-                        .size(PLAYING_PLATE)
-                        .clip(RoundedCornerShape(CosmoRadii.rSm))
-                        .drawBehind { drawRect(Color.Black.copy(alpha = PLAYING_PLATE_ALPHA)) },
-                    contentAlignment = Alignment.Center,
-                ) { CosmoEqualiser(playing = true, color = Color.White) }
-            }
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    Box(modifier.width(width).semantics(mergeDescendants = true) { role = Role.Button }) {
+        if (circle) {
+            OrbitPortrait(title, imageUrl, width, fonts, look, onClick = onClick, onLongClick = onLongPress)
+        } else {
+            OrbitRecord(title, subtitle.orEmpty(), imageUrl, fonts, look, onClick = onClick, onPlay = null, onLongClick = onLongPress, size = width)
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = title,
-            style = type.forText(type.rowTitle, title),
-            color = Color(if (playing) palette.accentStrong else palette.textPrimary),
-            maxLines = if (circle) 1 else 2,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = align,
-        )
-        if (!subtitle.isNullOrBlank()) {
-            Text(
-                text = subtitle,
-                style = type.forText(type.meta, subtitle),
-                color = Color(palette.textSecondary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = align,
-            )
+        if (playing) {
+            // The orbit stands just outside the disc, so nothing is drawn on the cover; the card keeps its size.
+            Box(Modifier.align(Alignment.TopCenter).size(width).wrapContentSize(unbounded = true)) {
+                OrbitRing(width + 12.dp, look.accent, progress = null, spinning = true, stroke = 1.5.dp, moon = 3.dp)
+            }
         }
     }
 }
 
-private val PLAYING_PLATE = 28.dp
-private const val PLAYING_PLATE_ALPHA = 0.52f
-
 /**
- * A shelf (DESIGN_SYSTEM.md 4.7): 32 dp of room above, the heading ([title] and [subtitle], "Show all" when [onShowAll] is set), and a
- * row of cards under it, 16 dp in from each side and 12 dp apart, their tops on one line. Every card is 148 dp, or [cardWidth];
- * [leadFirst] makes the first one the big one (168 dp). [circles] draws artists, at 112 dp. The card of the song that is
- * [currentSong] shows as playing while [isPlaying]. Titles and strap lines the feed sends in English are shown in the language of
- * the app, as the old shelves did.
+ * A shelf in Orbit: 32 dp of room above, the section heading ([CosmoSectionHeader]: [title] over [subtitle], "Show all" when
+ * [onShowAll] is set), and a row of [CosmoCard]s under it in the platform's shelf chrome ([OrbitShelfRow]), 18 dp apart, settling on a
+ * card's edge. Every card is 148 dp, or [cardWidth]; [leadFirst] makes the first one the big one (168 dp). [circles] draws artists,
+ * at 112 dp. The card of the song that is [currentSong] shows as playing while [isPlaying]. Titles and strap lines the feed sends in
+ * English are shown in the language of the app.
  */
 @Composable
 fun CosmoShelf(
@@ -147,37 +97,25 @@ fun CosmoShelf(
             subtitle = localizeShelfSubtitle(subtitle.orEmpty()).takeIf { it.isNotBlank() },
             onShowAll = onShowAll,
         )
-        // The row is wrapped in the platform's shelf chrome (the desktop's hover arrows, drag and wheel) exactly as the old
-        // `ShelfRow` does; `ShelfRow` itself has no `verticalAlignment`, and the lead card is taller than the others.
-        val rowState = rememberLazyListState()
         // The card that was played, not every namesake: see [playingShelfItemMatcher].
         val isCurrentItem = playingShelfItemMatcher(items, currentSong)
-        LocalShelfRowChrome.current.Wrap(rowState) {
-            LazyRow(
-                state = rowState,
-                contentPadding = PaddingValues(horizontal = CosmoSpacing.margin),
-                horizontalArrangement = Arrangement.spacedBy(CosmoSpacing.gutter),
-                verticalAlignment = Alignment.Top,
-                // A fling settles on a card's leading edge, as every shelf does (BC-32).
-                flingBehavior = rememberShelfFlingBehavior(rowState),
-            ) {
-                itemsIndexed(items, key = { index, item -> shelfKey(item, index) }) { index, item ->
-                    val width = cardWidth ?: when {
-                        leadFirst && index == 0 -> BlockMetrics.LEAD_CARD_DP.dp
-                        circles -> BlockMetrics.SMALL_CARD_DP.dp
-                        else -> BlockMetrics.SHELF_CARD_DP.dp
-                    }
-                    CosmoCard(
-                        title = item.title,
-                        imageUrl = item.thumbnailUrl,
-                        onClick = { onItemClick(item) },
-                        subtitle = item.subtitle.takeIf { it.isNotBlank() }?.let { localizeCardSubtitle(it) },
-                        width = width,
-                        circle = circles,
-                        onLongPress = onItemLongPress?.let { held -> { held(item) } },
-                        playing = isPlaying && isCurrentItem(item),
-                    )
+        OrbitShelfRow(CosmoSpacing.margin, 18.dp) {
+            itemsIndexed(items, key = { index, item -> shelfKey(item, index) }) { index, item ->
+                val width = cardWidth ?: when {
+                    leadFirst && index == 0 -> BlockMetrics.LEAD_CARD_DP.dp
+                    circles -> BlockMetrics.SMALL_CARD_DP.dp
+                    else -> BlockMetrics.SHELF_CARD_DP.dp
                 }
+                CosmoCard(
+                    title = item.title,
+                    imageUrl = item.thumbnailUrl,
+                    onClick = { onItemClick(item) },
+                    subtitle = item.subtitle.takeIf { it.isNotBlank() }?.let { localizeCardSubtitle(it) },
+                    width = width,
+                    circle = circles,
+                    onLongPress = onItemLongPress?.let { held -> { held(item) } },
+                    playing = isPlaying && isCurrentItem(item),
+                )
             }
         }
     }

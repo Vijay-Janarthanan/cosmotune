@@ -192,12 +192,12 @@ class StatesContractTest {
     private val emptyCode = SourceContract.code(emptySrc)
 
     @Test fun theEmptyStateIsAQuietGlyphAndTheDesignsNumbers() {
-        // DESIGN_SYSTEM.md 4.15: a 48 dp glyph in the tertiary ink, no illustration.
-        for (line in listOf("ICON_SIZE = 48.dp", "GAP = 10.dp", "PADDING_V = 48.dp", "PADDING_H = 22.dp", "MESSAGE_MAX_WIDTH = 300.dp")) {
+        // Orbit: a 28 dp glyph in the ink on a 64 dp quiet disc (the ink at 8 %), no illustration.
+        for (line in listOf("ART_DISC = 64.dp", "ICON_SIZE = 28.dp", "GAP = 10.dp", "PADDING_V = 48.dp", "PADDING_H = 22.dp", "MESSAGE_MAX_WIDTH = 300.dp")) {
             assertTrue(emptyCode.contains("private val $line"), line)
         }
         val art = SourceContract.functionBody(emptySrc, "EmptyArt")
-        assertTrue(art.contains("tint = Color(colors.palette.textTertiary)") && art.contains("Modifier.size(ICON_SIZE)"), "the glyph")
+        assertTrue(art.contains("size(ART_DISC).clip(CircleShape).background(look.chip)") && art.contains("tint = look.ink") && art.contains("Modifier.size(ICON_SIZE)"), "the glyph on its disc")
         assertFalse(emptyCode.contains("BACK_TILES") || emptyCode.contains("rotationZ"), "no tilted tiles")
     }
 
@@ -210,32 +210,32 @@ class StatesContractTest {
         val body = SourceContract.functionBody(emptySrc, "CosmoEmptyState")
         assertTrue(body.contains("if (title != null)"), "the title only when given")
         assertTrue(body.contains("semantics { heading() }"), "the title is a heading")
-        assertTrue(body.contains("Color(palette.textSecondary)") && body.contains("Modifier.widthIn(max = MESSAGE_MAX_WIDTH)"), "the message: textSecondary, at most 300 dp")
+        assertTrue(body.contains("color = look.dim") && body.contains("Modifier.widthIn(max = MESSAGE_MAX_WIDTH)"), "the message: the dim ink, at most 300 dp")
         assertTrue(body.contains("TextAlign.Center"), "centred")
-        assertTrue(body.contains("if (actionLabel != null && onAction != null)") && body.contains("CosmoButton(text = actionLabel, onClick = onAction, kind = CosmoButtonKind.PRIMARY)"), "the action is a primary button")
+        assertTrue(body.contains("if (actionLabel != null && onAction != null)") && body.contains("CosmoButton(text = actionLabel, onClick = onAction, kind = CosmoButtonKind.PRIMARY"), "the action is the peach button")
         assertTrue(body.contains("Arrangement.spacedBy(GAP)") && body.contains("padding(horizontal = PADDING_H, vertical = PADDING_V)"))
-        assertTrue(emptyCode.contains("CosmoType.emptyTitleStyle(): TextStyle = titleMedium"), "the headline is titleMedium (DESIGN_SYSTEM.md 4.15)")
-        assertTrue(emptyCode.contains("CosmoType.emptyMessageStyle(): TextStyle = bodyText"), "the sentence is body")
+        assertTrue(body.contains("style = fonts.section"), "the headline is Orbit's section heading, the wide face")
+        assertTrue(body.contains("style = fonts.body"), "the sentence is Orbit's body")
     }
 
-    @Test fun theLoadingPageIsABlobOverItsLabel() {
+    @Test fun theLoadingPageIsTheOrbitOverItsLabel() {
         val body = SourceContract.functionBody(emptySrc, "CosmoLoadingState")
-        assertTrue(body.contains("CosmoLoadingBlob(Modifier.size(LOADING_BLOB))") && emptyCode.contains("private val LOADING_BLOB = 40.dp"), "a 40 dp blob")
+        assertTrue(body.contains("OrbitRing(LOADING_ORBIT, look.ink, progress = null, spinning = true)") && emptyCode.contains("private val LOADING_ORBIT = 44.dp"), "Orbit's progress: a 44 dp ring, its moon going round")
         assertTrue(emptyCode.contains("private val LOADING_GAP = 14.dp") && body.contains("Arrangement.spacedBy(LOADING_GAP)"), "14 dp apart")
-        assertTrue(body.contains("Color(palette.textSecondary)") && body.contains("Alignment.Center") && body.contains("fillMaxSize()"), "centred, the label in textSecondary")
+        assertTrue(body.contains("color = look.dim") && body.contains("Alignment.Center") && body.contains("fillMaxSize()"), "centred, the label in the dim ink")
     }
 
     // ---- the sign-in banner --------------------------------------------------------------------------------------------------
 
-    @Test fun theBannerIsABTileWithTheTwoTextsAndASmallPrimaryButton() {
+    @Test fun theBannerIsAnOrbitCardWithTheTwoTextsAndASmallPeachButton() {
         val code = SourceContract.code(bannerSrc)
         val body = SourceContract.functionBody(bannerSrc, "CosmoSignInBanner")
-        assertTrue(code.contains("BANNER_RADIUS = 24.dp") && body.contains(".cosmoTile(SuperellipseShape(BANNER_RADIUS))"), "a tile of 24, the tile fill")
+        assertTrue(code.contains("BANNER_RADIUS = 26.dp") && body.contains(".clip(RoundedCornerShape(BANNER_RADIUS))") && body.contains(".background(look.row)"), "Orbit's quiet card: radius 26, the ink at 5 %")
         assertTrue(body.contains(".padding(horizontal = CosmoSpacing.margin, vertical = BANNER_VERTICAL)") && code.contains("BANNER_VERTICAL = 8.dp"), "16 dp from the sides, 8 above and below")
         assertTrue(code.contains("BANNER_PADDING = 16.dp") && body.contains(".padding(BANNER_PADDING)"), "padding 16")
         assertTrue(body.contains("Res.string.sign_in_youtube_music") && body.contains("Res.string.personalized_recommendations") && body.contains("Res.string.sign_in)"), "the three existing strings")
-        assertTrue(body.contains("type.rowTitleStyle()") && body.contains("type.rowSubtitleStyle()") && body.contains("maxLines = 1"), "15.5 sp 650 over a one-line 13 sp")
-        assertTrue(body.contains("Color(palette.textSecondary)"), "the reason in textSecondary")
+        assertTrue(body.contains("style = fonts.title") && body.contains("style = fonts.body") && body.contains("maxLines = 1"), "Orbit's title over a one-line body")
+        assertTrue(body.contains("color = look.dim"), "the reason in the dim ink")
         assertTrue(body.contains("CosmoButton(text = stringResource(Res.string.sign_in), onClick = onSignIn, kind = CosmoButtonKind.PRIMARY, size = CosmoButtonSize.SMALL)"), "the end of the row")
         assertFalse(Regex("""Color\(0x|Color\.(White|Black|Gray|Red|Green|Blue)""").containsMatchIn(code), "no colour picked by hand")
         assertFalse(code.contains("live("), "no live colour: the tile reads its own")

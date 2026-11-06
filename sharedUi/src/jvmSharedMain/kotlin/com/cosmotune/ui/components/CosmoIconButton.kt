@@ -1,53 +1,43 @@
 package com.cosmotune.ui.components
 
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.cosmotune.design.ControlMetrics
-import com.cosmotune.design.ControlMorph
-import com.cosmotune.theme.CoverField
-import com.cosmotune.ui.theme.CosmoColors
-import com.cosmotune.ui.theme.LocalCosmoColors
+import androidx.compose.ui.unit.sp
 import com.cosmotune.music.ui.haptics.Haptic
 import com.cosmotune.music.ui.haptics.rememberHaptics
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 
 /**
- * PLAIN has no fill at rest (a transport button); TONAL rests on a soft `surfaceVariant` gradient; GLASS is the floating
- * look: a glass circle, the same as `floating = true` on a TONAL one.
+ * The styles the callers ask for. In Orbit every one is the same flat round button ([OrbitRoundButton], the ink at 12 %): PLAIN, TONAL
+ * and GLASS (Orbit has no glass) are kept so the callers keep compiling.
  */
 enum class CosmoIconButtonStyle { PLAIN, TONAL, GLASS }
 
 /**
- * An icon button of the B+C system. In the page it is a rounded square (0.30 of its size) that squares up to 0.20 and
- * shrinks to 0.94 when pressed, and turns round when [on]; on a floating layer ([floating], or the GLASS style) it is a glass
- * circle that only scales to 0.94 when pressed, and when [on] takes the C primary tint and a 1.5 dp ring.
- *
- * With [on] set it is a toggle (`Role.Checkbox`, toggle haptics) and in the page its fill is the primary gradient with
- * `onAccent` ink (PLAIN: the tonal container with `onAccentContainer`). [accentWhenOn] keeps the tonal container and draws the
- * icon in `accent` instead, the liked heart. A 40 dp button reserves a 48 dp touch target. The icon is 20 / 24 / 28 dp at
- * 40 / 48 / 56. A disabled button fades to 38 %. [contentDescription] is read by screen readers.
- *
- * [tint] replaces the resting ink (`textPrimary`), for a row of quiet tools drawn in secondary ink (`.np2-tools .ib`); an on state
- * keeps its own ink. It is a composition colour: pass a palette colour as `Color(palette.textSecondary)`, never a live one.
+ * An icon button in Orbit: [OrbitRoundButton], [size] across, the page's ink at 12 % with the glyph in the ink. With [on] set it is a
+ * toggle (toggle haptics, its state told to screen readers) and when on it is solid ink with the ground's colour for its glyph;
+ * [accentWhenOn] keeps it tonal and draws it in the accent instead (the liked heart). [tint] replaces the resting ink (a row of quiet
+ * tools in the dim ink); an on state keeps its own. A 40 dp button reserves a 48 dp touch target. Disabled at 45 %. The
+ * [contentDescription] is read by screen readers and shown as a tooltip under a long press or the pointer. [style] and [floating]
+ * are kept for the callers.
  */
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,54 +54,38 @@ fun CosmoIconButton(
     floating: Boolean = false,
     tint: Color? = null,
 ) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val haptics = rememberHaptics()
-    val isFloating = floating || style == CosmoIconButtonStyle.GLASS
     val isOn = on == true
-    val ink = if (!isOn && tint != null) tint else Color(
-        when {
-            isFloating -> palette.textPrimary
-            !isOn -> palette.textPrimary
-            accentWhenOn -> palette.accent
-            else -> palette.textPrimary
-        },
-    )
+    val ink = when {
+        isOn && accentWhenOn -> look.accent
+        isOn -> look.ink
+        tint != null -> tint
+        else -> look.ink
+    }
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-        tooltip = { PlainTooltip { Text(contentDescription) } },
+        tooltip = {
+            PlainTooltip(containerColor = look.ink, contentColor = look.ground) {
+                Text(contentDescription, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 16.sp), color = look.ground)
+            }
+        },
         state = rememberTooltipState(),
     ) {
-    MorphBox(
-        targetFor = { _ -> ControlMorph.iconButton(size.value, on = true, pressed = false, floating = isFloating) },   // always the circle: nothing morphs
-        onClick = { haptics.play(if (on == null) Haptic.Tap else if (on) Haptic.ToggleOff else Haptic.ToggleOn); onClick() },
-        modifier = modifier
-            .minimumInteractiveComponentSize()
-            .size(size)
-            .semantics { this.contentDescription = contentDescription },
-        enabled = enabled,
-        toggled = on,
-        role = if (on != null) Role.Checkbox else Role.Button,
-        floating = isFloating,
-        stateLayer = ink,
-        edge = { outline -> iconEdge(outline, style, isFloating, isOn, colors) },
-        fill = { iconButtonFill(style, isFloating, isOn, accentWhenOn, colors) },
-    ) {
-        Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(ControlMetrics.iconButtonIconDp(size.value).dp))
+        OrbitRoundButton(
+            icon = icon,
+            label = contentDescription,
+            ink = ink,
+            onClick = { haptics.play(if (on == null) Haptic.Tap else if (on) Haptic.ToggleOff else Haptic.ToggleOn); onClick() },
+            modifier = modifier
+                .minimumInteractiveComponentSize()
+                // A toggle is a checkbox to a screen reader, with its state.
+                .then(if (on != null) Modifier.semantics { role = Role.Checkbox; toggleableState = ToggleableState(on) } else Modifier),
+            size = size,
+            on = isOn && !accentWhenOn,
+            onInk = look.ground,
+            enabled = enabled,
+        )
     }
-    }
-}
-
-private fun DrawScope.iconButtonFill(style: CosmoIconButtonStyle, floating: Boolean, on: Boolean, accentWhenOn: Boolean, c: CosmoColors): Brush? = when {
-    floating -> if (on) floatingPrimaryFill(c) else if (style == CosmoIconButtonStyle.PLAIN) null else c.glassFill()
-    on && accentWhenOn -> if (style == CosmoIconButtonStyle.TONAL) SolidColor(c.live(CoverField.SURFACE_HIGH)) else null
-    on -> SolidColor(c.live(CoverField.SURFACE_VARIANT))
-    style == CosmoIconButtonStyle.TONAL -> SolidColor(c.live(CoverField.SURFACE_HIGH))
-    else -> null
-}
-
-private fun DrawScope.iconEdge(outline: Path, style: CosmoIconButtonStyle, floating: Boolean, on: Boolean, c: CosmoColors) {
-    if (!floating) return
-    if (on) innerRing(outline, c.live(CoverField.BUTTON_GRADIENT_START), ControlMetrics.C_PRIMARY_BORDER_DP)
-    else if (style != CosmoIconButtonStyle.PLAIN) glassEdge(outline, c.dark)
 }

@@ -36,15 +36,24 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.shell.CosmoTab
-import com.cosmotune.ui.states.CosmoShimmer
+import com.cosmotune.ui.states.CosmoEmptyState
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
+import com.cosmotune.ui.orbit.WatchSkeleton
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.sheets.SurfaceSheetSwitch
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 /**
- * A page with nothing to show (an empty library, no results, no downloads): a quiet [icon], a light [title], the [message] in
- * secondary ink, and one action when [actionLabel] and [onAction] are given. Centred, no container.
+ * A page with nothing to show (an empty library, no results, no downloads), in Orbit: the one empty state ([CosmoEmptyState]: the
+ * [icon] on a quiet disc, the [title] in the wide face, the [message] in the dim ink, and the action when [actionLabel] and
+ * [onAction] are given). Centred, no container.
  */
 @Composable
 fun KitEmptyState(
@@ -55,21 +64,7 @@ fun KitEmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    Column(
-        modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Icon(icon, contentDescription = null, tint = Color(palette.textTertiary), modifier = Modifier.size(40.dp))
-        Text(title, style = type.titleMedium, color = Color(palette.textPrimary), textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
-        Text(message, style = type.bodyText, color = Color(palette.textSecondary), textAlign = TextAlign.Center)
-        if (actionLabel != null && onAction != null) {
-            Spacer(Modifier.height(6.dp))
-            KitButton(actionLabel, onAction, kind = KitButtonKind.TONAL)
-        }
-    }
+    CosmoEmptyState(message = message, modifier = modifier, title = title, icon = icon, actionLabel = actionLabel, onAction = onAction)
 }
 
 /** Something failed (the network, a source): [KitEmptyState] with a retry. */
@@ -78,33 +73,46 @@ fun KitErrorState(message: String, onRetry: () -> Unit, modifier: Modifier = Mod
     KitEmptyState(title = title, message = message, modifier = modifier, icon = CosmoIcons.Replay, actionLabel = retryLabel, onAction = onRetry)
 }
 
-/** A thin offline notice at the top of a page: a dot and one line, on `surface`, never blocking the page under it. */
+/** A thin offline notice at the top of a page, in Orbit: a quiet card (the ink at 5 %, radius 22), the danger dot and one line in the body face, never blocking the page under it. */
 @Composable
 fun KitOfflineBanner(modifier: Modifier = Modifier, text: String = "You're offline. Showing what's saved on this device.") {
     val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Row(
-        modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 6.dp).clip(RoundedCornerShape(CosmoRadii.rMd)).background(Color(palette.surface)).padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 6.dp).clip(RoundedCornerShape(22.dp)).background(look.row).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(Color(palette.danger)))
         Spacer(Modifier.width(10.dp))
-        Text(text, style = type.meta, color = Color(palette.textSecondary), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(text, style = fonts.body, color = look.dim, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
-/** [count] skeleton media rows, in the shape [KitMediaRow] will take (art and two lines), while a list loads. Still under reduced motion. */
+/**
+ * [count] stand-in rows while a list loads, in the shape the Orbit row ([com.cosmotune.ui.orbit.OrbitSongRow]) will take: a 68 dp
+ * block at radius 22 on the ink at 5 %, a disc (a rounded 16:9 block for [KitArt.WIDE], a poster for [KitArt.POSTER]) and two
+ * lines, 3 dp apart, the page's margin at the sides. Still: nothing moves under reduced motion or otherwise.
+ */
 @Composable
 fun KitSkeletonRows(count: Int = 6, modifier: Modifier = Modifier, art: KitArt = KitArt.SQUARE) {
+    val look = orbitLook()
     Column(modifier.fillMaxWidth()) {
         repeat(count) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = CosmoSpacing.margin, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                val height = if (art == KitArt.WIDE) 56.dp else 48.dp
-                CosmoShimmer(Modifier.size(height * art.ratio, height), if (art == KitArt.ROUND) CircleShape else RoundedCornerShape(CosmoRadii.rSm))
-                Spacer(Modifier.width(12.dp))
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 3.dp).height(68.dp)
+                    .clip(RoundedCornerShape(22.dp)).background(look.row).padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                when (art) {
+                    KitArt.WIDE -> WatchSkeleton(look, Modifier.size(64.dp, 36.dp), radius = 10.dp)
+                    KitArt.POSTER -> WatchSkeleton(look, Modifier.size(32.dp, 48.dp), radius = 8.dp)
+                    else -> WatchSkeleton(look, Modifier.size(44.dp), radius = 22.dp)
+                }
+                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CosmoShimmer(Modifier.fillMaxWidth(0.7f).height(12.dp))
-                    CosmoShimmer(Modifier.fillMaxWidth(0.45f).height(10.dp))
+                    WatchSkeleton(look, Modifier.fillMaxWidth(0.7f).height(12.dp), radius = 6.dp)
+                    WatchSkeleton(look, Modifier.fillMaxWidth(0.45f).height(10.dp), radius = 5.dp)
                 }
             }
         }
@@ -112,49 +120,61 @@ fun KitSkeletonRows(count: Int = 6, modifier: Modifier = Modifier, art: KitArt =
 }
 
 /**
- * The desktop's navigation rail (the dock's tabs, standing on the start edge of a wide window): the same [CosmoTab]s, the chosen
- * one on the neutral `surface3` pill, every one labelled.
+ * The navigation rail of a wide window (the dock's tabs, standing on the start edge), in Orbit: each [CosmoTab] its icon over its
+ * label, the chosen one's icon on a solid ink pill in the ground's colour with its label in the ink, the others in the dim ink with a
+ * faint wash under the pointer. Every one is labelled; the rail is a group of tabs for screen readers.
  */
 @Composable
 fun KitNavRail(tabs: List<CosmoTab>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, header: @Composable ColumnScope.() -> Unit = {}) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = orbitLook()
+    val fonts = orbitFonts()
     Column(modifier.widthIn(min = 88.dp).padding(vertical = 12.dp).selectableGroup(), horizontalAlignment = Alignment.CenterHorizontally) {
         header()
         tabs.forEachIndexed { index, tab ->
             val selected = index == selectedIndex
-            val ink = Color(if (selected) palette.textPrimary else palette.textSecondary)
             Column(
                 Modifier
                     .padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(CosmoRadii.rMd))
-                    .background(if (selected) Color(palette.surfaceVariant) else Color.Transparent)
+                    .clip(RoundedCornerShape(20.dp))
                     .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(index) })
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
                     .wrapContentWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.height(2.dp))
-                Text(tab.label, style = type.tabLabel, color = ink, maxLines = 1)
+                Box(
+                    Modifier.size(56.dp, 32.dp).clip(CircleShape).background(if (selected) look.ink else Color.Transparent),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = null, tint = if (selected) look.ground else look.dim, modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(tab.label, style = fonts.body.copy(fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight(700)), color = if (selected) look.ink else look.dim, maxLines = 1)
             }
         }
     }
 }
 
 /**
- * A bottom sheet of the kit: the bridge's detached glass sheet ([com.cosmotune.ui.bridge.ModalBottomSheet]) with an optional
- * light [title]. Its rows are [KitSettingsRow]s or [KitMediaRow]s.
+ * A bottom sheet of the kit, in Orbit: [SurfaceSheetSwitch], so the sheet is [com.cosmotune.ui.sheets.CosmoSheetSurface] (a flat
+ * sheet of its own ground with 32 dp top corners and the grabber, the 40 % scrim), with an optional [title] in the wide face. The
+ * content is held to 85 % of the window's height, so a list inside it that fills its sheet (a lazy one) still has a height to fill.
+ * Its rows are [KitSettingsRow]s or [KitMediaRow]s.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KitSheet(onDismiss: () -> Unit, title: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    com.cosmotune.ui.bridge.ModalBottomSheet(onDismissRequest = onDismiss) {
-        if (!title.isNullOrBlank()) {
-            Text(title, style = type.titleLarge, color = Color(palette.textPrimary), modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).semantics { heading() })
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+    SurfaceSheetSwitch(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().heightIn(max = windowHeight * 0.85f)) {
+            if (!title.isNullOrBlank()) {
+                Text(
+                    title, style = fonts.section, color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 12.dp).semantics { heading() },
+                )
+            }
+            content()
         }
-        content()
     }
 }

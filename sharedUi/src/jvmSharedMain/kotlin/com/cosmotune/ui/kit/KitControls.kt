@@ -44,43 +44,35 @@ import com.cosmotune.music.ui.haptics.rememberHaptics
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.cosmoFocusRing
 import com.cosmotune.ui.theme.CosmoSpacing
+import com.cosmotune.ui.orbit.OrbitPillButton
+import com.cosmotune.ui.orbit.OrbitSelectChip
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import androidx.compose.foundation.ScrollState
 
 /**
- * A thin filter chip (Prism's library tabs, YTXTube's All / Today / Videos): 32 dp, a low-contrast `surface2` fill at rest, the
- * inverse neutral (primary ink as the fill, the page's colour as the text) when [selected]. No outline. A toggle for screen readers, with a 48 dp touch target.
+ * A filter chip in Orbit (the library's tabs, Video's All / Today / Videos): [OrbitSelectChip], 40 dp, the ink at 8 % at rest and
+ * solid ink with the ground's colour for its words when [selected]; [icon] before the words. A tab for screen readers, with a 48 dp
+ * touch target; a tap on the chip already chosen plays no haptic.
  */
 @Composable
 fun KitChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val haptics = rememberHaptics()
-    // DESIGN_SYSTEM.md 4.4: the chosen chip is the inverse neutral (never the accent); the others a quiet surface2 fill.
-    val fill = Color(if (selected) palette.textPrimary else palette.surfaceHigh)
-    val ink = Color(if (selected) palette.backgroundBottom else palette.textPrimary)
-    val interaction = remember { MutableInteractionSource() }
-    // The whole 48 dp is the target; the pill and its ripple are the 32 dp inside it.
-    Box(
-        modifier
-            .heightIn(min = 48.dp)
-            .selectable(selected = selected, interactionSource = interaction, indication = null, role = Role.Tab, onClick = { if (!selected) haptics.play(Haptic.Select); onClick() }),
-        contentAlignment = Alignment.Center,
-    ) {
-        Row(
-            Modifier
-                .heightIn(min = CHIP_HEIGHT)
-                .clip(CHIP_SHAPE)
-                .background(fill)
-                .indication(interaction, ripple())
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            if (icon != null) Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
-            Text(label, style = type.control, color = ink, maxLines = 1)
-        }
+    // The whole 48 dp is the chip's place (and its test tag's); the pill is the 40 dp inside it.
+    Box(modifier.heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
+        OrbitSelectChip(
+            title = label,
+            selected = selected,
+            fonts = orbitFonts(),
+            look = orbitLook(),
+            onClick = onClick,
+            modifier = Modifier.semantics { role = Role.Tab; this.selected = selected },
+            icon = icon,
+            haptic = !selected,
+        )
     }
 }
 
@@ -126,70 +118,53 @@ fun KitPill(text: String, modifier: Modifier = Modifier, icon: ImageVector? = nu
     }
 }
 
-/** A text-only button ("See all", "Retry"): the secondary ink, a 48 dp target; disabled at 38 %. */
+/**
+ * A text-only button ("See all", "Retry") in Orbit: the words in the chip face and the accent, as a page section's "Show all"
+ * ([com.cosmotune.ui.orbit.OrbitPageSection]); a 48 dp target; disabled at 40 %.
+ */
 @Composable
 fun KitTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = orbitLook()
     Row(
         modifier
             .minimumInteractiveComponentSize()
             .heightIn(min = 40.dp)
-            .alpha(if (enabled) 1f else 0.38f)
-            .clip(CHIP_SHAPE)
+            .alpha(if (enabled) 1f else 0.4f)
+            .clip(CircleShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, style = type.control, color = Color(palette.textSecondary), maxLines = 1)
+        Text(text, style = orbitFonts().chip, color = look.accent, maxLines = 1)
     }
 }
 
-/** The kinds of [KitButton] (DESIGN_SYSTEM.md 4.12): the accent-filled main action (one per screen), the tonal second one, the quiet (outlined) third. */
+/** The kinds of [KitButton]: the one peach action of a screen, the quiet chip, and the quiet chip again (Orbit draws no outlines). */
 enum class KitButtonKind { PRIMARY, TONAL, QUIET }
 
 /**
- * A button of the kit (DESIGN_SYSTEM.md 4.12): 48 dp, or 40 dp [dense] for an action row; PRIMARY is the accent with its ink, TONAL
- * `surface2` with the primary ink (never a tint of the accent), QUIET a 1 dp outline. A flat pill: no morph, no gradient. Disabled at
- * 38 %.
+ * A button of the kit in Orbit: the pill a dialog's actions are ([OrbitPillButton]), 48 dp, or 40 dp [dense] for an action row.
+ * PRIMARY is the peach action, TONAL and QUIET the quiet chip (the ink at 8 %). Disabled at 40 %. The select haptic on a tap.
  */
 @Composable
 fun KitButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, kind: KitButtonKind = KitButtonKind.PRIMARY, icon: ImageVector? = null, enabled: Boolean = true, dense: Boolean = false) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
     val haptics = rememberHaptics()
-    val interaction = remember { MutableInteractionSource() }
-    val fill = when (kind) {
-        KitButtonKind.PRIMARY -> Color(palette.accent)
-        KitButtonKind.TONAL -> Color(palette.surfaceHigh)
-        KitButtonKind.QUIET -> Color.Transparent
-    }
-    val ink = if (kind == KitButtonKind.PRIMARY) Color(palette.onAccent) else Color(palette.textPrimary)
-    Row(
-        modifier
-            .minimumInteractiveComponentSize()
-            .cosmoFocusRing(interaction, 24.dp)
-            .heightIn(min = if (dense) 40.dp else 48.dp)
-            .alpha(if (enabled) 1f else 0.38f)
-            .clip(CHIP_SHAPE)
-            .background(fill)
-            .then(if (kind == KitButtonKind.QUIET) Modifier.border(1.dp, Color(palette.textPrimary).copy(alpha = 0.16f), CHIP_SHAPE) else Modifier)
-            .clickable(interactionSource = interaction, indication = ripple(), enabled = enabled, role = Role.Button) { haptics.play(Haptic.Select); onClick() }
-            .padding(horizontal = if (dense) 16.dp else 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-        }
-        Text(text, style = type.control, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+    OrbitPillButton(
+        label = text,
+        onClick = { haptics.play(Haptic.Select); onClick() },
+        fonts = orbitFonts(),
+        look = orbitLook(),
+        modifier = modifier.minimumInteractiveComponentSize(),
+        primary = kind == KitButtonKind.PRIMARY,
+        enabled = enabled,
+        icon = icon,
+        height = if (dense) 40.dp else 48.dp,
+    )
 }
 
 /**
- * The action row of a watch or a detail page (DESIGN_SYSTEM.md 4.12): one sideways-scrolling row of dense tonal pills, 8 dp apart,
- * the page's margin at both ends. It never wraps.
+ * The action row of a watch or a detail page, as Orbit's chip row ([com.cosmotune.ui.orbit.OrbitChipRow]): one sideways-scrolling
+ * row of chips and pills, 8 dp apart, the page's margin at both ends. It never wraps.
  */
 @Composable
 fun KitActionRow(modifier: Modifier = Modifier, contentPadding: PaddingValues = PaddingValues(horizontal = CosmoSpacing.margin), scrollState: ScrollState = rememberScrollState(), content: @Composable RowScope.() -> Unit) {

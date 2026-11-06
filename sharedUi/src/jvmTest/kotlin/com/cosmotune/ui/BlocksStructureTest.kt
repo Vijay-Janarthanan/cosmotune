@@ -118,9 +118,12 @@ class BlocksStructureTest {
 
     @Test fun everyClickableBlockHasARole() {
         // the row and the card: a semantics modifier with the role, over the hold-aware click
-        for (name in listOf("CosmoListRow", "CosmoCards")) {
-            val src = block(name)
-            assertTrue("longPressMenuClickable(" in src && "contextClick(" in src, "$name keeps the held-row menu working")
+        val row = block("CosmoListRow")
+        assertTrue("OrbitSongRow(" in row && "onLongClick = onLongPress" in row, "the list row is the Orbit row, whose hold and right click open the menu")
+        assertTrue("longPressMenuClickable(" in row && "contextClick(" in row, "the song row's frame keeps the held-row menu working")
+        val cards = block("CosmoCards")
+        assertTrue("OrbitRecord(" in cards && "OrbitPortrait(" in cards && "onLongClick = onLongPress" in cards, "the card is the Orbit record or portrait, which keep the held-card menu")
+        for ((name, src) in listOf("CosmoListRow" to row, "CosmoCards" to cards)) {
             assertTrue("role = Role.Button" in src, "$name carries Role.Button")
             assertTrue("mergeDescendants = true" in src, "$name reads as one control")
         }
@@ -139,7 +142,8 @@ class BlocksStructureTest {
         val kit = SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/kit/KitControls.kt")
         assertTrue(SourceContract.functionBody(kit, "KitChip").contains("heightIn(min = 48.dp)"), "a chip (the moods on Home) reserves 48 dp")
         assertTrue("size(48.dp)" in block("CosmoSearchField"), "the magnifier is 48 dp")
-        assertTrue("KitTextButton(" in block("CosmoHeaders") && SourceContract.functionBody(kit, "KitTextButton").contains("minimumInteractiveComponentSize()"), "Show all is a text button, which reserves 48 dp")
+        assertTrue("OrbitPageSection(" in block("CosmoHeaders") && "action = if (onShowAll != null)" in block("CosmoHeaders"), "Show all is the Orbit section's action")
+        assertTrue(SourceContract.functionBody(kit, "KitTextButton").contains("minimumInteractiveComponentSize()"), "a text button reserves 48 dp")
     }
 
     @Test fun everyBlockThatTakesFocusShowsIt() {
@@ -228,10 +232,9 @@ class BlocksStructureTest {
         }
     }
 
-    @Test fun theShelfKeepsItsKeysStableAndItsCardsOnTheBottomLine() {
+    @Test fun theShelfKeepsItsKeysStable() {
         val cards = block("CosmoCards")
-        assertTrue("LazyRow(" in cards && "itemsIndexed(" in cards && "key = " in cards, "a lazy row with keys")
-        assertTrue("Alignment.Bottom" in cards, "the cards stand on one line")
+        assertTrue("OrbitShelfRow(" in cards && "itemsIndexed(" in cards && "key = " in cards, "Orbit's lazy shelf row, with keys")
         assertTrue("?: item.videoId ?: item.title" in cards, "the key is the browse id, the video id or the title, and the place")
     }
 }

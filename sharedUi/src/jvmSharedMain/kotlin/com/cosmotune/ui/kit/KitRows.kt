@@ -42,6 +42,14 @@ import com.cosmotune.ui.theme.CosmoSpacing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.tabular
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.settings.CosmoSettingsRow
+import com.cosmotune.ui.settings.LocalSettingsTileColor
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.unit.sp
 
 /** The shape of the art a row or a card leads with: a square cover, a round avatar, a 16:9 thumbnail, a 2:3 poster (a book, a manga). */
 enum class KitArt(val ratio: Float) { SQUARE(1f), ROUND(1f), WIDE(16f / 9f), POSTER(2f / 3f) }
@@ -60,9 +68,12 @@ fun KitArtwork(url: String?, art: KitArt, height: Dp, modifier: Modifier = Modif
 }
 
 /**
- * A media row (Lokal's dense rows, collapsed for the phone): [number] or art, [title] over [subtitle] (artist, channel, author),
- * an optional [quality] pill, the [trailingText] (a duration, a count) and a more button; [artHeight] replaces the art's usual height. Sits directly on the page; [current]
- * draws the title in the accent. Works for songs, episodes, videos (with [KitArt.WIDE]), chapters and books ([KitArt.POSTER]).
+ * A media row in Orbit: the one Orbit row ([OrbitSongRow]), radius 22 on the ink at 5 %, inset by the page's margin and 3 dp from its
+ * neighbours. In front: [number] in the narrow face, or the art ([KitArt.SQUARE] and [KitArt.ROUND] as a disc, [KitArt.WIDE] a rounded
+ * 16:9 picture, [KitArt.POSTER] a rounded poster; [artHeight] replaces its usual size). Then [title] over [subtitle] (artist,
+ * channel, author), led by the [quality] pill, then [trailingText] (a duration, a count) and a round more button when [onMore] is
+ * given. The [current] row has the peach wash, a peach title and the orbit round its disc. Works for songs, episodes, videos,
+ * chapters and books.
  */
 @Composable
 fun KitMediaRow(
@@ -81,51 +92,50 @@ fun KitMediaRow(
     moreLabel: String = "More",
     artHeight: Dp? = null,
 ) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
-    val artHeight = artHeight ?: if (art == KitArt.WIDE) 56.dp else if (art == KitArt.POSTER) 64.dp else 48.dp
-    Row(
-        modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp)
-            .combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick)
-            .padding(start = CosmoSpacing.margin, end = if (onMore != null) 4.dp else CosmoSpacing.margin, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (number != null) {
-            Text(
-                number.toString(),
-                style = type.meta.tabular(),
-                color = Color(if (current) palette.accentStrong else palette.textTertiary),
-                modifier = Modifier.width(28.dp),
-                maxLines = 1,
-            )
-        } else if (artUrl != null || art != KitArt.SQUARE) {
-            KitArtwork(artUrl, art, artHeight)
-            Spacer(Modifier.width(12.dp))
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                title,
-                style = type.forText(type.rowTitle, title),
-                color = Color(if (current) palette.accentStrong else palette.textPrimary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (!subtitle.isNullOrBlank()) {
-                Text(subtitle, style = type.forText(type.meta, subtitle), color = Color(palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        if (quality != null) {
-            Spacer(Modifier.width(8.dp))
-            QualityPill(quality, compact = true)
-        }
-        if (trailingText != null) {
-            Spacer(Modifier.width(10.dp))
-            Text(trailingText, style = type.meta.tabular(), color = Color(palette.textTertiary), maxLines = 1)
-        }
-        if (onMore != null) CosmoIconButton(CosmoIcons.MoreVertical, moreLabel, onMore, style = CosmoIconButtonStyle.PLAIN, size = 40.dp)
+    val fonts = orbitFonts()
+    val look = orbitLook()
+    val showsArt = number == null && (artUrl != null || art != KitArt.SQUARE)
+    val picture = showsArt && (art == KitArt.WIDE || art == KitArt.POSTER)
+    val disc = when {
+        number != null -> 36.dp
+        !showsArt -> 0.dp
+        art == KitArt.WIDE -> 56.dp
+        picture -> 44.dp
+        else -> artHeight ?: 44.dp
     }
+    OrbitSongRow(
+        title = title,
+        subtitle = subtitle.orEmpty(),
+        cover = artUrl,
+        fonts = fonts,
+        look = look,
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 3.dp),
+        now = current,
+        onLongClick = onLongClick,
+        endPadding = if (onMore != null) 6.dp else 16.dp,
+        discSize = disc,
+        gap = if (showsArt || number != null) 12.dp else 6.dp,
+        subtitleLeading = quality?.let { badge -> { QualityPill(badge, compact = true) } },
+        discContent = when {
+            number != null -> {
+                {
+                    Text(
+                        number.toString(), style = fonts.number.copy(fontSize = 26.sp, lineHeight = 26.sp),
+                        color = if (current) look.accent else look.ink.copy(alpha = 0.4f), maxLines = 1,
+                    )
+                }
+            }
+            !showsArt -> { {} }
+            art == KitArt.WIDE -> { { KitArtwork(artUrl, art, artHeight ?: 36.dp, radius = 10.dp) } }
+            art == KitArt.POSTER -> { { KitArtwork(artUrl, art, artHeight ?: 52.dp, radius = 8.dp) } }
+            else -> null
+        },
+        trailingText = trailingText,
+        trailing = if (onMore != null) {
+            { OrbitRoundButton(CosmoIcons.MoreVertical, moreLabel, look.ink, onMore, Modifier.padding(start = 6.dp), size = 36.dp) }
+        } else null,
+    )
 }
 
 /**
@@ -152,10 +162,10 @@ fun KitDivider(modifier: Modifier = Modifier, start: Dp = 56.dp) {
 }
 
 /**
- * A settings row (DESIGN_SYSTEM.md 4.10, with the owner's squircle tiles): a small squircle with its [icon] in a [tile] tint of the
- * theme (or the caller's [tint]; with neither, a quiet `surface3` tile and a secondary glyph), the [title] over an optional
- * [summary] (one line with [singleLineSummary], the current value), and [trailing] (a switch, a value, a chevron by default when
- * [onClick] is given). [selected] marks the chosen row of a two-pane settings page (`surface3`, and selected for screen readers).
+ * A settings row in Orbit: the settings pages' own row ([CosmoSettingsRow]: the lead tile with its [icon], the [title] over an optional
+ * [summary], and [trailing] or a chevron when [onClick] is given), on a round 22 dp ground. The lead tile is the [tile] tint of the
+ * theme or the caller's [tint] with a white glyph, or the tonal tile with neither. [singleLineSummary] keeps the summary (the current
+ * value) to one line. [selected] marks the chosen row of a two-pane page (the ink at 8 % under it, and selected for screen readers).
  */
 @Composable
 fun KitSettingsRow(
@@ -171,35 +181,32 @@ fun KitSettingsRow(
     tile: KitTileTint? = null,
 ) {
     val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    // The squircle's colour: the caller's, a tile tint of the theme, or, with neither, the quiet surface3 with a secondary glyph.
+    val look = orbitLook()
+    val fonts = orbitFonts()
+    // The tile's colour: the caller's, a tile tint of the theme, or, with neither, the settings pages' tonal tile.
     val tileFill = tint ?: tile?.fill(colors.dark)?.let { Color(it) }
-    Row(
+    Box(
         modifier
             .fillMaxWidth()
-            .heightIn(min = if (summary.isNullOrBlank()) 56.dp else 72.dp)
-            .then(if (selected) Modifier.background(Color(palette.surfaceVariant)) else Modifier)
-            .then(if (onClick != null) Modifier.combinedClickable(role = Role.Button, onClick = onClick) else Modifier)
-            .then(if (selected) Modifier.semantics { this.selected = true } else Modifier)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(RoundedCornerShape(22.dp))
+            .then(if (selected) Modifier.background(look.chip).semantics { this.selected = true } else Modifier),
     ) {
-        if (icon != null) {
-            Box(Modifier.size(30.dp).clip(RoundedCornerShape(CosmoRadii.rSm)).background(tileFill ?: Color(palette.surfaceVariant)), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = if (tileFill != null) Color.White else Color(palette.textSecondary), modifier = Modifier.size(18.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = type.rowTitle, color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (!summary.isNullOrBlank()) {
-                Text(summary, style = type.meta, color = Color(palette.textSecondary), maxLines = if (singleLineSummary) 1 else 3, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        when {
-            trailing != null -> { Spacer(Modifier.width(8.dp)); trailing() }
-            onClick != null -> Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = Color(palette.textTertiary), modifier = Modifier.size(20.dp))
+        CompositionLocalProvider(LocalSettingsTileColor provides tileFill) {
+            CosmoSettingsRow(
+                icon = icon,
+                title = title,
+                subtitle = summary.takeUnless { singleLineSummary }?.takeIf { it.isNotBlank() },
+                subtitleContent = if (singleLineSummary && !summary.isNullOrBlank()) {
+                    {
+                        Text(
+                            summary, style = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 17.sp), color = look.dim, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                } else null,
+                onClick = onClick,
+                trailing = trailing,
+            )
         }
     }
 }
