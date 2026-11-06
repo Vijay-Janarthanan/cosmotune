@@ -1,5 +1,7 @@
 package com.cosmotune.music.ui.screens
 
+import androidx.compose.foundation.selection.selectableGroup
+
 import android.content.Context
 import android.content.Intent
 import android.media.AudioFormat
@@ -1910,10 +1912,8 @@ fun SettingsScreen(
     }
 
     picking?.let { target ->
-        ModalBottomSheet(
-            onDismissRequest = { picking = null },
-            containerColor = MaterialTheme.colorScheme.background,
-        ) {
+        // An Orbit sheet with Orbit rows (the song sheet's surface; the chosen rung solid ink with the peach dot).
+        com.cosmotune.ui.orbit.OrbitPickerSheet(onDismiss = { picking = null }) {
             QualitySheet(
                 target = target,
                 selected = when (target) {
@@ -1940,10 +1940,8 @@ fun SettingsScreen(
     }
 
     if (pickingDownloadQuality) {
-        ModalBottomSheet(
-            onDismissRequest = { pickingDownloadQuality = false },
-            containerColor = MaterialTheme.colorScheme.background,
-        ) {
+        // An Orbit sheet with Orbit rows (the song sheet's surface; the chosen rung solid ink with the peach dot).
+        com.cosmotune.ui.orbit.OrbitPickerSheet(onDismiss = { pickingDownloadQuality = false }) {
             DownloadQualitySheet(
                 selected = downloadQuality,
                 onSelect = { quality ->
@@ -1955,10 +1953,8 @@ fun SettingsScreen(
     }
 
     if (pickingAutomixPerformance) {
-        ModalBottomSheet(
-            onDismissRequest = { pickingAutomixPerformance = false },
-            containerColor = MaterialTheme.colorScheme.background,
-        ) {
+        // An Orbit sheet with Orbit rows (the song sheet's surface; the chosen rung solid ink with the peach dot).
+        com.cosmotune.ui.orbit.OrbitPickerSheet(onDismiss = { pickingAutomixPerformance = false }) {
             AutomixPerformanceSheet(
                 selected = automixPerformance,
                 onSelect = { mode ->
@@ -2063,11 +2059,12 @@ fun SettingsScreen(
             onDismissRequest = { showListenBrainzTokenDialog = false },
             title = stringResource(R.string.listenbrainz_token),
             content = {
-                OutlinedTextField(
+                com.cosmotune.ui.orbit.OrbitTextField(
                     value = tokenInput,
                     onValueChange = { tokenInput = it },
-                    label = { Text(stringResource(R.string.api_token)) },
-                    singleLine = true,
+                    placeholder = stringResource(R.string.api_token),
+                    fonts = com.cosmotune.ui.orbit.orbitFonts(),
+                    look = com.cosmotune.ui.orbit.orbitLook(),
                     modifier = Modifier.fillMaxWidth(),
                 )
             },
@@ -2099,20 +2096,25 @@ fun SettingsScreen(
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
                     }
-                    OutlinedTextField(
+                    com.cosmotune.ui.orbit.OrbitTextField(
                         value = usernameInput,
                         onValueChange = { usernameInput = it },
-                        label = { Text(stringResource(R.string.username)) },
-                        singleLine = true,
+                        placeholder = stringResource(R.string.username),
+                        fonts = com.cosmotune.ui.orbit.orbitFonts(),
+                        look = com.cosmotune.ui.orbit.orbitLook(),
                         modifier = Modifier.fillMaxWidth(),
+                        error = lastfmError != null,
                     )
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
+                    com.cosmotune.ui.orbit.OrbitTextField(
                         value = passwordInput,
                         onValueChange = { passwordInput = it },
-                        label = { Text(stringResource(R.string.password)) },
-                        singleLine = true,
+                        placeholder = stringResource(R.string.password),
+                        fonts = com.cosmotune.ui.orbit.orbitFonts(),
+                        look = com.cosmotune.ui.orbit.orbitLook(),
                         modifier = Modifier.fillMaxWidth(),
+                        error = lastfmError != null,
+                        secret = true,
                     )
                 }
             },
@@ -2368,7 +2370,7 @@ internal fun AccountCard(
     }
 }
 
-/** The quality options for one connection, with what each costs in data. */
+/** The quality options for one connection, with what each costs in data: an Orbit picker's title and rows, best first. */
 @Composable
 private fun QualitySheet(
     target: QualityTarget,
@@ -2376,71 +2378,20 @@ private fun QualitySheet(
     onSelect: (AudioQuality) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
-    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-        Row(
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = target.icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(22.dp),
-            )
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(
-                    text = stringResource(R.string.audio_quality),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = stringResource(
-                        R.string.audio_quality_connection,
-                        target.localizedTitle().lowercase(Locale.getDefault()),
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
-
+    com.cosmotune.ui.orbit.OrbitSheetTitle(
+        stringResource(R.string.audio_quality),
+        label = target.localizedTitle(),
+        subtitle = stringResource(R.string.audio_quality_connection, target.localizedTitle().lowercase(Locale.getDefault())),
+    )
+    PickerRows {
         // Best first — the option most people want shouldn't be last.
         AudioQuality.entries.reversed().forEach { quality ->
-            val chosen = quality == selected
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onSelect(quality)
-                    }
-                    .padding(horizontal = 22.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = quality.localizedLabel(),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        text = stringResource(R.string.quality_hourly, quality.detail, quality.hourly),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (chosen) {
-                    Spacer(Modifier.width(12.dp))
-                    Icon(
-                        Icons.Rounded.Check,
-                        contentDescription = stringResource(R.string.selected),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
+            com.cosmotune.ui.orbit.OrbitPickRow(
+                title = quality.localizedLabel(),
+                detail = stringResource(R.string.quality_hourly, quality.detail, quality.hourly),
+                selected = quality == selected,
+                onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onSelect(quality) },
+            )
         }
     }
 }
@@ -2452,72 +2403,25 @@ private fun AutomixPerformanceSheet(
     onSelect: (AutomixPerformanceMode) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
-    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-        Row(
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Tune,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(22.dp),
-            )
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(
-                    text = stringResource(R.string.automix_performance),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = stringResource(R.string.automix_performance_warning),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+    com.cosmotune.ui.orbit.OrbitSheetTitle(
+        stringResource(R.string.automix_performance),
+        label = "Automix",
+        subtitle = stringResource(R.string.automix_performance_warning),
+    )
+    PickerRows {
         AutomixPerformanceMode.entries.forEach { mode ->
-            val chosen = mode == selected
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onSelect(mode)
-                    }
-                    .padding(horizontal = 22.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = mode.localizedLabel(),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        text = stringResource(
-                            when (mode) {
-                                AutomixPerformanceMode.EFFICIENT -> R.string.automix_mode_efficient_subtitle
-                                AutomixPerformanceMode.BALANCED -> R.string.automix_mode_balanced_subtitle
-                                AutomixPerformanceMode.PERFORMANCE -> R.string.automix_mode_performance_subtitle
-                            },
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (chosen) {
-                    Spacer(Modifier.width(12.dp))
-                    Icon(
-                        Icons.Rounded.Check,
-                        contentDescription = stringResource(R.string.selected),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
+            com.cosmotune.ui.orbit.OrbitPickRow(
+                title = mode.localizedLabel(),
+                detail = stringResource(
+                    when (mode) {
+                        AutomixPerformanceMode.EFFICIENT -> R.string.automix_mode_efficient_subtitle
+                        AutomixPerformanceMode.BALANCED -> R.string.automix_mode_balanced_subtitle
+                        AutomixPerformanceMode.PERFORMANCE -> R.string.automix_mode_performance_subtitle
+                    },
+                ),
+                selected = mode == selected,
+                onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onSelect(mode) },
+            )
         }
     }
 }
@@ -2537,71 +2441,32 @@ private fun DownloadQualitySheet(
     onSelect: (DownloadQuality) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
-    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-        Row(
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Download,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(22.dp),
-            )
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(
-                    text = stringResource(R.string.download_quality),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = stringResource(R.string.download_quality_dialog_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
-
+    com.cosmotune.ui.orbit.OrbitSheetTitle(
+        stringResource(R.string.download_quality),
+        label = "Downloads",
+        subtitle = stringResource(R.string.download_quality_dialog_subtitle),
+    )
+    PickerRows {
         // Best first, matching [QualitySheet] — and here the best rung is also
-        // the default, so the checkmark starts where the eye does.
+        // the default, so the mark starts where the eye does.
         DownloadQuality.entries.reversed().forEach { quality ->
-            val chosen = quality == selected
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onSelect(quality)
-                    }
-                    .padding(horizontal = 22.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = quality.localizedLabel(),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        text = stringResource(R.string.quality_per_track, quality.detail, quality.perTrack),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (chosen) {
-                    Spacer(Modifier.width(12.dp))
-                    Icon(
-                        Icons.Rounded.Check,
-                        contentDescription = stringResource(R.string.selected),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
+            com.cosmotune.ui.orbit.OrbitPickRow(
+                title = quality.localizedLabel(),
+                detail = stringResource(R.string.quality_per_track, quality.detail, quality.perTrack),
+                selected = quality == selected,
+                onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onSelect(quality) },
+            )
         }
     }
+}
+
+/** The rows of a picker sheet: a radio group, 6 dp apart, under its title. */
+@Composable
+private fun PickerRows(content: @Composable () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp).selectableGroup(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) { content() }
 }
 
 // ---- Building blocks --------------------------------------------------------

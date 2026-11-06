@@ -63,6 +63,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
@@ -118,6 +119,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.data.cloud.AndroidCloud
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -5440,26 +5443,7 @@ private fun CosmotuneApp(
             BackHandler { showDiscordLogin = false }
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Column(Modifier.fillMaxSize()) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        IconButton(onClick = { showDiscordLogin = false }) {
-                            Icon(
-                                Icons.Rounded.Close,
-                                contentDescription = stringResource(R.string.close),
-                                tint = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
-                        Text(
-                            "Sign in to Discord",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                    SignInHeader("Sign in to Discord", onClose = { showDiscordLogin = false })
                     DiscordLoginScreen(
                         onTokenCaptured = { token ->
                             AppSettings.setDiscordToken(token)
@@ -5477,26 +5461,7 @@ private fun CosmotuneApp(
             BackHandler { showSpotifyLogin = false }
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Column(Modifier.fillMaxSize()) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        IconButton(onClick = { showSpotifyLogin = false }) {
-                            Icon(
-                                Icons.Rounded.Close,
-                                contentDescription = stringResource(R.string.close),
-                                tint = MaterialTheme.colorScheme.onBackground,
-                            )
-                        }
-                        Text(
-                            stringResource(R.string.spotify_sign_in),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground,
-                        )
-                    }
+                    SignInHeader(stringResource(R.string.spotify_sign_in), onClose = { showSpotifyLogin = false })
                     SpotifyLoginScreen(
                         modifier = Modifier.navigationBarsPadding(),
                         onConnected = { token ->
@@ -5581,6 +5546,27 @@ private fun CosmotuneApp(
     }
 }
 
+/**
+ * The head of a full-screen sign-in page (Discord, Spotify) in Orbit: the round close button of the kit, the mono "Sign in" label
+ * over the [title] in the wide face, under the status bar.
+ */
+@Composable
+private fun SignInHeader(title: String, onClose: () -> Unit) {
+    val fonts = com.cosmotune.ui.orbit.orbitFonts()
+    val look = com.cosmotune.ui.orbit.orbitLook()
+    Row(
+        Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        com.cosmotune.ui.orbit.OrbitRoundButton(CosmoIcons.Close, stringResource(R.string.close), look.ink, onClose)
+        Column(Modifier.weight(1f)) {
+            com.cosmotune.ui.orbit.OrbitLabel("Sign in", fonts, look.dim)
+            Text(title, style = fonts.heroTitle.copy(fontSize = 20.sp, lineHeight = 23.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
 private fun tween(durationMillis: Int) =
     androidx.compose.animation.core.tween<Float>(durationMillis)
 
@@ -5607,6 +5593,34 @@ private fun FrostedSortMenu(
     onFlipDateDirection: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // The new look: the Orbit menu (the video view menu's popover), under the top bar's end, the one in force solid ink.
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
+        val dateActive = selected == SongSort.DATE_ADDED_ASC || selected == SongSort.DATE_ADDED_DESC
+        val dateLabel = stringResource(R.string.sort_date_added_toggle)
+        val newest = stringResource(R.string.sort_date_added)
+        val oldest = stringResource(R.string.sort_date_added_oldest)
+        val labels = SongSort.entries.associateWith { it.localizedLabel() }
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(top = 52.dp, end = 16.dp).size(1.dp)) {
+                com.cosmotune.ui.orbit.OrbitMenu(
+                    open = true, onDismiss = onDismiss, fonts = com.cosmotune.ui.orbit.orbitFonts(), look = com.cosmotune.ui.orbit.orbitLook(),
+                    header = "Sort",
+                    items = buildList {
+                        // Date added is one row: tapping it flips the direction and leaves the menu up, as before.
+                        add(com.cosmotune.ui.orbit.OrbitMenuItem(
+                            dateLabel, if (dateActive) (if (selected == SongSort.DATE_ADDED_ASC) oldest else newest) else null,
+                            if (selected == SongSort.DATE_ADDED_ASC) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
+                            selected = dateActive, keepOpen = true, onClick = onFlipDateDirection,
+                        ))
+                        SongSort.entries.filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }.forEach { option ->
+                            add(com.cosmotune.ui.orbit.OrbitMenuItem(labels.getValue(option), selected = option == selected, keepOpen = true) { onSelect(option) })
+                        }
+                    },
+                )
+            }
+        }
+        return
+    }
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val shape = MaterialTheme.shapes.extraLarge
     Box(

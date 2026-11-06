@@ -8100,17 +8100,20 @@ private fun DesktopSourceEditorDialog(
         onDismiss = onDismiss,
         content = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                // The Orbit field (the chip's pill), its name as the mono label above it.
+                com.cosmotune.ui.orbit.OrbitLabel(DesktopStrings["d_addon_url", "Addon URL"], com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook().dim)
+                com.cosmotune.ui.orbit.OrbitTextField(
                     value = baseUrl,
                     onValueChange = {
-                        baseUrl = it
-                        message = null
+                        if (!checking) {
+                            baseUrl = it
+                            message = null
+                        }
                     },
+                    placeholder = "https://example.com/addon",
+                    fonts = com.cosmotune.ui.orbit.orbitFonts(),
+                    look = com.cosmotune.ui.orbit.orbitLook(),
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(DesktopStrings["d_addon_url", "Addon URL"]) },
-                    placeholder = { Text("https://example.com/addon") },
-                    singleLine = true,
-                    enabled = !checking,
                 )
                 Text(
                     DesktopStrings[
@@ -8121,14 +8124,14 @@ private fun DesktopSourceEditorDialog(
                     color = DesktopSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                OutlinedTextField(
+                com.cosmotune.ui.orbit.OrbitLabel(DesktopStrings["d_name_optional", "Name (optional)"], com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook().dim)
+                com.cosmotune.ui.orbit.OrbitTextField(
                     value = label,
-                    onValueChange = { label = it },
+                    onValueChange = { if (!checking) label = it },
+                    placeholder = DesktopStrings["d_my_music_source", "My music source"],
+                    fonts = com.cosmotune.ui.orbit.orbitFonts(),
+                    look = com.cosmotune.ui.orbit.orbitLook(),
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(DesktopStrings["d_name_optional", "Name (optional)"]) },
-                    placeholder = { Text(DesktopStrings["d_my_music_source", "My music source"]) },
-                    singleLine = true,
-                    enabled = !checking,
                 )
                 (message ?: status)?.let {
                     Text(it, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
