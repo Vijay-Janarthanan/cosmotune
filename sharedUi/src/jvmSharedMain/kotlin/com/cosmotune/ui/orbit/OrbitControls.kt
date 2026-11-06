@@ -34,7 +34,7 @@ import com.cosmotune.ui.components.CosmoIcons
 
 /** The play / pause button: peach with a dark glyph in dark, near-black with a peach glyph in light. Lives in a bite. */
 @Composable
-internal fun OrbitPlayButton(playing: Boolean, onClick: () -> Unit, look: OrbitLook, modifier: Modifier = Modifier, size: Dp = 66.dp) {
+fun OrbitPlayButton(playing: Boolean, onClick: () -> Unit, look: OrbitLook, modifier: Modifier = Modifier, size: Dp = 66.dp) {
     Box(
         modifier.size(size).clip(CircleShape).background(if (look.dark) PEACH else Color(0xFF1D1416)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -46,7 +46,7 @@ internal fun OrbitPlayButton(playing: Boolean, onClick: () -> Unit, look: OrbitL
 
 /** The round tonal button of a card or a bar (previous, next, like, the screen button): [ink] at 12 %, or solid when [on]. */
 @Composable
-internal fun OrbitRoundButton(icon: ImageVector, label: String, ink: Color, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 40.dp, on: Boolean = false, onInk: Color = Color(0xFF1B1416)) {
+fun OrbitRoundButton(icon: ImageVector, label: String, ink: Color, onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 40.dp, on: Boolean = false, onInk: Color = Color(0xFF1B1416)) {
     Box(
         modifier.size(size).clip(CircleShape).background(if (on) ink else ink.copy(alpha = 0.12f)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -59,7 +59,7 @@ internal fun OrbitRoundButton(icon: ImageVector, label: String, ink: Color, onCl
  * as the volume); null makes it a read-only line.
  */
 @Composable
-internal fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Modifier, onSeek: ((Float) -> Unit)? = null, moon: Dp = 6.dp, live: Boolean = false) {
+fun OrbitProgressLine(progress: () -> Float, ink: Color, modifier: Modifier = Modifier, onSeek: ((Float) -> Unit)? = null, moon: Dp = 6.dp, live: Boolean = false) {
     var drag by remember { mutableStateOf<Float?>(null) }
     val input = if (onSeek == null) Modifier else Modifier
         .pointerInput(onSeek) { detectTapGestures { onSeek((it.x / size.width).coerceIn(0f, 1f)) } }
@@ -101,7 +101,7 @@ internal fun BoxScope.DiscPlayMoon(look: OrbitLook, onClick: () -> Unit, size: D
  * only a width it is as tall as its [content].
  */
 @Composable
-internal fun OrbitBiteCard(
+fun OrbitBiteCard(
     fill: Color,
     modifier: Modifier = Modifier,
     shape: BiteShape = HeroBite,

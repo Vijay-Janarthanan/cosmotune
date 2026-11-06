@@ -70,7 +70,7 @@ fun QueueScreen(
             state = state,
             contentPadding = padding,
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.background(Color.Black),
+            modifier = Modifier.background(WearOrbit.Ground),
         ) {
             item(key = "header") { Header(stringResource(R.string.up_next)) }
             when {
@@ -89,40 +89,44 @@ fun QueueScreen(
     }
 }
 
+/** A song in Up Next as an Orbit row: its disc at the start (the playing one wears the orbit), on the peach wash while it plays. */
 @Composable
 private fun QueueCell(row: QueueRow, isCurrent: Boolean, isPast: Boolean, onClick: () -> Unit) {
-    Cell(onClick = onClick, dimmed = isPast) {
-        Box(
-            Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(7.dp))
-                .background(Color.White.copy(alpha = 0.10f)),
-        ) {
-            row.art?.let {
-                Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(34.dp))
+    Cell(onClick = onClick, dimmed = isPast, now = isCurrent) {
+        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(WearOrbit.Round),
+            ) {
+                row.art?.let {
+                    Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(32.dp))
+                }
             }
+            if (isCurrent) WearOrbitRing(40.dp, fraction = null, stroke = 1.5.dp)
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             if (isCurrent) {
                 Text(
                     text = stringResource(R.string.playing_now).uppercase(),
-                    style = WearType.caption,
-                    color = AccentRed,
+                    style = WearType.label,
+                    color = WearOrbit.Peach,
                     maxLines = 1,
                 )
             }
             Text(
                 text = row.title,
                 style = WearType.row,
-                color = Color.White,
+                color = if (isCurrent) WearOrbit.Peach else WearOrbit.Ink,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = row.artist,
                 style = WearType.rowSub,
-                color = Secondary,
+                color = WearOrbit.Dim,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -140,7 +144,7 @@ fun MoreScreen(np: NowPlaying?, link: PhoneLink, onOpenOutput: () -> Unit, onOpe
             state = state,
             contentPadding = padding,
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.background(Color.Black),
+            modifier = Modifier.background(WearOrbit.Ground),
         ) {
             item(key = "header") { Header(stringResource(R.string.more)) }
             item(key = "podio") { ToggleCell(icon = R.drawable.ic_speaker, label = "Podio", value = null, active = false, onClick = onOpenPodio) }
@@ -188,7 +192,6 @@ fun MoreScreen(np: NowPlaying?, link: PhoneLink, onOpenOutput: () -> Unit, onOpe
                     label = stringResource(if (np.liked) R.string.loved else R.string.love),
                     value = null,
                     active = np.liked,
-                    activeTint = AccentRed,
                     onClick = link::toggleLike,
                 )
             }
@@ -203,21 +206,12 @@ private fun ToggleCell(
     value: String?,
     active: Boolean,
     onClick: () -> Unit,
-    activeTint: Color? = null,
     badge: String? = null,
 ) {
     Cell(onClick = onClick) {
-        // On: a filled disc, as the phone's player highlights shuffle and repeat.
-        val disc = when {
-            !active -> Color.White.copy(alpha = 0.12f)
-            activeTint != null -> activeTint.copy(alpha = 0.20f)
-            else -> Color.White
-        }
-        val glyph = when {
-            !active -> Color.White
-            activeTint != null -> activeTint
-            else -> Color.Black
-        }
+        // On: solid ink, as a selected Orbit chip is.
+        val disc = if (active) WearOrbit.Ink else WearOrbit.Round
+        val glyph = if (active) WearOrbit.OnInk else WearOrbit.Ink
         Box(
             Modifier
                 .size(32.dp)
@@ -239,31 +233,33 @@ private fun ToggleCell(
         Text(
             text = label,
             style = WearType.row,
-            color = Color.White,
+            color = WearOrbit.Ink,
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
         if (value != null) {
-            Text(text = value, style = WearType.rowSub, color = Secondary, maxLines = 1)
+            Text(text = value, style = WearType.rowSub, color = WearOrbit.Dim, maxLines = 1)
         }
     }
 }
 
-/** A grouped cell: the phone's settings rows, rounded for a round screen. */
+/** An Orbit row for a round screen (rule 8): radius 22, ink fill; [now] is the playing row, on the peach wash. */
 @Composable
 private fun Cell(
     onClick: () -> Unit,
     dimmed: Boolean = false,
+    now: Boolean = false,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    val fill = if (pressed) WearOrbit.RowPressed else WearOrbit.Row
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer { alpha = if (dimmed) 0.5f else 1f }
             .clip(RoundedCornerShape(22.dp))
-            .background(if (pressed) Color(0xFF2C2C2E) else Cell)
+            .background(if (now) androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(WearOrbit.Peach.copy(alpha = 0.26f), fill)) else androidx.compose.ui.graphics.SolidColor(fill))
             .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
             .padding(PaddingValues(horizontal = 12.dp, vertical = 9.dp)),
         verticalAlignment = Alignment.CenterVertically,
@@ -276,7 +272,7 @@ private fun Header(text: String) {
     Text(
         text = text,
         style = WearType.header,
-        color = Color.White,
+        color = WearOrbit.Ink,
         textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
@@ -289,7 +285,7 @@ private fun Hint(text: String) {
     Text(
         text = text,
         style = WearType.subtitle,
-        color = Secondary,
+        color = WearOrbit.Dim,
         textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
@@ -314,7 +310,7 @@ fun OutputScreen(link: PhoneLink, onDone: () -> Unit) {
             state = state,
             contentPadding = padding,
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.background(Color.Black),
+            modifier = Modifier.background(WearOrbit.Ground),
         ) {
             item(key = "header") { Header(stringResource(R.string.output)) }
             item(key = "watch") {
@@ -378,26 +374,26 @@ private fun OutputCell(
             Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(if (selected) Color.White else Color.White.copy(alpha = 0.12f)),
+                .background(if (selected) WearOrbit.Ink else WearOrbit.Round),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painterResource(icon),
                 contentDescription = null,
-                tint = if (selected) Color.Black else Color.White,
+                tint = if (selected) WearOrbit.OnInk else WearOrbit.Ink,
                 modifier = Modifier.size(18.dp),
             )
         }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(label, style = WearType.row, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(detail, style = WearType.rowSub, color = Secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, style = WearType.row, color = WearOrbit.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, style = WearType.rowSub, color = WearOrbit.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (selected) {
             Icon(
                 painterResource(R.drawable.ic_check),
                 contentDescription = null,
-                tint = Color.White,
+                tint = WearOrbit.Ink,
                 modifier = Modifier.size(16.dp),
             )
         }

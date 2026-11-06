@@ -1,7 +1,8 @@
 # Cosmotune for Wear OS
 
-A watch remote for the Cosmotune phone app: now playing over the player's mesh
-backdrop, play/pause on the cover with a progress ring (hold it to seek), skip,
+A watch remote for the Cosmotune phone app, in the Orbit look: now playing as
+the song's disc filling the screen with its progress as the orbit round the
+edge, play/pause in peach in the middle (hold the disc to seek), skip,
 Love where the phone offers it, Up Next, shuffle, repeat, the phone's volume on
 the crown or bezel, an always-on player, and an Output picker covering the
 phone's outputs and **this watch**.

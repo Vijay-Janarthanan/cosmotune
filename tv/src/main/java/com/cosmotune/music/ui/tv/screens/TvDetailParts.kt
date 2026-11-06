@@ -4,40 +4,30 @@
  */
 package com.cosmotune.music.ui.tv.screens
 
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.ui.icons.CosmotuneIcons
-import com.cosmotune.music.ui.tv.components.tvClick
+import com.cosmotune.music.ui.tv.components.tvFocusRing
 import com.cosmotune.music.ui.tv.components.tvInitialFocus
-import com.cosmotune.music.ui.tv.components.tvLift
-import com.cosmotune.music.ui.tv.components.tvPlatter
 import com.cosmotune.music.ui.tv.theme.TvGlass
+import com.cosmotune.music.ui.tv.theme.tvOrbitLook
+import com.cosmotune.ui.orbit.OrbitPlayButton
+import com.cosmotune.ui.orbit.OrbitRoundButton
 
 /**
- * The phone's action row, as icon-only circles: Shuffle, a larger Play, and —
- * on an artist — a star to subscribe. Play rests in [playColor] (the artist's
- * Apple key colour, else Apple Music red) so that focus, which turns every
- * control white, is never hidden on it.
+ * The page's actions: Shuffle as a round tonal button, Play as the peach play
+ * button (Orbit rule 5) and, on an artist, a star to subscribe. Focus is the
+ * peach ring round whichever has it.
  *
  * [onFocused] fires as focus arrives in the row, so the page can scroll home:
  * the row sits at the top of the page, and the page should be at its top too.
@@ -48,7 +38,6 @@ internal fun TvActionRow(
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
     modifier: Modifier = Modifier,
-    playColor: Color? = null,
     subscribed: Boolean? = null,
     onToggleSubscription: () -> Unit = {},
     onFocused: () -> Unit = {},
@@ -58,62 +47,41 @@ internal fun TvActionRow(
         horizontalArrangement = Arrangement.spacedBy(18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TvCircleAction(
-            icon = CosmotuneIcons.Shuffle,
-            contentDescription = "Shuffle",
-            size = 43.dp,
-            enabled = canPlay,
-            onClick = onShuffle,
-        )
-        TvCircleAction(
-            icon = CosmotuneIcons.Play,
-            contentDescription = "Play",
+        OrbitPlayButton(
+            playing = false,
+            onClick = { if (canPlay) onPlay() },
+            look = tvOrbitLook(),
             size = 58.dp,
-            iconScale = 0.5f,
-            resting = playColor ?: TvGlass.AppleRed,
-            enabled = canPlay,
-            onClick = onPlay,
-            modifier = Modifier.tvInitialFocus(canPlay),
+            modifier = Modifier
+                .tvInitialFocus(canPlay)
+                .tvFocusRing(CircleShape)
+                .graphicsLayer { alpha = if (canPlay) 1f else 0.4f },
         )
+        TvShuffleButton(enabled = canPlay, onClick = onShuffle)
         if (subscribed != null) {
-            TvCircleAction(
+            OrbitRoundButton(
                 icon = if (subscribed) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                contentDescription = if (subscribed) "Unsubscribe" else "Subscribe",
-                size = 43.dp,
+                label = if (subscribed) "Unsubscribe" else "Subscribe",
+                ink = TvGlass.Ink,
                 onClick = onToggleSubscription,
+                size = 44.dp,
+                modifier = Modifier.tvFocusRing(CircleShape),
             )
         }
     }
 }
 
-/** One circle in [TvActionRow]: translucent (or [resting]) at rest, the white platter on focus. */
+/** Shuffle as the kit's round tonal button, ringed in peach on focus. */
 @Composable
-private fun TvCircleAction(
-    icon: ImageVector,
-    contentDescription: String,
-    size: Dp,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    resting: Color = Color.White.copy(alpha = 0.16f),
-    iconScale: Float = 0.44f,
-    enabled: Boolean = true,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    Box(
+internal fun TvShuffleButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    OrbitRoundButton(
+        icon = CosmotuneIcons.Shuffle,
+        label = "Shuffle",
+        ink = TvGlass.Ink,
+        onClick = { if (enabled) onClick() },
+        size = 44.dp,
         modifier = modifier
-            .size(size)
-            .graphicsLayer { alpha = if (enabled) 1f else 0.4f }
-            .tvLift(interaction, CircleShape, focusedScale = 1.12f, elevation = 13.dp)
-            .tvPlatter(interaction, resting = resting)
-            .tvClick(interaction, enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = if (focused) TvGlass.OnPlatter else Color.White,
-            modifier = Modifier.size(size * iconScale),
-        )
-    }
+            .tvFocusRing(CircleShape)
+            .graphicsLayer { alpha = if (enabled) 1f else 0.4f },
+    )
 }

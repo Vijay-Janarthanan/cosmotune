@@ -62,11 +62,12 @@ private const val ScrubCommitDelayMs = 650L
 private enum class PlayerSheet { Menu }
 
 /**
- * Now Playing, as Apple Music has it on Apple TV.
+ * Now Playing on the TV, in Orbit.
  *
- * The screen is the song: the artwork-coloured backdrop, the cover and — when
- * there are lyrics — the lyrics beside it. The transport (title, buttons and
- * scrubber) rises on any press and steps away after a few idle seconds. Down
+ * The screen is the song: the ground washed in the cover's colour, the cover as a
+ * disc with the orbit round it and — when there are lyrics — the lyrics beside
+ * it. The transport (the song's colour card: title, buttons, seek line and play
+ * in the bite) rises on any press and steps away after a few idle seconds. Down
  * from the scrubber opens Up Next. Back closes Up Next, then the transport,
  * then the player.
  *
@@ -249,6 +250,7 @@ fun TvNowPlayingScreen(
             song = song,
             isPlaying = isPlaying,
             position = position,
+            durationMs = durationMs,
             lyrics = lyrics.orEmpty(),
             showLyrics = showLyrics,
             lyricsLoading = !lyricsChecked && lyrics == null && !lyricsHidden,
@@ -279,6 +281,7 @@ fun TvNowPlayingScreen(
                 onSelectOnScrubber = {
                     if (scrubTarget != null) commitScrub() else togglePlay()
                 },
+                onTogglePlay = togglePlay,
                 onOpenUpNext = { upNextOpen = true },
                 onToggleLike = { viewModel.toggleLike(song.videoId) },
                 onToggleLyrics = { lyricsHidden = !lyricsHidden },
@@ -317,7 +320,7 @@ fun TvNowPlayingScreen(
         TvFlashGlyph(
             flash = flash,
             tick = flashTick,
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
 

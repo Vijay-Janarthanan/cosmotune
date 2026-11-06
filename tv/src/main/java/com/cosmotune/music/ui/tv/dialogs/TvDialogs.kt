@@ -298,7 +298,7 @@ private fun TvProfileSwitcher(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xF2111113)),
+                .background(Color(0xF50F0B0D)),
             contentAlignment = Alignment.Center,
         ) {
             Column(
@@ -417,7 +417,7 @@ private fun TvProfileCard(
         modifier = modifier
             .width(170.dp)
             .height(210.dp)
-            .tvLift(interaction, shape, focusedScale = 1.08f, elevation = 20.dp)
+            .tvLift(interaction, shape, focusedScale = 1.08f)
             .tvPlatter(
                 interaction,
                 resting = TvGlass.Fill,
@@ -503,7 +503,7 @@ private fun TvProfileSettingsButton(
             .size(38.dp)
             .graphicsLayer { this.alpha = alpha }
             .focusProperties { canFocus = visible }
-            .tvLift(interaction, CircleShape, focusedScale = 1.15f, elevation = 8.dp)
+            .tvLift(interaction, CircleShape, focusedScale = 1.15f)
             .tvPlatter(interaction, resting = Color.Transparent, focused = TvGlass.Platter)
             .tvClick(interaction, enabled = visible, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -763,7 +763,7 @@ private fun TvPinDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xF2111113))
+                .background(Color(0xF50F0B0D))
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
 
@@ -840,7 +840,7 @@ private fun TvPinDialog(
                                 .size(width = 54.dp, height = 62.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    if (filled) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f)
+                                    if (filled) com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.22f) else com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.08f)
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -902,7 +902,6 @@ private fun TvPinDialog(
                                             interaction,
                                             RoundedCornerShape(10.dp),
                                             focusedScale = if (isInputBlocked) 1f else 1.1f,
-                                            elevation = if (isInputBlocked) 0.dp else 8.dp,
                                         )
                                         .tvPlatter(
                                             interaction,
@@ -1006,7 +1005,7 @@ private fun TvGoogleSignIn(viewModel: MainViewModel, onBack: () -> Unit, onSigne
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF141416)),
+                .background(Color(0xFF0F0B0D)),
         ) {
             Row(
                 modifier = Modifier

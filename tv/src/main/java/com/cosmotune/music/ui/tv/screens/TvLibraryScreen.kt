@@ -117,7 +117,7 @@ fun TvLibraryScreen(
             items(categories, key = { it.key }) { category ->
                 TvListRow(
                     title = category.title,
-                    resting = if (category.key == selected.key) Color.White.copy(alpha = 0.12f) else Color.Transparent,
+                    resting = if (category.key == selected.key) TvGlass.Ink.copy(alpha = 0.12f) else Color.Transparent,
                     onFocused = { selectedKey = category.key },
                     onClick = { selectedKey = category.key },
                 )

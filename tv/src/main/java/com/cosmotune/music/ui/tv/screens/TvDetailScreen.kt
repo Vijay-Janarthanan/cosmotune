@@ -65,7 +65,10 @@ import com.cosmotune.music.ui.tv.components.TvLockup
 import com.cosmotune.music.ui.tv.components.TvShelf
 import com.cosmotune.music.ui.tv.components.TvShelfTitle
 import com.cosmotune.music.ui.tv.components.TvSongRow
-import com.cosmotune.music.ui.tv.components.rememberDominantCardColor
+import com.cosmotune.music.ui.tv.components.TvColourCard
+import com.cosmotune.ui.orbit.coverFill
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import com.cosmotune.music.ui.tv.dialogs.TvSongMenu
 import com.cosmotune.music.ui.tv.theme.TvDimensions
 import com.cosmotune.music.ui.tv.theme.TvGlass
@@ -156,11 +159,11 @@ fun TvDetailScreen(
 }
 
 /**
- * An album or a playlist, as Apple Music lays one out: a header — the large
- * cover, then title, artist, how long it runs, the blurb and the circle action
- * row — over a full-width track list with hairline separators. Albums number
- * their tracks; playlists show each track's own cover. The page is washed in a
- * colour taken from the cover.
+ * An album or a playlist as the Orbit album page: the colour card — what it is
+ * and how long it runs, the title, the artist, the blurb, Shuffle, the cover as a
+ * disc and Play in the bite — over the tracks as Orbit rows. Albums number their
+ * tracks; playlists show each track's own disc. The page is washed from the top
+ * in the cover's colour.
  */
 @Composable
 private fun TvReleaseContent(
@@ -188,11 +191,7 @@ private fun TvReleaseContent(
     TvChromeScrollEffect(listState)
 
     // The cover's colour, washed down from the top of the page.
-    val tint = animateColorAsState(
-        targetValue = rememberDominantCardColor(artworkUrl, Color.Transparent),
-        animationSpec = tween(500),
-        label = "releaseTint",
-    )
+    val (tint, _) = coverFill(artworkUrl, title)
 
     ProvideTvComfortScrolling(top = TvDimensions.ContentTop, bottom = 58.dp) {
         LazyColumn(
@@ -202,8 +201,8 @@ private fun TvReleaseContent(
                 .drawBehind {
                     drawRect(
                         Brush.verticalGradient(
-                            0f to tint.value.copy(alpha = tint.value.alpha * 0.8f),
-                            0.75f to Color.Transparent,
+                            0f to tint.copy(alpha = 0.55f),
+                            0.6f to Color.Transparent,
                         ),
                     )
                 },
@@ -214,6 +213,8 @@ private fun TvReleaseContent(
                     title = title,
                     subtitle = subtitle,
                     artworkUrl = artworkUrl,
+                    kind = if (numbered) "Album" else "Playlist",
+                    playing = isPlaying && songs.any { it.videoId == playingId },
                     summary = songs.summary(),
                     description = page?.description,
                     canPlay = songs.isNotEmpty(),
@@ -307,12 +308,17 @@ private fun TvReleaseContent(
     }
 }
 
-/** The release's header: the cover beside what it is, how long it runs, and the actions. */
+/**
+ * The release's colour card: what it is and how long it runs, the title, the artist, the blurb and Shuffle, the cover as a disc,
+ * and Play in the bite, which takes focus as the page opens. Focus anywhere on it scrolls the page home.
+ */
 @Composable
 private fun TvReleaseHeader(
     title: String,
     subtitle: String,
     artworkUrl: String?,
+    kind: String,
+    playing: Boolean,
     summary: String?,
     description: String?,
     canPlay: Boolean,
@@ -320,68 +326,41 @@ private fun TvReleaseHeader(
     onShuffle: () -> Unit,
     onActionsFocused: () -> Unit,
 ) {
-    Row(
+    val playFocus = remember { FocusRequester() }
+    LaunchedEffect(canPlay) { if (canPlay) runCatching { playFocus.requestFocus() } }
+    TvColourCard(
+        cover = artworkUrl,
+        key = title,
+        label = listOfNotNull(kind, summary).joinToString(" · "),
+        title = title,
+        subtitle = subtitle,
+        playing = playing,
+        onPlay = onPlay,
+        playEnabled = canPlay,
+        playFocus = playFocus,
+        ring = false,
+        height = 236.dp,
         modifier = Modifier
-            .fillMaxWidth()
             .padding(horizontal = TvDimensions.SafeMarginHorizontal)
-            .padding(bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(32.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        val shape = RoundedCornerShape(10.dp)
-        TvArtwork(
-            url = artworkUrl,
-            px = 720,
-            shape = shape,
-            modifier = Modifier
-                .size(232.dp)
-                .shadow(24.dp, shape),
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = TvType.LargeTitle.copy(fontSize = 31.sp, lineHeight = 36.sp, fontWeight = FontWeight.W800),
-                color = TvGlass.TextPrimary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (subtitle.isNotBlank()) {
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    text = subtitle,
-                    style = TvType.Body.copy(fontSize = 16.sp, fontWeight = FontWeight.W600),
-                    color = TvGlass.AppleRed,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (!summary.isNullOrBlank()) {
-                Spacer(Modifier.height(3.dp))
-                Text(text = summary, style = TvType.Callout, color = TvGlass.TextSecondary, maxLines = 1)
-            }
+            .padding(top = 6.dp, bottom = 24.dp)
+            .onFocusChanged { if (it.hasFocus) onActionsFocused() },
+        below = {
             if (!description.isNullOrBlank()) {
-                Spacer(Modifier.height(10.dp))
                 Text(
                     text = description,
                     style = TvType.Callout,
-                    color = TvGlass.TextSecondary,
-                    maxLines = 3,
+                    color = TvGlass.Ink.copy(alpha = 0.8f),
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 512.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
-            Spacer(Modifier.height(19.dp))
-            TvActionRow(
-                canPlay = canPlay,
-                onPlay = onPlay,
-                onShuffle = onShuffle,
-                onFocused = onActionsFocused,
-            )
-        }
-    }
+            TvShuffleButton(enabled = canPlay, onClick = onShuffle, modifier = Modifier.padding(top = 14.dp))
+        },
+    )
 }
 
-/** A track line: a [TvSongRow] with a hairline under it, inset to the text. */
+/** A track line: a [TvSongRow] on the safe margin, a small gap under it when another follows. */
 @Composable
 private fun TvTrackLine(
     song: Song,
@@ -392,7 +371,7 @@ private fun TvTrackLine(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    Column(modifier = Modifier.padding(horizontal = TvDimensions.SafeMarginHorizontal - 11.dp)) {
+    Column(modifier = Modifier.padding(horizontal = TvDimensions.SafeMarginHorizontal).padding(bottom = if (divider) 6.dp else 0.dp)) {
         TvSongRow(
             song = song,
             number = number,
@@ -402,15 +381,6 @@ private fun TvTrackLine(
             onClick = onClick,
             onLongClick = onLongClick,
         )
-        if (divider) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = if (number != null) 43.dp else 56.dp, end = 11.dp)
-                    .height(1.dp)
-                    .background(TvGlass.Hairline),
-            )
-        }
     }
 }
 

@@ -76,7 +76,7 @@ import com.cosmotune.music.ui.tv.theme.TvGlass
 import com.cosmotune.music.ui.tv.theme.TvType
 import androidx.compose.foundation.layout.heightIn
 import com.cosmotune.music.ui.tv.theme.AppleSpringPreset
-import com.cosmotune.music.ui.tv.theme.TvSFProDisplay
+import com.cosmotune.music.ui.tv.theme.tvOrbitFonts
 import com.cosmotune.music.ui.tv.theme.TvThemeColors
 import com.cosmotune.music.ui.tv.theme.appleSpring
 import java.util.Locale
@@ -245,7 +245,7 @@ private fun TvBandFader(
                 scaleY = faderScale
             }
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isFocused) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+            .background(if (isFocused) com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.12f) else Color.Transparent)
             .focusable(interactionSource = interactionSource)
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -280,8 +280,8 @@ private fun TvBandFader(
             text = formattedGain,
             fontSize = 11.sp,
             fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Medium,
-            fontFamily = TvSFProDisplay,
-            color = if (isFocused) Color.White else if (abs(gainDb) >= 0.5f) Color.White else Color.White.copy(alpha = 0.5f),
+            fontFamily = tvOrbitFonts().text,
+            color = if (isFocused) com.cosmotune.music.ui.tv.theme.TvGlass.Ink else if (abs(gainDb) >= 0.5f) com.cosmotune.music.ui.tv.theme.TvGlass.Ink else com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.5f),
             textAlign = TextAlign.Center,
         )
 
@@ -303,7 +303,7 @@ private fun TvBandFader(
 
                 // 1. Background Groove
                 drawRoundRect(
-                    color = Color.White.copy(alpha = 0.15f),
+                    color = com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.15f),
                     topLeft = Offset(centerX - trackRadius, topY),
                     size = Size(trackWidth, trackHeight),
                     cornerRadius = CornerRadius(trackRadius, trackRadius),
@@ -311,7 +311,7 @@ private fun TvBandFader(
 
                 // 2. Center 0dB Reference Tick
                 drawLine(
-                    color = Color.White.copy(alpha = 0.40f),
+                    color = com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.40f),
                     start = Offset(centerX - 6.dp.toPx(), centerY),
                     end = Offset(centerX + 6.dp.toPx(), centerY),
                     strokeWidth = 1.5.dp.toPx(),
@@ -327,7 +327,7 @@ private fun TvBandFader(
                 val fillHeight = kotlin.math.max(fillBottom - fillTop, 2.dp.toPx())
 
                 drawRoundRect(
-                    color = if (isFocused) Color.White else Color.White.copy(alpha = 0.85f),
+                    color = if (isFocused) com.cosmotune.music.ui.tv.theme.TvGlass.Ink else com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.85f),
                     topLeft = Offset(centerX - trackRadius, fillTop),
                     size = Size(trackWidth, fillHeight),
                     cornerRadius = CornerRadius(trackRadius, trackRadius),
@@ -336,7 +336,7 @@ private fun TvBandFader(
                 // 5. White Fader Thumb Knob
                 val knobRadius = if (isFocused) 8.dp.toPx() else 6.dp.toPx()
                 drawCircle(
-                    color = Color.White,
+                    color = com.cosmotune.music.ui.tv.theme.TvGlass.Ink,
                     radius = knobRadius,
                     center = Offset(centerX, knobY),
                 )
@@ -362,8 +362,8 @@ private fun TvBandFader(
             text = freqLabel,
             fontSize = 11.sp,
             fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal,
-            fontFamily = TvSFProDisplay,
-            color = if (isFocused) Color.White else Color.White.copy(alpha = 0.65f),
+            fontFamily = tvOrbitFonts().text,
+            color = if (isFocused) com.cosmotune.music.ui.tv.theme.TvGlass.Ink else com.cosmotune.music.ui.tv.theme.TvGlass.Ink.copy(alpha = 0.65f),
             textAlign = TextAlign.Center,
         )
     }

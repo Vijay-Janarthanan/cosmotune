@@ -144,7 +144,7 @@ fun TvSongActionMenuDialog(
         TvArtwork(
             url = song.thumbnailUrl,
             px = 320,
-            shape = RoundedCornerShape(8.dp),
+            shape = androidx.compose.foundation.shape.CircleShape,
             modifier = Modifier
                 .padding(bottom = 18.dp)
                 .size(77.dp),

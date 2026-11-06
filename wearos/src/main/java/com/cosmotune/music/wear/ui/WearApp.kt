@@ -54,7 +54,7 @@ fun WearApp(link: PhoneLink) {
     val ambient = LocalAmbient.current
     val np by link.nowPlaying.collectAsStateWithLifecycle()
     val showAmbient = ambient.active && np != null
-    // No pill behind the clock: the mesh runs right up to the bezel.
+    // No pill behind the clock: the disc and its orbit run right up to the bezel.
     AppScaffold(timeText = { TimeText(backgroundColor = Color.Transparent) }) {
         // Kept composed under the ambient player so waking up lands exactly
         // where it was. Alpha 0 is skipped at draw time, so it costs nothing
@@ -130,11 +130,11 @@ private fun PlayerRoute(link: PhoneLink, openQueue: () -> Unit, openMore: () -> 
 
 @Composable
 private fun Connecting() {
-    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(WearOrbit.Ground), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(modifier = Modifier.size(32.dp))
             Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.connecting), style = WearType.subtitle, color = Secondary)
+            Text(stringResource(R.string.connecting), style = WearType.subtitle, color = WearOrbit.Dim)
         }
     }
 }
@@ -147,7 +147,7 @@ private fun NoPhone(onRetry: () -> Unit, onPodio: () -> Unit) {
         action = stringResource(R.string.retry),
         onAction = onRetry,
         secondary = "Saved Podio", onSecondary = onPodio,
-        mesh = false,
+        orbit = false,
     )
 }
 
@@ -158,15 +158,18 @@ private fun NothingPlaying(onPodio: () -> Unit) {
         body = "Browse radio and podcasts from your paired phone.",
         action = "Open Podio",
         onAction = onPodio,
-        mesh = true,
+        orbit = true,
     )
 }
 
 @Composable
-private fun Message(title: String, body: String, action: String, onAction: () -> Unit, mesh: Boolean,
+private fun Message(title: String, body: String, action: String, onAction: () -> Unit, orbit: Boolean,
     secondary: String? = null, onSecondary: (() -> Unit)? = null) {
-    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-        if (mesh) MeshBackground(emptyList())
+    Box(Modifier.fillMaxSize().background(WearOrbit.Ground), contentAlignment = Alignment.Center) {
+        // Nothing playing: the orbit round the edge of the screen with no song on it yet.
+        if (orbit) androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            drawOrbit(fraction = null, color = WearOrbit.Peach, stroke = size.minDimension * 0.017f, inset = size.minDimension * 0.033f)
+        }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -174,28 +177,28 @@ private fun Message(title: String, body: String, action: String, onAction: () ->
                 .fillMaxWidth()
                 .padding(horizontal = 26.dp),
         ) {
-            if (!mesh && secondary == null) {
+            if (!orbit && secondary == null) {
                 Icon(
                     painter = painterResource(R.drawable.ic_phone),
                     contentDescription = null,
-                    tint = Secondary,
+                    tint = WearOrbit.Dim,
                     modifier = Modifier.size(26.dp),
                 )
                 Spacer(Modifier.height(6.dp))
             }
-            Text(title, style = WearType.title, color = Color.White, textAlign = TextAlign.Center)
+            Text(title, style = WearType.title, color = WearOrbit.Ink, textAlign = TextAlign.Center)
             Spacer(Modifier.height(4.dp))
-            Text(body, style = WearType.rowSub, color = Color.White.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+            Text(body, style = WearType.rowSub, color = WearOrbit.Dim, textAlign = TextAlign.Center)
             Spacer(Modifier.height(12.dp))
             Pill(text = action, onClick = onAction)
-            if (secondary != null && onSecondary != null) { Spacer(Modifier.height(8.dp)); Pill(text = secondary, onClick = onSecondary) }
+            if (secondary != null && onSecondary != null) { Spacer(Modifier.height(8.dp)); Pill(text = secondary, onClick = onSecondary, primary = false) }
         }
     }
 }
 
-/** The phone app's primary button: white, black label, fully rounded. */
+/** A button as an Orbit chip: solid ink with the ground-coloured label when [primary], ink at 12 % otherwise. */
 @Composable
-private fun Pill(text: String, onClick: () -> Unit) {
+private fun Pill(text: String, onClick: () -> Unit, primary: Boolean = true) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     Box(
@@ -205,10 +208,10 @@ private fun Pill(text: String, onClick: () -> Unit) {
                 scaleY = if (pressed) 0.95f else 1f
             }
             .clip(CircleShape)
-            .background(Color.White)
+            .background(if (primary) WearOrbit.Ink else WearOrbit.Round)
             .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 9.dp),
     ) {
-        Text(text, style = WearType.button, color = Color.Black)
+        Text(text, style = WearType.button, color = if (primary) WearOrbit.OnInk else WearOrbit.Ink)
     }
 }
