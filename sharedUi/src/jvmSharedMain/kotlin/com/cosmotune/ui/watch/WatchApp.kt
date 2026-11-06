@@ -48,10 +48,11 @@ import kotlinx.coroutines.launch
  * Watch mode (Canvas repo, design/cosmotune/watch-orbit/board.html): films, series and live TV from the plugins that are on. The
  * page shown is the top of [WatchNav]'s stack (a film or series page, the player) or else the tab. On the desktop the sidebar
  * carries the tabs ([showNavigation] false); on the phone the page starts with the mode pill and the tabs as chips. Wide (840 dp
- * and up) lays cards side by side as the board does; narrower stacks them.
+ * and up) lays cards side by side as the board does; narrower stacks them. [wideLayout], when set, decides that instead of the width (the TV,
+ * which draws the pages larger, keeps the side-by-side layout).
  */
 @Composable
-fun WatchApp(contentPadding: PaddingValues = PaddingValues(0.dp), showNavigation: Boolean = true, modifier: Modifier = Modifier) {
+fun WatchApp(contentPadding: PaddingValues = PaddingValues(0.dp), showNavigation: Boolean = true, modifier: Modifier = Modifier, wideLayout: Boolean? = null) {
     val tab by WatchNav.tab.collectAsState()
     val stack by WatchNav.stack.collectAsState()
     val pending by WatchNav.pendingInstall.collectAsState()
@@ -64,7 +65,7 @@ fun WatchApp(contentPadding: PaddingValues = PaddingValues(0.dp), showNavigation
     val downloads = LocalWatchDownloads.current
     val actions = remember(repository, scope, room, downloads) { WatchActions(repository, scope, room, downloads) }
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val wide = maxWidth >= 840.dp
+        val wide = wideLayout ?: (maxWidth >= 840.dp)
         val top = stack.lastOrNull()
         val frame = WatchFrame(
             wide = wide,
