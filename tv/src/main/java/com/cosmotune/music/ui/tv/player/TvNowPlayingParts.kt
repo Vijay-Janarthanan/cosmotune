@@ -94,6 +94,8 @@ import com.cosmotune.music.ui.tv.components.TvArtwork
 import com.cosmotune.music.ui.tv.components.TvButton
 import com.cosmotune.music.ui.tv.components.TvLockup
 import com.cosmotune.music.ui.tv.components.TvRow
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.cosmotune.music.ui.tv.components.drawFocusRing
 import com.cosmotune.music.ui.tv.components.tvFocusRing
 import com.cosmotune.music.ui.tv.components.tvInitialFocus
 import com.cosmotune.music.ui.tv.theme.TvGlass
@@ -224,14 +226,16 @@ internal fun TvNowPlayingStage(
         // With the card away, the song is named under the disc, riding the same glide to the side.
         val captionShown by animateFloatAsState(if (controlsVisible) 0f else 1f, tween(320), label = "captionFade")
         if (captionShown > 0f) {
+            // Centred under the disc; beside the lyrics it is as wide as the disc's column, so a long title stops short of
+            // both the screen's edge and the lyrics.
+            val captionWidth = androidx.compose.ui.unit.lerp(ring + 120.dp, ring * sideScale + (sideStart - 24.dp) * 2, side)
+            val captionCentre = androidx.compose.ui.unit.lerp(downX + ring / 2, sideStart + ring * sideScale / 2, side)
             Column(
                 modifier = Modifier
-                    .offset(x = downX - 60.dp, y = downY + ring + 12.dp)
-                    .width(ring + 120.dp)
+                    .offset(x = captionCentre - captionWidth / 2, y = downY + ring + 12.dp)
+                    .width(captionWidth)
                     .graphicsLayer {
                         alpha = captionShown
-                        val sideCentre = sideStart.toPx() + ring.toPx() * sideScale / 2f
-                        translationX = lerp(0f, sideCentre - (downX.toPx() + ring.toPx() / 2f), side)
                         translationY = lerp(0f, -ring.toPx() * (1f - sideScale), side)
                     },
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -264,24 +268,23 @@ internal fun TvNowPlayingStage(
                     .fillMaxHeight()
                     .graphicsLayer {
                         alpha = side
-                        // Offscreen only while the mask is in use; otherwise the
-                        // lyrics draw straight to the screen as usual.
-                        compositingStrategy = if (up > 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+                        compositingStrategy = CompositingStrategy.Offscreen
                     }
                     .drawWithContent {
                         drawContent()
-                        if (up > 0f) {
-                            // While the card is up the lyrics fade out above it rather than run under it.
-                            drawRect(
-                                brush = Brush.verticalGradient(
-                                    0f to Color.Black,
-                                    0.5f to Color.Black,
-                                    0.62f to Color.Black.copy(alpha = 1f - up),
-                                    1f to Color.Black.copy(alpha = 1f - up),
-                                ),
-                                blendMode = BlendMode.DstIn,
-                            )
-                        }
+                        // The line that has gone by fades into the top of the screen instead of being cut by it, and while the
+                        // card is up the lyrics fade out above it rather than run under it.
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                0.07f to Color.Transparent,
+                                0.2f to Color.Black,
+                                0.5f to Color.Black,
+                                0.62f to Color.Black.copy(alpha = 1f - up),
+                                1f to Color.Black.copy(alpha = 1f - up),
+                            ),
+                            blendMode = BlendMode.DstIn,
+                        )
                     },
             ) {
                 // The shared panel's type is sized for a phone held at arm's
@@ -482,8 +485,10 @@ private fun TvScrubber(
     }
     val thickness by animateDpAsState(if (focused) 6.dp else 4.dp, tween(160), label = "scrubThickness")
     val moon by animateDpAsState(if (focused) 9.dp else 6.dp, tween(160), label = "scrubMoon")
+    val ring by animateFloatAsState(if (focused) 1f else 0f, tween(120), label = "scrubRing")
 
-    Column {
+    // Focus here is the peach ring round the line and its times, as everywhere else on the TV.
+    Column(Modifier.drawBehind { drawFocusRing(RoundedCornerShape(18.dp), ring, gap = 6.dp) }) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -719,7 +724,8 @@ internal fun TvUpNext(
             TvRow(
                 items = indexed,
                 key = { "${it.value.videoId}#${it.index}" },
-                leading = 0.dp,
+                // Room for the first card's focus ring inside the row.
+                leading = 12.dp,
                 trailing = 19.dp,
                 spacing = 20.dp,
                 top = 14.dp,
