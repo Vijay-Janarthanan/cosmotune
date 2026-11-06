@@ -1806,6 +1806,11 @@ fun CosmotuneDesktopApp() {
         playbackEngine.pause()
         partySync.onLocalIntent()
     }
+    // A DLNA renderer that has taken the song stops it playing here (Extras: DLNA casting).
+    DisposableEffect(playbackEngine) {
+        com.cosmotune.music.data.cast.dlna.DlnaCast.pauseLocal = { playbackEngine.pause() }
+        onDispose { com.cosmotune.music.data.cast.dlna.DlnaCast.pauseLocal = null }
+    }
     val mprisController = remember(playbackEngine) {
         DesktopMprisController(
             onPlay = ::playFromUser,

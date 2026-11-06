@@ -16,6 +16,9 @@ internal object DesktopExtras {
     /** The album (and its artist) whose Wikipedia summary a song menu asked for. */
     val aboutAlbum = MutableStateFlow<Pair<String, String?>?>(null)
 
+    /** The song a song menu asked to play on a DLNA renderer. */
+    val castSong = MutableStateFlow<com.cosmotune.music.data.model.Song?>(null)
+
     private class Store(private val node: Preferences) : KeyValueStore {
         override fun getBoolean(key: String, default: Boolean) = node.getBoolean(key, default)
         override fun putBoolean(key: String, value: Boolean) = node.putBoolean(key, value).also { runCatching { node.flush() } }
@@ -136,5 +139,9 @@ internal fun DesktopExtrasHost() {
     val about by DesktopExtras.aboutAlbum.collectAsState()
     about?.let { (album, artist) ->
         com.cosmotune.ui.extras.AlbumAboutDialog(album, artist, onDismiss = { DesktopExtras.aboutAlbum.value = null })
+    }
+    val cast by DesktopExtras.castSong.collectAsState()
+    cast?.let { song ->
+        com.cosmotune.ui.extras.DlnaCastDialog(song, onDismiss = { DesktopExtras.castSong.value = null })
     }
 }

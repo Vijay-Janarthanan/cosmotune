@@ -6780,6 +6780,18 @@ class PlaybackService : MediaLibraryService() {
                 crossfade?.applyPlaybackSpeed(speed) ?: eachPlayer { it.setPlaybackSpeed(speed) }
             }
         }
+        // DLNA casting (Extras): the renderer taking the song pauses this player, and a song ending there moves the queue
+        // on here and sends the next one.
+        com.cosmotune.music.data.cast.dlna.DlnaCast.pauseLocal = { scope.launch(Dispatchers.Main) { player?.pause() } }
+        com.cosmotune.music.data.cast.dlna.DlnaCast.nextSong = {
+            withContext(Dispatchers.Main) {
+                player?.takeIf { it.hasNextMediaItem() }?.let { current ->
+                    current.seekToNextMediaItem()
+                    current.pause()
+                    current.currentMediaItem?.toSong()
+                }
+            }
+        }
         scope.launch {
             // Pitch apart from speed: setPlaybackSpeed keeps whatever pitch a player has, so it is set here and when a player
             // is built, and every speed change after that (the listener's, Automix's stretch) leaves it alone.

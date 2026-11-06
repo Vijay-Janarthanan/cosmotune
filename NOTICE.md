@@ -110,6 +110,9 @@ its Mochy source in its comment, and the list below is kept up to date with `UPS
   listener has turned the feature on; Cosmotune is not affiliated with Shazam or Apple.
 - Apple Music and Deezer playlist links: the page and API readers of Mochy's `importer/LinkImporter.kt`
   (`shared/.../music/data/spotify/PlaylistLinkImport.kt`); the matching is Cosmotune's own `TrackMatcher`.
+- DLNA / UPnP casting: the SSDP search and description reading of Mochy's `foss/cast/CastDiscovery.kt` and its
+  `foss/cast/DlnaRenderer.kt` (SOAP control, polling, DIDL-Lite), ported to plain JVM code in
+  `shared/.../music/data/cast/dlna/`; the media relay that serves the song to the renderer is Cosmotune's own.
 
 ## Video mode
 
