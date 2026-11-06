@@ -70,8 +70,10 @@ private enum class SetupStep { Welcome, SignIn, Appearance, Preferences, Done }
 
 /**
  * First-run setup, in the manner of Apple TV's: one decision per screen, a
- * centred title and explanation, and the choices stacked at the bottom. Back
- * steps back; nothing is saved until the last screen.
+ * centred title and explanation, and the choices stacked at the bottom. A screen
+ * with the app's mark shows it over the title; a screen with choices to make
+ * (the look, the listening switches) puts its title over them. Back steps back;
+ * nothing is saved until the last screen.
  */
 @Composable
 fun TvSetupScreen(
@@ -109,7 +111,7 @@ fun TvSetupScreen(
             SetupStep.Welcome -> TvSetupPage(
                 title = "Welcome to Cosmotune",
                 message = "Your music, made for the big screen.",
-                hero = { TvAppMark(size = 106.dp) },
+                hero = { TvAppMark(size = SetupMark) },
             ) {
                 TvSetupButton("Continue", initialFocus = true) { step = SetupStep.SignIn }
                 TvSetupButton("Set Up Later") { finish() }
@@ -121,8 +123,9 @@ fun TvSetupScreen(
             SetupStep.Appearance -> TvSetupPage(
                 title = "Choose a Look",
                 message = "You can change this later in Settings.",
+                titleFirst = true,
                 hero = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
                         AppThemeOption.entries.forEach { option ->
                             TvThemeSwatch(
                                 option = option,
@@ -148,7 +151,7 @@ fun TvSetupScreen(
                         imageVector = Icons.Rounded.CheckCircle,
                         contentDescription = null,
                         tint = com.cosmotune.music.ui.tv.theme.TvGlass.Ink,
-                        modifier = Modifier.size(77.dp),
+                        modifier = Modifier.size(SetupMark),
                     )
                 },
             ) {
@@ -164,17 +167,10 @@ private fun TvSetupPage(
     title: String,
     message: String,
     hero: @Composable () -> Unit,
+    titleFirst: Boolean = false,
     buttons: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 38.dp, vertical = 35.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(modifier = Modifier.weight(1f))
-        hero()
-        Spacer(modifier = Modifier.height(29.dp))
+    val heading: @Composable () -> Unit = {
         Text(text = title, style = TvType.LargeTitle, color = TvGlass.TextPrimary, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -184,14 +180,35 @@ private fun TvSetupPage(
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(max = 448.dp),
         )
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 38.dp, vertical = 35.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(modifier = Modifier.weight(1f))
+        if (titleFirst) {
+            heading()
+            Spacer(modifier = Modifier.height(34.dp))
+            hero()
+        } else {
+            hero()
+            Spacer(modifier = Modifier.height(29.dp))
+            heading()
+        }
         Spacer(modifier = Modifier.weight(1f))
         Column(
             modifier = Modifier.width(304.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            // Room for the focus ring between the buttons.
+            verticalArrangement = Arrangement.spacedBy(18.dp),
             content = buttons,
         )
     }
 }
+
+/** The app's mark (and the last screen's tick) at one size on every setup screen. */
+private val SetupMark = 88.dp
 
 @Composable
 private fun TvSetupButton(text: String, initialFocus: Boolean = false, onClick: () -> Unit) {
@@ -225,7 +242,7 @@ private fun TvSignInStep(viewModel: MainViewModel, onContinue: () -> Unit) {
         } else {
             "Bring your library, playlists and recommendations. You can also do this later in Settings."
         },
-        hero = { TvAppMark(size = 77.dp) },
+        hero = { TvAppMark(size = SetupMark) },
     ) {
         if (signedIn) {
             TvSetupButton("Continue", initialFocus = true, onClick = onContinue)
@@ -251,10 +268,12 @@ private fun TvPreferencesStep(onContinue: () -> Unit) {
     TvSetupPage(
         title = "Listening",
         message = "Select a row to turn it on or off.",
+        titleFirst = true,
         hero = {
             Column(
                 modifier = Modifier.width(416.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                // Room for the focus ring between the rows.
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 TvListRow(
                     title = "Synced Lyrics",
@@ -344,7 +363,8 @@ private fun TvThemeSwatch(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(11.dp))
+        // Below the focus ring of the lifted swatch.
+        Spacer(modifier = Modifier.height(20.dp))
         Text(
             text = option.title,
             style = TvType.CardTitle,

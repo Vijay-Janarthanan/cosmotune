@@ -274,6 +274,9 @@ private class TvFeedScrollSpec(private val anchor: Float) : BringIntoViewSpec {
         offset - anchor
 }
 
+/** Room above a row's cards: the focus ring (its gap, its width and the lift) clears the shelf title above it. */
+internal val RowTop = 17.dp
+
 /**
  * A horizontal row of cards that scrolls by whole cards. It keeps its own index
  * of the first card in view and moves it only when focus passes an edge, then
@@ -293,7 +296,7 @@ fun <T> TvRow(
     leading: Dp = TvDimensions.SafeMarginHorizontal,
     trailing: Dp = TvDimensions.SafeMarginHorizontal,
     spacing: Dp = TvDimensions.CardSpacing,
-    top: Dp = 11.dp,
+    top: Dp = RowTop,
     bottom: Dp = 14.dp,
     contentType: (T) -> Any? = { null },
     itemContent: @Composable (index: Int, item: T) -> Unit,

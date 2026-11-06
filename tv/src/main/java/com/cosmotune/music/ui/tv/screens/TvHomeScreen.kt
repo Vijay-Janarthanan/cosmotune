@@ -45,6 +45,7 @@ import com.cosmotune.music.ui.tv.components.TvChromeScrollEffect
 import com.cosmotune.music.ui.tv.components.TvEmptyState
 import com.cosmotune.music.ui.tv.components.TvErrorState
 import com.cosmotune.music.ui.tv.components.ProvideTvFeedScrolling
+import com.cosmotune.music.ui.tv.components.RowTop
 import com.cosmotune.music.ui.tv.components.TvLockup
 import com.cosmotune.music.ui.tv.components.TvShelf
 import com.cosmotune.music.ui.tv.components.TvShelfPlaceholder
@@ -224,7 +225,7 @@ internal fun TvShelfFeed(
     var headerHeight by remember { mutableStateOf(0.dp) }
     val gap = TvDimensions.ShelfSpacing - 11.dp
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-    val natural = TvDimensions.ContentTop + (if (headerHeight > 0.dp) headerHeight + gap else 0.dp) + 27.dp + 11.dp
+    val natural = TvDimensions.ContentTop + (if (headerHeight > 0.dp) headerHeight + gap else 0.dp) + 27.dp + RowTop
     val anchor = natural.coerceAtMost(maxHeight - 230.dp).coerceAtLeast(TvDimensions.ContentTop + 38.dp)
     ProvideTvFeedScrolling(anchor = anchor) {
     LazyColumn(
