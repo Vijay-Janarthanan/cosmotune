@@ -91,6 +91,8 @@ fun WatchApp(contentPadding: PaddingValues = PaddingValues(0.dp), showNavigation
                 WatchTab.PLUGINS -> WatchPluginsPage(fonts, look, frame)
             }
         }
+        // The phone's pages scroll under the status bar: its ground keeps the clock readable and the titles from running under it.
+        if (showNavigation) com.cosmotune.ui.orbit.OrbitStatusBarScrim(Modifier.align(Alignment.TopCenter), look)
         pending?.let { link -> WatchInstallSheet(link, fonts, look, onDone = { WatchNav.pendingInstall.value = null }) }
         // A link opened from outside (an intent, the system's URL handler, a second launch): its Install or pack sheet.
         when (val link = opened) {

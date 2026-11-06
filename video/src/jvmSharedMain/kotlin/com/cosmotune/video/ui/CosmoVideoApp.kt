@@ -197,6 +197,8 @@ internal fun VideoBar(
                 }
             },
     ) {
+        // The box above is the bar's backdrop on Video's flat ground; the shared bar's own ground would not match it.
+        androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.chrome.LocalCosmoTopBarGround provides false) {
         CosmoTopBar(
             title = routeTitle(route),
             scrolled = scrolled(),
@@ -222,6 +224,7 @@ internal fun VideoBar(
                 )
             },
         )
+        }
     }
     if (accountSheet) {
         VideoAccountSheet(
