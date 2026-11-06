@@ -139,8 +139,8 @@ class SearchStructureTest {
 
     @Test fun theRecentSearchesHaveARemoveButtonAndClearInTheOverline() {
         val src = code("SearchSuggestions")
-        assertTrue("CosmoOverline(" in src && "Res.string.video_recent_searches" in src)
-        assertTrue("Res.string.video_clear" in src && "KitTextButton(" in src)
+        assertTrue("OrbitGroupLabel(" in src && "Res.string.video_recent_searches" in src)
+        assertTrue("Res.string.video_clear" in src && "CommentLink(" in src)
         assertTrue("Res.string.video_remove_search" in src && "CosmoIcons.Close" in src)
         assertTrue("Res.string.video_use_suggestion" in src, "the fill arrow has a description")
         val page = code("VideoSearch")

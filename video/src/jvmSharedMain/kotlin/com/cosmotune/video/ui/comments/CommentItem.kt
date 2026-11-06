@@ -1,5 +1,9 @@
 package com.cosmotune.video.ui.comments
 
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,7 +71,6 @@ import org.jetbrains.compose.resources.stringResource
 import com.cosmotune.music.sharedui.resources.Res as SharedRes
 import com.cosmotune.music.sharedui.resources.cosmo_read_more
 import com.cosmotune.music.sharedui.resources.cosmo_show_less
-import com.cosmotune.ui.kit.KitTextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -127,12 +130,16 @@ internal fun CommentItem(
     // whether the text is longer than six lines: kept with `rememberSaveable`, which a lazy list holds for an item that scrolled out of
     // view, so the button is there again at once when the comment comes back and the row does not grow a frame after it appears
     var cut by rememberSaveable(comment.id, comment.text) { mutableStateOf(false) }
+    val look = orbitLook()
     Row(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = CosmoSpacing.margin, vertical = 10.dp),
+            .padding(horizontal = CosmoSpacing.margin, vertical = 4.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(look.row)
+            .padding(start = 10.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
     ) {
-        ChannelAvatar(comment.authorAvatarUrl, VideoMetrics.COMMENT_AVATAR_DP.dp)
+        ChannelAvatar(comment.authorAvatarUrl, VideoMetrics.COMMENT_AVATAR_DP.dp, name = comment.authorName)
         Spacer(Modifier.width(CosmoSpacing.gutter))
         Column(Modifier.weight(1f)) {
             if (comment.pinned) {
@@ -159,15 +166,16 @@ internal fun CommentItem(
 /** The name, the Creator mark and the age on one line; a long name is cut, the mark and the age stay. */
 @Composable
 private fun AuthorLine(comment: Comment) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val author = comment.authorName.trim()
     val age = comment.publishedText?.trim()?.takeIf { it.isNotEmpty() }
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (author.isNotEmpty()) {
             Text(
                 text = author,
-                style = rememberTitleStyle(author),
-                color = Color(palette.textPrimary),
+                style = fonts.title.copy(fontSize = 14.sp),
+                color = look.ink,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
@@ -181,8 +189,8 @@ private fun AuthorLine(comment: Comment) {
             Spacer(Modifier.width(8.dp))
             Text(
                 text = age,
-                style = rememberMetaStyle(age),
-                color = Color(palette.textTertiary),
+                style = fonts.label,
+                color = look.dim,
                 maxLines = 1,
             )
         }
@@ -192,7 +200,7 @@ private fun AuthorLine(comment: Comment) {
 /** The text: [VideoMetrics.COMMENT_MAX_LINES] lines, or all of it when [expanded]; [onCut] hears from each layout whether it is longer than that. */
 @Composable
 private fun CommentText(comment: Comment, expanded: Boolean, onCut: (Boolean) -> Unit) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
     val type = LocalCosmoType.current
     val text = comment.text
     val style = remember(type, text) {
@@ -201,7 +209,7 @@ private fun CommentText(comment: Comment, expanded: Boolean, onCut: (Boolean) ->
     Text(
         text = text,
         style = style,
-        color = Color(palette.textPrimary),
+        color = look.ink,
         maxLines = if (expanded) Int.MAX_VALUE else VideoMetrics.COMMENT_MAX_LINES,
         overflow = TextOverflow.Ellipsis,
         // cut: six lines lost something; once opened, "more than six lines" is what says the button should stay as "Show less"
@@ -214,7 +222,7 @@ private fun CommentText(comment: Comment, expanded: Boolean, onCut: (Boolean) ->
 @Composable
 private fun ReadMore(cut: Boolean, expanded: Boolean, onToggle: () -> Unit) {
     if (!cut && !expanded) return
-    KitTextButton(
+    CommentLink(
         text = stringResource(if (expanded) SharedRes.string.cosmo_show_less else SharedRes.string.cosmo_read_more),
         onClick = onToggle,
         modifier = Modifier.offset(x = -TEXT_BUTTON_INSET),
@@ -227,7 +235,8 @@ private fun ReadMore(cut: Boolean, expanded: Boolean, onToggle: () -> Unit) {
  */
 @Composable
 private fun CommentRateRow(comment: Comment, writes: CommentInteractions) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val ratings by writes.ratings.collectAsState()
     val rating = writes.ratingOf(comment, ratings)
     val likes = writes.likesOf(comment, ratings)
@@ -240,7 +249,7 @@ private fun CommentRateRow(comment: Comment, writes: CommentInteractions) {
         )
         if (likes != null) {
             val count = VideoText.compact(likes)
-            Text(text = count, style = rememberMetaStyle(count), color = Color(palette.textSecondary), maxLines = 1)
+            Text(text = count, style = fonts.label, color = look.dim, maxLines = 1)
         }
         Spacer(Modifier.width(ACTION_GAP))
         RateButton(
@@ -250,14 +259,14 @@ private fun CommentRateRow(comment: Comment, writes: CommentInteractions) {
             onClick = { writes.toggleDislike(comment) },
         )
         Spacer(Modifier.width(ACTION_GAP))
-        KitTextButton(stringResource(Res.string.video_comment_reply), { writes.startReply(comment) })
+        CommentLink(stringResource(Res.string.video_comment_reply), { writes.startReply(comment) })
     }
 }
 
 /** A thumb the size of a like count's, with room for a finger; in the accent while it is on, and read out as on or off. */
 @Composable
 private fun RateButton(icon: ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
     Box(
         Modifier
             .size(RATE_TARGET)
@@ -266,14 +275,15 @@ private fun RateButton(icon: ImageVector, label: String, on: Boolean, onClick: (
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = Color(if (on) palette.accent else palette.textSecondary), modifier = Modifier.size(LIKE_ICON))
+        Icon(icon, contentDescription = null, tint = if (on) look.accent else look.dim, modifier = Modifier.size(LIKE_ICON))
     }
 }
 
 /** The like count, the creator's heart and "N replies", on one row; nothing when the comment has none of them. */
 @Composable
 private fun CommentActions(comment: Comment, onReplies: (() -> Unit)?) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val likes = comment.likeCount?.takeIf { it > 0 }
     val hearted = comment.heartedByCreator
     val canOpen = onReplies != null && comment.replies != null
@@ -287,22 +297,22 @@ private fun CommentActions(comment: Comment, onReplies: (() -> Unit)?) {
             val count = VideoText.compact(likes)
             val description = stringResource(Res.string.video_likes_cd, count)
             Row(Modifier.clearAndSetSemantics { contentDescription = description }, verticalAlignment = Alignment.CenterVertically) {
-                Icon(VideoIcons.ThumbUp, contentDescription = null, tint = Color(palette.textSecondary), modifier = Modifier.size(LIKE_ICON))
+                Icon(VideoIcons.ThumbUp, contentDescription = null, tint = look.dim, modifier = Modifier.size(LIKE_ICON))
                 Spacer(Modifier.width(6.dp))
-                Text(text = count, style = rememberMetaStyle(count), color = Color(palette.textSecondary), maxLines = 1)
+                Text(text = count, style = fonts.label, color = look.dim, maxLines = 1)
             }
         }
         if (hearted) {
             Icon(
                 CosmoIcons.HeartFill,
                 contentDescription = stringResource(Res.string.video_hearted),
-                tint = Color(palette.textSecondary),
+                tint = look.accent,
                 modifier = Modifier.size(HEART_ICON),
             )
         }
         if (canOpen) {
             val replies = comment.replyCount.coerceAtLeast(1)
-            KitTextButton(
+            CommentLink(
                 text = pluralStringResource(Res.plurals.video_replies, replies, replies),
                 onClick = onReplies,
                 modifier = Modifier.offset(x = -TEXT_BUTTON_INSET),
@@ -314,28 +324,20 @@ private fun CommentActions(comment: Comment, onReplies: (() -> Unit)?) {
 /** A small pill of text: "Pinned" on `surface3`, "Creator" on a faint wash of ink. 18 dp tall, 11.5 sp, weight 700. */
 @Composable
 private fun CommentPill(text: String, strong: Boolean) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val type = LocalCosmoType.current
-    val style = remember(type, text) {
-        type.forText(type.caption, text)
-    }
+    val look = orbitLook()
+    val fonts = orbitFonts()
     Box(
         Modifier
             .height(PILL_HEIGHT)
             .clip(CircleShape)
-            .drawBehind {
-                drawRect(
-                    if (strong) colors.live(CoverField.SURFACE_VARIANT) else colors.live(CoverField.TEXT_PRIMARY).copy(alpha = CREATOR_WASH),
-                )
-            }
+            .background(if (strong) look.accent.copy(alpha = 0.22f) else look.ink.copy(alpha = CREATOR_WASH))
             .padding(horizontal = PILL_PADDING),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
-            style = style,
-            color = Color(if (strong) palette.textPrimary else palette.textSecondary),
+            style = fonts.label,
+            color = if (strong) look.accent else look.dim,
             maxLines = 1,
         )
     }

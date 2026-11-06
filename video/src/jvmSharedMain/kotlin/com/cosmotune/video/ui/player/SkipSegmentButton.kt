@@ -1,5 +1,17 @@
 package com.cosmotune.video.ui.player
 
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clip
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitActionPill
+import com.cosmotune.ui.orbit.orbitFloatGroundColor
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,16 +39,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cosmotune.design.ControlMetrics
-import com.cosmotune.theme.CoverField
-import com.cosmotune.ui.components.CosmoButton
-import com.cosmotune.ui.components.CosmoButtonKind
-import com.cosmotune.ui.components.CosmoButtonSize
-import com.cosmotune.ui.components.cosmoGlass
 import com.cosmotune.ui.theme.CosmoMotion
 import com.cosmotune.ui.theme.CosmoSpacing
-import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.video.design.VideoMetrics
 import com.cosmotune.video.player.VideoPlayback
@@ -64,6 +68,8 @@ import org.jetbrains.compose.resources.stringResource
 
 /** The line under the "Skip" label (spec 6.5: 2 dp, the segment's remaining time), just under the 14 sp label. */
 private const val SKIP_LINE_DP = 2f
+private const val RING_TRACK_ALPHA = 0.22f
+private const val SKIP_RING_GAP_DP = 8f
 private const val SKIP_LINE_BELOW_CENTRE_DP = 10f
 
 /** The toast (`.toast3`, as `CosmoToast`): at least 52 dp, padding 8 8 8 18, 14.5 sp 500; it rises 16 dp into place, 8 dp above what is under it. */
@@ -76,41 +82,44 @@ private const val TOAST_RISE_DP = 16f
 private val TOAST_SHAPE = RoundedCornerShape(percent = 50)
 
 /**
- * SponsorBlock's "Skip" (spec 6.5): a C primary pill 40 dp ("Skip sponsor", 14 sp, padding 18) with a 2 dp line under the label that
- * shrinks with the segment's remaining time; 12 dp from the right, 48 dp above the bottom (96 in full screen; the caller places it);
- * shown until the segment ends (the controller clears `pendingSkip`). The line reads the playhead while drawing.
+ * SponsorBlock's "Skip" (spec 6.5): the player's Orbit round button (the next glyph) ringed by the segment's remaining time, which
+ * runs down as the segment plays; 12 dp from the right, 48 dp above the bottom (96 in full screen; the caller places it); shown until
+ * the segment ends (the controller clears `pendingSkip`). "Skip sponsor" is its content description. The ring reads the playhead
+ * while drawing.
  */
 @Composable
 internal fun SkipSegmentButton(segment: SkipSegment, playback: VideoPlayback, playhead: Playhead, onSkip: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = LocalCosmoColors.current
-    val label = stringResource(Res.string.video_skip_segment, stringResource(segmentName(segment.category)))
     val span = (segment.endMs - segment.startMs).coerceAtLeast(1)
-    CosmoButton(
-        text = label,
-        onClick = onSkip,
-        kind = CosmoButtonKind.PRIMARY,
-        size = CosmoButtonSize.SMALL,
-        floating = true,
-        modifier = modifier
-            .padding(end = SKIP_END_DP.dp)
-            .drawWithContent {
-                drawContent()
-                playhead.frame.longValue   // a new frame: draw again
-                val left = (segment.endMs - playback.positionMs()).coerceIn(0, span).toFloat() / span
-                val pad = ControlMetrics.buttonPaddingDp(VideoMetrics.SKIP_BUTTON_H_DP).dp.toPx()
-                val y = size.height / 2f + SKIP_LINE_BELOW_CENTRE_DP.dp.toPx()
-                val full = size.width - 2 * pad
-                if (full > 0f && left > 0f) {
-                    drawLine(
-                        color = colors.live(CoverField.TEXT_PRIMARY),
-                        start = Offset(pad, y),
-                        end = Offset(pad + full * left, y),
-                        strokeWidth = SKIP_LINE_DP.dp.toPx(),
-                        cap = StrokeCap.Round,
-                    )
-                }
-            },
-    )
+    Box(modifier.padding(end = SKIP_END_DP.dp), contentAlignment = Alignment.Center) {
+        PlayerButton(
+            icon = CosmoIcons.Next,
+            contentDescription = stringResource(Res.string.video_skip_segment, stringResource(segmentName(segment.category))),
+            onClick = onSkip,
+            size = VideoMetrics.SKIP_BUTTON_H_DP.dp,
+        )
+        // the orbit round the button: the segment's remaining time as an arc with a moon at its end, read while drawing
+        Box(
+            Modifier
+                .size((VideoMetrics.SKIP_BUTTON_H_DP + SKIP_RING_GAP_DP).dp)
+                .drawBehind {
+                    playhead.frame.longValue   // a new frame: draw again
+                    val left = (segment.endMs - playback.positionMs()).coerceIn(0, span).toFloat() / span
+                    val stroke = SKIP_LINE_DP.dp.toPx()
+                    val inset = stroke / 2f + 1.dp.toPx()
+                    val arcSize = Size(size.width - 2 * inset, size.height - 2 * inset)
+                    drawArc(Color.White.copy(alpha = RING_TRACK_ALPHA), 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
+                    if (left > 0f) {
+                        drawArc(Color.White, -90f, 360f * left, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+                        val angle = Math.toRadians((-90f + 360f * left).toDouble())
+                        val radius = arcSize.width / 2f
+                        drawCircle(
+                            Color.White, 3.dp.toPx(),
+                            Offset(size.width / 2f + radius * kotlin.math.cos(angle).toFloat(), size.height / 2f + radius * kotlin.math.sin(angle).toFloat()),
+                        )
+                    }
+                },
+        )
+    }
 }
 
 /**
@@ -129,13 +138,11 @@ internal fun SegmentSkippedToast(segment: SkipSegment?, onUndo: () -> Unit, bott
         }
     }
     val skipped = shown ?: return
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val reduced = LocalReducedMotion.current
     val message = stringResource(Res.string.video_skipped, stringResource(segmentName(skipped.category)))
-    val style = remember(type, message) {
-        type.forText(TextStyle(fontFamily = type.textFamily, fontWeight = FontWeight(TOAST_WEIGHT), fontSize = TOAST_SP.sp, lineHeight = TOAST_SP.sp * 1.3f), message)
-    }
+    val style = remember(fonts) { fonts.title.copy(fontSize = TOAST_SP.sp, lineHeight = TOAST_SP.sp * 1.3f) }
     val arrival = remember(skipped.uuid) { Animatable(0f) }
     LaunchedEffect(skipped.uuid) { arrival.animateTo(1f, CosmoMotion.move(reduced)) }
     Row(
@@ -149,18 +156,19 @@ internal fun SegmentSkippedToast(segment: SkipSegment?, onUndo: () -> Unit, bott
                 translationY = if (reduced) 0f else (1f - progress) * TOAST_RISE_DP.dp.toPx()
             }
             .semantics { liveRegion = LiveRegionMode.Polite }
-            .cosmoGlass(hazeState = null, shape = TOAST_SHAPE, overVideo = true)
+            .clip(TOAST_SHAPE)
+            .background(orbitFloatGroundColor(look))
             .heightIn(min = TOAST_MIN_H_DP.dp)
             .padding(start = TOAST_PAD_START_DP.dp, top = TOAST_PAD_DP.dp, end = TOAST_PAD_DP.dp, bottom = TOAST_PAD_DP.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = message, style = style, color = Color(palette.textPrimary), modifier = Modifier.weight(1f))
-        CosmoButton(
-            text = stringResource(Res.string.video_undo),
+        Text(text = message, style = style, color = look.ink, modifier = Modifier.weight(1f))
+        OrbitActionPill(
+            label = stringResource(Res.string.video_undo),
             onClick = { shown = null; onUndo() },
-            kind = CosmoButtonKind.TEXT,
-            size = CosmoButtonSize.SMALL,
-            floating = true,
+            fonts = fonts,
+            look = look,
+            primary = true,
         )
     }
 }

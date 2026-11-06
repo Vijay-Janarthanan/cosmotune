@@ -206,16 +206,18 @@ internal fun OrbitTextField(
     modifier: Modifier = Modifier,
     error: Boolean = false,
     secret: Boolean = false,
+    singleLine: Boolean = true,
+    sentences: Boolean = false,
 ) {
     val shape = RoundedCornerShape(22.dp)
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        singleLine = true,
+        singleLine = singleLine,
         textStyle = fonts.body.copy(color = look.ink),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = if (secret) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password) else androidx.compose.foundation.text.KeyboardOptions.Default,
+        keyboardOptions = if (secret) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password) else if (sentences) androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences) else androidx.compose.foundation.text.KeyboardOptions.Default,
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(shape)

@@ -109,7 +109,7 @@ class LibraryStructureTest {
         val src = code("LibraryPage")
         assertTrue("LibraryHeader(" in src && "SharedRes.string.library" in src, "Library, the app's own translated word")
         assertTrue("VideoPageHeading(title, stringResource(Res.string.video_library_label), modifier, actions)" in code("LibraryParts"), "the heading is Orbit's page heading")
-        assertTrue(Regex("""CosmoIconButton\(\s*CosmoIcons\.Plus,[\s\S]*?style = CosmoIconButtonStyle\.TONAL,\s*size = 40\.dp""").containsMatchIn(src), "the 40 dp tonal plus")
+        assertTrue("OrbitAction(CosmoIcons.Plus, stringResource(Res.string.video_new_playlist)" in src, "the 40 dp Orbit round plus")
         assertTrue("NewPlaylistDialog(" in src && "createPlaylist(" in src, "the plus makes a playlist")
         assertTrue("LibraryPlan.fractions(" in src && "VideoRoute.History" in src, "the Library tab's History shelf has the watched bars and opens the history")
         val rows = Regex("""LibraryLink\(\s*([\w.]+),\s*Res\.string\.(\w+)""").findAll(src).map { it.groupValues[1] to it.groupValues[2] }.toList()

@@ -1,5 +1,11 @@
 package com.cosmotune.video.ui.comments
 
+import com.cosmotune.ui.orbit.OrbitLabel
+import com.cosmotune.ui.orbit.OrbitRoundButton
+import com.cosmotune.ui.orbit.OrbitSelectChip
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.ui.orbit.orbitSheetGroundColor
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -88,7 +94,7 @@ private const val SHEET_MAX_HEIGHT_SHARE = 0.85f
 private val DISMISS_DRAG = 96.dp
 private val DISMISS_FLING = 1200.dp
 
-private val SHEET_SHAPE = RoundedCornerShape(topStart = CosmoRadii.rXl, topEnd = CosmoRadii.rXl)
+private val SHEET_SHAPE = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
 
 /** The header's padding: 4 20 8. */
 private val HEADER_START = 20.dp
@@ -97,7 +103,7 @@ private val HEADER_END = 20.dp
 private val HEADER_BOTTOM = 8.dp
 
 /** The 40 dp close button reserves 48 dp; shifted this far so its cross stands near the header's right margin. */
-private val CLOSE_SHIFT = 12.dp
+private val CLOSE_SHIFT = 4.dp
 
 /**
  * The surface of the panel. On the phone ([sheet]) it is the attached sheet (DESIGN_SYSTEM.md 4.13), built here because the bridge's sheet
@@ -110,7 +116,7 @@ private val CLOSE_SHIFT = 12.dp
 @Composable
 internal fun CommentsSurface(sheet: Boolean, onDismiss: () -> Unit, modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
     val density = LocalDensity.current
-    val colors = LocalCosmoColors.current
+    val ground = orbitSheetGroundColor(orbitLook())
     val windowHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
     if (!sheet) {
         Column(modifier.fillMaxWidth().heightIn(max = windowHeight), content = content)
@@ -130,7 +136,7 @@ internal fun CommentsSurface(sheet: Boolean, onDismiss: () -> Unit, modifier: Mo
             // read in the layer block: pulling the sheet moves a layer and recomposes nothing
             .graphicsLayer { translationY = pull.value }
             .clip(SHEET_SHAPE)
-            .drawBehind { drawRect(colors.live(CoverField.SURFACE_HIGH)) }
+            .drawBehind { drawRect(ground) }
             // an empty pointer input still takes the touches that land on the sheet: the page behind it does not scroll or tap
             .pointerInput(Unit) {},
     ) {
@@ -228,8 +234,8 @@ private fun CommentsContent(
  */
 @Composable
 internal fun CommentsHeader(state: CommentsState, sheet: Boolean, onSort: (CommentSort) -> Unit, onDismiss: () -> Unit) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val fonts = orbitFonts()
+    val look = orbitLook()
     val title = stringResource(Res.string.video_comments)
     val total = state.total
     val count = if (total != null) stringResource(Res.string.video_comments_count, VideoText.compact(total)) else null
@@ -242,12 +248,12 @@ internal fun CommentsHeader(state: CommentsState, sheet: Boolean, onSort: (Comme
             Column(Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = type.forText(type.titleLarge, title),
-                    color = Color(palette.textPrimary),
+                    style = fonts.section,
+                    color = look.ink,
                     modifier = Modifier.semantics { heading() },
                 )
                 if (count != null) {
-                    Text(text = count, style = rememberMetaStyle(count), color = Color(palette.textSecondary), maxLines = 1)
+                    OrbitLabel(count, fonts, look.dim)
                 }
             }
             if (sheet) CommentsCloseButton(onDismiss)
@@ -256,11 +262,12 @@ internal fun CommentsHeader(state: CommentsState, sheet: Boolean, onSort: (Comme
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (sort in CommentSort.entries) {
                     val label = stringResource(if (sort == CommentSort.TOP) Res.string.video_comments_top else Res.string.video_comments_newest)
-                    CosmoChip(
-                        label = label,
+                    OrbitSelectChip(
+                        title = label,
                         selected = state.sort == sort,
+                        fonts = fonts,
+                        look = look,
                         onClick = { onSort(sort) },
-                        floating = sheet,
                         haptic = state.sort != sort,
                     )
                 }
@@ -269,16 +276,15 @@ internal fun CommentsHeader(state: CommentsState, sheet: Boolean, onSort: (Comme
     }
 }
 
-/** The sheet's 40 dp close button: the cross in ink on the sheet's glass (C, no fill of its own). */
+/** The sheet's 40 dp Orbit round close button. */
 @Composable
 internal fun CommentsCloseButton(onDismiss: () -> Unit) {
-    CosmoIconButton(
+    OrbitRoundButton(
         icon = CosmoIcons.Close,
-        contentDescription = stringResource(SharedRes.string.cosmo_close),
+        label = stringResource(SharedRes.string.cosmo_close),
+        ink = orbitLook().ink,
         onClick = onDismiss,
         modifier = Modifier.offset(x = CLOSE_SHIFT),
-        size = 40.dp,
-        floating = true,
     )
 }
 

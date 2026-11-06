@@ -1,5 +1,11 @@
 package com.cosmotune.video.ui.comments
 
+import com.cosmotune.ui.orbit.OrbitActionPill
+import com.cosmotune.ui.orbit.OrbitInputField
+import com.cosmotune.ui.orbit.OrbitSongRow
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.ui.VideoIcons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,8 +75,6 @@ import org.jetbrains.compose.resources.stringResource
 /** The list's writes, for the comment rows; null where a list has none (the watch page's tile). */
 internal val LocalCommentInteractions = compositionLocalOf<CommentInteractions?> { null }
 
-private val FIELD_SHAPE = RoundedCornerShape(CosmoRadii.rMd)
-private val FIELD_MIN_HEIGHT = 48.dp
 
 /**
  * The composer over a list. [parent] is the comment whose replies the list shows (its answers go to it); on the comments list it is null,
@@ -91,6 +95,8 @@ internal fun CommentComposer(feed: CommentsFeed, parent: Comment?, floating: Boo
     if (signedIn && !canPost && failure == null) return
     var open by rememberSaveable(feed) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val fonts = orbitFonts()
+    val look = orbitLook()
     Column(Modifier.fillMaxWidth()) {
         if (signedIn && (open || replying != null)) {
             val name = target?.authorName.orEmpty()
@@ -106,18 +112,17 @@ internal fun CommentComposer(feed: CommentsFeed, parent: Comment?, floating: Boo
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CosmoButton(
-                    text = stringResource(Res.string.video_comment_cancel),
+                OrbitActionPill(
+                    label = stringResource(Res.string.video_comment_cancel),
                     onClick = {
                         open = false
                         writes.cancelReply()
                     },
-                    kind = CosmoButtonKind.TEXT,
-                    size = CosmoButtonSize.SMALL,
-                    floating = floating,
+                    fonts = fonts,
+                    look = look,
                 )
-                CosmoButton(
-                    text = stringResource(Res.string.video_comment_post),
+                OrbitActionPill(
+                    label = stringResource(Res.string.video_comment_post),
                     enabled = text.isNotBlank() && !sending && canPost,
                     onClick = {
                         val body = text.trim()
@@ -134,27 +139,32 @@ internal fun CommentComposer(feed: CommentsFeed, parent: Comment?, floating: Boo
                             }
                         }
                     },
-                    kind = CosmoButtonKind.TONAL,
-                    size = CosmoButtonSize.SMALL,
-                    floating = floating,
+                    fonts = fonts,
+                    look = look,
+                    primary = true,
                 )
             }
         } else {
             val who = account as? AccountState.SignedIn
-            KitMediaRow(
+            val avatar = who?.avatarUrl?.takeIf { signedIn }
+            OrbitSongRow(
                 title = stringResource(if (signedIn) Res.string.video_comment_add else Res.string.video_comment_sign_in),
-                subtitle = who?.displayName?.takeIf { signedIn && it.isNotBlank() },
+                subtitle = who?.displayName?.takeIf { signedIn && it.isNotBlank() }.orEmpty(),
+                cover = avatar,
+                fonts = fonts,
+                look = look,
                 onClick = { if (writes.ensureSignedIn()) open = true },
-                artUrl = who?.avatarUrl?.takeIf { signedIn },
-                art = KitArt.ROUND,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = CosmoSpacing.margin, vertical = 4.dp),
+                height = 62.dp,
+                icon = if (avatar == null) VideoIcons.Comment else null,
             )
         }
         failure?.let { kind ->
             val message = stringResource(if (kind == CommentInteractions.Failure.RATE) Res.string.video_comment_rate_failed else Res.string.video_comment_failed)
             Text(
                 text = message,
-                style = rememberMetaStyle(message),
-                color = Color(LocalCosmoColors.current.palette.textSecondary),
+                style = fonts.body,
+                color = look.dim,
                 modifier = Modifier.padding(horizontal = CosmoSpacing.margin, vertical = 4.dp),
             )
         }
@@ -164,35 +174,18 @@ internal fun CommentComposer(feed: CommentsFeed, parent: Comment?, floating: Boo
 /** The box to write in, focused as it opens. It grows with the text. */
 @Composable
 private fun CommentField(text: String, hint: String, onText: (String) -> Unit) {
-    val colors = LocalCosmoColors.current
-    val palette = colors.palette
-    val style = LocalCosmoType.current.let { it.forText(it.bodyText, text.ifEmpty { hint }) }
     val requester = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
-    Box(
-        Modifier
-            .padding(horizontal = CosmoSpacing.margin, vertical = 4.dp)
-            .fillMaxWidth()
-            .heightIn(min = FIELD_MIN_HEIGHT)
-            .clip(FIELD_SHAPE)
-            // read while drawing, so the fill follows a palette fade
-            .drawBehind { drawRect(colors.live(CoverField.SURFACE_VARIANT)) }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        if (text.isEmpty()) Text(text = hint, style = style, color = Color(palette.textTertiary))
-        BasicTextField(
-            value = text,
-            onValueChange = onText,
-            textStyle = style.copy(color = Color(palette.textPrimary)),
-            cursorBrush = SolidColor(Color(palette.accent)),
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(requester)
-                .semantics { contentDescription = hint },
-        )
-    }
+    OrbitInputField(
+        value = text,
+        onValueChange = onText,
+        placeholder = hint,
+        fonts = orbitFonts(),
+        look = orbitLook(),
+        modifier = Modifier.padding(horizontal = CosmoSpacing.margin, vertical = 4.dp).fillMaxWidth().focusRequester(requester),
+        singleLine = false,
+        sentences = true,
+    )
 }
 
 /**

@@ -1,5 +1,10 @@
 package com.cosmotune.video.ui.local
 
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.ui.library.OrbitAction
+import com.cosmotune.video.ui.library.OrbitGroupLabel
+import com.cosmotune.video.ui.library.OrbitInfoRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
@@ -13,10 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.blocks.CosmoListRow
-import com.cosmotune.ui.blocks.CosmoRowLeading
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.video.local.LocalRecent
@@ -32,7 +33,6 @@ import com.cosmotune.video.resources.video_local_recent
 import com.cosmotune.video.resources.video_local_remove
 import com.cosmotune.video.resources.video_local_resume
 import com.cosmotune.video.resources.video_local_title
-import com.cosmotune.ui.blocks.CosmoSectionHeader
 import com.cosmotune.video.ui.library.LibraryHeader
 import com.cosmotune.video.ui.library.LibraryList
 import kotlinx.coroutines.Dispatchers
@@ -61,38 +61,32 @@ fun LocalFilesPage(contentPadding: PaddingValues, wide: Boolean) {
     LibraryList(contentPadding, wide) { cell ->
         item(key = "heading") {
             LibraryHeader(stringResource(Res.string.video_local_title), wide, cell.padding(bottom = HEADING_BOTTOM)) {
-                CosmoIconButton(
-                    CosmoIcons.Video,
-                    stringResource(Res.string.video_local_open),
-                    { picker.openVideos() },
-                    style = CosmoIconButtonStyle.TONAL,
-                    size = 40.dp,
-                )
+                OrbitAction(CosmoIcons.Video, stringResource(Res.string.video_local_open), { picker.openVideos() })
             }
         }
         if (notice) {
             item(key = "notice") {
-                CosmoListRow(
+                OrbitInfoRow(
                     title = stringResource(Res.string.video_local_missing),
                     onClick = { LocalPlayerSession.missingNotice = false },
                     modifier = cell,
-                    leading = CosmoRowLeading.Icon(CosmoIcons.Close),
+                    icon = CosmoIcons.Close,
                 )
             }
         }
         if (recents.isEmpty()) {
             item(key = "empty") { EmptyText(stringResource(Res.string.video_local_empty), cell) }
         } else {
-            item(key = "recent") { CosmoSectionHeader(stringResource(Res.string.video_local_recent), cell) }
+            item(key = "recent") { OrbitGroupLabel(stringResource(Res.string.video_local_recent), cell) }
             items(recents, key = { it.id }) { entry ->
                 RecentRow(entry, present = entry.id in present, onClick = { opener.openRecent(entry) }, onRemove = { store.remove(entry.id) }, modifier = cell)
             }
             item(key = "clear") {
-                CosmoListRow(
+                OrbitInfoRow(
                     title = stringResource(Res.string.video_local_clear),
                     onClick = { store.clear() },
                     modifier = cell,
-                    leading = CosmoRowLeading.Icon(CosmoIcons.Close),
+                    icon = CosmoIcons.Close,
                 )
             }
         }
@@ -102,21 +96,13 @@ fun LocalFilesPage(contentPadding: PaddingValues, wide: Boolean) {
 /** One recent file: a video tile, its title, where it was left (or that it is gone), and a cross that forgets it. */
 @Composable
 internal fun RecentRow(entry: LocalRecent, present: Boolean, onClick: () -> Unit, onRemove: () -> Unit, modifier: Modifier = Modifier) {
-    CosmoListRow(
+    OrbitInfoRow(
         title = entry.title,
         onClick = onClick,
         modifier = modifier.alpha(if (present) 1f else DIMMED_ALPHA),
         subtitle = recentSubtitle(entry, present),
-        leading = CosmoRowLeading.Icon(CosmoIcons.Video),
-        trailing = {
-            CosmoIconButton(
-                CosmoIcons.Close,
-                stringResource(Res.string.video_local_remove),
-                onRemove,
-                style = CosmoIconButtonStyle.PLAIN,
-                size = 36.dp,
-            )
-        },
+        icon = CosmoIcons.Video,
+        trailing = { OrbitAction(CosmoIcons.Close, stringResource(Res.string.video_local_remove), onRemove, size = 36.dp) },
     )
 }
 
@@ -132,8 +118,7 @@ internal fun recentSubtitle(entry: LocalRecent, present: Boolean): String? = whe
 
 @Composable
 private fun EmptyText(text: String, modifier: Modifier) {
-    val palette = LocalCosmoColors.current.palette
-    Text(text = text, color = Color(palette.textSecondary), modifier = modifier.padding(vertical = EMPTY_PAD))
+    Text(text = text, style = orbitFonts().body, color = orbitLook().dim, modifier = modifier.padding(vertical = EMPTY_PAD))
 }
 
 private val HEADING_BOTTOM = 10.dp

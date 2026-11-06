@@ -1,5 +1,11 @@
 package com.cosmotune.video.ui.channel
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
+import com.cosmotune.video.ui.comments.CommentLink
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -42,7 +48,6 @@ import com.cosmotune.music.sharedui.resources.cosmo_read_more
 import com.cosmotune.music.sharedui.resources.cosmo_show_less
 import org.jetbrains.compose.resources.stringResource
 import com.cosmotune.music.sharedui.resources.Res as SharedRes
-import com.cosmotune.ui.kit.KitTextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -81,8 +86,8 @@ internal object AboutText {
  */
 @Composable
 internal fun ChannelAbout(page: ChannelPage, line: PageLine, wide: Boolean) {
-    val palette = LocalCosmoColors.current.palette
-    val type = LocalCosmoType.current
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val reduced = LocalReducedMotion.current
     val uriHandler = LocalUriHandler.current
     val description = page.channel.description?.takeIf { it.isNotBlank() }
@@ -97,28 +102,20 @@ internal fun ChannelAbout(page: ChannelPage, line: PageLine, wide: Boolean) {
     var expanded by remember(description) { mutableStateOf(false) }
     var clipped by remember(description) { mutableStateOf(false) }
     val title = stringResource(Res.string.video_channel_about)
-    val bodyStyle = { text: String ->
-        type.forText(
-            TextStyle(
-                fontFamily = type.textFamily,
-                fontWeight = FontWeight.Normal,
-                fontSize = DESCRIPTION_SP.sp,
-                lineHeight = DESCRIPTION_SP.sp * DESCRIPTION_LINE_HEIGHT,
-            ),
-            text,
-        )
-    }
+    val bodyStyle = { _: String -> fonts.body.copy(fontSize = DESCRIPTION_SP.sp, lineHeight = DESCRIPTION_SP.sp * DESCRIPTION_LINE_HEIGHT) }
     Column(
         Modifier
             .padding(horizontal = line.own)
             .fillMaxWidth()
             .then(if (wide) Modifier.widthIn(max = TILE_MAX_WIDTH) else Modifier)
+            .clip(RoundedCornerShape(22.dp))
+            .background(look.row)
             .padding(TILE_PADDING),
     ) {
         Text(
             text = title,
-            style = type.forText(type.titleLarge, title),
-            color = Color(palette.textPrimary),
+            style = fonts.section,
+            color = look.ink,
             modifier = Modifier.semantics { heading() },
         )
         if (description != null) {
@@ -126,7 +123,7 @@ internal fun ChannelAbout(page: ChannelPage, line: PageLine, wide: Boolean) {
             Text(
                 text = description,
                 style = bodyStyle(description),
-                color = Color(palette.textSecondary),
+                color = look.dim,
                 maxLines = if (expanded) Int.MAX_VALUE else DESCRIPTION_LINES,
                 overflow = TextOverflow.Ellipsis,
                 onTextLayout = { result -> if (!expanded) clipped = result.hasVisualOverflow },
@@ -134,11 +131,11 @@ internal fun ChannelAbout(page: ChannelPage, line: PageLine, wide: Boolean) {
             )
             if (clipped || expanded) {
                 // a text button has 12 dp of padding inside its label: the label stands on the text's edge
-                KitTextButton(
+                CommentLink(
                     text = stringResource(if (expanded) SharedRes.string.cosmo_show_less else SharedRes.string.cosmo_read_more),
                     onClick = { expanded = !expanded },
-                    modifier = Modifier.offset(x = (-12).dp),
-                    )
+                    modifier = Modifier.offset(x = (-4).dp),
+                )
             }
         }
         if (joined != null) {
@@ -146,7 +143,7 @@ internal fun ChannelAbout(page: ChannelPage, line: PageLine, wide: Boolean) {
             Text(
                 text = joined,
                 style = bodyStyle(joined),
-                color = Color(palette.textTertiary),
+                color = look.dim,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -156,8 +153,8 @@ internal fun ChannelAbout(page: ChannelPage, line: PageLine, wide: Boolean) {
             Spacer(Modifier.height(16.dp))
             Text(
                 text = linksTitle,
-                style = type.forText(type.titleLarge, linksTitle),
-                color = Color(palette.textPrimary),
+                style = fonts.section,
+                color = look.ink,
                 modifier = Modifier.semantics { heading() },
             )
             for (link in links) {
@@ -176,7 +173,7 @@ internal fun ChannelAbout(page: ChannelPage, line: PageLine, wide: Boolean) {
                     Text(
                         text = shown,
                         style = bodyStyle(shown),
-                        color = Color(palette.accentStrong),
+                        color = look.accent,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

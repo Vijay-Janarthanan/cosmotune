@@ -1,5 +1,10 @@
 package com.cosmotune.video.ui.library
 
+import androidx.compose.foundation.background
+import com.cosmotune.ui.orbit.OrbitActionPill
+import com.cosmotune.ui.orbit.OrbitProgressLine
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -39,9 +44,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.theme.CoverField
-import com.cosmotune.ui.blocks.CosmoOverline
-import com.cosmotune.ui.components.CosmoIconButton
-import com.cosmotune.ui.components.CosmoIconButtonStyle
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.sheets.CosmoToast
 import com.cosmotune.ui.states.CosmoShimmer
@@ -79,9 +81,6 @@ import org.jetbrains.compose.resources.stringResource
 import java.time.LocalDate
 import com.cosmotune.music.sharedui.resources.Res as SharedRes
 import androidx.compose.foundation.shape.RoundedCornerShape
-import com.cosmotune.ui.kit.KitButton
-import com.cosmotune.ui.kit.KitButtonKind
-import com.cosmotune.ui.kit.KitTextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -117,7 +116,7 @@ fun ImportPage(contentPadding: PaddingValues, wide: Boolean) {
     Box(Modifier.fillMaxSize()) {
         LibraryList(contentPadding, wide) { cell ->
             item(key = "heading") { LibraryHeader(stringResource(Res.string.video_import_export), wide, cell) }
-            item(key = "import:header") { CosmoOverline(stringResource(Res.string.video_import), cell) }
+            item(key = "import:header") { OrbitGroupLabel(stringResource(Res.string.video_import), cell) }
             items(rows, key = { "import:" + it.kind.name }) { row ->
                 LinkRow(row.icon, stringResource(row.title), count = null, onClick = { picker.open(row.kind.mimeTypes) }, modifier = cell)
             }
@@ -131,7 +130,7 @@ fun ImportPage(contentPadding: PaddingValues, wide: Boolean) {
                     )
                 }
             }
-            item(key = "export:header") { CosmoOverline(stringResource(Res.string.video_export), cell) }
+            item(key = "export:header") { OrbitGroupLabel(stringResource(Res.string.video_export), cell) }
             item(key = "export") {
                 LinkRow(
                     VideoIcons.Upload,
@@ -160,7 +159,8 @@ private class ImportRow(val kind: ImportKind, val icon: ImageVector, val title: 
  */
 @Composable
 internal fun SummaryCard(phase: ImportPhase, onImport: () -> Unit, onDismiss: () -> Unit, modifier: Modifier) {
-    val palette = LocalCosmoColors.current.palette
+    val look = orbitLook()
+    val fonts = orbitFonts()
     val type = LocalCosmoType.current
     val fileName = when (phase) {
         ImportPhase.Idle -> ""
@@ -172,17 +172,19 @@ internal fun SummaryCard(phase: ImportPhase, onImport: () -> Unit, onDismiss: ()
         is ImportPhase.Failed -> phase.fileName
     }
     val titleStyle = remember(type, fileName) { type.forText(type.titleMedium, fileName) }
-    val lineStyle = remember(type) { TextStyle(fontFamily = type.textFamily, fontWeight = FontWeight.Normal, fontSize = LINE_SP.sp, lineHeight = LINE_SP.sp * 1.45f) }
+    val lineStyle = remember(fonts) { fonts.body.copy(fontSize = LINE_SP.sp, lineHeight = LINE_SP.sp * 1.45f) }
     Column(
         modifier
             .fillMaxWidth()
             .padding(horizontal = CosmoSpacing.margin, vertical = CARD_MARGIN_V)
+            .clip(RoundedCornerShape(22.dp))
+            .background(look.row)
             .padding(horizontal = CARD_PADDING_H, vertical = CARD_PADDING_V),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = fileName, style = titleStyle, color = Color(palette.textPrimary), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(text = fileName, style = titleStyle, color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             if (phase is ImportPhase.Done || phase is ImportPhase.Failed) {
-                CosmoIconButton(CosmoIcons.Close, stringResource(SharedRes.string.cosmo_close), onDismiss, style = CosmoIconButtonStyle.PLAIN, size = 40.dp)
+                OrbitAction(CosmoIcons.Close, stringResource(SharedRes.string.cosmo_close), onDismiss)
             }
         }
         Spacer(Modifier.height(LINE_GAP))
@@ -193,32 +195,35 @@ internal fun SummaryCard(phase: ImportPhase, onImport: () -> Unit, onDismiss: ()
                 is ImportPhase.Resolving -> {
                     SummaryLines(phase.pending.channels, phase.pending.historyEntries, phase.pending.playlists, phase.pending.skipped, lineStyle)
                     val left = phase.total - phase.done
-                    Text(pluralStringResource(Res.plurals.video_import_lookups, left, left), style = lineStyle, color = Color(palette.textSecondary))
+                    Text(pluralStringResource(Res.plurals.video_import_lookups, left, left), style = lineStyle, color = look.dim)
                     Spacer(Modifier.height(LINE_GAP))
                     LookupProgress(if (phase.total == 0) 1f else phase.done.toFloat() / phase.total)
                 }
                 is ImportPhase.Ready -> SummaryLines(phase.pending.channels, phase.pending.historyEntries, phase.pending.playlists, phase.pending.skipped, lineStyle)
                 is ImportPhase.Importing -> SummaryLines(phase.pending.channels, phase.pending.historyEntries, phase.pending.playlists, phase.pending.skipped, lineStyle)
                 is ImportPhase.Done -> {
-                    Text(stringResource(Res.string.video_import_done), style = lineStyle.copy(fontWeight = FontWeight.SemiBold), color = Color(palette.textPrimary))
+                    Text(stringResource(Res.string.video_import_done), style = lineStyle.copy(fontWeight = FontWeight.SemiBold), color = look.ink)
                     ReportLines(phase.report, phase.pending.skipped, lineStyle)
                 }
-                is ImportPhase.Failed -> Text(stringResource(Res.string.video_import_failed), style = lineStyle, color = Color(palette.textSecondary))
+                is ImportPhase.Failed -> Text(stringResource(Res.string.video_import_failed), style = lineStyle, color = look.dim)
             }
         }
         if (phase is ImportPhase.Resolving || phase is ImportPhase.Ready || phase is ImportPhase.Importing) {
             Row(Modifier.fillMaxWidth().padding(top = BUTTONS_TOP), verticalAlignment = Alignment.CenterVertically) {
-                KitButton(
-                    stringResource(Res.string.video_import_confirm),
-                    onImport,
-                    kind = KitButtonKind.PRIMARY,
-                    dense = true,
+                OrbitActionPill(
+                    label = stringResource(Res.string.video_import_confirm),
+                    onClick = onImport,
+                    fonts = fonts,
+                    look = look,
+                    primary = true,
                     enabled = phase is ImportPhase.Ready,
                 )
                 Spacer(Modifier.width(BUTTON_GAP))
-                KitTextButton(
-                    stringResource(SharedRes.string.cancel),
-                    onDismiss,
+                OrbitActionPill(
+                    label = stringResource(SharedRes.string.cancel),
+                    onClick = onDismiss,
+                    fonts = fonts,
+                    look = look,
                     enabled = phase !is ImportPhase.Importing,
                 )
             }
@@ -229,9 +234,9 @@ internal fun SummaryCard(phase: ImportPhase, onImport: () -> Unit, onDismiss: ()
 /** "123 channels, 4,210 history entries, 6 playlists" and, when any, "3 skipped" (spec 8.2). */
 @Composable
 private fun SummaryLines(channels: Int, history: Int, playlists: Int, skipped: Int, style: TextStyle) {
-    val palette = LocalCosmoColors.current.palette
-    Text(stringResource(Res.string.video_import_summary, channels, history, playlists), style = style, color = Color(palette.textSecondary))
-    if (skipped > 0) Text(pluralStringResource(Res.plurals.video_import_skipped, skipped, skipped), style = style, color = Color(palette.textTertiary))
+    val look = orbitLook()
+    Text(stringResource(Res.string.video_import_summary, channels, history, playlists), style = style, color = look.dim)
+    if (skipped > 0) Text(pluralStringResource(Res.plurals.video_import_skipped, skipped, skipped), style = style, color = look.dim)
 }
 
 /** What the merge added (the library's own report: a channel, an entry or a playlist already there is not counted again) and what the file skipped. */
@@ -240,21 +245,10 @@ private fun ReportLines(report: ImportReport, skipped: Int, style: TextStyle) {
     SummaryLines(report.subscriptions, report.history, report.playlists, skipped + report.skipped, style)
 }
 
-/** The lookups' progress: a 4 dp line, the done part in `accent` over `textPrimary` at 10 %, both read while drawing. */
+/** The lookups' progress: the Orbit line with its moon, in the accent. */
 @Composable
 private fun LookupProgress(fraction: Float) {
-    val colors = LocalCosmoColors.current
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(PROGRESS_HEIGHT)
-            .clip(RoundedCornerShape(CosmoRadii.rXs))
-            .drawBehind {
-                val radius = CornerRadius(size.height / 2)
-                drawRoundRect(colors.live(CoverField.TEXT_PRIMARY).copy(alpha = PROGRESS_TRACK_ALPHA), cornerRadius = radius)
-                drawRoundRect(colors.live(CoverField.ACCENT), topLeft = Offset.Zero, size = Size(size.width * fraction.coerceIn(0f, 1f), size.height), cornerRadius = radius)
-            },
-    )
+    OrbitProgressLine(progress = { fraction.coerceIn(0f, 1f) }, ink = orbitLook().accent, modifier = Modifier.fillMaxWidth())
 }
 
 /** What the page's toast says: the export was saved under [Saved.name] ("Saved cosmotune-video-2026-10-16.json"), or it could not be written. */
