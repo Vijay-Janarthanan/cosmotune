@@ -6,7 +6,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
+import com.cosmotune.ui.orbit.OrbitRing
+import com.cosmotune.ui.orbit.OrbitSwitch
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +48,7 @@ import kotlinx.coroutines.launch
     ReadButton(mangaText("Import source extension APK"), { import.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream")) }, kind = ReadKind.TONAL, enabled = !loading)
     ReadButton(mangaText("Browse extension stores"), { storePicker = true }, kind = ReadKind.TONAL, enabled = !loading)
     if (storePicker) MangaExtensionStorePicker(repository, manager, onDismiss = { storePicker = false }, onReview = { review = it })
-    if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+    if (loading) OrbitRing(size = 22.dp, color = orbitLook().accent, progress = null, spinning = true)
     val extensions = state.sources.filter { it.kind == "mihon" }.groupBy { it.settings["package"].orEmpty() }
     if (extensions.isNotEmpty()) ReadButton(mangaText("Installed extensions") + " (${extensions.size})", { installedPicker = true }, kind = ReadKind.TONAL)
     if (installedPicker) com.cosmotune.ui.sheets.CosmoAlertDialog(
@@ -55,24 +58,24 @@ import kotlinx.coroutines.launch
         content = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
         extensions.forEach { (packageName, configs) ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${configs.first().name} · ${configs.first().settings["version"]}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                TextButton(onClick = { scope.launch {
+                Text("${configs.first().name} · ${configs.first().settings["version"]}", modifier = Modifier.weight(1f), style = ReadType.rowTitle(), color = orbitLook().ink)
+                ReadTextButton("Remove", { scope.launch {
                     try { manager.remove(packageName); configs.forEach { repository.invalidateSource(it.id) } }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (error: Exception) { onError(error.message ?: "Extension could not be removed") }
-                } }) { Text("Remove") }
+                } })
             }
             configs.forEach { config -> Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${config.name} · ${config.language}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
-                if (config.settings["configurable"] == "true") TextButton(onClick = {
+                Text("${config.name} · ${config.language}", modifier = Modifier.weight(1f), style = ReadType.caption(), color = orbitLook().dim)
+                if (config.settings["configurable"] == "true") ReadTextButton("Settings", {
                     settingsId = config.id
                     configure.launch(Intent(context, MangaExtensionSettingsActivity::class.java).putExtra("sourceId", config.id))
-                }) { Text("Settings") }
-                Switch(config.enabled, { enabled -> scope.launch {
+                })
+                OrbitSwitch(config.enabled, { enabled -> scope.launch {
                     try { repository.store.source(config.copy(enabled = enabled)); repository.invalidateSource(config.id) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (error: Exception) { onError(error.message ?: "Source setting could not be saved") }
-                } })
+                } }, orbitLook(), "${config.name} enabled")
             } }
         }
     } },
@@ -87,12 +90,12 @@ import kotlinx.coroutines.launch
             title = "Enable this source extension?",
             scroll = false,
             content = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("${candidate.name} · ${candidate.version}", style = MaterialTheme.typography.titleMedium)
-                Text(candidate.packageName, style = MaterialTheme.typography.labelSmall)
+                Text("${candidate.name} · ${candidate.version}", style = ReadType.titleMedium(), color = orbitLook().ink)
+                Text(candidate.packageName, style = ReadType.caption(), color = orbitLook().dim)
                 Text("Extension APKs run code with Cosmotune's permissions. Enable an APK only if you trust its publisher. Each changed APK requires a new review.")
-                Text("APK SHA-256\n${candidate.sha256}", style = MaterialTheme.typography.labelSmall)
-                candidate.signers.forEach { Text("Signer certificate SHA-256\n$it", style = MaterialTheme.typography.labelSmall) }
-                Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(accepted, { accepted = it }); Text("I trust this extension publisher") }
+                Text("APK SHA-256\n${candidate.sha256}", style = ReadType.caption(), color = orbitLook().dim)
+                candidate.signers.forEach { Text("Signer certificate SHA-256\n$it", style = ReadType.caption(), color = orbitLook().dim) }
+                Row(verticalAlignment = Alignment.CenterVertically) { OrbitSwitch(accepted, { accepted = it }, orbitLook(), "I trust this extension publisher"); Text("I trust this extension publisher", Modifier.padding(start = 12.dp), style = ReadType.body(), color = orbitLook().ink) }
             } },
             confirmLabel = "Trust and enable",
             onConfirm = { scope.launch {

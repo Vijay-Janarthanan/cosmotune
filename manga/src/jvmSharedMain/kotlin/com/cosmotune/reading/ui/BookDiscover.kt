@@ -1,5 +1,8 @@
 package com.cosmotune.reading.ui
 
+import com.cosmotune.ui.orbit.OrbitInputField
+import com.cosmotune.ui.orbit.OrbitSwitch
+import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -306,14 +309,14 @@ private fun BookConnections(repository: ReadingRepository, onDismiss: () -> Unit
             items(state.sources, key = { it.id }) { source ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(source.name, style = ReadType.rowTitle(), modifier = Modifier.weight(1f))
-                    TextButton(onClick = { scope.launch { runCatching { repository.removeOpdsSource(source.id) }.onFailure { onError("The connection could not be removed.") } } }) { Text("Remove") }
+                    com.cosmotune.manga.ui.ReadTextButton("Remove", { scope.launch { runCatching { repository.removeOpdsSource(source.id) }.onFailure { onError("The connection could not be removed.") } } })
                 }
             }
-            item { OutlinedTextField(name, { name = it }, label = { Text("Library name") }, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(url, { url = it }, label = { Text("OPDS address") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(username, { username = it }, label = { Text("Username (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
-            item { OutlinedTextField(password, { password = it }, label = { Text("Password (optional)") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth()) }
-            item { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(insecure, { insecure = it }); Text("Allow HTTP on my local network", style = ReadType.body()) } }
+            item { OrbitInputField(name, { name = it }, "Library name", modifier = Modifier.fillMaxWidth()) }
+            item { OrbitInputField(url, { url = it }, "OPDS address", modifier = Modifier.fillMaxWidth()) }
+            item { OrbitInputField(username, { username = it }, "Username (optional)", modifier = Modifier.fillMaxWidth()) }
+            item { OrbitInputField(password, { password = it }, "Password (optional)", secret = true, modifier = Modifier.fillMaxWidth()) }
+            item { Row(verticalAlignment = Alignment.CenterVertically) { OrbitSwitch(insecure, { insecure = it }, orbitLook(), "Allow HTTP on my local network"); Text("Allow HTTP on my local network", Modifier.padding(start = 12.dp), style = ReadType.body(), color = orbitLook().ink) } }
             error?.let { message -> item { Text(message, style = ReadType.body(), color = Color(palette.danger)) } }
         }
     },

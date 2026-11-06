@@ -16,14 +16,18 @@ fun OrbitInputField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    fonts: OrbitFonts,
-    look: OrbitLook,
+    fonts: OrbitFonts = orbitFonts(),
+    look: OrbitLook = orbitLook(),
     modifier: Modifier = Modifier,
     error: Boolean = false,
     secret: Boolean = false,
     singleLine: Boolean = true,
     sentences: Boolean = false,
-) = OrbitTextField(value, onValueChange, placeholder, fonts, look, modifier, error, secret, singleLine, sentences)
+    minLines: Int = 1,
+) = OrbitTextField(
+    value, onValueChange, placeholder, fonts, look, modifier,
+    error = error, secret = secret, singleLine = singleLine, sentences = sentences, minLines = minLines,
+)
 
 /** A dialog's pill action: 44 dp, [primary] the one peach action, the rest the quiet chip. */
 @Composable

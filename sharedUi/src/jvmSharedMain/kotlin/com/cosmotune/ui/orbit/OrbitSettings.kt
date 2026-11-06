@@ -211,12 +211,14 @@ fun OrbitTextField(
     trailing: (@Composable () -> Unit)? = null,
     singleLine: Boolean = true,
     sentences: Boolean = false,
+    minLines: Int = 1,
 ) {
     val shape = RoundedCornerShape(22.dp)
     androidx.compose.foundation.text.BasicTextField(
         value = value,
         onValueChange = onValueChange,
         singleLine = singleLine,
+        minLines = minLines,
         textStyle = fonts.body.copy(color = look.ink),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(look.accent),
         visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,

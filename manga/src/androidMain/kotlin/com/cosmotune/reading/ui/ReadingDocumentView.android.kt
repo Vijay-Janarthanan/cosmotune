@@ -1,5 +1,6 @@
 package com.cosmotune.reading.ui
 
+import com.cosmotune.manga.ui.ReadTextButton
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
@@ -136,8 +137,8 @@ import kotlinx.serialization.json.*
     Column(modifier) {
         if (searchQuery.isNotBlank()) Text("$matches matches in this section", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium)
         if (!preferences.scrollMode) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = { web.evaluateJavascript("window.scrollBy(0,-window.innerHeight*0.88)", null) }) { Text("Previous screen") }
-            TextButton(onClick = { web.evaluateJavascript("window.scrollBy(0,window.innerHeight*0.88)", null) }) { Text("Next screen") }
+            ReadTextButton("Previous screen", { web.evaluateJavascript("window.scrollBy(0,-window.innerHeight*0.88)", null) })
+            ReadTextButton("Next screen", { web.evaluateJavascript("window.scrollBy(0,window.innerHeight*0.88)", null) })
         }
         AndroidView(factory = { web }, modifier = Modifier.fillMaxSize())
     }

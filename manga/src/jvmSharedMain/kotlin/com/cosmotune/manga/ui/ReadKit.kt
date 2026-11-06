@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.foundation.horizontalScroll
 import com.cosmotune.ui.orbit.OrbitCardChip
 import com.cosmotune.ui.orbit.OrbitCardColors
+import com.cosmotune.ui.orbit.OrbitProgressLine
 import com.cosmotune.ui.orbit.OrbitRoundButton
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -483,4 +484,25 @@ internal fun Modifier.readBleed(margin: Dp = ReadMargin): Modifier = layout { me
     val width = constraints.maxWidth + extra
     val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
     layout(constraints.maxWidth, placeable.height) { placeable.place(-extra / 2, 0) }
+}
+
+/**
+ * A level on a line with its moon ([OrbitProgressLine]), snapped to [steps] stops between [range]'s ends and reported all the way
+ * through a drag. [label] is what a screen reader hears with the value.
+ */
+@Composable
+internal fun ReadSlider(value: Float, onChange: (Float) -> Unit, range: ClosedFloatingPointRange<Float>, steps: Int, label: String, modifier: Modifier = Modifier) {
+    val span = range.endInclusive - range.start
+    val fraction = ((value - range.start) / span).coerceIn(0f, 1f)
+    OrbitProgressLine(
+        progress = { fraction },
+        ink = orbitLook().accent,
+        modifier = modifier.padding(vertical = 4.dp).semantics { contentDescription = "$label ${"%.2f".format(value)}" },
+        onSeek = { f ->
+            val stops = steps + 1
+            val snapped = if (steps > 0) Math.round(f * stops) / stops.toFloat() else f
+            onChange(range.start + span * snapped)
+        },
+        live = true,
+    )
 }

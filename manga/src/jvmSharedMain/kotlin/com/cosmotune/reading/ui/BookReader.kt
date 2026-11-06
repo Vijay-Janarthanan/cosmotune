@@ -1,5 +1,6 @@
 package com.cosmotune.reading.ui
 
+import com.cosmotune.manga.ui.ReadSlider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -194,20 +195,17 @@ private fun ReaderAppearance(preferences: ReadingPreferences, reflowable: Boolea
                 }
                 item {
                     ReadSheetSection("Text size · ${(preferences.fontScale * 100).toInt()}%") {
-                        Slider(preferences.fontScale, { onChange(preferences.copy(fontScale = it)) }, valueRange = .75f..2.5f, steps = 6, modifier = Modifier.testTag("books:font-size"),
-                            colors = SliderDefaults.colors(thumbColor = orbitLook().accent, activeTrackColor = orbitLook().accent))
+                        ReadSlider(preferences.fontScale, { onChange(preferences.copy(fontScale = it)) }, .75f..2.5f, 6, "Text size", Modifier.testTag("books:font-size"))
                     }
                 }
                 item {
                     ReadSheetSection("Line spacing · ${"%.1f".format(preferences.lineHeight)}") {
-                        Slider(preferences.lineHeight, { onChange(preferences.copy(lineHeight = it)) }, valueRange = 1.1f..2.2f, steps = 10,
-                            colors = SliderDefaults.colors(thumbColor = orbitLook().accent, activeTrackColor = orbitLook().accent))
+                        ReadSlider(preferences.lineHeight, { onChange(preferences.copy(lineHeight = it)) }, 1.1f..2.2f, 10, "Line spacing")
                     }
                 }
                 item {
                     ReadSheetSection("Margins · ${preferences.marginDp}") {
-                        Slider(preferences.marginDp.toFloat(), { onChange(preferences.copy(marginDp = it.toInt())) }, valueRange = 8f..64f, steps = 6,
-                            colors = SliderDefaults.colors(thumbColor = orbitLook().accent, activeTrackColor = orbitLook().accent))
+                        ReadSlider(preferences.marginDp.toFloat(), { onChange(preferences.copy(marginDp = it.toInt())) }, 8f..64f, 6, "Margins")
                     }
                 }
                 item {
