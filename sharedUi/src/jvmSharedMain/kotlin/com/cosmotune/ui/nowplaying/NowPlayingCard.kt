@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -23,6 +24,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -73,6 +76,8 @@ internal class NowPlayingTransport(
     val onToggleLike: () -> Unit,
     val onSeekFraction: (Float) -> Unit,
     val onOpenArtist: () -> Unit,
+    /** The song is buffering or its stream is being found: the play button wears a circling moon until it is in. */
+    val isLoading: Boolean = false,
 ) {
     /** Where the playhead is drawn (0..1): the dragged handle while scrubbing, else the song. Read it in draw. */
     fun progress(): Float = scrub.shown(position.positionMs, durationMs)
@@ -166,7 +171,7 @@ internal fun NowPlayingSongCard(
     buttonSize: Dp = 40.dp,
 ) {
     val (fill, ink) = coverFill(t.coverUrl, t.song.title)
-    OrbitBiteCard(fill, modifier, bite = { OrbitPlayButton(t.isPlaying, t.onPlayPause, look) }) {
+    OrbitBiteCard(fill, modifier, bite = { NowPlayingPlayButton(t, look, 66.dp, HERO_BITE_RING) }) {
         if (wide) {
             Box(Modifier.fillMaxSize().padding(start = 24.dp, top = 22.dp, end = 24.dp, bottom = 22.dp)) {
                 Row(Modifier.fillMaxWidth()) {
@@ -220,6 +225,27 @@ private fun CardTitle(t: NowPlayingTransport, fonts: OrbitFonts, ink: Color, siz
     )
 }
 
+/**
+ * Play / pause in a card's bite, and while the song loads ([NowPlayingTransport.isLoading]) the moon circling it in the bite's
+ * clear ring, as the player bar and the mini player show it: a press that is still on its way never looks like one that did
+ * nothing. [ring] is the bite's own diameter, so the orbit runs in the gap between the button and the card.
+ */
+@Composable
+internal fun NowPlayingPlayButton(t: NowPlayingTransport, look: OrbitLook, size: Dp, ring: Dp) {
+    // The button's own size, so the bite places the button where it always was; the ring spills out round it, centred.
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        if (t.isLoading) {
+            OrbitRing(ring, look.accent, progress = null, spinning = true, stroke = 1.5.dp, moon = 3.dp,
+                modifier = Modifier.requiredSize(ring).semantics { contentDescription = "Loading" })
+        }
+        OrbitPlayButton(t.isPlaying, t.onPlayPause, look, size = size)
+    }
+}
+
+/** The bites' diameters: [com.cosmotune.ui.orbit.HeroBite]'s 41 dp and [SlimBite]'s 38 dp radius. */
+internal val HERO_BITE_RING = 82.dp
+internal val SLIM_BITE_RING = 76.dp
+
 /** What the volume takes beside the buttons: the speaker, the gap and the line. */
 private val VOLUME_WIDTH = 150.dp
 
@@ -235,7 +261,7 @@ internal fun NowPlayingSlimCard(t: NowPlayingTransport, fonts: OrbitFonts, look:
     val (fill, ink) = coverFill(t.coverUrl, t.song.title)
     OrbitBiteCard(
         fill.copy(alpha = 0.95f), modifier.height(112.dp), shape = SlimBite, biteInset = 24.dp,
-        bite = { OrbitPlayButton(t.isPlaying, t.onPlayPause, look, size = 64.dp) },
+        bite = { NowPlayingPlayButton(t, look, 64.dp, SLIM_BITE_RING) },
     ) {
         Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 104.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {

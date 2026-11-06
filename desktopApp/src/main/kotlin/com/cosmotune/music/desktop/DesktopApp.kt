@@ -1817,6 +1817,11 @@ fun CosmotuneDesktopApp() {
         com.cosmotune.ui.sleep.SleepPausers.pauseAll()
         com.cosmotune.music.data.cast.dlna.DlnaCast.pauseRenderer()
     }
+    // Space in the window plays and pauses the song, as the play button does; with no song there is nothing to toggle.
+    DisposableEffect(Unit) {
+        DesktopSpaceKey.music = { if (selectedSong != null) { togglePlayPauseFromUser(); true } else false }
+        onDispose { DesktopSpaceKey.music = null }
+    }
     // A DLNA renderer that has taken the song stops it playing here (Extras: DLNA casting).
     DisposableEffect(playbackEngine) {
         com.cosmotune.music.data.cast.dlna.DlnaCast.pauseLocal = { playbackEngine.pause() }

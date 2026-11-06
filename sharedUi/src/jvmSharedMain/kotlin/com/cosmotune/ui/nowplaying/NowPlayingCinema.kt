@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,15 +27,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.cosmotune.design.VideoView
 import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.Disc
 import com.cosmotune.ui.orbit.OrbitFonts
 import com.cosmotune.ui.orbit.OrbitLook
+import com.cosmotune.ui.orbit.OrbitRing
 import com.cosmotune.ui.orbit.OrbitRoundButton
 import com.cosmotune.ui.shell.LocalCosmoPlayerDismiss
 import kotlinx.coroutines.delay
@@ -83,6 +89,9 @@ internal fun NowPlayingCinema(
             }
         },
     ) {
+        // Under the video until its first frame is on screen, and whenever the video has nothing to show (the song before or
+        // past the stretch the video covers): the cover on its disc with the moon circling it, never a black window.
+        CinemaStandIn(coverUrl, reveal, Modifier.fillMaxSize())
         NowPlayingVideo(
             canvas = canvas, isPlaying = isPlaying, view = view, aspect = aspect, onAspect = onAspect, reveal = reveal,
             onRenderedChanged = onRenderedChanged, coverUrl = coverUrl, radius = 0.dp, modifier = Modifier.fillMaxSize(),
@@ -106,6 +115,28 @@ internal fun NowPlayingCinema(
         }
     }
 }
+
+/**
+ * What Cinema shows while its video has no frame yet: the cover as a disc in the middle of the window with the orbit's moon
+ * circling it, fading out as the video comes in ([reveal], 0 = no frame yet, 1 = the video in). Cinema mounts a decoder of its
+ * own, and on a slow network or a song the video does not cover yet that first frame can be a long time coming; before this
+ * the window stayed black for all of it.
+ */
+@Composable
+internal fun CinemaStandIn(coverUrl: String?, reveal: State<Float>, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier.graphicsLayer { alpha = 1f - reveal.value.coerceIn(0f, 1f) }, contentAlignment = Alignment.Center) {
+        val disc = (minOf(maxWidth, maxHeight) * CINEMA_STAND_IN_SHARE).coerceAtMost(CINEMA_STAND_IN_MAX)
+        Box(contentAlignment = Alignment.Center) {
+            Disc(coverUrl, disc)
+            OrbitRing(disc + 28.dp, CINEMA_INK, progress = null, spinning = true, stroke = 1.5.dp, moon = 4.dp,
+                modifier = Modifier.semantics { contentDescription = "Loading the video" })
+        }
+    }
+}
+
+/** The stand-in disc: about half the shorter side of the window, never larger than this. */
+private const val CINEMA_STAND_IN_SHARE = 0.5f
+private val CINEMA_STAND_IN_MAX = 360.dp
 
 @Composable
 private fun CinemaButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {

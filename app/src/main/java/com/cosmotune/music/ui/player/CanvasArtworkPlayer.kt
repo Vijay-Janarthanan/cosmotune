@@ -206,7 +206,8 @@ internal fun AndroidCanvasArtworkPlayer(
     // Bumped each time the view is handed a surface to replace one that was
     // taken away — which, in practice, means each time the app comes back from
     // off screen. Not bumped for the first surface of all, which arrives with
-    // nothing needing doing to it. See the repaint effect below.
+    // nothing needing doing to it, unless the clip was ready and paused before it
+    // arrived. See the repaint effect below.
     var surfaceGeneration by remember(canvas) { mutableIntStateOf(0) }
     val currentContentMode by rememberUpdatedState(contentMode)
     val currentAlignPortraitTop by rememberUpdatedState(alignPortraitTop)
@@ -523,8 +524,17 @@ internal fun AndroidCanvasArtworkPlayer(
                         height: Int,
                     ) {
                         delegate?.onSurfaceTextureAvailable(surface, width, height)
-                        // The first surface needs nothing: prepare() paints it.
-                        if (!replacing) return
+                        // The first surface needs nothing when it is in place before the clip is: prepare() paints it.
+                        // A clip that is already prepared and standing still (the song paused, as a song restored at
+                        // start-up is) has decoded its frame with nowhere to put it, and nothing moves on to paint
+                        // another, so Cinema's fresh view stayed empty until the song played. Ask for a repaint then.
+                        if (!replacing) {
+                            if (player.playbackState == Player.STATE_READY && !player.isPlaying) {
+                                Log.d(TAG, "first surface after the clip was ready, asking for a frame")
+                                surfaceGeneration++
+                            }
+                            return
+                        }
                         replacing = false
                         Log.d(TAG, "surface recreated (gen $surfaceGeneration), waiting for frame")
                         surfaceGeneration++
