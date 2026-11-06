@@ -89,7 +89,9 @@ internal fun NowPlayingVideo(
     BoxWithConstraints(modifier) {
         val box = if (whole) VideoView.whole(maxWidth.value, maxHeight.value, if (aspect > 0f) aspect else VideoView.DEFAULT_ASPECT)
         else floatArrayOf(0f, 0f, maxWidth.value, maxHeight.value)
-        if (whole && glow) VideoGlow(still, coverUrl, reveal, Modifier.matchParentSize())
+        // The glow is cut to the frame's own corners: unclipped, its blurred square showed past the rounded video (a pale square
+        // in the corners on a light page).
+        if (whole && glow) VideoGlow(still, coverUrl, reveal, Modifier.matchParentSize().clip(RoundedCornerShape(radius)))
         Box(
             Modifier.offset(box[0].dp, box[1].dp).size(box[2].dp, box[3].dp)
                 .then(if (onFramePlaced != null) Modifier.onGloballyPositioned { onFramePlaced(it.boundsInRoot()) } else Modifier)
@@ -251,7 +253,8 @@ internal fun videoViewItems(
 ): List<OrbitMenuItem> = listOf(
     OrbitMenuItem("Whole", "Nothing cut", selected = videoOn && !cinema && view == VideoView.WHOLE) { onVideoOn(true); onCinema(false); onView(VideoView.WHOLE) },
     OrbitMenuItem("Fill", "Fills the frame, cuts the edges", selected = videoOn && !cinema && view == VideoView.FILL) { onVideoOn(true); onCinema(false); onView(VideoView.FILL) },
-    OrbitMenuItem("Cinema", "The whole window · F", selected = videoOn && cinema) { onVideoOn(true); onCinema(true) },
+    // The key hint only where there is a keyboard to press it on (the desktop); a phone has none.
+    OrbitMenuItem("Cinema", if (com.cosmotune.ui.components.platformSdkInt == null) "The whole window · F" else "The whole window", selected = videoOn && cinema) { onVideoOn(true); onCinema(true) },
     OrbitMenuItem("Mini", "A small floating video · coming soon", enabled = false) {},
     OrbitMenuItem("Off", "The record. Saves data and battery", selected = !videoOn) { onCinema(false); onVideoOn(false) },
 )
