@@ -33,6 +33,8 @@ import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Cast
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Share
@@ -313,6 +315,16 @@ internal fun DesktopSongMenu(
         ) { pickingSleepTimer = true }
         if (!isOffline) {
             DesktopMenuRow(Icons.Rounded.Share, DesktopStrings["share", "Share"], onClick = onShare)
+        }
+        DesktopMenuRow(Icons.Rounded.Cast, "Play on a TV or speaker") {
+            DesktopExtras.castSong.value = song
+            onDismiss()
+        }
+        song.albumName?.takeIf { it.isNotBlank() }?.let { album ->
+            DesktopMenuRow(Icons.Rounded.Info, "About this album") {
+                DesktopExtras.aboutAlbum.value = album to song.artist
+                onDismiss()
+            }
         }
     }
 }

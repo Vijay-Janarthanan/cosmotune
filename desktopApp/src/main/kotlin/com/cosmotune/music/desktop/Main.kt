@@ -65,6 +65,8 @@ private fun runDesktop() {
     com.cosmotune.manga.ui.DesktopMangaLibrary.startUpdates()
     Runtime.getRuntime().addShutdownHook(Thread({ com.cosmotune.manga.ui.DesktopMangaLibrary.stopUpdates() }, "Manga updates shutdown"))
     com.cosmotune.desktop.TorConnection.install()
+    // The listener's proxy and offline mode (Extras), right after Tor has chosen the routing.
+    DesktopExtras.install()
     coil3.SingletonImageLoader.setSafe { context ->
         coil3.ImageLoader.Builder(context).components { add(coil3.svg.SvgDecoder.Factory()); add(com.cosmotune.ui.providers.CatalogueArtworkFetcher.Factory()) }.build()
     }

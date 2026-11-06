@@ -332,6 +332,7 @@ fun SettingsScreen(
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
+    var showingExtras by remember { mutableStateOf(false) }
     // What the last export or import did, shown on the row that did it rather
     // than as a toast: a backup is the one action here whose outcome nobody can
     // check by looking at the app afterwards. Held per direction, or an import's
@@ -810,6 +811,18 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setSpatialAudio(!spatialAudio) },
+                )
+            }
+            // One row into the shared Extras dialog (volume cap, pitch, proxy, offline mode and the rest), kept to a single
+            // entry so the settings redesign can fold it wherever it fits.
+            val extrasTitle = "Extras"
+            val extrasSummary = "Volume cap, pitch, spatial style, proxy, offline mode"
+            row(extrasTitle, "maximum volume", "pitch", "proxy", "offline", "spatial", "crossfeed", summary = extrasSummary) {
+                SettingsRow(
+                    icon = Icons.Rounded.Tune,
+                    title = extrasTitle,
+                    subtitle = extrasSummary,
+                    onClick = { showingExtras = true },
                 )
             }
         }
@@ -1897,6 +1910,30 @@ fun SettingsScreen(
         }
     }
 
+    if (showingExtras) {
+        // Song recognition needs the microphone; asked for only when Listen is pressed.
+        val extrasContext = androidx.compose.ui.platform.LocalContext.current
+        var micAnswer by remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
+        val micLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+        ) { granted -> micAnswer?.invoke(granted); micAnswer = null }
+        com.cosmotune.ui.extras.ExtrasSettingsDialog(
+            onDismiss = { showingExtras = false },
+            onPlay = onPlayProviderSongs,
+            ensureMicrophone = { answer ->
+                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    extrasContext,
+                    android.Manifest.permission.RECORD_AUDIO,
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (granted) {
+                    answer(true)
+                } else {
+                    micAnswer = answer
+                    micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                }
+            },
+        )
+    }
     if (pickingAutomixPerformance) {
         ModalBottomSheet(
             onDismissRequest = { pickingAutomixPerformance = false },

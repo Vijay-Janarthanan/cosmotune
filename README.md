@@ -452,6 +452,10 @@ services, including every one that 1.0.4 added; the paragraphs below it say what
 | Cloud sync and shared rooms (optional) | `identitytoolkit.googleapis.com`, `securetoken.googleapis.com`, `firestore.googleapis.com`; for Google sign-in `accounts.google.com`, `oauth2.googleapis.com` (desktop) or Google Play services (Android) | Only after you turn it on: at start, after playlist changes and every 15 minutes (desktop) | Off | Settings > Account & sync |
 | Shared rooms (optional) | `portfolio-c4394-default-rtdb.asia-southeast1.firebasedatabase.app` (room, chat, queue, setup for voice), `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` (a guest account), `stun.cloudflare.com` and `stun.l.google.com` (finding a route for voice), and the other people in the room directly (voice) | Only while you are in a room | Off until you make or join a room | Leave the room |
 | Phone remote (desktop, TV) | Nothing outside your local network | While you have it started | Off | Stop |
+| DLNA casting | Renderers on your local network (SSDP search, their control address), and YouTube for the song's audio, relayed from this device | While the cast dialog is open, and while a renderer plays | Off until you pick a renderer | Stop casting |
+| Song recognition | `amp.shazam.com`, Shazam's unofficial (not public or supported) endpoint: a fingerprint made on the device, never the recording | Only when you press Listen | Off | Settings > Extras > Song recognition |
+| About this album | `en.wikipedia.org` (page summaries) | When you open it from a song's menu | - | Not opened |
+| Lyrics: YouTube caption track | YouTube (the playing video's caption file) | Only when every other lyrics source missed | On | Lyrics sources |
 | Wear OS watch | The paired phone only | While connected | - | - |
 | Browser companion | YouTube Music, YouTube, and what you connect or allow in the helper | While you use it | - | The helper's own controls |
 

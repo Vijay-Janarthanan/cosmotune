@@ -127,6 +127,15 @@ enum class LyricsSource(
         detail = "Plain text fallback, massive web catalogue",
         wordSynced = false,
     ),
+
+    // Last on purpose: speech recognition mishears sung words, so the video's
+    // own caption track is asked only once everything above has missed (see
+    // [LyricsRepository]'s lazy start). A source added later belongs above it.
+    YOUTUBE_CAPTION_TRACK(
+        label = "YouTube caption track",
+        detail = "Last resort: the video's own captions, auto-generated or uploaded",
+        wordSynced = true,
+    ),
     ;
 
     companion object {

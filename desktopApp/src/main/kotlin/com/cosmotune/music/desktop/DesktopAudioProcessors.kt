@@ -1,68 +1,30 @@
 package com.cosmotune.music.desktop
 
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
-/** The stereo widener, ported from Android's `SpatialAudioProcessor`. */
+/**
+ * Headphone spatial audio on the desktop: the shared [com.cosmotune.audio.SpatialDsp] (bs2b crossfeed, virtual speakers,
+ * mono and binaural surround, ported from Mochy Music) with the listener's preset from Extras. It replaced a mid/side
+ * widener that was only a stand-in.
+ */
 internal class DesktopSpatialAudio(private val channels: Int, sampleRate: Int) {
 
     @Volatile
     var enabled: Boolean = false
 
-    /** Only stereo has a mid and a side to widen. */
-    val applies: Boolean = channels == 2
+    private val dsp = com.cosmotune.audio.SpatialDsp(sampleRate, channels)
 
-    private val widthGain = 2.5f
-    private val outputGain = 0.82f
-    private val crossfeedGain = 0.2f
-    private val lowpassCoeff = 0.3f
+    /** Stereo, or a 3- to 8-channel mix for the binaural surround option. */
+    val applies: Boolean = dsp.applies
 
-    private val delayFrames = (sampleRate * DELAY_MS / 1000f).roundToInt().coerceAtLeast(1)
-    private var delayLeft = FloatArray(delayFrames)
-    private var delayRight = FloatArray(delayFrames)
-    private var delayIndex = 0
-    private var lowpassLeft = 0f
-    private var lowpassRight = 0f
-
-    /** Widens [count] interleaved samples where they lie. */
+    /** Renders [count] interleaved samples where they lie. */
     fun process(samples: FloatArray, count: Int) {
-        if (!enabled || !applies) return
-        var index = 0
-        while (index + 1 < count) {
-            val left = samples[index]
-            val right = samples[index + 1]
-
-            val mid = (left + right) * 0.5f
-            val side = (left - right) * 0.5f * widthGain
-            var widenedLeft = mid + side
-            var widenedRight = mid - side
-
-            lowpassLeft += lowpassCoeff * (delayRight[delayIndex] - lowpassLeft)
-            lowpassRight += lowpassCoeff * (delayLeft[delayIndex] - lowpassRight)
-            widenedLeft += lowpassLeft * crossfeedGain
-            widenedRight += lowpassRight * crossfeedGain
-
-            delayLeft[delayIndex] = left
-            delayRight[delayIndex] = right
-            delayIndex = (delayIndex + 1) % delayFrames
-
-            samples[index] = widenedLeft * outputGain
-            samples[index + 1] = widenedRight * outputGain
-            index += 2
-        }
+        if (!applies) return
+        val extras = com.cosmotune.settings.Extras.settings
+        dsp.process(samples, count, enabled, extras.spatialPreset.value, extras.spatialSurround.value)
     }
 
-    fun reset() {
-        delayLeft.fill(0f)
-        delayRight.fill(0f)
-        delayIndex = 0
-        lowpassLeft = 0f
-        lowpassRight = 0f
-    }
-
-    private companion object {
-        const val DELAY_MS = 15
-    }
+    fun reset() = dsp.reset()
 }
 
 /** Skips long silences, after Media3's `SilenceSkippingAudioProcessor`. */

@@ -2177,6 +2177,7 @@ class PlaybackService : MediaLibraryService() {
             // Advanced Automix blend the active player is still easing off its
             // beatmatch stretch, and copying that would keep it for good.
             standbyPlayer.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+            applyPitch(standbyPlayer)
             standbyPlayer.volume = 0f
             standbyPlayer.setMediaItems(newItems, currentIndex, alignedStartPos)
             spareLoudness().track(mediaId, nextMediaIdOf(standbyPlayer))
@@ -3446,6 +3447,7 @@ class PlaybackService : MediaLibraryService() {
         // The entry this track is read from now counts as played — the only
         // kind the Cached songs folder lists. See [AudioCache.Origin].
         mediaItem?.let { AudioCache.notePlayed(it.toSong(), it.localConfiguration?.uri) }
+        mediaItem?.let(::offerAudioForLyricsOffset)
         scheduleForeignCachePurge()
         mediaItem?.mediaId?.let { id ->
             resolveLocalBitrate(id, mediaItem)
@@ -6374,9 +6376,36 @@ class PlaybackService : MediaLibraryService() {
      * idle right now is the one the next transition will start a song on, so it
      * cannot be left on stale settings.
      */
+    /**
+     * Tells lyrics auto offset how to read [item]'s audio: the copy Automix analysis reads (cached or on the device),
+     * decoded on the offset's own thread when the lyrics screen asks. See [com.cosmotune.lyrics.autosync.LyricsAutoOffset].
+     */
+    private fun offerAudioForLyricsOffset(item: MediaItem) {
+        val uri = item.localConfiguration?.uri ?: return
+        val id = item.mediaId
+        com.cosmotune.lyrics.autosync.LyricsAutoOffset.audioReady(id) { feed ->
+            val seconds = withContext(Dispatchers.Main) {
+                player?.takeIf { it.currentMediaItem?.mediaId == id }?.duration?.takeIf { it > 0 }?.div(1000.0) ?: 0.0
+            }
+            withContext(Dispatchers.IO) {
+                trackAnalyzer.readStereo(id, uri, seconds, abort = { false }) { left, right, count, rate, at ->
+                    feed(left, right, count, rate, at)
+                }
+            }
+        }
+    }
+
+    /** The listener's pitch from Extras, on top of whatever speed [player] runs at. */
+    private fun applyPitch(player: ExoPlayer) {
+        val pitch = com.cosmotune.settings.Extras.settings.pitchFactor
+        val current = player.playbackParameters
+        if (current.pitch != pitch) player.playbackParameters = androidx.media3.common.PlaybackParameters(current.speed, pitch)
+    }
+
     private fun applySettings(player: ExoPlayer) {
         player.skipSilenceEnabled = AppSettings.skipSilence.value
         player.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+        applyPitch(player)
         // Restore persisted shuffle and repeat states on startup. Assign both
         // values: Android can destroy and recreate the service while retaining
         // this process, so QueueShuffle's process-wide object may still hold
@@ -6750,6 +6779,23 @@ class PlaybackService : MediaLibraryService() {
                 if (crossfade?.isTransitioning() == true) return@collect
                 crossfade?.applyPlaybackSpeed(speed) ?: eachPlayer { it.setPlaybackSpeed(speed) }
             }
+        }
+        // DLNA casting (Extras): the renderer taking the song pauses this player, and a song ending there moves the queue
+        // on here and sends the next one.
+        com.cosmotune.music.data.cast.dlna.DlnaCast.pauseLocal = { scope.launch(Dispatchers.Main) { player?.pause() } }
+        com.cosmotune.music.data.cast.dlna.DlnaCast.nextSong = {
+            withContext(Dispatchers.Main) {
+                player?.takeIf { it.hasNextMediaItem() }?.let { current ->
+                    current.seekToNextMediaItem()
+                    current.pause()
+                    current.currentMediaItem?.toSong()
+                }
+            }
+        }
+        scope.launch {
+            // Pitch apart from speed: setPlaybackSpeed keeps whatever pitch a player has, so it is set here and when a player
+            // is built, and every speed change after that (the listener's, Automix's stretch) leaves it alone.
+            com.cosmotune.settings.Extras.settings.pitchSemitones.collect { eachPlayer(::applyPitch) }
         }
         scope.launch {
             combine(

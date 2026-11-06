@@ -1806,6 +1806,11 @@ fun CosmotuneDesktopApp() {
         playbackEngine.pause()
         partySync.onLocalIntent()
     }
+    // A DLNA renderer that has taken the song stops it playing here (Extras: DLNA casting).
+    DisposableEffect(playbackEngine) {
+        com.cosmotune.music.data.cast.dlna.DlnaCast.pauseLocal = { playbackEngine.pause() }
+        onDispose { com.cosmotune.music.data.cast.dlna.DlnaCast.pauseLocal = null }
+    }
     val mprisController = remember(playbackEngine) {
         DesktopMprisController(
             onPlay = ::playFromUser,
@@ -2037,11 +2042,18 @@ fun CosmotuneDesktopApp() {
             return@LaunchedEffect
         }
         lyricsLoading = true
-        DesktopLyricsClient.lookup(current, length, only = lyricsOnly).fold(
-            onSuccess = { lyrics = it },
+        val found = DesktopLyricsClient.lookup(current, length, only = lyricsOnly)
+        found.fold(
+            // Moved by their saved automatic offset, if any (Extras: lyrics auto offset).
+            onSuccess = { lyrics = it.copy(lines = com.cosmotune.lyrics.autosync.LyricsAutoOffset.applied(current.videoId, it.lines)) },
             onFailure = { lyricsError = it.message ?: "Lyrics unavailable" },
         )
         lyricsLoading = false
+        // None saved yet: the song is listened to in the background, and on a clear match the lines move once more.
+        val raw = found.getOrNull() ?: return@LaunchedEffect
+        if (com.cosmotune.lyrics.autosync.LyricsAutoOffset.savedOffset(current.videoId, raw.lines) != null) return@LaunchedEffect
+        val offset = com.cosmotune.lyrics.autosync.LyricsAutoOffset.sync(current.videoId, raw.lines) ?: return@LaunchedEffect
+        lyrics = raw.copy(lines = com.cosmotune.lyrics.autosync.LyricsAutoOffset.shift(raw.lines, offset))
     }
 
     LaunchedEffect(selectedSong?.videoId, animatedCanvas) {
@@ -4223,6 +4235,8 @@ fun CosmotuneDesktopApp() {
                     if (overlays.audioOutput) {
                         DesktopAudioOutputDialog(onDismiss = { overlays.audioOutput = false })
                     }
+                    // Dialogs the Extras features open from menus (About this album and the like).
+                    DesktopExtrasHost()
                     if (overlays.pipeline) {
                         DesktopAudioPipelineDialog(
                             format = playback.streamFormat,
@@ -6607,6 +6621,8 @@ private fun DesktopSettingsScreen(
     val settingsScope = rememberCoroutineScope()
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     var editingSubsonic by remember { mutableStateOf<DesktopSourceConfig?>(null) }
+    var showingExtras by remember { mutableStateOf(false) }
+    if (showingExtras) DesktopExtrasDialog(onDismiss = { showingExtras = false }, onPlay = onPlayProviderSongs)
     val torEnabled by com.cosmotune.desktop.TorConnection.enabled.collectAsState()
     val torStatus by com.cosmotune.desktop.TorConnection.status.collectAsState()
     val sourceProbeKey = sourceConfigs
@@ -6758,6 +6774,12 @@ private fun DesktopSettingsScreen(
                         DesktopStrings["stereo_widening_subtitle", "Optional stereo width and crossfeed"],
                         spatialAudio,
                         onSpatialAudioChange,
+                    )
+                    // One row into the shared Extras dialog; see com.cosmotune.ui.extras.ExtrasSettingsDialog.
+                    SettingsNavigationRow(
+                        title = "Extras",
+                        subtitle = "Volume cap, pitch, spatial style, proxy, offline mode",
+                        onClick = { showingExtras = true },
                     )
                     SettingsToggle(
                         DesktopStrings["dolby_atmos", "Dolby Atmos"],

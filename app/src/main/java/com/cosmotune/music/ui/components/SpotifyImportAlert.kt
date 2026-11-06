@@ -73,8 +73,10 @@ fun SpotifyImportAlert(
 
     fun start() {
         val id = SpotifyImporter.extractPlaylistId(link)
-        if (id == null) {
-            status = context.getString(R.string.spotify_import_invalid)
+        // Apple Music and Deezer links are read the same way (PlaylistLinkImport) and matched exactly.
+        val other = if (id == null) com.cosmotune.music.data.spotify.PlaylistLinkImport.serviceOf(link) else null
+        if (id == null && other == null) {
+            status = context.getString(R.string.spotify_import_invalid) + " Apple Music and Deezer links work too."
             failed = true
             return
         }
@@ -83,10 +85,18 @@ fun SpotifyImportAlert(
         status = context.getString(R.string.spotify_import_fetching)
         scope.launch {
             try {
-                val (name, tracks) = SpotifyImporter.fetchPlaylistTracks(id)
-                val (songs, missed) = SpotifyImporter.resolveToSongs(tracks) { done, total ->
-                    status = context.getString(R.string.spotify_import_matching, done, total)
+                val (name, matched) = if (id != null) {
+                    val (name, tracks) = SpotifyImporter.fetchPlaylistTracks(id)
+                    name to SpotifyImporter.resolveToSongs(tracks) { done, total ->
+                        status = context.getString(R.string.spotify_import_matching, done, total)
+                    }
+                } else {
+                    val playlist = com.cosmotune.music.data.spotify.PlaylistLinkImport.read(link)
+                    playlist.name to com.cosmotune.music.data.spotify.PlaylistLinkImport.match(playlist.tracks) { done, total ->
+                        status = context.getString(R.string.spotify_import_matching, done, total)
+                    }
                 }
+                val (songs, missed) = matched
                 if (songs.isEmpty()) error(context.getString(R.string.spotify_import_none))
                 onImported(name, privacy, songs)
                 if (missed.isEmpty()) onDismiss() else unmatched = missed

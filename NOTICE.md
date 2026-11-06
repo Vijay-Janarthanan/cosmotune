@@ -84,6 +84,40 @@ no code, assets or copy taken from them:
 - **Librum** (GPLv3), **Kavita** (GPLv3) and **Booklore** (AGPL-3.0): the book library grid, the book page with its actions
   under the header, the typography settings and the Home shelves (continue reading, recently added, discover).
 
+## Mochy Music
+
+Several smaller features are ported from or follow **Mochy Music** by realidkroo and its contributors
+(https://github.com/realidkroo/Mochy-Music, GPL-3.0, the same licence as Cosmotune), at revision
+`8dd8f3b0` (6 November 2026). Mochy's files carry no copyright header of their own; each ported Cosmotune file names
+its Mochy source in its comment, and the list below is kept up to date with `UPSTREAM.md`:
+
+- The YouTube caption track as the last lyrics source: the track choice and the timed-text parsing of Mochy's
+  `YouTubeCaptionsLyricsProvider.kt` and `providers/innertube/Captions.kt`
+  (`shared/.../music/data/lyrics/YouTubeCaptionLyrics.kt`).
+- The listener's proxy and offline mode, after Mochy's `utils/AppProxy.kt` and `utils/OfflineMode.kt`
+  (`shared/.../music/data/NetworkPolicy.kt`, `shared/.../settings/ExtrasSettings.kt`).
+- "About this album" from Wikipedia, after Mochy's `utils/Wikipedia.kt` (`shared/.../music/data/about/WikipediaAbout.kt`).
+  The summaries are Wikipedia's text under CC BY-SA 4.0, read over the network and credited where they are shown.
+- Lyrics auto offset: Mochy's `lyrics/VocalActivity.kt`, `lyrics/LyricsAligner.kt` and `lyrics/Fft.kt`, ported with
+  their algorithm unchanged (float input instead of 16-bit, Cosmotune's lyric lines instead of Mochy's), and the thresholds of
+  its `lyrics/LyricsAutoSync.kt` (`shared/.../lyrics/autosync/`). Those files' headers name their source.
+- Spatial audio: the bs2b crossfeed and Brown and Duda's spherical-head renderer of Mochy's `eq/audio/SpatialAudioProcessor.kt`
+  (virtual speakers, binaural surround, mono), in `shared/.../audio/SpatialDsp.kt`, which names its source. bs2b is Boris
+  Mikhaylov's Bauer stereophonic-to-binaural filter (https://bs2b.sourceforge.net/); only its published coefficients are used.
+- Song recognition: Mochy's `recognition/ShazamSignatureGenerator.kt` (ported, `shared/.../music/data/recognition/`) and the
+  request and answer of its `providers/shazamkit/.../Shazam.kt`. The signature format is Shazam's, as worked out by the
+  SongRec project (https://github.com/marin-m/SongRec, GPL-3.0). It is sent to Shazam's unofficial endpoint, only when the
+  listener has turned the feature on; Cosmotune is not affiliated with Shazam or Apple.
+- Apple Music and Deezer playlist links: the page and API readers of Mochy's `importer/LinkImporter.kt`
+  (`shared/.../music/data/spotify/PlaylistLinkImport.kt`); the matching is Cosmotune's own `TrackMatcher`.
+- DLNA / UPnP casting: the SSDP search and description reading of Mochy's `foss/cast/CastDiscovery.kt` and its
+  `foss/cast/DlnaRenderer.kt` (SOAP control, polling, DIDL-Lite), ported to plain JVM code in
+  `shared/.../music/data/cast/dlna/`; the media relay that serves the song to the renderer is Cosmotune's own.
+
+Mochy's lyrics video export, its USB DAC driver and its player styles were studied but not copied: the lyrics video
+(`shared/.../lyrics/video/`, the phone's `LyricsVideoExport.kt`, the desktop's `DesktopLyricsVideo.kt`) is Cosmotune's own,
+and what a userspace USB DAC output would need is written down in `docs/PENDING_WORK.md`.
+
 ## Video mode
 
 Video mode, the second mode of the profile drawer, reads a video site's public pages without an account and plays what it

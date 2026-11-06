@@ -18,6 +18,8 @@ interface KeyValueStore {
     fun putBoolean(key: String, value: Boolean)
     fun getInt(key: String, default: Int): Int = default
     fun putInt(key: String, value: Int) {}
+    fun getString(key: String, default: String): String = default
+    fun putString(key: String, value: String) {}
 }
 
 /** The switches of the new look (spec section 7; the v2 Settings board) and the colour intensity. Main thread only. */

@@ -137,6 +137,10 @@ object Http {
         .dispatcher(Dispatcher().apply { maxRequestsPerHost = 16 })
         .connectionPool(ConnectionPool(16, 5, TimeUnit.MINUTES))
         .addInterceptor(webDavInterceptor)
+        // The listener's proxy and offline mode, read on every request; see [NetworkPolicy].
+        .addInterceptor(NetworkPolicy.offlineInterceptor)
+        .proxySelector(NetworkPolicy.selector)
+        .proxyAuthenticator(NetworkPolicy.proxyAuthenticator)
         .apply { if (USAGE_LOGGING_ENABLED) addNetworkInterceptor(usageInterceptor) }
         .build()
 }

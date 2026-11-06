@@ -512,7 +512,7 @@ class DesktopPlaybackEngine(
 
     fun setVolume(value: Float) {
         volume = value.coerceIn(0f, 1f)
-        sink.gain = volume
+        sink.gain = outputGain()
         _state.update { it.copy(volume = volume) }
         if (current?.dsdOverPcm == true && volume != 1f) stopDop("DoP paused: software volume cannot alter DSD. Use the DAC volume control, or disable DoP and replay.")
     }
@@ -1166,11 +1166,26 @@ class DesktopPlaybackEngine(
     }
 
     private fun stretch(samples: FloatArray, count: Int): Pair<FloatArray, Int> {
+        // The maximum-volume cap (Extras) can move at any time; the sink's gain follows it here, once per block.
+        outputGain().let { if (sink.gain != it) sink.gain = it }
         val processor = speedProcessor ?: return samples to count
-        processor.speed = playbackSpeed
+        // Pitch apart from speed (Extras): stretch by speed / pitch, then resample by pitch, which brings the length back
+        // to the listener's speed and moves every frequency by the pitch factor.
+        val pitch = if (current?.dsdOverPcm == true) 1f else com.cosmotune.settings.Extras.settings.pitchFactor
+        processor.speed = playbackSpeed / pitch
         val out = processor.process(samples, count)
-        return out to processor.outputCount
+        val resampler = pitchResampler ?: return out to processor.outputCount
+        if (pitch == 1f && resampler.ratio != 1.0) resampler.reset()
+        resampler.ratio = pitch.toDouble()
+        val shifted = resampler.process(out, processor.outputCount)
+        return shifted to resampler.outputCount
     }
+
+    /** The volume the sink plays at: the listener's, under the maximum-volume cap. DoP is never scaled. */
+    private fun outputGain(): Float =
+        if (current?.dsdOverPcm == true) volume else volume * com.cosmotune.settings.Extras.settings.maxVolumeGain
+
+    private var pitchResampler: com.cosmotune.audio.PitchResampler? = null
 
     /** End of a track. */
     private fun finishTrack(track: Track) {
@@ -1234,6 +1249,7 @@ class DesktopPlaybackEngine(
         nextSong = null
         fadeRemaining = 0
         speedProcessor?.reset()
+        pitchResampler?.reset()
         // Where the incoming track really is, not where it starts. Published as
         // its start left the scrubber and the lyrics a whole fade behind the
         // audio, which only a manual seek could put right.
@@ -1487,9 +1503,10 @@ class DesktopPlaybackEngine(
             _state.update { it.copy(isPlaying = false, error = "No audio output: ${failure.message}") }
             return
         }
-        sink.gain = volume
+        sink.gain = outputGain()
         framesWritten = sink.framesPlayed()
         speedProcessor = DesktopAudioSpeed(sink.format.channels, sink.format.sampleRate)
+        pitchResampler = com.cosmotune.audio.PitchResampler(sink.format.channels)
         spatial = DesktopSpatialAudio(sink.format.channels, sink.format.sampleRate)
         spatialIncoming = DesktopSpatialAudio(sink.format.channels, sink.format.sampleRate)
         equalizer.configure(sink.format.channels, sink.format.sampleRate)
@@ -1516,7 +1533,7 @@ class DesktopPlaybackEngine(
         val positionUs = playhead.peek(framesWritten)
         sink.open(decoded.copy(bytesPerSample = precisionBytes(), isFloat = preferFloat))
             .onSuccess {
-                sink.gain = volume
+                sink.gain = outputGain()
                 framesWritten = sink.framesPlayed()
                 buildChain()
                 // A reopened line counts frames from zero again, so the clock has to be rebased
@@ -1530,6 +1547,7 @@ class DesktopPlaybackEngine(
 
     private fun buildChain() {
         speedProcessor = DesktopAudioSpeed(sink.format.channels, sink.format.sampleRate)
+        pitchResampler = com.cosmotune.audio.PitchResampler(sink.format.channels)
         spatial = DesktopSpatialAudio(sink.format.channels, sink.format.sampleRate)
         spatialIncoming = DesktopSpatialAudio(sink.format.channels, sink.format.sampleRate)
         equalizer.configure(sink.format.channels, sink.format.sampleRate)
@@ -1576,6 +1594,7 @@ class DesktopPlaybackEngine(
         sink.flush()
         framesWritten = sink.framesPlayed()
         speedProcessor?.reset()
+        pitchResampler?.reset()
         spatial?.reset()
         spatialIncoming?.reset()
         // A seek is not a continuous signal, so the filters are cleared rather than left ringing
@@ -1613,6 +1632,7 @@ class DesktopPlaybackEngine(
         (incomingSourceFrames * 1_000_000.0 / sink.format.sampleRate.coerceAtLeast(1)).toLong()
 
     private fun publishTrack(track: Track, isPlaying: Boolean, positionUs: Long = track.startUs) {
+        DesktopExtras.offerAudioForLyricsOffset(track.song.videoId, track.stream)
         _state.value = DesktopPlaybackState(
             song = track.song,
             isPlaying = isPlaying,
