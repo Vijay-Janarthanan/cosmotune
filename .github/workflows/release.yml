@@ -464,11 +464,9 @@ jobs:
             abi=$(basename "$f" | sed -E 's/app-prod-(.*)-release\.apk/\1/; s/app-prod-release\.apk/universal/')
             cp "$f" "dist/Cosmotune-$v-android-$abi.apk"
           done
-          cp wearos/build/outputs/apk/prod/release/CosmotuneWear-prod-release.apk "dist/CosmotuneWear-$v.apk"
-          cp "dist/CosmotuneWear-$v.apk" dist/CosmotuneWear.apk
+          cp wearos/build/outputs/apk/prod/release/CosmotuneWear-prod-release.apk dist/CosmotuneWear.apk
           for f in tv/build/outputs/apk/prod/release/*.apk; do
             abi=$(basename "$f" | sed -E 's/tv-prod-(.*)-release\.apk/\1/; s/tv-prod-release\.apk/universal/')
-            cp "$f" "dist/CosmotuneTV-$v-android-$abi.apk"
             cp "$f" "dist/CosmotuneTV-android-$abi.apk"
           done
           ls -lh dist
@@ -504,10 +502,10 @@ jobs:
           v="${{ inputs.version }}"
           [ -n "$v" ] || v="${GITHUB_REF_NAME#v}"
           python3 tools/package-web.py --version "$v" --output dist
-          # File names that stay the same from one version to the next, as the watch and TV packages have.
-          cp "dist/Cosmotune-$v-web.zip" dist/Cosmotune-web.zip
-          cp "dist/Cosmotune-$v-helper-chrome.zip" dist/Cosmotune-helper-chrome.zip
-          cp "dist/Cosmotune-$v-helper-firefox.zip" dist/Cosmotune-helper-firefox.zip
+          # One file each, under names that stay the same from one version to the next, as the watch and TV packages have.
+          mv "dist/Cosmotune-$v-web.zip" dist/Cosmotune-web.zip
+          mv "dist/Cosmotune-$v-helper-chrome.zip" dist/Cosmotune-helper-chrome.zip
+          mv "dist/Cosmotune-$v-helper-firefox.zip" dist/Cosmotune-helper-firefox.zip
       - uses: actions/upload-artifact@v4
         with:
           name: web-artifacts
@@ -560,7 +558,8 @@ jobs:
           cd dist
           for f in Cosmotune-*; do
             stable=$(printf '%s' "$f" | sed -E 's/^Cosmotune-.*-(android|windows|linux|macos)-/Cosmotune-\1-/')
-            if [ "$stable" != "$f" ] && [ ! -e "$stable" ]; then cp "$f" "$stable"; fi
+            # Renamed, not copied: the release carries one file each, which the README and the update checks find by these names.
+            if [ "$stable" != "$f" ] && [ ! -e "$stable" ]; then mv "$f" "$stable"; fi
           done
 
       - run: ls -lh dist
