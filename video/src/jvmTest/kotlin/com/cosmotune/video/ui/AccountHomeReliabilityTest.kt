@@ -52,4 +52,19 @@ class AccountHomeReliabilityTest {
         feed.start(); runCurrent(); feed.close(); gate.complete(Unit); runCurrent()
         assertTrue(feed.items.isEmpty()); assertFalse(feed.loaded)
     }
+    @Test fun comingBackShowsTheAccountsCardsAtOnceAndAFailedRefreshKeepsThem() = runTest {
+        val account = Account(); val feed = AccountHomeFeed(account, backgroundScope)
+        feed.start(); runCurrent(); feed.close()
+        // Home opened again (a new feed over the same account): the cards are there in the first frame, and nothing is asked again
+        // inside the freshness window.
+        val back = AccountHomeFeed(account, backgroundScope)
+        assertEquals(2, back.items.size); assertTrue(back.loaded)
+        back.start(); runCurrent()
+        assertEquals(listOf<String?>(null), account.calls)
+        // Refresh asks at once; when it fails the cards stay, with the notice.
+        account.fetch = { Result.failure(AccountFailure.Network("offline")) }
+        back.start(force = true); assertTrue(back.loaded, "no placeholders over the cards while they refresh"); runCurrent()
+        assertEquals(listOf<String?>(null, null), account.calls)
+        assertEquals(2, back.items.size); assertTrue(back.firstError)
+    }
 }
