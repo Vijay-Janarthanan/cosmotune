@@ -8,15 +8,15 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-Version 1.0.16 adds shared rooms (listen, watch and talk together, each person in their own app: songs, videos, live radio and podcasts, with chat and voice) and an optional Cosmotune account that keeps your playlists, likes and followed artists the same on your devices, and keeps lyrics and music videos moving when the desktop window loses focus. [1.0.16 changes and validation limits](docs/releases/1.0.16.md) · [Remaining work](docs/PENDING_WORK.md)
+Version 1.0.17 gives the whole app a new look, called Orbit, on the phone, the desktop, the TV and the watch. It adds Watch, a mode for free films, series and live TV with plugins; Live now, for the scores of the matches you follow and live shows; and Indian channels from Prasar Bharati (DD) and the broadcasters' own live news. The sleep timer now pauses on time with the screen off. [1.0.17 changes and limits](docs/releases/1.0.17.md) · [Remaining work](docs/PENDING_WORK.md)
+
+Version 1.0.16 adds shared rooms (listen, watch and talk together, each person in their own app: songs, videos, live radio and podcasts, with chat and voice) and an optional Cosmotune account that keeps your playlists, likes and followed artists the same on your devices, and keeps lyrics and music videos moving when the desktop window loses focus. [1.0.16 changes and validation limits](docs/releases/1.0.16.md)
 
 [Downloads](https://github.com/Vijay-Janarthanan/cosmotune/releases/latest) point to the latest published installers. New source changes require an updated app build; release assets are published after the platform build workflow succeeds. [Playback findings and upstream integration evidence](docs/UPSTREAM_IMPLEMENTATION_2026-10-28.md).
 
 **Included in 1.0.14 and kept in 1.0.15:** device EQ profiles and truthful output guidance, broader local discovery and editable mixes, shared song-list controls, recoverable Video Home feeds, improved Manga browsing and source filtering, plus Read with EPUB/PDF books, colour illustrations, bookmarks and catalogue discovery. [Audio and discovery scope](docs/HEADPHONES_AND_DISCOVERY_PLAN_2026-11-02.md) · [Video repair evidence](docs/VIDEO_PLAYBACK_REPAIRS_2026-11-02.md) · [Read implementation and source matrix](docs/READING_BOOKS_PLAN_2026-11-02.md) · [1.0.14 notes](docs/releases/1.0.14.md).
 
 Version 1.0.9 rebuilds Podio around a satellite radio globe with city-level zoom, nearby-station selection, on-air metadata and station pages with local time, weather, credited photos and articles. Podcasts gain regional charts and genre filters. [1.0.9 changes](docs/releases/1.0.9.md)
-
-Music videos in Now Playing use a steady 4:5 portrait frame, with playback controls clear of the picture and taller artist motion headers.
 
 Version 1.0.8 aligns Manga and Podio with the native theme, keeps artist photographs visible when replacement artwork fails, repairs case-sensitive radio language searches, expands the radio map, and makes regional/language discovery prominent with shorter menus.
 
@@ -42,12 +42,12 @@ Version 1.0.7 adds provider audio preparation and comparisons, tappable audio de
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.webp">
-  <source media="(prefers-color-scheme: light)" srcset="docs/images/hero-light.webp">
-  <img alt="Cosmotune in a desktop window, with synced lyrics beside the cover, and on a phone, with the song's music video behind the controls" src="docs/images/hero-light.webp" width="900">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/phone-music-home-dark.webp">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/phone-music-home-light.webp">
+  <img alt="Music's Home on a phone in the Orbit design: a Live pill at the top, a Good morning greeting, the playing song's round cover with its progress drawn as an orbit round the disc, mix chips and a Start a room card" src="docs/images/phone-music-home-light.webp" width="300">
 </picture>
 
-<sub>The pictures on this page are the app's own screens, drawn with made-up songs, artists and videos.</sub>
+<sub>The pictures on this page are screenshots of Cosmotune 1.0.17 on a phone, a desktop, a TV and a watch. The songs, videos, channels and logos in them belong to their owners.</sub>
 
 </div>
 
@@ -59,23 +59,55 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td align="center" width="33%"><img alt="Music's Home: a greeting, mood chips, the song you were playing and shelves of picks" src="docs/images/phone-music-home.webp" width="200"><br><sub>Home picks up where you left off</sub></td>
-    <td align="center" width="33%"><img alt="Now Playing with the song's music video filling the screen and the controls folded into a slim bar" src="docs/images/phone-now-playing-video.webp" width="200"><br><sub>The music video plays behind the song</sub></td>
-    <td align="center" width="33%"><img alt="Synced lyrics, the current line lit word by word" src="docs/images/phone-lyrics.webp" width="200"><br><sub>Lyrics that follow the song</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img alt="Video mode's Home: Continue watching, Shorts and the feed of your subscriptions" src="docs/images/phone-video-home.webp" width="200"><br><sub>Video mode, no account needed</sub></td>
-    <td align="center"><img alt="A video's watch page in the light theme, with likes, dislikes, Download and Play as a song" src="docs/images/phone-video-watch-light.webp" width="200"><br><sub>A watch page, in the light theme</sub></td>
-    <td align="center"><img alt="A Short playing full screen, with like, comments and share on the side" src="docs/images/phone-video-shorts.webp" width="200"><br><sub>Shorts, one after another</sub></td>
-  </tr>
-</table>
+### Phone
 
 <table>
   <tr>
-    <td align="center" width="50%"><img alt="The desktop's Now Playing in the light theme: lyrics on the left, the cover on the right, the player bar below" src="docs/images/desktop-now-playing-light.webp" width="420"><br><sub>Now Playing on the desktop</sub></td>
-    <td align="center" width="50%"><img alt="Video mode on the desktop: a sidebar with your channels, and Home with Continue watching and Shorts" src="docs/images/desktop-video-home.webp" width="420"><br><sub>Video mode on the desktop</sub></td>
+    <td align="center" width="25%"><img alt="Now Playing on a phone: the song's music video shown whole in a rounded frame, and below it the song card with the title, the seek bar, the controls and a round pause button, then Lyrics, Up next and Related" src="docs/images/phone-now-playing-video-dark.webp" width="180"><br><sub>The music video, shown whole</sub></td>
+    <td align="center" width="25%"><img alt="Synced lyrics on a phone, the current line lit in the cover's colour, with the lyrics source, translate buttons and the song card below" src="docs/images/phone-now-playing-lyrics-dark.webp" width="180"><br><sub>Lyrics that follow the song</sub></td>
+    <td align="center" width="25%"><img alt="Watch's Live TV page on a phone: 14,176 free channels, country and language chips, and a programme guide with each channel's current and next programme" src="docs/images/phone-watch-live-tv-guide-dark.webp" width="180"><br><sub>Watch: live TV with a guide</sub></td>
+    <td align="center" width="25%"><img alt="The Live now sheet on a phone: a live show on DD News with a play button, the same show on DD National with Watch, and coming-up football matches with Remind buttons" src="docs/images/phone-live-now-sheet-dark.webp" width="180"><br><sub>Live now: what's on and what's next</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img alt="Video mode's Home on a phone: category chips, an Up next for you card with a film review and its channel, Watch later and Watch buttons, then More for you" src="docs/images/phone-video-home-dark.webp" width="180"><br><sub>Video mode, no account needed</sub></td>
+    <td align="center"><img alt="Podio's Radio page on a phone: 2,883 stations worldwide, Globe, region and language filters, a featured station card and round station logos" src="docs/images/phone-podio-dark.webp" width="180"><br><sub>Podio: radio from anywhere</sub></td>
+    <td align="center"><img alt="Read's Library on a phone: Library, Browse and Bookmarks tabs, books trending on Open Library, and a search over your own books" src="docs/images/phone-read-dark.webp" width="180"><br><sub>Read: books and manga</sub></td>
+    <td align="center"><img alt="The profile drawer on a phone: a Sign in card, the modes Music, Video, Watch, Podio, Read and Manga, then Your listening, Replay, Listen together, Downloads, Equalizer and Settings" src="docs/images/phone-profile-drawer-dark.webp" width="180"><br><sub>Every mode from one drawer</sub></td>
+  </tr>
+</table>
+
+### Desktop
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img alt="Music's Home on the desktop: a sidebar with the mode switcher and search, a Good morning greeting, a featured song card with its round cover, a Start a room card, mix chips and a list of song matches" src="docs/images/desktop-music-home-dark.webp" width="420"><br><sub>Music on the desktop</sub></td>
+    <td align="center" width="50%"><img alt="Now Playing on the desktop: the music video shown whole on the left above the song card with its controls, volume and audio details, and the Up next list on the right with drag handles" src="docs/images/desktop-now-playing-video-dark.webp" width="420"><br><sub>Now Playing with the video and Up next</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img alt="Watch's Home on the desktop: a sidebar with Home, Films, Series, Live TV, Search, My list, Downloads and Plugins, a featured free archive film, a Live now row of Tamil news channels and free classic films" src="docs/images/desktop-watch-home-dark.webp" width="420"><br><sub>Watch on the desktop</sub></td>
+    <td align="center"><img alt="A live channel playing in Watch on the desktop: DD Mizoram from the iptv-org free channels, with Audio, Subtitles and Watch together" src="docs/images/desktop-watch-live-dark.webp" width="420"><br><sub>A DD channel, live</sub></td>
+  </tr>
+</table>
+
+### TV
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img alt="Home on Android TV: a row of tabs with Home focused, a large card for the paused video with its round cover and play button, and round chart covers below" src="docs/images/tv-home.webp" width="420"><br><sub>Home on the TV</sub></td>
+    <td align="center" width="50%"><img alt="Watch on Android TV: the Tonight page with a featured free film from YouTube, its poster, My list, a dimmed Watch together and a focused play button" src="docs/images/tv-watch.webp" width="420"><br><sub>Watch on the TV</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img alt="Live TV on Android TV: 14,090 free channels, country and language chips, and a programme guide with a star to save each channel" src="docs/images/tv-live-tv.webp" width="420"><br><sub>Live TV with a guide</sub></td>
+    <td align="center"><img alt="Radio on Android TV: Radio, Podcasts and Saved tabs, a station search and a grid of round station logos with one focused" src="docs/images/tv-radio.webp" width="420"><br><sub>Podio radio on the TV</sub></td>
+  </tr>
+</table>
+
+### Wear OS
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img alt="The Cosmotune watch app's Podio menu on a round Wear OS screen: Saved radio from the phone's favourites, and Popular radio from Radio Browser" src="docs/images/wear-podio.webp" width="200"><br><sub>Podio on the watch</sub></td>
+    <td align="center" width="50%"><img alt="The Cosmotune watch app on a round Wear OS screen when the phone is out of reach: Phone not connected, with Try again and Saved Podio" src="docs/images/wear-not-connected.webp" width="200"><br><sub>Saved Podio lists stay readable without the phone</sub></td>
   </tr>
 </table>
 
@@ -83,9 +115,11 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
 
 <table>
   <tr>
-    <td width="36%" align="center"><img alt="Now Playing in the light theme, its colours taken from the cover" src="docs/images/phone-now-playing-cover-light.webp" width="230"></td>
+    <td width="36%" align="center"><img alt="Replay in the light theme on a phone: This week, This month, This year and All time, a Minutes listened card with the top song's round cover, and colour cards for the top song and the top artist" src="docs/images/phone-replay-light.webp" width="230"></td>
     <td>
       <h3>Music</h3>
+      <p>Orbit, the new look in 1.0.17, draws covers as round discs, with the song's progress as an orbit round the disc. Each page
+      leads with one colour card in its own cover's colour, and nothing is drawn on top of a cover or a video.</p>
       <p>The colours of the whole app follow the cover of the song that is playing, in the light and the dark theme. Home starts
       with what you played last, then picks, mixes and new releases. Lyrics are synced line by line, and word by word where the
       source has the timing, and they can be translated or romanised. The queue can be reordered and saved as a named session to
@@ -102,20 +136,25 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
   </tr>
   <tr>
     <td>
-      <h3>The music video, behind the song</h3>
+      <h3>The music video, with the song</h3>
       <p>With <a href="https://github.com/Vijay-Janarthanan/OpenCanvas">OpenCanvas</a>, Cosmotune finds the song's music video and
       lines it up with the song, so the picture follows the music. Version 1.0.2 adds film/album-aware discovery and publisher
-      checks to reject matching fan dances. The current app keeps subject tracking disabled and uses the approved steady 4:5
-      portrait frame; the separate library's face/person policy remains available for integration and validation.
+      checks to reject matching fan dances. Since 1.0.17 the video is shown whole by default, never cropped to a tall frame, and
+      the space round it gets a soft glow from its own colours. A screen button in the song card offers Whole, Fill, Cinema and
+      Off. Cinema gives the window to the video, with the card floating at the foot; press F or double-click to enter it and Esc
+      to leave, or turn the phone sideways. The app keeps subject tracking disabled; the separate library's face/person policy
+      remains available for integration and validation.
       <a href="https://vijay-janarthanan.github.io/OpenCanvas/#smart-framing">Try the framing-policy comparison</a>.
-      You choose the video quality, or switch the video off. Over a
-      video the controls fold down into a slim bar and the picture has the screen; a tap or a drag up brings them back. On Android
-      the video is not looked up on mobile data unless you allow it. "Watch the music video" opens the video itself in Video mode.</p>
+      You choose the video quality, or switch the video off. On Android the video is not looked up on mobile data unless you
+      allow it. "Watch the music video" opens the video itself in Video mode.</p>
+      <h3>Sleep timer</h3>
+      <p>The sleep timer shows as a pill with the time left in Now Playing, beside pills for the other features in use. It pauses on
+      time with the screen off, and pauses casting, rooms, Video and Watch too.</p>
     </td>
-    <td width="36%" align="center"><img alt="Now Playing over the music video with the full controls showing" src="docs/images/phone-now-playing-video-controls.webp" width="230"></td>
+    <td width="36%" align="center"><img alt="Now Playing in the light theme on a phone: the music video shown whole above the song card, and a sleep timer pill with a moon and 14:44 left beside Lyrics, Up next and Related" src="docs/images/phone-now-playing-sleep-timer-light.webp" width="230"></td>
   </tr>
   <tr>
-    <td align="center"><img alt="A video's watch page in the dark theme, with chapters in the description and the comments below" src="docs/images/phone-video-watch.webp" width="230"></td>
+    <td align="center"><img alt="Video mode's Home in the light theme on a phone: category chips, an Up next for you card with a news report, its channel, Watch later and Watch buttons, and the dock at the foot" src="docs/images/phone-video-home-light.webp" width="230"></td>
     <td>
       <h3>Video mode</h3>
       <p>A full video app in the same install, with no account and no cookies: search, channels, subscriptions with a feed of their
@@ -124,30 +163,54 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
       <p><a href="https://sponsor.ajay.app/">SponsorBlock</a> skips the segments you choose, <a href="https://dearrow.ajay.app/">DeArrow</a>
       gives clearer titles and thumbnails, and <a href="https://returnyoutubedislike.com/">Return YouTube Dislike</a> brings back the
       dislike count. Each can be switched off. "Play as a song" hands a video to the music player.</p>
-    </td>
-  </tr>
-  <tr>
-    <td>
       <h3>Downloads and offline viewing</h3>
       <p>Keep a video at the quality you pick, or just its sound, with subtitles in the language you choose when you want them. A
       whole playlist, the newest uploads of a channel, Watch later or your feed can go down as one batch, which pauses and resumes
       together. Downloads can wait for Wi-Fi and pause when the battery is low, and everything you keep plays without a
       connection.</p>
     </td>
-    <td align="center"><img alt="The Downloads page: storage used, a batch in progress and finished videos with their quality and size" src="docs/images/phone-video-downloads.webp" width="230"></td>
   </tr>
   <tr>
-    <td align="center"><img alt="Video mode's Library: Continue watching, History, Watch later, liked videos and Downloads" src="docs/images/phone-video-library.webp" width="230"></td>
     <td>
+      <h3>Watch: films, series and live TV</h3>
+      <p>A mode for films, series and live TV (Ctrl+3 on the desktop), with Home, Films, Series, Live TV with a programme guide,
+      Search, My list, Downloads and Plugins. It plays out of the box from built-in plugins, each with its own switch: free live
+      channels (iptv-org, Pluto TV, Samsung TV Plus, Plex), free films and series (Plex, the Internet Archive, official free YouTube
+      channels), and Stremio's Public Domain Movies, OpenSubtitles and WatchHub add-ons. No torrent, debrid or pirate-site plugins
+      are built in.</p>
+      <p>Add more sources yourself: Stremio and Nuvio add-on links, your own Jellyfin, Emby or Plex server, M3U and Xtream playlists
+      with guides, and local folders. <b>Find plugins</b> links to plugin directories, so you can add what you have access to.
+      Plugin packs can be shared by link or QR code and offered in a room, and with cloud sync your plugins follow you to your other
+      devices. Films, episodes and channels can be watched together in a room; each person's app finds the same title in its own
+      sources.</p>
+      <p>Film and series details come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+    </td>
+    <td align="center"><img alt="Watch's Live TV page in the light theme on a phone: Home, Films, Series, Live TV and Search tabs, 14,176 free channels, country and language chips, and the programme guide" src="docs/images/phone-watch-live-tv-guide-light.webp" width="230"></td>
+  </tr>
+  <tr>
+    <td align="center"><img alt="The Live now sheet in the light theme on a phone: two live and seven coming up, filters for Cricket, Football and Shows, a live show on DD News and DD National, and football matches with Remind buttons" src="docs/images/phone-live-now-sheet-light.webp" width="230"></td>
+    <td>
+      <h3>Live now</h3>
+      <p>A Live pill shows the score of the match or show you follow and how many more are live. It opens Live now: live matches and
+      shows, what's coming up with a reminder, and what just finished. Watch is offered only where a free stream carries the event:
+      DD Sports, DD National or a broadcaster's own YouTube live stream. Cricket scores come from CricketData.org and football scores
+      from football-data.org, each with a free key; without one, TheSportsDB gives the next and last match only. Settings > Live now
+      turns the pill on or off, picks your sports and follows teams.</p>
+      <h3>Indian channels</h3>
+      <p>Prasar Bharati (DD): DD News, DD India, DD National, DD Sports, DD Kisan, DD Urdu, DD Bharati, DD Tamil and the regional DD
+      channels, played from Prasar Bharati's own YouTube channels. Live on YouTube: the broadcasters' own live news streams in
+      Tamil, Telugu, Malayalam, Kannada, Hindi and English, and Sansad TV. DD channels other than DD News, DD India, DD Kisan and
+      DD Urdu are live only during programmes. Pay channels such as Sun TV, Vijay TV and Zee Tamil are not built in; Find plugins in
+      Watch links to plugin directories instead.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
       <h3>Library and import</h3>
       <p>Your history, subscriptions, playlists and downloads are in the Library. Coming from another app? Video mode imports
       subscriptions, playlists and history from a <a href="https://github.com/TeamNewPipe/NewPipe">NewPipe</a> export or a Google
       Takeout archive, and subscriptions from an OPML file. In Music, your saved sessions and smart playlists can be exported to a
       file and imported on another device.</p>
-    </td>
-  </tr>
-  <tr>
-    <td>
       <h3>Shared rooms</h3>
       <p>Make a room and friends join with a six-character code from their own Cosmotune (phone or desktop). Whatever the host plays,
       a song, a video from Video mode, a live radio station or a podcast episode, plays on everyone's own device in their own app, so
@@ -161,7 +224,6 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
       (see <a href="#cloud-sync-optional">Cloud sync</a>). The services the app talks to are described under <a href="#what-it-contacts">What it contacts</a>, and the
       optional ones can be switched off.</p>
     </td>
-    <td align="center"><img alt="Video settings: quality on Wi-Fi and on mobile data, codec, speed, double-tap to seek and autoplay" src="docs/images/phone-video-settings.webp" width="230"></td>
   </tr>
 </table>
 
@@ -186,8 +248,8 @@ Cosmotune works with no account. If you want your playlists to follow you from p
 
 ## Download
 
-Version 1.0.4. The links below always fetch the newest release.
-[1.0.10 release notes](docs/releases/1.0.10.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
+Version 1.0.17. The links below always fetch the newest release.
+[1.0.17 release notes](docs/releases/1.0.17.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 ### Android
 
@@ -448,6 +510,8 @@ services, including every one that 1.0.4 added; the paragraphs below it say what
 | Provider packages, repositories, HTTP add-ons, Subsonic | Only the ones you add, and the sites a package declares | When you use them | None added | Sources |
 | Manga sources and Komga | Official MANGA Plus on first Discover when no sources are configured, and sources/servers you add | When you browse, read or download | None added | Manga > Settings > Manage sources |
 | Podio radio and podcast discovery | Radio Browser mirrors, Apple/iTunes, fyyd; selected station/publisher media hosts; NASA GIBS (map imagery tiles), Open-Meteo (weather at a station) and Wikipedia (nearby articles and pictures), asked for when a station page or the map is open | When Podio is opened or used | No account | Podio > Radio / Podcasts |
+| Watch | `api.themoviedb.org` (TMDB) or `v3-cinemeta.strem.io` for film and series details; the built-in plugins you leave on (`iptv-org.github.io`, `i.mjh.nz`, Pluto TV, Plex, `archive.org`, YouTube, the Stremio add-ons) and the sources you add | When you browse, search or play in Watch | Built-in plugins on | Watch > Plugins |
+| Live now | `api.cricapi.com` (CricketData.org) and `api.football-data.org` with your free key, otherwise `www.thesportsdb.com` | While the Live pill or Live now is showing | On | Settings > Live now |
 | Spotify podcast link lookup | Spotify public web-client endpoints, public bootstrap metadata at `git.gay`, Apple/iTunes and fyyd | When you look up a Spotify podcast link; playback uses matched publisher RSS | Anonymous session in memory | Podio > Podcasts > Add link |
 | Cloud sync and shared rooms (optional) | `identitytoolkit.googleapis.com`, `securetoken.googleapis.com`, `firestore.googleapis.com`; for Google sign-in `accounts.google.com`, `oauth2.googleapis.com` (desktop) or Google Play services (Android) | Only after you turn it on: at start, after playlist changes and every 15 minutes (desktop) | Off | Settings > Account & sync |
 | Shared rooms (optional) | `portfolio-c4394-default-rtdb.asia-southeast1.firebasedatabase.app` (room, chat, queue, setup for voice), `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` (a guest account), `stun.cloudflare.com` and `stun.l.google.com` (finding a route for voice), and the other people in the room directly (voice) | Only while you are in a room | Off until you make or join a room | Leave the room |
