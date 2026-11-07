@@ -278,6 +278,12 @@ class PageCache(
         scope.launch(io) { runCatching { disk.write(key, "$at\n" + codec.encode(value)) } }
     }
 
+    /** Forgets [key]'s copy on the disk, in the background. */
+    fun removeSaved(key: String) {
+        val disk = disk() ?: return
+        scope.launch(io) { runCatching { disk.remove(key) } }
+    }
+
     /** Forgets every entry whose key starts with [prefix] (an account's, at sign-out), in memory and on the disk. */
     fun forget(prefix: String) {
         val gone = synchronized(entries) { entries.keys.filter { it.startsWith(prefix) }.map { entries.remove(it) } }

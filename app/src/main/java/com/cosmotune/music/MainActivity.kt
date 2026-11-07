@@ -1129,6 +1129,8 @@ private fun CosmotuneApp(
     val explorePull = rememberPullToRefreshState()
     val libraryPull = rememberPullToRefreshState()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    // A feed whose refresh failed while it kept its content: the page shows a small "Couldn't refresh" over it.
+    val refreshFailed by viewModel.refreshFailed.collectAsStateWithLifecycle()
     val currentFeed = when {
         showSettings || showAccountScrobbling || detail != null -> null
         selectedTab == TAB_HOME -> MainViewModel.Feed.HOME
@@ -3234,7 +3236,7 @@ private fun CosmotuneApp(
                             onStartRadio = startRadio,
                         )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
-                        TAB_HOME -> com.cosmotune.ui.home.HomeSwitch(
+                        TAB_HOME -> com.cosmotune.ui.states.WithRefreshNote(MainViewModel.Feed.HOME in refreshFailed, { viewModel.refresh(MainViewModel.Feed.HOME) }, listPadding.calculateTopPadding()) { com.cosmotune.ui.home.HomeSwitch(
                             discoveryHistory = listeningHistory,
                             discoveryLikedIds = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
                             followedArtists = com.cosmotune.ui.home.rememberFollowedMusicArtists(java.io.File(context.filesDir, "cosmotune-listening.json"), listeningToolsOpen),
@@ -3292,7 +3294,7 @@ private fun CosmotuneApp(
                             onLoadMore = viewModel::loadMoreHome,
                             loadingMore = homeLoadingMore,
                             recentlyPlayedLoading = homeRecentlyPlayedLoading,
-                        )
+                        ) }
                         TAB_EXPLORE -> selectedMoodGenre?.let { category ->
                             com.cosmotune.ui.search.MoodGenreSwitch(
                                 title = category.title,
@@ -3325,7 +3327,7 @@ private fun CosmotuneApp(
                                 onRetry = { viewModel.openMoodGenre(category) },
                                 contentPadding = listPadding,
                             )
-                        } ?: com.cosmotune.ui.search.ExploreSwitch(
+                        } ?: com.cosmotune.ui.states.WithRefreshNote(MainViewModel.Feed.EXPLORE in refreshFailed, { viewModel.refresh(MainViewModel.Feed.EXPLORE) }, listPadding.calculateTopPadding()) { com.cosmotune.ui.search.ExploreSwitch(
                             state = exploreState,
                             listState = exploreListState,
                             onCategoryClick = viewModel::openMoodGenre,
@@ -3334,7 +3336,7 @@ private fun CosmotuneApp(
                             onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
                             pullState = explorePull,
                             contentPadding = listPadding,
-                        )
+                        ) }
                         TAB_RELEASES -> com.cosmotune.ui.listening.CosmoReleasesPage(
                             file = java.io.File(context.filesDir, "cosmotune-listening.json"),
                             listState = releasesListState,
@@ -3536,7 +3538,7 @@ private fun CosmotuneApp(
                                 progress = addonSearchProgress,
                             ),
                         )
-                        else -> com.cosmotune.ui.library.LibrarySwitch(
+                        else -> com.cosmotune.ui.states.WithRefreshNote(MainViewModel.Feed.LIBRARY in refreshFailed, { viewModel.refresh(MainViewModel.Feed.LIBRARY) }, listPadding.calculateTopPadding()) { com.cosmotune.ui.library.LibrarySwitch(
                             signedIn = signedIn,
                             state = libraryState,
                             listState = libraryListState,
@@ -3574,7 +3576,7 @@ private fun CosmotuneApp(
                             isPlaying = player.isPlaying,
                             onSongClick = { songs, index -> playFrom(songs, index, QueueSource(libraryLabel, PlaybackSourceType.BROWSE)) },
                             onSongLongPress = openSongMenu,
-                        )
+                        ) }
                     }
                 }
 

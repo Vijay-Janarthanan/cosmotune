@@ -94,6 +94,7 @@ import com.cosmotune.music.data.search.AddonSearchSource
 import com.cosmotune.music.data.sources.SourceResolver
 import com.cosmotune.music.data.sources.TrackMatcher
 import com.cosmotune.music.playback.AudioCache
+import com.cosmotune.cache.MusicPages
 import com.cosmotune.music.playback.BoundedContextRequests
 import com.cosmotune.music.playback.contextEntryKey
 import com.cosmotune.music.playback.StreamChoice
@@ -151,6 +152,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The start-up load of Home has had its one automatic second try ([retryHomeSoon]). */
     private var homeStartupRetried = false
+
+    /**
+     * While Home shows the copy the disk kept from the last run ([MusicPages.home]) and its core feed has not answered yet, the
+     * shelves that land are held here, in order, and published over a clean page the moment the core feed arrives: the old page
+     * is swapped for the new one at once, never emptied first. Null when Home shows live content.
+     */
+    private var homeStaged: MutableList<() -> Unit>? = null
+
+    /** The last refresh of a feed failed while it kept its content on screen: the page shows a small "Couldn't refresh". */
+    private val _refreshFailed = MutableStateFlow(emptySet<Feed>())
+    val refreshFailed: StateFlow<Set<Feed>> = _refreshFailed.asStateFlow()
+
+    /** Artist, album and playlist pages opened lately, as they were last shown: opening one again shows it at once while it refreshes. */
+    private val recentDetail = LruCache<String, DetailPage>(RECENT_DETAIL_PAGES)
+    /** Pages whose listing is being fetched, so a double tap pushes one page however the first one opened. */
+    private val detailInFlight = mutableSetOf<String>()
 
     private val _explore = MutableStateFlow<UiState<List<MoodGenreSection>>>(UiState.Loading)
     val explore: StateFlow<UiState<List<MoodGenreSection>>> = _explore.asStateFlow()
@@ -1558,6 +1575,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startTypeaheadMediaPipeline()
         loadHome(startup = true)
         loadExplore(startup = true)
+        viewModelScope.launch {
+            // Home as it settles is kept for the next start, per listener (never the copy shown before the feed answered).
+            _home.debounce(2_000).collect { state ->
+                if (state is UiState.Success && homeStaged == null && state.data.isNotEmpty()) MusicPages.saveHome(listenerKey(), state.data)
+            }
+        }
         if (_signedIn.value) {
             loadLibrary()
             loadAccount()
@@ -1696,8 +1719,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadExplore(startup: Boolean = false) {
-        _explore.value = UiState.Loading
-        viewModelScope.launch { fetchExplore(startup) }
+        if (_explore.value !is UiState.Success) _explore.value = UiState.Loading
+        viewModelScope.launch {
+            // The moods of the last run, at once, while they are asked for again.
+            if (_explore.value is UiState.Loading) MusicPages.savedExplore()?.let { saved -> if (_explore.value is UiState.Loading) _explore.value = UiState.Success(saved) }
+            fetchExplore(startup)
+        }
     }
 
     /**
@@ -1723,8 +1750,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             },
             onFailure = { UiState.Error(it.friendly()) },
         )
+        // A failed refresh keeps the moods on screen and says so; only a page with nothing shows the error.
+        if (state is UiState.Error && _explore.value is UiState.Success) { _refreshFailed.value += Feed.EXPLORE; return }
+        _refreshFailed.value -= Feed.EXPLORE
         _explore.value = state
-        (state as? UiState.Success)?.data?.let(::loadMoodGenreArtwork)
+        (state as? UiState.Success)?.data?.let { sections -> MusicPages.saveExplore(sections); loadMoodGenreArtwork(sections) }
     }
 
     /**
@@ -1787,10 +1817,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val identity = listenerKey()
         val generation = homeLoadGeneration.incrementAndGet()
         _home.value = UiState.Loading
+        homeStaged = null
         homeContinuation = null
         homeSeenTitles.clear()
         _homeLoadingMore.value = false
         _homeRecentlyPlayedLoading.value = _signedIn.value
+        // This listener's Home of the last run, from the disk, while the feed is fetched: the shelves that land are staged
+        // ([homeStaged]) and swapped in with the core feed.
+        viewModelScope.launch {
+            val saved = MusicPages.savedHome(identity) ?: return@launch
+            if (!isCurrentHomeLoad(identity, generation) || _home.value !is UiState.Loading || saved.isEmpty()) return@launch
+            homeStaged = mutableListOf()
+            _homeRecentlyPlayedLoading.value = false
+            _home.value = UiState.Success(saved)
+        }
         // The core feed plus one browse per supplement. Recently played is left
         // out: it has its own skeleton at the head of the page rather than the
         // one at the tail.
@@ -1810,10 +1850,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         .onSuccess { feed ->
                             if (!isCurrentHomeLoad(identity, generation)) return@onSuccess
                             homeContinuation = feed.continuation
+                            // The saved copy goes and the new page comes in one step: the core feed, then what landed before it.
+                            val staged = homeStaged
+                            homeStaged = null
+                            if (staged != null) _home.value = UiState.Success(emptyList())
                             publishHomeShelves(feed.shelves)
+                            staged?.forEach { it() }
+                            _refreshFailed.value -= Feed.HOME
                         }
                         .onFailure { failure ->
-                            if (isCurrentHomeLoad(identity, generation) && _home.value !is UiState.Success) {
+                            if (isCurrentHomeLoad(identity, generation) && homeStaged != null) {
+                                // Offline with last run's Home on screen: it stays, with a note, and what landed is dropped. A
+                                // start-up lookup failure (no network yet) is tried once more, as it is without the copy.
+                                homeStaged = null
+                                _refreshFailed.value += Feed.HOME
+                                if (startup && StartupRetry.shouldRetry(failure.message, homeStartupRetried)) {
+                                    homeStartupRetried = true
+                                    viewModelScope.launch {
+                                        delay(StartupRetry.DELAY_MS)
+                                        if (isCurrentHomeLoad(identity, generation)) refresh(Feed.HOME)
+                                    }
+                                }
+                            } else if (isCurrentHomeLoad(identity, generation) && _home.value !is UiState.Success) {
                                 if (startup && StartupRetry.shouldRetry(failure.message, homeStartupRetried)) {
                                     retryHomeSoon(identity, generation)
                                 } else {
@@ -1879,6 +1937,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun publishHomeShelves(shelves: List<HomeShelf>, prepend: Boolean = false) {
+        homeStaged?.let { staged -> staged += { publishHomeShelves(shelves, prepend) }; return }
         val existing = (_home.value as? UiState.Success)?.data.orEmpty()
         if (prepend) {
             // YouTube's core home can also contain a stale "Recently played"
@@ -1896,6 +1955,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun publishProviderHomeShelves(shelves: List<HomeShelf>) {
+        homeStaged?.let { staged -> staged += { publishProviderHomeShelves(shelves) }; return }
         val (kept, removed) = com.cosmotune.providers.ProviderHome.replacing((_home.value as? UiState.Success)?.data.orEmpty(), shelves)
         removed.forEach { homeSeenTitles.remove(it.title.lowercase(Locale.ROOT)) }
         _home.value = UiState.Success(kept)
@@ -1913,12 +1973,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val recent = if (_signedIn.value) async { YtMusicRepository.homeRecentlyPlayed() } else null
         YtMusicRepository.home().onSuccess { feed ->
             if (identity != listenerKey()) return@onSuccess
+            homeStaged = null
+            _refreshFailed.value -= Feed.HOME
             homeContinuation = feed.continuation
             homeSeenTitles.clear()
             val shelves = feed.shelves.withoutRepeatsOf(emptyList())
                 .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
             if (shelves.isNotEmpty()) _home.value = UiState.Success(shelves)
-        }
+        }.onFailure { if (identity == listenerKey() && _home.value is UiState.Success) _refreshFailed.value += Feed.HOME }
         recent?.await()?.onSuccess { shelf ->
             if (identity == listenerKey()) shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
         }
@@ -1961,8 +2023,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun loadLibrary() {
         if (!_signedIn.value) return
         val identity = listenerKey()
-        _library.value = UiState.Loading
-        viewModelScope.launch { fetchLibrary(identity) }
+        if (_library.value !is UiState.Success) _library.value = UiState.Loading
+        viewModelScope.launch {
+            // This listener's library shelves of the last run, at once, while they are asked for again.
+            if (_library.value is UiState.Loading) MusicPages.savedLibrary(identity)?.let { saved ->
+                if (identity == listenerKey() && _library.value is UiState.Loading) _library.value = UiState.Success(saved)
+            }
+            fetchLibrary(identity)
+        }
     }
 
     private suspend fun fetchLibrary(identity: String?) {
@@ -1978,7 +2046,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             },
             onFailure = { UiState.Error(it.friendly()) },
         )
-        if (identity == listenerKey()) _library.value = next
+        if (identity != listenerKey()) return
+        // A failed refresh keeps the shelves on screen and says so.
+        if (next is UiState.Error && _library.value is UiState.Success) { _refreshFailed.value += Feed.LIBRARY; return }
+        _refreshFailed.value -= Feed.LIBRARY
+        _library.value = next
+        (next as? UiState.Success)?.data?.let { MusicPages.saveLibrary(identity, it) }
     }
 
     /**
@@ -2634,6 +2707,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         const val TYPEAHEAD_MAX_RESULTS = 15
 
         const val SEARCH_CACHE_ENTRIES = 100
+        const val RECENT_DETAIL_PAGES = 24
 
         /**
          * How long any one source gets to answer a search.
@@ -2743,7 +2817,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // stack. The page is pushed synchronously, so this closes that window
         // without suppressing a deliberate revisit after the first page loads.
         if (_detailStack.value.lastOrNull()?.let {
-                it.browseId == browseId && it.songs is UiState.Loading
+                it.browseId == browseId && (it.songs is UiState.Loading || browseId in detailInFlight)
             } == true
         ) return
         if (browseId.startsWith(SPOTIFY_PAGE_PREFIX)) {
@@ -2751,7 +2825,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val resolved = browseTypeOf(browseId, type)
-        _detailStack.value += DetailPage(
+        // A page opened lately comes back as it was, at once; its listing is fetched again behind it and swapped in.
+        val remembered = recentDetail.get(browseId)?.takeIf { it.songs is UiState.Success }
+        _detailStack.value += remembered ?: DetailPage(
             browseId = browseId,
             title = title,
             subtitle = subtitle,
@@ -2759,7 +2835,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             songs = UiState.Loading,
             type = resolved,
         )
+        detailInFlight += browseId
         viewModelScope.launch {
+          try {
             var sections = emptyList<HomeShelf>()
             // Callers that open an artist from a track — the player, the
             // long-press menu — only have that track's cover art and its full
@@ -2893,7 +2971,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // failed or empty fetch leaves the downloaded tracks up.
             _detailStack.value = _detailStack.value.map {
                 if (it.browseId == browseId &&
-                    (it.songs is UiState.Loading || (onDevice.isNotEmpty() && state is UiState.Success))
+                    (it.songs is UiState.Loading || ((onDevice.isNotEmpty() || remembered != null) && state is UiState.Success))
                 ) {
                     it.copy(
                         songs = state,
@@ -2913,10 +2991,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     it
                 }
             }
+            rememberDetail(browseId)
             // Only once the first page is on screen: [fillIn] appends to it,
             // and has nothing to append to before this.
             more?.let { fillIn(browseId, it, thumbnailUrl ?: artwork) }
+          } finally { detailInFlight -= browseId }
         }
+    }
+
+    /** Keeps [browseId]'s page as it is on screen now, when it has its listing, for the next time it is opened. */
+    private fun rememberDetail(browseId: String) {
+        if (browseId.startsWith("local:")) return
+        _detailStack.value.lastOrNull { it.browseId == browseId }?.takeIf { it.songs is UiState.Success }?.let { recentDetail.put(browseId, it) }
     }
 
     /**
@@ -3307,6 +3393,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun closeDetail(): Boolean {
         val stack = _detailStack.value
         if (stack.isEmpty()) return false
+        // The page as it is now (more tracks, a like) is what it shows when it is opened again.
+        stack.last().let { page -> if (page.songs is UiState.Success && !page.browseId.startsWith("local:")) recentDetail.put(page.browseId, page) }
         _detailStack.value = stack.dropLast(1)
         return true
     }
@@ -3588,6 +3676,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _songMenu.value = null
         _library.value = UiState.Loading
         _history.value = UiState.Loading
+        // Pages opened lately carry the old listener's library state and ownership.
+        recentDetail.evictAll()
+        _refreshFailed.value = emptySet()
         if (restoreCached) listenerCache[listenerKey()]?.let { cached ->
             _account.value = cached.account
             _library.value = cached.library
@@ -3625,6 +3716,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             removeAccount(current)
             return
         }
+        // The leaving listener's saved Home and library go with them.
+        MusicPages.forget(listenerKey())
         authStore.signOut()
         Innertube.cookie = null
         // The mirror image: verdicts reached with a session in hand say nothing
@@ -3649,6 +3742,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _playlistOwned.value = emptyMap()
         ownershipInFlight.clear()
         _songMenu.value = null
+        recentDetail.evictAll()
         loadHome()
     }
 

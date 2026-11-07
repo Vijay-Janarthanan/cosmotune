@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import kotlinx.coroutines.flow.debounce
 import androidx.compose.foundation.lazy.LazyListState
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.FollowCover
@@ -615,7 +616,12 @@ fun CosmotuneDesktopApp() {
     var homeGeneration by remember { mutableStateOf(0) }
     var providerHomeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var homeIdentity by remember { mutableStateOf<String?>(null) }
+    // While Home shows the copy the disk kept from the last run and its core feed has not answered yet, the shelves that land
+    // are held here and published over a clean page with the core feed: the old page is swapped, never emptied first.
+    val homeStage = remember { com.cosmotune.cache.StagedPublish() }
     var exploreState by remember { mutableStateOf<UiState<List<MoodGenreSection>>>(UiState.Loading) }
+    /** Home's last refresh failed while it kept the last run's shelves on screen: the page notes "Couldn't refresh". */
+    var homeRefreshFailed by remember { mutableStateOf(false) }
     var selectedMoodGenre by remember { mutableStateOf<MoodGenre?>(null) }
     // Bumped by a retry so the loaders below re-run without the state they are keyed on having to
     // change to something and back again.
@@ -865,6 +871,12 @@ fun CosmotuneDesktopApp() {
     var openedArtist by remember { mutableStateOf<DesktopArtistTarget?>(null) }
     var artistState by remember { mutableStateOf<UiState<ArtistPage>>(UiState.Loading) }
     var artistReloads by remember { mutableStateOf(0) }
+    // Artist, album and playlist pages opened lately, as they were last shown: opening one again shows it at once while it is
+    // fetched again behind it. Forgotten when the account changes (they carry its library state).
+    val recentArtists = remember { object : LinkedHashMap<String, ArtistPage>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ArtistPage>) = size > 24 } }
+    val recentCollections = remember { object : LinkedHashMap<String, DesktopCollection>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, DesktopCollection>) = size > 24 } }
 
     fun canonicalSong(song: Song): Song {
         val homeSong = (homeState as? UiState.Success)?.data.orEmpty()
@@ -1198,6 +1210,17 @@ fun CosmotuneDesktopApp() {
             showCollection(current)
             return
         }
+        recentCollections[browseId]?.takeIf { !browseId.startsWith(SPOTIFY_PAGE_PREFIX) }?.let { remembered ->
+            showCollection(remembered)
+            scope.launch {
+                DesktopSearchClient.browse(browseId, BrowseItem(browseId, remembered.title, remembered.subtitle, remembered.thumbnailUrl, remembered.type))
+                    .onSuccess { loaded ->
+                        recentCollections[browseId] = loaded
+                        if (openedCollection?.browseId == browseId) openedCollection = loaded
+                    }
+            }
+            return
+        }
         showCollection(
             DesktopCollection(
                 browseId = browseId,
@@ -1230,6 +1253,7 @@ fun CosmotuneDesktopApp() {
             ),
         ).fold(
             onSuccess = { loaded ->
+                if (!loaded.loading) recentCollections[pending.browseId] = loaded
                 if (openedCollection?.browseId == pending.browseId) openedCollection = loaded
             },
             onFailure = { collectionError = it.message ?: "Could not open ${pending.title.ifBlank { "this page" }}" },
@@ -2216,8 +2240,16 @@ fun CosmotuneDesktopApp() {
         overlays.replay = false
         overlays.settingsPage = null
         openedArtist = target
-        artistState = UiState.Loading
+        // An artist opened lately shows as it was while the page is fetched again.
+        val remembered = recentArtists[browseId]
+        artistState = remembered?.let { UiState.Success(it) } ?: UiState.Loading
         artistReloads++
+        if (remembered != null) scope.launch {
+            DesktopSearchClient.artistPage(browseId).onSuccess { page ->
+                recentArtists[browseId] = page
+                if (openedArtist == target) artistState = UiState.Success(page)
+            }
+        }
     }
 
     /**
@@ -2277,7 +2309,7 @@ fun CosmotuneDesktopApp() {
         val target = openedArtist ?: return@LaunchedEffect
         if (artistState !is UiState.Loading) return@LaunchedEffect
         DesktopSearchClient.artistPage(target.browseId).fold(
-            onSuccess = { artistState = UiState.Success(it) },
+            onSuccess = { artistState = UiState.Success(it); recentArtists[target.browseId] = it },
             onFailure = { artistState = UiState.Error(it.message ?: "Could not open ${target.name}") },
         )
     }
@@ -2648,6 +2680,7 @@ fun CosmotuneDesktopApp() {
      * [prepend]ed and replaces any stale copy the core feed carried.
      */
     fun publishHomeShelves(shelves: List<HomeShelf>, prepend: Boolean = false) {
+        if (homeStage.hold { publishHomeShelves(shelves, prepend) }) return
         val existing = (homeState as? UiState.Success)?.data.orEmpty()
         if (prepend) {
             val replacing = shelves.map { it.title.lowercase() }.toSet()
@@ -2661,6 +2694,7 @@ fun CosmotuneDesktopApp() {
     }
 
     fun publishProviderHomeShelves(shelves: List<HomeShelf>) {
+        if (homeStage.hold { publishProviderHomeShelves(shelves) }) return
         val (kept, removed) = com.cosmotune.providers.ProviderHome.replacing((homeState as? UiState.Success)?.data.orEmpty(), shelves)
         removed.forEach { homeSeenTitles.remove(it.title.lowercase()) }
         homeState = UiState.Success(kept)
@@ -2682,10 +2716,20 @@ fun CosmotuneDesktopApp() {
         val signedIn = DesktopYouTubeAuth.isSignedIn
         homeIdentity = "$signedIn/${DesktopAccounts.activeAccountId()}"
         homeState = UiState.Loading
+        homeStage.stop()
         homeContinuation = null
         homeSeenTitles.clear()
         homeLoadingMore = false
         homeRecentsLoading = signedIn
+        // This account's Home of the last run, from the disk, at once; the feed's shelves are staged and swapped in with it.
+        val savedFor = homeIdentity
+        scope.launch {
+            val saved = com.cosmotune.cache.MusicPages.savedHome(savedFor) ?: return@launch
+            if (generation != homeGeneration || homeState !is UiState.Loading || saved.isEmpty()) return@launch
+            homeStage.start()
+            homeRecentsLoading = false
+            homeState = UiState.Success(saved)
+        }
         providerHomeJob?.cancel()
         providerHomeJob = scope.launch {
             com.cosmotune.providers.DiscoveryHome.load() { shelves ->
@@ -2698,10 +2742,18 @@ fun CosmotuneDesktopApp() {
                     onSuccess = { feed ->
                         if (generation != homeGeneration) return@fold
                         homeContinuation = feed.continuation
+                        // The saved copy goes and the new page comes in one step: the core feed, then what landed before it.
+                        val staged = homeStage.stop()
+                        if (staged != null) homeState = UiState.Success(emptyList())
                         publishHomeShelves(feed.shelves)
+                        staged?.forEach { it() }
+                        homeRefreshFailed = false
                     },
                     onFailure = {
-                        if (generation == homeGeneration && homeState !is UiState.Success) {
+                        if (generation == homeGeneration && homeStage.stop() != null) {
+                            // Offline with last run's Home on screen: it stays, with a note.
+                            homeRefreshFailed = true
+                        } else if (generation == homeGeneration && homeState !is UiState.Success) {
                             homeState = UiState.Error(it.message ?: "Could not load Home")
                         }
                     },
@@ -2725,6 +2777,15 @@ fun CosmotuneDesktopApp() {
                     }
                 }
             }
+        }
+    }
+
+    // Home as it settles is kept for the next start, per account (never the copy shown before the feed answered).
+    LaunchedEffect(Unit) {
+        @OptIn(kotlinx.coroutines.FlowPreview::class)
+        snapshotFlow { homeState to homeIdentity }.debounce(2_000L).collect { (state, identity) ->
+            val shelves = (state as? UiState.Success<List<HomeShelf>>)?.data
+            if (shelves != null && !homeStage.holding && shelves.isNotEmpty()) com.cosmotune.cache.MusicPages.saveHome(identity, shelves)
         }
     }
 
@@ -2926,16 +2987,22 @@ fun CosmotuneDesktopApp() {
             exploreState = UiState.Error("YouTube Music is disabled")
             return
         }
-        exploreState = UiState.Loading
+        if (exploreState !is UiState.Success) {
+            exploreState = UiState.Loading
+            // The moods of the last run, at once, while they are asked for again.
+            com.cosmotune.cache.MusicPages.savedExplore()?.let { saved -> if (exploreState is UiState.Loading) exploreState = UiState.Success(saved) }
+        }
         DesktopSearchClient.moodAndGenres().fold(
             onSuccess = { sections ->
                 exploreState = if (sections.isEmpty()) {
                     UiState.Error("Nothing to explore right now")
                 } else {
+                    com.cosmotune.cache.MusicPages.saveExplore(sections)
                     UiState.Success(sections)
                 }
             },
-            onFailure = { exploreState = UiState.Error(it.message ?: "Could not load Explore") },
+            // A failed refresh keeps the moods on screen; only a page with nothing shows the error.
+            onFailure = { if (exploreState !is UiState.Success) exploreState = UiState.Error(it.message ?: "Could not load Explore") },
         )
     }
 
@@ -3121,16 +3188,21 @@ fun CosmotuneDesktopApp() {
      * channel, signing out.
      */
     LaunchedEffect(activeAccountId, activeProfileId, sessionRevision) {
+        recentArtists.clear(); recentCollections.clear()
         youtubeSignedIn = DesktopYouTubeAuth.isSignedIn
         if (!DesktopYouTubeAuth.isSignedIn) {
             libraryState = UiState.Success(LibraryPage(emptyList(), emptyList(), emptyList()))
             return@LaunchedEffect
         }
         libraryState = UiState.Loading
+        // This account's library shelves of the last run, at once, while they are asked for again.
+        val libraryFor = "true/${DesktopAccounts.activeAccountId()}"
+        com.cosmotune.cache.MusicPages.savedLibrary(libraryFor)?.let { saved -> if (libraryState is UiState.Loading) libraryState = UiState.Success(saved) }
         DesktopSearchClient.library().fold(
             onSuccess = { page ->
                 // The continuation is a job to run, not page state — it is consumed below.
                 libraryState = UiState.Success(page.copy(likedContinuation = null))
+                com.cosmotune.cache.MusicPages.saveLibrary(libraryFor, page.copy(likedContinuation = null))
                 DesktopTrackLog.log(
                     "library: ${page.likedSongs.size} liked, ${page.librarySongs.size} added, " +
                         "shelves ${page.shelves.joinToString { "${it.title}=${it.items.size}" }}",
@@ -3161,7 +3233,8 @@ fun CosmotuneDesktopApp() {
                     }
                 }
             },
-            onFailure = { libraryState = UiState.Error(it.message ?: "Could not load your library") },
+            // A failed refresh keeps the shelves on screen; only a page with nothing shows the error.
+            onFailure = { if (libraryState !is UiState.Success) libraryState = UiState.Error(it.message ?: "Could not load your library") },
         )
         // A session refused mid-flight is dropped by the request itself, so the answer to "are we
         // signed in" is only settled once the call is over.
@@ -4739,7 +4812,7 @@ fun CosmotuneDesktopApp() {
                             downloadInProgress = downloadInProgress,
                             contentPadding = contentPadding,
                         )
-                        destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.home.HomeSwitch(
+                        destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.states.WithRefreshNote(homeRefreshFailed, { homeRefreshFailed = false; loadHome() }, sharedPagePadding.calculateTopPadding()) { com.cosmotune.ui.home.HomeSwitch(
                             discoveryHistory = history,
                             discoveryLikedIds = likedIds + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
                             followedArtists = com.cosmotune.ui.home.rememberFollowedMusicArtists(com.cosmotune.desktop.desktopListeningFile(), listeningToolsOpen),
@@ -4782,7 +4855,7 @@ fun CosmotuneDesktopApp() {
                             isPlaying = cosmoShell != null && playback.isPlaying,
                             onPlayPause = ::togglePlayPauseFromUser,
                             playbackTime = { playback.positionMs to playback.durationMs },
-                        )
+                        ) }
                         destination == DesktopDestination.RELEASES -> com.cosmotune.ui.listening.CosmoReleasesPage(
                             file = com.cosmotune.desktop.desktopListeningFile(),
                             listState = releasesListState,

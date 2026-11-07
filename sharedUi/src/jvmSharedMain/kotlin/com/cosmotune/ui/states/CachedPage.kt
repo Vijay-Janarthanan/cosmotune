@@ -59,3 +59,15 @@ fun RefreshFailedNote(onRetry: (() -> Unit)?, modifier: Modifier = Modifier) {
         if (onRetry != null) Text("· Try again", style = fonts.body.copy(fontSize = 12.5.sp), color = look.ink)
     }
 }
+
+/**
+ * [content] (a page that keeps its cached content when a refresh fails) with the [RefreshFailedNote] over its top when [failed]:
+ * the note sits [top] below the page's top edge (the page's own top padding), centred, and [onRetry] fetches again.
+ */
+@Composable
+fun WithRefreshNote(failed: Boolean, onRetry: () -> Unit, top: androidx.compose.ui.unit.Dp, content: @Composable () -> Unit) {
+    androidx.compose.foundation.layout.Box(Modifier) {
+        content()
+        if (failed) RefreshFailedNote(onRetry, Modifier.align(Alignment.TopCenter).padding(top = top + 8.dp))
+    }
+}
