@@ -1,5 +1,10 @@
 package com.cosmotune.reading.ui
 
+import com.cosmotune.cache.CacheCodec
+import com.cosmotune.cache.CachedLoad
+import com.cosmotune.cache.PageCache
+import com.cosmotune.cache.SLOW_FRESH_MS
+import com.cosmotune.ui.states.collectOnPage
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
@@ -68,7 +73,9 @@ fun ReadApp(
     showNavigation: Boolean = true,
     showAccount: Boolean = true,
 ) {
-    if (repository != null) return ReadContent(repository, contentPadding, onMusic.takeIf { showLeave }, onReaderVisibility, showNavigation, showAccount)
+    // A repository handed in (a test's) keeps its pages in memory of its own; the app's are kept for the process and on the disk.
+    if (repository != null) return ReadContent(repository, remember(repository) { PageCache.of(repository, persistent = false) },
+        contentPadding, onMusic.takeIf { showLeave }, onReaderVisibility, showNavigation, showAccount)
     var retry by remember { mutableIntStateOf(0) }
     val manga = key(retry) { rememberMangaRepository() }
     val books = remember(manga, retry) { runCatching {
@@ -79,7 +86,7 @@ fun ReadApp(
     if (ready == null) Column(Modifier.fillMaxSize().padding(contentPadding)) {
         ReadPageHead("Read", "Storage")
         ReadError(books.exceptionOrNull()?.message ?: "Check storage access and try again.", onRetry = { retry++ }, title = "Your reading library could not be opened")
-    } else ReadContent(ready, contentPadding, onMusic.takeIf { showLeave }, onReaderVisibility, showNavigation, showAccount)
+    } else ReadContent(ready, PageCache.shared, contentPadding, onMusic.takeIf { showLeave }, onReaderVisibility, showNavigation, showAccount)
 }
 
 /** Where Read is: its tab and what is pushed over it. */
@@ -104,6 +111,8 @@ internal class ReadNavigation(tab: String) {
 /** The pieces every page of Read is handed. */
 internal class ReadScope(
     val repository: ReadingRepository,
+    /** Where Read's catalogue pages are kept between visits (and runs): see [readTrending]. */
+    val pages: PageCache,
     val navigation: ReadNavigation,
     val onMusic: (() -> Unit)?,
     val showAccount: Boolean,
@@ -116,7 +125,7 @@ internal class ReadScope(
 )
 
 @Composable
-private fun ReadContent(repository: ReadingRepository, contentPadding: PaddingValues, onMusic: (() -> Unit)?, onReaderVisibility: (Boolean) -> Unit,
+private fun ReadContent(repository: ReadingRepository, pages: PageCache, contentPadding: PaddingValues, onMusic: (() -> Unit)?, onReaderVisibility: (Boolean) -> Unit,
     showNavigation: Boolean, showAccount: Boolean) {
     val scope = rememberUiCoroutineScope()
     var savedTab by rememberSaveable { mutableStateOf(BookTabs.LIBRARY) }
@@ -165,7 +174,7 @@ private fun ReadContent(repository: ReadingRepository, contentPadding: PaddingVa
     ReadModeFrame(BookTabs.all, navigation.tab, { navigation.select(it) }, showNavigation && navigation.atRoot, onMusic, showAccount,
         modifier = Modifier.testTag("books:root").padding(top = contentPadding.calculateTopPadding())) { chrome ->
         val bottom = chrome.calculateBottomPadding() + contentPadding.calculateBottomPadding()
-        val page = ReadScope(repository, navigation, onMusic, showAccount, bottom, ::action, ::open, { error = it }, busy, pick)
+        val page = ReadScope(repository, pages, navigation, onMusic, showAccount, bottom, ::action, ::open, { error = it }, busy, pick)
         Column(Modifier.fillMaxSize()) {
             error?.let { message -> ReadInlineBanner(message, Modifier.padding(top = 8.dp), onDismiss = { error = null }) }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = orbitLook().accent)
@@ -250,11 +259,9 @@ private fun BookLibrary(scope: ReadScope) {
     val reading = state.books.filter { it.id in state.progress && it.id !in state.finished }.sortedByDescending { state.progress[it.id]?.updatedAtMs ?: 0L }
     val front = shelf == BookShelf.ALL && query.isBlank()
     val hero = reading.firstOrNull()?.takeIf { front }
-    var trending by remember { mutableStateOf(emptyList<ReadingPublication>()) }
-    // The list is set on the UI thread (see rememberUiCoroutineScope), not on the worker the catalogue answers on.
-    LaunchedEffect(Unit) { withContext(Dispatchers.Main.immediate) {
-        trending = try { scope.repository.trending(0).publications.take(15) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
-    } }
+    // Today's trending books as they were last loaded, at once, refreshed in the background (taken on the UI thread).
+    val trendingEntry = remember(scope.pages, scope.repository) { readTrending(scope.pages, scope.repository) }
+    val trending = trendingEntry.collectOnPage().value.data?.publications.orEmpty().take(15)
     LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().testTag("books:library"), state = grid,
         contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
         horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -471,3 +478,10 @@ private fun BookSearchPage(scope: ReadScope) {
         }
     }
 }
+
+/**
+ * The first page of trending books on Open Library, which Read's Library and Browse both show: kept by [pages] for the process
+ * (and on the disk, for the app's), shown at once and fetched again after [SLOW_FRESH_MS].
+ */
+internal fun readTrending(pages: PageCache, repository: ReadingRepository): CachedLoad<com.cosmotune.reading.data.ReadingSearchPage> =
+    pages.entry("read:trending", SLOW_FRESH_MS, CacheCodec.json(com.cosmotune.reading.data.ReadingSearchPage.serializer())) { repository.trending(0) }

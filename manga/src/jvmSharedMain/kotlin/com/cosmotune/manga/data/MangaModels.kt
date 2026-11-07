@@ -141,7 +141,7 @@ fun MangaBook.nextChapter(current: MangaChapter): MangaChapter? {
 data class MangaExtensionStore(val indexUrl: String, val name: String, val signingKey: String, val website: String = "")
 
 data class MangaSourceDescriptor(val id: String, val title: String, val language: String, val kind: String = "kotatsu")
-data class MangaBrowsePage(val books: List<MangaBook>, val nextOffset: Int?)
+@Serializable data class MangaBrowsePage(val books: List<MangaBook>, val nextOffset: Int?)
 
 interface MangaSource {
     val config: MangaSourceConfig

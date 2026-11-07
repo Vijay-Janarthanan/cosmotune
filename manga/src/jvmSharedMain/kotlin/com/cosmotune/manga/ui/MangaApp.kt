@@ -1,5 +1,6 @@
 package com.cosmotune.manga.ui
 
+import com.cosmotune.cache.PageCache
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,8 +67,17 @@ fun MangaApp(
             ReadPageHead(mangaText("Manga"), mangaText("Storage"))
             ReadError(mangaText("Check available disk space and file access, then try again."), onRetry = { retry++ }, title = mangaText("Storage is unavailable"))
         }
-    } else MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
+    } else {
+        // The app's repository keeps its catalogue pages for the process and on the disk; one handed in (a test's) keeps its own.
+        val pages = remember(ready, repository) { if (repository == null) PageCache.shared else PageCache.of(ready, persistent = false) }
+        androidx.compose.runtime.CompositionLocalProvider(LocalMangaPages provides pages) {
+            MangaContent(contentPadding, onMusic.takeIf { showLeave }, ready, showHeader, onReaderVisibility, showNavigation)
+        }
+    }
 }
+
+/** Where Manga's catalogue pages are kept between visits; null: a memory-only cache of the repository's own. */
+internal val LocalMangaPages = androidx.compose.runtime.staticCompositionLocalOf<PageCache?> { null }
 
 /** A download in progress: which chapters it covers and what it has done so far. */
 internal class MangaTransfer {

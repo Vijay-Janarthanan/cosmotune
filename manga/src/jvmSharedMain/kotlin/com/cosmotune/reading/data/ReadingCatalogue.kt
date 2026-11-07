@@ -30,4 +30,4 @@ data class ReadingCataloguePage(val sourceId: String, val title: String, val pub
     val navigation: List<ReadingLink> = emptyList(), val next: ReadingLink? = null,
     val search: List<ReadingLink> = emptyList())
 
-data class ReadingSearchPage(val sourceId: String, val publications: List<ReadingPublication>, val total: Long, val nextOffset: Int?)
+@Serializable data class ReadingSearchPage(val sourceId: String, val publications: List<ReadingPublication>, val total: Long, val nextOffset: Int?)

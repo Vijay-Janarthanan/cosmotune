@@ -41,6 +41,20 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
+import androidx.compose.ui.test.performClick
+import com.cosmotune.manga.data.MangaRepository
+import com.cosmotune.manga.data.MangaSourceConfig
+import com.cosmotune.manga.data.MangaStore
+import com.cosmotune.manga.ui.MangaApp
+import com.cosmotune.reading.data.ReadingRepository
+import com.cosmotune.reading.ui.ReadApp
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.Test
@@ -158,6 +172,60 @@ class CachedPagesInteractionTest {
             assertShows("Cached Radio")
             assertNoTag("podio:loading")
             assertEquals(calls, stationCalls.get(), "no second fetch inside the freshness window")
+        }
+    }
+
+    @Test fun readLibraryShowsTodaysTrendingAtOnceOnReturn() {
+        val calls = AtomicInteger()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            calls.incrementAndGet()
+            val json = """{"numFound":1,"docs":[{"key":"/works/OL200W","title":"A cached atlas","author_name":["Mira Sen"],"ebook_access":"no_ebook"}]}"""
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                .body(json.toResponseBody("application/json".toMediaType())).build()
+        }.build()
+        val repository = ReadingRepository(temporary.newFolder(), client = client)
+        val shown = mutableStateOf(true)
+        compose.setContent { PodioTestTheme { Box(Modifier.size(900.dp, 800.dp)) {
+            if (shown.value) ReadApp(repository = repository) else Text("Another mode")
+        } } }
+        waitForText("A cached atlas")
+        val asked = calls.get()
+
+        leaveAndReturn(shown)
+        assertShows("A cached atlas")
+        assertEquals(asked, calls.get(), "no second fetch inside the freshness window")
+    }
+
+    @Test fun mangaBrowseShowsAPopularShelfAtOnceOnReturn() {
+        val seriesCalls = AtomicInteger()
+        MockWebServer().use { server ->
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse = when {
+                    request.path.orEmpty().startsWith("/api/v1/series?") || request.path.orEmpty() == "/api/v1/series" -> {
+                        seriesCalls.incrementAndGet()
+                        MockResponse().setBody("""{"content":[{"id":"s1","name":"Series","metadata":{"title":"A cached series","language":"en"}}],"last":true}""")
+                    }
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+            val store = MangaStore(temporary.newFolder())
+            kotlinx.coroutines.runBlocking {
+                store.update { it.copy(sources = it.sources + MangaSourceConfig("komga:cached", "komga", "Cached shelf", baseUrl = server.url("/").toString(), settings = mapOf("apiKey" to "key"))) }
+            }
+            val repository = MangaRepository(store)
+            val shown = mutableStateOf(true)
+            compose.setContent { PodioTestTheme { Box(Modifier.size(900.dp, 800.dp)) {
+                if (shown.value) MangaApp(repository = repository) else Text("Another mode")
+            } } }
+            compose.onNode(hasText("Browse") and isSelectable()).performClick()
+            waitForText("A cached series")
+            val asked = seriesCalls.get()
+
+            leaveAndReturn(shown)
+            compose.onNode(hasText("Browse") and isSelectable()).performClick()
+            compose.waitForIdle()
+            assertShows("A cached series")
+            assertEquals(asked, seriesCalls.get(), "no second fetch inside the freshness window")
         }
     }
 }

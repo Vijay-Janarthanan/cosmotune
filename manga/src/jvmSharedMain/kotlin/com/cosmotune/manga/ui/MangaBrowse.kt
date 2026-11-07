@@ -1,5 +1,8 @@
 package com.cosmotune.manga.ui
 
+import com.cosmotune.cache.CacheCodec
+import com.cosmotune.cache.PageCache
+import com.cosmotune.cache.SLOW_FRESH_MS
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +65,8 @@ internal class SourceCatalogue {
     var error by mutableStateOf<String?>(null)
     var verificationAddress by mutableStateOf<String?>(null)
     var generation = 0
+    /** The [retry] last served: a newer one asks the source again whatever the age of the first page shown. */
+    var servedRetry = 0
 
     fun loadMore() { val offset = next ?: return; if (!loading && offset != requested) requested = offset }
     fun retryNow() { requested = 0; retry++ }
@@ -72,17 +77,34 @@ internal class SourceCatalogue {
 internal fun rememberSourceCatalogue(repository: MangaRepository, sourceId: String, query: String): SourceCatalogue {
     val library by repository.store.state.collectAsState()
     val configuration = library.sources.find { it.id == sourceId }
-    val catalogue = remember(sourceId, query, configuration) { SourceCatalogue() }
     val revision by repository.sourceChanges.collectAsState()
+    // The first page of this catalogue as it was last loaded comes back at once (from memory, or the disk after a restart) and
+    // stays while the source is asked again; inside the freshness window it is not asked again.
+    val pages = LocalMangaPages.current ?: remember(repository) { PageCache.of(repository, persistent = false) }
+    val first = remember(pages, sourceId, query, configuration, revision) {
+        pages.entry<MangaBrowsePage>("manga:browse:$sourceId:${configuration.hashCode()}:$revision:$query", SLOW_FRESH_MS,
+            CacheCodec.json(MangaBrowsePage.serializer())) { repository.browse(sourceId, query, 0) }
+    }
+    val catalogue = remember(sourceId, query, configuration) {
+        SourceCatalogue().also { fresh -> first.state.value.data?.let { fresh.results = it.books.distinctBy { b -> b.id }; fresh.next = it.nextOffset } }
+    }
     LaunchedEffect(catalogue, catalogue.requested, revision, catalogue.retry) {
         val generation = ++catalogue.generation
         catalogue.error = null
         catalogue.verificationAddress = null
+        val forced = catalogue.retry != catalogue.servedRetry
+        catalogue.servedRetry = catalogue.retry
+        if (catalogue.requested == 0) {
+            first.restore()
+            first.state.value.data?.let { catalogue.results = it.books.distinctBy { b -> b.id }; catalogue.next = it.nextOffset }
+            if (!forced && first.isFresh) { catalogue.loading = false; return@LaunchedEffect }
+        }
         catalogue.loading = true
         try {
             delay(300)
             val requested = catalogue.requested
             val response = repository.browse(sourceId, query, requested)
+            if (requested == 0) first.set(response)
             catalogue.results = (if (requested == 0) response.books else catalogue.results + response.books).distinctBy { it.id }
             catalogue.next = response.nextOffset
         } catch (cancelled: CancellationException) { throw cancelled }

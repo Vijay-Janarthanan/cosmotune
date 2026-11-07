@@ -68,16 +68,33 @@ internal fun BookDiscover(scope: ReadScope) {
     var busy by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
+    var refreshFailed by remember { mutableStateOf(false) }
     var sourceId by rememberSaveable { mutableStateOf("") }
     var connections by remember { mutableStateOf(false) }
     var job by remember { mutableStateOf<Job?>(null) }
     var generation by remember { mutableIntStateOf(0) }
-    fun load(reset: Boolean = true, address: String? = null, searchRequested: Boolean = false) {
+    fun load(reset: Boolean = true, address: String? = null, searchRequested: Boolean = false, force: Boolean = false) {
         job?.cancel()
         generation++
         val requestGeneration = generation
         job = coroutines.launch {
-            busy = true; failure = null
+            busy = true; failure = null; refreshFailed = false
+            if (reset && category == "Trending") {
+                // Trending as it was last loaded comes back at once and stays while it refreshes; a failed refresh keeps it.
+                navigation = emptyList(); next = null; page = 1
+                try {
+                    val entry = readTrending(scope.pages, repository)
+                    entry.restore()
+                    entry.state.value.data?.let { publications = it.publications; nextOffset = it.nextOffset; loaded = true }
+                    if (entry.isFresh && !force) return@launch
+                    if (entry.state.value.data == null) { publications = emptyList(); nextOffset = null }
+                    entry.fetchNow()
+                    val fetched = entry.state.value
+                    fetched.data?.let { publications = it.publications; nextOffset = it.nextOffset; loaded = true }
+                    if (fetched.error != null) { if (fetched.data == null) failure = fetched.error else refreshFailed = true }
+                } finally { if (generation == requestGeneration) busy = false }
+                return@launch
+            }
             if (reset) { publications = emptyList(); navigation = emptyList(); next = null; nextOffset = null; page = 1 }
             try {
                 if (category == "My libraries" && sourceId.isBlank()) { loaded = true; return@launch }
@@ -134,6 +151,10 @@ internal fun BookDiscover(scope: ReadScope) {
                     "Search" -> "Open Library · Search results describe books. Readable copies depend on the edition and provider."
                     else -> "Trending on Open Library · A live discovery list, with source links for each book."
                 }, style = ReadType.caption(), color = Color(palette.textTertiary), modifier = Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 8.dp))
+            }
+            if (refreshFailed) item(key = "refresh-failed") {
+                com.cosmotune.ui.states.RefreshFailedNote(onRetry = { load(force = true) },
+                    modifier = Modifier.padding(horizontal = ReadMargin + 4.dp, vertical = 4.dp))
             }
             failure?.let { message -> item(key = "error") { ReadError(message, onRetry = { load() }, title = "Couldn't load this catalogue") } }
             if (busy && publications.isEmpty()) item(key = "loading") { ReadSkeletonRows(6) }
