@@ -3,7 +3,6 @@ package com.cosmotune.music.desktop
 import androidx.compose.ui.input.key.KeyEvent
 import com.cosmotune.design.AppMode
 import com.cosmotune.ui.components.SpacePlayPause
-import com.cosmotune.video.player.PlayerStatus
 
 /**
  * Space plays and pauses in the main window, as in every player: Music's song in Music, the video in Video and Watch (which
@@ -29,14 +28,6 @@ internal object DesktopSpaceKey {
         else -> false
     }
 
-    /** The video on Video's engine, Video's or Watch's: never building the engine, and only with something loaded. */
-    private fun toggleVideo(): Boolean {
-        val playback = com.cosmotune.video.graph.desktopVideoGraph(build = false)?.playback ?: return false
-        val snapshot = playback.engine.snapshot.value
-        return when {
-            snapshot.playing -> { playback.engine.pause(); true }
-            snapshot.status == PlayerStatus.READY || snapshot.status == PlayerStatus.BUFFERING -> { playback.engine.play(); true }
-            else -> false
-        }
-    }
+    /** The video on Video's engine, Video's or Watch's, through the hook Video sets when its engine is built. */
+    private fun toggleVideo(): Boolean = com.cosmotune.ui.components.ModePlayPause.video?.invoke() == true
 }

@@ -135,6 +135,16 @@ private object DesktopVideoProcess {
         // The sleep timer pauses this player too, when it holds a video (mpv keeps its pause across files, so pausing an
         // idle player would leave the next video starting paused).
         com.cosmotune.ui.sleep.SleepPausers.add { if (sleepPauses(playback.engine.snapshot.value.status)) playback.engine.pause() }
+        // The desktop's Space key plays or pauses this player in Video and Watch, only with a video loaded, never building it.
+        com.cosmotune.ui.components.ModePlayPause.video = {
+            val snapshot = playback.engine.snapshot.value
+            when {
+                snapshot.playing -> { playback.engine.pause(); true }
+                snapshot.status == com.cosmotune.video.player.PlayerStatus.READY ||
+                    snapshot.status == com.cosmotune.video.player.PlayerStatus.BUFFERING -> { playback.engine.play(); true }
+                else -> false
+            }
+        }
     }
 
     /** The version the desktop application reports when it was started without one (as its settings footer and update check do). */

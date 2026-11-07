@@ -598,8 +598,8 @@
     <string name="pause_after_a_while">Pause playback after a while</string>
     <string name="pause_after_song">Pausing when this song ends</string>
     <string name="pause_countdown">%1$s until playback pauses</string>
-    <string name="sleep_time_left">%1$s left</string>
-    <string name="extend_sleep_timer">Add %1$d minutes</string>
+    <string name="sleep_time_left" translatable="false">%1$s left</string>
+    <string name="extend_sleep_timer" translatable="false">Add %1$d minutes</string>
     <string name="play_to_preview">Play something to fill in the preview.</string>
     <string name="playlist_name">Playlist name</string>
     <string name="presence">Presence</string>
@@ -951,7 +951,7 @@
     <string name="listen_together_host_only_notice">Only the host can control the music</string>
     <string name="listen_together_leave">Leave the party</string>
     <string name="listen_together_leave_subtitle">The others carry on listening</string>
-    <string name="listen_together_leave_alone">You are the only one here. This closes the room.</string>
+    <string name="listen_together_leave_alone" translatable="false">You are the only one here. This closes the room.</string>
     <string name="listen_together_reconnecting">Reconnecting…</string>
     <string name="listen_together_syncing_clock">Measuring the clock…</string>
     <string name="listen_together_in_sync">In sync · %1$d ms round trip</string>
