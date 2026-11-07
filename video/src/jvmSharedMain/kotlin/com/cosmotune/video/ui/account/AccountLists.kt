@@ -42,8 +42,11 @@ class AccountVideos internal constructor(
     private val list: AccountList,
     private val scope: CoroutineScope,
 ) {
-    /** The account's videos, each once; empty while signed out, loading, or when the list could not be read. */
-    var items: List<VideoItem> by mutableStateOf(emptyList())
+    /**
+     * The account's videos, each once; empty while signed out or before the list was ever read. What the list held the last time
+     * this account's page read it (in this run) shows at once and stays while it is read again, and when a read fails.
+     */
+    var items: List<VideoItem> by mutableStateOf(kept(account, list, account.state.value as? AccountState.SignedIn).orEmpty())
         internal set
 
     /** Whether the sign-in expired (the page shows [AccountExpiredNotice]). */
@@ -91,10 +94,25 @@ class AccountVideos internal constructor(
         }
         result.onSuccess { page ->
             items = page.items.distinctBy { it.id }
+            keep(account, list, state, items)
             expired = state.expired
         }.onFailure { failure ->
-            items = emptyList()
+            items = kept(account, list, state).orEmpty()
             expired = state.expired || failure is AccountFailure.SessionExpired
+        }
+    }
+
+    internal companion object {
+        /** The lists each account's pages read last, by list and active account; dropped with the account object. */
+        private val memory = java.util.WeakHashMap<VideoAccount, MutableMap<String, List<VideoItem>>>()
+
+        private fun keyOf(list: AccountList, state: AccountState.SignedIn) = list.name + ":" + (state.active?.id ?: state.displayName)
+
+        fun kept(account: VideoAccount, list: AccountList, state: AccountState.SignedIn?): List<VideoItem>? =
+            state?.let { synchronized(memory) { memory[account]?.get(keyOf(list, it)) } }
+
+        fun keep(account: VideoAccount, list: AccountList, state: AccountState.SignedIn, items: List<VideoItem>) {
+            synchronized(memory) { memory.getOrPut(account) { HashMap() }[keyOf(list, state)] = items }
         }
     }
 }

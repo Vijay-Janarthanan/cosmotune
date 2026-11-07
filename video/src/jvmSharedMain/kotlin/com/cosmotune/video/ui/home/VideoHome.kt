@@ -210,7 +210,7 @@ fun VideoHome(contentPadding: PaddingValues, wide: Boolean) {
     val openShorts = { navigator.push(VideoRoute.Shorts(ShortsOrigin.Home)) }
 
     val refreshAll: () -> Unit = {
-        graph.account.invalidate(); accountFeed?.start(); model.retry()
+        graph.account.invalidate(); accountFeed?.start(force = true); model.retry()
         scope.launch { refreshFeed(graph.feed, force = true) }
     }
     val chips: @Composable (Modifier) -> Unit = { modifier ->

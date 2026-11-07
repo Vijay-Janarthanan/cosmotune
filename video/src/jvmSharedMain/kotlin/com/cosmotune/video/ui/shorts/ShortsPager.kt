@@ -1,5 +1,7 @@
 package com.cosmotune.video.ui.shorts
 
+import com.cosmotune.cache.CacheCodec
+import com.cosmotune.cache.PageCache
 import com.cosmotune.ui.orbit.OrbitActionPill
 import com.cosmotune.ui.orbit.OrbitRing
 import com.cosmotune.ui.orbit.orbitFonts
@@ -191,10 +193,15 @@ internal class ShortsQueue(private val feed: ShortsFeed, val origin: ShortsOrigi
     fun wantsMore(current: Int): Boolean =
         started && !loading && !failed && next != null && current >= items.size - 1 - VideoMetrics.SHORTS_LOAD_MORE_BEFORE
 
-    /** Loads the first page, once. */
+    /** Loads the first page, once. Home's Shorts open on the ones the last run showed first (the disk's copy) while it loads. */
     suspend fun start() {
         if (started || loading) return
-        load { feed.start(origin, seed) }
+        val keeps = origin == ShortsOrigin.Home && seed.isEmpty()
+        if (keeps && items.isEmpty()) PageCache.shared.readSaved(SAVED_KEY, SAVED_CODEC)?.second?.let { saved -> if (items.isEmpty()) items = saved }
+        var fresh: List<VideoItem>? = null
+        load { feed.start(origin, seed).also { fresh = it.items } }
+        // The source's own first page is kept for the next run, never the copy shown before it.
+        fresh?.takeIf { keeps && it.isNotEmpty() }?.let { PageCache.shared.writeSaved(SAVED_KEY, it.take(SAVED_ITEMS), SAVED_CODEC) }
     }
 
     /** Loads the next page (or the first, when it failed); "Try again" calls it too. */
@@ -229,6 +236,9 @@ internal class ShortsQueue(private val feed: ShortsFeed, val origin: ShortsOrigi
 
     companion object {
         const val END_KEY = "shorts-end"
+        private const val SAVED_KEY = "video:shorts:home"
+        private const val SAVED_ITEMS = 20
+        private val SAVED_CODEC = CacheCodec.json(kotlinx.serialization.builtins.ListSerializer(VideoItem.serializer()))
     }
 }
 

@@ -1,5 +1,11 @@
 package com.cosmotune.video.ui.home
 
+import com.cosmotune.cache.CacheCodec
+import com.cosmotune.cache.CachedLoad
+import com.cosmotune.cache.FEED_FRESH_MS
+import com.cosmotune.cache.PageCache
+import com.cosmotune.video.account.AccountState
+import com.cosmotune.video.account.InnerTubeVideoAccount
 import androidx.compose.runtime.*
 import com.cosmotune.video.account.AccountFailure
 import com.cosmotune.video.account.VideoAccount
@@ -25,15 +31,36 @@ internal class AccountHomeFeed(private val account: VideoAccount, private val sc
     private val consumed = HashSet<String>()
     private var emptyPages = 0
 
-    fun start() {
+    /**
+     * The first page this account's Home showed last (memory for the process, and the disk for the app's own account): shown at
+     * once when Home opens again, kept while it refreshes, and not fetched again for ten minutes.
+     */
+    private val first: CachedLoad<SavedAccountPage> = run {
+        val signedIn = account.state.value as? AccountState.SignedIn
+        val who = signedIn?.active?.id ?: signedIn?.displayName.orEmpty()
+        PageCache.of(account, persistent = account === InnerTubeVideoAccount.shared)
+            .entry("video:account-home:$who", FEED_FRESH_MS, ACCOUNT_PAGE_CODEC) { error("filled by start") }
+    }
+
+    init {
+        first.state.value.data?.let { saved -> items = saved.items; next = saved.next?.let(::PageToken); loaded = true }
+    }
+
+    /** Fetches the first page, unless it is fresh; [force] (Refresh, Try again) always fetches. */
+    fun start(force: Boolean = false) {
         job?.cancel(); val version = ++generation
         firstError = false; moreError = false; repeatedPage = false; sessionExpired = false
-        loaded = false; loadingMore = false
+        // Cards already on screen stay while the first page is fetched again: no placeholders over them.
+        loaded = items.isNotEmpty(); loadingMore = false
         job = scope.launch {
             try {
+                first.restore()
+                first.state.value.data?.let { saved -> if (items.isEmpty()) { items = saved.items; next = saved.next?.let(::PageToken); loaded = true } }
+                if (!force && first.isFresh) return@launch
                 val page = account.home(null).getOrThrow()
                 ensureActive(); if (version != generation) return@launch
                 items = page.items.distinctBy { it.id }.take(MAX_ITEMS)
+                first.set(SavedAccountPage(items.take(60), page.next?.value))
                 consumed.clear(); emptyPages = 0; next = page.next
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
@@ -41,7 +68,7 @@ internal class AccountHomeFeed(private val account: VideoAccount, private val sc
             } finally { if (version == generation) loaded = true }
         }
     }
-    fun retry() { account.invalidate(); if (firstError || !loaded) start() else loadMore(retry = true) }
+    fun retry() { account.invalidate(); if (firstError || !loaded) start(force = true) else loadMore(retry = true) }
     fun loadMore(retry: Boolean = false) {
         val token = next ?: return
         if (!loaded || loadingMore || firstError || moreError && !retry || !hasMore) return
@@ -63,5 +90,12 @@ internal class AccountHomeFeed(private val account: VideoAccount, private val sc
         }
     }
     fun close() { ++generation; job?.cancel(); loadingMore = false }
-    companion object { private const val MAX_ITEMS = 600 }
+    companion object {
+        private const val MAX_ITEMS = 600
+        private val ACCOUNT_PAGE_CODEC = CacheCodec.json(SavedAccountPage.serializer())
+    }
 }
+
+/** The first page of the account's Home, as [AccountHomeFeed] keeps it. */
+@kotlinx.serialization.Serializable
+internal class SavedAccountPage(val items: List<VideoItem>, val next: String? = null)

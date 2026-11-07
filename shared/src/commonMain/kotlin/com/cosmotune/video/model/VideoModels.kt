@@ -9,6 +9,7 @@ import kotlin.jvm.JvmInline
  * [uploadedText] is the source's own relative text when it gives no time. [isShort] is set when the source marks the item
  * as a Short (spec 7.4).
  */
+@kotlinx.serialization.Serializable
 data class VideoItem(
     val id: String,
     val title: String,
@@ -80,6 +81,7 @@ sealed interface ListItem {
 }
 
 /** The next page of a list (spec 4.2): opaque; the source adapter encodes its own paging in [value]. */
+@kotlinx.serialization.Serializable
 @JvmInline
 value class PageToken(val value: String)
 
@@ -90,6 +92,7 @@ data class Page<T>(val items: List<T>, val next: PageToken?)
  * One of the source's charts (spec 5.2): ids "music", "gaming", "movies", "podcasts", "live"; [name] is the name the
  * source gives. The removed "Trending" kiosk is never offered.
  */
+@kotlinx.serialization.Serializable
 data class Kiosk(val id: String, val name: String)
 
 /**

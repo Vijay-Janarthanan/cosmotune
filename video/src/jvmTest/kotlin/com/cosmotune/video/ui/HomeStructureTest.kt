@@ -485,12 +485,14 @@ class HomeStructureTest {
         assertEquals(12, back.items.size)
         assertEquals(afterGaming, source.calls.size)
 
-        // ten minutes on, the first page is asked for again
+        // ten minutes on, the list stays on screen while its first page is asked for again
         now[0] += HomeCache.PAGES_TTL_MS
         back.select("gaming")
-        assertEquals(KioskPhase.LOADING, back.phase)
+        assertEquals(KioskPhase.READY, back.phase)
+        assertTrue(back.items.isNotEmpty(), "the cards of before stay while they refresh")
         runCurrent()
         assertEquals(afterGaming + 1, source.calls.size)
+        assertEquals(KioskPhase.READY, back.phase)
 
         // another region: everything is forgotten, the kiosks too
         back.start("DE|de", "music")
@@ -522,16 +524,23 @@ class HomeStructureTest {
         runCurrent()
         assertEquals(calls, source.calls.size, "restoring asks for nothing")
 
-        // nothing cached, another region, or pages older than ten minutes: restore leaves the placeholders
+        // nothing cached, or another region: restore leaves the placeholders
         val empty = HomeModel(source, backgroundScope, HomeCache(), clockOf(now))
         empty.restore("IN|ta", "gaming", ids)
         assertEquals(KioskPhase.LOADING, empty.phase)
         assertNull(empty.kiosks)
         assertTrue(empty.related.isEmpty())
         val later = longArrayOf(1_000 + HomeCache.PAGES_TTL_MS)
+        // pages older than ten minutes are shown too, and start asks for the first page again behind them
         val stale = HomeModel(source, backgroundScope, cache, clockOf(later))
         stale.restore("IN|ta", "gaming", ids)
-        assertEquals(KioskPhase.LOADING, stale.phase, "pages are shown again for ten minutes")
+        assertEquals(KioskPhase.READY, stale.phase, "a return is never blank")
+        assertEquals(first.items, stale.items)
+        val before = source.calls.size
+        stale.start("IN|ta", "gaming")
+        assertEquals(KioskPhase.READY, stale.phase)
+        runCurrent()
+        assertEquals(before + 1, source.calls.size, "the stale first page is fetched again")
         val region = HomeModel(source, backgroundScope, cache, clockOf(now))
         region.restore("DE|de", "gaming", ids)
         assertEquals(KioskPhase.LOADING, region.phase, "another region has other charts")

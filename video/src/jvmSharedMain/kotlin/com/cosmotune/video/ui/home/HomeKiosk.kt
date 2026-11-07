@@ -1,5 +1,7 @@
 package com.cosmotune.video.ui.home
 
+import com.cosmotune.cache.CacheCodec
+import com.cosmotune.cache.PageCache
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +21,13 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import com.cosmotune.video.home.HomePlanner
 
+/** Home's kiosks and the first page of each, as [HomeCache] keeps them on the disk for the next start. */
+@kotlinx.serialization.Serializable
+internal class SavedHome(val regionKey: String, val kiosks: List<Kiosk>, val pages: Map<String, SavedKioskPage>)
+
+@kotlinx.serialization.Serializable
+internal class SavedKioskPage(val items: List<VideoItem>, val next: String? = null)
+
 /** What the kiosk part of Home shows: the placeholders, the cards, or the empty state with "Try again". */
 internal enum class KioskPhase { LOADING, READY, FAILED }
 
@@ -33,9 +42,14 @@ internal class KioskPages(val items: List<VideoItem>, val next: PageToken?, val 
  *
  * Touched only from the coroutines of one [HomeModel] (the page's own scope), one at a time, so it takes no lock.
  */
-internal class HomeCache {
+internal class HomeCache(
+    /** Whether the cache keeps a copy on the disk ([PageCache.shared]'s folder) for the next start: the process's one does. */
+    private val persistent: Boolean = false,
+) {
     var regionKey: String? = null
         private set
+    /** The region whose disk copy was read already (it is read once per region and run). */
+    private var restoredFor: String? = null
     var kiosks: List<Kiosk>? = null
     val pages = HashMap<String, KioskPages>()
     val related = HashMap<String, List<ListItem>>()
@@ -49,6 +63,30 @@ internal class HomeCache {
         pages.clear()
         related.clear()
         relatedFailedAtMs.clear()
+    }
+
+    /**
+     * Fills an empty cache with the copy kept on the disk for [key] (the kiosks and each kiosk's first page), once per run. The
+     * copy's pages count as stale, so they are shown at once and fetched again.
+     */
+    suspend fun restoreSaved(key: String) {
+        if (!persistent || restoredFor == key) return
+        restoredFor = key
+        if (kiosks != null) return
+        val saved = PageCache.shared.readSaved(SAVED_KEY, SAVED_CODEC)?.second ?: return
+        if (saved.regionKey != key || kiosks != null) return
+        reset(key)
+        kiosks = saved.kiosks
+        for ((id, page) in saved.pages) if (id !in pages) pages[id] = KioskPages(page.items, page.next?.let(::PageToken), loadedAtMs = Long.MIN_VALUE / 2)
+    }
+
+    /** Keeps the kiosks and the first page of each kiosk on the disk, for the next start. */
+    fun save() {
+        if (!persistent) return
+        val key = regionKey ?: return
+        val offered = kiosks ?: return
+        val firstPages = pages.mapValues { (_, page) -> SavedKioskPage(page.items.take(SAVED_ITEMS), page.next?.value) }
+        PageCache.shared.writeSaved(SAVED_KEY, SavedHome(key, offered, firstPages), SAVED_CODEC)
     }
 
     /** Forgets everything (tests). */
@@ -67,8 +105,12 @@ internal class HomeCache {
         /** A video whose related list could not be fetched is not asked for again for this long: 10 minutes. */
         const val RELATED_RETRY_MS = 10 * 60_000L
 
-        /** The cache of the process: one Home at a time. */
-        val shared = HomeCache()
+        /** The cache of the process: one Home at a time. Its kiosks and first pages are kept on the disk too. */
+        val shared = HomeCache(persistent = true)
+
+        private const val SAVED_KEY = "video:home"
+        private const val SAVED_ITEMS = 60
+        private val SAVED_CODEC = CacheCodec.json(SavedHome.serializer())
     }
 }
 
@@ -137,7 +179,8 @@ internal class HomeModel(
         related = knownRelated(relatedIds)
         val known = cache.kiosks ?: return
         val id = pick(known, preferredId)
-        val cached = freshPages(id) ?: return
+        // Pages past their ten minutes are shown too (start then fetches the first page again): a return is never blank.
+        val cached = cache.pages[id] ?: return
         kiosks = known
         selectedId = id
         items = cached.items
@@ -173,6 +216,13 @@ internal class HomeModel(
         next = null
         phase = KioskPhase.LOADING
         job = scope.launch {
+            // After a restart: the kiosks and pages of the last run, at once, while the first page is fetched again.
+            cache.restoreSaved(regionKey)
+            cache.kiosks?.let { saved ->
+                kiosks = saved
+                select(pick(saved, preferredId))
+                return@launch
+            }
             val offered = attempt { source.kiosks() }
             if (offered.isNullOrEmpty()) {
                 initialError = true
@@ -193,12 +243,14 @@ internal class HomeModel(
         cancelMore()
         selectedId = id
         initialError = false; moreError = false; repeatedPage = false; emptyPages = 0; consumed.clear()
-        val cached = freshPages(id)
+        val cached = cache.pages[id]
         if (cached != null) {
             items = cached.items
             next = cached.next
             consumed.addAll(cached.consumed)
             phase = KioskPhase.READY
+            // Past its ten minutes the list stays on screen while its first page is fetched again, then swapped in.
+            if (freshPages(id) == null) job = scope.launch { loadFirstPage(id) }
             return
         }
         items = emptyList()
@@ -295,6 +347,7 @@ internal class HomeModel(
         initialError = false; consumed.clear(); emptyPages = 0
         cache.pages[id] = KioskPages(cards, page.next, clock())
         trimPages(id)
+        cache.save()
         items = cards
         next = page.next
         phase = KioskPhase.READY
