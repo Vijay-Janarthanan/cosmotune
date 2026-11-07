@@ -627,7 +627,7 @@ private fun TvTopBar(
                     modifier = downToContent.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier),
                 )
                 if (tab == TvDestination.WATCH && inWatch) {
-                    WatchTab.entries.filter { it != WatchTab.HOME }.forEach { sub ->
+                    tvWatchSubTabs().forEach { sub ->
                         val subInteraction = remember { MutableInteractionSource() }
                         val subFocused by subInteraction.collectIsFocusedAsState()
                         val subSelected = watchTab == sub
@@ -640,7 +640,7 @@ private fun TvTopBar(
                             }
                         }
                         TvTabPill(
-                            label = sub.label,
+                            label = tvWatchTabLabel(sub),
                             selected = subSelected,
                             interactionSource = subInteraction,
                             onClick = { WatchNav.go(sub) },
@@ -800,3 +800,13 @@ fun TvAppMark(modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp =
         )
     }
 }
+
+/**
+ * Watch's own tabs as the TV's chip row shows them after the Watch chip: Search first, so finding a film, a series or a channel
+ * is one step to the right of Watch instead of off the edge of the screen past Live TV.
+ */
+internal fun tvWatchSubTabs(): List<WatchTab> =
+    listOf(WatchTab.SEARCH) + WatchTab.entries.filter { it != WatchTab.HOME && it != WatchTab.SEARCH }
+
+/** A Watch tab's chip label on the TV: Watch's search says what it finds, so it is not mistaken for Music's Search chip. */
+internal fun tvWatchTabLabel(tab: WatchTab): String = if (tab == WatchTab.SEARCH) "Search films & TV" else tab.label
