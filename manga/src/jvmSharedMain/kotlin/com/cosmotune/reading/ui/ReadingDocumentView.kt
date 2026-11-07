@@ -57,7 +57,8 @@ internal expect fun openReadingPdf(file: File): ReadingPdfEngine
     var searchNext by remember { mutableStateOf(0) }
     val latestError by rememberUpdatedState(onError)
     val latestLocator by rememberUpdatedState(onLocatorChanged)
-    LaunchedEffect(document.file) {
+    // The engine, the search line and the page image are set on the UI thread (see com.cosmotune.ui.rememberUiCoroutineScope).
+    LaunchedEffect(document.file) { withContext(Dispatchers.Main.immediate) {
         var opening: ReadingPdfEngine? = null
         try {
             engine = withContext(Dispatchers.IO) { openReadingPdf(document.file).also { opening = it } }
@@ -66,7 +67,7 @@ internal expect fun openReadingPdf(file: File): ReadingPdfEngine
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { failure = e.message ?: "Cannot open PDF"; latestError(failure!!) }
         finally { opening?.close() }
-    }
+    } }
     DisposableEffect(engine) { val owned = engine; onDispose {
         if (owned != null) CoroutineScope(Dispatchers.IO).launch { runCatching { owned.close() } }
     } }
@@ -74,7 +75,7 @@ internal expect fun openReadingPdf(file: File): ReadingPdfEngine
     val page = locator.page.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
     fun navigate(index: Int) = latestLocator(ReadingLocator(page = index.coerceIn(0, (pageCount - 1).coerceAtLeast(0)),
         progression = if (pageCount <= 1) 0.0 else index.toDouble() / (pageCount - 1)))
-    LaunchedEffect(engine, searchQuery, searchNext) {
+    LaunchedEffect(engine, searchQuery, searchNext) { withContext(Dispatchers.Main.immediate) {
         searchMessage = null
         if (searchQuery.isNotBlank() && engine != null) {
             if (engine?.supportsSearch != true) searchMessage = "PDF search needs Android 15 or later. EPUB text search is available on this device."
@@ -89,7 +90,7 @@ internal expect fun openReadingPdf(file: File): ReadingPdfEngine
                 finally { searching = false }
             }
         }
-    }
+    } }
     Column(modifier) {
         // The publisher's page keeps its own quiet strip: the page and the zoom as a mono line between round buttons.
         val look = com.cosmotune.ui.orbit.orbitLook()
@@ -110,13 +111,13 @@ internal expect fun openReadingPdf(file: File): ReadingPdfEngine
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val viewportWidth = maxWidth
             val targetWidth = (constraints.maxWidth * zoom).toInt().coerceIn(320, 2400)
-            LaunchedEffect(engine, page, targetWidth) {
+            LaunchedEffect(engine, page, targetWidth) { withContext(Dispatchers.Main.immediate) {
                 image = null
-                val owned = engine ?: return@LaunchedEffect
+                val owned = engine ?: return@withContext
                 try { image = withContext(Dispatchers.IO) { owned.render(page, targetWidth) } }
                 catch (e: CancellationException) { throw e }
                 catch (e: Exception) { failure = e.message ?: "Cannot render PDF page"; latestError(failure!!) }
-            }
+            } }
             val vertical = rememberScrollState()
             val horizontal = rememberScrollState()
             LaunchedEffect(page) { vertical.scrollTo(0); horizontal.scrollTo(0) }

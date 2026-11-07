@@ -10,6 +10,8 @@ import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.cosmotune.ui.collectAsUiState
+import com.cosmotune.ui.rememberUiCoroutineScope
 import com.cosmotune.ui.orbit.OrbitInputField
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -87,8 +89,9 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     onShareOpmlFile: (suspend (String) -> Unit)? = null) {
     val catalogue = remember(directory) { directory ?: PodioCatalogue(youtubePodcasts = YouTubePodcasts()) }
     val library = remember(storage) { PodioLibrary(storage) }
-    val saved by library.state.collectAsState()
-    val scope = rememberCoroutineScope()
+    val saved by library.state.collectAsUiState()
+    // Feeds, saves and imports set the page's state on the UI thread (see rememberUiCoroutineScope), not on the worker that answers.
+    val scope = rememberUiCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val host = PodioHost(onPlay, onDownloadEpisode, onImportOpmlFile, onExportOpmlFile, onShareOpmlFile) { clipboard.setText(AnnotatedString(it)) }
     val query = rememberSaveable { mutableStateOf("") }

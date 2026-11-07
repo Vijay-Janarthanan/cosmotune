@@ -111,14 +111,15 @@ internal class GlobeView(latitude: MutableState<Float>, longitude: MutableState<
     var zoom by view::zoom
     var dimensions by remember { mutableStateOf(IntSize.Zero) }
     val density = androidx.compose.ui.platform.LocalDensity.current.density
-    val land by produceState<List<List<GlobePoint>>>(emptyList()) {
+    // Set on the UI thread (see com.cosmotune.ui.rememberUiCoroutineScope), not on the worker that read the outlines.
+    val land by produceState<List<List<GlobePoint>>>(emptyList()) { withContext(Dispatchers.Main.immediate) {
         value = withContext(Dispatchers.IO) { runCatching {
             val text = requireNotNull(PodioCatalogue::class.java.getResourceAsStream("/podio/land.json")).bufferedReader().use { it.readText() }
             Json.parseToJsonElement(text).jsonArray.map { ring -> ring.jsonArray.map { pair ->
                 GlobePoint(pair.jsonArray[1].jsonPrimitive.double, pair.jsonArray[0].jsonPrimitive.double)
             } }
         }.getOrDefault(emptyList()) }
-    }
+    } }
     val places = remember(stations) { PodioPlaces.group(stations) }
     val selectedPlace = remember(places, selected) { places.firstOrNull { place -> place.stations.any { it.id == selected } } }
     // Bring the chosen station into view when the list (not the map) chose it.

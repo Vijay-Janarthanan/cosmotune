@@ -43,9 +43,13 @@ import com.cosmotune.ui.orbit.coverFill
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.LocalCosmoColors
+import com.cosmotune.ui.collectAsUiState
+import com.cosmotune.ui.rememberUiCoroutineScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -114,7 +118,7 @@ internal class ReadScope(
 @Composable
 private fun ReadContent(repository: ReadingRepository, contentPadding: PaddingValues, onMusic: (() -> Unit)?, onReaderVisibility: (Boolean) -> Unit,
     showNavigation: Boolean, showAccount: Boolean) {
-    val scope = rememberCoroutineScope()
+    val scope = rememberUiCoroutineScope()
     var savedTab by rememberSaveable { mutableStateOf(BookTabs.LIBRARY) }
     val navigation = remember { ReadNavigation(savedTab) }
     LaunchedEffect(navigation.tab) { savedTab = navigation.tab }
@@ -219,7 +223,7 @@ internal fun ReadingState.bookLabel(book: ReadingBook): String = listOfNotNull(
 /** A book of the library as a tall cover: the reading line under it, and the "continue" moon off the corner once it is started. */
 @Composable
 private fun BookCard(scope: ReadScope, book: ReadingBook, width: Dp? = null) {
-    val state by scope.repository.state.collectAsState()
+    val state by scope.repository.state.collectAsUiState()
     val fraction = state.fraction(book).takeIf { book.id !in state.finished }
     ReadCoverCard(book.title, state.bookLine(book), book.coverPath?.let(::File), onClick = { scope.navigation.book = book }, width = width, key = book.id,
         progress = fraction, onContinue = if (fraction != null) ({ scope.open(book) }) else null)
@@ -237,7 +241,7 @@ internal fun PublicationCard(scope: ReadScope, publication: ReadingPublication, 
  */
 @Composable
 private fun BookLibrary(scope: ReadScope) {
-    val state by scope.repository.state.collectAsState()
+    val state by scope.repository.state.collectAsUiState()
     val grid = rememberLazyGridState()
     var shelf by rememberSaveable { mutableStateOf(BookShelf.ALL) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -247,9 +251,10 @@ private fun BookLibrary(scope: ReadScope) {
     val front = shelf == BookShelf.ALL && query.isBlank()
     val hero = reading.firstOrNull()?.takeIf { front }
     var trending by remember { mutableStateOf(emptyList<ReadingPublication>()) }
-    LaunchedEffect(Unit) {
+    // The list is set on the UI thread (see rememberUiCoroutineScope), not on the worker the catalogue answers on.
+    LaunchedEffect(Unit) { withContext(Dispatchers.Main.immediate) {
         trending = try { scope.repository.trending(0).publications.take(15) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
-    }
+    } }
     LazyVerticalGrid(GridCells.Adaptive(ReadPosterMin), Modifier.fillMaxSize().testTag("books:library"), state = grid,
         contentPadding = PaddingValues(start = ReadMargin, end = ReadMargin, bottom = scope.bottom),
         horizontalArrangement = Arrangement.spacedBy(ReadGutter), verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -327,7 +332,7 @@ private fun BookHero(scope: ReadScope, book: ReadingBook, state: ReadingState) {
 /** Bookmarks: every bookmark by book; tap opens the reader there. */
 @Composable
 private fun BookBookmarks(scope: ReadScope) {
-    val state by scope.repository.state.collectAsState()
+    val state by scope.repository.state.collectAsUiState()
     val list = rememberLazyListState()
     val groups = state.bookmarks.groupBy { it.bookId }.mapNotNull { (id, marks) -> state.books.find { it.id == id }?.let { it to marks.sortedByDescending { mark -> mark.createdAtMs } } }
     LazyColumn(Modifier.fillMaxSize().testTag("books:bookmarks:list"), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
@@ -368,7 +373,7 @@ internal fun BookmarkRow(scope: ReadScope, book: ReadingBook, mark: ReadingBookm
  */
 @Composable
 private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
-    val state by scope.repository.state.collectAsState()
+    val state by scope.repository.state.collectAsUiState()
     val book = state.books.find { it.id == initial.id } ?: initial
     val look = orbitLook()
     val palette = LocalCosmoColors.current.palette
@@ -430,21 +435,21 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
 /** Search (the heading's 🔍): the books in the library that match, then Open Library's results. */
 @Composable
 private fun BookSearchPage(scope: ReadScope) {
-    val state by scope.repository.state.collectAsState()
+    val state by scope.repository.state.collectAsUiState()
     var query by rememberSaveable { mutableStateOf("") }
     var results by remember { mutableStateOf(emptyList<ReadingPublication>()) }
     var searching by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    LaunchedEffect(query) {
+    LaunchedEffect(query) { withContext(Dispatchers.Main.immediate) {
         results = emptyList()
-        if (query.trim().length < 2) return@LaunchedEffect
+        if (query.trim().length < 2) return@withContext
         searching = true
         try { kotlinx.coroutines.delay(400); results = scope.repository.search(query.trim(), 0).publications }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) { scope.onError(failure.message ?: "The catalogue could not be searched.") }
         finally { searching = false }
-    }
+    } }
     val mine = if (query.isBlank()) emptyList() else state.shelf(BookShelf.ALL, query)
     Column(Modifier.fillMaxSize()) {
         ReadBackHead("Search", onBack = { scope.navigation.search = false })

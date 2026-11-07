@@ -33,9 +33,13 @@ import com.cosmotune.manga.ui.*
 import com.cosmotune.reading.data.*
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.theme.LocalCosmoColors
+import com.cosmotune.ui.collectAsUiState
+import com.cosmotune.ui.rememberUiCoroutineScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** The catalogue a publication came from, as its row and its page name it. */
 internal fun ReadingPublication.sourceLabel(sources: List<ReadingOpdsSource>): String =
@@ -49,8 +53,9 @@ internal fun ReadingPublication.sourceLabel(sources: List<ReadingOpdsSource>): S
 @Composable
 internal fun BookDiscover(scope: ReadScope) {
     val repository = scope.repository
-    val state by repository.state.collectAsState()
-    val coroutines = rememberCoroutineScope()
+    val state by repository.state.collectAsUiState()
+    // A page of results is set on the UI thread (see rememberUiCoroutineScope), not on the worker the catalogue answers on.
+    val coroutines = rememberUiCoroutineScope()
     val list = rememberLazyListState()
     var category by rememberSaveable { mutableStateOf("Trending") }
     var query by rememberSaveable { mutableStateOf("") }
@@ -168,8 +173,8 @@ internal fun BookPublicationRow(publication: ReadingPublication, source: String,
 @Composable
 internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublication) {
     val repository = scope.repository
-    val state by repository.state.collectAsState()
-    val coroutines = rememberCoroutineScope()
+    val state by repository.state.collectAsUiState()
+    val coroutines = rememberUiCoroutineScope()
     val uri = LocalUriHandler.current
     val palette = LocalCosmoColors.current.palette
     val list = rememberLazyListState()
@@ -188,7 +193,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
         try { block() } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) { scope.onError(failure.message ?: "This action could not be completed.") }
     }
-    LaunchedEffect(initialPublication.id, detailsRetry) {
+    LaunchedEffect(initialPublication.id, detailsRetry) { withContext(Dispatchers.Main.immediate) {
         if (initialPublication.sourceId == "gutenberg" || initialPublication.id.startsWith("gutenberg:")) {
             detailsLoading = true; detailsError = null
             try { publication = repository.details(initialPublication) }
@@ -196,7 +201,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
             catch (failure: Exception) { detailsError = failure.message ?: "The available editions could not be loaded." }
             finally { detailsLoading = false }
         }
-    }
+    } }
     val sourceName = state.sources.find { it.id == publication.sourceId }?.name
         ?: if (publication.id.startsWith("openlibrary")) "Open Library" else if (publication.id.startsWith("gutenberg")) "Project Gutenberg" else publication.sourceId.ifBlank { "Personal library" }
     val (fill, _) = com.cosmotune.ui.orbit.coverFill(publication.coverUrl, publication.id)
@@ -289,8 +294,8 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
 
 @Composable
 private fun BookConnections(repository: ReadingRepository, onDismiss: () -> Unit, onError: (String?) -> Unit) {
-    val state by repository.state.collectAsState()
-    val scope = rememberCoroutineScope()
+    val state by repository.state.collectAsUiState()
+    val scope = rememberUiCoroutineScope()
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }

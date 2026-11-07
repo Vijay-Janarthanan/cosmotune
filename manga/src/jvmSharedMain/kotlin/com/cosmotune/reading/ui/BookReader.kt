@@ -35,6 +35,8 @@ import com.cosmotune.manga.ui.*
 import com.cosmotune.reading.data.*
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.kit.KitSheet
+import com.cosmotune.ui.collectAsUiState
+import com.cosmotune.ui.rememberUiCoroutineScope
 import com.cosmotune.ui.theme.LocalCosmoColors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -47,8 +49,8 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack: () -> Unit) {
-    val state by repository.state.collectAsState()
-    val scope = rememberCoroutineScope()
+    val state by repository.state.collectAsUiState()
+    val scope = rememberUiCoroutineScope()
     val book = document.book
     var locator by remember(book.id) { mutableStateOf(state.progress[book.id]?.locator ?: ReadingLocator()) }
     var preferences by remember(book.id) { mutableStateOf(state.preferences) }
