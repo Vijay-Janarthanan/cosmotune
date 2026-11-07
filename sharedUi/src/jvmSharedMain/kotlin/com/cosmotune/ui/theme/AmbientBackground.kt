@@ -1,6 +1,8 @@
 package com.cosmotune.ui.theme
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.Composable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -138,3 +140,13 @@ fun readableBehind(ground: Color, ink: Color, ratio: Float = 4.5f): Color {
 
 @Composable
 fun AmbientBackground(modifier: Modifier = Modifier) = Box(modifier.cosmoAmbientGround())
+
+/**
+ * The ground under a mode whose pages paint none of their own (Watch, Read and Manga stand on whatever their host lays down): the
+ * same [cosmoAmbientGround] as Music's root and the desktop's frame, so the ground and the pages' ink come from one palette. The
+ * phone's window is black in both themes, and without this the light theme's dark ink stood on it.
+ */
+@Composable
+fun ModeGround(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(modifier.fillMaxSize().cosmoAmbientGround().testTag("mode:ground")) { content() }
+}
