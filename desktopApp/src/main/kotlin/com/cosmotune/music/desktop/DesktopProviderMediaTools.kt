@@ -148,11 +148,9 @@ internal object DesktopProviderMediaTools : ProviderMediaTools {
     private fun <T> read(input: File, key: String?, cancelled: () -> Boolean, operation: (AVFormatContext, Int) -> T): T {
         checkpoint(cancelled)
         val context = avformat_alloc_context()
-        val interrupt = object : org.bytedeco.ffmpeg.avformat.AVIOInterruptCB.Callback_Pointer() {
-            override fun call(opaque: org.bytedeco.javacpp.Pointer?): Int =
-                if (cancelled() || Thread.currentThread().isInterrupted) 1 else 0
-        }
-        context.interrupt_callback().callback(interrupt)
+        // DesktopAvio's one interrupt callback, not one of our own: JavaCPP's callback slots are
+        // shared and unlocked, and a check that throws must not reach FFmpeg.
+        val interrupt = DesktopAvio.interruptWhen(context) { cancelled() || Thread.currentThread().isInterrupted }
         val options = AVDictionary(null as org.bytedeco.javacpp.Pointer?)
         try {
             av_dict_set(options, "protocol_whitelist", "file", 0)
