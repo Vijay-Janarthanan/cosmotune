@@ -275,6 +275,11 @@ private fun DrawerLayer(
 ) {
     val reduced = LocalReducedMotion.current
     val density = LocalDensity.current
+    // The drawer's window decides what the status bar draws while it is open: dark glyphs on the light panel, light on the dark one.
+    // It is its own window, so the page's glyphs are untouched and come back when it closes.
+    com.cosmotune.music.ui.theme.StatusBarIcons(
+        dark = com.cosmotune.music.ui.theme.groundWantsDarkGlyphs(com.cosmotune.ui.orbit.orbitSheetGround(com.cosmotune.ui.orbit.orbitLook())),
+    )
     // The way the start edge lies: left in a left-to-right layout (-1), right in a right-to-left one (+1).
     val towardStart = if (LocalLayoutDirection.current == LayoutDirection.Rtl) 1f else -1f
     // How far the finger has pulled the panel towards the start, in pixels (0 = at rest).
