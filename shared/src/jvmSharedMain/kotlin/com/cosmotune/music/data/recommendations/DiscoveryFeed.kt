@@ -29,7 +29,7 @@ object DiscoveryFeed {
                 if (selected.isEmpty()) null else HomeShelf(
                     if (confirmed) "Discover ${region.languageLabel}" else "Matches for ${region.languageLabel}",
                     selected.map { row -> val song = row.song; ShelfItem(song.title, song.artist, song.thumbnailUrl, song.videoId, null, song) },
-                    subtitle = if (confirmed) "Language stated by catalogue providers" else "Catalogue search matches · language and release dates not supplied",
+                    subtitle = if (confirmed) "Songs the catalogues list in ${region.languageLabel}" else "Found by searching for ${region.languageLabel} music",
                     sourceId = "discovery:language:${region.musicLanguage}:${if (confirmed) "stated" else "search"}")
             }
         }
