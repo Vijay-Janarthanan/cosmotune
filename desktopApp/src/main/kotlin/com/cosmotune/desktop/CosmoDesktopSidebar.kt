@@ -227,9 +227,9 @@ internal fun CosmoDesktopSidebar(
                         )
                         nav.firstOrNull { it.icon == com.cosmotune.ui.components.CosmoIcons.Library }?.let { library ->
                             com.cosmotune.ui.components.CosmoButton(
-                                text = DesktopStrings["library", "Library"],
+                                text = DesktopStrings["d_sidebar_open_library", "Open Library"],
                                 onClick = library.onClick,
-                                kind = com.cosmotune.ui.components.CosmoButtonKind.TEXT,
+                                kind = com.cosmotune.ui.components.CosmoButtonKind.QUIET,
                                 modifier = Modifier.padding(start = 6.dp),
                             )
                         }
