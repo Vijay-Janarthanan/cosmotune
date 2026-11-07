@@ -118,9 +118,16 @@ class DesktopOrbitPanelsPreviewTest {
             }
             val type = rememberCosmoType()
             MaterialTheme {
+                // A lifecycle of the render's own: the scene's default owner is shared by every scene in the test JVM, and two
+                // scenes adding observers to it at once (LifecycleRegistry is not thread-safe) broke its bookkeeping.
+                val lifecycleOwner = remember {
+                    object : androidx.lifecycle.LifecycleOwner {
+                        override val lifecycle = androidx.lifecycle.LifecycleRegistry.createUnsafe(this).apply { currentState = androidx.lifecycle.Lifecycle.State.RESUMED }
+                    }
+                }
                 CompositionLocalProvider(
                     LocalCosmoColors provides colors, LocalCosmoType provides type, LocalCosmoShell provides shell, LocalReducedMotion provides true,
-                    LocalCosmoPlaying provides true,
+                    LocalCosmoPlaying provides true, androidx.lifecycle.compose.LocalLifecycleOwner provides lifecycleOwner,
                 ) {
                     Box(Modifier.fillMaxSize().background(Color(colors.palette.backgroundTop))) { content() }
                 }

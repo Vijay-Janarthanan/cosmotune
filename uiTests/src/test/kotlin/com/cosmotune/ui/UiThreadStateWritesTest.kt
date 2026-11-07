@@ -96,11 +96,18 @@ class WriteThreads : org.junit.rules.TestRule {
                 val thread = Thread.currentThread()
                 if (!SwingUtilities.isEventDispatchThread() && thread !== testThread) {
                     val frame = thread.stackTrace.firstOrNull { it.className.startsWith("com.cosmotune.") && !it.className.startsWith("com.cosmotune.ui.WriteThreads") }
-                    offThread += "${thread.name} at $frame"
+                    // Only the pages under test count: the tests share one JVM, and a coroutine another class left running (Your
+                    // listening's store loads, say) can write its own state during this test's window.
+                    if (frame != null && WATCHED.any { frame.className.startsWith(it) }) offThread += "${thread.name} at $frame"
                 }
             }
             try { base.evaluate() } finally { handle.dispose() }
         }
+    }
+
+    private companion object {
+        /** The packages of the pages these tests drive: Read's Browse and Podio's feed. */
+        val WATCHED = listOf("com.cosmotune.reading.", "com.cosmotune.podio.")
     }
 
     fun assertOnlyUiThreads() {
