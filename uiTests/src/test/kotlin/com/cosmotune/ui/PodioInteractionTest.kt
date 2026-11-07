@@ -164,7 +164,13 @@ class PodioInteractionTest {
             podcastsTab().performSemanticsAction(SemanticsActions.OnClick) { it() }
             waitForDirectory()
             compose.onNodeWithText("Test podcast").performSemanticsAction(SemanticsActions.OnClick) { it() }
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Couldn't load this podcast feed. Please retry.").fetchSemanticsNodes().isNotEmpty() }
+            try {
+                compose.waitUntil(10_000) { compose.onAllNodesWithText("Couldn't load this podcast feed. Please retry.").fetchSemanticsNodes().isNotEmpty() }
+            } catch (error: Throwable) {
+                println("Podio feed calls: ${calls.get()}, fixture requests: $requests")
+                println(runCatching { compose.onNodeWithTag("podio:root").printToString() }.getOrNull())
+                throw error
+            }
             compose.onNodeWithText("Retry").performSemanticsAction(SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("A real episode").fetchSemanticsNodes().isNotEmpty() }
             assertEquals(2, calls.get())

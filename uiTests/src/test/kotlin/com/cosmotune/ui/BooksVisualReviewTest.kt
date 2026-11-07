@@ -80,16 +80,17 @@ class BooksVisualReviewTest {
     }
 
     /**
-     * The search results arrive through the fixture client after the Browse tab opens. A slow runner can still be laying out the
-     * narrow tab row when the first click lands and miss it, so after a long wait Browse is pressed once more (it is idempotent).
+     * The trending books arrive through the fixture client after the Browse tab opens. Only a row of the Browse page counts: the
+     * Library's own copy of the atlas has the same title. Should they never arrive, the page as it stands is printed.
      */
     private fun waitForDiscoverResults() {
-        val shown = { compose.onAllNodesWithText("The illustrated atlas", substring = false).fetchSemanticsNodes().isNotEmpty() }
         try {
-            compose.waitUntil(15_000, shown)
-        } catch (_: ComposeTimeoutException) {
-            compose.onNode(hasText("Browse") and isSelectable()).performClick()
-            compose.waitUntil(30_000, shown)
+            compose.waitUntil(20_000) {
+                compose.onAllNodes(hasText("The illustrated atlas") and hasAnyAncestor(hasTestTag("books:discover"))).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (error: ComposeTimeoutException) {
+            println(runCatching { compose.onNodeWithTag("books:root").printToString() }.getOrNull())
+            throw error
         }
     }
 
