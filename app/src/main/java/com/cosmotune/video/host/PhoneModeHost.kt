@@ -135,13 +135,14 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             androidx.activity.compose.BackHandler { shell.settings.setMode(AppMode.MUSIC) }
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
-            com.cosmotune.manga.ui.MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true)
+            // Manga, Read and Watch paint no ground of their own; the window under them is black in both themes.
+            com.cosmotune.ui.theme.ModeGround { com.cosmotune.manga.ui.MangaApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
         }
         else if (shell != null && mode == AppMode.READ) holder.SaveableStateProvider("read") {
             androidx.activity.compose.BackHandler { shell.settings.setMode(AppMode.MUSIC) }
             val request = MusicLink.pending.collectAsStateWithLifecycle()
             LaunchedEffect(request.value) { if (request.value != null) shell.settings.setMode(AppMode.MUSIC) }
-            com.cosmotune.reading.ui.ReadApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true)
+            com.cosmotune.ui.theme.ModeGround { com.cosmotune.reading.ui.ReadApp(onMusic = { shell.settings.setMode(AppMode.MUSIC) }, showLeave = true) }
         }
         else if (shell != null && mode == AppMode.PODIO) holder.SaveableStateProvider("podio") {
             val request = MusicLink.pending.collectAsStateWithLifecycle()
@@ -166,10 +167,12 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             } else null
             com.cosmotune.ui.watch.ProvideWatch(repository = repository, playback = playback, downloads = downloads, roomPacks = roomPacks,
                 qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
-                com.cosmotune.ui.watch.WatchApp(
-                    contentPadding = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues(),
-                    showNavigation = true,
-                )
+                com.cosmotune.ui.theme.ModeGround {
+                    com.cosmotune.ui.watch.WatchApp(
+                        contentPadding = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues(),
+                        showNavigation = true,
+                    )
+                }
             }
         }
         else if (videoShell == null) holder.SaveableStateProvider("music") { music() }
