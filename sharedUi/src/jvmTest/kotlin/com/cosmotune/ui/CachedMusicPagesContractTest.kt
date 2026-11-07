@@ -38,9 +38,8 @@ class CachedMusicPagesContractTest {
         assertTrue("recentDetail.get(browseId)" in open && "_detailStack.value += remembered ?: DetailPage(" in open,
             "an artist, album or playlist opened lately comes back as it was")
         assertTrue("recentDetail.evictAll()" in SourceContract.functionBody(viewModel, "clearListenerState"), "another listener's pages are forgotten")
-        for (feed in listOf("HOME", "EXPLORE", "LIBRARY")) {
-            assertTrue("com.cosmotune.ui.states.WithRefreshNote(MainViewModel.Feed.$feed in refreshFailed" in activity, "$feed notes a failed refresh")
-        }
+        for (feed in listOf("HOME", "EXPLORE", "LIBRARY")) assertTrue("-> MainViewModel.Feed.$feed" in activity, "$feed notes a failed refresh")
+        assertTrue("failedFeed in refreshFailed" in activity && "com.cosmotune.ui.states.RefreshFailedNote(onRetry = { viewModel.refresh(failedFeed) }" in activity)
     }
 
     @Test fun theDesktopShowsLastRunsPagesTheSameWay() {
@@ -51,6 +50,6 @@ class CachedMusicPagesContractTest {
         assertTrue("com.cosmotune.cache.MusicPages.saveHome(identity, shelves)" in desktop)
         assertTrue("com.cosmotune.cache.MusicPages.savedExplore()" in SourceContract.functionBody(desktop, "loadExplore"))
         assertTrue("com.cosmotune.cache.MusicPages.savedLibrary(libraryFor)" in desktop)
-        assertTrue("com.cosmotune.ui.states.WithRefreshNote(homeRefreshFailed" in desktop)
+        assertTrue("if (homeRefreshFailed && destination == DesktopDestination.LISTEN_NOW" in desktop)
     }
 }

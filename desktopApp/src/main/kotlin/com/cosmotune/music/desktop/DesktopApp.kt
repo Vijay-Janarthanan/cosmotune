@@ -4812,7 +4812,7 @@ fun CosmotuneDesktopApp() {
                             downloadInProgress = downloadInProgress,
                             contentPadding = contentPadding,
                         )
-                        destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.states.WithRefreshNote(homeRefreshFailed, { homeRefreshFailed = false; loadHome() }, sharedPagePadding.calculateTopPadding()) { com.cosmotune.ui.home.HomeSwitch(
+                        destination == DesktopDestination.LISTEN_NOW -> com.cosmotune.ui.home.HomeSwitch(
                             discoveryHistory = history,
                             discoveryLikedIds = likedIds + listeningLibraryPage?.likedSongs.orEmpty().map { it.videoId },
                             followedArtists = com.cosmotune.ui.home.rememberFollowedMusicArtists(com.cosmotune.desktop.desktopListeningFile(), listeningToolsOpen),
@@ -4855,7 +4855,7 @@ fun CosmotuneDesktopApp() {
                             isPlaying = cosmoShell != null && playback.isPlaying,
                             onPlayPause = ::togglePlayPauseFromUser,
                             playbackTime = { playback.positionMs to playback.durationMs },
-                        ) }
+                        )
                         destination == DesktopDestination.RELEASES -> com.cosmotune.ui.listening.CosmoReleasesPage(
                             file = com.cosmotune.desktop.desktopListeningFile(),
                             listState = releasesListState,
@@ -5176,6 +5176,12 @@ fun CosmotuneDesktopApp() {
                             contentPadding = contentPadding,
                             menu = { song -> songMenu(song) },
                         )
+                    }
+                    // Home whose refresh failed while it kept last run's shelves: a small "Couldn't refresh" over its top.
+                    if (homeRefreshFailed && destination == DesktopDestination.LISTEN_NOW && overlays.settingsPage == null && !overlays.replay &&
+                        openedArtist == null && openedCollection == null) {
+                        com.cosmotune.ui.states.RefreshFailedNote(onRetry = { homeRefreshFailed = false; loadHome() },
+                            modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
                     }
                 }
                 }
