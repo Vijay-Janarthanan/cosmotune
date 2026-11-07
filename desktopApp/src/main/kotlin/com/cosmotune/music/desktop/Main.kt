@@ -88,6 +88,8 @@ private fun runDesktop() {
         DesktopTrackLog.log("$tag/$level: $message" + (error?.let { " (${it.message})" } ?: ""))
     }
     LyricsTranslation.cacheDir = DesktopMediaCache.directory.toFile()
+    // The last content of every main page, shown at once on the next start while the page refreshes (PageCache).
+    com.cosmotune.cache.PageCache.configure(DesktopMediaCache.directory.resolveSibling("pages").toFile())
     com.cosmotune.audio.LibraryLoudness.attach(com.cosmotune.audio.LibraryAnalysisStore.beside(com.cosmotune.desktop.desktopListeningFile()))
     // Listens kept while offline in an earlier session.
     DesktopScrobbling.flushPending()

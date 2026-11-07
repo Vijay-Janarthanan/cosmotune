@@ -81,6 +81,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         Innertube.appLanguage = { AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag() }
         migrateScriptOnlyAppLocale()
         LyricsTranslation.cacheDir = cacheDir
+        // The last content of every main page, shown at once on the next start while the page refreshes (PageCache).
+        com.cosmotune.cache.PageCache.configure(java.io.File(cacheDir, "pages"))
         com.cosmotune.music.data.recommendations.LocalRecommendations.configure(
             java.io.File(cacheDir, "recommendations"), java.io.File(filesDir, "recommendations"))
         com.cosmotune.providers.ProviderAuthCallbackBridge.configure(this)

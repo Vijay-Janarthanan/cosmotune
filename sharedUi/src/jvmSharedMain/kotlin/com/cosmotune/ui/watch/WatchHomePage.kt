@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -70,6 +71,8 @@ import com.cosmotune.watch.HomeFilter
 import com.cosmotune.watch.HomeRow
 import com.cosmotune.watch.LiveNowItem
 import com.cosmotune.watch.WatchHome
+import com.cosmotune.ui.states.RefreshFailedNote
+import com.cosmotune.ui.states.collectOnPage
 import com.cosmotune.watch.model.TitleSummary
 import com.cosmotune.watch.model.TitleType
 import java.time.Instant
@@ -89,16 +92,14 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
     val repository = actions.repository
     var chosen by rememberSaveable { mutableStateOf(HomeFilter.ALL) }
     val filter = fixed ?: chosen
-    var attempt by remember { mutableStateOf(0) }
-    val home by produceState<Result<WatchHome>?>(null, repository, filter, attempt) {
-        value = null
-        value = runCatching { repository.home(filter) }
-    }
+    // The rows of each tab stay for the process (and on the disk): coming back shows them at once while they refresh.
+    val entry = remember(repository, filter) { watchHomeEntry(repository, filter) }
+    val cached by entry.collectOnPage()
     val live by repository.continueWatching.collectAsState()
     val myList by repository.myList.collectAsState()
     val clock = LocalWatchClock.current
     val side = frame.side
-    val data = home?.getOrNull()
+    val data = cached.data
     Box(Modifier.fillMaxSize()) {
         WatchWash(data?.featured?.let { coverFill(it.summary.backdropUrl ?: it.summary.posterUrl, it.summary.key.value).first } ?: HOME_WASH, look)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = frame.padding) {
@@ -126,11 +127,14 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                     }
                 }
             }
+            if (cached.refreshFailed) item(key = "watch:refresh-failed") {
+                RefreshFailedNote(onRetry = { entry.refresh() }, modifier = Modifier.padding(start = side + 6.dp, top = 14.dp))
+            }
             when {
-                home == null -> item(key = "watch:loading") { HomeSkeleton(look, frame) }
-                home?.isFailure == true -> item(key = "watch:error") {
-                    WatchMessage("Watch", "Could not load", home?.exceptionOrNull()?.message ?: "Something went wrong.", fonts, look,
-                        Modifier.padding(horizontal = side).padding(top = 24.dp), action = "Try again", onAction = { attempt++ })
+                cached.showPlaceholders -> item(key = "watch:loading") { HomeSkeleton(look, frame) }
+                cached.failedEmpty -> item(key = "watch:error") {
+                    WatchMessage("Watch", "Could not load", cached.error ?: "Something went wrong.", fonts, look,
+                        Modifier.padding(horizontal = side).padding(top = 24.dp), action = "Try again", onAction = { entry.refresh() })
                 }
                 data != null && data.empty -> item(key = "watch:empty") {
                     WatchMessage("Nothing yet", "Nothing to watch yet", "Every plugin is off or offline. Switch some on in Plugins.", fonts, look,
@@ -322,7 +326,7 @@ private fun HomeRowShelf(row: HomeRow, fonts: OrbitFonts, look: OrbitLook, side:
 
 @Composable
 private fun HomeSkeleton(look: OrbitLook, frame: WatchFrame) {
-    Column(Modifier.padding(horizontal = frame.side).padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    Column(Modifier.testTag("watch:home:loading").padding(horizontal = frame.side).padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         WatchSkeleton(look, Modifier.fillMaxWidth().height(if (frame.wide) 250.dp else 360.dp), radius = 34.dp)
         repeat(2) {
             WatchSkeleton(look, Modifier.width(200.dp).height(22.dp), radius = 11.dp)
@@ -331,3 +335,18 @@ private fun HomeSkeleton(look: OrbitLook, frame: WatchFrame) {
     }
 }
 
+
+/**
+ * Watch home's rows for [filter] (Home, Films, Series, Live TV), kept for the process and refreshed after [FEED_FRESH_MS]. An
+ * answer with nothing in it (every plugin offline) does not replace rows that were shown: it is a failed refresh.
+ */
+internal fun watchHomeEntry(repository: com.cosmotune.watch.WatchRepository, filter: HomeFilter): com.cosmotune.cache.CachedLoad<WatchHome> {
+    val pages = watchPages(repository)
+    val key = "watch:home:" + filter.name.lowercase()
+    return pages.entry(key, com.cosmotune.cache.FEED_FRESH_MS, com.cosmotune.cache.CacheCodec.json(WatchHome.serializer())) {
+        repository.home(filter).also { answer ->
+            val shown = pages.peek<WatchHome>(key)?.state?.value?.data
+            if (answer.empty && shown != null && !shown.empty) error("Nothing answered")
+        }
+    }
+}

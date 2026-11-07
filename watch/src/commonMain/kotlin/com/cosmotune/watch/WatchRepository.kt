@@ -20,6 +20,7 @@ import com.cosmotune.watch.plugin.UserSourceSpec
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.serialization.Serializable
 
 /** The chips at the top of Watch home. */
 enum class HomeFilter { ALL, FILMS, SERIES, LIVE }
@@ -28,6 +29,7 @@ enum class HomeFilter { ALL, FILMS, SERIES, LIVE }
 enum class MetadataSource { TMDB, FALLBACK }
 
 /** One horizontal row of Watch home ("Free films", "Trending this week", "Drama"). */
+@Serializable
 data class HomeRow(
     val id: String,
     val title: String,
@@ -42,6 +44,7 @@ data class HomeRow(
 )
 
 /** A Continue watching card: "Harbour Town · S2 E4 · 24 min left". */
+@Serializable
 data class ContinueItem(
     val progress: WatchProgress,
     val summary: TitleSummary,
@@ -55,11 +58,14 @@ data class ContinueItem(
 }
 
 /** A channel with what is on now and next (Live now row, channel list). */
+@Serializable
 data class LiveNowItem(val channel: Channel, val now: EpgProgramme? = null, val next: EpgProgramme? = null)
 
 /** The featured card of Watch home. */
+@Serializable
 data class Featured(val summary: TitleSummary, val badges: List<String> = emptyList(), val progress: WatchProgress? = null)
 
+@Serializable
 data class WatchHome(
     val featured: Featured?,
     val continueWatching: List<ContinueItem>,
@@ -93,9 +99,11 @@ data class SourcesState(
 }
 
 /** A chip of Live TV; [yours] marks the viewer's own country or language (listed first). */
+@Serializable
 data class Facet(val id: String, val name: String, val count: Int, val yours: Boolean = false)
 
 /** The chips of Live TV. Countries are ISO codes ("in"), languages ISO 639-3 ("tam"), categories as sources name them. */
+@Serializable
 data class ChannelFacets(val countries: List<Facet>, val languages: List<Facet>, val categories: List<Facet>, val total: Int)
 
 data class ChannelFilter(
@@ -108,9 +116,11 @@ data class ChannelFilter(
     val pluginId: String? = null,
 )
 
+@Serializable
 data class GuideRow(val channel: Channel, val programmes: List<EpgProgramme>)
 
 /** The guide grid between [fromMs] and [toMs]: channels down, time across. A channel with no guide has no programmes. */
+@Serializable
 data class GuideWindow(val fromMs: Long, val toMs: Long, val rows: List<GuideRow>)
 
 data class SearchResults(

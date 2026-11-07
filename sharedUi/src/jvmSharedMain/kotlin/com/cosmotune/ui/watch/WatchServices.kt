@@ -35,7 +35,17 @@ object WatchBackend {
 
     /** The host's real repository, set once at start-up. */
     fun install(repository: WatchRepository) { installed = repository }
+
+    /** Whether [repository] is the one the host installed (its pages' content is then kept on the disk too). */
+    fun isInstalled(repository: WatchRepository): Boolean = repository === installed
 }
+
+/**
+ * The page caches of [repository]: the app's, kept for the process and on the disk, for the repository the host installed; a
+ * memory-only one of its own for any other (a test's fake). Leaving Watch and coming back shows the pages as they were.
+ */
+internal fun watchPages(repository: WatchRepository): com.cosmotune.cache.PageCache =
+    com.cosmotune.cache.PageCache.of(repository, persistent = WatchBackend.isInstalled(repository))
 
 /** The repository the Watch screens call; null means [WatchBackend.repository]. */
 val LocalWatchRepository = staticCompositionLocalOf<WatchRepository?> { null }

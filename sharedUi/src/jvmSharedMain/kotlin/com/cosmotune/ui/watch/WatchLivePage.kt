@@ -1,5 +1,13 @@
 package com.cosmotune.ui.watch
 
+import com.cosmotune.cache.CacheCodec
+import com.cosmotune.cache.LIVE_FRESH_MS
+import com.cosmotune.cache.SLOW_FRESH_MS
+import com.cosmotune.ui.collectAsUiState
+import com.cosmotune.ui.states.RefreshFailedNote
+import com.cosmotune.ui.states.collectOnPage
+import com.cosmotune.watch.GuideRow
+import kotlinx.serialization.builtins.ListSerializer
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -84,7 +92,13 @@ private const val GUIDE_HOURS = 3
 internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
     val repository = actions.repository
     val clock = LocalWatchClock.current
-    val facets by produceState<ChannelFacets?>(null, repository) { value = runCatching { repository.channelFacets() }.getOrNull() }
+    // The chips, the channel list and the guide stay for the process (and on the disk): coming back shows them at once while
+    // they refresh in the background.
+    val pages = remember(repository) { watchPages(repository) }
+    val facetsEntry = remember(pages) {
+        pages.entry("watch:live:facets", SLOW_FRESH_MS, CacheCodec.json(ChannelFacets.serializer())) { repository.channelFacets() }
+    }
+    val facets = facetsEntry.collectOnPage().value.data
     val plugins by repository.plugins.collectAsState()
     val favourites by repository.favouriteChannels.collectAsState()
     var country by rememberSaveable { mutableStateOf<String?>(null) }
@@ -93,14 +107,35 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
     var favouritesOnly by rememberSaveable { mutableStateOf(false) }
     var shown by rememberSaveable { mutableIntStateOf(60) }
     val filter = ChannelFilter(country, language, category, favouritesOnly)
-    val channels by produceState<List<Channel>?>(null, filter, favourites.takeIf { favouritesOnly }) { value = runCatching { repository.channels(filter) }.getOrDefault(emptyList()) }
+    val filterKey = listOf(country, language, category, if (favouritesOnly) favourites.map { it.value }.sorted().hashCode() else null).joinToString("|")
+    val channelsEntry = remember(pages, filterKey) {
+        pages.entry("watch:live:channels:$filterKey", SLOW_FRESH_MS, CacheCodec.json(ListSerializer(Channel.serializer()))) { repository.channels(filter) }
+    }
+    val channelsState by channelsEntry.collectOnPage()
+    // A list that could not load at all reads as empty, as before; one that loaded once stays.
+    val channels = channelsState.data ?: if (channelsState.failedEmpty) emptyList() else null
     val now = remember { clock() }
     val from = now / 60_000 * 60_000
     val to = from + GUIDE_HOURS * 3_600_000L
-    val guide by produceState<GuideWindow?>(null, channels, shown) {
-        val list = channels ?: return@produceState
-        value = runCatching { repository.guide(list.take(shown), from, to) }.getOrNull() ?: GuideWindow(from, to, emptyList())
+    val guideEntry = remember(pages, filterKey, shown) {
+        pages.entry<GuideWindow>("watch:live:guide:$filterKey:$shown", LIVE_FRESH_MS, CacheCodec.json(GuideWindow.serializer())) {
+            val list = channelsEntry.state.value.data.orEmpty()
+            runCatching { repository.guide(list.take(shown), from, to) }.getOrNull() ?: GuideWindow(from, to, emptyList())
+        }
     }
+    val guideState by guideEntry.state.collectAsUiState()
+    val channelKeys = channels?.take(shown)?.map { it.key.value }
+    LaunchedEffect(guideEntry, channelKeys) {
+        if (channelKeys.isNullOrEmpty()) return@LaunchedEffect
+        guideEntry.restore()
+        // A guide kept for another list (the channels refreshed since) is fetched again at once.
+        val held = guideEntry.state.value.data?.rows?.map { it.channel.key.value }
+        if (held != null && held != channelKeys) guideEntry.refresh() else guideEntry.load()
+    }
+    // The guide as it was (if it still reaches past now), else the channels alone until their programmes arrive: the list never
+    // waits on the guide.
+    val guide = guideState.data?.takeIf { it.toMs > now && it.rows.isNotEmpty() }
+        ?: channels?.let { list -> GuideWindow(from, to, list.take(shown).map { GuideRow(it, emptyList()) }) }
     val yours = plugins.count { !it.builtIn && it.enabled && Capability.LIVE in it.capabilities }
     val side = frame.side
     val scroll = rememberScrollState()
@@ -147,12 +182,15 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
                     OrbitSelectChip("Favourites", favouritesOnly, fonts, look, onClick = { favouritesOnly = !favouritesOnly }, icon = CosmoIcons.Pin, haptic = false)
                 }
             }
+            if (channelsState.refreshFailed) item(key = "live:refresh-failed") {
+                RefreshFailedNote(onRetry = { channelsEntry.refresh() }, modifier = Modifier.padding(start = side + 6.dp, top = 14.dp))
+            }
             item(key = "live:guide") {
                 val list = channels
                 val window = guide
                 Box(Modifier.padding(horizontal = side).padding(top = 20.dp)) {
                     when {
-                        list == null || (window == null && list.isNotEmpty()) -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        list == null -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             repeat(6) { WatchSkeleton(look, Modifier.fillMaxWidth().height(64.dp), radius = 18.dp) }
                         }
                         list.isEmpty() -> WatchMessage("No channels", if (favouritesOnly) "No favourites yet" else "No channels here",
