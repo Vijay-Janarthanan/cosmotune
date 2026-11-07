@@ -55,6 +55,12 @@ import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.cosmotune.listening.ListeningStore
+import com.cosmotune.listening.ReleaseNotice
+import com.cosmotune.ui.listening.CosmoReleasesPage
+import java.io.File
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.Test
@@ -227,5 +233,28 @@ class CachedPagesInteractionTest {
             assertShows("A cached series")
             assertEquals(asked, seriesCalls.get(), "no second fetch inside the freshness window")
         }
+    }
+
+    @Test fun musicReleasesShowTheInboxAtOnceOnReturn() {
+        val file = File(temporary.newFolder(), "listening.json")
+        ListeningStore(file).apply {
+            watchArtist("UCfixture000000", "Fixture Artist")
+            update { it.copy(inbox = listOf(ReleaseNotice("MPREcached", "UCfixture000000", "Fixture Artist", "A cached album", discoveredAt = evening, single = false))) }
+        }
+        val shown = mutableStateOf(true)
+        compose.setContent { PodioTestTheme { Box(Modifier.size(400.dp, 800.dp)) {
+            if (shown.value) CosmoReleasesPage(file = file, listState = rememberLazyListState(), contentPadding = PaddingValues(),
+                onOpenRelease = { _, _ -> }, onManage = {}, lookup = { emptyList() }, now = { evening })
+            else Text("Another mode")
+        } } }
+        waitForText("A cached album")
+
+        // The file can no longer be read while the page is away: what is drawn on return can only be the inbox it showed.
+        shown.value = false
+        compose.waitForIdle()
+        file.writeText("{ not json")
+        shown.value = true
+        compose.waitForIdle()
+        assertShows("A cached album")
     }
 }

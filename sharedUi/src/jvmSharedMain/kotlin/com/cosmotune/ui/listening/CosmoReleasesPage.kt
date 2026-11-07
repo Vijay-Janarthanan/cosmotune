@@ -100,9 +100,13 @@ fun CosmoReleasesPage(
     lookup: suspend (WatchedArtist) -> List<ReleaseNotice> = ListeningNetwork::releases,
     now: () -> Long = System::currentTimeMillis,
 ) {
-    var store by remember(file) { mutableStateOf<ListeningStore?>(null) }
+    // The store this page read last (for this file) is there in the first frame, so coming back to Releases shows the inbox at
+    // once; the file is read again behind it.
+    var store by remember(file) { mutableStateOf(ReleasesMemory.last(file)) }
     LaunchedEffect(file, refreshKey) {
-        store = withContext(Dispatchers.IO) { runCatching { ListeningStore(file) }.getOrNull() }
+        val read = withContext(Dispatchers.IO) { runCatching { ListeningStore(file) }.getOrNull() }
+        if (read != null || store == null) store = read
+        read?.let { ReleasesMemory.keep(file, it) }
     }
     val state = store?.state?.collectAsState()?.value
     val scope = rememberCoroutineScope()
@@ -270,4 +274,14 @@ private fun ReleaseRecord(release: ReleaseNotice, kind: String?, size: Dp, fonts
             )
         }
     }
+}
+
+/** The store the Releases page read last, by file, for the process: its state is the inbox shown when the page comes back. */
+internal object ReleasesMemory {
+    private var file: String? = null
+    private var store: ListeningStore? = null
+
+    @Synchronized fun last(of: File): ListeningStore? = store.takeIf { file == of.absolutePath }
+
+    @Synchronized fun keep(of: File, read: ListeningStore) { file = of.absolutePath; store = read }
 }
