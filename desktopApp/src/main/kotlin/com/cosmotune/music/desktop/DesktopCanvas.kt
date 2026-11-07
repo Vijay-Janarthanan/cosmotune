@@ -361,29 +361,39 @@ internal object DesktopCanvasCache {
         var streaming: com.opencanvas.core.stream.ProgressiveRangeSource? = null
         var how = "file"
         for (candidate in candidates) {
-            val cached = existing(candidate)
-            last = when {
-                // A manifest names its segments relative to the host it came from, so saving the
-                // playlist to disk and opening that leaves FFmpeg with nothing it can resolve.
-                // Apple's motion artwork is HLS, which is how "could not open the clip" happened.
-                isManifest(candidate) -> { how = "manifest"; decoder.open(candidate) }
-                cached != null -> { how = "cache"; decoder.open(cached.toAbsolutePath().toString()) }
-                isRemote(candidate) -> {
-                    how = "stream"
-                    val source = progressiveSource(candidate, headers)
-                    decoder.open(source).also { result ->
-                        if (result.isSuccess) {
-                            streaming = source
-                            persistInBackground(candidate, source)
-                        } else {
-                            source.close()
+            var source: com.opencanvas.core.stream.ProgressiveRangeSource? = null
+            // Whatever goes wrong with a candidate is that candidate failing, never an exception
+            // out of here: the cover stays and the next candidate, if any, is tried.
+            last = try {
+                val cached = existing(candidate)
+                when {
+                    // A manifest names its segments relative to the host it came from, so saving the
+                    // playlist to disk and opening that leaves FFmpeg with nothing it can resolve.
+                    // Apple's motion artwork is HLS, which is how "could not open the clip" happened.
+                    isManifest(candidate) -> { how = "manifest"; decoder.open(candidate) }
+                    cached != null -> { how = "cache"; decoder.open(cached.toAbsolutePath().toString()) }
+                    isRemote(candidate) -> {
+                        how = "stream"
+                        val opening = progressiveSource(candidate, headers)
+                        source = opening
+                        decoder.open(opening).also { result ->
+                            if (result.isSuccess) {
+                                streaming = opening
+                                source = null
+                                persistInBackground(candidate, opening)
+                            }
                         }
                     }
+                    else -> fileFor(candidate)?.let {
+                        how = "file"
+                        decoder.open(it.toAbsolutePath().toString())
+                    } ?: continue
                 }
-                else -> fileFor(candidate)?.let {
-                    how = "file"
-                    decoder.open(it.toAbsolutePath().toString())
-                } ?: continue
+            } catch (failure: Throwable) {
+                decoder.close()
+                Result.failure(failure)
+            } finally {
+                source?.let { runCatching { it.close() } }
             }
             if (last.isSuccess) break
         }
