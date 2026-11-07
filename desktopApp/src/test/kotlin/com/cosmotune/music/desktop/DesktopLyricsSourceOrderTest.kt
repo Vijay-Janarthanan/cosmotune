@@ -28,8 +28,9 @@ class DesktopLyricsSourceOrderTest {
         val names = DesktopLyricsClient.sources.map { it.name }
         assertEquals(LyricsSource.offered.map { it.label }, names)
         assertTrue(names.all { lyricsSourceNamed(it) != null })
-        // The unsynced fallback is last by definition.
-        assertEquals("Genius", names.last())
+        // The unsynced fallback comes after every lyrics provider, and the video's own caption track (auto-made text,
+        // the last resort) after that.
+        assertEquals(listOf("Genius", "YouTube caption track"), names.takeLast(2))
     }
 
     @Test
