@@ -9,10 +9,17 @@ import com.cosmotune.ui.live.cricketScore
 import com.cosmotune.ui.live.pillDescription
 import com.cosmotune.ui.live.rowTitle
 import com.cosmotune.ui.live.startText
+import com.cosmotune.ui.live.watchLine
+import com.cosmotune.ui.live.watchNames
 import com.cosmotune.watch.FakeWatchRepository
 import com.cosmotune.watch.model.LiveEventKind
 import com.cosmotune.watch.model.LiveEventStatus
+import com.cosmotune.watch.model.Channel
+import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.LiveTeam
+import com.cosmotune.watch.model.PlayTarget
+import com.cosmotune.watch.model.WatchKey
+import com.cosmotune.watch.model.WatchOption
 import java.io.File
 import java.time.ZoneId
 import kotlin.test.Test
@@ -37,6 +44,17 @@ class LiveNowTextTest {
         assertEquals("176/4" to "18.2 ov", cricketScore("176/4 (18.2 ov)"))
         assertEquals("Live · 2nd T20I · Australia tour of India", cardLabel(match))
         assertEquals("CSK", battingSide(listOf(LiveTeam("Chennai", "CSK", score = "201/5 (20 ov)"), LiveTeam("Mumbai", "MI")))?.shortName)
+    }
+
+    @Test fun aChannelIsNamedOnceUnderACard() {
+        fun channel(name: String) = Channel(WatchKey.channel("dd", name), "dd", name)
+        fun option(name: String) = WatchOption(name, PlayTarget.Live(channel(name)), channel(name), "DD")
+        fun show(vararg names: String) = LiveEvent("show:yt:x", LiveEventKind.SHOW, "Sringaar Aarti", statusText = "Live", status = LiveEventStatus.LIVE,
+            watchOptions = names.map(::option), source = "YouTube")
+        assertEquals("DD News · free", watchLine(show("DD News")))
+        assertEquals("DD News, DD National · free", watchLine(show("DD News", "DD National")), "one show on two channels is one line with both")
+        assertEquals("DD News, DD National", watchNames(show("DD News", "DD National", "DD News")))
+        assertEquals(null, watchLine(show()))
     }
 
     @Test fun rowsAndTimes() {

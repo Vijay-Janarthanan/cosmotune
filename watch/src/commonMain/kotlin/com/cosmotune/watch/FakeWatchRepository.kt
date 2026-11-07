@@ -261,7 +261,7 @@ class FakeWatchRepository(
                 scoreText = "IND 176/4 (18.2) · AUS 179/8 (20)", statusText = "India need 4 runs from 10 balls", status = LiveEventStatus.LIVE,
                 startMs = t - 190 * minute, countries = listOf("in", "au"),
                 watchOptions = listOf(WatchOption("DD Sports", PlayTarget.Live(ddSports), ddSports, "DD")), source = "CricketData.org", updatedAtMs = t),
-            LiveEvent("show:yt:fakeLiveVid1", LiveEventKind.SHOW, "Chandrayaan-4 launch: live from Sriharikota", statusText = "Live on DD News",
+            LiveEvent("show:yt:fakeLiveVid1", LiveEventKind.SHOW, "Chandrayaan-4 launch: live from Sriharikota", statusText = "Live",
                 status = LiveEventStatus.LIVE, startMs = t - 40 * minute, countries = listOf("in"), languages = listOf("eng", "hin"),
                 watchOptions = listOf(WatchOption("Live on YouTube · DD News",
                     PlayTarget.Item(WatchKey.item(BuiltInPlugins.YOUTUBE_LIVE, "fakeLiveVid1"), BuiltInPlugins.YOUTUBE_LIVE, "fakeLiveVid1", "Chandrayaan-4 launch"), badge = "YT LIVE")),

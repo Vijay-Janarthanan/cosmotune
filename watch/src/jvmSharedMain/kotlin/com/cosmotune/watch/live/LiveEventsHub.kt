@@ -77,7 +77,7 @@ class LiveEventsHub(
                 e.copy(watchOptions = options)
             }
         }
-        val shows = channels.flatMap { shows(it, t) }.filter { it.id.removePrefix("show:yt:") !in used && inWindow(it, t) }
+        val shows = mergeSameShow(channels.flatMap { shows(it, t) }.filter { it.id.removePrefix("show:yt:") !in used && inWindow(it, t) })
         val ranked = rank(withOptions + shows, place())
         ranked.take(limit).also { last = it }
     }
@@ -88,6 +88,16 @@ class LiveEventsHub(
             "|" + ((e.startMs ?: 0) / (6 * HOUR))
         return events.groupBy(::sameMatch).values.map { group -> group.maxBy { (if (it.scoreText != null) 2 else 0) + (if (it.source != "TheSportsDB") 1 else 0) } }
     }
+
+    /**
+     * The same special shown on two channels (DD News and DD National both carry a ceremony) is one event with both watch options,
+     * not two events of one title.
+     */
+    private fun mergeSameShow(shows: List<LiveEvent>): List<LiveEvent> =
+        shows.groupBy { it.status to NameMatch.normalise(it.title) }.values.map { group ->
+            if (group.size == 1) group.first()
+            else group.first().copy(watchOptions = group.flatMap { it.watchOptions }.distinctBy { it.target.key })
+        }
 
     private fun inWindow(e: LiveEvent, t: Long): Boolean = when (e.status) {
         LiveEventStatus.LIVE -> true
@@ -114,7 +124,7 @@ class LiveEventsHub(
 
     private fun show(c: LiveChannelNow, v: VideoItem, status: LiveEventStatus, t: Long, options: List<WatchOption>) = LiveEvent(
         id = "show:yt:${v.id}", kind = LiveEventKind.SHOW, title = OfficialLivePlugin.cleanTitle(v.title),
-        statusText = if (status == LiveEventStatus.LIVE) "Live on ${c.channel.name}" else "On ${c.channel.name}", status = status,
+        statusText = if (status == LiveEventStatus.LIVE) "Live" else "On ${c.channel.name}", status = status,
         startMs = v.uploadedAtMs, countries = c.channel.countries, languages = c.channel.languages, imageUrl = v.thumbnailUrl,
         watchOptions = options, source = "YouTube", updatedAtMs = t,
     )

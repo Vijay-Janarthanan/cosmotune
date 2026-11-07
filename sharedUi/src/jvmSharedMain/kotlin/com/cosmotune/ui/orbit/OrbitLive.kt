@@ -50,6 +50,7 @@ import com.cosmotune.ui.live.rowTitle
 import com.cosmotune.ui.live.short
 import com.cosmotune.ui.live.startText
 import com.cosmotune.ui.live.watchLine
+import com.cosmotune.ui.live.watchNames
 import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.LiveEventKind
 import com.cosmotune.watch.model.LiveEventStatus
@@ -223,7 +224,7 @@ fun OrbitLiveCard(event: LiveEvent, fonts: OrbitFonts, look: OrbitLook, onWatch:
                     }
                 }
             }
-            val status = listOfNotNull(event.statusText, event.watchOptions.firstOrNull()?.let(::watchLine)).joinToString(" · ")
+            val status = listOfNotNull(event.statusText, watchLine(event)).joinToString(" · ")
             if (status.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
                 Text(status, style = fonts.body.copy(fontSize = 13.sp), color = ink.copy(alpha = 0.86f), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -265,7 +266,7 @@ fun OrbitLiveRow(event: LiveEvent, fonts: OrbitFonts, look: OrbitLook, onWatch: 
             Text(rowTitle(event), style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val rest = listOfNotNull(
                 event.statusText.takeIf { event.kind != LiveEventKind.SHOW },
-                event.competition ?: event.watchOptions.firstOrNull()?.label,
+                event.competition ?: watchNames(event).ifBlank { null },
                 "score only".takeIf { onWatch == null && event.kind != LiveEventKind.SHOW },
             ).joinToString(" · ")
             if (event.status == LiveEventStatus.LIVE) WatchLiveLine(rest.ifBlank { null }, fonts, look)

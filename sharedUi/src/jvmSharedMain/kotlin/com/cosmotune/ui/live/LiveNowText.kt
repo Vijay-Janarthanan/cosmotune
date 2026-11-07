@@ -113,8 +113,16 @@ fun cardLabel(event: LiveEvent): String {
     return listOfNotNull(where, match, event.competition ?: if (event.kind == LiveEventKind.SHOW) "Live show" else null).joinToString(" · ")
 }
 
-/** How a free stream is named under a card: "on DD Sports · free" for a channel, the option's own label for a YouTube live. */
-fun watchLine(option: WatchOption): String = if (option.channel != null) "on ${option.label} · free" else option.label
+/** The channels (or live videos) that carry [event], each once: "DD News", "DD News, DD National". */
+fun watchNames(event: LiveEvent): String =
+    event.watchOptions.map { it.channel?.name ?: it.label }.distinct().joinToString(", ")
+
+/** How free streams are named under a card, the channel said once: "DD News · free", "DD News, DD National · free"; a YouTube live keeps its own label. */
+fun watchLine(event: LiveEvent): String? {
+    if (event.watchOptions.isEmpty()) return null
+    val names = watchNames(event)
+    return if (event.watchOptions.any { it.channel != null }) "$names · free" else names
+}
 
 /** "Today 19:30", "Tomorrow 19:30", "Sat 8 Nov 19:30"; "Starting" once the start has passed. */
 fun startText(startMs: Long?, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): String {

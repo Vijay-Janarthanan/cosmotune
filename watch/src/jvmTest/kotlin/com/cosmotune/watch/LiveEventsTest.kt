@@ -176,6 +176,20 @@ class LiveEventsTest {
         assertEquals(now + 2 * 3_600_000, events[2].startMs)
     }
 
+    @Test fun theSameSpecialOnTwoChannelsIsOneEventWithBothOptions() = runBlocking<Unit> {
+        val dd = PrasarBharatiPlugin({ null })
+        val national = dd.channelOf(dd.official("DDNational")!!)
+        val news = dd.channelOf(dd.official("DDNews")!!)
+        val channels = listOf(
+            LiveChannelNow(national, "DD", false, listOf(video("natAarti001", "Sringaar Aarti of Prabhu Shri Ram", "x", live = true)), emptyList()),
+            LiveChannelNow(news, "DD", true, listOf(video("news24x7001", "DD News 24x7 LIVE", "x", live = true), video("newsAarti001", "Sringaar Aarti of Prabhu Shri Ram", "x", live = true)), emptyList()),
+        )
+        val events = LiveEventsHub({ emptyList() }, { channels }, { india }, { now }).current()
+        val aarti = events.single()
+        assertEquals("Live", aarti.statusText, "the channel is named by its watch options, not again here")
+        assertEquals(setOf("DD National", "DD News"), aarti.watchOptions.mapNotNull { it.channel?.name }.toSet())
+    }
+
     @Test fun carriesNeedsBothSides() {
         val teams = listOf(LiveTeam("India Women", "INDW"), LiveTeam("Australia Women", "AUSW"))
         assertTrue(LiveEventsHub.carries("LIVE | India vs Australia | Women's World Cup", teams))
