@@ -4,9 +4,6 @@ import org.bytedeco.ffmpeg.avcodec.AVCodecContext
 import org.bytedeco.ffmpeg.avcodec.AVPacket
 import com.opencanvas.core.stream.ProgressiveRangeSource
 import org.bytedeco.ffmpeg.avformat.AVFormatContext
-import org.bytedeco.ffmpeg.avformat.AVIOContext
-import org.bytedeco.ffmpeg.avformat.Read_packet_Pointer_BytePointer_int
-import org.bytedeco.ffmpeg.avformat.Seek_Pointer_long_int
 import org.bytedeco.ffmpeg.avutil.AVDictionary
 import org.bytedeco.ffmpeg.avutil.AVFrame
 import org.bytedeco.ffmpeg.global.avcodec.av_packet_alloc
@@ -26,16 +23,10 @@ import org.bytedeco.ffmpeg.global.avformat.av_seek_frame
 import org.bytedeco.ffmpeg.global.avformat.avformat_close_input
 import org.bytedeco.ffmpeg.global.avformat.avformat_find_stream_info
 import org.bytedeco.ffmpeg.global.avformat.AVSEEK_FLAG_BACKWARD
-import org.bytedeco.ffmpeg.global.avformat.AVSEEK_FORCE
-import org.bytedeco.ffmpeg.global.avformat.AVSEEK_SIZE
 import org.bytedeco.ffmpeg.global.avformat.avformat_alloc_context
 import org.bytedeco.ffmpeg.global.avformat.avformat_open_input
-import org.bytedeco.ffmpeg.global.avformat.avio_alloc_context
-import org.bytedeco.ffmpeg.global.avformat.avio_context_free
 import org.bytedeco.ffmpeg.global.avutil.AVMEDIA_TYPE_VIDEO
 import org.bytedeco.ffmpeg.global.avutil.AV_NOPTS_VALUE
-import org.bytedeco.ffmpeg.global.avutil.av_free
-import org.bytedeco.ffmpeg.global.avutil.av_malloc
 import org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_BGRA
 import org.bytedeco.ffmpeg.global.avutil.av_dict_set
 import org.bytedeco.ffmpeg.global.avutil.av_frame_alloc
@@ -49,7 +40,6 @@ import org.bytedeco.ffmpeg.global.swscale.sws_scale
 import org.bytedeco.ffmpeg.swscale.SwsContext
 import org.bytedeco.javacpp.BytePointer
 import org.bytedeco.javacpp.IntPointer
-import org.bytedeco.javacpp.Pointer
 import org.bytedeco.javacpp.PointerPointer
 
 /** The motion artwork, decoded here rather than played by a second media stack. */
@@ -69,11 +59,9 @@ internal class DesktopCanvasDecoder {
     private var sourceHeight = 0
     private var streamIndex = -1
 
-    // Custom I/O for a progressive source. FFmpeg holds raw function pointers to the callbacks, so
-    // the objects behind them must stay reachable until the context is closed.
-    private var customIo: AVIOContext? = null
-    private var readCallback: Read_packet_Pointer_BytePointer_int? = null
-    private var seekCallback: Seek_Pointer_long_int? = null
+    // Custom I/O for a progressive source, read through DesktopAvio's callbacks, which nothing the
+    // source does can get past into FFmpeg.
+    private var customIo: DesktopAvio.Input? = null
 
     /** Seconds per frame, from the stream's own rate; used to pace playback. */
     var frameIntervalMillis: Long = 40L
@@ -112,52 +100,47 @@ internal class DesktopCanvasDecoder {
      * download. FFmpeg pulls bytes through the read callback and repositions with the seek callback
      * (which is how a looping clip rewinds and how a moov atom at the end of a file is reached).
      */
-    fun open(source: ProgressiveRangeSource): Result<Unit> = runCatching {
-        val scratch = ByteArray(IO_BUFFER)
-        val reader = object : Read_packet_Pointer_BytePointer_int() {
-            override fun call(opaque: Pointer?, buf: BytePointer?, size: Int): Int = try {
-                val n = source.read(scratch, 0, minOf(size, scratch.size))
-                if (n < 0) AVERROR_EOF else { buf?.put(scratch, 0, n); n }
-            } catch (_: Exception) {
-                AVERROR_EIO // nothing may escape into native code
-            }
-        }
-        val seeker = object : Seek_Pointer_long_int() {
-            override fun call(opaque: Pointer?, offset: Long, whence: Int): Long = try {
-                when (whence and AVSEEK_FORCE.inv()) {
-                    AVSEEK_SIZE -> source.length()
-                    SEEK_SET -> { source.seek(offset); offset }
-                    SEEK_CUR -> { source.seek(source.position + offset); source.position }
-                    SEEK_END -> { source.seek(source.length() + offset); source.position }
-                    else -> -1L
-                }
-            } catch (_: Exception) {
-                -1L
-            }
-        }
-        readCallback = reader
-        seekCallback = seeker
-        val ioBuffer = BytePointer(av_malloc(IO_BUFFER.toLong()))
-        val io = avio_alloc_context(ioBuffer, IO_BUFFER, 0, null, reader, null, seeker)
-        if (io == null) {
-            av_free(ioBuffer)
-            error("no I/O context")
-        }
-        customIo = io
+    fun open(source: ProgressiveRangeSource): Result<Unit> = open(
+        object : DesktopAvioSource {
+            override fun read(into: ByteArray, count: Int): Int = source.read(into, 0, count)
+            override fun seek(position: Long) = source.seek(position)
+            override fun position(): Long = source.position
+            override fun length(): Long = source.length()
+        },
+    )
+
+    /**
+     * Opens the clip through any [source]. Whatever the source throws, or however wrong its bytes,
+     * the result is a failure and the decoder is left closed.
+     */
+    internal fun open(source: DesktopAvioSource): Result<Unit> = runCatching {
+        close()
+        DesktopAudioDecoder.ensureNetworkReady()
+        val input = DesktopAvio.open(source, IO_BUFFER)
+        customIo = input
         val opened = avformat_alloc_context() ?: error("no format context")
-        opened.pb(io)
+        opened.pb(input.context)
         // Probe only what the first chunk holds, so the first frame is not held up by FFmpeg
         // reading megabytes it does not need to find a video stream in.
         val options = AVDictionary(null)
         av_dict_set(options, "probesize", "262144", 0)
         av_dict_set(options, "analyzeduration", "1000000", 0)
-        check(avformat_open_input(opened, "opencanvas-clip.mp4", null, options) >= 0) { "could not open the clip" }
+        // On failure FFmpeg frees the format context itself; the custom input is closed below.
+        val status = avformat_open_input(opened, "opencanvas-clip.mp4", null, options)
+        check(status >= 0) { failureMessage("could not open the clip", status) }
         format = opened
         prepareStream(opened)
     }.onFailure { close() }
 
+    /** What went wrong, in FFmpeg's words and, when the source threw, in the source's. */
+    private fun failureMessage(what: String, status: Int): String {
+        val cause = customIo?.failure?.let { "; the source failed: $it" }.orEmpty()
+        return "$what (${DesktopAvio.describe(status)}$cause)"
+    }
+
     private fun prepareStream(opened: AVFormatContext) {
-        check(avformat_find_stream_info(opened, null as AVDictionary?) >= 0) { "no stream info" }
+        val found = avformat_find_stream_info(opened, null as AVDictionary?)
+        check(found >= 0) { failureMessage("no stream info", found) }
         streamIndex = av_find_best_stream(
             opened, AVMEDIA_TYPE_VIDEO, -1, -1, null as org.bytedeco.ffmpeg.avcodec.AVCodec?, 0,
         )
@@ -236,7 +219,15 @@ internal class DesktopCanvasDecoder {
      * frames up to it, so the next [nextFrame] returns the frame at [ms]. Over a progressive source
      * the seek makes the reader fetch the bytes at the target first.
      */
-    fun seekToMs(ms: Long): Boolean {
+    fun seekToMs(ms: Long): Boolean = try {
+        seekTo(ms)
+    } catch (failure: Throwable) {
+        // A frame that cannot be reached is a clip that stops, never a crash.
+        DesktopTrackLog.log("canvas: seek failed — $failure")
+        false
+    }
+
+    private fun seekTo(ms: Long): Boolean {
         val container = format ?: return false
         val context = codec ?: return false
         val target = ms.coerceAtLeast(0L)
@@ -258,7 +249,14 @@ internal class DesktopCanvasDecoder {
      * The next frame as BGRA bytes. At the end of the clip it rewinds and carries on when [loop] is
      * true, and otherwise reports false.
      */
-    fun nextFrame(into: ByteArray, loop: Boolean = true): Boolean {
+    fun nextFrame(into: ByteArray, loop: Boolean = true): Boolean = try {
+        decodeNext(into, loop)
+    } catch (failure: Throwable) {
+        DesktopTrackLog.log("canvas: decode failed — $failure")
+        false
+    }
+
+    private fun decodeNext(into: ByteArray, loop: Boolean): Boolean {
         val container = format ?: return false
         val context = codec ?: return false
         val pkt = packet ?: return false
@@ -327,15 +325,9 @@ internal class DesktopCanvasDecoder {
         scaler?.let { sws_freeContext(it) }
         codec?.let { avcodec_free_context(it) }
         format?.let { avformat_close_input(it) }
-        // A custom I/O context is not released by closing the input; its buffer may also have been
-        // reallocated by FFmpeg, so free whatever the context points at now.
-        customIo?.let { io ->
-            av_free(io.buffer())
-            avio_context_free(io)
-        }
+        // A custom input is not released by closing the format context, and goes only after it.
+        customIo?.close()
         customIo = null
-        readCallback = null
-        seekCallback = null
         buffer?.deallocate()
         strides?.deallocate()
         frame = null
@@ -362,13 +354,6 @@ internal class DesktopCanvasDecoder {
         const val MIN_INTERVAL_MS = 33L
 
         const val IO_BUFFER = 64 * 1024
-
-        // POSIX whence values and FFmpeg's error codes, which are not exported as constants.
-        const val SEEK_SET = 0
-        const val SEEK_CUR = 1
-        const val SEEK_END = 2
-        const val AVERROR_EOF = -541478725 // -MKTAG('E','O','F',' ')
-        const val AVERROR_EIO = -5
     }
 }
 
