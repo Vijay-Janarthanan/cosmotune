@@ -9,6 +9,10 @@ import com.cosmotune.podio.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import com.cosmotune.cache.CacheCodec
+import com.cosmotune.cache.FEED_FRESH_MS
+import com.cosmotune.cache.PageCache
+import com.cosmotune.cache.SLOW_FRESH_MS
 
 /** Genres of Apple's podcast chart (id, name). */
 internal val PODCAST_GENRES = listOf("1489" to "News", "1303" to "Comedy", "1318" to "Technology", "1321" to "Business", "1324" to "Society & culture",
@@ -23,9 +27,25 @@ internal val LANGUAGES = listOf("" to "All languages", "Tamil" to "Tamil", "Telu
     "Japanese" to "Japanese", "Korean" to "Korean", "Chinese" to "Chinese", "Turkish" to "Turkish", "Indonesian" to "Indonesian")
 
 /** An episode of a followed show, for Following and the Podcasts home (AntennaPod's inbox): the episode and the show it came from. */
+@kotlinx.serialization.Serializable
 internal data class InboxEpisode(val episode: PodcastEpisode, val show: PodcastShow) {
     /** The playable item, with the show's art when the episode has none of its own. */
     fun item(): PodioItem = episode.item().let { if (it.artwork.isBlank() && show.artwork.isNotBlank()) it.copy(artwork = show.artwork) else it }
+}
+
+/** What one directory request showed (the stations, or the podcast chart or results and their title), as Podio keeps it. */
+@kotlinx.serialization.Serializable
+internal data class DirectoryPage(val title: String = "", val stations: List<RadioStation> = emptyList(), val shows: List<PodcastShow> = emptyList())
+
+private val DIRECTORY_CODEC = CacheCodec.json(DirectoryPage.serializer())
+private val INBOX_CODEC = CacheCodec.json(kotlinx.serialization.builtins.ListSerializer(InboxEpisode.serializer()))
+
+/**
+ * The catalogue Podio uses when the host hands in none: one for the process, so the page caches that are kept by catalogue
+ * ([PageCache.of]) survive leaving Podio for another mode.
+ */
+internal object PodioDefaults {
+    val catalogue: PodioCatalogue by lazy { PodioCatalogue(youtubePodcasts = YouTubePodcasts()) }
 }
 
 /** The host's ways out: playback, downloads and the native file dialogs. Null when the platform has none. */
@@ -51,6 +71,11 @@ internal class PodioModel(
     queryState: MutableState<String>, languageState: MutableState<String>, countryState: MutableState<String>, genreState: MutableState<String>,
     searchingState: MutableState<Boolean>, searchShowsState: MutableState<Boolean>,
     satelliteState: MutableState<Boolean>, globeFullState: MutableState<Boolean>,
+    /**
+     * Where the station lists, the podcast charts and the new episodes are kept between visits (and runs): what was shown last
+     * comes back at once while it refreshes in the background.
+     */
+    private val pages: PageCache = PageCache.of(catalogue, persistent = false),
 ) {
     var query by queryState
     var language by languageState
@@ -226,48 +251,75 @@ internal class PodioModel(
         val key = follows.map { it.id }
         if (!force && key == inboxFor && inboxError == null) return
         if (follows.isEmpty()) { inbox = emptyList(); inboxFor = key; inboxError = null; return }
+        // The episodes these follows showed last time come back at once (from memory, or the disk after a restart); they are
+        // fetched again only when older than the freshness window, or on Refresh.
+        val entry = pages.entry("podio:inbox:" + key.joinToString(",").hashCode(), FEED_FRESH_MS, INBOX_CODEC) { fetchInbox(follows) }
+        entry.restore()
+        entry.state.value.data?.let { inbox = it }
+        if (!force && entry.isFresh) { inboxFor = key; inboxError = null; return }
         inboxLoading = true; inboxError = null
         try {
-            val permits = Semaphore(4)
-            val fetched = coroutineScope {
-                follows.take(40).map { show -> async { permits.withPermit {
-                    try { catalogue.feed(show.feed).let { feed -> feed.episodes.take(12).map { InboxEpisode(it, if (show.artwork.isBlank()) show.copy(artwork = feed.show.artwork) else show) } } }
-                    catch (e: CancellationException) { throw e }
-                    catch (_: Exception) { null }
-                } } }.awaitAll()
-            }
-            if (fetched.all { it == null }) inboxError = "Couldn't refresh your shows. Check your connection and try again."
-            else {
-                inbox = fetched.filterNotNull().flatten().distinctBy { it.episode.id }
-                    .sortedByDescending { PodioFormat.publishedAt(it.episode.published) ?: Long.MIN_VALUE }.take(200)
-                inboxFor = key
-            }
+            entry.fetchNow()
+            val state = entry.state.value
+            if (state.error != null) inboxError = "Couldn't refresh your shows. Check your connection and try again."
+            else { inbox = state.data.orEmpty(); inboxFor = key }
         } finally { inboxLoading = false }
+    }
+
+    private suspend fun fetchInbox(follows: List<PodcastShow>): List<InboxEpisode> {
+        val permits = Semaphore(4)
+        val fetched = coroutineScope {
+            follows.take(40).map { show -> async { permits.withPermit {
+                try { catalogue.feed(show.feed).let { feed -> feed.episodes.take(12).map { InboxEpisode(it, if (show.artwork.isBlank()) show.copy(artwork = feed.show.artwork) else show) } } }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { null }
+            } } }.awaitAll()
+        }
+        if (fetched.all { it == null }) error("Every followed show failed")
+        return fetched.filterNotNull().flatten().distinctBy { it.episode.id }
+            .sortedByDescending { PodioFormat.publishedAt(it.episode.published) ?: Long.MIN_VALUE }.take(200)
     }
 
     /** Fetches what the current section or search scope shows: the stations, or the podcast chart or results. */
     suspend fun loadDirectory(stations: Boolean) {
+        // Retry and Clear filters ask again whatever the age of what is shown.
+        val force = request != servedRequest
+        servedRequest = request
+        val storefront = country.ifBlank { java.util.Locale.getDefault().country.ifBlank { "US" } }
+        val typed = query.trim()
+        val key = if (stations) "podio:stations:$query|$country|$language" else "podio:shows:$storefront|$genre|$language|$typed"
+        val asked = listOf(query, country, language, genre)
+        // What this request showed last comes back at once (from memory, or the disk after a restart) and stays while it refreshes;
+        // inside the freshness window it is not asked for again.
+        val entry = pages.entry(key, SLOW_FRESH_MS, DIRECTORY_CODEC) { fetchDirectory(stations, asked[0], asked[1], asked[2], asked[3], storefront, typed) }
+        entry.restore()
+        entry.state.value.data?.let { publish(it, stations) }
+        if (!force && entry.isFresh) { if (requestedFeed == null) error = null; return }
         directoryLoading = true
         if (requestedFeed == null) error = null
         try {
-            if (stations) radio = PodioLocal.rank(catalogue.stations(query, country, language), PodioLocal.current())
-            else {
-                val storefront = country.ifBlank { java.util.Locale.getDefault().country.ifBlank { "US" } }
-                val genreName = PODCAST_GENRES.firstOrNull { it.first == genre }?.second
-                val typed = query.trim()
-                if (typed.isNotBlank()) { shows = catalogue.podcasts(listOf(typed, language).filter(String::isNotBlank).joinToString(" "), storefront); showsTitle = "Results for \"$typed\"" }
-                else if (language.isBlank()) {
-                    val chart = try { catalogue.topPodcasts(storefront, genre.ifBlank { null }) } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
-                    shows = chart.ifEmpty { catalogue.podcasts(genreName ?: "popular podcasts", storefront) }
-                    showsTitle = (genreName ?: "Popular") + " · " + REGIONS.firstOrNull { it.first == country }?.second.orEmpty().ifBlank { "top charts" }
-                } else {
-                    shows = catalogue.podcasts("$language ${genreName ?: "podcasts"}", storefront)
-                    showsTitle = "$language ${genreName ?: "podcasts"}"
-                }
-            }
-        } catch (e: CancellationException) { throw e }
-        catch (_: Exception) { if (requestedFeed == null) error = "Couldn't reach the directory. Check your connection and try again." }
-        finally { directoryLoading = false }
+            entry.fetchNow()
+            val state = entry.state.value
+            state.data?.let { publish(it, stations) }
+            if (state.error != null && requestedFeed == null) error = "Couldn't reach the directory. Check your connection and try again."
+        } finally { directoryLoading = false }
+    }
+
+    private var servedRequest = 0
+
+    private fun publish(page: DirectoryPage, stations: Boolean) {
+        if (stations) radio = page.stations else { shows = page.shows; showsTitle = page.title }
+    }
+
+    private suspend fun fetchDirectory(stations: Boolean, query: String, country: String, language: String, genre: String, storefront: String, typed: String): DirectoryPage {
+        if (stations) return DirectoryPage(stations = PodioLocal.rank(catalogue.stations(query, country, language), PodioLocal.current()))
+        val genreName = PODCAST_GENRES.firstOrNull { it.first == genre }?.second
+        return if (typed.isNotBlank()) DirectoryPage("Results for \"$typed\"", shows = catalogue.podcasts(listOf(typed, language).filter(String::isNotBlank).joinToString(" "), storefront))
+        else if (language.isBlank()) {
+            val chart = try { catalogue.topPodcasts(storefront, genre.ifBlank { null }) } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
+            DirectoryPage((genreName ?: "Popular") + " · " + REGIONS.firstOrNull { it.first == country }?.second.orEmpty().ifBlank { "top charts" },
+                shows = chart.ifEmpty { catalogue.podcasts(genreName ?: "popular podcasts", storefront) })
+        } else DirectoryPage("$language ${genreName ?: "podcasts"}", shows = catalogue.podcasts("$language ${genreName ?: "podcasts"}", storefront))
     }
 
     /** Clears the search and both filters, and asks again. */

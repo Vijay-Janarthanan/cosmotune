@@ -80,7 +80,8 @@ private const val StationsPerRow = 6
 @Composable
 fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowPlaying: () -> Unit) {
     val context = LocalContext.current
-    val catalogue = remember { PodioCatalogue(youtubePodcasts = YouTubePodcasts()) }
+    // One catalogue for the process, so the lists it found stay between visits ([cached]).
+    val catalogue = remember { TvPodioCatalogue.instance }
     val library by produceState<PodioLibrary?>(null) { value = withContext(Dispatchers.IO) { PodioLibrary(File(context.filesDir, "podio/library.json")) } }
     val store = library ?: return
     val saved by store.state.collectAsState()
@@ -102,12 +103,35 @@ fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowP
             finally { if (token == serial) loading = false }
         }
     }
+    /**
+     * The list [entry] showed last comes back at once (from memory, or the disk after a restart) and stays while it refreshes; inside
+     * the freshness window it is not asked for again. A failed refresh keeps it and notes that it could not refresh.
+     */
+    suspend fun <T> cached(entry: com.cosmotune.cache.CachedLoad<T>, show: (T) -> Unit) {
+        entry.restore()
+        entry.state.value.data?.let(show)
+        if (entry.isFresh) return
+        entry.fetchNow()
+        val state = entry.state.value
+        state.data?.let(show)
+        if (state.error != null) {
+            if (state.data == null) throw IllegalStateException(state.error)
+            error = "Couldn't refresh. Showing the list from before."
+        }
+    }
     fun search() = run {
         feed = null
+        val typed = query.trim()
         // Stations near the listener first (their country in their language, then their country, then their language).
-        if (tab == "Radio") stations = PodioLocal.rank(catalogue.stations(query), PodioLocal.current())
-        else if (tab == "Podcasts" && PodioCatalogue.httpUrl(query.trim()) != null) feed = catalogue.feed(query.trim())
-        else if (tab == "Podcasts") shows = catalogue.podcasts(query)
+        if (tab == "Radio") cached(com.cosmotune.cache.PageCache.shared.entry("podio:tv:stations:$query", com.cosmotune.cache.SLOW_FRESH_MS,
+            com.cosmotune.cache.CacheCodec.json(kotlinx.serialization.builtins.ListSerializer(RadioStation.serializer()))) {
+            PodioLocal.rank(catalogue.stations(query), PodioLocal.current())
+        }) { stations = it }
+        else if (tab == "Podcasts" && PodioCatalogue.httpUrl(typed) != null) feed = catalogue.feed(typed)
+        else if (tab == "Podcasts") cached(com.cosmotune.cache.PageCache.shared.entry("podio:tv:shows:$query", com.cosmotune.cache.SLOW_FRESH_MS,
+            com.cosmotune.cache.CacheCodec.json(kotlinx.serialization.builtins.ListSerializer(PodcastShow.serializer()))) {
+            catalogue.podcasts(query)
+        }) { shows = it }
     }
     fun play(item: PodioItem) {
         val player = controller ?: return
@@ -326,4 +350,9 @@ private fun PodioNote(text: String) {
         color = TvGlass.TextSecondary,
         modifier = Modifier.padding(horizontal = TvDimensions.SafeMarginHorizontal, vertical = 12.dp),
     )
+}
+
+/** The TV's Podio catalogue, for the process. */
+private object TvPodioCatalogue {
+    val instance: PodioCatalogue by lazy { PodioCatalogue(youtubePodcasts = YouTubePodcasts()) }
 }

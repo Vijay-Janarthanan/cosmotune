@@ -34,7 +34,15 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
+import com.cosmotune.podio.PodioCatalogue
+import com.cosmotune.podio.ui.PodioApp
+import com.cosmotune.podio.ui.PodioPlayback
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.junit.Test
 
 /**
@@ -44,6 +52,7 @@ import org.junit.Test
  */
 class CachedPagesInteractionTest {
     @get:Rule val compose = createComposeRule()
+    @get:Rule val temporary = TemporaryFolder()
 
     private val evening = 1_762_461_600_000L
 
@@ -117,5 +126,38 @@ class CachedPagesInteractionTest {
         assertShows("The Long Night Shift")
         assertNoTag("watch:home:loading")
         assertEquals(1, repository.homeCalls.get(), "no second fetch inside the freshness window")
+    }
+
+    @Test fun podioRadioShowsItsStationsAtOnceOnReturn() {
+        val stationCalls = AtomicInteger()
+        val radio = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse = when {
+                    request.path.orEmpty().startsWith("/json/stations") -> {
+                        stationCalls.incrementAndGet()
+                        MockResponse().setBody("""[{"stationuuid":"station-one","name":"Cached Radio","country":"India","language":"Tamil","url_resolved":"https://audio.example/live"}]""")
+                    }
+                    request.path.orEmpty().startsWith("/0.2") -> MockResponse().setBody("""{"data":[]}""")
+                    request.path.orEmpty().startsWith("/json") -> MockResponse().setBody("[]")
+                    else -> MockResponse().setBody("{}")
+                }
+            }
+        }
+        radio.use {
+            val base = radio.url("/").toString().trimEnd('/')
+            val catalogue = PodioCatalogue(radioMirrors = listOf("$base/"), appleBase = base, fyydBase = base)
+            val file = temporary.newFile("podio.json")
+            val shown = mutableStateOf(true)
+            compose.setContent { PodioTestTheme { Box(Modifier.size(1200.dp, 820.dp)) {
+                if (shown.value) PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = catalogue) else Text("Another mode")
+            } } }
+            waitForText("Cached Radio")
+            val calls = stationCalls.get()
+
+            leaveAndReturn(shown)
+            assertShows("Cached Radio")
+            assertNoTag("podio:loading")
+            assertEquals(calls, stationCalls.get(), "no second fetch inside the freshness window")
+        }
     }
 }

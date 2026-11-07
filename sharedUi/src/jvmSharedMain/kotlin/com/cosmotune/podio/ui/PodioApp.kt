@@ -87,7 +87,9 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     episodeDownloadStatus: Map<String, String> = emptyMap(), episodeDownloadsRunning: Set<String> = emptySet(),
     onImportOpmlFile: (suspend () -> String?)? = null, onExportOpmlFile: (suspend (String) -> Boolean)? = null,
     onShareOpmlFile: (suspend (String) -> Unit)? = null) {
-    val catalogue = remember(directory) { directory ?: PodioCatalogue(youtubePodcasts = YouTubePodcasts()) }
+    val catalogue = remember(directory) { directory ?: PodioDefaults.catalogue }
+    // The app's own catalogue keeps its pages for the process and on the disk; one a host or a test hands in keeps its own.
+    val pages = remember(catalogue) { com.cosmotune.cache.PageCache.of(catalogue, persistent = directory == null) }
     val library = remember(storage) { PodioLibrary(storage) }
     val saved by library.state.collectAsUiState()
     // Feeds, saves and imports set the page's state on the UI thread (see rememberUiCoroutineScope), not on the worker that answers.
@@ -103,7 +105,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     val satellite = rememberSaveable { mutableStateOf(false) }
     val globeFull = rememberSaveable { mutableStateOf(false) }
     val m = remember(catalogue, library) {
-        PodioModel(catalogue, library, scope, host, query, language, country, genre, searching, searchShows, satellite, globeFull)
+        PodioModel(catalogue, library, scope, host, query, language, country, genre, searching, searchShows, satellite, globeFull, pages)
     }
     m.host = host
 
