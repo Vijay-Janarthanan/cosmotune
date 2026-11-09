@@ -137,6 +137,15 @@ internal class PodioModel(
         old.copy(shows = if (old.shows.any { it.id == show.id }) old.shows.filterNot { it.id == show.id } else old.shows + show)
     }
 
+    fun setInboxEpisodeLimit(limit: Int) = save { it.copy(inboxEpisodesPerShow = limit.coerceIn(1, 24)) }
+
+    fun setShowSkipSilence(shows: Set<String>, enabled: Boolean?) = save { old ->
+        old.copy(skipSilenceByShow = if (enabled == null) old.skipSilenceByShow - shows
+            else old.skipSilenceByShow + shows.associateWith { enabled })
+    }
+
+    fun playEpisode(entry: InboxEpisode) = play(entry.item().copy(skipSilence = library.state.value.skipSilenceByShow[entry.show.id]))
+
     fun play(item: PodioItem) {
         val resume = if (item.live) 0 else library.resumePosition(item.id, item.durationSeconds * 1000)
         lastPlayed = item
@@ -244,16 +253,18 @@ internal class PodioModel(
     }
 
     /**
-     * The newest episodes of the followed shows (up to 40 shows, four feeds at a time, 12 episodes each), newest first. A show
+     * The newest episodes of the followed shows (up to 40 shows, four feeds at a time), newest first. A show
      * that fails is left out; only when every one fails is it an error. The same follows are not fetched twice unless [force].
      */
-    suspend fun loadInbox(follows: List<PodcastShow>, force: Boolean) {
-        val key = follows.map { it.id }
+    suspend fun loadInbox(follows: List<PodcastShow>, force: Boolean, episodeLimit: Int = 12) {
+        val limit = episodeLimit.coerceIn(1, 24)
+        val key = listOf(limit.toString()) + follows.map { it.id }
         if (!force && key == inboxFor && inboxError == null) return
         if (follows.isEmpty()) { inbox = emptyList(); inboxFor = key; inboxError = null; return }
         // The episodes these follows showed last time come back at once (from memory, or the disk after a restart); they are
         // fetched again only when older than the freshness window, or on Refresh.
-        val entry = pages.entry("podio:inbox:" + key.joinToString(",").hashCode(), FEED_FRESH_MS, INBOX_CODEC) { fetchInbox(follows) }
+        val cacheKey = "podio:inbox:" + follows.joinToString(",") { it.id }.hashCode() + if (limit == 12) "" else ":$limit"
+        val entry = pages.entry(cacheKey, FEED_FRESH_MS, INBOX_CODEC) { fetchInbox(follows, limit) }
         entry.restore()
         entry.state.value.data?.let { inbox = it }
         if (!force && entry.isFresh) { inboxFor = key; inboxError = null; return }
@@ -266,11 +277,16 @@ internal class PodioModel(
         } finally { inboxLoading = false }
     }
 
-    private suspend fun fetchInbox(follows: List<PodcastShow>): List<InboxEpisode> {
+    private suspend fun fetchInbox(follows: List<PodcastShow>, episodeLimit: Int): List<InboxEpisode> {
         val permits = Semaphore(4)
         val fetched = coroutineScope {
             follows.take(40).map { show -> async { permits.withPermit {
-                try { catalogue.feed(show.feed).let { feed -> feed.episodes.take(12).map { InboxEpisode(it, if (show.artwork.isBlank()) show.copy(artwork = feed.show.artwork) else show) } } }
+                try {
+                    val feed = catalogue.feed(show.feed)
+                    val shown = if (show.artwork.isBlank()) show.copy(artwork = feed.show.artwork) else show
+                    feed.episodes.sortedByDescending { PodioFormat.publishedAt(it.published) ?: Long.MIN_VALUE }
+                        .take(episodeLimit).map { InboxEpisode(it, shown) }
+                }
                 catch (e: CancellationException) { throw e }
                 catch (_: Exception) { null }
             } } }.awaitAll()

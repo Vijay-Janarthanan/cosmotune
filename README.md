@@ -8,6 +8,8 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
+Version 1.0.18 adds a compact Audio Pipeline entry beneath the artwork on portrait phones, expands the free Live TV and book catalogues, and improves AutoMix recovery, artwork caching and synced lyrics. [1.0.18 release notes](docs/releases/1.0.18.md)
+
 Version 1.0.17 gives the whole app a new look, called Orbit, on the phone, the desktop, the TV and the watch. It adds Watch, a mode for free films, series and live TV with plugins; Live now, for the scores of the matches you follow and live shows; and Indian channels from Prasar Bharati (DD) and the broadcasters' own live news. The sleep timer now pauses on time with the screen off. [1.0.17 changes and limits](docs/releases/1.0.17.md) · [Remaining work](docs/PENDING_WORK.md)
 
 Version 1.0.16 adds shared rooms (listen, watch and talk together, each person in their own app: songs, videos, live radio and podcasts, with chat and voice) and an optional Cosmotune account that keeps your playlists, likes and followed artists the same on your devices, and keeps lyrics and music videos moving when the desktop window loses focus. [1.0.16 changes and validation limits](docs/releases/1.0.16.md)
@@ -175,7 +177,7 @@ Visit the [Cosmotune website](https://cosmotune.shutterisland.in/), [OpenCanvas 
       <h3>Watch: films, series and live TV</h3>
       <p>A mode for films, series and live TV (Ctrl+3 on the desktop), with Home, Films, Series, Live TV with a programme guide,
       Search, My list, Downloads and Plugins. It plays out of the box from built-in plugins, each with its own switch: free live
-      channels (iptv-org, Pluto TV, Samsung TV Plus, Plex), free films and series (Plex, the Internet Archive, official free YouTube
+      channels (iptv-org, Free-TV/IPTV, Pluto TV, Samsung TV Plus, Plex), free films and series (Plex, the Internet Archive, official free YouTube
       channels), and Stremio's Public Domain Movies, OpenSubtitles and WatchHub add-ons. No torrent, debrid or pirate-site plugins
       are built in.</p>
       <p>Add more sources yourself: Stremio and Nuvio add-on links, your own Jellyfin, Emby or Plex server, M3U and Xtream playlists
@@ -248,8 +250,8 @@ Cosmotune works with no account. If you want your playlists to follow you from p
 
 ## Download
 
-Version 1.0.17. The links below always fetch the newest release.
-[1.0.17 release notes](docs/releases/1.0.17.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
+Version 1.0.18. The links below always fetch the newest release.
+[1.0.18 release notes](docs/releases/1.0.18.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 ### Android
 
@@ -510,7 +512,7 @@ services, including every one that 1.0.4 added; the paragraphs below it say what
 | Provider packages, repositories, HTTP add-ons, Subsonic | Only the ones you add, and the sites a package declares | When you use them | None added | Sources |
 | Manga sources and Komga | Official MANGA Plus on first Discover when no sources are configured, and sources/servers you add | When you browse, read or download | None added | Manga > Settings > Manage sources |
 | Podio radio and podcast discovery | Radio Browser mirrors, Apple/iTunes, fyyd; selected station/publisher media hosts; NASA GIBS (map imagery tiles), Open-Meteo (weather at a station) and Wikipedia (nearby articles and pictures), asked for when a station page or the map is open | When Podio is opened or used | No account | Podio > Radio / Podcasts |
-| Watch | `api.themoviedb.org` (TMDB) or `v3-cinemeta.strem.io` for film and series details; the built-in plugins you leave on (`iptv-org.github.io`, `i.mjh.nz`, Pluto TV, Plex, `archive.org`, YouTube, the Stremio add-ons) and the sources you add | When you browse, search or play in Watch | Built-in plugins on | Watch > Plugins |
+| Watch | `api.themoviedb.org` (TMDB) or `v3-cinemeta.strem.io` for film and series details; the built-in plugins you leave on (`iptv-org.github.io`, `raw.githubusercontent.com` for Free-TV/IPTV, `i.mjh.nz`, Pluto TV, Plex, `archive.org`, YouTube, the Stremio add-ons) and the sources you add | When you browse, search or play in Watch | Built-in plugins on | Watch > Plugins |
 | Live now | `api.cricapi.com` (CricketData.org) and `api.football-data.org` with your free key, otherwise `www.thesportsdb.com` | While the Live pill or Live now is showing | On | Settings > Live now |
 | Spotify podcast link lookup | Spotify public web-client endpoints, public bootstrap metadata at `git.gay`, Apple/iTunes and fyyd | When you look up a Spotify podcast link; playback uses matched publisher RSS | Anonymous session in memory | Podio > Podcasts > Add link |
 | Cloud sync and shared rooms (optional) | `identitytoolkit.googleapis.com`, `securetoken.googleapis.com`, `firestore.googleapis.com`; for Google sign-in `accounts.google.com`, `oauth2.googleapis.com` (desktop) or Google Play services (Android) | Only after you turn it on: at start, after playlist changes and every 15 minutes (desktop) | Off | Settings > Account & sync |
@@ -582,7 +584,7 @@ requests for streams and pages, and the settings you saved for them. A Subsonic 
 name with a salted password token, or your API key, on every request; redirects are not followed, so these never reach
 another host. Prefer HTTPS for servers carrying credentials. Android now permits HTTP public radio/feed URLs for Podio; provider packages retain their own HTTPS checks. Disable or remove a configured source under Sources.
 
-**Read → Books** imports EPUB/PDF files into device-local storage. Opening Discover requests Open Library metadata/trending, Project Gutenberg OPDS metadata, or the OPDS server you explicitly connect. Search terms go to the selected catalogue. Only source-advertised full-file EPUB/PDF acquisitions are downloaded when you choose Download. Borrow, sample and purchase links open with their provider. OPDS credentials are stored with the platform protection used by Manga and are sent only to the configured origin. Local book pages do not request remote scripts or resources. Paperback/hardcover describe physical editions; commercial search results do not imply free access. [Reader and sources](docs/READING_BOOKS_PLAN_2026-11-02.md).
+**Read → Books** imports EPUB/PDF files into device-local storage. Browse uses Open Library for metadata and trending, Project Gutenberg for public-domain titles, `standardebooks.org` for recent public-domain EPUB editions, or the OPDS server you explicitly connect. Search terms go to the selected catalogue. Only source-advertised full-file EPUB/PDF acquisitions are downloaded when you choose Download. Borrow, sample and purchase links open with their provider. OPDS credentials are stored with the platform protection used by Manga and are sent only to the configured origin. Local book pages do not request remote scripts or resources. Paperback/hardcover describe physical editions; commercial search results do not imply free access. [Reader and sources](docs/READING_BOOKS_PLAN_2026-11-02.md).
 
 **Read → Manga** reads local files without a catalogue request. Opening Discover with no configured sources enables the official English MANGA Plus catalogue and requests its available series. Configured disabled sources stay disabled. Additional catalogue sites, a website source you define, or a Mihon extension (Android only) are contacted when you browse, search,
 open a series or chapter, show your library's covers, download chapters or press "Check for updates"; it gets your

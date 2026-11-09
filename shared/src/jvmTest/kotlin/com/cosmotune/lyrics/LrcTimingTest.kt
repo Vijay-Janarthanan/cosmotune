@@ -1,13 +1,68 @@
 package com.cosmotune.lyrics
 
 import com.cosmotune.music.data.lyrics.EnhancedLrc
+import com.cosmotune.music.data.lyrics.KaraokeLrc
 import com.cosmotune.music.data.lyrics.LrcLib
+import com.cosmotune.music.data.lyrics.LyricAlignment
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.data.lyrics.LyricWord
 import com.cosmotune.music.data.lyrics.LyricSyllable
 import kotlin.test.*
 
 class LrcTimingTest {
+    @Test fun leadingVoiceLabelsBecomeDuetAlignmentWithoutInventingTiming() {
+        val input = "[00:01.200]v1:First voice\n[00:02.400]V02 ： Second voice\n[00:03.600]A literal v1: mention"
+        val lines = LrcLib.parseLrc(input).filterNot { it.isGap }
+        assertEquals(listOf("First voice", "Second voice", "A literal v1: mention"), lines.map { it.text })
+        assertEquals(listOf(1_200L, 2_400L, 3_600L), lines.map { it.timeMs })
+        assertEquals(listOf(LyricAlignment.Start, LyricAlignment.End, LyricAlignment.Start), lines.map { it.alignment })
+        assertTrue(lines.all { it.words.isEmpty() })
+
+        val plain = assertNotNull(LrcLib.parseEmbedded("v1:First voice\nv2:Second voice"))
+        assertEquals(lines.take(2).map { it.text }, plain.map { it.text })
+        assertEquals(lines.take(2).map { it.alignment }, plain.map { it.alignment })
+        assertTrue(plain.all { it.timeMs == 0L && it.words.isEmpty() })
+    }
+
+    @Test fun markerOnlyTimedRunsDisappearAndLineOnlyRolesKeepExistingWordTiming() {
+        val input = "[offset:100]\n[00:01.00]v1:<00:01.20>First<00:01.80>\n" +
+            "[00:02.00]<00:02.00>v2<00:02.10>： <00:02.40>Hello <00:03.00>world<00:03.80>"
+        for (parse in listOf(LrcLib::parseLrc, EnhancedLrc::parse)) {
+            val lines = parse(input).filterNot { it.isGap }
+            assertEquals(listOf("First", "Hello world"), lines.map { it.text })
+            assertEquals(listOf(900L, 1_900L), lines.map { it.timeMs })
+            assertEquals(listOf(LyricAlignment.Start, LyricAlignment.End), lines.map { it.alignment })
+            assertEquals(listOf(2_300L, 2_900L), lines.last().words.map { it.startMs })
+            assertEquals(3_700L, lines.last().words.last().endMs)
+        }
+    }
+
+    @Test fun karaokeRoleDoesNotConsumeTheFirstSungWordOrItsTiming() {
+        val input = "[1000,2400](1000,100,0)v1:(1100,800,0)Hello (1900,1200,0)world\n" +
+            "[3500,1800]v2:(3500,900,0)Another (4400,900,0)voice"
+        val direct = KaraokeLrc.parse(input).filterNot { it.isGap }
+        val embedded = assertNotNull(LrcLib.parseEmbedded(input)).filterNot { it.isGap }
+        assertEquals(direct, embedded)
+        assertEquals(listOf("Hello world", "Another voice"), direct.map { it.text })
+        assertEquals(LyricAlignment.End, direct.last().alignment)
+        assertEquals(listOf(1_100L, 1_900L), direct.first().words.map { it.startMs })
+        assertEquals(3_400L, direct.first().sungUntilMs)
+    }
+
+    @Test fun aSeparatedBackingRowAttachesByOnsetAndKeepsItsOwnSweep() {
+        val input = "[offset:100]\n[bg:<00:02.4>v2: <00:02.5>Echo <00:03.2>back<00:03.8>]\n" +
+            "[00:01]<00:01>Lead<00:02>\n[00:03]<00:03>Next<00:04>"
+        for (parse in listOf(LrcLib::parseLrc, EnhancedLrc::parse)) {
+            val lines = parse(input).filterNot { it.isGap }
+            val backing = assertNotNull(lines.first().background)
+            assertEquals("Echo back", backing.text)
+            assertEquals(2_300L, backing.timeMs)
+            assertEquals(listOf(2_400L, 3_100L), backing.words.map { it.startMs })
+            assertEquals(3_700L, backing.words.last().endMs)
+            assertNull(lines.last().background)
+        }
+    }
+
     @Test fun supplementaryUnicodeEntitiesStayIntactInNativeLyrics() {
         assertEquals("🎵 🎵 don't", EnhancedLrc.decodeEntities("&#x1F3B5; &#127925; don&#39;t"))
         val sung = EnhancedLrc.parse("[00:01.00]<00:01.00>&#x1F3B5; <00:02.00>music")

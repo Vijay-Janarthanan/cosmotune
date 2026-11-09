@@ -54,6 +54,19 @@ class ProviderNetworkTest {
         } }
     }
 
+    @Test fun customUrlGrantsOnlyItsSavedOriginAndPreservesThePrivateNetworkBoundary() {
+        val endpoint = ProviderSetting("endpoint", default = JsonPrimitive("https://default.example/"), grantsNetwork = true)
+        val manifest = ProviderManifest("fixture", "1.0", type = listOf("download_provider"), settings = listOf(endpoint)).validate()
+        assertTrue(manifest.networkGrants(mapOf("endpoint" to endpoint.default)).isEmpty())
+        val grants = manifest.networkGrants(mapOf("endpoint" to JsonPrimitive("https://mirror.example:8443/api")))
+        val network = ProviderNetwork(manifest.permissions, configuredOrigins = grants)
+        assertEquals("https://mirror.example:8443/stream", network.fork().address("https://mirror.example:8443/stream").toString())
+        assertFailsWith<IllegalArgumentException> { network.address("https://mirror.example/stream") }
+        assertFailsWith<IllegalArgumentException> { network.address("https://other.mirror.example:8443/stream") }
+        val privateGrant = manifest.networkGrants(mapOf("endpoint" to JsonPrimitive("https://127.0.0.1:8443/")))
+        assertFailsWith<UnknownHostException> { ProviderNetwork(manifest.permissions, configuredOrigins = privateGrant).address("https://127.0.0.1:8443/") }
+    }
+
     @Test fun chunkedMetadataIsBoundedAndCancellationPreventsFutureRequests() {
         val (tls, client) = tls()
         MockWebServer().use { server ->

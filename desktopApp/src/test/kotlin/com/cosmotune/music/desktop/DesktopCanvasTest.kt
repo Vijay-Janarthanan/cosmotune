@@ -180,6 +180,32 @@ class DesktopCanvasTest {
         DesktopAppearanceSettings.openCanvasEnabled.value, DesktopAppearanceSettings.openCanvasResolution.value)
 
     @Test
+    fun `a late album invalidates a cached cover from the wrong release`() = runBlocking {
+        val song = song("late-album").copy(albumName = "Correct Album")
+        val key = songKey(song.videoId)
+        val wrong = artwork("Song", "Artist", "Other Album")
+        val right = artwork("Song", "Artist", "Correct Album")
+        DesktopCanvasClient.resolve(key, withAlbum = false) { wrong }
+        assertNull(DesktopCanvasClient.cached(song))
+        assertEquals(right, DesktopCanvasClient.resolve(key, withAlbum = true,
+            acceptCached = { it.matches(song.title, song.artist, song.albumName) }) { right })
+        assertEquals(right, DesktopCanvasClient.cached(song))
+    }
+
+    @Test
+    fun `decorative frame thinning uses source timestamps and preserves the loop cadence`() {
+        val pacer = DesktopArtworkFramePacer()
+        val presented = listOf(0L, 17L, 33L, 50L, 67L, 84L, 100L, 117L, 134L, 150L)
+            .filter { pacer.accept(it, 17) }
+        assertEquals(listOf(0L, 33L, 67L, 117L, 150L), presented)
+        assertEquals(33L, pacer.delayMillis)
+        assertTrue(pacer.accept(0, 17))
+        assertEquals(17L, pacer.delayMillis)
+        pacer.reset()
+        assertTrue(listOf(0L, 41L, 83L, 125L, 166L).all { pacer.accept(it, 41) })
+    }
+
+    @Test
     fun `a canvas found earlier is not served once the remembered answers are dropped`() = runBlocking {
         DesktopCanvasClient.resolve(songKey("clear-1"), withAlbum = false) { artwork("Song", "Artist") }
         assertNotNull(DesktopCanvasClient.cached(song("clear-1")), "the hit is remembered")

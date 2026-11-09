@@ -18,7 +18,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 /** A package's own network boundary: declared domains, DNS checks, bounded metadata and isolated cookies. */
 class ProviderNetwork(private val permissions: ProviderPermissions, private val allowLocalNetwork: Boolean = false,
     baseClient: OkHttpClient = Http.client, private val allowPublicArtwork: Boolean = false,
-    private val localArtworkOrigin: HttpUrl? = null, private val cookieJar: ProviderCookieJar = ProviderCookieJar()) {
+    private val localArtworkOrigin: HttpUrl? = null, private val cookieJar: ProviderCookieJar = ProviderCookieJar(),
+    private val configuredOrigins: Set<HttpUrl> = emptySet()) {
     private val calls = ConcurrentHashMap.newKeySet<Call>()
     @Volatile private var cancelled = false
     val isCancelled: Boolean get() = cancelled
@@ -38,7 +39,8 @@ class ProviderNetwork(private val permissions: ProviderPermissions, private val 
         val configuredArtworkOrigin = allowPublicArtwork && localArtworkOrigin != null && url.host == localArtworkOrigin.host &&
             url.scheme == localArtworkOrigin.scheme && url.port == localArtworkOrigin.port
         require(url.isHttps || configuredArtworkOrigin || !allowPublicArtwork && permissions.allowHttp && url.scheme == "http") { "Provider requires HTTPS" }
-        require(declared(url.host) || allowPublicArtwork) { "Provider network domain is not permitted" }
+        val granted = configuredOrigins.any { it.scheme == url.scheme && it.host == url.host && it.port == url.port }
+        require(declared(url.host) || granted || allowPublicArtwork) { "Provider network domain is not permitted" }
         if (allowPublicArtwork && localArtworkOrigin != null && declared(url.host)) {
             require(url.scheme == localArtworkOrigin.scheme && url.port == localArtworkOrigin.port) { "Artwork is outside the configured server origin" }
         }
@@ -50,7 +52,8 @@ class ProviderNetwork(private val permissions: ProviderPermissions, private val 
 
     fun cancel() { cancelled = true; calls.forEach { it.cancel() } }
     fun clearCookies() { cookieJar.clear() }
-    internal fun fork(): ProviderNetwork = ProviderNetwork(permissions, allowLocalNetwork, client, cookieJar = cookieJar)
+    internal fun fork(): ProviderNetwork = ProviderNetwork(permissions, allowLocalNetwork, client,
+        cookieJar = cookieJar, configuredOrigins = configuredOrigins)
 
     internal fun <T> withResponse(raw: String, options: JsonObject, media: Boolean = false, followRedirects: Boolean = true,
         responseTimeoutSeconds: Long? = null,
@@ -68,7 +71,7 @@ class ProviderNetwork(private val permissions: ProviderPermissions, private val 
         repeat(6) {
             check(!cancelled) { "Provider request cancelled" }
             require(visited.add(url.toString())) { "Provider redirect loop" }
-            val builder = Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.17")
+            val builder = Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.18")
             headers.forEach { (name, value) -> builder.header(name, value) }
             if (media) builder.header("Accept-Encoding", "identity")
             val held = cookieJar.request(url)

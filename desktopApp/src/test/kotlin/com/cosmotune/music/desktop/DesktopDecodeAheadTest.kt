@@ -4,6 +4,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -93,6 +95,26 @@ class DesktopDecodeAheadTest {
         source.stall = null
         assertEquals(700f, reader.readSamples()!![0])
         reader.close()
+    }
+
+    @Test
+    fun `a mix can poll a stalled decoder without mistaking it for end of track`() {
+        val hold = CountDownLatch(1)
+        val source = CountingSource(blocks = 1).also { it.stall = hold }
+        val reader = ahead(source)
+        try {
+            assertFalse(reader.hasBufferedAudio)
+            assertFailsWith<DesktopDecodePending> { reader.readSamples(waitMs = 0) }
+            assertFailsWith<DesktopDecodePending> { reader.readSamples(waitMs = 10) }
+            assertFalse(reader.readFailed)
+            hold.countDown()
+            assertEquals(0f, reader.readSamples(waitMs = 2_000)!![0])
+            assertNull(reader.readSamples(waitMs = 2_000))
+            assertFalse(reader.readFailed)
+        } finally {
+            hold.countDown()
+            reader.close()
+        }
     }
 
     @Test

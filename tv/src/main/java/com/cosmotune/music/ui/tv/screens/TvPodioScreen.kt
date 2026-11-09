@@ -145,6 +145,13 @@ fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowP
     }
     fun favorite(station: RadioStation) = run { withContext(Dispatchers.IO) { store.update { old -> old.copy(stations = if (old.stations.any { it.id == station.id }) old.stations.filterNot { it.id == station.id } else old.stations + station) } } }
     fun follow(show: PodcastShow) = run { withContext(Dispatchers.IO) { store.update { old -> old.copy(shows = if (old.shows.any { it.feed == show.feed }) old.shows.filterNot { it.feed == show.feed } else old.shows + show) } } }
+    fun changeSkipSilence(show: PodcastShow) = run { withContext(Dispatchers.IO) {
+        store.update { old -> old.copy(skipSilenceByShow = when (old.skipSilenceByShow[show.id]) {
+            null -> old.skipSilenceByShow + (show.id to true)
+            true -> old.skipSilenceByShow + (show.id to false)
+            false -> old.skipSilenceByShow - show.id
+        }) }
+    } }
     LaunchedEffect(tab) { if (tab != "Saved") search() }
     fun back() { work?.cancel(); ++serial; loading = false; feed = null }
     BackHandler(feed != null, ::back)
@@ -165,7 +172,7 @@ fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowP
             val opened = feed
             if (opened != null) {
                 item(key = "show") {
-                    val first = opened.episodes.firstOrNull()?.item()
+                    val first = opened.episodes.firstOrNull()?.item()?.copy(skipSilence = saved.skipSilenceByShow[opened.show.id])
                     val following = saved.shows.any { it.feed == opened.show.feed }
                     TvColourCard(
                         cover = opened.show.artwork.takeIf { it.isNotBlank() },
@@ -183,6 +190,9 @@ fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowP
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 14.dp)) {
                                 TvButton("Back", ::back)
                                 TvButton(if (following) "Unfollow" else "Follow", { follow(opened.show) })
+                                if (following) TvButton(when (saved.skipSilenceByShow[opened.show.id]) {
+                                    true -> "Skip silence"; false -> "Keep silence"; null -> "Silence · App default"
+                                }, { changeSkipSilence(opened.show) })
                             }
                         },
                     )
@@ -190,7 +200,7 @@ fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowP
                 if (loading) item(key = "loading") { PodioLoading() }
                 error?.let { message -> item(key = "error") { PodioNote(message) } }
                 items(opened.episodes, key = { it.id }) { episode ->
-                    val item = episode.item()
+                    val item = episode.item().copy(skipSilence = saved.skipSilenceByShow[opened.show.id])
                     val heard = saved.progress[item.id] ?: 0L
                     val length = episode.durationSeconds.takeIf { it > 0 }?.let { "${(it + 30) / 60} min" }
                     val state = when {

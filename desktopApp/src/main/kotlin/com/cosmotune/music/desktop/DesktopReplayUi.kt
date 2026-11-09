@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
-import com.cosmotune.music.data.model.artworkAt
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.listening.ListeningActivityPanel
 import com.cosmotune.ui.orbit.OrbitChip
@@ -206,7 +205,7 @@ private fun Habits(summary: DesktopReplaySummary) {
 internal fun DesktopMesh(url: String?) {
     val mesh by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
         value = withContext(Dispatchers.IO) {
-            DesktopArtworkCache.load(url.artworkAt(MESH_SOURCE_PX) ?: url)
+            DesktopArtworkCache.load(url, MESH_SOURCE_PX)
                 ?.let { DesktopArtworkMesh.of(it, seed = url.hashCode()) }
         }
     }

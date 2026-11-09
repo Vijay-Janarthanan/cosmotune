@@ -151,7 +151,10 @@ class PersonalOpdsCatalogue(
                 languages = entry.children().filter { it.local() == "language" }.map(Element::text),
                 description = entry.childText("summary").ifBlank { entry.childText("content") },
                 identifiers = entry.children().filter { it.local() == "identifier" }.map(Element::text), links = links,
-                coverUrl = links.firstOrNull { it.relation == "http://opds-spec.org/image" || it.relation.endsWith("/thumbnail") }?.url,
+                coverUrl = links.firstOrNull { it.relation == "http://opds-spec.org/image" || it.relation.endsWith("/thumbnail") }?.url
+                    ?: entry.children().firstOrNull { it.tagName() == "media:thumbnail" }?.let {
+                        link(base, it.attr("url"), "", "", "")?.url
+                    },
                 accessEvidence = if (acquisitions.isEmpty()) "metadata-only" else "source-advertised-acquisition", sourceId = sourceId)
         }
         val links = feed.links(base)

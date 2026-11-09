@@ -2,9 +2,11 @@ package com.cosmotune.watch.plugins.iptv
 
 import com.cosmotune.watch.http.WatchHttp
 import com.cosmotune.watch.model.Channel
+import com.cosmotune.watch.model.Container
 import com.cosmotune.watch.model.EpgProgramme
 import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.model.Stream
+import com.cosmotune.watch.model.StreamProtocol
 import com.cosmotune.watch.model.StreamSource
 import com.cosmotune.watch.model.WatchKey
 import com.cosmotune.watch.plugin.Capability
@@ -57,6 +59,8 @@ open class PlaylistPlugin(
     /** A country to tag channels with when the list does not say ("us" for a US region list). */
     private val defaultCountry: String? = null,
     private val playlistTtlMs: Long = 12 * WatchHttp.HOUR,
+    private val directStreamsOnly: Boolean = false,
+    private val includePlaylistGuides: Boolean = true,
 ) : WatchPlugin {
     override val capabilities = setOf(Capability.LIVE, Capability.EPG, Capability.SEARCH)
     private val lock = Mutex()
@@ -78,11 +82,17 @@ open class PlaylistPlugin(
                 val playlist = if (source.startsWith("http://") || source.startsWith("https://")) {
                     http.stream(source, ttlMs = playlistTtlMs) { M3uParser.parse(it.bufferedReader().lineSequence()) }
                 } else M3uParser.parse(File(source).readText())
-                all += playlist.entries; guideUrls += playlist.guideUrls
+                all += playlist.entries
+                if (includePlaylistGuides) guideUrls += playlist.guideUrls
             } catch (e: Exception) { lastError = e }
         }
         if (all.isEmpty() && lastError != null) throw lastError
-        val byKey = all.filter { StreamGuess.playableScheme(it.url) || isLocalPath(it.url) }.groupBy(::keyOf)
+        val byKey = all.filter { entry ->
+            val url = entry.url
+            if (directStreamsOnly) StreamGuess.playableScheme(url) &&
+                (StreamGuess.protocol(url) != StreamProtocol.PROGRESSIVE || StreamGuess.container(url) != Container.UNKNOWN)
+            else StreamGuess.playableScheme(url) || isLocalPath(url)
+        }.groupBy(::keyOf)
         entries = byKey
         val channels = byKey.map { (key, list) ->
             val e = list.first()

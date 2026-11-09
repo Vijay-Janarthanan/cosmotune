@@ -64,7 +64,7 @@ class WatchRepositoryTest {
 
     @Test fun builtInsHaveTheAgreedDefaults() {
         val defaults = BuiltInPlugins.all.associate { it.id to it.defaultEnabled }
-        assertEquals(mapOf("iptv" to true, "pluto" to true, "samsung" to true, "dd" to true, "ytlive" to true, "plex" to true, "ia" to true, "youtube" to true,
+        assertEquals(mapOf("iptv" to true, "free-tv" to true, "pluto" to true, "samsung" to true, "dd" to true, "ytlive" to true, "plex" to true, "ia" to true, "youtube" to true,
             "pdm" to false, "opensubtitles" to true, "watchhub" to false), defaults)
     }
 

@@ -1015,6 +1015,7 @@ class PlaybackService : MediaLibraryService() {
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
+            exoPlayer.skipSilenceEnabled = mediaItem?.podcastSkipSilenceOverride ?: AppSettings.skipSilence.value
             // A quality swap replaces the playing item, which Media3
             // reports here as a playlist change — indistinguishable, from
             // this callback's point of view, from the queue moving on. It
@@ -3280,6 +3281,7 @@ class PlaybackService : MediaLibraryService() {
         .setLoadControl(farBufferingLoadControl())
         .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ ownsSession)
         .setHandleAudioBecomingNoisy(ownsSession)
+        .setWakeMode(C.WAKE_MODE_LOCAL)
         // Back restarts the track once you're this far into it; only a
         // press before that steps to the previous one.
         .setMaxSeekToPreviousPositionMs(BACK_RESTARTS_AFTER_MS)
@@ -6430,7 +6432,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun applySettings(player: ExoPlayer) {
-        player.skipSilenceEnabled = AppSettings.skipSilence.value
+        player.skipSilenceEnabled = player.currentMediaItem?.podcastSkipSilenceOverride ?: AppSettings.skipSilence.value
         player.setPlaybackSpeed(AppSettings.playbackSpeed.value)
         applyPitch(player)
         // Restore persisted shuffle and repeat states on startup. Assign both
@@ -6774,7 +6776,7 @@ class PlaybackService : MediaLibraryService() {
 
     private fun observeSettings() {
         scope.launch {
-            AppSettings.skipSilence.collect { on -> eachPlayer { it.skipSilenceEnabled = on } }
+            AppSettings.skipSilence.collect { on -> eachPlayer { it.skipSilenceEnabled = it.currentMediaItem?.podcastSkipSilenceOverride ?: on } }
         }
         scope.launch {
             // Re-evaluate the already queued next track immediately when this

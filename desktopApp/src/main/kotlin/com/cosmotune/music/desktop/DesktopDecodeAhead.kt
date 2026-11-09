@@ -1,6 +1,7 @@
 package com.cosmotune.music.desktop
 
 import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.withLock
 
 /** What [DesktopDecodeAhead] reads from: a decoder, or a stand-in for one in tests. */
@@ -15,6 +16,9 @@ internal interface DesktopSampleSource {
 
     fun close()
 }
+
+/** A bounded read ran out of time while the decoder was still live. This is distinct from EOF. */
+internal class DesktopDecodePending : RuntimeException(null, null, false, false)
 
 /**
  * Decodes a track a few seconds ahead of the speakers, on a thread of its own.
@@ -47,6 +51,7 @@ internal class DesktopDecodeAhead(
     private val queue = ArrayDeque<FloatArray>()
     private var queuedSamples = 0
     private var ended = false
+    private var failed = false
     private var closed = false
     private var pendingSeekUs: Long? = null
     /** Bumped by every seek, so a block decoded before it is never played after it. */
@@ -58,6 +63,9 @@ internal class DesktopDecodeAhead(
     var sampleCount: Int = 0
         private set
 
+    val hasBufferedAudio: Boolean get() = lock.withLock { queue.isNotEmpty() }
+    val readFailed: Boolean get() = lock.withLock { failed }
+
     private val worker = Thread(::decodeLoop, name).apply {
         isDaemon = true
         // Above the UI, below the audio thread itself.
@@ -66,10 +74,18 @@ internal class DesktopDecodeAhead(
     }
 
     /** The next decoded block, waiting for the decoder only if it has fallen behind. */
-    fun readSamples(): FloatArray? = lock.withLock {
+    fun readSamples(waitMs: Long? = null): FloatArray? = lock.withLock {
         if (queue.isEmpty() && !ended && !closed) {
             val waitedFrom = System.nanoTime()
-            while (queue.isEmpty() && !ended && !closed) ready.await()
+            var remainingNanos = waitMs?.let(TimeUnit.MILLISECONDS::toNanos)
+            while (queue.isEmpty() && !ended && !closed) {
+                val remaining = remainingNanos
+                if (remaining == null) ready.await()
+                else {
+                    if (remaining <= 0) throw DesktopDecodePending()
+                    remainingNanos = ready.awaitNanos(remaining)
+                }
+            }
             val waitedMs = (System.nanoTime() - waitedFrom) / 1_000_000
             if (started && waitedMs >= STARVED_LOG_MS) {
                 DesktopTrackLog.log("decode-ahead ran dry: the audio thread waited ${waitedMs}ms for the decoder")
@@ -94,6 +110,7 @@ internal class DesktopDecodeAhead(
             queue.clear()
             queuedSamples = 0
             ended = false
+            failed = false
             started = false
             pendingSeekUs = micros
             wake.signal()
@@ -131,10 +148,13 @@ internal class DesktopDecodeAhead(
                     continue
                 }
 
+                var decodeFailed = false
                 val decoded = try {
                     source.readSamples()?.copyOf(source.sampleCount)
                 } catch (failure: Exception) {
+                    if (failure is InterruptedException) throw failure
                     DesktopTrackLog.log("decode-ahead: decoder failed, ending the track: ${failure.message}")
+                    decodeFailed = true
                     null
                 }
                 lock.withLock {
@@ -148,6 +168,7 @@ internal class DesktopDecodeAhead(
                     if (closed) return@withLock
                     if (decoded == null) {
                         ended = true
+                        failed = decodeFailed
                     } else if (decoded.isNotEmpty()) {
                         queue.addLast(decoded)
                         queuedSamples += decoded.size
@@ -158,6 +179,10 @@ internal class DesktopDecodeAhead(
         } catch (_: InterruptedException) {
             // Closing the app; the decoder goes with the process.
         } finally {
+            lock.withLock {
+                if (!closed) { ended = true; failed = true }
+                ready.signalAll()
+            }
             runCatching { source.close() }
         }
     }

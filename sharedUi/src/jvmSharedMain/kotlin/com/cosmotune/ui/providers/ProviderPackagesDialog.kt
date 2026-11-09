@@ -383,6 +383,7 @@ private fun ProviderSettingsEditor(manager: ProviderManager, installed: Provider
                 ProviderSettingField(field, values[field.key] ?: field.default,
                     change = { next -> values = JsonObject(values + (field.key to next)) }, busy = busy,
                     onAction = { action -> run { manager.settingAction(installed.manifest.name, action.key) } })
+                if (field.grantsNetwork) Text("Saving a custom URL lets this package contact that server.")
             }
             item { OrbitSwitchRow("Download covers from public HTTPS addresses", artwork, { artwork = it }, enabled = !busy) }
             item { OrbitSwitchRow("Allow local network", localNetwork, { localNetwork = it }, enabled = !busy,

@@ -143,6 +143,6 @@ object DesktopLyricsClient {
             ?: return null
         val raw = DesktopEmbeddedLyrics.read(path) ?: return null
         // The same last pass the network sources get, as on the phone.
-        return LrcLib.parseLrc(raw).takeIf { lines -> lines.any { it.text.isNotBlank() } }?.withBackgroundVocals()
+        return LrcLib.parseEmbedded(raw)?.withBackgroundVocals()
     }
 }

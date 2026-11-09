@@ -125,6 +125,7 @@ data class Endpoints(
     val cricketData: String = "https://api.cricapi.com/v1",
     val footballData: String = "https://api.football-data.org/v4",
     val theSportsDb: String = "https://www.thesportsdb.com/api/v1/json",
+    val freeTvPlaylist: String = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
 )
 
 /**
@@ -157,8 +158,11 @@ class DefaultWatchRepository(
         val regions = { store.state.value.settings["regions"]?.split(',')?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() } ?: listOf(config.region.lowercase().let { if (it == "uk") "gb" else it }) }
         val lists = FreeLiveLists(e.freeLists, regions)
         val device = store.state.value.deviceId
+        val freeTv = BuiltInPlugins.def(BuiltInPlugins.FREE_TV)!!
         return listOf(
             IptvOrgPlugin(http, e.iptvOrg, { guideUrls() }, guideCache),
+            PlaylistPlugin(freeTv.id, freeTv.name, freeTv.badge, freeTv.kind, http, { listOf(e.freeTvPlaylist) },
+                guideCache = guideCache, directStreamsOnly = true, includePlaylistGuides = false),
             FreeServices.pluto(http, lists, device, com.cosmotune.watch.plugins.free.PlutoVod(http, BuiltInPlugins.PLUTO, device, e.plutoBoot, e.plutoVod, config.now)),
             FreeServices.samsung(http, lists),
             PrasarBharatiPlugin(config.videoSource, config.now),

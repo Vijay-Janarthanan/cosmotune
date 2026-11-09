@@ -106,6 +106,21 @@ class IptvParsersTest {
         }
     }
 
+    @Test fun aDirectStreamCatalogueSkipsWebPagesAndEmbeddedGuides() = runBlocking<Unit> {
+        TestServer().use { s ->
+            s.text("/list.m3u", playlist.replace("http://guide.example/epg.xml.gz", s.url("/epg.xml.gz")) + "\n" + """
+                #EXTINF:-1,Web Page
+                https://www.youtube.com/@example/live
+            """.trimIndent())
+            val plugin = PlaylistPlugin("free-tv", "Free TV", "M3U", PluginKind.M3U, s.http(),
+                { listOf(s.url("/list.m3u")) }, directStreamsOnly = true, includePlaylistGuides = false)
+            val channels = plugin.channels()
+            assertEquals(listOf("BBC One HD", "Film Channel", "No Attributes"), channels.map { it.name })
+            assertEquals(WatchKey("c:iptv:BBCOne.uk"), channels.first().key)
+            assertTrue(plugin.guide(channels, 0, Long.MAX_VALUE).isEmpty())
+        }
+    }
+
     @Test fun iptvOrgJoinsChannelsFeedsLogosAndStreams() = runBlocking<Unit> {
         TestServer().use { s ->
             s.json("/api/channels.json", """[

@@ -9,6 +9,16 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class FilmVideoMatchingTest {
+    @Test fun repriseAndSingerEditionsDoNotReplaceTheOriginalOrEachOther() {
+        val video = VideoCandidate("film", "Song (Female Version) Official Video", "Singer", 250, true, true)
+        assertTrue(VideoMatcher.rank(listOf(video), "Song", "Singer", 250).isEmpty())
+        assertTrue(VideoMatcher.rank(listOf(video), "Song (Male Version)", "Singer", 250).isEmpty())
+        assertEquals(listOf(video), VideoMatcher.rank(listOf(video), "Song (Female Version)", "Singer", 250))
+        val reprise = video.copy(title = "Song (Reprise) Official Video")
+        assertTrue(VideoMatcher.rank(listOf(reprise), "Song", "Singer", 250).isEmpty())
+        assertTrue(VideoMatcher.rank(listOf(video.copy(title = "Song Official Video | BGMI Gameplay")), "Song", "Singer", 250).isEmpty())
+    }
+
     @Test fun descriptiveSubtitleDoesNotHideThePublisherVideoOrChangeTheRecordingIdentity() {
         val title = "Idhazhin Oram (The Innocence of Love)"
         assertEquals(listOf(title, "Idhazhin Oram"), VideoMatcher.searchTitleVariants(title))

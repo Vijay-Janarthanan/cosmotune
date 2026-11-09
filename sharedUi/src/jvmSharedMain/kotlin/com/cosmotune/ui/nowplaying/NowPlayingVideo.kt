@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -54,6 +53,7 @@ import com.cosmotune.ui.orbit.OrbitMenuItem
 import com.cosmotune.ui.orbit.OrbitRing
 import com.cosmotune.ui.theme.LocalCosmoColors
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.atan2
 
 /**
@@ -200,21 +200,45 @@ internal fun NowPlayingRecord(
         }
         OrbitRing(
             ring, ink, progress = { drag ?: progress() }, spinning = playing,
-            stroke = 2.5.dp, moon = 8.dp, moonColor = moon,
+            stroke = 2.5.dp, moon = RECORD_MOON, moonColor = moon,
             modifier = if (onSeek == null) Modifier else Modifier.pointerInput(Unit) {
-                fun at(p: Offset): Float {
-                    val c = Offset(size.width / 2f, size.height / 2f)
-                    val a = atan2(p.y - c.y, p.x - c.x) + PI / 2
-                    return (((a / (2 * PI)) + 1.0) % 1.0).toFloat()
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = minOf(size.width, size.height) / 2f - RECORD_MOON.toPx()
+                    val tolerance = 12.dp.toPx()
+                    val start = recordSeekFraction(down.position - center, radius, tolerance) ?: return@awaitEachGesture
+                    down.consume()
+                    drag = start
+                    try {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (change.isConsumed || event.changes.any { it.id != down.id && it.pressed }) break
+                            recordSeekFraction(change.position - center, radius, tolerance)?.let { drag = it }
+                            change.consume()
+                            if (!change.pressed) {
+                                drag?.let { seek?.invoke(it) }
+                                break
+                            }
+                        }
+                    } finally {
+                        drag = null
+                    }
                 }
-                detectDragGestures(
-                    onDragStart = { drag = at(it) },
-                    onDragEnd = { drag?.let { f -> seek?.invoke(f) }; drag = null },
-                    onDragCancel = { drag = null },
-                ) { change, _ -> change.consume(); drag = at(change.position) }
             },
         )
     }
+}
+
+private val RECORD_MOON = 8.dp
+
+/** A touch selects a time only within the band centred on the visible track. */
+internal fun recordSeekFraction(fromCenter: Offset, radius: Float, tolerance: Float): Float? {
+    val distance = fromCenter.getDistance()
+    if (radius <= 0f || distance == 0f || abs(distance - radius) > tolerance) return null
+    val angle = atan2(fromCenter.y.toDouble(), fromCenter.x.toDouble()) + PI / 2
+    return (((angle / (2 * PI)) + 1.0) % 1.0).toFloat()
 }
 
 /**

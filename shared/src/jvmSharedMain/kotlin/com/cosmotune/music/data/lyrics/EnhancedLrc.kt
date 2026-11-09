@@ -15,18 +15,22 @@ import com.cosmotune.lyrics.withLrcOffset
  */
 object EnhancedLrc {
 
-    private val LINE = Regex("""^\[(\d{1,3}):(\d{2})[.:](\d{2,3})](.*)$""")
-    private val WORD = Regex("""<(\d{1,3}):(\d{2})[.:](\d{2,3})>([^<]*)""")
+    private const val STAMP = """(\d{1,3}):([0-5]\d)(?:[.:](\d{1,3}))?"""
+    private val LINE = Regex("""^\[$STAMP](.*)$""")
+    private val WORD_STAMP = Regex("""<$STAMP>""")
+    private val WORD = Regex("""<$STAMP>([^<]*)""")
 
     /** Empty when [lrc] carries no word stamps — the caller can then fall back. */
     fun parse(lrc: String): List<LyricLine> {
         val rows = lrc.lineSequence()
             .mapNotNull { line -> LINE.matchEntire(line.trim()) }
             .map { match ->
+                val (body, singer) = splitLrcVocalPrefix(match.groupValues[4], WORD_STAMP)
                 Row(
                     timeMs = stamp(match.groupValues[1], match.groupValues[2], match.groupValues[3]),
-                    words = WORD.findAll(match.groupValues[4]).toList(),
-                    plain = match.groupValues[4].trim(),
+                    words = WORD.findAll(body).toList(),
+                    plain = body.trim(),
+                    singer = singer,
                 )
             }
             .sortedBy { it.timeMs }
@@ -39,7 +43,7 @@ object EnhancedLrc {
         return rows.mapIndexedNotNull { index, row ->
             if (row.words.isEmpty()) {
                 val text = decodeEntities(row.plain)
-                return@mapIndexedNotNull if (text.isEmpty()) null else LyricLine(row.timeMs, text)
+                return@mapIndexedNotNull if (text.isEmpty()) null else LyricLine(row.timeMs, text) to row.singer
             }
             // A word runs until the next one starts; the last runs until the
             // next line does. Without a next line — the closing word of the
@@ -60,18 +64,17 @@ object EnhancedLrc {
                 timeMs = minOf(row.timeMs, words.first().startMs),
                 text = words.joinToString(" ") { it.text },
                 words = words,
-            )
-        }.map { it.withLrcOffset(offset) }.withInstrumentalGaps()
+            ) to row.singer
+        }.withLrcVocalAlignments().map { it.withLrcOffset(offset) }.withInstrumentalGaps().withExplicitLrcBackgrounds(lrc)
     }
 
-    private class Row(val timeMs: Long, val words: List<MatchResult>, val plain: String)
+    private class Row(val timeMs: Long, val words: List<MatchResult>, val plain: String, val singer: String?)
 
     private fun stamp(match: MatchResult): Long =
         stamp(match.groupValues[1], match.groupValues[2], match.groupValues[3])
 
     private fun stamp(minutes: String, seconds: String, fraction: String): Long {
-        // Two digits mean centiseconds, three mean milliseconds.
-        val fractionMs = if (fraction.length == 3) fraction.toLong() else fraction.toLong() * 10
+        val fractionMs = fraction.padEnd(3, '0').toLong()
         return minutes.toLong() * 60_000 + seconds.toLong() * 1_000 + fractionMs
     }
 

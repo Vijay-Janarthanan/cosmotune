@@ -66,8 +66,8 @@ object CanvasRepository {
      * [withAlbum] records whether the album name was known when this was
      * worked out. It is the one thing that can turn a miss into a hit later:
      * the album is what makes the catalogue searches land, and on the player
-     * it resolves a beat after the track starts. A miss reached without it is
-     * therefore provisional; everything else is final.
+     * it resolves a beat after the track starts. A miss reached without it, or an artwork result
+     * for a different release, can be retried once the album arrives.
      */
     private class Entry(
         val artwork: CanvasArtwork?,
@@ -118,6 +118,8 @@ object CanvasRepository {
         // a second time. [reusable] decides when the earlier answer still
         // stands instead.
         val album = song.albumName
+        val withAlbum = !album.isNullOrBlank()
+        val acceptCached: (CanvasArtwork) -> Boolean = { it.matches("", "", album) }
         val spotifyFirst = AppSettings.prioritizeSpotifyCanvas.value
 
         val openCanvasActive = AppSettings.openCanvasEnabled.value
@@ -127,7 +129,7 @@ object CanvasRepository {
         val seconds = song.durationMillis() / 1_000L
 
         // An answer that already stands needs neither the lock nor any lookup.
-        settled(key, album != null)?.let { return it.artwork }
+        settled(key, withAlbum, acceptCached)?.let { return it.artwork }
 
         return coroutineScope {
             // The music video is looked up from the moment the question is asked, not when the label
@@ -137,7 +139,7 @@ object CanvasRepository {
                 OpenCanvasProvider.search(song.title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
             } else null
 
-            val answer = resolve(key, album != null, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS) {
+            val answer = resolve(key, withAlbum, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS, acceptCached = acceptCached) {
                 Log.d(TAG, "lookup start '$title' (album=${album != null})")
                 // A music video that lines up with the song beats a label's short loop, so it is asked
                 // first; the label sources are only the fallback for songs without one.
@@ -169,8 +171,8 @@ object CanvasRepository {
     }
 
     /** The entry for [key] if it is fresh and still answers the question as asked now. */
-    private fun settled(key: String, withAlbum: Boolean): Entry? =
-        synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(withAlbum) } }
+    private fun settled(key: String, withAlbum: Boolean, acceptCached: (CanvasArtwork) -> Boolean): Entry? =
+        synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(withAlbum, acceptCached) } }
 
     /**
      * Gets the music-video lookup going the moment [song] starts playing, rather than when its player
@@ -218,7 +220,7 @@ object CanvasRepository {
                 AppSettings.openCanvasEnabled.value, AppSettings.openCanvasResolution.value),
             spotifyFirst = AppSettings.prioritizeSpotifyCanvas.value,
         )
-        return synchronized(cache) { cache[key]?.takeIf { it.fresh }?.artwork }
+        return synchronized(cache) { cache[key]?.takeIf { it.fresh }?.artwork?.takeIf { it.matches("", "", song.albumName) } }
     }
 
     /**
@@ -262,10 +264,11 @@ object CanvasRepository {
         key: String,
         withAlbum: Boolean,
         missLifetimeMs: Long = ENTRY_TTL_MS,
+        acceptCached: (CanvasArtwork) -> Boolean = { true },
         lookUp: suspend () -> CanvasArtwork?,
     ): CanvasArtwork? = lock.withLock {
         val began = synchronized(cache) {
-            cache[key]?.let { if (it.fresh && it.reusable(withAlbum)) return@withLock it.artwork }
+            cache[key]?.let { if (it.fresh && it.reusable(withAlbum, acceptCached)) return@withLock it.artwork }
             generation
         }
         val found = withContext(Dispatchers.IO) { lookUp() }
@@ -297,15 +300,8 @@ object CanvasRepository {
         }
     }
 
-    /**
-     * Whether this answer can stand in for a lookup that now knows [withAlbum].
-     *
-     * A hit is a hit — the album could only have confirmed it. A miss stands
-     * too, unless it was reached blind and there is now an album name to try,
-     * which is the one case worth spending a second round of requests on.
-     */
-    private fun Entry.reusable(withAlbum: Boolean): Boolean =
-        artwork != null || this.withAlbum || !withAlbum
+    private fun Entry.reusable(withAlbum: Boolean, accept: (CanvasArtwork) -> Boolean): Boolean =
+        artwork?.let(accept) ?: (this.withAlbum || !withAlbum)
 
     /**
      * The first source that answers with something that survives [accept].

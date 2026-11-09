@@ -141,8 +141,8 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     var inboxRequest by remember { mutableIntStateOf(0) }
     // Following lists the new episodes of the followed shows, and the Podcasts home what was started of them.
     val inboxWanted = section == PodioSection.FOLLOWING || section == PodioSection.PODCASTS
-    LaunchedEffect(inboxWanted, saved.shows, inboxRequest) {
-        if (inboxWanted) withContext(Dispatchers.Main.immediate) { m.loadInbox(saved.shows, force = inboxRequest > 0) }
+    LaunchedEffect(inboxWanted, saved.shows, saved.inboxEpisodesPerShow, inboxRequest) {
+        if (inboxWanted) withContext(Dispatchers.Main.immediate) { m.loadInbox(saved.shows, force = inboxRequest > 0, episodeLimit = saved.inboxEpisodesPerShow) }
     }
 
     val live = playback.id?.startsWith("podio:radio:") == true

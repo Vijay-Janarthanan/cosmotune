@@ -110,7 +110,8 @@ object LrcLib {
             if (marks.isEmpty()) return@flatMap emptySequence()
             val body = line.substring(marks.last().range.last + 1)
             // Detect the RTL marker that was written by [toEnhancedLrc].
-            val (text, alignment) = stripAlignmentMarker(body)
+            val (alignedText, alignment) = stripAlignmentMarker(body)
+            val (text, singer) = splitLrcVocalPrefix(alignedText, WORD_STAMP)
             val originalTime = msOf(marks.first())
             marks.asSequence().map { match -> LyricLine(
                 timeMs = originalTime,
@@ -121,8 +122,8 @@ object LrcLib {
                 text = text.replace(WORD_STAMP, "").trim(),
                 words = parseWordRuns(text),
                 alignment = alignment,
-            ).withLrcOffset(originalTime - msOf(match)).withLrcOffset(offset) }
-        }.sortedBy { it.timeMs }.toList()
+            ).withLrcOffset(originalTime - msOf(match)).withLrcOffset(offset) to singer }
+        }.sortedBy { it.first.timeMs }.toList().withLrcVocalAlignments()
 
         val kept = all.filterIndexed { index, line ->
             if (!line.isGap) return@filterIndexed true
@@ -134,12 +135,17 @@ object LrcLib {
         // Nothing stands for the intro — LRC files start at the first sung
         // word — so give the run-up its own break when it's long enough.
         val first = kept.firstOrNull() ?: return kept
-        return if (!first.isGap && first.timeMs >= MIN_GAP_MS) {
+        val withIntro = if (!first.isGap && first.timeMs >= MIN_GAP_MS) {
             listOf(LyricLine(0L, "")) + kept
         } else {
             kept
         }
+        return withIntro.withExplicitLrcBackgrounds(lrc)
     }
+
+    /** Prefer the native A2 reader for embedded Cosmotune tags, then try other lyric formats. */
+    fun parseEmbedded(raw: String): List<LyricLine>? = parseLrc(raw).takeIf { lines -> lines.any { !it.isGap } }
+        ?: ProviderLyrics.parse(raw)
 
     /**
      * Strip the alignment marker written by [toEnhancedLrc] and return the
@@ -212,7 +218,7 @@ object LrcLib {
     }
 
     private val STAMP = Regex("""\[(\d{1,3}):([0-5]\d)(?:[.:](\d{1,3}))?]""")
-    private val WORD_STAMP = Regex("""<(\d{1,3}):(\d{2})[.:](\d{2,3})>""")
+    private val WORD_STAMP = Regex("""<(\d{1,3}):([0-5]\d)(?:[.:](\d{1,3}))?>""")
     private val NOISE = Regex(
         """[(\[]\s*(?:from|feat\.?|official|lyrical|video|audio)\b[^)\]]*[)\]]|""" +
             """\b(?:official (?:video|audio|music video)|lyrical|full song|4k video)\b""",

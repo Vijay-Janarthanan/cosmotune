@@ -73,8 +73,7 @@ object EmbeddedLyrics {
                 ?: return@withContext null
             // The same last pass the network sources get, so a downloaded track
             // and a streamed one draw their backing vocals the same way.
-            LrcLib.parseLrc(raw).takeIf { lines -> lines.any { it.text.isNotBlank() } }
-                ?.withBackgroundVocals()
+            LrcLib.parseEmbedded(raw)?.withBackgroundVocals()
         }
 
     /** The raw LRC text for the file, preferring this app's word-timed field. */
@@ -119,7 +118,7 @@ object EmbeddedLyrics {
      */
     internal fun fromBytes(head: ByteArray): String? {
         val found = when {
-            head.startsWith(FLAC_MAGIC) -> flac(head)
+            FlacLyrics.isFlac(head) -> FlacLyrics.read(head)
             head.startsWith(MATROSKA_MAGIC) -> matroska(head)
             head.isMp4() -> mp4(head)
             else -> null
@@ -223,60 +222,6 @@ object EmbeddedLyrics {
         // `data` box holds, and decoding a JPEG as a string is not a lyric.
         if (readU32(bytes, dataAt + 4).toInt() != 1) return null
         return String(bytes, dataAt + 12, start + size - (dataAt + 12), Charsets.UTF_8)
-    }
-
-    // ---- FLAC ---------------------------------------------------------------
-
-    /**
-     * The `LYRICS` (or [WORD_LYRICS_FIELD]) comment out of the `VORBIS_COMMENT` block.
-     *
-     * Every length in the block is **little-endian** — it reuses Ogg Vorbis'
-     * layout, which is the one part of FLAC that isn't big-endian.
-     */
-    private fun flac(bytes: ByteArray): String? {
-        var pos = FLAC_MAGIC.size
-        while (pos + 4 <= bytes.size) {
-            val flags = bytes[pos].toInt() and 0xFF
-            val length = ((bytes[pos + 1].toInt() and 0xFF) shl 16) or
-                ((bytes[pos + 2].toInt() and 0xFF) shl 8) or
-                (bytes[pos + 3].toInt() and 0xFF)
-            val start = pos + 4
-            if (start + length > bytes.size) return null
-            if (flags and 0x7F == FLAC_VORBIS_COMMENT) {
-                return vorbisComment(bytes, start, start + length)
-            }
-            if (flags and 0x80 != 0) return null
-            pos = start + length
-        }
-        return null
-    }
-
-    private fun vorbisComment(bytes: ByteArray, start: Int, end: Int): String? {
-        var pos = start
-        fun u32(): Int? {
-            if (pos + 4 > end) return null
-            val v = (bytes[pos].toInt() and 0xFF) or ((bytes[pos + 1].toInt() and 0xFF) shl 8) or
-                ((bytes[pos + 2].toInt() and 0xFF) shl 16) or ((bytes[pos + 3].toInt() and 0xFF) shl 24)
-            pos += 4
-            return v
-        }
-        val vendor = u32() ?: return null
-        pos += vendor
-        val count = u32() ?: return null
-        var plain: String? = null
-        repeat(count.coerceAtMost(4_096)) {
-            val length = u32() ?: return plain
-            if (length < 0 || pos + length > end) return plain
-            val entry = String(bytes, pos, length, Charsets.UTF_8)
-            pos += length
-            val name = entry.substringBefore('=').uppercase()
-            val value = entry.substringAfter('=', "")
-            // This app's own field wins outright; the standard one is held in
-            // case it turns out to be the only one there.
-            if (name in WORD_LYRICS_FIELDS && value.isNotBlank()) return value
-            if (name == "LYRICS" && plain == null && value.isNotBlank()) plain = value
-        }
-        return plain
     }
 
     // ---- Matroska / WebM ----------------------------------------------------
@@ -390,8 +335,6 @@ object EmbeddedLyrics {
         return v
     }
 
-    private const val FLAC_VORBIS_COMMENT = 4
-    private val FLAC_MAGIC = "fLaC".toByteArray(Charsets.US_ASCII)
     private val MATROSKA_MAGIC = byteArrayOf(0x1A, 0x45, 0xDF.toByte(), 0xA3.toByte())
     private val DATA_ATOM = "data".toByteArray(Charsets.ISO_8859_1)
     private val LYR_ATOM = byteArrayOf(0xA9.toByte()) + "lyr".toByteArray(Charsets.ISO_8859_1)

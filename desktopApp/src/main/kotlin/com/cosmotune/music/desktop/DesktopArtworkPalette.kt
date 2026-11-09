@@ -21,7 +21,7 @@ data class DesktopArtworkPalette(
 fun rememberDesktopArtworkPalette(url: String?): DesktopArtworkPalette {
     val palette by produceState(DesktopArtworkPalette.Default, key1 = url) {
         value = DesktopArtworkPalette.Default
-        value = withContext(Dispatchers.IO) { DesktopArtworkPalette.from(DesktopArtworkCache.load(url)) }
+        value = withContext(Dispatchers.IO) { DesktopArtworkPalette.from(DesktopArtworkCache.load(url, 160)) }
     }
     return palette
 }

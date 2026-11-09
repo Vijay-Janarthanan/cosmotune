@@ -9,6 +9,7 @@ object BuiltInPlugins {
         val defaultEnabled: Boolean, val capabilities: Set<Capability>)
 
     const val IPTV_ORG = "iptv"
+    const val FREE_TV = "free-tv"
     const val PLUTO = "pluto"
     const val SAMSUNG = "samsung"
     const val PLEX = "plex"
@@ -33,6 +34,8 @@ object BuiltInPlugins {
     val all: List<Def> = listOf(
         Def(IPTV_ORG, PluginKind.IPTV_ORG, "iptv-org free channels", "Live TV · public channel lists · guide where available", "IPTV", true,
             setOf(Capability.LIVE, Capability.EPG, Capability.SEARCH)),
+        Def(FREE_TV, PluginKind.M3U, "Free-TV/IPTV", "Live TV · worldwide free-to-air and free online channels", "FREE TV", true,
+            setOf(Capability.LIVE, Capability.SEARCH, Capability.STREAMS)),
         Def(PLUTO, PluginKind.PLUTO_TV, "Pluto TV", "Live TV and free films and series", "PLUTO", true,
             setOf(Capability.LIVE, Capability.EPG, Capability.CATALOG, Capability.SEARCH, Capability.STREAMS, Capability.META)),
         Def(SAMSUNG, PluginKind.SAMSUNG_TV_PLUS, "Samsung TV Plus", "Live TV · free", "TV+", true,

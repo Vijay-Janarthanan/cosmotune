@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import com.cosmotune.music.data.lyrics.LrcLib
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -15,6 +16,20 @@ import kotlin.test.assertNull
  * layout each container actually uses, which a hand-built header states exactly.
  */
 class DesktopEmbeddedLyricsTest {
+    @Test fun syncedFlacFieldWinsOverPlainLyrics() {
+        val timed = "[00:12.00]a timed line"
+        assertEquals(timed, DesktopEmbeddedLyrics.fromBytes(flac("LYRICS" to "plain", "SYNCEDLYRICS" to timed)))
+        assertEquals("plain", DesktopEmbeddedLyrics.fromBytes(flac("SYNCEDLYRICS" to "no timestamp", "LYRICS" to "plain")))
+    }
+
+    @Test fun timedMornyeLyricsStayTimedEvenWhenStoredInAnUnsyncedField() {
+        val timed = "[00:02.916]v1:First voice\n[00:06.811]v2:Second voice"
+        val bytes = flac("LYRICS" to "plain fallback", "UNSYNCEDLYRICS" to timed)
+        val lines = LrcLib.parseEmbedded(checkNotNull(DesktopEmbeddedLyrics.fromBytes(bytes))).orEmpty().filterNot { it.isGap }
+        assertEquals(listOf(2_916L, 6_811L), lines.map { it.timeMs })
+        assertEquals(listOf("First voice", "Second voice"), lines.map { it.text })
+    }
+
 
     private val scratch = Files.createTempDirectory("cosmotune-embedded")
 

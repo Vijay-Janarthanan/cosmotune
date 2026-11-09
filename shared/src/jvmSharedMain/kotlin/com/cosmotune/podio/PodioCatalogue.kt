@@ -50,12 +50,12 @@ data class PodioPhoto(val title: String, val image: String, val page: String, va
 data class PodioHighlight(val title: String, val summary: String, val image: String, val url: String)
 data class PodioItem(val id: String, val title: String, val author: String, val url: String,
     val artwork: String = "", val live: Boolean = false, val durationSeconds: Long = 0,
-    val downloadedUri: String? = null, val downloadedPath: String? = null) {
+    val downloadedUri: String? = null, val downloadedPath: String? = null, val skipSilence: Boolean? = null) {
     fun song(): Song = Song(videoId = id, title = title, artist = author, thumbnailUrl = artwork.takeIf { it.isNotBlank() },
         durationText = durationSeconds.takeIf { it > 0 }?.let { "${it / 60}:${(it % 60).toString().padStart(2, '0')}" },
         localUri = downloadedUri?.takeIf { runCatching { URI(it).scheme in setOf("file", "content") }.getOrDefault(false) }
             ?: if (YouTubePodcasts.videoId(id) != null) null else requireNotNull(PodioCatalogue.httpUrl(url)),
-        localPath = downloadedPath, albumName = if (live) "Podio · Live radio" else "Podio · Podcast")
+        localPath = downloadedPath, albumName = if (live) "Podio · Live radio" else "Podio · Podcast", podcastSkipSilence = skipSilence)
 }
 fun RadioStation.item() = PodioItem("podio:radio:$id", name, listOf(country, language).filter(String::isNotBlank).joinToString(" · "), url, artwork, live = true)
 fun PodcastEpisode.item() = PodioItem("podio:episode:$id", title, show, url, artwork, durationSeconds = durationSeconds)
@@ -426,7 +426,8 @@ private class AnonymousSpotifyCookies : CookieJar {
 }
 
 @Serializable data class PodioSaved(val stations: List<RadioStation> = emptyList(), val shows: List<PodcastShow> = emptyList(),
-    val progress: Map<String, Long> = emptyMap(), val completedEpisodes: Set<String> = emptySet())
+    val progress: Map<String, Long> = emptyMap(), val completedEpisodes: Set<String> = emptySet(), val inboxEpisodesPerShow: Int = 12,
+    val skipSilenceByShow: Map<String, Boolean> = emptyMap())
 class PodioLibrary(private val file: File) {
     companion object {
         private class Store(file: File) {
@@ -460,7 +461,9 @@ class PodioLibrary(private val file: File) {
     fun update(change: (PodioSaved) -> PodioSaved) = synchronized(store.lock) {
         val next = change(state.value).let {
             val progress = it.progress.entries.toList().takeLast(1000).associate { e -> e.toPair() }
-            it.copy(stations = it.stations.take(500), shows = it.shows.take(500), progress = progress, completedEpisodes = it.completedEpisodes.intersect(progress.keys))
+            val shows = it.shows.take(500)
+            it.copy(stations = it.stations.take(500), shows = shows, progress = progress, completedEpisodes = it.completedEpisodes.intersect(progress.keys),
+                skipSilenceByShow = it.skipSilenceByShow.filterKeys(shows.map(PodcastShow::id).toSet()::contains))
         }
         file.parentFile?.mkdirs()
         val temp = File(file.parentFile, file.name + ".tmp")

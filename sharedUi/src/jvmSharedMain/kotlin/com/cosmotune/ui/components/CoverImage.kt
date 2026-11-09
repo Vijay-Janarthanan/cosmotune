@@ -18,6 +18,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.size.Scale
 import com.cosmotune.design.CoverArt
 import com.cosmotune.design.TileDepth
 import com.cosmotune.theme.CoverField
@@ -42,9 +45,11 @@ fun CoverImage(
 ) {
     val density = LocalDensity.current.density
     val px = remember(size, density) { CoverArt.px(size.value, density) }
+    val context = LocalPlatformContext.current
+    val request = remember(context, url, px) { ImageRequest.Builder(context).data(url.artworkAt(px)).size(px).scale(Scale.FILL).build() }
     CoverFrame(size, radius, modifier, shadow) {
         AsyncImage(
-            model = url.artworkAt(px),
+            model = request,
             contentDescription = contentDescription,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),

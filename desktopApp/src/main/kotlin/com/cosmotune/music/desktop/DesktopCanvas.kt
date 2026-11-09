@@ -127,10 +127,8 @@ object DesktopCanvasClient {
         val fresh: Boolean get() = System.currentTimeMillis() - at < lifetimeMs &&
             artwork?.url?.let { !com.opencanvas.core.stream.isMediaStreamExpired(it) } != false
 
-        /** A hit is a hit — the album could only have confirmed it. A miss stands too, unless it
-         * was reached blind and there is now an album name to try. */
-        fun reusable(nowWithAlbum: Boolean): Boolean =
-            artwork != null || withAlbum || !nowWithAlbum
+        fun reusable(nowWithAlbum: Boolean, accept: (DesktopCanvasArtwork) -> Boolean): Boolean =
+            artwork?.let(accept) ?: (withAlbum || !nowWithAlbum)
     }
 
     private val cache = object : LinkedHashMap<String, Entry>(CACHE_SIZE, 0.75f, true) {
@@ -158,6 +156,8 @@ object DesktopCanvasClient {
         val artist = song.artist.cleanedForCanvas()
         if (title.isBlank() || artist.isBlank()) return null
         val album = song.albumName
+        val withAlbum = !album.isNullOrBlank()
+        val acceptCached: (DesktopCanvasArtwork) -> Boolean = { it.matches("", "", album) }
         // Keyed on the track alone: the album arrives after the player opens, and keying on it made
         // the late arrival look like a different question.
         val openCanvasActive = DesktopAppearanceSettings.openCanvasEnabled.value
@@ -165,7 +165,7 @@ object DesktopCanvasClient {
         val seconds = song.durationMillis() / 1_000L
         val key = com.cosmotune.canvas.canvasSongKey(song.videoId, openCanvasActive, openCanvasRes)
         // An answer that already stands needs neither the lock nor any lookup.
-        synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(album != null) } }?.let { return it.artwork }
+        synchronized(cache) { cache[key]?.takeIf { it.fresh && it.reusable(withAlbum, acceptCached) } }?.let { return it.artwork }
 
         return coroutineScope {
             // The music video is looked up from the moment the question is asked, not when the label
@@ -175,7 +175,7 @@ object DesktopCanvasClient {
                 DesktopOpenCanvasProvider.search(song.title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
             } else null
 
-            val answer = resolve(key, album != null, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS) {
+            val answer = resolve(key, withAlbum, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS, acceptCached = acceptCached) {
                 // A music video that lines up with the song beats a label's short loop, so it is asked
                 // first; the label sources are only the fallback for songs without one.
                 val video = musicVideo?.let { pending ->
@@ -199,6 +199,7 @@ object DesktopCanvasClient {
             cache[com.cosmotune.canvas.canvasSongKey(song.videoId,
                 DesktopAppearanceSettings.openCanvasEnabled.value,
                 DesktopAppearanceSettings.openCanvasResolution.value)]?.takeIf { it.fresh }?.artwork
+                ?.takeIf { it.matches("", "", song.albumName) }
         }
 
     /**
@@ -225,10 +226,11 @@ object DesktopCanvasClient {
         key: String,
         withAlbum: Boolean,
         missLifetimeMs: Long = ENTRY_TTL_MS,
+        acceptCached: (DesktopCanvasArtwork) -> Boolean = { true },
         lookUp: suspend () -> DesktopCanvasArtwork?,
     ): DesktopCanvasArtwork? = gate.withLock {
         val began = synchronized(cache) {
-            cache[key]?.let { if (it.fresh && it.reusable(withAlbum)) return@withLock it.artwork }
+            cache[key]?.let { if (it.fresh && it.reusable(withAlbum, acceptCached)) return@withLock it.artwork }
             generation
         }
         val found = withContext(Dispatchers.IO) { lookUp() }
@@ -417,6 +419,20 @@ internal object DesktopCanvasCache {
     private const val PERSIST_WAIT_MS = 10 * 60 * 1000L
 }
 
+/** Owns both the decoder and its stream across cancellation while opening. */
+internal class DesktopCanvasPlayback(decorative: Boolean = false) {
+    val decoder = DesktopCanvasDecoder(decorative)
+    private var streaming: com.opencanvas.core.stream.ProgressiveRangeSource? = null
+
+    suspend fun open(candidates: List<String>, headers: Map<String, String> = emptyMap()) = withContext(Dispatchers.IO) {
+        DesktopCanvasCache.open(decoder, candidates, headers).also { streaming = it.streaming }
+    }
+
+    suspend fun close() = withContext(NonCancellable + Dispatchers.IO) {
+        try { decoder.close() } finally { streaming?.close() }
+    }
+}
+
 /** The motion artwork, drawn as frames rather than played by a native child. */
 @Composable
 fun DesktopCanvasView(
@@ -436,30 +452,23 @@ fun DesktopCanvasView(
         // rewind itself: its own seek does not take on an HLS manifest, which is what Apple serves,
         // and the clip then stopped dead on its last frame for the rest of the song.
         while (isActive) {
-            val decoder = DesktopCanvasDecoder()
+            val playback = DesktopCanvasPlayback(decorative = true)
+            val decoder = playback.decoder
             val startedAt = System.nanoTime()
-            val attempt = withContext(Dispatchers.IO) {
-                DesktopCanvasCache.open(decoder, listOfNotNull(url, fallbackUrl))
-            }
-            val opened = attempt.result
-            // Set when the clip is read through the network rather than from a file, so it can be
-            // released with the decoder.
-            val streaming = attempt.streaming
-            val how = attempt.how
-            if (opened.isFailure) {
-                DesktopTrackLog.log("canvas: ${opened.exceptionOrNull()?.message}")
-                withContext(Dispatchers.IO) { decoder.close() }
-                streaming?.close()
-                return@LaunchedEffect
-            }
             var shown = 0
             try {
+                val attempt = playback.open(listOfNotNull(url, fallbackUrl))
+                if (attempt.result.isFailure) {
+                    DesktopTrackLog.log("canvas: ${attempt.result.exceptionOrNull()?.message}")
+                    return@LaunchedEffect
+                }
                 val pixels = ByteArray(decoder.width * decoder.height * 4)
                 val info = ImageInfo.makeN32(decoder.width, decoder.height, ColorAlphaType.OPAQUE)
                 while (isActive) {
-                    val started = System.currentTimeMillis()
+                    val started = System.nanoTime()
                     val decoded = withContext(Dispatchers.IO) { decoder.nextFrame(pixels) }
                     if (!decoded) break
+                    delay((decoder.artworkDelayMillis - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(0L))
                     shown++
                     // `pixels` is handed to Skia rather than copied into it, so the array cannot be
                     // the one the decoder writes the next frame into.
@@ -471,17 +480,11 @@ fun DesktopCanvasView(
                     if (shown == 1) {
                         DesktopCanvasBackdrop.publish(url, next)
                         val millis = (System.nanoTime() - startedAt) / 1_000_000
-                        DesktopTrackLog.log("canvas: first frame in $millis ms ($how)")
+                        DesktopTrackLog.log("canvas: first frame in $millis ms (${attempt.how})")
                     }
-                    val spent = System.currentTimeMillis() - started
-                    delay((decoder.frameIntervalMillis - spent).coerceAtLeast(0L))
                 }
             } finally {
-                withContext(NonCancellable + Dispatchers.IO) {
-                    decoder.close()
-                    // Only after the decoder: it may still be inside a read callback until it closes.
-                    streaming?.close()
-                }
+                playback.close()
             }
             // A pass that drew nothing would spin: reopening cannot fix a clip that has no frames
             // in it, and retrying immediately is a busy loop over the network.

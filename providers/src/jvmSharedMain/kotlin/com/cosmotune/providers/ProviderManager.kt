@@ -662,7 +662,8 @@ class ProviderManager(val store: ProviderStore, private val artwork: CatalogueAr
             require(ProviderPackages.digest(archive) == installed.sha256) { "Installed provider package changed" }
             val code = ZipFile(archive).use { zip -> ProviderPackages.utf8(zip.getInputStream(zip.getEntry("index.js")).use { it.readBytes() }) }
             val host = ProviderMetadataHost(installed, store, ProviderNetwork(installed.manifest.permissions,
-                installed.allowLocalNetwork, httpClient, cookieJar = ProviderCookieJar.forProvider(installed, store)))
+                installed.allowLocalNetwork, httpClient, cookieJar = ProviderCookieJar.forProvider(installed, store),
+                configuredOrigins = installed.manifest.networkGrants(store.state.value.settings[name].orEmpty())))
             starting = host
             synchronized(cacheLock) {
                 check(!closed && name !in revokedNames && store.state.value.installed.find { it.manifest.name == name } == installed) { "Provider access changed" }

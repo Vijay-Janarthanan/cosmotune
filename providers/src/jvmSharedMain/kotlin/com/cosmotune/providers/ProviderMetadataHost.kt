@@ -15,7 +15,8 @@ import kotlinx.serialization.json.*
 /** Metadata host APIs shared by Android and desktop. Media/file APIs have a separate scoped host. */
 class ProviderMetadataHost(private val install: ProviderInstall, private val store: ProviderStore,
     val network: ProviderNetwork = ProviderNetwork(install.manifest.permissions, install.allowLocalNetwork,
-        cookieJar = ProviderCookieJar.forProvider(install, store)),
+        cookieJar = ProviderCookieJar.forProvider(install, store),
+        configuredOrigins = install.manifest.networkGrants(store.state.value.settings[install.manifest.name].orEmpty())),
     mediaTools: ProviderMediaTools? = ProviderMediaTools.installed) {
     private val work = ProviderHostWork(network::cancel)
     private val mutableProgress = kotlinx.coroutines.flow.MutableStateFlow<ProviderWorkProgress?>(null)
@@ -221,8 +222,8 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
                 JsonNull
             }
             "isRequestCancelled", "isDownloadCancelled" -> JsonPrimitive(network.isCancelled)
-            "appVersion" -> JsonPrimitive("1.0.17")
-            "appUserAgent" -> JsonPrimitive("Cosmotune/1.0.17")
+            "appVersion" -> JsonPrimitive("1.0.18")
+            "appUserAgent" -> JsonPrimitive("Cosmotune/1.0.18")
             "randomUserAgent" -> JsonPrimitive("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36")
             "getResolutionRemainingMs" -> JsonPrimitive((operationTimeoutMs - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(0))
             "sleep" -> {

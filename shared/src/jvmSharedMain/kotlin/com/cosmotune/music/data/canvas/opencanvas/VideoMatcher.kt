@@ -109,6 +109,8 @@ object VideoMatcher {
         Regex("\\s@\\s") // "Artist 'Song' @ Some Show": a stage performance
 
     private val FAN_CHANNEL = Regex("(^|[^\\p{L}\\p{N}])fans?([^\\p{L}\\p{N}]|$)")
+    private val distinctVersion = Regex("(?i)\\b(?:reprise|(?:female|male|duet|solo)\\s+(?:version|vocals?))\\b")
+    private val gameEdit = Regex("(?i)\\b(?:gameplay|bgmi|amv|gmv)\\b")
 
     private val POSITIVE_KEYWORDS = listOf(
         "official video", "official music video", "music video", "official mv", "official m/v", "video song",
@@ -135,6 +137,9 @@ object VideoMatcher {
         val artistNorm = expectedArtist.lowercase()
         val trackTitleNorm = expectedTitle.lowercase()
         val channelNorm = candidate.channelTitle.lowercase()
+        val expectedEditions = distinctVersion.findAll(trackTitleNorm).map { it.value.substringBefore(' ') }.toSet()
+        val videoEditions = distinctVersion.findAll(titleNorm).map { it.value.substringBefore(' ') }.toSet()
+        if (videoEditions != expectedEditions || gameEdit.containsMatchIn(titleNorm) && !gameEdit.containsMatchIn(trackTitleNorm)) return -1_000
 
         // 1. Verified-artist channel
         if (candidate.isOfficialMusicVideo) {

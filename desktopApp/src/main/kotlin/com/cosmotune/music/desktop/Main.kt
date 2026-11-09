@@ -70,9 +70,7 @@ private fun runDesktop() {
     com.cosmotune.desktop.TorConnection.install()
     // The listener's proxy and offline mode (Extras), right after Tor has chosen the routing.
     DesktopExtras.install()
-    coil3.SingletonImageLoader.setSafe { context ->
-        coil3.ImageLoader.Builder(context).components { add(coil3.svg.SvgDecoder.Factory()); add(com.cosmotune.ui.providers.CatalogueArtworkFetcher.Factory()) }.build()
-    }
+    coil3.SingletonImageLoader.setSafe(DesktopArtworkCache::imageLoader)
     com.cosmotune.ui.pages.ArtistVisualSettings.install(DesktopSignatureSettings.enabled, DesktopSignatureSettings.url,
         java.io.File(com.cosmotune.desktop.desktopListeningFile().parentFile, "artist-visuals"))
     // Before any WebView exists, so the sign-in window can start over with an empty jar.

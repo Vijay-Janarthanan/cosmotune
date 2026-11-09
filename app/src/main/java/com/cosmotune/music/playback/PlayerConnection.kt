@@ -254,6 +254,7 @@ fun Song.toSongBundle(): Bundle = bundleOf(
 ).apply {
     putStringArrayList(ARTISTS_NAMES, ArrayList(artists.map { it.name }))
     putStringArrayList(ARTISTS_IDS, ArrayList(artists.map { it.browseId.orEmpty() }))
+    podcastSkipSilence?.let { putBoolean(EXTRA_PODCAST_SKIP_SILENCE, it) }
 }
 
 fun songFromBundle(b: Bundle): Song {
@@ -284,6 +285,7 @@ fun songFromBundle(b: Bundle): Song {
         isExplicit = if (b.containsKey("isExplicit")) b.getBoolean("isExplicit") else null,
         queueTier = queueTier,
         queueEntryId = b.getString("queueEntryId"),
+        podcastSkipSilence = b.takeIf { it.containsKey(EXTRA_PODCAST_SKIP_SILENCE) }?.getBoolean(EXTRA_PODCAST_SKIP_SILENCE),
     )
 }
 
@@ -473,7 +475,14 @@ fun MediaItem.toSong() = Song(
     playbackSourceId = mediaMetadata.extras?.getString(EXTRA_PLAYBACK_SOURCE_ID),
     localUri = mediaMetadata.extras?.getString(EXTRA_LOCAL_URI),
     localPath = mediaMetadata.extras?.getString(EXTRA_LOCAL_PATH),
+    podcastSkipSilence = podcastSkipSilenceOverride,
 )
+
+internal val MediaItem.podcastSkipSilenceOverride: Boolean?
+    get() = mediaMetadata.extras?.takeIf { mediaId.startsWith("podio:episode:") && it.containsKey(EXTRA_PODCAST_SKIP_SILENCE) }
+        ?.getBoolean(EXTRA_PODCAST_SKIP_SILENCE)
+
+private const val EXTRA_PODCAST_SKIP_SILENCE = "cosmotune.podcastSkipSilence"
 
 internal val mediaItemTiers = java.util.Collections.synchronizedMap(java.util.WeakHashMap<MediaItem, QueueTier>())
 internal val mediaItemEntryIds = java.util.Collections.synchronizedMap(java.util.WeakHashMap<MediaItem, String>())
@@ -761,7 +770,7 @@ fun Song.toMediaItem(): MediaItem {
                     artistId != null || albumId != null || setVideoId != null ||
                     isExplicit != null || isVideo || isVideoOrigin || radioName != null ||
                     sourceQuality != null ||
-                    playbackSource != null || playbackSourceType != null || playbackSourceId != null
+                    playbackSource != null || playbackSourceType != null || playbackSourceId != null || podcastSkipSilence != null
                 ) {
                     setExtras(
                         bundleOf(
@@ -783,7 +792,7 @@ fun Song.toMediaItem(): MediaItem {
                             EXTRA_VIDEO_ORIGIN to isVideoOrigin,
                             EXTRA_SOURCE_QUALITY to sourceQuality,
                             EXTRA_SOURCE_HI_RES to sourceHiRes,
-                        ),
+                        ).apply { podcastSkipSilence?.let { putBoolean(EXTRA_PODCAST_SKIP_SILENCE, it) } },
                     )
                 }
             }

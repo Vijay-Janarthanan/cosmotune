@@ -1,9 +1,12 @@
 package com.cosmotune.ui
 
+import androidx.compose.ui.geometry.Offset
+import com.cosmotune.ui.nowplaying.recordSeekFraction
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -56,8 +59,19 @@ class NowPlayingWideContractTest {
         assertTrue(media.contains("RecordBox("), "without a video, the record")
         val record = SourceContract.functionBody(code(nowPlaying("NowPlayingVideo.kt")), "NowPlayingRecord")
         assertTrue(record.contains("OrbitRing("), "the ring round the disc is the progress")
-        assertTrue(record.contains("detectDragGestures("), "drag round the ring to seek")
+        assertTrue(record.contains("recordSeekFraction(down.position - center"), "only the ring starts a seek")
         assertTrue(src.contains("progress = transport::progress, playing = isPlaying, onSeek = transport::seek"))
+    }
+
+    @Test fun theSeekRingOnlyHitsNearTheCircleAndTracksClockwiseFromTheTop() {
+        fun seek(x: Float, y: Float) = recordSeekFraction(Offset(x, y), radius = 100f, tolerance = 12f)
+        assertNull(seek(0f, 0f))
+        assertNull(seek(0f, 80f))
+        assertNull(seek(100f, 100f))
+        assertEquals(0f, seek(0f, -110f))
+        assertEquals(0.25f, seek(90f, 0f))
+        assertEquals(0.5f, seek(0f, 100f))
+        assertEquals(0.75f, seek(-100f, 0f))
     }
 
     @Test fun theSongCardIsTheBiteCardWithPlayInTheBiteAndEveryControl() {

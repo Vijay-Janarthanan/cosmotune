@@ -56,6 +56,7 @@ internal fun NowPlayingPhone(
     card: @Composable (Modifier) -> Unit,
     chips: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
+    recordDetails: @Composable () -> Unit = {},
 ) {
     Box(modifier.fillMaxSize().hazeSource(hazeState)) {
         Box(Modifier.fillMaxSize().cosmoAmbientGround(artwork = true))
@@ -66,7 +67,7 @@ internal fun NowPlayingPhone(
                 .padding(horizontal = PHONE_SIDE),
         ) {
             com.cosmotune.ui.shell.WindowCaptionArea(Modifier.fillMaxWidth()) { topRow(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp)) }
-            MediaOverCard(mediaKind, aspect, Modifier.weight(1f).fillMaxWidth(), media, card, chips)
+            MediaOverCard(mediaKind, aspect, Modifier.weight(1f).fillMaxWidth(), media, card, chips, recordDetails)
         }
     }
 }
@@ -85,9 +86,15 @@ private fun MediaOverCard(
     media: @Composable (Modifier) -> Unit,
     card: @Composable (Modifier) -> Unit,
     chips: @Composable (Modifier) -> Unit,
+    recordDetails: @Composable () -> Unit,
 ) {
     Layout(
-        content = { Box { media(Modifier.fillMaxSize()) }; Box { card(Modifier.fillMaxWidth()) }; Box { chips(Modifier.fillMaxWidth().padding(bottom = 18.dp)) } },
+        content = {
+            Box { media(Modifier.fillMaxSize()) }
+            Box { card(Modifier.fillMaxWidth()) }
+            Box { chips(Modifier.fillMaxWidth().padding(bottom = 18.dp)) }
+            if (kind == PhoneMedia.RECORD) Box { recordDetails() }
+        },
         modifier = modifier,
     ) { measurables, constraints ->
         val width = constraints.maxWidth
@@ -101,13 +108,19 @@ private fun MediaOverCard(
             PhoneMedia.ROOM -> room
             PhoneMedia.RECORD -> (width * 0.9f).toInt()
         }
-        val height = wanted.coerceIn(0, room)
+        val detailsGap = 8.dp.roundToPx()
+        val details = measurables.getOrNull(3)?.measure(Constraints(maxWidth = width, maxHeight = room))
+            ?.takeIf { it.height > 0 && room - wanted >= it.height + detailsGap }
+        val extra = details?.let { it.height + detailsGap } ?: 0
+        val height = wanted.coerceIn(0, room - extra)
         val mediaPlaced = measurables[0].measure(Constraints.fixed(width, height))
-        val top = (room - height) / 3
+        val top = (room - height - extra) / 3
+        val cardTop = top + height + gap + extra
         layout(width, constraints.maxHeight) {
             mediaPlaced.place(0, top)
-            cardPlaced.place(0, top + height + gap)
-            chipsPlaced.place(0, top + height + gap + cardPlaced.height + chipsGap)
+            details?.placeRelative((width - details.width) / 2, top + height + detailsGap)
+            cardPlaced.place(0, cardTop)
+            chipsPlaced.place(0, cardTop + cardPlaced.height + chipsGap)
         }
     }
 }

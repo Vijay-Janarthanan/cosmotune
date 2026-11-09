@@ -34,7 +34,6 @@ import com.cosmotune.music.data.canvas.CanvasSource
 import com.cosmotune.music.ui.player.CanvasContentMode
 import com.cosmotune.music.ui.player.CanvasVideoSpec
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
@@ -92,43 +91,34 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
         // seconds long, and the decoder cannot be relied on to rewind an HLS
         // manifest itself, so each pass reopens it.
         while (isActive) {
-            val decoder = DesktopCanvasDecoder()
-            val attempt = withContext(Dispatchers.IO) {
-                DesktopCanvasCache.open(decoder, listOfNotNull(canvas.url, canvas.fallbackUrl), canvas.headers)
-            }
-            val opened = attempt.result
-            val streaming = attempt.streaming
-            if (opened.isFailure) {
-                DesktopTrackLog.log("canvas: ${opened.exceptionOrNull()?.message}")
-                withContext(Dispatchers.IO) { decoder.close() }
-                streaming?.close()
-                return@LaunchedEffect
-            }
-            reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
-            sourceAspect = decoder.width.toFloat() / decoder.height.coerceAtLeast(1)
+            val playback = DesktopCanvasPlayback(decorative = true)
+            val decoder = playback.decoder
             var shown = 0
             try {
+                val attempt = playback.open(listOfNotNull(canvas.url, canvas.fallbackUrl), canvas.headers)
+                if (attempt.result.isFailure) {
+                    DesktopTrackLog.log("canvas: ${attempt.result.exceptionOrNull()?.message}")
+                    return@LaunchedEffect
+                }
+                reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
+                sourceAspect = decoder.width.toFloat() / decoder.height.coerceAtLeast(1)
                 val pixels = ByteArray(decoder.width * decoder.height * 4)
                 val info = ImageInfo.makeN32(decoder.width, decoder.height, ColorAlphaType.OPAQUE)
                 while (isActive) {
                     // Paused with the track, or for the length of the sleeve's
                     // collapse: the last frame stays up, nothing is decoded.
                     snapshotFlow { running }.first { it }
-                    val started = System.currentTimeMillis()
+                    val started = System.nanoTime()
                     val decoded = withContext(Dispatchers.IO) { decoder.nextFrame(pixels) }
                     if (!decoded) break
+                    delay((decoder.artworkDelayMillis - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(0L))
                     shown++
                     // Handed to Skia rather than copied, so the next frame
                     // cannot be decoded into the same array.
                     frame = Image.makeRaster(info, pixels.copyOf(), decoder.width * 4).toComposeImageBitmap()
-                    val spent = System.currentTimeMillis() - started
-                    delay((decoder.frameIntervalMillis - spent).coerceAtLeast(0L))
                 }
             } finally {
-                withContext(NonCancellable + Dispatchers.IO) {
-                    decoder.close()
-                    streaming?.close()
-                }
+                playback.close()
             }
             // A pass that drew nothing would spin: reopening cannot fix a clip
             // with no frames in it.
@@ -145,13 +135,11 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
     LaunchedEffect(canvas) {
         val sync = spec.sync ?: return@LaunchedEffect
         val policy = CanvasSyncPolicy(sync.map, sync.durationMs)
-        val decoder = DesktopCanvasDecoder()
+        val playback = DesktopCanvasPlayback()
+        val decoder = playback.decoder
         val startedAt = System.nanoTime()
-        val attempt = withContext(Dispatchers.IO) {
-            DesktopCanvasCache.open(decoder, listOfNotNull(canvas.url, canvas.fallbackUrl), canvas.headers)
-        }
-        val streaming = attempt.streaming
         try {
+            val attempt = playback.open(listOfNotNull(canvas.url, canvas.fallbackUrl), canvas.headers)
             if (attempt.result.isFailure) {
                 DesktopTrackLog.log("canvas: ${attempt.result.exceptionOrNull()?.message}")
                 return@LaunchedEffect
@@ -228,10 +216,7 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
                 }
             }
         } finally {
-            withContext(NonCancellable + Dispatchers.IO) {
-                decoder.close()
-                streaming?.close()
-            }
+            playback.close()
         }
     }
 

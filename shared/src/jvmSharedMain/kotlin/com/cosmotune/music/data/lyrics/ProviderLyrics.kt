@@ -26,7 +26,10 @@ object ProviderLyrics {
         if (content.contains(Regex("""(?i)\b(?:lyrics? (?:not found|unavailable)|error)\b"""))) return emptyList()
         return content.lineSequence().map(String::trim).filter(String::isNotEmpty)
             .filterNot { it.matches(Regex("""\[[A-Za-z]+:.*]""")) }
-            .map { LyricLine(0L, it) }.toList()
+            .mapNotNull {
+                val (text, singer) = splitLrcVocalPrefix(it)
+                if (text.isEmpty()) null else LyricLine(0L, text) to singer
+            }.toList().withLrcVocalAlignments()
     }
 
     /** Providers sometimes wrap the same lyric string in one or two JSON envelopes. */
@@ -91,7 +94,7 @@ object KaraokeLrc {
             val match = LINE.matchEntire(source.trim()) ?: return@mapNotNull null
             val lineStart = match.groupValues[1].toLong()
             val lineDuration = match.groupValues[2].toLong()
-            val body = match.groupValues[3]
+            val (body, singer) = splitLrcVocalPrefix(match.groupValues[3], WORD_TIME)
             // QRC and YRC stamp each syllable, and say which ones make a word
             // by leaving the space out between them — see [wordsFromRuns].
             val prefixed = wordsFromRuns(
@@ -111,8 +114,8 @@ object KaraokeLrc {
                 text = EnhancedLrc.decodeEntities(body.replace(WORD_TIME, "")).trim(),
                 words = words,
                 sungUntilMs = (lineStart + lineDuration).takeIf { lineDuration > 0 },
-            )
-        }.filter { it.text.isNotEmpty() }.sortedBy { it.timeMs }.toList()
+            ) to singer
+        }.filter { it.first.text.isNotEmpty() }.sortedBy { it.first.timeMs }.toList().withLrcVocalAlignments()
         return rows.withInstrumentalGaps()
     }
 

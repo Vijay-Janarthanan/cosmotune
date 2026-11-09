@@ -7,6 +7,19 @@ import okhttp3.mockwebserver.MockWebServer
 import kotlin.test.*
 
 class PodioLibraryToolsTest {
+    @Test fun playbackPreferencesBelongToFollowedShowsAndTravelWithAnEpisode() {
+        val file = Files.createTempDirectory("podio-preferences").resolve("library.json").toFile()
+        val library = PodioLibrary(file)
+        val show = PodcastShow("show", "Show", "Host", "https://publisher.example/feed")
+        library.update { it.copy(shows = listOf(show), inboxEpisodesPerShow = 6, skipSilenceByShow = mapOf("show" to true, "removed" to false)) }
+        assertEquals(mapOf("show" to true), library.state.value.skipSilenceByShow)
+        assertEquals(6, library.state.value.inboxEpisodesPerShow)
+        val episode = PodcastEpisode("episode", "Episode", "Show", "https://publisher.example/episode.mp3")
+        assertEquals(true, episode.item().copy(skipSilence = library.state.value.skipSilenceByShow[show.id]).song().podcastSkipSilence)
+        library.update { it.copy(shows = emptyList()) }
+        assertTrue(library.state.value.skipSilenceByShow.isEmpty())
+    }
+
     @Test fun utf8ByteOrderMarksAreAcceptedWithoutRelaxingXmlEntityProtection() {
         val feed = PodioCatalogue.parseFeed("\uFEFF<?xml version=\"1.0\"?><rss><channel><title>Stories</title></channel></rss>", "https://publisher.example/feed")
         assertEquals("Stories", feed.show.title)

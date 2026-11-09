@@ -1,63 +1,71 @@
 package com.cosmotune.music.desktop
 
-import com.cosmotune.music.data.model.artworkAt
-
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.Image
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.size.Scale
+import com.cosmotune.design.CoverArt
+import com.cosmotune.music.data.model.CARD_ART_PX
+import com.cosmotune.music.data.model.artworkAt
+import com.cosmotune.music.ui.graphics.toImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.compose.ui.graphics.decodeToImageBitmap
-import java.net.URI
+import okio.Path.Companion.toPath
 
-/**
- * Decoded artwork, kept to a budget.
- *
- * It used to be an unbounded map. Every distinct URL a session ever loaded stayed decoded for the
- * life of the process, so browsing Explore and Search for a while was hundreds of megabytes of
- * bitmaps nothing would ever ask for again — which is where the gigabyte people reported was going.
- */
+/** One bounded cache for Compose covers and the desktop shell's dock and taskbar art. */
 internal object DesktopArtworkCache {
-
-    /**
-     * A sixth of the heap, within reason.
-     *
-     * Derived rather than fixed so the budget still makes sense against whatever `-Xmx` the
-     * launcher was given, and clamped at both ends so a small heap still caches something and a
-     * large one does not decide it may hold half a gigabyte of thumbnails.
-     */
     internal val budgetBytes: Long =
         (Runtime.getRuntime().maxMemory() / 6).coerceIn(32L * 1024 * 1024, 128L * 1024 * 1024)
 
-    /** Four bytes a pixel, which is what every format here decodes to. */
-    private val images = DesktopByteBudgetLru<ImageBitmap>(budgetBytes) {
-        it.width.toLong() * it.height.toLong() * 4L
+    fun imageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
+        .components {
+            add(coil3.svg.SvgDecoder.Factory())
+            add(com.cosmotune.ui.providers.CatalogueArtworkFetcher.Factory())
+        }
+        .memoryCache { MemoryCache.Builder().maxSizeBytes(budgetBytes).build() }
+        .diskCache {
+            DiskCache.Builder().directory(DesktopMediaCache.directory.resolveSibling("artwork").toString().toPath())
+                .maxSizeBytes(128L * 1024 * 1024).build()
+        }
+        .build()
+
+    suspend fun clear() = withContext(Dispatchers.IO) {
+        val loader = SingletonImageLoader.get(PlatformContext.INSTANCE)
+        loader.memoryCache?.clear()
+        loader.diskCache?.clear()
     }
 
-    /** Everything held, dropped — what the Storage settings' "Clear image cache" does. */
-    fun clear() = images.clear()
-
-    suspend fun load(url: String?): ImageBitmap? {
+    suspend fun load(url: String?, px: Int = CARD_ART_PX): ImageBitmap? {
         if (url.isNullOrBlank()) return null
-        images.get(url)?.let { return it }
-        return runCatching {
-            URI(url).toURL().openConnection().apply {
-                connectTimeout = 10_000
-                readTimeout = 10_000
-            }.getInputStream().use { stream -> stream.readBytes().decodeToImageBitmap() }
-        }.getOrNull()?.also { images.put(url, it) }
+        val context = PlatformContext.INSTANCE
+        val result = SingletonImageLoader.get(context).execute(request(context, url, px))
+        return (result as? SuccessResult)?.image?.toImageBitmap()
+    }
+
+    internal fun request(context: PlatformContext, url: String?, px: Int?, scale: Scale = Scale.FILL): ImageRequest {
+        val builder = ImageRequest.Builder(context)
+        if (px == null) return builder.data(url).build()
+        val tier = CoverArt.px(px.toFloat(), 1f)
+        return builder.data(url.artworkAt(tier)).size(tier).scale(scale).build()
     }
 }
 
-/** Artwork, fetched at the size the surface drawing it actually needs. */
+private val placeholder = ColorPainter(Color(0xFF2B2B35))
+
+/** Artwork, decoded to the requested cache rung or to the destination's measured size. */
 @Composable
 fun DesktopArtwork(
     url: String?,
@@ -66,20 +74,17 @@ fun DesktopArtwork(
     contentDescription: String? = null,
     px: Int? = null,
 ) {
-    val sized = if (px != null) url.artworkAt(px) else url
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = sized) {
-        value = withContext(Dispatchers.IO) {
-            DesktopArtworkCache.load(sized)
-        }
+    val context = LocalPlatformContext.current
+    val request = remember(context, url, px, contentScale) {
+        DesktopArtworkCache.request(context, url, px, if (contentScale == ContentScale.Crop) Scale.FILL else Scale.FIT)
     }
-    if (bitmap == null) {
-        Box(modifier.background(Color(0xFF2B2B35)))
-    } else {
-        Image(
-            painter = BitmapPainter(bitmap!!),
-            contentDescription = contentDescription,
-            contentScale = contentScale,
-            modifier = modifier,
-        )
-    }
+    AsyncImage(
+        model = request,
+        contentDescription = contentDescription,
+        contentScale = contentScale,
+        modifier = modifier,
+        placeholder = placeholder,
+        fallback = placeholder,
+        error = placeholder,
+    )
 }

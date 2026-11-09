@@ -470,6 +470,7 @@ fun CosmoNowPlaying(
             media = { m -> if (panelOpen) phonePanel(m) else pageMedia(m, 26.dp, 300.dp, true) },
             card = phoneCard,
             chips = phoneChips,
+            recordDetails = { RecordAudioDetails(song.videoId, orbitType, orbitInk) { sheets.pipeline = true } },
         )
     }
     val phoneLandscapePage: @Composable BoxScope.() -> Unit = {

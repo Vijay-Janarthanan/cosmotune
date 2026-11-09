@@ -159,6 +159,7 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     suspend fun trending(offset: Int = 0) = metadata.trending(offset)
     suspend fun editions(publication: ReadingPublication, offset: Int = 0) = metadata.editions(publication, offset)
     suspend fun gutenberg(query: String = "", page: Int = 1) = GutenbergBookCatalogue(client).browse(query, page)
+    suspend fun standardEbooks() = StandardEbooksCatalogue(client).browse()
     suspend fun details(publication: ReadingPublication): ReadingPublication =
         if (publication.sourceId == "gutenberg") GutenbergBookCatalogue(client).details(publication) else publication
     suspend fun publicationDetails(publication: ReadingPublication): ReadingPublication = details(publication)
@@ -179,8 +180,13 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
                 val origin = source.url.toHttpUrl()
                 require(url.scheme == origin.scheme && url.host == origin.host && url.port == origin.port) { "Library downloads must stay on the configured server." }
                 require(url.isHttps || source.allowInsecureHttp)
-            } else require(publication.sourceId == "gutenberg" && url.isHttps && url.host in setOf("www.gutenberg.org", "gutenberg.org")) {
-                "Connect this publication's library before downloading it."
+            } else {
+                val allowed = when (publication.sourceId) {
+                    "gutenberg" -> url.isHttps && url.host in setOf("www.gutenberg.org", "gutenberg.org")
+                    StandardEbooksCatalogue.ID -> format == "epub" && StandardEbooksCatalogue.isEditionUrl(url)
+                    else -> false
+                }
+                require(allowed) { "Connect this publication's library before downloading it." }
             }
             val http = client.newBuilder().followRedirects(false).followSslRedirects(false).callTimeout(5, TimeUnit.MINUTES).build()
             val request = Request.Builder().url(url).header("Accept", link.mediaType).apply {
@@ -196,6 +202,9 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
                         val address = response.header("Location")?.let { response.request.url.resolve(it) } ?: error("The download redirect has no valid target.")
                         require(address.scheme == url.scheme && address.host == url.host && address.port == url.port &&
                             address.username.isEmpty() && address.password.isEmpty() && address.fragment == null) { "The download redirected outside its authorized source." }
+                        if (publication.sourceId == StandardEbooksCatalogue.ID) require(StandardEbooksCatalogue.isEditionUrl(address)) {
+                            "The download redirected away from the advertised edition."
+                        }
                         return@awaitReading address
                     }
                     check(response.isSuccessful) { "The source did not provide a downloadable file (HTTP ${response.code})." }

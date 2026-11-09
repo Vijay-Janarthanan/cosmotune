@@ -11,6 +11,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -20,15 +24,18 @@ import okhttp3.Request
     @SerialName("display_name") val displayName: String = "", val description: String = "",
     @SerialName("download_url") val downloadUrl: String, val sha256: String,
     @SerialName("min_app_version") val minAppVersion: String = "0.0.0",
-    @SerialName("icon_url") val iconUrl: String? = null) {
+    @SerialName("icon_url") val iconUrl: String? = null, val runtime: String = "") {
     val identity: String get() = id.ifBlank { name }
     fun validate(): ProviderRepositoryEntry = apply {
+        require(supportsProviderRuntime(runtime)) { "This provider package requires another runtime" }
         require(identity.matches(Regex("[a-z0-9][a-z0-9_-]{0,99}"))) { "Invalid repository provider identity" }
         require(sha256.matches(Regex("[A-Fa-f0-9]{64}"))) { "Repository package hash is missing" }
         require(version.isNotBlank() && version.length <= 64)
         require(downloadUrl.toHttpUrl().let { it.isHttps && it.username.isEmpty() && it.password.isEmpty() }) { "Provider package address must use HTTPS" }
     }
 }
+
+private fun supportsProviderRuntime(runtime: String) = runtime.trim().let { it.isEmpty() || it.equals("javascript", true) }
 
 /** How a repository listing relates to what is installed, so Sources only offers a real update. */
 enum class ProviderListingStatus { NEW, UPDATE, CURRENT, OLDER }
@@ -55,8 +62,16 @@ class ProviderRepositories(private val packages: ProviderPackages,
 
     suspend fun fetch(address: String): ProviderRepositoryIndex = withContext(Dispatchers.IO) {
         response(address) { reply ->
-            val index = json.decodeFromString<ProviderRepositoryIndex>(reply.body.readAddonJsonBody())
-            require(index.version == 1 && index.extensions.size <= 2_000) { "Unsupported or oversized provider repository" }
+            val document = json.parseToJsonElement(reply.body.readAddonJsonBody()) as? JsonObject
+                ?: error("Invalid provider repository")
+            val entries = document["extensions"] as? JsonArray ?: error("Missing provider repository entries")
+            require(entries.size <= 2_000) { "Oversized provider repository" }
+            val compatible = entries.filter { entry ->
+                val runtime = (entry as? JsonObject)?.get("runtime") ?: return@filter true
+                runtime is JsonPrimitive && runtime.isString && supportsProviderRuntime(runtime.contentOrNull.orEmpty())
+            }
+            val index = json.decodeFromJsonElement(ProviderRepositoryIndex.serializer(), JsonObject(document + ("extensions" to JsonArray(compatible))))
+            require(index.version == 1) { "Unsupported provider repository" }
             index.extensions.forEach { it.validate() }
             require(index.extensions.map { it.identity }.distinct().size == index.extensions.size) { "Duplicate repository provider identity" }
             index
@@ -83,7 +98,7 @@ class ProviderRepositories(private val packages: ProviderPackages,
             currentCoroutineContext().ensureActive()
             require(url.isHttps && url.username.isEmpty() && url.password.isEmpty()) { "Provider repository requests require HTTPS" }
             require(visited.add(url.toString())) { "Provider repository redirect loop" }
-            val result = client.newCall(Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.17").build()).withReply { reply ->
+            val result = client.newCall(Request.Builder().url(url).header("User-Agent", "Cosmotune/1.0.18").build()).withReply { reply ->
                 currentCoroutineContext().ensureActive()
                 if (reply.code in setOf(301, 302, 303, 307, 308)) {
                     null to (url.resolve(reply.header("Location").orEmpty()) ?: error("Invalid provider repository redirect"))

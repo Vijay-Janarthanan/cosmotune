@@ -160,17 +160,18 @@ internal object DesktopAppleMusicCanvas {
             // Some searches carry the motion artwork inline, saving the album round trip.
             attributes["editorialVideo"]?.jsonObject?.let { video ->
                 motionUrls(video)?.let { (primary, alternate) ->
-                    return DesktopCanvasArtwork(
+                    val artwork = DesktopCanvasArtwork(
                         primary,
                         alternate,
                         songName,
                         songArtist,
                         attributes.text("albumName"),
                     )
+                    if (artwork.matches(title, artist, album)) return artwork
                 }
             }
             val albumId = albumId(song) ?: continue
-            fetchAlbum(albumId, bearer, songName, songArtist)?.let { return it }
+            fetchAlbum(albumId, bearer, songName, songArtist)?.takeIf { it.matches(title, artist, album) }?.let { return it }
         }
         return null
     }
@@ -303,7 +304,7 @@ internal object DesktopAppleMusicCanvas {
             score += when {
                 gotAlbum == wantAlbum -> 20
                 gotAlbum.contains(wantAlbum) || wantAlbum.contains(gotAlbum) -> 10
-                else -> 0
+                else -> return null
             }
         }
         // A "(Deluxe)" on one side only is a different master, and often a different clip.

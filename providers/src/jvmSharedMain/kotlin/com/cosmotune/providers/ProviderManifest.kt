@@ -2,6 +2,7 @@ package com.cosmotune.providers
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @Serializable data class ProviderPermissions(val network: List<String> = emptyList(), val storage: Boolean = false,
@@ -9,7 +10,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @Serializable data class ProviderSetting(val key: String, val label: String = "", val type: String = "string",
     val default: JsonElement = JsonNull, val options: List<JsonElement> = emptyList(), val description: String = "",
-    val secret: Boolean = false, val action: String? = null)
+    val secret: Boolean = false, val action: String? = null, val grantsNetwork: Boolean = false)
 
 @Serializable data class ProviderQuality(val id: String, val label: String = "", val description: String = "", val kind: String = "")
 
@@ -42,6 +43,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
         }) { "Invalid provider network permissions" }
         require(settings.size <= 100 && settings.map { it.key }.distinct().size == settings.size)
         require(settings.all { it.key.matches(Regex("[A-Za-z_][A-Za-z0-9_.-]{0,99}")) && it.options.size <= 100 })
+        require(settings.none { it.grantsNetwork && it.type != "string" }) { "Network grants require a URL text setting" }
         require(qualityOptions.size <= 30 && qualityOptions.map { it.id }.distinct().size == qualityOptions.size)
         require(serviceHealth.size <= 8 && serviceHealth.map { it.id }.distinct().size == serviceHealth.size) { "Invalid service health checks" }
         serviceHealth.forEach { check ->
@@ -64,4 +66,13 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
     fun effectiveSettings(values: Map<String, JsonElement>): JsonObject = buildJsonObject {
         for (field in settings) put(field.key, values[field.key] ?: field.default)
     }
+
+    internal fun networkGrants(saved: Map<String, JsonElement>): Set<HttpUrl> = settings.mapNotNull { field ->
+        if (!field.grantsNetwork) return@mapNotNull null
+        val value = saved[field.key] as? JsonPrimitive ?: return@mapNotNull null
+        if (!value.isString || value == field.default) return@mapNotNull null
+        value.content.trim().toHttpUrlOrNull()?.takeIf {
+            (it.isHttps || permissions.allowHttp) && it.username.isEmpty() && it.password.isEmpty() && it.fragment == null
+        }?.newBuilder()?.encodedPath("/")?.query(null)?.build()
+    }.toSet()
 }

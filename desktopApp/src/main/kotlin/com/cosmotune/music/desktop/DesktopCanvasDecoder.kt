@@ -43,7 +43,7 @@ import org.bytedeco.javacpp.IntPointer
 import org.bytedeco.javacpp.PointerPointer
 
 /** The motion artwork, decoded here rather than played by a second media stack. */
-internal class DesktopCanvasDecoder {
+internal class DesktopCanvasDecoder(private val decorative: Boolean = false) {
 
     private var format: AVFormatContext? = null
     private var codec: AVCodecContext? = null
@@ -58,6 +58,8 @@ internal class DesktopCanvasDecoder {
     private var sourceWidth = 0
     private var sourceHeight = 0
     private var streamIndex = -1
+    private val artworkPacer = if (decorative) DesktopArtworkFramePacer() else null
+    val artworkDelayMillis: Long get() = artworkPacer?.delayMillis ?: 0
 
     // Custom I/O for a progressive source, read through DesktopAvio's callbacks, which nothing the
     // source does can get past into FFmpeg.
@@ -75,6 +77,7 @@ internal class DesktopCanvasDecoder {
         private set
 
     fun open(url: String, headers: Map<String, String> = emptyMap()): Result<Unit> = runCatching {
+        close()
         DesktopAudioDecoder.ensureNetworkReady()
         val options = AVDictionary(null)
         com.cosmotune.desktop.TorConnection.configureNative(options, url)
@@ -149,14 +152,14 @@ internal class DesktopCanvasDecoder {
         val stream = opened.streams(streamIndex)
         val parameters = stream.codecpar()
         val decoder = avcodec_find_decoder(parameters.codec_id()) ?: error("no decoder for this clip")
-        val context = avcodec_alloc_context3(decoder)
+        val context = avcodec_alloc_context3(decoder) ?: error("no decoder context")
+        codec = context
         check(avcodec_parameters_to_context(context, parameters) >= 0) { "bad codec parameters" }
         // Left at one thread a 720p AV1 clip decodes slower than it plays; with the cores used it
         // runs at hundreds of frames a second, which is also what makes a frame-accurate seek (decode
         // from the previous keyframe to the target) cost a fraction of a second.
-        context.thread_count(0)
+        context.thread_count(if (decorative) 2 else 0)
         check(avcodec_open2(context, decoder, null as AVDictionary?) >= 0) { "decoder refused to open" }
-        codec = context
 
         val timeBase = stream.time_base()
         timeBaseNum = timeBase.num().toLong().coerceAtLeast(1L)
@@ -171,16 +174,17 @@ internal class DesktopCanvasDecoder {
         sourceHeight = context.height()
         check(sourceWidth > 0 && sourceHeight > 0) { "the clip has no size" }
 
-        // Preserve up to full HD, matching the highest OpenCanvas quality setting.
-        val scale = minOf(1.0, MAX_EDGE.toDouble() / maxOf(sourceWidth, sourceHeight))
-        width = ((sourceWidth * scale).toInt() / 2) * 2
-        height = ((sourceHeight * scale).toInt() / 2) * 2
+        // Decorative loops never need a full-HD bitmap. Keep the full frame budget for synced video.
+        val edge = if (decorative) ARTWORK_EDGE else MAX_EDGE
+        val scale = minOf(1.0, edge.toDouble() / maxOf(sourceWidth, sourceHeight))
+        width = (((sourceWidth * scale).toInt() / 2) * 2).coerceAtLeast(2)
+        height = (((sourceHeight * scale).toInt() / 2) * 2).coerceAtLeast(2)
 
         val rate = stream.avg_frame_rate()
         if (rate.num() > 0 && rate.den() > 0) {
             // Never faster than [MIN_INTERVAL_MS]: a sleeve does not need sixty frames a second,
             // and the cost of one is a bitmap.
-            frameIntervalMillis = (1_000L * rate.den() / rate.num()).coerceIn(MIN_INTERVAL_MS, 200L)
+            frameIntervalMillis = (1_000L * rate.den() / rate.num()).coerceIn(if (decorative) 1L else MIN_INTERVAL_MS, 200L)
         }
 
         // Wired by FFmpeg rather than by hand.
@@ -266,8 +270,10 @@ internal class DesktopCanvasDecoder {
             if (avcodec_receive_frame(context, decoded) == 0) {
                 val stamp = decoded.best_effort_timestamp()
                 if (stamp != AV_NOPTS_VALUE) lastPtsMs = ptsToMs(stamp)
+                else if (decorative) lastPtsMs += frameIntervalMillis
                 if (lastPtsMs < skipUntilMs) continue
                 skipUntilMs = -1L
+                if (artworkPacer?.accept(lastPtsMs, frameIntervalMillis) == false) continue
                 val converter = scalerFor(decoded.format()) ?: return false
                 sws_scale(converter, decoded.data(), decoded.linesize(), 0, sourceHeight, planes, strides)
                 // Read through an explicit NIO view rewound each time rather than through the
@@ -329,6 +335,7 @@ internal class DesktopCanvasDecoder {
         customIo?.close()
         customIo = null
         buffer?.deallocate()
+        planes?.deallocate()
         strides?.deallocate()
         frame = null
         packet = null
@@ -343,17 +350,51 @@ internal class DesktopCanvasDecoder {
         streamIndex = -1
         sourceWidth = 0
         sourceHeight = 0
+        durationMs = 0
+        lastPtsMs = 0
+        skipUntilMs = -1
+        frameIntervalMillis = 40
+        artworkPacer?.reset()
         draining = false
     }
 
     private companion object {
         /** Full HD in either orientation; larger label artwork remains bounded. */
         const val MAX_EDGE = 1920
+        const val ARTWORK_EDGE = 480
 
         /** Thirty frames a second is motion; sixty is just more bitmaps. */
         const val MIN_INTERVAL_MS = 33L
 
         const val IO_BUFFER = 64 * 1024
+    }
+}
+
+/** Thins decorative clips on their own timeline, before scaling and bitmap allocation. */
+internal class DesktopArtworkFramePacer {
+    private var start: Long? = null
+    private var previous = 0L
+    var delayMillis = 0L
+        private set
+
+    fun accept(pts: Long, sourceIntervalMillis: Long): Boolean {
+        val first = start
+        if (first == null || pts < previous) {
+            start = pts
+            delayMillis = if (first == null) 0L else sourceIntervalMillis
+        } else {
+            // Round to the nearest slot so truncated timestamps at 24fps retain every frame.
+            if (((pts - first) * 24 + 500) / 1_000 <= ((previous - first) * 24 + 500) / 1_000) return false
+            delayMillis = (pts - previous).coerceAtMost(200L)
+        }
+        previous = pts
+        return true
+    }
+
+    fun reset() {
+        start = null
+        previous = 0L
+        delayMillis = 0L
     }
 }
 

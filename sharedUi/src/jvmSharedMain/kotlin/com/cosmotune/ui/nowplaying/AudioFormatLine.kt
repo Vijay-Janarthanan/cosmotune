@@ -1,10 +1,17 @@
 package com.cosmotune.ui.nowplaying
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
@@ -19,8 +26,16 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.data.NerdStats
 import com.cosmotune.music.data.audioFormatLabel
+import com.cosmotune.music.sharedui.resources.Res
+import com.cosmotune.music.sharedui.resources.audio_pipeline
+import com.cosmotune.music.sharedui.resources.hi_res_lossless
+import com.cosmotune.music.sharedui.resources.lossless
+import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Basic stream information, always visible: the measured quality pill ("FLAC · 24/96", "AAC 256", "Dolby Atmos": what the decoder is
@@ -43,6 +58,33 @@ fun AudioFormatLine(modifier: Modifier = Modifier, onClick: (() -> Unit)? = Loca
         }
         Text(label, style = type.caption,
             color = Color(LocalCosmoColors.current.palette.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** The portrait record's compact entry point into the actual playing signal path. */
+@Composable
+internal fun RecordAudioDetails(mediaId: String, fonts: OrbitFonts, look: OrbitLook, onClick: () -> Unit) {
+    val stats by NerdStats.current.collectAsStateWithLifecycle()
+    val playing = stats?.takeIf { it.mediaId == mediaId } ?: return
+    val format = playing.audioFormatLabel() ?: return
+    val tier = when {
+        playing.isDolbyAtmos -> "Dolby Atmos"
+        playing.isHiRes -> stringResource(Res.string.hi_res_lossless)
+        playing.isLossless -> stringResource(Res.string.lossless)
+        else -> null
+    }
+    Row(
+        Modifier.heightIn(min = 44.dp).clip(CircleShape).background(look.chip)
+            .clickable(role = Role.Button, onClickLabel = stringResource(Res.string.audio_pipeline), onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(CosmoIcons.Equaliser, contentDescription = null, tint = look.accent, modifier = Modifier.size(16.dp))
+        if (tier != null) Text(tier, style = fonts.title, color = look.ink, maxLines = 1)
+        Text(format, style = fonts.body, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false))
+        Icon(CosmoIcons.ChevronRight, contentDescription = null, tint = look.dim, modifier = Modifier.size(14.dp))
     }
 }
 

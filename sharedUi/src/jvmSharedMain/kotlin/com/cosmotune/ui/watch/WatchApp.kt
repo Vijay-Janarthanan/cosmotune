@@ -170,7 +170,7 @@ internal class WatchActions(
 
     fun playStream(summary: TitleSummary, target: PlayTarget, stream: Stream) = WatchNav.open(WatchRoute.Play(target, summary, stream))
 
-    fun playChannel(channel: com.cosmotune.watch.model.Channel) = WatchNav.open(WatchRoute.Play(repository.targetOf(channel), channel.asSummary()))
+    fun playChannel(channel: com.cosmotune.watch.model.Channel) = WatchNav.playChannel(PlayTarget.Live(channel), channel.asSummary())
 
     fun setInMyList(summary: TitleSummary, on: Boolean) { scope.launch { repository.setInMyList(summary, on) } }
 

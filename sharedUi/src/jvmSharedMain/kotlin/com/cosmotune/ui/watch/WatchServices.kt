@@ -130,6 +130,14 @@ object WatchNav {
     fun open(route: WatchRoute) { stack.value = stack.value + route }
     fun openTitle(summary: TitleSummary) = open(WatchRoute.Page(summary))
 
+    fun playChannel(target: PlayTarget.Live, summary: TitleSummary) {
+        val now = stack.value
+        val top = now.lastOrNull() as? WatchRoute.Play
+        if (top?.target?.key == target.key) return
+        val below = if (top?.target is PlayTarget.Live) now.dropLast(1) else now
+        stack.value = below + WatchRoute.Play(target, summary)
+    }
+
     /** Closes the top page; false when there was none (the host may then leave the mode). */
     fun back(): Boolean {
         val now = stack.value

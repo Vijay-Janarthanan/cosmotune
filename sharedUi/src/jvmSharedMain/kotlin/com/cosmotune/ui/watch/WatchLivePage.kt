@@ -106,6 +106,12 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
     var category by rememberSaveable { mutableStateOf<String?>(null) }
     var favouritesOnly by rememberSaveable { mutableStateOf(false) }
     var shown by rememberSaveable { mutableIntStateOf(60) }
+    fun showAllChannels() {
+        country = null
+        language = null
+        category = null
+        favouritesOnly = false
+    }
     val filter = ChannelFilter(country, language, category, favouritesOnly)
     val filterKey = listOf(country, language, category, if (favouritesOnly) favourites.map { it.value }.sorted().hashCode() else null).joinToString("|")
     val channelsEntry = remember(pages, filterKey) {
@@ -170,6 +176,8 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
             item(key = "live:chips") {
                 val f = facets
                 OrbitChipRow(side, Modifier.padding(top = 18.dp)) {
+                    OrbitSelectChip("All channels", country == null && language == null && category == null && !favouritesOnly,
+                        fonts, look, onClick = ::showAllChannels, haptic = false)
                     // The viewer's own country and language first (India, Tamil), then the countries and languages with most channels.
                     val countryChip: @Composable (com.cosmotune.watch.Facet) -> Unit = { c -> OrbitSelectChip(c.name, country == c.id, fonts, look, onClick = { country = c.id.takeIf { country != it } }, haptic = false) }
                     val languageChip: @Composable (com.cosmotune.watch.Facet) -> Unit = { l -> OrbitSelectChip(l.name, language == l.id, fonts, look, onClick = { language = l.id.takeIf { language != it } }, haptic = false) }
@@ -195,7 +203,7 @@ internal fun WatchLivePage(actions: WatchActions, fonts: OrbitFonts, look: Orbit
                         }
                         list.isEmpty() -> WatchMessage("No channels", if (favouritesOnly) "No favourites yet" else "No channels here",
                             if (favouritesOnly) "Star a channel in the guide to keep it here." else "Try another country, language or category, or switch on more plugins.", fonts, look,
-                            action = "Show every channel", onAction = { country = null; language = null; category = null; favouritesOnly = false })
+                            action = "Show every channel", onAction = ::showAllChannels)
                         window != null -> GuideGrid(window, now, favourites, frame.wide, scroll, fonts, look, actions, played, playedFocus, playChannel)
                     }
                 }

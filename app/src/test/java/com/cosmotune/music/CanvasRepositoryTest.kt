@@ -37,6 +37,18 @@ class CanvasRepositoryTest {
     private val clip = CanvasArtwork(url = "https://example.invalid/clip.mp4", title = "Song", artist = "Artist")
 
     @Test
+    fun `a late album hides the wrong cached edition and permits a new lookup`() = runBlocking {
+        val song = song("late-album").copy(albumName = "Correct Album")
+        val key = songKey(song.videoId)
+        CanvasRepository.resolve(key, withAlbum = false) { clip.copy(album = "Other Album") }
+        assertNull(CanvasRepository.cached(song))
+        val right = clip.copy(album = song.albumName)
+        assertEquals(right, CanvasRepository.resolve(key, withAlbum = true,
+            acceptCached = { it.matches(song.title, song.artist, song.albumName) }) { right })
+        assertEquals(right, CanvasRepository.cached(song))
+    }
+
+    @Test
     fun `a canvas found earlier is not served once the remembered answers are dropped`() = runBlocking {
         CanvasRepository.resolve(songKey("clear-1"), withAlbum = false) { clip }
         assertNotNull("the hit is remembered", CanvasRepository.cached(song("clear-1")))

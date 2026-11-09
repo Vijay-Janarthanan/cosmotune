@@ -2,12 +2,40 @@ package com.cosmotune.reading.data
 
 import kotlinx.coroutines.runBlocking
 import okhttp3.Credentials
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Test
 import kotlin.test.*
 
 class ReadingCatalogueTest {
+    @Test fun standardEbooksOffersOnlyTheCompatibleEpubFromItsOwnSite() = runBlocking<Unit> {
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            assertEquals("https://standardebooks.org/feeds/atom/new-releases", chain.request().url.toString())
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK").body("""
+                <feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+                  <title>New Releases</title><entry><id>the-book</id><title>The Book</title>
+                  <author><name>Writer</name></author>
+                  <media:thumbnail url="/ebooks/writer/the-book/downloads/cover-thumbnail.jpg"/>
+                  <link href="/ebooks/writer/the-book" rel="alternate" type="application/xhtml+xml"/>
+                  <link href="https://other.example/ebooks/a/downloads/other.epub" rel="enclosure" title="Compatible" type="application/epub+zip"/>
+                  <link href="/ebooks/writer/the-book/downloads/book-advanced.epub" rel="enclosure" title="Advanced" type="application/epub+zip"/>
+                  <link href="/ebooks/writer/the-book/downloads/book.epub?source=feed" rel="enclosure" title="Recommended compatible epub" type="application/epub+zip"/>
+                  </entry>
+                </feed>
+            """.trimIndent().toResponseBody("application/atom+xml".toMediaType())).build()
+        }.build()
+        val book = StandardEbooksCatalogue(client).browse().publications.single()
+        assertEquals("standardebooks:the-book", book.id)
+        assertEquals("https://standardebooks.org/ebooks/writer/the-book/downloads/cover-thumbnail.jpg", book.coverUrl)
+        assertEquals(listOf(ReadingLinkKind.DETAILS, ReadingLinkKind.ACQUIRE), book.links.map { it.kind })
+        assertTrue(book.links.last().url.endsWith("/book.epub?source=feed"))
+    }
+
     @Test fun personalAtomCataloguePreservesNavigationAcquisitionKindsAndCredentialBoundaries() = runBlocking<Unit> {
         MockWebServer().use { server -> MockWebServer().use { other ->
             server.enqueue(MockResponse().setBody("""<feed xmlns="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/terms/">

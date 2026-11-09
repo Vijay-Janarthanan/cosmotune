@@ -93,13 +93,16 @@ object AppleMusicCanvas {
             // saves the album round trip entirely.
             attributes["editorialVideo"]?.jsonObject?.let { video ->
                 motionUrls(video)?.let { (primary, alternate) ->
-                    Log.d(TAG, "inline motion artwork for '$songName'")
-                    return CanvasArtwork(primary, alternate, songName, songArtist, albumName)
+                    val artwork = CanvasArtwork(primary, alternate, songName, songArtist, albumName)
+                    if (artwork.matches(title, artist, album)) {
+                        Log.d(TAG, "inline motion artwork for '$songName'")
+                        return artwork
+                    }
                 }
             }
 
             val albumId = albumId(song) ?: continue
-            fetchAlbum(albumId, bearer, songName, songArtist)?.let { return it }
+            fetchAlbum(albumId, bearer, songName, songArtist)?.takeIf { it.matches(title, artist, album) }?.let { return it }
         }
         return null
     }
@@ -214,7 +217,7 @@ object AppleMusicCanvas {
             score += when {
                 gotAlbum == wantAlbum -> 20
                 gotAlbum.contains(wantAlbum) || wantAlbum.contains(gotAlbum) -> 10
-                else -> 0
+                else -> return null
             }
         }
 

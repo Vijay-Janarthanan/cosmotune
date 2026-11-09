@@ -26,6 +26,9 @@ class ProviderRepositoriesTest {
             val entry = """{"id":"fixture","version":"1.0.0","download_url":"${server.url("/fixture.sflx")}","sha256":"${"a".repeat(64)}"}"""
             server.enqueue(MockResponse().setBody("""{"version":1,"extensions":[$entry]}"""))
             assertEquals("fixture", repositories.fetch(server.url("/registry.json").toString()).extensions.single().identity)
+            val js = entry.dropLast(1) + """, "runtime":"JavaScript"}"""
+            server.enqueue(MockResponse().setBody("""{"version":1,"extensions":[$js,{"id":"fixture","runtime":"python"}]}"""))
+            assertEquals("fixture", repositories.fetch(server.url("/registry.json").toString()).extensions.single().identity)
             server.enqueue(MockResponse().setBody("""{"version":1,"extensions":[$entry,$entry]}"""))
             assertFailsWith<IllegalArgumentException> { repositories.fetch(server.url("/registry.json").toString()) }
             assertFailsWith<IllegalArgumentException> { repositories.fetch("http://localhost/registry.json") }
@@ -65,6 +68,7 @@ class ProviderRepositoriesTest {
                 assertFailsWith<IllegalArgumentException> { repositories.download(entry(sha = "b".repeat(64))) }.message)
             serve(); assertFailsWith<IllegalArgumentException> { repositories.download(entry(version = "2.0.0")) }
             serve(); assertFailsWith<IllegalArgumentException> { repositories.download(entry(id = "other")) }
+            assertFailsWith<IllegalArgumentException> { repositories.download(entry().copy(runtime = "python")) }
             // A rejected download leaves nothing staged for review.
             assertTrue(staging.listFiles().orEmpty().none { it.name.startsWith("review-") })
             // A redirect may not downgrade the package transfer to plain HTTP.

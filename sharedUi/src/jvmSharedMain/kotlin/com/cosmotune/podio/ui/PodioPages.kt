@@ -56,7 +56,7 @@ private fun heardFraction(env: PodioEnv, id: String, durationMs: Long): Float =
     EpisodeRow(entry.episode.title, episodeLine(entry.episode, item, env, withShow), item.artwork, heardFraction(env, item.id, entry.episode.durationSeconds * 1000),
         now = now, playing = now && env.playback.playing, progress = if (now) ({ env.playedFraction() }) else null,
         download = m.downloadMark(item, env.downloaded, env.downloadsRunning),
-        onPlay = { if (now) env.onToggle() else m.play(item) }, onDownload = { m.host.onDownloadEpisode?.invoke(item) }, onMore = { m.episodeSheet = entry },
+        onPlay = { if (now) env.onToggle() else m.playEpisode(entry) }, onDownload = { m.host.onDownloadEpisode?.invoke(item) }, onMore = { m.episodeSheet = entry },
         fonts = fonts, look = look, modifier = modifier)
 }
 
@@ -174,7 +174,7 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                     credit = show.author.ifBlank { null },
                     onCredit = null,
                     playing = loaded != null && env.playback.playing,
-                    onPlay = when { loaded != null -> env.onToggle; latest != null -> ({ m.play(InboxEpisode(latest, show).item()) }); else -> null },
+                    onPlay = when { loaded != null -> env.onToggle; latest != null -> ({ m.playEpisode(InboxEpisode(latest, show)) }); else -> null },
                     modifier = Modifier.padding(horizontal = side).padding(top = 14.dp).fillMaxWidth(),
                     below = { colors ->
                         val line = if (loaded != null) "Playing: ${loaded.title}" else latest?.let { "Latest: ${it.title}" }
@@ -305,10 +305,20 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
 /** The subscription tools as chips: add by address, import (file or paste), export and share. */
 @Composable private fun SubscriptionTools(m: PodioModel, env: PodioEnv, fonts: OrbitFonts, look: OrbitLook, side: Dp) {
     val hasShows = env.saved.shows.isNotEmpty()
+    var editingPlayback by remember { mutableStateOf(false) }
     Column {
         OrbitPageSection("Subscriptions", Modifier.padding(horizontal = side + 4.dp).padding(top = 30.dp, bottom = 12.dp),
             subtitle = if (hasShows) "OPML keeps your follows and listening positions" else "Bring your shows from another podcast app")
+        if (hasShows) {
+            Text("Latest episodes per show in Following", style = fonts.body, color = look.dim,
+                modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 8.dp))
+            OrbitChipRow(side) {
+                for (limit in listOf(6, 12, 24)) OrbitSelectChip("$limit episodes", env.saved.inboxEpisodesPerShow == limit,
+                    fonts, look, { m.setInboxEpisodeLimit(limit) }, haptic = false)
+            }
+        }
         OrbitChipRow(side) {
+            if (hasShows) OrbitSelectChip("Podcast playback", false, fonts, look, { editingPlayback = true }, haptic = false)
             OrbitSelectChip("Add by RSS address", false, fonts, look, { m.addFeed = true }, icon = Icons.Outlined.Link, haptic = false)
             OrbitSelectChip("Import OPML", false, fonts, look, { if (!m.pickingFile) m.importOpml { } }, icon = Icons.Outlined.FileDownload, haptic = false)
             if (m.host.onImportOpmlFile != null) OrbitSelectChip("Paste OPML", false, fonts, look, { m.pasteOpml() }, icon = Icons.Outlined.ContentPaste, haptic = false)
@@ -317,6 +327,34 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
             if (m.host.onShareOpmlFile != null) OrbitSelectChip("Share OPML", false, fonts, look, { if (hasShows) m.shareOpml() }, Modifier.alpha(if (hasShows) 1f else 0.45f),
                 icon = Icons.Outlined.RssFeed, haptic = false)
         }
+    }
+    if (editingPlayback) {
+        var selected by remember { mutableStateOf(emptySet<String>()) }
+        var choice by remember { mutableStateOf<Boolean?>(true) }
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
+            onDismissRequest = { editingPlayback = false }, title = "Podcast playback", scroll = false,
+            content = {
+                Column {
+                    OrbitChipRow(0.dp) {
+                        OrbitSelectChip("Skip silence", choice == true, fonts, look, { choice = true }, haptic = false)
+                        OrbitSelectChip("Keep silence", choice == false, fonts, look, { choice = false }, haptic = false)
+                        OrbitSelectChip("App default", choice == null, fonts, look, { choice = null }, haptic = false)
+                    }
+                    LazyColumn(Modifier.heightIn(max = 380.dp)) {
+                        items(env.saved.shows, key = { it.id }) { show ->
+                            OrbitSwitchRow(show.title, show.id in selected, { checked ->
+                                selected = if (checked) selected + show.id else selected - show.id
+                            }, detail = when (env.saved.skipSilenceByShow[show.id]) {
+                                true -> "Skip silence"; false -> "Keep silence"; null -> "App default"
+                            })
+                        }
+                    }
+                }
+            },
+            confirmLabel = "Apply", confirmEnabled = selected.isNotEmpty(), onConfirm = {
+                m.setShowSkipSilence(selected, choice); editingPlayback = false
+            }, dismissLabel = "Cancel", onDismiss = { editingPlayback = false },
+        )
     }
 }
 
@@ -438,7 +476,7 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
         Column(Modifier.fillMaxWidth().heightIn(max = 680.dp).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp)
             .testTag("podio:episode-sheet"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             OrbitBiteCard(fill, Modifier.fillMaxWidth(), bite = {
-                OrbitPlayButton(now && env.playback.playing, { if (now) env.onToggle() else { m.play(item); onDismiss() } }, look)
+                OrbitPlayButton(now && env.playback.playing, { if (now) env.onToggle() else { m.playEpisode(entry); onDismiss() } }, look)
             }) {
                 Column(Modifier.fillMaxWidth().padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 22.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {

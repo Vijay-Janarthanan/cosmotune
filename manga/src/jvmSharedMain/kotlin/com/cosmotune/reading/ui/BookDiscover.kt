@@ -44,6 +44,7 @@ import kotlinx.coroutines.withContext
 /** The catalogue a publication came from, as its row and its page name it. */
 internal fun ReadingPublication.sourceLabel(sources: List<ReadingOpdsSource>): String =
     if (id.startsWith("gutenberg")) "Project Gutenberg · Public-domain catalogue" else if (id.startsWith("openlibrary")) "Open Library · Book metadata"
+    else if (id.startsWith("standardebooks:")) "Standard Ebooks · Public-domain EPUB"
     else sources.find { it.id == sourceId }?.name ?: "Personal library"
 
 /**
@@ -100,6 +101,7 @@ internal fun BookDiscover(scope: ReadScope) {
                 if (category == "My libraries" && sourceId.isBlank()) { loaded = true; return@launch }
                 val result = when (category) {
                     "Public domain" -> repository.gutenberg(query, if (reset) 1 else page + 1)
+                    "New Classics" -> repository.standardEbooks()
                     "My libraries" -> if (searchRequested) repository.searchOpds(sourceId, query) else repository.browseOpds(sourceId, address)
                     else -> null
                 }
@@ -120,7 +122,7 @@ internal fun BookDiscover(scope: ReadScope) {
         }
     }
     fun submit() {
-        if (query.trim().length < 2 || busy || (category == "My libraries" && searchLinks.isEmpty())) return
+        if (query.trim().length < 2 || busy || category == "New Classics" || (category == "My libraries" && searchLinks.isEmpty())) return
         if (category != "Public domain" && category != "My libraries") category = "Search"
         load(searchRequested = category == "My libraries")
     }
@@ -130,13 +132,13 @@ internal fun BookDiscover(scope: ReadScope) {
     val palette = LocalCosmoColors.current.palette
     Column(Modifier.fillMaxSize().testTag("books:discover")) {
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
-            item(key = "heading") { ReadPageHead("Browse", "Open Library · Project Gutenberg · your libraries") { ReadRootActions(scope) } }
-            item(key = "search") {
+            item(key = "heading") { ReadPageHead("Browse", "Open Library · Project Gutenberg · Standard Ebooks · your libraries") { ReadRootActions(scope) } }
+            if (category != "New Classics") item(key = "search") {
                 ReadSearchField(query, { query = it }, "Search books and authors", Modifier.testTag("books:catalogue-search"), onSearch = ::submit)
             }
             item(key = "catalogues") {
                 ReadChipRow(Modifier.padding(vertical = 4.dp)) {
-                    listOf("Trending", "Public domain", "My libraries").forEach { item -> ReadChip(item, category == item || (item == "Trending" && category == "Search"), { category = item; query = "" }) }
+                    listOf("Trending", "Public domain", "New Classics", "My libraries").forEach { item -> ReadChip(item, category == item || (item == "Trending" && category == "Search"), { category = item; query = "" }) }
                     if (query.trim().length >= 2) ReadButton("Search", ::submit, kind = ReadKind.TONAL, icon = CosmoIcons.Search,
                         enabled = !busy && (category != "My libraries" || searchLinks.isNotEmpty()), modifier = Modifier.testTag("books:search-submit"))
                 }
@@ -147,6 +149,7 @@ internal fun BookDiscover(scope: ReadScope) {
                 }
                 Text(when (category) {
                     "Public domain" -> "Project Gutenberg · Check the edition's copyright status where you live."
+                    "New Classics" -> "Standard Ebooks · Recently published EPUB editions of public-domain books."
                     "My libraries" -> if (searchLinks.isEmpty() && sourceId.isNotBlank()) "Your OPDS library · This feed does not advertise a search. Browse its collections below." else "Your OPDS library · Availability comes from your connected server."
                     "Search" -> "Open Library · Search results describe books. Readable copies depend on the edition and provider."
                     else -> "Trending on Open Library · A live discovery list, with source links for each book."
@@ -224,7 +227,8 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
         }
     } }
     val sourceName = state.sources.find { it.id == publication.sourceId }?.name
-        ?: if (publication.id.startsWith("openlibrary")) "Open Library" else if (publication.id.startsWith("gutenberg")) "Project Gutenberg" else publication.sourceId.ifBlank { "Personal library" }
+        ?: publication.sourceLabel(emptyList()).substringBefore(" · ").takeUnless { it == "Personal library" }
+        ?: publication.sourceId.ifBlank { "Personal library" }
     val (fill, _) = com.cosmotune.ui.orbit.coverFill(publication.coverUrl, publication.id)
     Box(Modifier.fillMaxSize()) {
         com.cosmotune.ui.orbit.OrbitPageWash(fill)
