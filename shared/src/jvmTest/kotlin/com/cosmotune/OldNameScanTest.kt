@@ -33,6 +33,7 @@ class OldNameScanTest {
         Allowed("docs/UPSTREAM_REVIEW_2026-10-28.md", null, "the requested pinned upstream feature audit, not product branding"),
         Allowed("docs/UPSTREAM_IMPLEMENTATION_2026-10-28.md", null, "the requested per-project implementation and remaining-work checklist"),
         Allowed("docs/UPSTREAM_REVIEW_2026-11-02.md", null, "the requested current pinned upstream comparison and integration decisions"),
+        Allowed("docs/UPSTREAM_REVIEW_2026-11-09.md", null, "the pinned upstream audit and attribution for the imported fixes"),
         Allowed("tools/upstream-digest.sh", null, "reads the upstream repository by name"),
         Allowed("licenses/", null, "licence texts as their authors wrote them"),
         Allowed("*", "kushagrasinghx/BitChord", "the upstream repository's address (github.com/...)"),
