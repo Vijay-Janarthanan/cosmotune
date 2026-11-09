@@ -8,7 +8,7 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-Version 1.0.20 adds a compact Audio Pipeline entry beneath the artwork on portrait phones, expands the free Live TV and book catalogues, and improves AutoMix recovery, artwork caching and synced lyrics. [1.0.20 release notes](docs/releases/1.0.20.md)
+Version 1.0.18 adds a compact Audio Pipeline entry beneath the artwork on portrait phones, expands the free Live TV and book catalogues, and improves AutoMix recovery, artwork caching and synced lyrics. [1.0.18 release notes](docs/releases/1.0.18.md)
 
 Version 1.0.17 gives the whole app a new look, called Orbit, on the phone, the desktop, the TV and the watch. It adds Watch, a mode for free films, series and live TV with plugins; Live now, for the scores of the matches you follow and live shows; and Indian channels from Prasar Bharati (DD) and the broadcasters' own live news. The sleep timer now pauses on time with the screen off. [1.0.17 changes and limits](docs/releases/1.0.17.md) · [Remaining work](docs/PENDING_WORK.md)
 
@@ -250,8 +250,8 @@ Cosmotune works with no account. If you want your playlists to follow you from p
 
 ## Download
 
-Version 1.0.20. The links below always fetch the newest release.
-[1.0.20 release notes](docs/releases/1.0.20.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
+Version 1.0.18. The links below always fetch the newest release.
+[1.0.18 release notes](docs/releases/1.0.18.md) · [All releases](https://github.com/Vijay-Janarthanan/cosmotune/releases) · [Report a bug](https://github.com/Vijay-Janarthanan/cosmotune/issues)
 
 ### Android
 
