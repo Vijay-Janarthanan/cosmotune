@@ -52,7 +52,9 @@
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/matcher/VideoMatcher.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/VideoMatcher.kt",
       "normalizeLf": true,
-      "sha256": "0167082df0251875fe56f3ee30211c1d2cc85eb5f82183ba3d97f30d9b212e61"
+      "upstreamSha256": "0167082df0251875fe56f3ee30211c1d2cc85eb5f82183ba3d97f30d9b212e61",
+      "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches.",
+      "sha256": "4836f7443e95067a781b3730b4a8d3c004c6c4f9150318e4a7d80dd5305db351"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",

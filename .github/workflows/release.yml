@@ -26,6 +26,10 @@ jobs:
           version="${{ inputs.version }}"
           [ -n "$version" ] || version="${GITHUB_REF_NAME#v}"
           python3 tools/verify-release-version.py --version "$version"
+      - name: Verify recorded source imports before packaging
+        run: |
+          python3 tools/verify-opencanvas-import.py
+          python3 tools/verify-companion-imports.py
 
   linux:
     needs: version-check
