@@ -14,17 +14,20 @@ runs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    - name: Prepare the Android NDK
+    - name: Set up the Android SDK and NDK
       if: inputs.target == 'android'
-      shell: bash
-      run: sdkmanager --install 'ndk;27.0.12077973'
+      uses: android-actions/setup-android@v4
+      with:
+        packages: 'platform-tools platforms;android-37 build-tools;36.0.0 ndk;27.0.12077973'
+        log-accepted-android-sdk-licenses: 'false'
     - name: Build the torrent engine
       shell: bash
       env:
         TARGET: ${{ inputs.target }}
       run: |
         if [[ "$TARGET" == android ]]; then
-          python native/watch-torrent/build.py android --ndk "$ANDROID_HOME/ndk/27.0.12077973"
+          android_sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Android SDK setup did not provide a path}}"
+          python native/watch-torrent/build.py android --ndk "$android_sdk/ndk/27.0.12077973"
         else
           python native/watch-torrent/build.py desktop
         fi
