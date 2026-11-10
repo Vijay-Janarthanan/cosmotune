@@ -37,7 +37,7 @@ class PluginClientsTest {
         TestServer().use { s ->
             s.json("/manifest.json", manifest)
             s.json("/stream/movie/tt0133093.json", """{"streams":[
-                {"name":"Test\n1080p","description":"The.Matrix.1999.1080p.BluRay.x265 HDR 2.1 GB","url":"https://cdn.example/m.mkv",
+                {"name":"Test\n1080p","description":"The.Matrix.1999.1080p.BluRay.x265 HDR 2.1 GB","url":"https://cdn.example/m.mkv","durationMs":8160000,
                  "behaviorHints":{"bingeGroup":"test-1080","filename":"The.Matrix.1999.1080p.mkv","videoSize":2254857830,"proxyHeaders":{"request":{"Referer":"https://ref.example"}}}},
                 {"name":"Torrent","infoHash":"abcdef0123456789","fileIdx":0},
                 {"name":"Usenet","nzbUrl":"https://nzb.example/x.nzb"},
@@ -59,6 +59,7 @@ class PluginClientsTest {
             assertEquals("HDR10", mkv.hdr)
             assertEquals("test-1080", mkv.bingeGroup)
             assertEquals(2254857830, mkv.sizeBytes)
+            assertEquals(8_160_000L, mkv.durationMs)
             assertEquals("https://ref.example", mkv.headers["Referer"])
             assertEquals(StreamProtocol.YOUTUBE, streams[1].protocol)
             assertEquals(StreamProtocol.EXTERNAL, streams[2].protocol)

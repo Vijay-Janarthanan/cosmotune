@@ -15,12 +15,16 @@ import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.LibrarySort
@@ -71,6 +75,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertEquals
 
 /**
  * Watch mode's screens (Canvas repo, design/cosmotune/watch-orbit/board.html) on the in-memory repository, drawn at phone width
@@ -185,6 +190,51 @@ class WatchVisualReviewTest {
         compose.onNodeWithContentDescription("Exit full screen").assertIsDisplayed().performClick()
         compose.onNodeWithContentDescription("Full screen").assertIsDisplayed()
     }
+
+    @Test fun fullscreenPictureDismissesControlsAndSkipButtonsClampToTheVideo() = hosts {
+        val repository = FakeWatchRepository()
+        val player = StillPlayer(repository)
+        WatchNav.go(WatchTab.FILMS)
+        WatchNav.open(WatchRoute.Play(PlayTarget.Film(film.key, film.ids, film.name), film))
+        page(true, phone, repository, WatchPlayback(player) { _, modifier -> Box(modifier.background(Color.Black)) })
+        compose.onNodeWithContentDescription("Full screen").performClick()
+        val rewind = compose.onNodeWithContentDescription("Back 30 seconds")
+        val forward = compose.onNodeWithContentDescription("Forward 30 seconds")
+        rewind.performClick()
+        assertEquals(1_470_000L, player.engine.positionMs())
+        forward.performClick()
+        assertEquals(1_500_000L, player.engine.positionMs())
+        compose.runOnIdle { player.engine.seekTo(4_000L) }
+        rewind.performClick()
+        assertEquals(0L, player.engine.positionMs())
+        compose.runOnIdle { player.engine.seekTo(49 * 60_000L - 4_000L) }
+        forward.performClick()
+        assertEquals(49 * 60_000L, player.engine.positionMs())
+        val picture = compose.onNodeWithTag("watch:cinema:picture")
+        picture.performTouchInput { click(center) }
+        rewind.assertDoesNotExist()
+        picture.performTouchInput { click(center) }
+        rewind.assertIsDisplayed()
+        compose.onNodeWithText("Sources").performClick()
+        compose.onNodeWithText("4K").performClick()
+        compose.onNodeWithText("58.0 GB", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Plex · Free with ads").assertDoesNotExist()
+    }
+
+    @Test fun filmPlaybackShowsPlotRatingCastAndRelatedTitlesBelowTheControls() = hosts {
+        val repository = FakeWatchRepository()
+        val player = StillPlayer(repository)
+        WatchNav.go(WatchTab.FILMS)
+        WatchNav.open(WatchRoute.Play(PlayTarget.Film(film.key, film.ids, film.name), film))
+        page(true, phone, repository, WatchPlayback(player) { _, modifier -> Box(modifier.background(Color.Black)) })
+        compose.onNodeWithText("About this film", ignoreCase = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("7.4", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Two sisters drive across", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Cast").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("More like this").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Asha Varma").assertIsDisplayed()
+        assertEquals(1_500_000L, player.engine.positionMs())
+    }
 }
 
 /** A player that is paused 25 minutes into S2 E4 with the next episode counting down: the screen's state without an engine. */
@@ -218,11 +268,12 @@ private class StillEngine : VideoPlayerEngine {
     override val capabilities = EngineCapabilities(emptyList(), opus = true, hdrDisplay = false, displayHeightPx = 1080, sideloadedDash = false, autoCeilingHeight = null)
     override val snapshot: StateFlow<PlayerSnapshot> = MutableStateFlow(PlayerSnapshot.Idle.copy(status = PlayerStatus.READY, durationMs = 49 * 60_000L, videoWidth = 1920, videoHeight = 1080))
     override val cues: StateFlow<List<SubtitleCue>> = MutableStateFlow(emptyList())
-    override fun positionMs(): Long = 25 * 60_000L
+    private var position = 25 * 60_000L
+    override fun positionMs(): Long = position
     override fun load(request: PlaybackRequest) {}
     override fun play() {}
     override fun pause() {}
-    override fun seekTo(ms: Long) {}
+    override fun seekTo(ms: Long) { position = ms }
     override fun setSpeed(speed: Float) {}
     override fun setVolume(volume: Float) {}
     override fun setMuted(muted: Boolean) {}

@@ -194,7 +194,9 @@ class StremioPlugin(
             if (torrent) emptyMap() else headers,
             height = StreamGuess.height(*text.toTypedArray()), hdr = StreamGuess.hdr(*text.toTypedArray()),
             videoCodec = StreamGuess.codec(*text.toTypedArray()),
-            sizeBytes = hints.long("videoSize") ?: StreamGuess.size(description), filename = hints.str("filename"),
+            sizeBytes = hints.long("videoSize")?.takeIf { it > 0 } ?: StreamGuess.size(description) ?: StreamGuess.size(name),
+            filename = hints.str("filename"),
+            durationMs = (s.long("durationMs") ?: hints.long("durationMs"))?.takeIf { it > 0 && !live },
             bingeGroup = hints.str("bingeGroup"), isLive = live,
             subtitles = s.list("subtitles").mapNotNull { sub ->
                 val su = sub.str("url")?.takeIf(StreamGuess::playableScheme) ?: return@mapNotNull null

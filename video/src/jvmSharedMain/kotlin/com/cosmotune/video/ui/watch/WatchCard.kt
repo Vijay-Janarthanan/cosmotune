@@ -56,6 +56,8 @@ import com.cosmotune.video.resources.video_go_live
 import com.cosmotune.video.resources.video_next
 import com.cosmotune.video.resources.video_player_settings
 import com.cosmotune.video.resources.video_previous
+import com.cosmotune.video.resources.video_seek_back
+import com.cosmotune.video.resources.video_seek_forward
 import com.cosmotune.video.resources.video_skip_segment
 import com.cosmotune.video.resources.video_skipped
 import com.cosmotune.video.resources.video_theatre
@@ -126,6 +128,8 @@ internal fun WatchTransportCard(
     onTitle: (() -> Unit)? = null,
     onDownload: (() -> Unit)? = null,
     downloaded: Boolean = false,
+    cinema: Boolean = false,
+    onInteraction: (Boolean) -> Unit = {},
 ) {
     val state by playback.state.collectAsState()
     val settings by LocalVideoGraph.current.settings.settings.collectAsState()
@@ -139,18 +143,32 @@ internal fun WatchTransportCard(
         if (ended && item != null) playback.play(item.id, startMs = 0L) else playback.togglePlayPause()
     }
     var settingsOpen by remember { mutableStateOf(false) }
+    var screenOpen by remember { mutableStateOf(false) }
+    var scrubbing by remember { mutableStateOf(false) }
+    val interacting = settingsOpen || screenOpen || scrubbing
+    LaunchedEffect(interacting) { onInteraction(interacting) }
     val buttons: @Composable () -> Unit = {
-        WatchCardButtons(playback, state, ink, fill, screen, wide, onDownload, downloaded, onSettings = { settingsOpen = true }, settingsMenu = if (wide && settingsOpen) {
+        WatchCardButtons(playback, state, ink, fill, screen, wide, onDownload, downloaded,
+            screenOpen = screenOpen, onScreenOpen = { screenOpen = it }, onSettings = { settingsOpen = true }, settingsMenu = if (wide && settingsOpen) {
             {
                 PlayerSettingsMenu(playback, state, settings, PlayerStatsSwitch.shown, onToggleStats = { PlayerStatsSwitch.shown = !PlayerStatsSwitch.shown }, onDismiss = { settingsOpen = false })
             }
         } else null)
     }
-    val line: @Composable (Modifier) -> Unit = { m ->
+    val scrubber: @Composable (Modifier) -> Unit = { m ->
         PlayerScrubber(
             playback = playback, state = state, settings = settings, playhead = playhead, lineAtBottom = false, onGlass = false,
-            onScrub = {}, onInput = {}, modifier = m.fillMaxWidth().height(32.dp).testTag("video:watch:line"), ink = ink,
+            onScrub = { scrubbing = it }, onInput = {}, modifier = m.fillMaxWidth().height(32.dp).testTag("video:watch:line"), ink = ink,
         )
+    }
+    val line: @Composable (Modifier) -> Unit = { m ->
+        if (cinema && !state.live && state.durationMs > 0) {
+            Row(m.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                OrbitRoundButton(CosmoIcons.Replay30, stringResource(Res.string.video_seek_back, 30), ink, { playback.seekBy(-30_000L) })
+                scrubber(Modifier.weight(1f))
+                OrbitRoundButton(CosmoIcons.Forward30, stringResource(Res.string.video_seek_forward, 30), ink, { playback.seekBy(30_000L) })
+            }
+        } else scrubber(m)
     }
     OrbitBiteCard(fill, modifier.fillMaxWidth().testTag("video:watch:card"), bite = { OrbitPlayButton(playing, onPlay, look, Modifier.testTag("video:watch:play")) }) {
         if (wide) {
@@ -219,13 +237,14 @@ private fun WatchCardButtons(
     wide: Boolean,
     onDownload: (() -> Unit)?,
     downloaded: Boolean,
+    screenOpen: Boolean,
+    onScreenOpen: (Boolean) -> Unit,
     onSettings: () -> Unit,
     settingsMenu: (@Composable () -> Unit)?,
 ) {
     val settings by LocalVideoGraph.current.settings.settings.collectAsState()
     val fonts = com.cosmotune.ui.orbit.orbitFonts()
     val look = com.cosmotune.ui.orbit.orbitLook()
-    var screenOpen by remember { mutableStateOf(false) }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         OrbitRoundButton(CosmoIcons.Previous, stringResource(Res.string.video_previous), ink, { playback.playPrevious() }, onInk = fill)
         val next = state.queue.isNotEmpty() || state.autoplay
@@ -240,9 +259,9 @@ private fun WatchCardButtons(
             OrbitRoundButton(if (downloaded) CosmoIcons.Downloaded else CosmoIcons.Download, stringResource(Res.string.video_download), ink, onDownload, on = downloaded, onInk = fill)
         }
         Box {
-            OrbitRoundButton(CosmoIcons.Canvas, stringResource(Res.string.video_watch_screen), ink, { screenOpen = true }, onInk = fill, modifier = Modifier.testTag("video:watch:screen"))
+            OrbitRoundButton(CosmoIcons.Canvas, stringResource(Res.string.video_watch_screen), ink, { onScreenOpen(true) }, onInk = fill, modifier = Modifier.testTag("video:watch:screen"))
             OrbitMenu(
-                open = screenOpen, onDismiss = { screenOpen = false }, fonts = fonts, look = look, header = stringResource(Res.string.video_watch_screen),
+                open = screenOpen, onDismiss = { onScreenOpen(false) }, fonts = fonts, look = look, header = stringResource(Res.string.video_watch_screen),
                 items = buildList {
                     add(OrbitMenuItem(stringResource(Res.string.video_watch_whole), stringResource(Res.string.video_watch_whole_detail), selected = !screen.fill && screen.theatre != true) {
                         screen.onFill(false); if (screen.theatre == true) screen.onTheatre()

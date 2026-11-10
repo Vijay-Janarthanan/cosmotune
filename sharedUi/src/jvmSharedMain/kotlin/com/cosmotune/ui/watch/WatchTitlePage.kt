@@ -61,6 +61,8 @@ import com.cosmotune.ui.orbit.coverFill
 import com.cosmotune.ui.orbit.logoFill
 import com.cosmotune.watch.NextUp
 import com.cosmotune.watch.SourcesState
+import com.cosmotune.watch.WatchStreamFilter
+import com.cosmotune.watch.watchMetadata
 import com.cosmotune.watch.model.Episode
 import com.cosmotune.watch.model.Stream
 import com.cosmotune.watch.model.Title
@@ -148,7 +150,7 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
 }
 
 /** "Film · 2021 · 1h 52m · Drama, Thriller · ★ 7.4 TMDB" or "Series · 3 seasons · 2019–2025 · ★ 8.1". */
-private fun pageLine(s: TitleSummary, page: Title?): String {
+internal fun pageLine(s: TitleSummary, page: Title?): String {
     val rating = s.rating?.let { "★ %.1f".format(it) + if (s.origin == "tmdb") " TMDB" else "" }
     return if (s.type == TitleType.SERIES) {
         val seasons = page?.seasons?.count { it.number > 0 }?.takeIf { it > 0 }?.let { if (it == 1) "1 season" else "$it seasons" }
@@ -255,6 +257,9 @@ private fun TitleCard(
 @Composable
 private fun PlayFrom(sources: SourcesState?, summary: TitleSummary, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook) {
     val uri = LocalUriHandler.current
+    var filter by remember(summary.key) { mutableStateOf(WatchStreamFilter()) }
+    val streams = sources?.streams.orEmpty()
+    val matching = filter.applyTo(streams)
     Column(Modifier.padding(top = 26.dp)) {
         Text("Play from", style = fonts.section, color = look.ink, modifier = Modifier.padding(start = 6.dp))
         val pending = sources?.pending.orEmpty()
@@ -267,10 +272,17 @@ private fun PlayFrom(sources: SourcesState?, summary: TitleSummary, actions: Wat
         Text(sub, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 14.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (sources == null) repeat(3) { WatchSkeleton(look, Modifier.fillMaxWidth().height(62.dp), radius = 22.dp) }
-            sources?.streams.orEmpty().forEachIndexed { i, stream ->
-                SourceRow(stream, best = i == 0 && stream.isPlayable, fonts = fonts, look = look) {
-                    if (stream.isPlayable) actions.playStream(summary, sources!!.target, stream) else stream.url.takeIf { it.startsWith("https://") }?.let(uri::openUri)
+            if (streams.isNotEmpty()) {
+                WatchSourceFilters(streams, filter, { filter = it }, fonts, look)
+                if (matching.isEmpty()) WatchCardChip("No matches · Reset filters", look.ink, fonts, onClick = { filter = WatchStreamFilter() })
+            }
+            matching.forEach { stream ->
+                val onClick: (() -> Unit)? = when {
+                    stream.isPlayable && sources != null -> ({ actions.playStream(summary, sources.target, stream) })
+                    stream.url.startsWith("https://") -> ({ uri.openUri(stream.url) })
+                    else -> null
                 }
+                SourceRow(stream, best = stream == sources?.best, fonts = fonts, look = look, titleRuntimeMin = summary.runtimeMin, onClick = onClick)
             }
             sources?.whereToWatch.orEmpty().takeIf { sources?.notFound == true }?.forEach { w ->
                 WatchRowFrame(look, onClick = w.link?.let { link -> { uri.openUri(link) } }) {
@@ -289,25 +301,28 @@ private fun PlayFrom(sources: SourcesState?, summary: TitleSummary, actions: Wat
 }
 
 @Composable
-internal fun SourceRow(stream: Stream, best: Boolean, fonts: OrbitFonts, look: OrbitLook, selected: Boolean = false, onClick: () -> Unit) {
-    WatchRowFrame(look, highlighted = best || selected, onClick = onClick) {
+internal fun SourceRow(
+    stream: Stream, best: Boolean, fonts: OrbitFonts, look: OrbitLook,
+    titleRuntimeMin: Int? = null, onClick: (() -> Unit)? = null,
+) {
+    WatchRowFrame(look, height = 76.dp, highlighted = best, onClick = onClick) {
         WatchLogoTile(stream.source.badge, logoFill(stream.source.badge), fonts)
         Column(Modifier.weight(1f)) {
-            Text(if (best) "${stream.source.pluginName} · ${stream.label.replaceFirstChar { it.lowercase() }}" else stream.source.pluginName,
+            Text("${stream.source.pluginName} · ${stream.label}",
                 style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val line = if (!stream.isPlayable) "Opens in your browser" else (if (best) stream.description else listOfNotNull(stream.description ?: stream.label).joinToString(" · "))
-            if (!line.isNullOrBlank()) Text(line, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val detailStyle = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp)
+            Text(stream.watchMetadata(titleRuntimeMin = titleRuntimeMin), style = detailStyle, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            stream.description?.lineSequence()?.firstOrNull { it.isNotBlank() }?.let {
+                Text(it, style = detailStyle, color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
-        when {
-            selected -> OrbitLabel("Playing", fonts, look.accent)
-            best -> OrbitLabel("Best", fonts, look.accent)
-        }
+        if (best) OrbitLabel("Best", fonts, look.accent)
     }
 }
 
 /** The cast as portraits and more like this as wide stills; in a column beside Play from on a wide film page. */
 @Composable
-private fun PeopleAndMore(page: Title, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame, inColumn: Boolean = false) {
+internal fun PeopleAndMore(page: Title, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame, inColumn: Boolean = false) {
     val side = if (inColumn) 0.dp else frame.side
     Column {
         if (page.cast.isNotEmpty()) {

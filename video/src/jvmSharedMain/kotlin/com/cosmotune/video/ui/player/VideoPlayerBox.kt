@@ -115,6 +115,7 @@ fun VideoPlayerBox(
     onTap: (() -> Unit)? = null,
     /** With [controls] false: what a full-screen pinch asks for (fill or fit), the page's Whole or Fill; null ignores the pinch. */
     onPinch: ((VideoScale) -> Unit)? = null,
+    immediateTap: Boolean = false,
 ) {
     val state by playback.state.collectAsState()
     val settings by LocalVideoGraph.current.settings.settings.collectAsState()
@@ -137,7 +138,7 @@ fun VideoPlayerBox(
             return@Box
         }
         if (!controls) {
-            PagePlayerLayer(playback, state, settings, layout, onCollapse, onToggleFullscreen, captionSp, onTap, onPinch)
+            PagePlayerLayer(playback, state, settings, layout, onCollapse, onToggleFullscreen, captionSp, onTap, onPinch, immediateTap)
             return@Box
         }
         PlayerChrome(playback, state, settings, layout, desktopFullWindow, title, onCollapse, onToggleFullscreen, onEnterPip, captionSp) {
@@ -162,6 +163,7 @@ private fun BoxScope.PagePlayerLayer(
     captionSp: Float,
     onTap: (() -> Unit)? = null,
     onPinch: ((VideoScale) -> Unit)? = null,
+    immediateTap: Boolean,
 ) {
     val feedback = remember { GestureFeedback() }
     val platform = rememberPlayerPlatform(playback)
@@ -187,6 +189,8 @@ private fun BoxScope.PagePlayerLayer(
                 onCollapse = onCollapse,
                 onToggleFullscreen = onToggleFullscreen,
                 onScale = { onPinch?.invoke(it) },
+                immediateTap = immediateTap,
+                windowTapPlays = onTap == null,
             ),
         )
         Box(Modifier.matchParentSize()) {

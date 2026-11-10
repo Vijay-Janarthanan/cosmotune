@@ -129,6 +129,8 @@ internal fun Modifier.playerGestures(
     onCollapse: (() -> Unit)?,
     onToggleFullscreen: () -> Unit,
     onScale: (VideoScale) -> Unit,
+    immediateTap: Boolean = false,
+    windowTapPlays: Boolean = true,
 ): Modifier = composed {
     val tap by rememberUpdatedState(onTap)
     val input by rememberUpdatedState(onInput)
@@ -151,7 +153,7 @@ internal fun Modifier.playerGestures(
         return zone != TapZone.MIDDLE && (zone == TapZone.RIGHT) == run.forward && chromeNowMs() - run.stamp < SEEK_RUN_MS
     }
 
-    var chain = this.pointerInput(layout, playback) {
+    var chain = this.pointerInput(layout, playback, immediateTap, windowTapPlays) {
         detectTapGestures(
             onPress = {
                 tryAwaitRelease()
@@ -171,11 +173,11 @@ internal fun Modifier.playerGestures(
                 val zone = tapZone(offset.x / size.width.coerceAtLeast(1))
                 when {
                     runGoing(zone) -> { seek(zone == TapZone.RIGHT, 1); input() }
-                    layout == PlayerLayout.WINDOW -> { playback.togglePlayPause(); tap() }
+                    layout == PlayerLayout.WINDOW && windowTapPlays -> { playback.togglePlayPause(); tap() }
                     else -> tap()
                 }
             },
-            onDoubleTap = { offset ->
+            onDoubleTap = if (immediateTap) null else { offset ->
                 val zone = tapZone(offset.x / size.width.coerceAtLeast(1))
                 when {
                     layout == PlayerLayout.WINDOW -> { fullscreen(); input() }

@@ -1,15 +1,16 @@
 package com.cosmotune.music.ui.tv.player
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -18,11 +19,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -50,6 +53,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,25 +84,25 @@ import com.cosmotune.ui.watch.WatchRoute
 import com.cosmotune.ui.watch.WatchSurfaceScale
 import com.cosmotune.ui.watch.WatchTab
 import com.cosmotune.watch.LiveNowItem
+import com.cosmotune.watch.WATCH_SKIP_MS
 import com.cosmotune.watch.WatchPlayer
 import com.cosmotune.watch.WatchPlayerState
 import com.cosmotune.watch.WatchPlayerStatus
+import com.cosmotune.watch.WatchStreamFilter
 import com.cosmotune.watch.model.PlayTarget
+import com.cosmotune.watch.model.TitleType
+import com.cosmotune.watch.watchMetadata
 import kotlinx.coroutines.delay
-
-/** Back and forward on the remote's left and right, as the film card's buttons do. */
-private const val BACK_MS = 10_000L
-private const val FORWARD_MS = 30_000L
 
 /** How long the film card stays up after the last press while the film plays. */
 private const val CARD_MS = 5_000L
 
 /**
  * Watch's player on the TV: the picture fills the screen (Watch's Media3 surface from [WatchPlayback]) and the film card comes up
- * over its foot only when asked. With the card down the remote drives the film: centre plays and pauses, left goes back 10 seconds
- * and right forward 30, up brings up the card (focus on its play button); the play and media keys work at any time. The card has
+ * over its foot only when asked. With the card down the remote drives the film: centre plays and pauses, left and right seek
+ * by 30 seconds, and up brings up the card (focus on its play button); the play and media keys work at any time. The card has
  * back and forward, Sources, Audio, Subtitles and the screen (Whole or Fill), and goes again five seconds after the last press while
- * the film plays. Back leaves the player. Opening and stopping follow the shared player page: the route's target is opened unless
+ * the film plays. Back hides the visible card before leaving the player. The route's target is opened unless
  * the room already holds it, and stopped when the player goes.
  */
 @Composable
@@ -134,6 +139,7 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
     var cardUp by remember { mutableStateOf(true) }
     var stir by remember { mutableIntStateOf(0) }
     var menu by remember { mutableStateOf<TvWatchMenu?>(null) }
+    var filter by remember(route.target.key) { mutableStateOf(WatchStreamFilter()) }
     var flash by remember { mutableStateOf<TvFlash?>(null) }
     var flashTick by remember { mutableIntStateOf(0) }
     var seekNote by remember { mutableStateOf<String?>(null) }
@@ -142,6 +148,7 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
     val playFocus = remember { FocusRequester() }
     val failed = state.status == WatchPlayerStatus.NOT_FOUND || state.status == WatchPlayerStatus.ERROR
     val countingDown = state.nextEpisode != null && state.nextEpisodeInMs != null
+    BackHandler(enabled = cardUp && menu == null && !failed) { cardUp = false }
 
     val playPause: () -> Unit = { if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() }
     val retry: (() -> Unit)? = if (playback.roomHolds(route.target.key)) null else ({
@@ -184,8 +191,8 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
             Key.MediaPlayPause -> { playPause(); true }
             Key.MediaPlay -> { player.engine.play(); true }
             Key.MediaPause -> { player.engine.pause(); true }
-            Key.MediaRewind -> { if (!state.isLive) seekBy(-BACK_MS); true }
-            Key.MediaFastForward -> { if (!state.isLive) seekBy(FORWARD_MS); true }
+            Key.MediaRewind -> { if (!state.isLive) seekBy(-WATCH_SKIP_MS); true }
+            Key.MediaFastForward -> { if (!state.isLive) seekBy(WATCH_SKIP_MS); true }
             else -> if (cardUp || failed) false else stageKey(e, state, onPlayPause = {
                 playPause()
                 flash = if (player.engine.snapshot.value.playing) TvFlash.Pause else TvFlash.Play
@@ -210,7 +217,9 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
         }
         playback.surface(scale, Modifier.fillMaxSize())
         // The picture takes focus while the card is down, so the remote's keys reach [keys].
-        Box(Modifier.fillMaxSize().focusRequester(stage).focusable())
+        Box(Modifier.fillMaxSize().focusRequester(stage).focusable().pointerInput(failed) {
+            if (!failed) detectTapGestures { cardUp = !cardUp }
+        })
 
         when {
             failed -> TvWatchPlayerMessage(
@@ -242,7 +251,7 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
             visible = cardUp && !failed,
             modifier = Modifier.align(Alignment.BottomCenter),
             enter = fadeIn(tween(200)) + slideInVertically(tween(260)) { it / 4 },
-            exit = fadeOut(tween(260)) + slideOutVertically(tween(260)) { it / 4 },
+            exit = ExitTransition.None,
         ) {
             Column(
                 Modifier
@@ -270,16 +279,48 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
 
     when (menu) {
         TvWatchMenu.SOURCES -> TvDialog(onDismissRequest = { menu = null }, title = "Play from", message = "Best first", width = 560.dp) {
-            TvDialogList {
-                state.streams.forEachIndexed { i, s ->
+            val providers = state.streams.map { it.source }.distinctBy { it.pluginId }
+            val qualities = WatchStreamFilter.qualities(state.streams)
+            val matches = filter.applyTo(state.streams)
+            val runtime = state.summary?.takeIf { it.type == TitleType.FILM }?.runtimeMin
+            TvSourceRows {
+                if (qualities.size > 1 || filter.quality != null) {
+                    TvListRow("Quality", value = filter.quality ?: "All", onClick = { menu = TvWatchMenu.SOURCE_QUALITY },
+                        modifier = Modifier.tvInitialFocus(true))
+                }
+                if (providers.size > 1 || filter.providerId != null) {
+                    TvListRow("Provider", value = providers.firstOrNull { it.pluginId == filter.providerId }?.pluginName ?: "All",
+                        onClick = { menu = TvWatchMenu.SOURCE_PROVIDER }, modifier = Modifier.tvInitialFocus(qualities.size <= 1 && filter.quality == null))
+                }
+                if (matches.isEmpty()) TvListRow("No streams match", subtitle = "Reset filters", onClick = { filter = WatchStreamFilter() })
+                matches.forEach { s ->
                     TvListRow(
                         title = "${s.source.pluginName} · ${s.label}",
-                        subtitle = s.description,
+                        subtitle = listOfNotNull(
+                            s.watchMetadata(state.durationMs.takeIf { s == state.stream }, runtime),
+                            s.description?.lineSequence()?.firstOrNull { it.isNotBlank() },
+                        ).joinToString("\n"),
                         value = if (s == state.stream) "Playing" else null,
                         enabled = s.isPlayable,
-                        onClick = { menu = null; player.switchStream(s) },
-                        modifier = Modifier.tvInitialFocus(s == state.stream || (state.stream == null && i == 0)),
+                        onClick = { menu = null; if (s != state.stream || failed) player.switchStream(s) },
+                        modifier = Modifier.tvInitialFocus(qualities.size <= 1 && providers.size <= 1 && s == matches.firstOrNull { it.isPlayable }),
                     )
+                }
+            }
+        }
+        TvWatchMenu.SOURCE_QUALITY, TvWatchMenu.SOURCE_PROVIDER -> {
+            val quality = menu == TvWatchMenu.SOURCE_QUALITY
+            val options = if (quality) WatchStreamFilter.qualities(state.streams).map { it to it }
+            else state.streams.map { it.source }.distinctBy { it.pluginId }.map { it.pluginId to it.pluginName }
+            TvDialog(onDismissRequest = { menu = TvWatchMenu.SOURCES }, title = if (quality) "Quality" else "Provider") {
+                TvSourceRows {
+                    (listOf(null to "All") + options).forEach { (id, label) ->
+                        val selected = id == if (quality) filter.quality else filter.providerId
+                        TvListRow(label, value = "Selected".takeIf { selected }, modifier = Modifier.tvInitialFocus(selected), onClick = {
+                            filter = if (quality) filter.copy(quality = id) else filter.copy(providerId = id)
+                            menu = TvWatchMenu.SOURCES
+                        })
+                    }
                 }
             }
         }
@@ -344,14 +385,23 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
     }
 }
 
-private enum class TvWatchMenu { SOURCES, AUDIO, SUBTITLES, SCREEN, CHANNELS }
+@Composable
+private fun TvSourceRows(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    TvDialogList(
+        Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.65f).dp)
+            .verticalScroll(rememberScrollState()).padding(4.dp),
+        content = content,
+    )
+}
+
+private enum class TvWatchMenu { SOURCES, SOURCE_QUALITY, SOURCE_PROVIDER, AUDIO, SUBTITLES, SCREEN, CHANNELS }
 
 /** The remote with the card down: centre plays and pauses, left and right seek (not live), up brings up the card. */
 private fun stageKey(e: KeyEvent, state: WatchPlayerState, onPlayPause: () -> Unit, onSeek: (Long) -> Unit, onCard: () -> Unit): Boolean = when (e.key) {
     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { if (state.isLive) onCard() else onPlayPause(); true }
     Key.Spacebar -> { onPlayPause(); true }
-    Key.DirectionLeft -> { if (state.isLive) onCard() else onSeek(-BACK_MS); true }
-    Key.DirectionRight -> { if (state.isLive) onCard() else onSeek(FORWARD_MS); true }
+    Key.DirectionLeft -> { if (state.isLive) onCard() else onSeek(-WATCH_SKIP_MS); true }
+    Key.DirectionRight -> { if (state.isLive) onCard() else onSeek(WATCH_SKIP_MS); true }
     Key.DirectionUp, Key.DirectionDown -> { onCard(); true }
     else -> false
 }
@@ -432,15 +482,15 @@ private fun TvFilmCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (!state.isLive) {
-                    TvWatchRound(CosmoIcons.Replay, "Back 10 seconds", ink) { onSeek(-BACK_MS) }
-                    TvWatchRound(CosmoIcons.Next, "Forward 30 seconds", ink) { onSeek(FORWARD_MS) }
+                    TvWatchRound(CosmoIcons.Replay30, "Back 30 seconds", ink) { onSeek(-WATCH_SKIP_MS) }
+                    TvWatchRound(CosmoIcons.Forward30, "Forward 30 seconds", ink) { onSeek(WATCH_SKIP_MS) }
                 } else {
                     TvButton("Channels", onClick = { onMenu(TvWatchMenu.CHANNELS) })
                     onLive?.let { TvButton("Jump to live", onClick = it) }
                 }
                 TvWatchRound(CosmoIcons.Expand, "Full screen", ink, onFullScreen)
                 TvButton(if (state.muted) "Unmute" else "Mute", onClick = player::toggleMute)
-                if (state.streams.size > 1) TvButton("Sources", onClick = { onMenu(TvWatchMenu.SOURCES) })
+                if (state.streams.isNotEmpty()) TvButton("Sources", onClick = { onMenu(TvWatchMenu.SOURCES) })
                 if (state.audioTracks.size > 1) TvButton("Audio", onClick = { onMenu(TvWatchMenu.AUDIO) })
                 TvButton("Subtitles", onClick = { onMenu(TvWatchMenu.SUBTITLES) })
                 TvWatchRound(CosmoIcons.Canvas, "Screen", ink) { onMenu(TvWatchMenu.SCREEN) }

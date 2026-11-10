@@ -1,9 +1,5 @@
 package com.cosmotune.video.ui.watch
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -29,6 +25,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -46,9 +43,8 @@ import kotlinx.coroutines.delay
 
 /*
  * Cinema (the phone's full screen and the desktop's full window), as Now Playing's Cinema: the video alone on near black (Whole or
- * Fill as the page's screen button says), nothing on it; at first and again whenever the pointer moves or a finger lands, the round
- * "leave Cinema" button at the top and the slim colour card (the watch page's own: the time, the title, the buttons, the line, play
- * in its bite) floating at the foot. Both go [VideoMetrics.HIDE_AFTER_MS] after the last movement while the video plays.
+ * Fill as the page's screen button says). A tap toggles the exit button and the colour card at the foot. They also hide after
+ * [VideoMetrics.HIDE_AFTER_MS] of idle playback.
  */
 
 /** Cinema's ground: near black, a touch warm (Now Playing's). */
@@ -57,7 +53,7 @@ private val CINEMA_INK = Color(0xFFF7ECE4)
 
 /**
  * Cinema for [playback]: the picture through `VideoPlayerBox(controls = false)` (its subtitles, gestures, loading and error; a tap
- * brings the card back rather than pausing), the leave button ([onExit]) and the card. [onEnterPip] is the screen menu's Mini where
+ * toggles the card), the leave button ([onExit]) and the card. [onEnterPip] is the screen menu's Mini where
  * the device has picture-in-picture; [onBoundsChanged] reports the picture's place.
  */
 @Composable
@@ -76,10 +72,10 @@ internal fun WatchCinema(
     val look = orbitLook()
     var stir by remember { mutableIntStateOf(0) }
     var chrome by remember { mutableStateOf(true) }
-    LaunchedEffect(stir, state.playing) {
-        chrome = true
-        // Paused, the card stays: it holds the play button.
-        if (!state.playing) return@LaunchedEffect
+    var manuallyHidden by remember { mutableStateOf(false) }
+    var interacting by remember { mutableStateOf(false) }
+    LaunchedEffect(chrome, stir, state.playing, interacting) {
+        if (!chrome || !state.playing || interacting) return@LaunchedEffect
         delay(VideoMetrics.HIDE_AFTER_MS)
         chrome = false
     }
@@ -92,10 +88,12 @@ internal fun WatchCinema(
             awaitPointerEventScope {
                 while (true) {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
-                    if (event.type == PointerEventType.Move || event.type == PointerEventType.Press || event.type == PointerEventType.Scroll) {
+                    if (event.type == PointerEventType.Move && !manuallyHidden && event.changes.any { it.type == PointerType.Mouse }) {
+                        chrome = true
                         stir++
                         onStir()
                     }
+                    if (event.type == PointerEventType.Press && chrome) stir++
                 }
             }
         },
@@ -112,11 +110,16 @@ internal fun WatchCinema(
             controls = false,
             scale = if (WatchSession.fill) VideoScale.FILL else VideoScale.FIT,
             ground = CINEMA_GROUND,
-            onTap = { stir++ },
+            onTap = {
+                chrome = !chrome
+                manuallyHidden = !chrome
+                if (chrome) onStir()
+            },
+            immediateTap = chrome,
             // A pinch fills or fits the picture, as it did before the controls moved to the card: the screen menu's Whole or Fill.
             onPinch = { WatchSession.fill = it == VideoScale.FILL },
         )
-        AnimatedVisibility(chrome, Modifier.fillMaxSize(), enter = fadeIn(tween(220)), exit = fadeOut(tween(420))) {
+        if (chrome) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 Box(Modifier.align(Alignment.TopStart).padding(horizontal = 28.dp, vertical = 24.dp).background(CINEMA_GROUND.copy(alpha = 0.6f), CircleShape)) {
                     OrbitRoundButton(CosmoIcons.Expand, "Leave Cinema (Esc)", CINEMA_INK, onExit, modifier = Modifier.testTag("video:cinema:leave"))
@@ -125,6 +128,7 @@ internal fun WatchCinema(
                     playback = playback, title = title ?: state.item?.title.orEmpty(), thumbnail = state.item?.thumbnailUrl, key = state.item?.id ?: "cinema",
                     screen = screen, wide = wide, fonts = fonts, look = look,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(start = 24.dp, end = 24.dp, bottom = 24.dp).widthIn(max = 860.dp).fillMaxWidth(),
+                    cinema = true, onInteraction = { interacting = it },
                 )
             }
         }

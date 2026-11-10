@@ -30,7 +30,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :watch:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Tracker evidence names tests that exist
         run: |
@@ -82,7 +82,7 @@ jobs:
         run: cmake --version
 
       - name: Tests
-        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
+        run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :watch:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
         run: .\gradlew.bat :desktopApp:createDistributable
@@ -132,7 +132,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Tests
-        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
+        run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :watch:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue
 
       - name: Build the distributable
         run: ./gradlew :desktopApp:createDistributable
@@ -225,7 +225,7 @@ jobs:
       - run: pnpm --dir web typecheck
       - run: pnpm --dir web test
       - run: pnpm --dir web build:site
-      - run: python3 tools/package-web.py --version 1.0.19 --output build/web-check
+      - run: python3 tools/package-web.py --version 1.0.20 --output build/web-check
       - uses: actions/upload-artifact@v4
         with:
           name: cosmotune-web-check

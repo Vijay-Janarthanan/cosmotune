@@ -23,6 +23,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -65,14 +67,23 @@ fun OrbitMenu(
     look: OrbitLook,
     header: String? = null,
     width: Dp = 260.dp,
+    filters: (@Composable () -> Unit)? = null,
 ) {
     if (!open) return
     val ground = orbitFloatGround(look)
-    val margin = with(androidx.compose.ui.platform.LocalDensity.current) { MENU_MARGIN.roundToPx() }
+    val windowSize = LocalWindowInfo.current.containerSize
+    val density = LocalDensity.current
+    val margin = with(density) { MENU_MARGIN.roundToPx() }
+    val maxHeight = if (windowSize.height > 0) with(density) {
+        (windowSize.height.toDp() - MENU_MARGIN * 2).coerceIn(1.dp, 520.dp)
+    } else 520.dp
+    val menuWidth = if (windowSize.width > 0) with(density) {
+        (windowSize.width.toDp() - MENU_MARGIN * 2).coerceIn(1.dp, width)
+    } else width
     val position = androidx.compose.runtime.remember(margin) { OrbitMenuPosition(margin) }
     Popup(popupPositionProvider = position, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         Column(
-            Modifier.width(width).heightIn(max = 520.dp)
+            Modifier.width(menuWidth).heightIn(max = maxHeight)
                 .shadow(24.dp, RoundedCornerShape(24.dp), clip = false)
                 .clip(RoundedCornerShape(24.dp)).background(ground)
                 .border(1.dp, look.ink.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
@@ -82,6 +93,7 @@ fun OrbitMenu(
             if (header != null) {
                 Text(header.uppercase(), style = fonts.label, color = look.ink.copy(alpha = 0.7f), modifier = Modifier.padding(start = 12.dp, top = 6.dp, end = 12.dp, bottom = 8.dp))
             }
+            filters?.invoke()
             items.forEach { item ->
                 val ink = when {
                     item.selected -> ground

@@ -1,16 +1,14 @@
 package com.cosmotune.ui.watch
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,8 +23,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -55,7 +55,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -78,8 +80,10 @@ import com.cosmotune.ui.orbit.WatchRowFrame
 import com.cosmotune.ui.orbit.coverFill
 import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.watch.SourcesState
+import com.cosmotune.watch.WATCH_SKIP_MS
 import com.cosmotune.watch.WatchPlayerState
 import com.cosmotune.watch.WatchPlayerStatus
+import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.model.Stream
 import kotlinx.coroutines.delay
 
@@ -165,6 +169,13 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     val otherChannels by androidx.compose.runtime.produceState(emptyList<com.cosmotune.watch.LiveNowItem>(), channel) {
         if (channel != null) value = runCatching { actions.repository.liveNow(12) }.getOrDefault(emptyList()).filter { it.channel.key != channel.key }
     }
+    val summary = state.summary ?: route.summary
+    val episodeTarget = (state.target ?: route.target) as? PlayTarget.EpisodeOf
+    val details: (@Composable () -> Unit)? = if (channel == null && summary != null) {
+        {
+            WatchPlayerDetails(summary, route.episode?.takeIf { it.key == episodeTarget?.key }, episodeTarget, actions, fonts, look, frame)
+        }
+    } else null
     WatchPlayerScreen(
         state = state,
         playing = snapshot.playing,
@@ -181,6 +192,7 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
         programme = onNow?.now?.title?.substringAfter(": "),
         channels = otherChannels,
         onChannel = { actions.playChannel(it) },
+        details = details,
     )
 }
 
@@ -208,6 +220,7 @@ internal fun WatchPlayerScreen(
     /** The other channels on now, listed under the card on the phone. */
     channels: List<com.cosmotune.watch.LiveNowItem> = emptyList(),
     onChannel: (com.cosmotune.watch.model.Channel) -> Unit = {},
+    details: (@Composable () -> Unit)? = null,
 ) {
     val settings = LocalCosmoShell.current?.settings
     val keptView = settings?.videoView?.collectAsState()?.value
@@ -238,7 +251,7 @@ internal fun WatchPlayerScreen(
             if (cinema) WatchCinema(picture, state, playing, position, durationMs, controls, view, setView, onLeave = { cinema = false }, fonts = fonts, look = look, fill = fill, ink = ink, programme = programme,
                 channels = channels, onChannel = onChannel)
             else WatchPlayerLayout(state, playing, position, durationMs, controls, watchTogether, view, setView, picture, onCinema = { cinema = true }, fonts, look, wide, padding, fill, ink,
-                programme = programme, channels = channels, onChannel = onChannel)
+                programme = programme, channels = channels, onChannel = onChannel, details = details)
         }
     }
     if (cinema && fullscreen != null) fullscreen({ cinema = false }, aspect >= 1f, content) else content()
@@ -265,19 +278,25 @@ private fun WatchPlayerLayout(
     programme: String? = null,
     channels: List<com.cosmotune.watch.LiveNowItem> = emptyList(),
     onChannel: (com.cosmotune.watch.model.Channel) -> Unit = {},
+    details: (@Composable () -> Unit)?,
 ) {
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
         WatchWash(fill, look)
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 14.dp)) {
+        val playerHeight = (maxHeight - padding.calculateTopPadding() - padding.calculateBottomPadding() - 265.dp)
+            .coerceIn(180.dp, 560.dp)
+        val playerContent: @Composable ColumnScope.() -> Unit = {
             PlayerTopRow(state, controls, watchTogether, wide, fonts, look, downloads = LocalWatchDownloads.current)
             state.failover?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
             state.lengthNote?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
             Spacer(Modifier.height(14.dp))
             if (state.status == WatchPlayerStatus.NOT_FOUND || state.status == WatchPlayerStatus.ERROR) {
                 WatchPlaybackFailure(state, controls, fonts, look)
-                Spacer(Modifier.weight(1f))
             } else {
-                val size = if (wide) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                val size = when {
+                    !wide -> Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                    details != null -> Modifier.fillMaxWidth().height(playerHeight)
+                    else -> Modifier.weight(1f).fillMaxWidth()
+                }
                 Box(size) {
                     picture(Modifier.fillMaxSize(), if (wide) 34.dp else 26.dp)
                     WatchLoading(state, fonts)
@@ -290,7 +309,7 @@ private fun WatchPlayerLayout(
                 FilmCard(state, playing, position, durationMs, controls, view, setView, fonts, look, fill, ink, slim = false, wide = wide,
                     programme = programme, channels = channels, onChannel = onChannel)
             }
-            if (!wide && state.isLive && channels.isNotEmpty()) {
+            if (details == null && !wide && state.isLive && channels.isNotEmpty()) {
                 // The phone's lower half: the other channels on now, a tap switches to one.
                 val clock = remember { { System.currentTimeMillis() } }
                 LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(top = 20.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -299,7 +318,16 @@ private fun WatchPlayerLayout(
                         LiveRow(channels[i], fonts, look, clock) { onChannel(channels[i].channel) }
                     }
                 }
-            } else if (!wide) Spacer(Modifier.weight(1f))
+            } else if (details == null && !wide) Spacer(Modifier.weight(1f))
+        }
+        val content = Modifier.fillMaxSize().padding(padding)
+        if (details == null) {
+            Column(content.padding(horizontal = 16.dp, vertical = 14.dp), content = playerContent)
+        } else {
+            Column(content.verticalScroll(rememberScrollState()).padding(top = 14.dp)) {
+                Column(Modifier.padding(horizontal = 16.dp), content = playerContent)
+                details()
+            }
         }
     }
 }
@@ -310,10 +338,31 @@ private fun WatchPlaybackFailure(state: WatchPlayerState, controls: WatchPlayerC
         WatchMessage(
             if (state.status == WatchPlayerStatus.NOT_FOUND) "Sources" else "Playback",
             if (state.status == WatchPlayerStatus.NOT_FOUND) "No playable copy yet" else "This copy did not play",
-            state.error ?: "The source could not start. Try again or choose another source.", fonts, look,
+            state.error ?: "The source could not start.", fonts, look,
             action = "Retry".takeIf { controls.retry != null }, onAction = controls.retry,
         )
-        WatchCardChip("Open Plugins", look.ink, fonts, onClick = { controls.close(); WatchNav.go(WatchTab.PLUGINS) })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (state.streams.any { it.isPlayable && it != state.stream }) {
+                PlayerSourcesButton(state, controls, fonts, look, label = "Try another source")
+            }
+            WatchCardChip("Open Plugins", look.ink, fonts, onClick = { controls.close(); WatchNav.go(WatchTab.PLUGINS) })
+        }
+    }
+}
+
+@Composable
+private fun PlayerSourcesButton(
+    state: WatchPlayerState, controls: WatchPlayerControls, fonts: OrbitFonts, look: OrbitLook,
+    label: String = "Sources", onMenuOpen: (Boolean) -> Unit = {},
+) {
+    var open by remember { mutableStateOf(false) }
+    DisposableEffect(open) {
+        onMenuOpen(open)
+        onDispose { if (open) onMenuOpen(false) }
+    }
+    Box {
+        WatchCardChip(label, look.ink, fonts, onClick = { open = true }, enabled = state.streams.isNotEmpty())
+        WatchSourcesMenu(open, { open = false }, state, fonts, look, controls.switchStream)
     }
 }
 
@@ -349,7 +398,6 @@ private fun WatchVideo(view: VideoView, aspect: Float, radius: Dp, surface: @Com
 @Composable
 private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls, watchTogether: Boolean, wide: Boolean, fonts: OrbitFonts, look: OrbitLook,
     downloads: com.cosmotune.watch.WatchDownloads? = null) {
-    var sources by remember { mutableStateOf(false) }
     var download by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         WatchRoundButton(CosmoIcons.ChevronDown, "Close the player", look, onClick = controls.close)
@@ -359,15 +407,7 @@ private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls,
             else -> "Watch"
         }
         OrbitLabel(from, fonts, look.dim, Modifier.weight(1f))
-        Box {
-            WatchCardChip("Sources", look.ink, fonts, onClick = { sources = true }, enabled = state.streams.isNotEmpty())
-            OrbitMenu(
-                sources, onDismiss = { sources = false }, fonts = fonts, look = look, header = "Play from · best first", width = 320.dp,
-                items = state.streams.map { s ->
-                    OrbitMenuItem("${s.source.pluginName} · ${s.label}", s.description, selected = s == state.stream, enabled = s.isPlayable) { controls.switchStream(s) }
-                },
-            )
-        }
+        PlayerSourcesButton(state, controls, fonts, look)
         if (downloads != null && !state.isLive && state.target != null) Box {
             val list by downloads.items.collectAsState()
             val stream = state.stream
@@ -443,6 +483,7 @@ private fun FilmCard(
     programme: String? = null,
     channels: List<com.cosmotune.watch.LiveNowItem> = emptyList(),
     onChannel: (com.cosmotune.watch.model.Channel) -> Unit = {},
+    onMenuOpen: (Boolean) -> Unit = {},
 ) {
     var audio by remember { mutableStateOf(false) }
     // The phone's card is narrow: the title may take two lines, and Audio and Subtitles are round buttons so all the controls clear the bite.
@@ -450,6 +491,11 @@ private fun FilmCard(
     var subtitles by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf(false) }
     var guide by remember { mutableStateOf(false) }
+    val menuOpen = audio || subtitles || screen || guide
+    DisposableEffect(menuOpen) {
+        onMenuOpen(menuOpen)
+        onDispose { if (menuOpen) onMenuOpen(false) }
+    }
     // The label is redrawn every half second, not every frame.
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(playing) { while (playing) { delay(500); tick++ } }
@@ -475,11 +521,11 @@ private fun FilmCard(
             }
             FlowRow(Modifier.padding(top = if (slim) 8.dp else 12.dp, end = 68.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                WatchRoundButton(CosmoIcons.Volume, if (state.muted) "Unmute" else "Mute", look,
-                    onClick = controls.toggleMute, ink = ink, on = state.muted)
                 if (!state.isLive) {
-                    WatchRoundButton(CosmoIcons.Replay, "Back 10 seconds", look, onClick = { controls.seekTo((position() - 10_000).coerceAtLeast(0)) }, ink = ink)
-                    WatchRoundButton(CosmoIcons.Next, "Forward 30 seconds", look, onClick = { controls.seekTo(position() + 30_000) }, ink = ink)
+                    WatchRoundButton(CosmoIcons.Replay30, "Back 30 seconds", look,
+                        onClick = { controls.seekTo((position() - WATCH_SKIP_MS).coerceIn(0, durationMs)) }, ink = ink, enabled = durationMs > 0)
+                    WatchRoundButton(CosmoIcons.Forward30, "Forward 30 seconds", look,
+                        onClick = { controls.seekTo((position() + WATCH_SKIP_MS).coerceIn(0, durationMs)) }, ink = ink, enabled = durationMs > 0)
                 } else {
                     controls.retry?.let { WatchRoundButton(CosmoIcons.Replay, "Jump to live", look, onClick = it, ink = ink) }
                     if (channels.isNotEmpty()) Box {
@@ -488,6 +534,8 @@ private fun FilmCard(
                             channels.map { row -> OrbitMenuItem(row.channel.name, row.now?.title) { onChannel(row.channel) } })
                     }
                 }
+                WatchRoundButton(CosmoIcons.Volume, if (state.muted) "Unmute" else "Mute", look,
+                    onClick = controls.toggleMute, ink = ink, on = state.muted)
                 Box {
                     if (narrow) WatchRoundButton(CosmoIcons.Volume, "Audio", look, onClick = { audio = true }, ink = ink, enabled = state.audioTracks.size > 1)
                     else WatchCardChip("Audio", ink, fonts, onClick = { audio = true }, icon = CosmoIcons.Volume, enabled = state.audioTracks.size > 1)
@@ -519,7 +567,7 @@ private fun FilmCard(
     }
 }
 
-/** Cinema: the picture takes the whole window; the buttons and the slim card show on movement and fade three seconds after. */
+/** Cinema: tap the picture to toggle controls. Mouse motion reveals them after an automatic hide. */
 @Composable
 private fun WatchCinema(
     picture: @Composable (Modifier, Dp) -> Unit,
@@ -541,35 +589,57 @@ private fun WatchCinema(
 ) {
     var stir by remember { mutableIntStateOf(0) }
     var chrome by remember { mutableStateOf(true) }
+    var manuallyHidden by remember { mutableStateOf(false) }
+    var sourcesOpen by remember { mutableStateOf(false) }
+    var cardMenuOpen by remember { mutableStateOf(false) }
+    var pointerDown by remember { mutableStateOf(false) }
     val failed = state.status == WatchPlayerStatus.ERROR || state.status == WatchPlayerStatus.NOT_FOUND
-    LaunchedEffect(stir, playing, failed) {
-        chrome = true
-        if (playing && !failed) { delay(3_000); chrome = false }
+    LaunchedEffect(chrome, stir, playing, failed, sourcesOpen, cardMenuOpen, pointerDown) {
+        if (chrome && playing && !failed && !sourcesOpen && !cardMenuOpen && !pointerDown) {
+            delay(3_000)
+            chrome = false
+        }
     }
     Box(
         Modifier.fillMaxSize().background(Color(0xFF050304)).pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) {
                     val e = awaitPointerEvent(PointerEventPass.Initial)
-                    if (e.type == PointerEventType.Move || e.type == PointerEventType.Press || e.type == PointerEventType.Scroll) stir++
+                    pointerDown = e.changes.any { it.pressed }
+                    if (e.type == PointerEventType.Move && !manuallyHidden && e.changes.any { it.type == PointerType.Mouse }) {
+                        chrome = true
+                        stir++
+                    }
                 }
             }
         },
     ) {
         picture(Modifier.fillMaxSize(), 0.dp)
+        if (!failed) Box(
+            Modifier.fillMaxSize().testTag("watch:cinema:picture").clickable(
+                interactionSource = null, indication = null,
+                onClickLabel = if (chrome) "Hide playback controls" else "Show playback controls",
+            ) {
+                chrome = !chrome
+                manuallyHidden = !chrome
+            },
+        )
         WatchLoading(state, fonts)
         if (failed) Box(Modifier.align(Alignment.Center).widthIn(max = 500.dp).padding(24.dp)) {
             WatchPlaybackFailure(state, controls, fonts, look)
         }
-        AnimatedVisibility(chrome, Modifier.fillMaxSize(), enter = fadeIn(tween(220)), exit = fadeOut(tween(420))) {
+        if (chrome || failed) {
             Box(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     WatchRoundButton(CosmoIcons.ChevronDown, "Close the player", look, onClick = controls.close, ink = Color(0xFFF7ECE4))
+                    if (!failed && state.streams.isNotEmpty()) {
+                        PlayerSourcesButton(state, controls, fonts, look, onMenuOpen = { sourcesOpen = it })
+                    }
                     WatchRoundButton(CosmoIcons.Expand, "Exit full screen", look, onClick = onLeave, ink = Color(0xFFF7ECE4))
                 }
                 if (!failed) Box(Modifier.align(Alignment.BottomCenter).padding(24.dp).widthIn(max = 860.dp).fillMaxWidth()) {
                     FilmCard(state, playing, position, durationMs, controls, view, setView, fonts, look, fill, ink, slim = true, programme = programme,
-                        channels = channels, onChannel = onChannel)
+                        channels = channels, onChannel = onChannel, onMenuOpen = { cardMenuOpen = it })
                 }
             }
         }
@@ -597,7 +667,9 @@ private fun WatchPlayerUnavailable(route: WatchRoute.Play, actions: WatchActions
             }
             item {
                 Column(Modifier.padding(horizontal = frame.side).padding(top = 16.dp).widthIn(max = 600.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    sources?.streams.orEmpty().forEachIndexed { i, s -> SourceRow(s, best = i == 0, fonts = fonts, look = look, selected = s == route.stream) {} }
+                    sources?.streams.orEmpty().forEach { s ->
+                        SourceRow(s, best = s == sources?.best, fonts = fonts, look = look, titleRuntimeMin = (route.target as? com.cosmotune.watch.model.PlayTarget.Film)?.runtimeMin)
+                    }
                 }
             }
         }
