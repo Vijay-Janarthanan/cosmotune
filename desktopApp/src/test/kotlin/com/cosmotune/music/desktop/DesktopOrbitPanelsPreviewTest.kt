@@ -42,7 +42,11 @@ import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.ui.theme.rememberCosmoType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.swing.Swing
 import org.jetbrains.skia.EncodedImageFormat
 import java.awt.image.BufferedImage
 import java.io.File
@@ -104,9 +108,12 @@ class DesktopOrbitPanelsPreviewTest {
     }
 
     @OptIn(ExperimentalComposeUiApi::class)
-    private fun render(name: String, palette: CosmoPaletteState, width: Int, height: Int, content: @Composable () -> Unit) {
+    private fun render(name: String, palette: CosmoPaletteState, width: Int, height: Int, content: @Composable () -> Unit) = runBlocking(Dispatchers.Swing) {
         val dark = name.endsWith("-dark")
-        val scene = ImageComposeScene((width * 1.5f).toInt(), (height * 1.5f).toInt(), Density(1.5f)) {
+        val scene = ImageComposeScene(
+            (width * 1.5f).toInt(), (height * 1.5f).toInt(), Density(1.5f),
+            coroutineContext = Dispatchers.Swing,
+        ) {
             val colors = remember { CosmoColors::class.java.getConstructor(CosmoPaletteState::class.java).newInstance(palette) }
             val shell = remember {
                 val store = object : KeyValueStore {
@@ -134,11 +141,14 @@ class DesktopOrbitPanelsPreviewTest {
             }
         }
         var bytes: ByteArray? = null
-        repeat(30) {
-            bytes = scene.render(it * 100_000_000L).encodeToData(EncodedImageFormat.PNG)?.bytes
-            Thread.sleep(40)
+        try {
+            repeat(30) {
+                bytes = scene.render(it * 100_000_000L).encodeToData(EncodedImageFormat.PNG)?.bytes
+                delay(40)
+            }
+        } finally {
+            scene.close()
         }
-        scene.close()
         File(out, "$name.png").writeBytes(bytes!!)
         assertTrue(bytes!!.size > 3_000)
     }
