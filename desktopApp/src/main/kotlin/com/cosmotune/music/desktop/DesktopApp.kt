@@ -3518,11 +3518,11 @@ fun CosmotuneDesktopApp() {
         legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) },
     ) {
         val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current
+        cosmoShell?.FollowCover(selectedSong, liveQueue.songs.getOrNull(liveQueue.index + 1))
         val sharedPlaylistLink by desktopSharedPlaylist.collectAsState()
         LaunchedEffect(sharedPlaylistLink) {
             if (sharedPlaylistLink != null) cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC)
         }
-        cosmoShell?.FollowCover(selectedSong, liveQueue.songs.getOrNull(liveQueue.index + 1))
         val ambientBackdrop by DesktopAppearanceSettings.ambientBackdrop.collectAsState()
         val windowActions = LocalDesktopWindowActions.current
         // A room's videos open in Video mode, which the room switches to through the stored mode.
