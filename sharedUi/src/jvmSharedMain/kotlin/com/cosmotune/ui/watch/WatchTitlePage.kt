@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -82,7 +83,7 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
     var attempt by remember { mutableStateOf(0) }
     val title by produceState<Result<Title?>?>(null, summary.key, attempt) { value = runCatching { repository.title(summary.key) } }
     val page = title?.getOrNull()
-    val shown = page?.summary ?: summary
+    val shown = summary.withTitleDetails(page)
     val myList by repository.myList.collectAsState()
     val inList = myList.any { it.key == summary.key }
     val (fill, ink) = coverFill(shown.posterUrl ?: shown.backdropUrl, shown.key.value)
@@ -93,6 +94,12 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
         .collectAsState(null)
     val resume by produceState<WatchProgress?>(null, summary.key) { if (!series) value = runCatching { repository.progress(summary.key) }.getOrNull() }
     val side = frame.side
+    val about: @Composable (Modifier) -> Unit = { modifier ->
+        Column(modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(if (series) "About this series" else "About this film", style = fonts.section, color = look.ink)
+            WatchTitleFacts(shown, page, fonts, look, showMissingPlot = title != null)
+        }
+    }
 
     val play: () -> Unit = {
         val n = nextUp
@@ -106,7 +113,7 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
 
     Box(Modifier.fillMaxSize()) {
         WatchWash(fill, look)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = frame.padding) {
+        LazyColumn(Modifier.fillMaxSize().testTag("watch:title:page"), contentPadding = frame.padding) {
             frame.header?.let { header -> item(key = "title:header") { header() } }
             item(key = "title:card") {
                 TitleCard(
@@ -116,33 +123,37 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
                     modifier = Modifier.padding(horizontal = side).padding(top = 18.dp),
                 )
             }
-            when {
-                title == null -> item(key = "title:loading") {
-                    Column(Modifier.padding(horizontal = side).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        repeat(3) { WatchSkeleton(look, Modifier.fillMaxWidth().height(if (series) 88.dp else 62.dp), radius = 22.dp) }
-                    }
-                }
-                title?.isFailure == true || page == null -> item(key = "title:error") {
-                    WatchMessage("Not found", "Could not open this page", title?.exceptionOrNull()?.message ?: "None of your plugins knows this title.", fonts, look,
-                        Modifier.padding(horizontal = side).padding(top = 24.dp), action = "Try again", onAction = { attempt++ })
-                }
-                series -> {
-                    item(key = "title:episodes") { SeriesBody(page, nextUp, actions, fonts, look, side) }
-                    item(key = "title:more") { PeopleAndMore(page, actions, fonts, look, frame) }
-                }
-                else -> item(key = "title:film") {
-                    if (frame.wide) {
-                        Row(Modifier.padding(horizontal = side), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                            Column(Modifier.weight(1f).widthIn(max = 600.dp)) { PlayFrom(sources, shown, actions, fonts, look) }
-                            Column(Modifier.weight(1f)) { PeopleAndMore(page, actions, fonts, look, frame, inColumn = true) }
-                        }
-                    } else {
-                        Column {
-                            Column(Modifier.padding(horizontal = side)) { PlayFrom(sources, shown, actions, fonts, look) }
-                            PeopleAndMore(page, actions, fonts, look, frame)
+            if (series) {
+                item(key = "title:about") { about(Modifier.padding(horizontal = side).widthIn(max = 780.dp)) }
+                when {
+                    title == null -> item(key = "title:loading") {
+                        Column(Modifier.padding(horizontal = side).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            repeat(3) { WatchSkeleton(look, Modifier.fillMaxWidth().height(88.dp), radius = 22.dp) }
                         }
                     }
+                    page == null -> item(key = "title:error") {
+                        WatchMessage("Episodes", "Could not load episodes", "Episode details are unavailable from this catalogue.", fonts, look,
+                            Modifier.padding(horizontal = side).padding(top = 24.dp), action = "Try again", onAction = { attempt++ })
+                    }
+                    else -> {
+                        item(key = "title:episodes") { SeriesBody(page, nextUp, actions, fonts, look, side) }
+                        item(key = "title:more") { PeopleAndMore(page, actions, fonts, look, frame) }
+                    }
                 }
+            } else if (frame.wide) {
+                item(key = "title:film") {
+                    Row(Modifier.padding(horizontal = side), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            about(Modifier.widthIn(max = 780.dp))
+                            page?.let { PeopleAndMore(it, actions, fonts, look, frame, inColumn = true) }
+                        }
+                        Column(Modifier.weight(1f).widthIn(max = 600.dp)) { PlayFrom(sources, shown, actions, fonts, look) }
+                    }
+                }
+            } else {
+                item(key = "title:about") { about(Modifier.padding(horizontal = side)) }
+                page?.let { detail -> item(key = "title:more") { PeopleAndMore(detail, actions, fonts, look, frame) } }
+                item(key = "title:sources") { Column(Modifier.padding(horizontal = side)) { PlayFrom(sources, shown, actions, fonts, look) } }
             }
             item(key = "title:end") { Spacer(Modifier.height(40.dp)) }
         }
@@ -197,7 +208,7 @@ private fun TitleCard(
             val line = if (series) nextUp?.let { n ->
                 val left = n.progress?.takeIf { n.resume }?.let { " · " + leftText(it.remainingMs) }.orEmpty()
                 "Next up: Season ${n.episode.season}, Episode ${n.episode.number} · “${n.episode.name}”$left"
-            } ?: s.overview else s.overview
+            } ?: page?.tagline else page?.tagline
             line?.let {
                 Text(it, style = fonts.body.copy(fontSize = 14.5.sp, lineHeight = 21.sp), color = ink.copy(alpha = 0.88f), maxLines = 3, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 10.dp).widthIn(max = 620.dp))
@@ -226,7 +237,7 @@ private fun TitleCard(
         }
     }
     OrbitBiteCard(fill, modifier.fillMaxWidth().then(if (wide) Modifier.height(if (series) 260.dp else 300.dp) else Modifier),
-        bite = { OrbitPlayButton(false, onPlay, look) }) {
+        bite = { if (!series || nextUp != null) OrbitPlayButton(false, onPlay, look) }) {
         if (wide) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 if (series) {

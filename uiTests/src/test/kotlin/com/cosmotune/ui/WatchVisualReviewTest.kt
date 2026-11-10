@@ -17,12 +17,14 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
@@ -57,6 +59,7 @@ import com.cosmotune.watch.FakeWatchRepository
 import com.cosmotune.watch.WatchPlayer
 import com.cosmotune.watch.WatchPlayerState
 import com.cosmotune.watch.WatchPlayerStatus
+import com.cosmotune.watch.WatchRepository
 import com.cosmotune.watch.model.AudioTrack
 import com.cosmotune.watch.model.Channel
 import com.cosmotune.watch.model.Episode
@@ -114,7 +117,7 @@ class WatchVisualReviewTest {
     private val phone = Size("phone", 390, 844)
     private val wide = Size("wide", 1004, 780)
 
-    private fun page(dark: Boolean, size: Size, repository: FakeWatchRepository, playback: WatchPlayback? = null) {
+    private fun page(dark: Boolean, size: Size, repository: WatchRepository, playback: WatchPlayback? = null) {
         val palette = if (dark) CosmoPaletteState(com.cosmotune.theme.OnePalette.of(true, false), true) else CosmoPaletteState(com.cosmotune.theme.OnePalette.of(false, false), false)
         compose.setContent {
             val colors = remember { CosmoColors::class.java.getConstructor(CosmoPaletteState::class.java).newInstance(palette) }
@@ -234,6 +237,35 @@ class WatchVisualReviewTest {
         compose.onNodeWithText("More like this").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Asha Varma").assertIsDisplayed()
         assertEquals(1_500_000L, player.engine.positionMs())
+    }
+
+    @Test fun filmAndSeriesPagesShowDetailsBeforePlaybackEvenWithSparseProviderMetadata() = hosts {
+        val fixture = FakeWatchRepository()
+        val repository = object : WatchRepository by fixture {
+            override suspend fun title(key: WatchKey) = fixture.title(key)?.let {
+                if (key == film.key) it.copy(summary = it.summary.copy(overview = null, rating = null)) else it
+            }
+        }
+        WatchNav.go(WatchTab.FILMS)
+        WatchNav.openTitle(film)
+        page(true, phone, repository)
+        val list = compose.onNodeWithTag("watch:title:page")
+        compose.onNodeWithText("7.4", substring = true).assertIsDisplayed()
+        list.performScrollToNode(hasText("Two sisters drive across", substring = true))
+        compose.onNodeWithText("About this film").assertIsDisplayed()
+        list.performScrollToNode(hasText("Cast"))
+        compose.onNodeWithText("Cast").assertIsDisplayed()
+        list.performScrollToNode(hasText("Play from"))
+        compose.onNodeWithText("Play from").assertIsDisplayed()
+
+        compose.runOnIdle {
+            WatchNav.go(WatchTab.SERIES)
+            WatchNav.openTitle(series)
+        }
+        list.performScrollToNode(hasText("A fishing town", substring = true))
+        compose.onNodeWithText("About this series").assertIsDisplayed()
+        list.performScrollToNode(hasText("Season 1"))
+        compose.onNodeWithText("Season 1").assertIsDisplayed()
     }
 }
 
