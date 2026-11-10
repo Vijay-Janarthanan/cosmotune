@@ -144,6 +144,17 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
     val countingDown = state.nextEpisode != null && state.nextEpisodeInMs != null
 
     val playPause: () -> Unit = { if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() }
+    val retry: (() -> Unit)? = if (playback.roomHolds(route.target.key)) null else ({
+        val start = if (route.target is PlayTarget.Live) 0L else player.engine.positionMs().takeIf { it > 0 }
+        val selected = player.state.value.takeIf { it.target?.key == route.target.key }?.stream
+        player.open(route.target, route.summary, selected ?: route.stream, startMs = start)
+    })
+    val repository = LocalWatchRepository.current ?: WatchBackend.repository
+    val channels by produceState(emptyList<LiveNowItem>(), route.target.key, menu) {
+        if (menu == TvWatchMenu.CHANNELS) {
+            value = runCatching { repository.liveNow(20) }.getOrDefault(emptyList()).filter { it.channel.key != route.target.key }
+        }
+    }
     val seekBy: (Long) -> Unit = { delta ->
         val to = (player.engine.positionMs() + delta).coerceAtLeast(0L).let { if (durationMs > 0) it.coerceAtMost(durationMs) else it }
         player.engine.seekTo(to)
@@ -203,10 +214,12 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
 
         when {
             failed -> TvWatchPlayerMessage(
-                title = if (state.status == WatchPlayerStatus.NOT_FOUND) "No plugin can play this" else "This copy did not play",
+                title = if (state.status == WatchPlayerStatus.NOT_FOUND) "No playable copy yet" else "This copy did not play",
                 body = state.error ?: "Switch on more plugins, or add your own server or add-on in Plugins.",
-                action = "Open Plugins",
-                onAction = { WatchNav.back(); WatchNav.go(WatchTab.PLUGINS) },
+                action = "Retry".takeIf { retry != null },
+                onAction = retry,
+                onSources = if (state.streams.any { it.isPlayable }) ({ menu = TvWatchMenu.SOURCES }) else null,
+                showPlugins = true,
             )
             state.status == WatchPlayerStatus.IDLE || state.status == WatchPlayerStatus.RESOLVING ||
                 state.status == WatchPlayerStatus.LOADING || state.status == WatchPlayerStatus.BUFFERING -> Column(
@@ -248,6 +261,8 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                     onPlayPause = playPause,
                     onSeek = seekBy,
                     onMenu = { menu = it },
+                    onLive = retry,
+                    onFullScreen = { cardUp = false },
                 )
             }
         }
@@ -305,23 +320,36 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                 }
             }
         }
-        TvWatchMenu.SCREEN -> TvDialog(onDismissRequest = { menu = null }, title = "Screen", width = 480.dp) {
+        TvWatchMenu.SCREEN -> TvDialog(onDismissRequest = { menu = null }, title = "Picture size", width = 480.dp) {
             TvDialogList {
-                TvListRow(title = "Whole", subtitle = "Nothing cut", value = if (scale == WatchSurfaceScale.FIT) "On" else null,
+                TvListRow(title = "Fit", subtitle = "Shows the full picture", value = if (scale == WatchSurfaceScale.FIT) "On" else null,
                     onClick = { menu = null; scale = WatchSurfaceScale.FIT }, modifier = Modifier.tvInitialFocus(scale == WatchSurfaceScale.FIT))
                 TvListRow(title = "Fill", subtitle = "Fills the screen, cuts the edges", value = if (scale == WatchSurfaceScale.CROP) "On" else null,
                     onClick = { menu = null; scale = WatchSurfaceScale.CROP }, modifier = Modifier.tvInitialFocus(scale == WatchSurfaceScale.CROP))
+            }
+        }
+        TvWatchMenu.CHANNELS -> TvDialog(onDismissRequest = { menu = null }, title = "Channels", width = 560.dp) {
+            TvDialogList {
+                if (channels.isEmpty()) TvListRow(title = "Open the live guide", modifier = Modifier.tvInitialFocus(true),
+                    onClick = { menu = null; WatchNav.back(); WatchNav.go(WatchTab.LIVE) })
+                channels.forEachIndexed { index, row ->
+                    TvListRow(title = row.channel.name, subtitle = row.now?.title, modifier = Modifier.tvInitialFocus(index == 0), onClick = {
+                        menu = null
+                        WatchNav.playChannel(row.channel)
+                    })
+                }
             }
         }
         null -> Unit
     }
 }
 
-private enum class TvWatchMenu { SOURCES, AUDIO, SUBTITLES, SCREEN }
+private enum class TvWatchMenu { SOURCES, AUDIO, SUBTITLES, SCREEN, CHANNELS }
 
 /** The remote with the card down: centre plays and pauses, left and right seek (not live), up brings up the card. */
 private fun stageKey(e: KeyEvent, state: WatchPlayerState, onPlayPause: () -> Unit, onSeek: (Long) -> Unit, onCard: () -> Unit): Boolean = when (e.key) {
-    Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Spacebar -> { onPlayPause(); true }
+    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { if (state.isLive) onCard() else onPlayPause(); true }
+    Key.Spacebar -> { onPlayPause(); true }
     Key.DirectionLeft -> { if (state.isLive) onCard() else onSeek(-BACK_MS); true }
     Key.DirectionRight -> { if (state.isLive) onCard() else onSeek(FORWARD_MS); true }
     Key.DirectionUp, Key.DirectionDown -> { onCard(); true }
@@ -343,6 +371,8 @@ private fun TvFilmCard(
     onPlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
     onMenu: (TvWatchMenu) -> Unit,
+    onLive: (() -> Unit)?,
+    onFullScreen: () -> Unit,
 ) {
     val summary = state.summary ?: route.summary
     // A channel: what is on it now and what comes next, from the guide, asked again as each programme ends.
@@ -404,7 +434,12 @@ private fun TvFilmCard(
                 if (!state.isLive) {
                     TvWatchRound(CosmoIcons.Replay, "Back 10 seconds", ink) { onSeek(-BACK_MS) }
                     TvWatchRound(CosmoIcons.Next, "Forward 30 seconds", ink) { onSeek(FORWARD_MS) }
+                } else {
+                    TvButton("Channels", onClick = { onMenu(TvWatchMenu.CHANNELS) })
+                    onLive?.let { TvButton("Jump to live", onClick = it) }
                 }
+                TvWatchRound(CosmoIcons.Expand, "Full screen", ink, onFullScreen)
+                TvButton(if (state.muted) "Unmute" else "Mute", onClick = player::toggleMute)
                 if (state.streams.size > 1) TvButton("Sources", onClick = { onMenu(TvWatchMenu.SOURCES) })
                 if (state.audioTracks.size > 1) TvButton("Audio", onClick = { onMenu(TvWatchMenu.AUDIO) })
                 TvButton("Subtitles", onClick = { onMenu(TvWatchMenu.SUBTITLES) })
@@ -471,14 +506,17 @@ private fun TvSeekNote(note: String?, tick: Int, modifier: Modifier = Modifier) 
 
 /** A message in the middle of the player (no copy, the player missing), with one button and Back to leave. */
 @Composable
-private fun TvWatchPlayerMessage(title: String, body: String, modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null) {
+private fun TvWatchPlayerMessage(title: String, body: String, modifier: Modifier = Modifier, action: String? = null,
+    onAction: (() -> Unit)? = null, onSources: (() -> Unit)? = null, showPlugins: Boolean = false) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(Modifier.widthIn(max = 560.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(title, style = TvType.Title, color = TvGlass.TextPrimary, textAlign = TextAlign.Center)
             Text(body, style = TvType.Callout, color = TvGlass.TextSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
             Row(Modifier.padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (action != null && onAction != null) TvButton(action, onClick = onAction, isPrimary = true, modifier = Modifier.tvInitialFocus())
-                TvButton("Back", onClick = { WatchNav.back() }, modifier = Modifier.tvInitialFocus(action == null))
+                if (onSources != null) TvButton("Sources", onClick = onSources, modifier = Modifier.tvInitialFocus(action == null))
+                if (showPlugins) TvButton("Open Plugins", onClick = { WatchNav.back(); WatchNav.go(WatchTab.PLUGINS) })
+                TvButton("Back", onClick = { WatchNav.back() }, modifier = Modifier.tvInitialFocus(action == null && onSources == null))
             }
         }
     }

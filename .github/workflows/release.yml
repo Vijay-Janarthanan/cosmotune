@@ -72,6 +72,10 @@ jobs:
       - name: Tests
         run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue -Pcosmotune.version=${{ steps.version.outputs.value }}
 
+      - uses: ./.github/actions/bundle-watch-torrent
+        with:
+          target: desktop
+
       - name: Build deb, rpm and the app image
         env:
           # the desktop Google sign-in client; either a repository variable or a secret works, and a build without them offers guest sync only
@@ -161,6 +165,10 @@ jobs:
 
       - name: Tests
         run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue "-Pcosmotune.version=${{ steps.version.outputs.value }}"
+
+      - uses: ./.github/actions/bundle-watch-torrent
+        with:
+          target: desktop
 
       - name: Build msi, exe and the app image
         env:
@@ -256,6 +264,10 @@ jobs:
 
       - name: Tests
         run: ./gradlew :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue -Pcosmotune.version=${{ steps.version.outputs.value }}
+
+      - uses: ./.github/actions/bundle-watch-torrent
+        with:
+          target: desktop
 
       - name: Build DMG, PKG and the app bundle
         env:
@@ -359,6 +371,10 @@ jobs:
 
       - run: chmod +x gradlew
 
+      - uses: ./.github/actions/bundle-watch-torrent
+        with:
+          target: android
+
       - name: Build the signed phone and watch APKs
         run: ./gradlew --max-workers=1 :app:assembleProdRelease :wearos:assembleProdRelease
 
@@ -415,6 +431,10 @@ jobs:
 
       - run: chmod +x gradlew
 
+      - uses: ./.github/actions/bundle-watch-torrent
+        with:
+          target: android
+
       - name: Build the signed TV APKs
         run: ./gradlew --max-workers=1 :tv:testProdDebugUnitTest :tv:assembleProdRelease
 
@@ -457,6 +477,7 @@ jobs:
           python3 tools/verify-opencanvas-import.py --apk-dir tv/build/outputs/apk/prod/release
           python3 tools/verify-recommendations.py --apk-dir tv/build/outputs/apk/prod/release
           python3 tools/verify-tv-packaging.py --apk-dir tv/build/outputs/apk/prod/release --phone-apk app/build/outputs/apk/prod/release/app-prod-arm64-v8a-release.apk
+          python3 native/watch-torrent/build.py verify-apks --apk-dir app/build/outputs/apk/prod/release --apk-dir tv/build/outputs/apk/prod/release
           python3 tools/verify-companion-imports.py
 
       - name: Name and collect

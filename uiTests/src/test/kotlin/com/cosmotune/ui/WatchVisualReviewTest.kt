@@ -14,9 +14,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
@@ -51,6 +54,7 @@ import com.cosmotune.watch.WatchPlayer
 import com.cosmotune.watch.WatchPlayerState
 import com.cosmotune.watch.WatchPlayerStatus
 import com.cosmotune.watch.model.AudioTrack
+import com.cosmotune.watch.model.Channel
 import com.cosmotune.watch.model.Episode
 import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.model.Stream
@@ -166,6 +170,21 @@ class WatchVisualReviewTest {
             capture("player-$tag")
         }
     }
+
+    @Test fun liveTvShowsFullscreenAndTransportControlsAtPhoneWidth() = hosts {
+        val repository = FakeWatchRepository()
+        val channel = Channel(WatchKey.channel("test", "live"), "test", "Live channel")
+        WatchNav.go(WatchTab.LIVE)
+        WatchNav.playChannel(channel)
+        page(true, phone, repository, WatchPlayback(StillPlayer(repository)) { _, modifier ->
+            Box(modifier.background(Color.Black))
+        })
+        compose.onNodeWithContentDescription("Mute").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Jump to live").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Full screen").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Exit full screen").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Full screen").assertIsDisplayed()
+    }
 }
 
 /** A player that is paused 25 minutes into S2 E4 with the next episode counting down: the screen's state without an engine. */
@@ -182,7 +201,7 @@ private class StillPlayer(private val repository: FakeWatchRepository) : WatchPl
             streams = streams, durationMs = 49 * 60_000L,
             audioTracks = listOf(AudioTrack("a1", "eng", "English 5.1", selected = true), AudioTrack("a2", "hin", "Hindi stereo")),
             subtitles = listOf(Subtitle("s1", language = "eng", label = "English")), selectedSubtitleId = "s1",
-            nextEpisode = next as Episode?, nextEpisodeInMs = 8_000,
+            nextEpisode = next as Episode?, nextEpisodeInMs = 8_000, isLive = target is PlayTarget.Live,
         )
     }
     override fun switchStream(stream: Stream) {}

@@ -4382,6 +4382,15 @@ fun CosmotuneDesktopApp() {
                             }
                         },
                         downloadedEpisodes = downloads.mapNotNull { it.offlinePodioItem() },
+                        onRemoveDownload = { item ->
+                            val song = downloads.firstOrNull { it.videoId == item.id }
+                            if (song == null) false
+                            else if (withContext(Dispatchers.IO) { DesktopDownloadManager.delete(song) }) {
+                                downloads = downloads.filterNot { it.videoId == item.id }
+                                persistence.saveDownloads(downloads)
+                                true
+                            } else false
+                        },
                         episodeDownloadStatus = downloadQueue.mapValues { (_, item) -> when (val status = item.state) {
                             DesktopDownloadState.Queued -> "Queued"
                             is DesktopDownloadState.Running -> "Downloading ${(status.fraction.coerceIn(0f, 1f) * 100).toInt()}%"
@@ -6839,7 +6848,7 @@ private fun DesktopSettingsScreen(
     }
     val settingsQuery = query
     val searching = settingsQuery.isNotBlank()
-    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.18" }
+    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.21" }
     val highlight = remember { com.cosmotune.ui.settings.SettingsHighlight() }
     // The pages the desktop has: a category with none of its settings here (backup is the phone's) is left out of the list.
     val pages = remember {
@@ -7983,7 +7992,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.18" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.21" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )

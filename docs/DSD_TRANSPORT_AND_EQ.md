@@ -7,15 +7,15 @@ This source update adds a device-specific, opt-in **DoP** path for local, uncomp
 | Platform | Implemented output | Limits |
 | --- | --- | --- |
 | Windows | Exact 24-bit WASAPI exclusive carrier on the explicitly selected endpoint. A separate native entry point prevents older native libraries from ignoring strict mode. | Requires rebuilding the native library and a compatible DAC/driver. Device loss, exclusive loss or route changes stop playback; no default/shared fallback receives DoP frames. |
-| Linux | Exact packed 24-bit ALSA `hw:` carrier, with resampling disabled and accepted hardware parameters checked. | The selected hardware must be free and support the carrier rate. PipeWire may own it. A DoP failure stops playback rather than using the system mixer. |
-| macOS | Existing PCM conversion and CoreAudio output remain available. | The current AudioQueue float backend does not establish an exact integer hardware DoP stream. No macOS DoP or native DSD claim. |
+| Linux | Exact packed 24-bit ALSA `hw:` DoP carrier, or native ALSA DSD in exact 16/32-bit little- or big-endian words. Both paths check the accepted format and disable resampling. | The selected hardware must be free and support the selected format and source rate. PipeWire may own it. A failed direct DSD route stops playback. |
+| macOS | Strict DoP uses the CoreAudio HAL on an explicitly selected USB DAC with one interleaved output stream and matching nonmixable, packed 24-bit physical and virtual formats. | Hardware validation is outstanding. DACs that only expose a mixable or float virtual format cannot use this path. |
 | Android | Existing DSD/DST-to-PCM decoding and AudioTrack output remain available. | There is no userspace isochronous USB audio transport in this checkout. Descriptor/probe information does not enable one. No userspace USB, hardware-volume or native DSD claim. |
 
 DoP support cannot be inferred from accepting a high-rate PCM format. The listener explicitly confirms the DAC manufacturer's DoP support for one selected endpoint in Audio output. Other endpoint selections are not approved automatically. DoP starts only with direct output, player volume 100% and speed 1×. Software EQ, loudness normalization, spatial processing, silence skipping, time stretching and crossfading are bypassed; changing volume, speed or the approved route stops playback. Control listening volume on the DAC. Replay after changing transport settings. Defaults and ordinary PCM processing are unchanged.
 
-The pipeline distinguishes DoP framing from DSD-to-PCM conversion. Exact carrier bytes in the app and an accepted exclusive format do **not** prove DAC output or system-confirmed bit perfection. No successful hardware listening/DSD-mode test is claimed until it is run with a compatible DAC.
+The pipeline distinguishes DoP framing, native ALSA DSD and DSD-to-PCM conversion. The transport labels record the format accepted by the OS. Confirm DAC output separately with a physical playback test.
 
-Linux confirmation is session-only, revoked on device-topology changes, and checked against sysfs hardware identity again when opening. An ALSA card index can otherwise be reused for a different DAC after hotplug.
+Linux and macOS confirmations last for the session. Cosmotune rechecks the Linux sysfs identity or macOS CoreAudio device UID before opening the DAC. Linux confirmation is also cleared on device-topology changes.
 
 ## Shared equalizer additions
 

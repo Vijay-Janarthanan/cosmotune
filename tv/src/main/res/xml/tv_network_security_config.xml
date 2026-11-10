@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Public radio and IPTV streams can be HTTP-only. Provider SDK requests enforce their own HTTPS policy. -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

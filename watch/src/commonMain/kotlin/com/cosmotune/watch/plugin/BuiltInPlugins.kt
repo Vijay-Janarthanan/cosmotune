@@ -1,8 +1,7 @@
 package com.cosmotune.watch.plugin
 
 /**
- * The plugins that ship inside the app, in the Plugins page order, with their default switch. This list is the whole
- * built-in set: no torrent, debrid or site-scraper plugin is bundled or pre-configured, and none may be added here.
+ * The plugins that ship inside the app, in the Plugins page order, with their default switch.
  */
 object BuiltInPlugins {
     data class Def(val id: String, val kind: PluginKind, val name: String, val description: String, val badge: String,
@@ -18,14 +17,14 @@ object BuiltInPlugins {
     const val PUBLIC_DOMAIN = "pdm"
     const val OPENSUBTITLES = "opensubtitles"
     const val WATCHHUB = "watchhub"
+    const val TORRENT_PLAYBACK = "torrent-playback"
     /** Prasar Bharati's own Doordarshan channels. */
     const val PRASAR_BHARATI = "dd"
     /** Official broadcasters' 24x7 YouTube live channels. */
     const val YOUTUBE_LIVE = "ytlive"
 
     /**
-     * The Stremio-protocol add-ons the built-ins use (read-only HTTP JSON). Public Domain Movies' own streams are torrents,
-     * which Watch drops: it contributes its catalogue, and the Internet Archive plays the films.
+     * The Stremio-protocol add-ons the built-ins use. Public Domain Movies offers torrents through local playback when enabled.
      */
     const val PUBLIC_DOMAIN_URL = "https://caching.stremio.net/publicdomainmovies.now.sh/manifest.json"
     const val OPENSUBTITLES_URL = "https://opensubtitles-v3.strem.io/manifest.json"
@@ -52,6 +51,8 @@ object BuiltInPlugins {
             setOf(Capability.CATALOG, Capability.STREAMS)),
         Def(PUBLIC_DOMAIN, PluginKind.STREMIO_ADDON, "Public Domain Movies (Stremio)", "Free classic films", "PD", false,
             setOf(Capability.CATALOG, Capability.STREAMS, Capability.META)),
+        Def(TORRENT_PLAYBACK, PluginKind.STREMIO_ADDON, "Torrent playback", "Plays BitTorrent offers using Cosmotune’s built-in engine", "P2P", true,
+            emptySet()),
         Def(OPENSUBTITLES, PluginKind.STREMIO_ADDON, "OpenSubtitles (Stremio)", "Subtitles in 60+ languages", "SUB", true,
             setOf(Capability.SUBTITLES)),
         Def(WATCHHUB, PluginKind.STREMIO_ADDON, "WatchHub (Stremio)", "Where a title streams: Netflix, Prime, Hotstar…", "HUB", false,

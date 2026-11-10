@@ -138,6 +138,8 @@ object WatchNav {
         stack.value = below + WatchRoute.Play(target, summary)
     }
 
+    fun playChannel(channel: Channel) = playChannel(PlayTarget.Live(channel), channel.asSummary())
+
     /** Closes the top page; false when there was none (the host may then leave the mode). */
     fun back(): Boolean {
         val now = stack.value

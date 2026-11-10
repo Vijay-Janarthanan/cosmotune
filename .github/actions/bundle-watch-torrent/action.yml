@@ -1,0 +1,35 @@
+name: Bundle the Watch torrent engine
+description: Build the checked-in helper for a desktop runner or the three Android release ABIs
+inputs:
+  target:
+    description: desktop or android
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.27.3'
+        cache-dependency-path: native/watch-torrent/go.sum
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Prepare the Android NDK
+      if: inputs.target == 'android'
+      shell: bash
+      run: sdkmanager --install 'ndk;27.0.12077973'
+    - name: Build the torrent engine
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+      run: |
+        if [[ "$TARGET" == android ]]; then
+          python native/watch-torrent/build.py android --ndk "$ANDROID_HOME/ndk/27.0.12077973"
+        else
+          python native/watch-torrent/build.py desktop
+        fi
+    - name: Test range playback from a local peer
+      if: runner.os == 'Linux' && inputs.target == 'desktop'
+      shell: bash
+      working-directory: native/watch-torrent
+      run: CGO_ENABLED=0 go test -mod=readonly ./...

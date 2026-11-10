@@ -167,11 +167,17 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
             } else null
             com.cosmotune.ui.watch.ProvideWatch(repository = repository, playback = playback, downloads = downloads, roomPacks = roomPacks,
                 qrCode = { payload, size -> com.cosmotune.music.ui.components.QrCode(payload, size = size) }) {
-                com.cosmotune.ui.theme.ModeGround {
-                    com.cosmotune.ui.watch.WatchApp(
-                        contentPadding = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues(),
-                        showNavigation = true,
-                    )
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.cosmotune.ui.watch.LocalWatchFullscreen provides { exit, landscape, content ->
+                        com.cosmotune.video.ui.watch.WatchFullWindow(exit, landscape, content)
+                    },
+                ) {
+                    com.cosmotune.ui.theme.ModeGround {
+                        com.cosmotune.ui.watch.WatchApp(
+                            contentPadding = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues(),
+                            showNavigation = true,
+                        )
+                    }
                 }
             }
         }

@@ -18,6 +18,7 @@ import java.util.Locale
 
 /** Whether [event] is one the person follows: its sport is on and, when teams are chosen, one of them plays (a show has no teams). */
 fun LiveEvent.followedBy(sports: Set<LiveEventKind>, teams: List<String>): Boolean {
+    if (status == LiveEventStatus.FEATURED) return true
     if (kind !in sports) return false
     if (teams.isEmpty() || kind == LiveEventKind.SHOW) return true
     return this.teams.any { t -> teams.any { f -> f.equals(t.name, ignoreCase = true) || f.equals(t.shortName, ignoreCase = true) } } ||
@@ -25,9 +26,17 @@ fun LiveEvent.followedBy(sports: Set<LiveEventKind>, teams: List<String>): Boole
 }
 
 /** What the pill and the panel are made of: the followed events in the repository's order, split by where they stand. */
-class LiveNowLists(val live: List<LiveEvent>, val upcoming: List<LiveEvent>, val finished: List<LiveEvent>) {
+class LiveNowLists(val live: List<LiveEvent>, val upcoming: List<LiveEvent>, val finished: List<LiveEvent>, val featured: List<LiveEvent> = emptyList()) {
     val top: LiveEvent? get() = live.firstOrNull()
-    val isEmpty: Boolean get() = live.isEmpty() && upcoming.isEmpty() && finished.isEmpty()
+    val isEmpty: Boolean get() = live.isEmpty() && upcoming.isEmpty() && finished.isEmpty() && featured.isEmpty()
+
+    fun headline(now: Long): LiveEvent? {
+        live.firstOrNull { it.kind == LiveEventKind.CRICKET || it.kind == LiveEventKind.FOOTBALL }?.let { return it }
+        val categories = featured.distinctBy { it.kind }
+        return if (categories.isEmpty()) null else categories[((now / (3 * 60_000L)) % categories.size).toInt()]
+    }
+
+    fun moreFor(event: LiveEvent): Int = if (event.isLive) (live.size - 1).coerceAtLeast(0) else (featured.size - 1).coerceAtLeast(0)
 
     companion object {
         fun of(events: List<LiveEvent>, sports: Set<LiveEventKind>, teams: List<String>, kind: LiveEventKind? = null): LiveNowLists {
@@ -36,6 +45,7 @@ class LiveNowLists(val live: List<LiveEvent>, val upcoming: List<LiveEvent>, val
                 shown.filter { it.status == LiveEventStatus.LIVE },
                 shown.filter { it.status == LiveEventStatus.UPCOMING },
                 shown.filter { it.status == LiveEventStatus.FINISHED },
+                shown.filter { it.status == LiveEventStatus.FEATURED },
             )
         }
     }
@@ -83,7 +93,7 @@ fun pillScore(event: LiveEvent): PillScore = when (event.kind) {
         val score = if (home?.score != null && away?.score != null) "${home.score}–${away.score}" else event.scoreText?.replace(" – ", "–").orEmpty()
         PillScore(home, score, event.statusText, away, null)
     }
-    LiveEventKind.SHOW -> PillScore(null, "", null, null, event.title)
+    else -> PillScore(null, "", null, null, event.title)
 }
 
 /** The pill read out whole, for a screen reader and for a check: "IND 176/4 18.2 ov vs AUS, 3 more live". */
@@ -93,7 +103,8 @@ fun pillDescription(event: LiveEvent, more: Int): String {
         LiveEventKind.FOOTBALL -> listOfNotNull(p.lead?.short(), p.score.ifBlank { null }, p.other?.short(), p.detail).joinToString(" ")
         else -> listOfNotNull(p.lead?.short(), p.score.ifBlank { null }, p.detail, "vs", p.other?.short()).joinToString(" ")
     }
-    return "Live: $main" + if (more > 0) ", $more more live" else ""
+    return "${if (event.isLive) "Live" else event.kind.label()}: $main" +
+        if (more > 0) ", $more more${if (event.isLive) " live" else ""}" else ""
 }
 
 /** A row's title: "Arsenal 2 – 1 Chelsea" for a match with a score, "Chennai Super Kings v Mumbai Indians" before it, a show's title. */
@@ -109,7 +120,7 @@ fun rowTitle(event: LiveEvent): String {
 /** The mono label over the colour card: "Live · 2nd T20I · Australia tour of India". */
 fun cardLabel(event: LiveEvent): String {
     val match = event.title.substringAfter(", ", "").takeIf { it.isNotBlank() && event.kind != LiveEventKind.SHOW }
-    val where = when (event.status) { LiveEventStatus.LIVE -> "Live"; LiveEventStatus.UPCOMING -> "Coming up"; LiveEventStatus.FINISHED -> "Result" }
+    val where = when (event.status) { LiveEventStatus.LIVE -> "Live"; LiveEventStatus.UPCOMING -> "Coming up"; LiveEventStatus.FINISHED -> "Result"; LiveEventStatus.FEATURED -> event.kind.label() }
     return listOfNotNull(where, match, event.competition ?: if (event.kind == LiveEventKind.SHOW) "Live show" else null).joinToString(" · ")
 }
 
@@ -151,7 +162,14 @@ fun updatedText(updatedAtMs: Long, nowMs: Long): String? {
 }
 
 /** The kinds as the filter chips and Settings name them. */
-fun LiveEventKind.label(): String = when (this) { LiveEventKind.CRICKET -> "Cricket"; LiveEventKind.FOOTBALL -> "Football"; LiveEventKind.SHOW -> "Shows" }
+fun LiveEventKind.label(): String = when (this) {
+    LiveEventKind.CRICKET -> "Cricket"
+    LiveEventKind.FOOTBALL -> "Football"
+    LiveEventKind.SHOW -> "Shows"
+    LiveEventKind.NEWS -> "News"
+    LiveEventKind.PODCAST -> "Podcasts"
+    LiveEventKind.VIDEO -> "Videos"
+}
 
 /** The teams Settings offers as chips before any event has named one: the internationals and the clubs most followed here. */
 val SUGGESTED_TEAMS = listOf("India", "Australia", "England", "Pakistan", "CSK", "MI", "RCB", "KKR", "Arsenal", "Chelsea", "Liverpool", "Real Madrid", "Barcelona")

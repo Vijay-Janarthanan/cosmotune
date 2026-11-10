@@ -52,9 +52,11 @@ internal object PodioDefaults {
 internal class PodioHost(
     val onPlay: (PodioItem, Long) -> Unit,
     val onDownloadEpisode: ((PodioItem) -> Unit)?,
+    val onRemoveDownload: (suspend (PodioItem) -> Boolean)?,
     val onImportOpmlFile: (suspend () -> String?)?,
     val onExportOpmlFile: (suspend (String) -> Boolean)?,
     val onShareOpmlFile: (suspend (String) -> Unit)?,
+    val remoteGlobeControls: Boolean,
     val copyText: (String) -> Unit,
 )
 
@@ -346,6 +348,23 @@ internal class PodioModel(
     /** "2 stations · Worldwide", "40 stations · India". */
     fun stationCount(): String = "${radio.size} ${if (radio.size == 1) "station" else "stations"}" +
         if (country.isBlank()) " · Worldwide" else " · " + (REGIONS.firstOrNull { it.first == country }?.second ?: country)
+
+    var downloadToRemove by mutableStateOf<PodioItem?>(null)
+
+    fun removeSelectedDownload() {
+        val item = downloadToRemove ?: return
+        val remove = host.onRemoveDownload ?: return
+        downloadToRemove = null
+        scope.launch {
+            try {
+                if (!remove(item)) error = "Couldn't remove the downloaded episode."
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                error = "Couldn't remove the downloaded episode."
+            }
+        }
+    }
 
     /** What a download button shows for [item], and the word for its state. */
     fun downloadMark(item: PodioItem, downloaded: List<PodioItem>, running: Set<String>): DownloadMark = when {

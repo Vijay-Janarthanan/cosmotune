@@ -78,7 +78,7 @@ private const val StationsPerRow = 6
  * colour card, then its episodes with length, date and how much is heard.
  */
 @Composable
-fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowPlaying: () -> Unit) {
+fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowPlaying: () -> Unit, onTools: () -> Unit) {
     val context = LocalContext.current
     // One catalogue for the process, so the lists it found stay between visits ([cached]).
     val catalogue = remember { TvPodioCatalogue.instance }
@@ -257,6 +257,11 @@ fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowP
                         onSelect = { i -> work?.cancel(); feed = null; query = ""; tab = PodioTabs[i] },
                         modifier = Modifier.padding(horizontal = side).padding(bottom = 10.dp),
                     )
+                }
+                item(key = "podio-tools") {
+                    Box(Modifier.padding(horizontal = side, vertical = 4.dp)) {
+                        TvButton("Globe, downloads and subscriptions", onTools)
+                    }
                 }
                 if (playing != null) item(key = "playing") {
                     val live = playing.videoId.startsWith("podio:radio:")

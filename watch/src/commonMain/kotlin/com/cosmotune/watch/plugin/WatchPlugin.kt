@@ -31,8 +31,7 @@ data class CatalogDef(val pluginId: String, val id: String, val name: String, va
  * (Stremio-protocol add-ons by manifest URL, Jellyfin/Emby/Plex servers, M3U and Xtream playlists, local folders) are
  * plugins too. Every method has an empty default, so a plugin implements only what its [capabilities] say.
  *
- * Plugins speak read-only HTTP JSON, M3U or XMLTV; none downloads or runs code. Streams that are not playable by the app
- * itself (torrents, usenet, debrid) are dropped, never shown.
+ * Plugins speak read-only HTTP JSON, M3U or XMLTV. Torrent offers require the optional local playback bridge.
  */
 interface WatchPlugin {
     /** Stable per configured instance, never holding a colon: `pluto`, `iptv`, `st-<hash>`, `jf-<hash>`. Used in keys. */

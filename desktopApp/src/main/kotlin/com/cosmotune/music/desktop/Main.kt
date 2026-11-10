@@ -2,6 +2,7 @@ package com.cosmotune.music.desktop
 
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import com.cosmotune.music.ui.player.PlayerPlatform
 import com.cosmotune.music.data.DebugLog
 import com.cosmotune.music.data.TrackLog
@@ -264,6 +265,20 @@ private fun desktopMain() = application {
             LocalDesktopWindowActions provides actions,
             LocalDesktopWindowScope provides this,
             com.cosmotune.video.player.smooth.LocalVideoHostWindow provides composeWindow,
+            com.cosmotune.ui.watch.LocalWatchFullscreen provides { exit, _, content ->
+                DisposableEffect(Unit) {
+                    val previous = DesktopWindowMode.placement.value
+                    val entered = !DesktopWindowMode.fullScreen.value
+                    if (entered) DesktopWindowMode.toggle()
+                    onDispose {
+                        if (entered) {
+                            DesktopWindowMode.exit()
+                            DesktopWindowMode.adopt(previous)
+                        }
+                    }
+                }
+                com.cosmotune.video.ui.watch.WatchFullWindow(exit, false, content)
+            },
             com.cosmotune.ui.shell.LocalWindowCaptionArea provides { modifier, content ->
                 val fullscreen by DesktopWindowMode.fullScreen.collectAsState()
                 if (fullscreen) androidx.compose.foundation.layout.Box(modifier) { content() }

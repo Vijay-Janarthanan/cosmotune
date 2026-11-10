@@ -106,6 +106,7 @@ data class WatchConfig(
     val place: () -> WatchPlace = WatchPlace::current,
     /** The free score services' keys for the Live now strip (`CRICKETDATA_API_KEY`, `FOOTBALL_DATA_API_KEY`); blank leaves one out. */
     val scoreKeys: LiveScoreKeys = LiveScoreKeys(),
+    val torrentExecutable: () -> File? = { null },
 )
 
 data class Endpoints(
@@ -140,6 +141,16 @@ class DefaultWatchRepository(
 ) : WatchRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val http = WatchHttp(config.client, config.cacheDir, config.now)
+    private val torrentPlayback = com.cosmotune.watch.plugins.stremio.BundledTorrentPlayback(config.torrentExecutable)
+
+    private fun torrentsEnabled() = store.state.value.builtIn[BuiltInPlugins.TORRENT_PLAYBACK]
+        ?: BuiltInPlugins.def(BuiltInPlugins.TORRENT_PLAYBACK)?.defaultEnabled ?: false
+
+    override suspend fun openPlayback(stream: Stream): WatchPlaybackLease {
+        if (!stream.isTorrent) return super.openPlayback(stream)
+        check(torrentsEnabled()) { com.cosmotune.watch.plugins.stremio.BundledTorrentPlayback.DISABLED }
+        return torrentPlayback.open(stream)
+    }
     private val guideCache = GuideCache(http, config.now)
     private val metadata: MetadataProvider = config.tmdbKey?.trim()?.takeIf { it.isNotEmpty() }
         ?.let { TmdbMetadata(http, it, config.language, config.region.uppercase(), config.endpoints.tmdb) }
@@ -178,7 +189,8 @@ class DefaultWatchRepository(
 
     private fun stremio(id: String, url: String, whereToWatch: Boolean = false, subtitles: SubtitleOrigin = SubtitleOrigin.ADDON): WatchPlugin {
         val def = BuiltInPlugins.def(id)!!
-        return StremioPlugin(id, def.name, def.badge, StremioClient(http, url), def.capabilities, whereToWatchOnly = whereToWatch, subtitleOrigin = subtitles)
+        return StremioPlugin(id, def.name, def.badge, StremioClient(http, url), def.capabilities, whereToWatchOnly = whereToWatch,
+            subtitleOrigin = subtitles, torrentsEnabled = ::torrentsEnabled)
     }
 
     private fun guideUrls(): List<String> = store.state.value.settings["iptv.guides"]?.lines()?.map { it.trim() }?.filter { it.startsWith("http") }.orEmpty()
@@ -226,7 +238,8 @@ class DefaultWatchRepository(
         is UserSourceSpec.StremioAddon -> {
             val name = s.name ?: spec.label.ifBlank { "Add-on" }
             StremioPlugin(s.id, name, badgeOf(name), StremioClient(http, spec.manifestUrl),
-                setOf(Capability.CATALOG, Capability.SEARCH, Capability.META, Capability.STREAMS, Capability.SUBTITLES, Capability.LIVE))
+                setOf(Capability.CATALOG, Capability.SEARCH, Capability.META, Capability.STREAMS, Capability.SUBTITLES, Capability.LIVE),
+                torrentsEnabled = ::torrentsEnabled)
         }
         is UserSourceSpec.Jellyfin -> JellyfinPlugin(s.id, s.name ?: spec.label.ifBlank { "Jellyfin" }, http, spec.server, requireNotNull(s.session))
         is UserSourceSpec.Emby -> JellyfinPlugin(s.id, s.name ?: spec.label.ifBlank { "Emby" }, http, spec.server, requireNotNull(s.session), emby = true)
@@ -536,7 +549,9 @@ class DefaultWatchRepository(
         }.awaitAll().filterNotNull()
     }
 
-    private val liveEventsHub = LiveEventsHub(::scoreSources, ::eventChannels, config.place, config.now, config.timeoutMs)
+    private val spotlight = com.cosmotune.watch.live.SpotlightSources(http, config.videoSource)
+    private val liveEventsHub = LiveEventsHub(::scoreSources, ::eventChannels, config.place, config.now, config.timeoutMs,
+        spotlight = { place, now -> if (builtIns == null) spotlight.events(place, now) else emptyList() })
 
     override fun liveEvents(): Flow<List<LiveEvent>> = liveEventsHub.flow()
 

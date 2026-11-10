@@ -3,10 +3,10 @@ package com.cosmotune.watch.model
 import kotlinx.serialization.Serializable
 
 /** What a [LiveEvent] is: a cricket match, a football match, or a big live show (a DD or official YouTube live special). */
-enum class LiveEventKind { CRICKET, FOOTBALL, SHOW }
+enum class LiveEventKind { CRICKET, FOOTBALL, SHOW, NEWS, PODCAST, VIDEO }
 
 /** Where a [LiveEvent] stands now. */
-enum class LiveEventStatus { LIVE, UPCOMING, FINISHED }
+enum class LiveEventStatus { LIVE, UPCOMING, FINISHED, FEATURED }
 
 /** One side of a match. [score] is that side's own score text ("182/4 (18.2 ov)", "2"), null before it starts. */
 @Serializable
@@ -71,6 +71,7 @@ data class LiveEvent(
     val source: String,
     /** When this entry was last read from its source. */
     val updatedAtMs: Long = 0,
+    val link: String? = null,
 ) {
     val isLive: Boolean get() = status == LiveEventStatus.LIVE
 }

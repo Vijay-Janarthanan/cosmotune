@@ -171,7 +171,12 @@ data class DirectoryLink(val title: String, val description: String, val url: St
  * inside). Plugins that are off are never asked. A plugin that fails is left out of the answer, never fails the call.
  * See WATCH_INTERFACES.md at the module root.
  */
+class WatchPlaybackLease(val url: String, val close: () -> Unit)
+
 interface WatchRepository {
+    /** Opens a playback-only address and owns any resources it needs until the player closes it. */
+    suspend fun openPlayback(stream: Stream): WatchPlaybackLease = WatchPlaybackLease(stream.url) {}
+
     /** Every plugin, built in first (in the Plugins page order), then the user's own. */
     val plugins: StateFlow<List<PluginInfo>>
     val myList: StateFlow<List<MyListEntry>>

@@ -24,8 +24,8 @@ class StreamRanker(
     private val pluginRank: (String) -> Int = { 0 },
 ) {
     fun rank(streams: List<Stream>, hint: StreamHint? = null): List<Stream> =
-        streams.distinctBy { it.url }.sortedWith(
-            compareBy<Stream>({ -hintScore(it, hint) }, { if (it.isPlayable) 0 else 1 }, { pluginRank(it.source.pluginId) / 100 },
+        streams.distinctBy { it.url to it.torrentFileIndex }.sortedWith(
+            compareBy<Stream>({ -hintScore(it, hint) }, { if (it.isPlayable) 0 else 1 }, { it.isTorrent }, { pluginRank(it.source.pluginId) / 100 },
                 { heightKey(it.height) }, { pluginRank(it.source.pluginId) }, { if (it.hasAds) 1 else 0 }, { audioKey(it) }, { if (it.protocol == StreamProtocol.HLS) 0 else 1 }),
         )
 

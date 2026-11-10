@@ -84,9 +84,11 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     sleepTimerMinutes: Int? = null, sleepAfterEpisode: Boolean = false,
     onSleepTimer: ((Int?) -> Unit)? = null, onSleepAfterEpisode: (() -> Unit)? = null,
     onDownloadEpisode: ((PodioItem) -> Unit)? = null, downloadedEpisodes: List<PodioItem> = emptyList(),
+    onRemoveDownload: (suspend (PodioItem) -> Boolean)? = null,
     episodeDownloadStatus: Map<String, String> = emptyMap(), episodeDownloadsRunning: Set<String> = emptySet(),
     onImportOpmlFile: (suspend () -> String?)? = null, onExportOpmlFile: (suspend (String) -> Boolean)? = null,
-    onShareOpmlFile: (suspend (String) -> Unit)? = null) {
+    onShareOpmlFile: (suspend (String) -> Unit)? = null,
+    remoteGlobeControls: Boolean = false) {
     val catalogue = remember(directory) { directory ?: PodioDefaults.catalogue }
     // The app's own catalogue keeps its pages for the process and on the disk; one a host or a test hands in keeps its own.
     val pages = remember(catalogue) { com.cosmotune.cache.PageCache.of(catalogue, persistent = directory == null) }
@@ -95,7 +97,9 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     // Feeds, saves and imports set the page's state on the UI thread (see rememberUiCoroutineScope), not on the worker that answers.
     val scope = rememberUiCoroutineScope()
     val clipboard = LocalClipboardManager.current
-    val host = PodioHost(onPlay, onDownloadEpisode, onImportOpmlFile, onExportOpmlFile, onShareOpmlFile) { clipboard.setText(AnnotatedString(it)) }
+    val host = PodioHost(onPlay, onDownloadEpisode, onRemoveDownload, onImportOpmlFile, onExportOpmlFile, onShareOpmlFile, remoteGlobeControls) {
+        clipboard.setText(AnnotatedString(it))
+    }
     val query = rememberSaveable { mutableStateOf("") }
     val language = rememberSaveable { mutableStateOf("") }
     val country = rememberSaveable { mutableStateOf("") }
@@ -127,14 +131,14 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
     fun setDetail(open: Boolean) { if (showNavigation) localDetail = open else ModeNav.podioDetail.value = open }
     val searchFocus = remember { FocusRequester() }
     fun openSearch() { m.searchShows = section == PodioSection.PODCASTS || section == PodioSection.FOLLOWING; m.searching = true }
-    fun closeSearch() { m.searching = false; m.browse() }
+    fun closeSearch() { m.searching = false; m.query = ""; m.browse() }
     LaunchedEffect(m.searching) { if (m.searching) { delay(50); runCatching { searchFocus.requestFocus() } } }
 
     // A change of section (from the tabs, or the desktop sidebar) leaves an open feed and a search, and starts the new section clean.
     LaunchedEffect(section) { m.browse(); m.query = ""; m.genre = ""; m.searching = false; m.globeFull = false }
     val stationsWanted = if (m.searching) !m.searchShows else section == PodioSection.RADIO || section == PodioSection.GLOBE
     val showsWanted = if (m.searching) m.searchShows else section == PodioSection.PODCASTS
-    LaunchedEffect(stationsWanted, showsWanted, m.language, m.country, m.genre, m.request) {
+    LaunchedEffect(stationsWanted, showsWanted, m.searching, m.language, m.country, m.genre, m.request) {
         // Network continuations can resume on a worker with an immediate effect dispatcher. Publish page state on the UI dispatcher.
         withContext(Dispatchers.Main.immediate) { if (stationsWanted || showsWanted) m.loadDirectory(stations = stationsWanted) }
     }
@@ -262,6 +266,17 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             roomItem = m.lastPlayed?.takeIf { it.id == playback.id }?.roomItem()) { m.playerSheet = false }
         m.episodeSheet?.let { entry -> EpisodeSheet(m, env, entry) { m.episodeSheet = null } }
     }
+    }
+    m.downloadToRemove?.let { episode ->
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
+            onDismissRequest = { m.downloadToRemove = null },
+            title = "Remove download?",
+            content = { Text(episode.title) },
+            confirmLabel = "Remove download",
+            onConfirm = m::removeSelectedDownload,
+            dismissLabel = "Cancel",
+            onDismiss = { m.downloadToRemove = null },
+        )
     }
     if (m.addFeed) com.cosmotune.ui.sheets.CosmoAlertDialog(
         onDismissRequest = { m.addFeed = false },

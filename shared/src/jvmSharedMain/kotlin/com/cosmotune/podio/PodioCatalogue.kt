@@ -97,8 +97,10 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         }
         error("The radio directory is unavailable. Please retry.")
     }
-    suspend fun stations(query: String = "", countryCode: String = "", language: String = "", globe: Boolean = false): List<RadioStation> = withContext(Dispatchers.Default) {
-        val params = linkedMapOf("hidebroken" to "true", "order" to "clickcount", "reverse" to "true", "limit" to if (globe) "1200" else "3000")
+    suspend fun stations(query: String = "", countryCode: String = "", language: String = "", globe: Boolean = false,
+        limit: Int? = null): List<RadioStation> = withContext(Dispatchers.Default) {
+        val count = limit?.coerceIn(1, 3000) ?: if (globe) 1200 else 3000
+        val params = linkedMapOf("hidebroken" to "true", "order" to "clickcount", "reverse" to "true", "limit" to count.toString())
         if (query.isNotBlank()) params["name"] = query.trim().take(200)
         if (countryCode.isNotBlank()) params["countrycode"] = countryCode.uppercase(Locale.ROOT).take(2)
         if (language.isNotBlank()) params["language"] = language.trim().lowercase(Locale.ROOT).take(60)
@@ -112,7 +114,8 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
                 o.number("geo_lat")?.takeIf { it in -90.0..90.0 }, o.number("geo_long")?.takeIf { it in -180.0..180.0 },
                 o.text("codec"), o.text("bitrate").toIntOrNull() ?: 0, o.text("state").trim().take(80))
         }.distinctBy { it.id }
-        mergeExtras(directory, extras, query, countryCode, language)
+        val merged = mergeExtras(directory, extras, query, countryCode, language)
+        if (limit != null) merged.take(count) else merged
     }
     // Stations whose own web page publishes the stream but that the open directory does not list yet. They belong to the real
     // directory only: a test that points the catalogue at its own server gets exactly what that server returns.
@@ -207,14 +210,14 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
 
     /** Chart position order, with the feed addresses Apple's lookup supplies: the shows people are listening to in [country]. */
     suspend fun topPodcasts(country: String = "US", genre: String? = null, limit: Int = 30): List<PodcastShow> = supervisorScope {
-        if (youtubePodcasts == null || genre != null) return@supervisorScope appleTopPodcasts(country, genre, limit)
-        val apple = async { attempt { appleTopPodcasts(country, genre, limit) } }
+        if (youtubePodcasts == null || genre != null) return@supervisorScope publisherPodcastCharts(country, genre, limit)
+        val apple = async { attempt { publisherPodcastCharts(country, genre, limit) } }
         val youtube = async { attempt { youtubePodcasts.home() } }
         val chart = apple.await(); val publicShows = youtube.await()
         if (chart == null && publicShows == null) error("Podcast discovery is unavailable. Please retry.")
         (chart.orEmpty() + publicShows.orEmpty()).distinctBy { it.feed.trimEnd('/') }
     }
-    private suspend fun appleTopPodcasts(country: String, genre: String?, limit: Int): List<PodcastShow> {
+    suspend fun publisherPodcastCharts(country: String, genre: String? = null, limit: Int = 30): List<PodcastShow> {
         val code = country.take(2).lowercase(Locale.ROOT).ifBlank { "us" }
         val chart = json.parseToJsonElement(read(address(appleBase, "/$code/rss/toppodcasts/limit=${limit.coerceIn(1, 100)}/" + (genre?.let { "genre=$it/" }.orEmpty()) + "json", emptyMap())))
         val ids = ((chart.jsonObject["feed"] as? JsonObject)?.get("entry") as? JsonArray).orEmpty().mapNotNull { entry ->
@@ -233,14 +236,24 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
     suspend fun podcasts(query: String, country: String = "IN"): List<PodcastShow> = supervisorScope {
         if (SpotifyPublicPodcasts.link(query.trim()) != null) return@supervisorScope listOf(feed(query.trim()).show)
         if (YouTubePodcasts.showId(query.trim()) != null) return@supervisorScope listOf(feed(query.trim()).show)
-        val term = query.trim().take(200).ifBlank { "podcast" }
+        val publisher = async { attempt { searchPublisherPodcasts(query, country) } }
+        val youtube = async { youtubePodcasts?.let { attempt { it.search(podcastSearchTerm(query)) } } }
+        val publicShows = publisher.await()
+        val youtubeShows = youtube.await()
+        if (publicShows == null && youtubeShows == null) error("Podcast search is unavailable. Please retry.")
+        (publicShows.orEmpty() + youtubeShows.orEmpty()).distinctBy { it.feed.trimEnd('/') }
+    }
+    /** Discovery for clients that play publisher enclosures directly. */
+    suspend fun searchPublisherPodcasts(query: String, country: String): List<PodcastShow> = supervisorScope {
+        val term = podcastSearchTerm(query)
         val apple = async { attempt { appleSearch(term, country) } }
         val fyyd = async { attempt { fyydSearch(term) } }
-        val youtube = async { youtubePodcasts?.let { attempt { it.search(term) } } }
-        val a = apple.await(); val f = fyyd.await(); val y = youtube.await()
-        if (a == null && f == null && y == null) error("Podcast search is unavailable. Please retry.")
-        (a.orEmpty() + f.orEmpty() + y.orEmpty()).distinctBy { it.feed.trimEnd('/') }
+        val appleShows = apple.await()
+        val fyydShows = fyyd.await()
+        if (appleShows == null && fyydShows == null) error("Podcast search is unavailable. Please retry.")
+        (appleShows.orEmpty() + fyydShows.orEmpty()).distinctBy { it.feed.trimEnd('/') }
     }
+    private fun podcastSearchTerm(query: String) = query.trim().take(200).ifBlank { "podcast" }
     private suspend fun appleSearch(query: String, country: String): List<PodcastShow> {
         val root = json.parseToJsonElement(read(address(appleBase, "/search", mapOf("term" to query, "media" to "podcast", "entity" to "podcast", "limit" to "40", "country" to country.take(2)))))
         return (root.jsonObject["results"] as? JsonArray).orEmpty().mapNotNull { element ->
@@ -264,6 +277,10 @@ class PodioCatalogue(private val client: OkHttpClient = OkHttpClient.Builder().c
         val address = requireNotNull(httpUrl(url)) { "Enter an HTTP or HTTPS podcast feed URL." }
         if (SpotifyPublicPodcasts.link(address) != null) return spotifyPublisherFeed(address)
         if (YouTubePodcasts.showId(address) != null) return (youtubePodcasts ?: YouTubePodcasts()).feed(address)
+        return publisherFeed(address)
+    }
+    suspend fun publisherFeed(url: String): PodcastFeed {
+        val address = requireNotNull(httpUrl(url)) { "Enter an HTTP or HTTPS podcast feed URL." }
         return withContext(Dispatchers.Default) { parseFeed(read(address), address) }
     }
     /** Append one publisher archive page, retaining root-feed episode identities and resume data. */

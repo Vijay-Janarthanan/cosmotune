@@ -145,11 +145,12 @@ import kotlinx.serialization.json.*
 }
 
 internal actual fun openReadingPdf(file: File): ReadingPdfEngine = AndroidReadingPdf(file)
+internal actual fun supportsReadingPdfSearch(): Boolean = android.os.Build.VERSION.SDK_INT >= 35
 private class AndroidReadingPdf(file: File) : ReadingPdfEngine {
     private val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
     private val renderer = try { PdfRenderer(descriptor) } catch (e: Exception) { descriptor.close(); throw e }
     override val pageCount: Int = renderer.pageCount
-    override val supportsSearch: Boolean get() = android.os.Build.VERSION.SDK_INT >= 35
+    override val supportsSearch: Boolean get() = supportsReadingPdfSearch()
     @Synchronized override fun render(page: Int, width: Int): ImageBitmap = renderer.openPage(page).use { source ->
         val scale = minOf(width.coerceIn(320, 2400).toDouble() / source.width, kotlin.math.sqrt(8_000_000.0 / (source.width.toDouble() * source.height)))
         val bitmap = Bitmap.createBitmap((source.width * scale).toInt().coerceAtLeast(1), (source.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)

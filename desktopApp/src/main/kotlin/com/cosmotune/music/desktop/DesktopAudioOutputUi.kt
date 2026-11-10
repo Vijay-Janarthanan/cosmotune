@@ -63,7 +63,8 @@ internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
     val direct by DesktopOutputMode.direct.collectAsState()
     val status by DesktopOutputMode.status.collectAsState()
     val dopDevice by DesktopOutputMode.dopDevice.collectAsState()
-    var confirmingDop by remember { mutableStateOf(false) }
+    val nativeDsdDevice by DesktopOutputMode.nativeDsdDevice.collectAsState()
+    var confirmingDsd by remember { mutableStateOf<DesktopDsdTransport?>(null) }
     val devices = rememberDesktopAudioDevices()
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 440) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = panelInset(22.dp), vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -82,16 +83,29 @@ internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
             OutputRow("System output", "Recommended · shares audio with other apps", chosen = !direct) { DesktopOutputMode.select(false) }
             OutputRow("Prefer direct device output", "Exact format negotiation; may take control of the device. Falls back when unavailable.", chosen = direct) { DesktopOutputMode.select(true) }
             Text(status, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
-            if (DesktopPlatform.isWindows || DesktopPlatform.isLinux) {
+            if (DesktopPlatform.isWindows || DesktopPlatform.isLinux || DesktopPlatform.isMac) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("DSD over PCM (DoP)", style = MaterialTheme.typography.titleSmall)
                         Text("For a confirmed DoP DAC on this device selection. Off by default.", color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(checked = dopDevice == selected && selected.isNotBlank(), enabled = direct && selected.isNotBlank() &&
-                        (DesktopPlatform.isWindows || selected.startsWith("alsa:hw:")), onCheckedChange = { enabled ->
-                        if (enabled) confirmingDop = true else DesktopOutputMode.confirmDop(null)
+                    Switch(checked = dopDevice == selected && selected.isNotBlank(),
+                        enabled = direct && DesktopOutputMode.canConfirmDop(selected), onCheckedChange = { enabled ->
+                        if (enabled) confirmingDsd = DesktopDsdTransport.DOP else DesktopOutputMode.confirmDop(null)
                     })
+                }
+                if (DesktopPlatform.isLinux) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Native DSD", style = MaterialTheme.typography.titleSmall)
+                            Text("Use a native ALSA DSD format when the selected DAC supports it.",
+                                color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(checked = nativeDsdDevice == selected && selected.isNotBlank(),
+                            enabled = direct && selected.startsWith("alsa:hw:"), onCheckedChange = { enabled ->
+                                if (enabled) confirmingDsd = DesktopDsdTransport.ALSA_NATIVE else DesktopOutputMode.confirmNativeDsd(null)
+                            })
+                    }
                 }
                 Text("DoP supports local uncompressed DSF/DFF. Player volume must be 100% and speed 1×; use the DAC volume control. EQ, normalization, silence skipping and mixing are bypassed. Output loss stops playback; markers never fall back to system audio. Replay after changing DoP settings.",
                     color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
@@ -113,15 +127,21 @@ internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
             }
         }
     }
-    if (confirmingDop) com.cosmotune.ui.sheets.CosmoAlertDialog(
-        onDismissRequest = { confirmingDop = false },
-        title = "Confirm this DAC supports DoP",
-        message = "Check the DAC manufacturer's documentation for DoP support and the DSD rate you will play. A 24-bit PCM rate alone does not establish DoP support. This choice applies only to the selected device; software volume and DSP are bypassed.",
-        confirmLabel = "This DAC supports DoP",
-        onConfirm = { DesktopOutputMode.confirmDop(selected); confirmingDop = false },
-        dismissLabel = "Cancel",
-        onDismiss = { confirmingDop = false },
-    )
+    confirmingDsd?.let { transport ->
+        com.cosmotune.ui.sheets.CosmoAlertDialog(
+            onDismissRequest = { confirmingDsd = null },
+            title = "Confirm this DAC supports ${transport.label}",
+            message = "Check the DAC manufacturer's documentation for ${transport.label} and the DSD rate you will play. This applies only to the selected device. Software volume and DSP are bypassed.",
+            confirmLabel = "Confirm DAC support",
+            onConfirm = {
+                if (transport == DesktopDsdTransport.DOP) DesktopOutputMode.confirmDop(selected)
+                else DesktopOutputMode.confirmNativeDsd(selected)
+                confirmingDsd = null
+            },
+            dismissLabel = "Cancel",
+            onDismiss = { confirmingDsd = null },
+        )
+    }
 }
 
 @Composable

@@ -242,8 +242,12 @@ data class Stream(
     val hasAds: Boolean = false,
     /** A server's play session (Jellyfin PlaySessionId), for its progress reports. */
     val serverSession: String? = null,
+    /** Present on a Stremio torrent offer. Its magnet is resolved locally only when played. */
+    val torrentFileIndex: Int? = null,
+    val torrentTrackers: List<String> = emptyList(),
 ) {
     val isPlayable: Boolean get() = protocol != StreamProtocol.EXTERNAL
+    val isTorrent: Boolean get() = url.startsWith("magnet:?xt=urn:btih:")
     /** "4K", "1080p", "720p", "SD", from [height]. */
     val qualityBadge: String? get() = height?.let { when { it >= 2000 -> "4K"; it >= 1400 -> "1440p"; it >= 1000 -> "1080p"; it >= 700 -> "720p"; else -> "SD" } }
     fun hint() = StreamHint(source.pluginId, label, filename, sizeBytes, durationMs, bingeGroup)

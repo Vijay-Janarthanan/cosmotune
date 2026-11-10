@@ -52,11 +52,15 @@ private const val QUEUE = "queue"
 private const val MORE = "more"
 private const val OUTPUT = "output"
 private const val PODIO = "podio"
+private const val STANDALONE_PODIO = "standalone-podio"
 
 /** Player at the root; Up Next and More swipe away back to it, as every watch app does. */
 @Composable
-fun WearApp(link: PhoneLink) {
+fun WearApp(link: PhoneLink, openStandaloneRequest: Int = 0) {
     val nav = rememberSwipeDismissableNavController()
+    LaunchedEffect(openStandaloneRequest) {
+        if (openStandaloneRequest > 0) nav.navigate(STANDALONE_PODIO) { launchSingleTop = true }
+    }
     val ambient = LocalAmbient.current
     val np by link.nowPlaying.collectAsStateWithLifecycle()
     val showAmbient = ambient.active && np != null
@@ -100,12 +104,17 @@ fun WearApp(link: PhoneLink) {
             }
             composable(PODIO) {
                 PodioScreen(link, PodioDest(), open = openPodio, back = { nav.popBackStack() },
-                    onPlayer = { nav.popBackStack(PLAYER, inclusive = false) }, onOutput = { nav.navigate(OUTPUT) })
+                    onPlayer = { nav.popBackStack(PLAYER, inclusive = false) }, onOutput = { nav.navigate(OUTPUT) },
+                    onStandalone = { nav.navigate(STANDALONE_PODIO) })
             }
             composable("$PODIO/{id}") { entry ->
                 val dest = entry.arguments?.getString("id")?.toIntOrNull()?.let { podioPlaces[it] } ?: PodioDest()
                 PodioScreen(link, dest, open = openPodio, back = { nav.popBackStack() },
-                    onPlayer = { nav.popBackStack(PLAYER, inclusive = false) }, onOutput = { nav.navigate(OUTPUT) })
+                    onPlayer = { nav.popBackStack(PLAYER, inclusive = false) }, onOutput = { nav.navigate(OUTPUT) },
+                    onStandalone = { nav.navigate(STANDALONE_PODIO) })
+            }
+            composable(STANDALONE_PODIO) {
+                StandalonePodioScreen()
             }
             composable(OUTPUT) {
                 // Straight back to the player once a choice is made.
@@ -174,10 +183,10 @@ private fun Connecting(text: String? = null) {
 private fun NoPhone(onRetry: () -> Unit, onPodio: () -> Unit) {
     Message(
         title = stringResource(R.string.no_phone_title),
-        body = "Connect to Cosmotune on your paired phone. Saved Podio lists remain readable.",
+        body = "Connect your phone, or stream public radio and podcasts on this watch.",
         action = stringResource(R.string.retry),
         onAction = onRetry,
-        secondary = "Saved Podio", onSecondary = onPodio,
+        secondary = "Open Podio", onSecondary = onPodio,
         orbit = false,
     )
 }
@@ -186,7 +195,7 @@ private fun NoPhone(onRetry: () -> Unit, onPodio: () -> Unit) {
 private fun NothingPlaying(onPodio: () -> Unit) {
     Message(
         title = "Ready to listen",
-        body = "Browse radio and podcasts from your paired phone.",
+        body = "Browse radio and podcasts on this watch or through your phone.",
         action = "Open Podio",
         onAction = onPodio,
         orbit = true,

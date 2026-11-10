@@ -6,8 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
  * Plex, M3U, Xtream, XMLTV, iptv-org, Pluto TV, Samsung TV Plus, the Internet Archive) and the stores are in jvmSharedMain,
  * shared by the phone, the TV and the desktop. No Compose here: the screens live in :sharedUi, which depends on this module.
  *
- * Plugins speak read-only HTTP JSON (or M3U/XMLTV) protocols the app itself implements. No plugin code is downloaded or run,
- * and no torrent engine ships.
+ * Plugins speak read-only HTTP JSON (or M3U/XMLTV). The release jobs package the app's own torrent playback helper.
  */
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
@@ -23,6 +22,7 @@ kotlin {
     val jvmSharedMain by sourceSets.creating { dependsOn(sourceSets.commonMain.get()) }
     sourceSets.androidMain.get().dependsOn(jvmSharedMain)
     sourceSets.jvmMain.get().dependsOn(jvmSharedMain)
+    sourceSets.jvmMain.get().resources.srcDir(rootProject.layout.buildDirectory.dir("watch-torrent/desktop"))
     sourceSets.commonMain.dependencies {
         // The Video contracts (VideoPlayerEngine, MediaInput) and the room models (PartyTrack) live in :shared.
         api(project(":shared"))
@@ -51,6 +51,8 @@ android {
     namespace = "com.cosmotune.watch"
     compileSdk = 36
     defaultConfig { minSdk = 26 }
+    sourceSets.getByName("main").jniLibs.srcDir(rootProject.layout.buildDirectory.dir("watch-torrent/android"))
+    sourceSets.getByName("main").assets.srcDir(rootProject.layout.buildDirectory.dir("watch-torrent/android-assets"))
 }
 
 tasks.withType<Test>().configureEach {

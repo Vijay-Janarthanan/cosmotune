@@ -198,7 +198,7 @@ fun ReplayScreen(
                         title = topGenres,
                         rows = summary.genreRows(CHART_LENGTH).map { it.orbit(context) },
                         side = side,
-                        onClick = {},
+                        onClick = null,
                         icon = CosmoIcons.Waveform,
                     )
                 } else if (ArtistFacts.genresAvailable) {

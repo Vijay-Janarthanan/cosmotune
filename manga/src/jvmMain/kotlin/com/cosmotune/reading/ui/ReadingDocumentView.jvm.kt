@@ -158,11 +158,12 @@ private class DesktopEpubController(document: ReadingDocument.Epub) : AutoClosea
 }
 
 internal actual fun openReadingPdf(file: File): ReadingPdfEngine = DesktopReadingPdf(file)
+internal actual fun supportsReadingPdfSearch(): Boolean = true
 internal class DesktopReadingPdf(file: File) : ReadingPdfEngine {
     private val pdf: PDDocument = Loader.loadPDF(file, org.apache.pdfbox.io.IOUtils.createTempFileOnlyStreamCache())
     private val renderer = PDFRenderer(pdf).apply { isSubsamplingAllowed = true }
     override val pageCount: Int = pdf.numberOfPages
-    override val supportsSearch = true
+    override val supportsSearch = supportsReadingPdfSearch()
     @Synchronized override fun render(page: Int, width: Int): ImageBitmap {
         val bounds = pdf.getPage(page).cropBox
         val rotated = pdf.getPage(page).rotation % 180 != 0

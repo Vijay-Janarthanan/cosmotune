@@ -9,6 +9,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Satellite
@@ -256,6 +260,14 @@ private fun stationsLine(m: PodioModel): String {
         OrbitPageButton(Icons.Outlined.Add, "Zoom in", view::zoomIn)
         OrbitPageButton(Icons.Outlined.Remove, "Zoom out", view::zoomOut)
     }
+    if (m.host.remoteGlobeControls) {
+        OrbitChipRow(side, Modifier.padding(top = 6.dp)) {
+            OrbitPageButton(Icons.Outlined.ArrowBack, "Pan west", { view.pan(east = -1) })
+            OrbitPageButton(Icons.Outlined.ArrowUpward, "Pan north", { view.pan(north = 1) })
+            OrbitPageButton(Icons.Outlined.ArrowDownward, "Pan south", { view.pan(north = -1) })
+            OrbitPageButton(Icons.Outlined.ArrowForward, "Pan east", { view.pan(east = 1) })
+        }
+    }
 }
 
 /** The globe in its frame: rounded like a card, on the page's quiet fill. */
@@ -275,7 +287,8 @@ private fun LazyListScope.stationsUnderRing(m: PodioModel, env: PodioEnv, onAir:
         }
         m.radio.isEmpty() -> item(key = "empty") { PodioMessage("Stations", "No stations found", "Try another name, country or language.", fonts, look, side) }
         m.nearby.isEmpty() -> item(key = "none") {
-            Text("No station under the ring. Drag the globe to a dot, or search for the full list.", style = fonts.body, color = look.dim,
+            Text(if (m.host.remoteGlobeControls) "No station under the ring. Pan the globe or choose Random place."
+                else "No station under the ring. Drag the globe to a dot, or search for the full list.", style = fonts.body, color = look.dim,
                 modifier = Modifier.padding(horizontal = side + 4.dp, vertical = 12.dp))
         }
     }
@@ -309,7 +322,11 @@ private fun LazyListScope.stationsUnderRing(m: PodioModel, env: PodioEnv, onAir:
     BoxWithConstraints(Modifier.fillMaxSize().testTag("podio:globe-page")) {
         val wide = maxWidth >= 840.dp
         val side = orbitPageSide(maxWidth)
-        val label = if (m.radio.isEmpty()) "Drag to turn it" else m.stationCount()
+        val label = when {
+            m.radio.isNotEmpty() -> m.stationCount()
+            m.host.remoteGlobeControls -> "Use the arrows to turn it"
+            else -> "Drag to turn it"
+        }
         val station = onAir.station
         if (wide) Row(Modifier.fillMaxSize()) {
             Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = 16.dp)) {

@@ -23,6 +23,18 @@ object DesktopWatch {
     /** The one store; cloud sync writes the user's add-on list through it. */
     val store: WatchStore by lazy { WatchStore(File(dataDir, "watch.json")) }
 
+    private val torrentExecutable: File? by lazy {
+        val windows = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+        val name = if (windows) "cosmotorrent.exe" else "cosmotorrent"
+        DesktopWatch::class.java.getResourceAsStream("/cosmotune-torrent/$name")?.use { resource ->
+            val binary = java.nio.file.Files.createTempFile("cosmotorrent-", if (windows) ".exe" else "").toFile()
+            binary.deleteOnExit()
+            binary.outputStream().use { resource.copyTo(it) }
+            check(windows || binary.setExecutable(true, true)) { "Could not prepare the packaged torrent engine." }
+            binary
+        }
+    }
+
     val repository: DefaultWatchRepository by lazy {
         DefaultWatchRepository(
             WatchConfig(
@@ -32,6 +44,7 @@ object DesktopWatch {
                 tmdbKey = System.getProperty("cosmotune.tmdb.key")?.takeIf { it.isNotBlank() } ?: System.getenv("TMDB_API_KEY"),
                 videoSource = { desktopVideoGraph(build = true)?.source },
                 scoreKeys = com.cosmotune.watch.live.LiveScoreKeys.fromSystem(),
+                torrentExecutable = { torrentExecutable },
             ),
             store,
         )

@@ -11,6 +11,39 @@ import kotlin.test.*
 class DesktopDopSourceTest {
     @get:Rule val temporary = TemporaryFolder()
 
+    @Test fun nativeAlsaWordsPreserveChannelOrderAndStripMarkers() {
+        val frames = floatArrayOf(
+            DesktopDopSource.sample(0x81, 0x42, true), DesktopDopSource.sample(0x24, 0x18, true),
+            DesktopDopSource.sample(0x03, 0x06, false), DesktopDopSource.sample(0x0c, 0x30, false),
+            DesktopDopSource.sample(0x80, 0x01, true), DesktopDopSource.sample(0x10, 0x08, true),
+        )
+        fun bytes(vararg values: Int) = ByteArray(values.size) { values[it].toByte() }
+        assertContentEquals(bytes(0x81, 0x42, 0x03, 0x06, 0x24, 0x18, 0x0c, 0x30, 0x80, 0x01, 0x69, 0x69, 0x10, 0x08, 0x69, 0x69),
+            AlsaDsdWord.DSD_U32_BE.pack(frames, frames.size, 2))
+        assertContentEquals(bytes(0x06, 0x03, 0x42, 0x81, 0x30, 0x0c, 0x18, 0x24, 0x69, 0x69, 0x01, 0x80, 0x69, 0x69, 0x08, 0x10),
+            AlsaDsdWord.DSD_U32_LE.pack(frames, frames.size, 2))
+        assertContentEquals(bytes(0x81, 0x42, 0x24, 0x18), AlsaDsdWord.DSD_U16_BE.pack(frames, 2, 2))
+        assertContentEquals(bytes(0x42, 0x81, 0x18, 0x24), AlsaDsdWord.DSD_U16_LE.pack(frames, 2, 2))
+    }
+
+    @Test fun coreAudioKeepsDopMarkerPhaseAcrossUnderflowAndRingWrap() {
+        val fifo = DoPCarrierFifo(channels = 1, capacity = 2)
+        val samples = byteArrayOf(1, 2, -6, 3, 4, 5, 6, 7, -6)
+        val output = ByteArray(9)
+        assertEquals(2, fifo.append(samples, 0, 3))
+        fifo.render(output, 3)
+        assertContentEquals(byteArrayOf(1, 2, 5, 3, 4, -6, 0x69, 0x69, 5), output)
+        assertEquals(2L, fifo.framesPlayed())
+        assertEquals(1, fifo.append(samples, 2, 1))
+        fifo.render(output, 1)
+        assertContentEquals(byteArrayOf(6, 7, -6), output.copyOf(3))
+        fifo.clear()
+        assertTrue(fifo.empty())
+        fifo.render(output, 1)
+        assertContentEquals(byteArrayOf(0x69, 0x69, 5), output.copyOf(3))
+        assertEquals(3L, fifo.framesPlayed())
+    }
+
     @Test fun everyPayloadAndBothMarkersSurviveTheExisting24BitPcmWriterExactly() {
         for (first in listOf(true, false)) {
             val samples = FloatArray(65_536) { payload -> DesktopDopSource.sample(payload ushr 8, payload and 255, first) }

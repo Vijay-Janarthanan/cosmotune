@@ -37,6 +37,7 @@ data class WatchPlayerState(
     val isLive: Boolean = false,
     /** In a room: "Your copy is 4 min longer: a different cut, so positions may not line up". */
     val lengthNote: String? = null,
+    val muted: Boolean = false,
 )
 
 /**
@@ -56,6 +57,7 @@ interface WatchPlayer {
     fun open(target: PlayTarget, summary: TitleSummary? = null, stream: Stream? = null, startMs: Long? = null, hint: StreamHint? = null,
         fallback: Stream? = null)
     fun switchStream(stream: Stream)
+    fun toggleMute() {}
     fun selectAudio(trackId: String)
     /** Null turns subtitles off. A subtitle with a url is loaded on first selection. */
     fun selectSubtitle(id: String?)

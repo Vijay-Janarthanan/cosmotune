@@ -7,7 +7,7 @@ plugins {
 }
 
 /*
- * Cosmotune for Wear OS: a phone remote and optional phone-backed audio receiver.
+ * Cosmotune for Wear OS: a phone remote, phone-backed audio receiver and public Podio player.
  *
  * It holds no independent library and runs no Palette or blur of its own —
  * the phone sends it what is playing, the cover as a 240px JPEG, and the mesh
@@ -32,7 +32,7 @@ val betaSuffix = rootProject.extra["cosmotuneBetaSuffix"] as String
 
 android {
     namespace = "com.cosmotune.music.wear"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.cosmotune.app"
@@ -117,8 +117,14 @@ android {
         resValues = true
     }
     packaging {
+        // Standalone Podio reuses the shared catalogue, but never loads music recommendations,
+        // video framing models, or the YouTube JavaScript solver on a watch.
+        jniLibs.excludes += "**/libquickjs.so"
         resources {
             excludes += setOf(
+                "models/**",
+                "recommendations/**",
+                "yt_ejs/**",
                 "META-INF/*.version",
                 "META-INF/*.kotlin_module",
                 "DebugProbesKt.bin",
@@ -142,6 +148,7 @@ kotlin {
 base.archivesName.set("CosmotuneWear")
 
 dependencies {
+    implementation(project(":shared"))
     implementation("androidx.wear.compose:compose-material3:1.6.2")
     implementation("androidx.wear.compose:compose-foundation:1.6.2")
     implementation("androidx.wear.compose:compose-navigation:1.6.2")
@@ -155,6 +162,7 @@ dependencies {
     // The watch as the speaker: a player reading from the phone, in a session
     // so it plays on with the screen off. Same Media3 as the phone app.
     implementation("androidx.media3:media3-exoplayer:1.11.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.11.0")
     implementation("androidx.media3:media3-session:1.11.0")
 
     // The Data Layer: state from the phone, commands to it.

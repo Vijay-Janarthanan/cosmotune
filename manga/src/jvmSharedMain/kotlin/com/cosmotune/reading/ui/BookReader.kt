@@ -84,6 +84,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
         }
     }
     val epub = document as? ReadingDocument.Epub
+    val canSearch = epub != null || supportsReadingPdfSearch()
     val section = epub?.spine?.indexOfFirst { it.href.substringBefore('#') == locator.resourceHref?.substringBefore('#') }?.takeIf { it >= 0 } ?: 0
     val look = orbitLook()
     val (fill, ink) = coverFill(null, book.id)
@@ -127,7 +128,8 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
                 Box {
                     OrbitReaderButton(CosmoIcons.MoreVertical, "Tools", ink, fill, { more = true }, Modifier.testTag("books:reader-menu"))
                     OrbitMenu(more, { more = false }, listOf(
-                        OrbitMenuItem("Search", icon = CosmoIcons.Search, selected = searching) { searching = !searching; if (!searching) search = "" },
+                        OrbitMenuItem("Search", detail = if (canSearch) null else "PDF search requires Android 15 or later.",
+                            icon = CosmoIcons.Search, selected = searching, enabled = canSearch) { searching = !searching; if (!searching) search = "" },
                         OrbitMenuItem("Bookmarks", icon = Icons.Outlined.BookmarkBorder) { panel = "Bookmarks" },
                         OrbitMenuItem("Hide tools", icon = CosmoIcons.Close) { tools = false },
                     ), orbitFonts(), look, header = book.title)
@@ -140,7 +142,7 @@ fun BookReader(repository: ReadingRepository, document: ReadingDocument, onBack:
             ReadSheetHeader("Contents", onDone = { panel = "" }, doneLabel = "Close")
             val navigation = epub?.navigation.orEmpty().flatNavigation()
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 520.dp)) {
-                if (navigation.isNotEmpty()) items(navigation, key = { it.href + it.title }) { item ->
+                if (navigation.isNotEmpty()) items(navigation) { item ->
                     ReadSheetRow(item.title.ifBlank { "Untitled chapter" }, null, { saveLocation(ReadingLocator(resourceHref = item.href)); panel = "" })
                 } else items(epub?.spine.orEmpty(), key = { it.href }) { item ->
                     ReadSheetRow(item.title.ifBlank { "Chapter ${(epub?.spine?.indexOf(item) ?: 0) + 1}" }, null, { saveLocation(ReadingLocator(resourceHref = item.href)); panel = "" })

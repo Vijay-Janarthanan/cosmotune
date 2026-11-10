@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -77,6 +78,10 @@ import com.cosmotune.ui.watch.WatchRoute
 import com.cosmotune.ui.watch.asSummary
 import com.cosmotune.watch.model.LiveEvent
 import com.cosmotune.watch.model.LiveEventKind
+import com.cosmotune.watch.model.Stream
+import com.cosmotune.watch.model.StreamProtocol
+import com.cosmotune.watch.model.StreamSource
+import com.cosmotune.watch.plugin.BuiltInPlugins
 import com.cosmotune.watch.model.TitleSummary
 import com.cosmotune.watch.model.TitleType
 import com.cosmotune.watch.model.WatchOption
@@ -122,8 +127,12 @@ fun watchModePlay(settings: CosmoLookSettings?): (LiveEvent, WatchOption) -> Uni
 
 /** Watch's player page for [option] of [event], titled by its channel (with its logo) or by the event. */
 fun liveRoute(event: LiveEvent, option: WatchOption): WatchRoute.Play {
-    val summary = option.channel?.asSummary() ?: TitleSummary(option.target.key, TitleType.FILM, event.title, origin = event.source)
-    return WatchRoute.Play(option.target, summary)
+    val summary = option.channel?.asSummary() ?: TitleSummary(option.target.key, TitleType.FILM, event.title, origin = event.source,
+        posterUrl = event.imageUrl)
+    val chartStream = event.link?.takeIf { option.target.key.namespace == BuiltInPlugins.YOUTUBE }?.let { link ->
+        Stream(StreamSource(BuiltInPlugins.YOUTUBE, "YouTube", "YT"), "YouTube", url = link, protocol = StreamProtocol.YOUTUBE, isPublic = true)
+    }
+    return WatchRoute.Play(option.target, summary, stream = chartStream)
 }
 
 /** The events as they come, an empty list until the first answer. */
@@ -161,12 +170,13 @@ fun LiveNowTopBarPill(modifier: Modifier = Modifier) {
     if (!on) return
     val events by collectEvents(host)
     val lists = rememberLists(host, events)
-    val top = lists.top ?: return
+    val top = lists.headline(ticking(host))
+    if (lists.isEmpty) return
     val fonts = orbitFonts()
     val look = orbitLook()
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
-        OrbitLivePill(top, lists.live.size - 1, fonts, look, onClick = { open = !open })
+        OrbitLivePill(top, top?.let(lists::moreFor) ?: 0, fonts, look, onClick = { open = !open })
         if (open) {
             Popup(popupPositionProvider = LivePanelPosition, onDismissRequest = { open = false }, properties = PopupProperties(focusable = true)) {
                 val density = LocalDensity.current
@@ -190,8 +200,9 @@ fun LiveNowPillButton(onOpen: () -> Unit, modifier: Modifier = Modifier, interac
     if (!on) return
     val events by collectEvents(host)
     val lists = rememberLists(host, events)
-    val top = lists.top ?: return
-    OrbitLivePill(top, lists.live.size - 1, orbitFonts(), orbitLook(), onClick = onOpen, modifier = modifier, interactionSource = interactionSource)
+    val top = lists.headline(ticking(host))
+    if (lists.isEmpty) return
+    OrbitLivePill(top, top?.let(lists::moreFor) ?: 0, orbitFonts(), orbitLook(), onClick = onOpen, modifier = modifier, interactionSource = interactionSource)
 }
 
 /** The ground of the desktop's panel (board `.pop`): radius 30, the menu's deep ground with its edge and shadow, 18 dp in. */
@@ -227,11 +238,12 @@ fun LiveNowStrip(modifier: Modifier = Modifier) {
     if (!on) return
     val events by collectEvents(host)
     val lists = rememberLists(host, events)
-    val top = lists.top ?: return
+    val top = lists.headline(ticking(host))
+    if (lists.isEmpty) return
     val fonts = orbitFonts()
     val look = orbitLook()
     var open by rememberSaveable { mutableStateOf(false) }
-    OrbitLivePill(top, lists.live.size - 1, fonts, look, onClick = { open = true }, modifier = modifier.fillMaxWidth(), stretch = true, height = 40.dp)
+    OrbitLivePill(top, top?.let(lists::moreFor) ?: 0, fonts, look, onClick = { open = true }, modifier = modifier.fillMaxWidth(), stretch = true, height = 40.dp)
     if (open) {
         com.cosmotune.ui.sheets.SurfaceSheetSwitch(onDismissRequest = { open = false }) {
             LiveNowPanel(host, events, fonts, look, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), onPlayed = { open = false })
@@ -265,12 +277,13 @@ fun LiveNowPanel(
     val lists = rememberLists(host, events, kind)
     val now = ticking(host)
     val play = host.play
+    val uri = LocalUriHandler.current
     val watch: (LiveEvent) -> (() -> Unit)? = { e -> if (play == null) null else e.watchOptions.firstOrNull()?.let { o -> { play(e, o); onPlayed() } } }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    buildAnnotatedString { append("Live now"); withStyle(SpanStyle(color = look.accent)) { append(".") } },
+                    buildAnnotatedString { append("Spotlight"); withStyle(SpanStyle(color = look.accent)) { append(".") } },
                     style = fonts.section.copy(fontSize = titleSize.value.sp, lineHeight = (titleSize.value + 2).sp), color = look.ink,
                 )
                 val count = listOfNotNull(
@@ -284,17 +297,27 @@ fun LiveNowPanel(
         }
         OrbitChipRow(0.dp, Modifier.padding(top = 4.dp, bottom = 4.dp)) {
             OrbitSelectChip("All", kind == null, fonts, look, onClick = { kind = null }, haptic = false)
-            LiveEventKind.entries.filter { it in sports }.forEach { k ->
+            LiveEventKind.entries.filter { k -> k in sports || events.any { it.kind == k && it.link != null } }.forEach { k ->
                 OrbitSelectChip(k.label(), kind == k, fonts, look, onClick = { kind = k.takeIf { kind != k } }, haptic = false)
             }
         }
         val top = lists.top
-        if (top == null) {
+        if (top == null && lists.isEmpty) {
             WatchMessage("Nothing live", "Nothing on right now", "Matches and live shows you follow come here as they start. Choose sports and teams in Settings.", fonts, look,
                 Modifier.fillMaxWidth())
-        } else {
+        } else if (top != null && (top.kind != LiveEventKind.SHOW || lists.featured.isEmpty())) {
             OrbitLiveCard(top, fonts, look, onWatch = watch(top))
             lists.live.drop(1).forEach { e -> OrbitLiveRow(e, fonts, look, onWatch = watch(e)) }
+        }
+        if (lists.featured.isNotEmpty()) {
+            OrbitLabel("In the spotlight", fonts, look.dim, Modifier.padding(start = 6.dp, top = 10.dp))
+            lists.featured.forEach { e ->
+                OrbitLiveRow(e, fonts, look, onWatch = watch(e) ?: e.link?.let { link -> { runCatching { uri.openUri(link) } } })
+            }
+            if (top?.kind == LiveEventKind.SHOW) {
+                OrbitLabel("Live shows", fonts, look.dim, Modifier.padding(start = 6.dp, top = 10.dp))
+                lists.live.forEach { e -> OrbitLiveRow(e, fonts, look, onWatch = watch(e)) }
+            }
         }
         if (lists.upcoming.isNotEmpty()) {
             OrbitLabel("Coming up", fonts, look.dim, Modifier.padding(start = 6.dp, top = 10.dp))
@@ -306,7 +329,7 @@ fun LiveNowPanel(
             OrbitLabel("Just finished", fonts, look.dim, Modifier.padding(start = 6.dp, top = 10.dp))
             lists.finished.take(3).forEach { e -> OrbitLiveRow(e, fonts, look, onWatch = null) }
         }
-        val sources = events.map { it.source }.filter { it.isNotBlank() }.distinct()
+        val sources = events.filter { it.link == null && it.kind != LiveEventKind.SHOW }.map { it.source }.filter { it.isNotBlank() }.distinct()
         if (sources.isNotEmpty()) {
             OrbitLabel("Scores from " + sources.joinToString(" · "), fonts, look.dim.copy(alpha = 0.8f), Modifier.padding(start = 6.dp, top = 8.dp))
         }
@@ -374,15 +397,15 @@ fun LiveNowSettingsSection(settings: LiveNowSettings = rememberLiveNowSettings()
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("Live pill", style = fonts.title, color = look.ink)
-                Text("The match or live show you follow, in the top bar of every mode. It hides when nothing you follow is live.",
+                Text("Spotlight", style = fonts.title, color = look.ink)
+                Text("Live scores, major headlines and trending episodes and videos in the top bar.",
                     style = fonts.body.copy(fontSize = 12.5.sp, lineHeight = 16.sp), color = look.dim)
             }
-            OrbitSwitch(on, settings::setPillOn, look, "Live pill")
+            OrbitSwitch(on, settings::setPillOn, look, "Spotlight")
         }
-        OrbitLabel("Sports", fonts, look.dim, Modifier.padding(top = 4.dp))
+        OrbitLabel("Live events", fonts, look.dim, Modifier.padding(top = 4.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            LiveEventKind.entries.forEach { k ->
+            LiveNowSettings.followedKinds.forEach { k ->
                 OrbitSelectChip(k.label(), k in sports, fonts, look, onClick = { settings.setSport(k, k !in sports) }, icon = if (k in sports) CosmoIcons.Check else null, haptic = false)
             }
         }

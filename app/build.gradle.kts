@@ -222,6 +222,8 @@ android {
         // The shipped native engines support ARMv7, ARM64 and x86_64. A dependency's
         // extra x86 decoder alone must not make the universal APK look runnable on 32-bit x86.
         jniLibs.excludes += "**/x86/**"
+        // The bundled Go helper is executed from the read-only native library directory.
+        jniLibs.useLegacyPackaging = true
         resources {
             pickFirsts += setOf("META-INF/LICENSE.md", "META-INF/LICENSE.txt", "META-INF/NOTICE.md")
             // SMBJ's BouncyCastle and jspecify both ship this descriptor.

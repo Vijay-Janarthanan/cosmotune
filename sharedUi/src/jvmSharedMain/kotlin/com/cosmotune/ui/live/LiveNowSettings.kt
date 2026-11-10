@@ -76,7 +76,7 @@ class LiveNowSettings(private val store: KeyValueStore) {
 
     private fun readSports(): Set<LiveEventKind> {
         val raw = store.getString(KEY_SPORTS, "")
-        if (raw.isEmpty()) return LiveEventKind.entries.toSet()
+        if (raw.isEmpty()) return followedKinds
         if (raw == NONE) return emptySet()
         return raw.split(SEP).mapNotNull { n -> LiveEventKind.entries.firstOrNull { it.name == n } }.toSet()
     }
@@ -89,6 +89,7 @@ class LiveNowSettings(private val store: KeyValueStore) {
     }
 
     companion object {
+        val followedKinds = setOf(LiveEventKind.CRICKET, LiveEventKind.FOOTBALL, LiveEventKind.SHOW)
         const val KEY_PILL = "live_pill"
         const val KEY_SPORTS = "live_sports"
         const val KEY_TEAMS = "live_teams"

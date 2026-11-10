@@ -6,6 +6,7 @@ import com.cosmotune.video.player.PlayerErrorKind
 import com.cosmotune.video.player.PlayerStatus
 import com.cosmotune.video.player.UrlKind
 import com.cosmotune.watch.model.Container
+import com.cosmotune.watch.model.Channel
 import com.cosmotune.watch.model.ExternalIds
 import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.model.Stream
@@ -19,11 +20,13 @@ import com.cosmotune.watch.model.TitleType
 import com.cosmotune.watch.model.WatchKey
 import com.cosmotune.watch.model.WatchProgress
 import com.cosmotune.watch.player.EngineWatchPlayer
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -31,6 +34,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import java.util.concurrent.atomic.AtomicInteger
 
 class EngineWatchPlayerTest {
     private val film = TitleSummary(WatchKey.tmdbFilm(2), TitleType.FILM, "Ember Road", 2021, runtimeMin = 112, ids = ExternalIds(tmdb = 2))
@@ -98,6 +102,89 @@ class EngineWatchPlayerTest {
         val player = EngineWatchPlayer(Repo(emptyList()), FakeVideoPlayerEngine(), scope = CoroutineScope(SupervisorJob() + Dispatchers.Default), settleMs = 0)
         player.open(PlayTarget.Film(film.key, film.ids, film.name), film)
         until("not found") { player.state.value.status == WatchPlayerStatus.NOT_FOUND }
+    }
+
+    @Test fun startsAnAvailableCopyWhileAnotherPluginIsStillWaiting() = runBlocking<Unit> {
+        val engine = FakeVideoPlayerEngine()
+        val first = stream("one", "https://one/film.mp4")
+        val slow = stream("two", "https://two/film.mp4")
+        val releaseSlowSource = CompletableDeferred<Unit>()
+        val repo = object : WatchRepository by Repo(emptyList()) {
+            override fun sources(target: PlayTarget, hint: StreamHint?) = flow {
+                emit(SourcesState(target, listOf(first), setOf("two")))
+                releaseSlowSource.await()
+                emit(SourcesState(target, listOf(slow, first), emptySet()))
+            }
+        }
+        val player = EngineWatchPlayer(repo, engine, settleMs = 50, tickMs = 20)
+        try {
+            player.open(repo.targetOf(film), film)
+            until("started before the slow plugin answered") { (engine.lastRequest?.input as? MediaInput.Url)?.url == first.url }
+            releaseSlowSource.complete(Unit)
+            until("late source is still listed") { slow in player.state.value.streams }
+            assertEquals(first.url, (engine.lastRequest?.input as? MediaInput.Url)?.url)
+        } finally {
+            player.stop()
+        }
+    }
+
+    @Test fun recoversWhenTheNextCopyArrivesAfterTheFirstHasAlreadyFailed() = runBlocking<Unit> {
+        val engine = FakeVideoPlayerEngine()
+        val first = stream("one", "https://one/film.mp4")
+        val next = stream("two", "https://two/film.mp4")
+        val reply = CompletableDeferred<Unit>()
+        val repo = object : WatchRepository by Repo(emptyList()) {
+            override fun sources(target: PlayTarget, hint: StreamHint?) = flow {
+                emit(SourcesState(target, listOf(first), setOf("two")))
+                reply.await()
+                emit(SourcesState(target, listOf(first, next), emptySet()))
+            }
+        }
+        val player = EngineWatchPlayer(repo, engine, settleMs = 0, tickMs = 20)
+        try {
+            player.open(repo.targetOf(film), film)
+            until("first copy started") { (engine.lastRequest?.input as? MediaInput.Url)?.url == first.url }
+            engine.fail(PlayerErrorKind.NETWORK)
+            until("waiting for a replacement") { player.state.value.status == WatchPlayerStatus.ERROR }
+            reply.complete(Unit)
+            until("late copy started") { (engine.lastRequest?.input as? MediaInput.Url)?.url == next.url }
+        } finally {
+            player.stop()
+        }
+    }
+
+    @Test fun aLiveStreamThatEndsSwitchesSourceAtTheLiveEdge() = runBlocking<Unit> {
+        val engine = FakeVideoPlayerEngine()
+        val first = stream("one", "https://one/live.m3u8", StreamProtocol.HLS)
+        val second = stream("two", "https://two/live.m3u8", StreamProtocol.HLS)
+        val target = PlayTarget.Live(Channel(WatchKey.channel("one", "news"), "one", "News"))
+        val player = EngineWatchPlayer(Repo(listOf(first, second)), engine, settleMs = 0, tickMs = 20)
+        player.open(target)
+        until("channel loaded") { (engine.lastRequest?.input as? MediaInput.Url)?.url == first.url }
+        player.toggleMute()
+        engine.setSnapshot { it.copy(status = PlayerStatus.ENDED) }
+        until("alternate live source loaded") { (engine.lastRequest?.input as? MediaInput.Url)?.url == second.url }
+        assertTrue(engine.lastRequest!!.live)
+        assertEquals(0, engine.lastRequest!!.startMs)
+        assertTrue(player.state.value.muted)
+        player.stop()
+    }
+
+    @Test fun theTorrentHelperIsReleasedWhenTheViewerSwitchesCopies() = runBlocking<Unit> {
+        val engine = FakeVideoPlayerEngine()
+        val torrent = stream("addon", "magnet:?xt=urn:btih:" + "a".repeat(40))
+        val direct = stream("one", "https://one/movie.mp4")
+        val closed = AtomicInteger()
+        val repo = object : WatchRepository by Repo(listOf(torrent, direct)) {
+            override suspend fun openPlayback(stream: Stream) = WatchPlaybackLease("http://127.0.0.1:3001/local.mp4") { closed.incrementAndGet() }
+        }
+        val player = EngineWatchPlayer(repo, engine, settleMs = 0, tickMs = 20)
+        player.open(repo.targetOf(film), film)
+        until("torrent helper used") { (engine.lastRequest?.input as? MediaInput.Url)?.url == "http://127.0.0.1:3001/local.mp4" }
+        player.switchStream(direct)
+        assertEquals(1, closed.get())
+        player.stop()
+        assertEquals(1, closed.get())
     }
 
     @Test fun youTubeCopiesGoToVideoModesPlayer() = runBlocking<Unit> {

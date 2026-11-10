@@ -1,8 +1,14 @@
 # Podio on Wear OS
 
+## Listen on this watch
+
+Open Podio and choose **Listen on this watch**. With an internet connection, the watch can browse or search Radio Browser and public podcast directories, open a show's publisher feed, and stream secure station and episode URLs without a phone or account. This mode uses its own media session for play, pause, stop, and episode seeking. The media notification opens its controls. Paired-phone favourites, follows, queue and playback stay in the paired mode below.
+
+## Paired-phone mode
+
 The watch now browses the paired phone's saved radio stations, popular Radio Browser stations, followed podcasts and their episodes. It can play/resume a selection or add it to Up Next. Existing Now Playing controls provide play/pause, previous/next, queue selection, volume and finite-episode seeking. The Podio entry is available in More, on the empty-player screen and as saved listings when the phone is disconnected.
 
-Playback uses the phone's existing Media3 foreground playback service and queue. Output can remain on the phone or use the existing watch-speaker route: phone-owned resolution/data-source chain, Wearable streaming channel, and the watch's existing foreground player. No separate watch music account, provider package, podcast resolver or backend is installed. Live radio is not treated as a finite seekable episode.
+Paired playback uses the phone's existing Media3 foreground playback service and queue. Output can remain on the phone or use the existing watch-speaker route: phone-owned resolution/data-source chain, Wearable streaming channel, and the watch's existing foreground player. Live radio is not treated as a finite seekable episode.
 
 ## Protocol and bounds
 

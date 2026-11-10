@@ -199,11 +199,11 @@ Video's own wiring. Our own files that know about the stored mode and the drawer
 
 1. **Make it unreachable, in one line.** In `shared/src/commonMain/kotlin/com/cosmotune/design/AppModes.kt` make
    `AppModes.available` answer false for `AppMode.VIDEO` again (`mode == AppMode.MUSIC`). The drawer shows Video as "Later", the
-   hosts draw Music, and a stored Video falls back to Music. This alone is enough for a release that has to drop the mode.
+   hosts draw Music, and a stored Video falls back to Music. Remove the Video destination from the TV navigation in `TvApp.kt` as well.
 2. **To remove the code**, delete `video/`, `shared/src/*/kotlin/com/cosmotune/video/` (main and test source sets),
    `shared/src/jvmTest/resources/video/`, `app/src/*/java/com/cosmotune/video/` and `desktopApp/src/*/kotlin/com/cosmotune/video/`.
 3. **Revert the rows above**: the `StreamResolver` line goes back to `private val init by lazy { NewPipe.init(OkHttpDownloader()) }`;
-   take out `include(":video")`, the two `implementation(project(":video"))` lines, the three test dependencies and the coroutines
+   take out `include(":video")`, the `implementation(project(":video"))` lines, the three test dependencies and the coroutines
    line of `shared/build.gradle.kts`, `"jdk.httpserver"`, the manifest attribute, the `PhoneModeHost` wrapper in `MainActivity.kt`, the
    lines in `DesktopApp.kt`, `videoId` in `CanvasArtwork.kt` and the desktop canvas files, and `cosmo_watch_music_video` in the 18
    string files. Delete the Video rows of `FORK.md`.
@@ -228,7 +228,8 @@ Video's own wiring. Our own files that know about the stored mode and the drawer
    Watch mode plays its films, episodes and channels on Video's engine, so its player goes with the Video code: in `:watch`,
    `watch/src/commonMain/kotlin/com/cosmotune/watch/WatchPlayer.kt`, `watch/src/jvmSharedMain/kotlin/com/cosmotune/watch/DefaultWatchRepository.kt`,
    `WatchDownloads.kt`, `player/EngineWatchPlayer.kt` and `plugins/free/YouTubeFreePlugin.kt` (and `watch/src/jvmTest/kotlin/com/cosmotune/watch/EngineWatchPlayerTest.kt`);
-   the Live now channels read through Video's source, `live/LiveEventsHub.kt`, `plugins/youtube/OfficialLivePlugin.kt`,
+   the Live now channels and Spotlight charts read through Video's source, `live/LiveEventsHub.kt`,
+   `watch/src/jvmSharedMain/kotlin/com/cosmotune/watch/live/SpotlightSources.kt`, `plugins/youtube/OfficialLivePlugin.kt`,
    `PrasarBharatiPlugin.kt` and `YouTubeLivePlugin.kt` (and the test double `watch/src/jvmTest/kotlin/com/cosmotune/watch/LiveVideoSource.kt`);
    the phone's host `app/src/main/java/com/cosmotune/music/watch/AndroidWatch.kt` and its room follower `RoomWatch.kt` (they reach
    only the engine's graph and picture scale; `ModeHooksContractTest` lists the two); the desktop's

@@ -81,6 +81,20 @@ class LiveNowTextTest {
         assertTrue(LiveNowLists.of(events, settings.sports.value, settings.teams.value).isEmpty, "nothing followed: the pill hides")
     }
 
+    @Test fun spotlightPrioritisesMatchesAndRotatesInsteadOfPromotingRoutineShows() {
+        val followed = LiveNowSettings.followedKinds
+        val show = events.first { it.kind == LiveEventKind.SHOW }
+        val match = events.first { it.kind == LiveEventKind.CRICKET && it.isLive }
+        fun featured(kind: LiveEventKind) = LiveEvent(kind.name, kind, kind.name, status = LiveEventStatus.FEATURED, source = "Test")
+        val news = featured(LiveEventKind.NEWS)
+        val podcast = featured(LiveEventKind.PODCAST)
+        assertEquals(null, LiveNowLists.of(listOf(show), followed, emptyList()).headline(0))
+        assertEquals(match, LiveNowLists.of(listOf(show, news, match), followed, emptyList()).headline(0))
+        val idle = LiveNowLists.of(listOf(show, news, podcast), followed, emptyList())
+        assertEquals(news, idle.headline(0))
+        assertEquals(podcast, idle.headline(180_000))
+    }
+
     @Test fun choicesAndRemindersAreKept() {
         val store = LiveNowMemoryStore()
         val settings = LiveNowSettings(store)

@@ -7,12 +7,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -35,6 +36,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,7 +97,12 @@ internal class WatchPlayerControls(
     val close: () -> Unit,
     /** Plays what is on for the room, from where it is. */
     val watchTogether: () -> Unit = {},
+    val retry: (() -> Unit)? = null,
+    val toggleMute: () -> Unit = {},
 )
+
+typealias WatchFullscreenHost = @Composable (() -> Unit, Boolean, @Composable () -> Unit) -> Unit
+val LocalWatchFullscreen = staticCompositionLocalOf<WatchFullscreenHost?> { null }
 
 /**
  * The player (board notes: "the same player as Now Playing"): the picture, then the film card in the title's colour with play in
@@ -117,7 +125,8 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     }
     val state by player.state.collectAsState()
     val snapshot by player.engine.snapshot.collectAsState()
-    val controls = remember(player, actions) {
+    val roomOwnsPlayback = playback.roomHolds(route.target.key)
+    val controls = remember(player, actions, route, roomOwnsPlayback) {
         WatchPlayerControls(
             playPause = { if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() },
             seekTo = player.engine::seekTo,
@@ -129,6 +138,13 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
             playNext = player::playNextEpisode,
             cancelNext = player::cancelNextEpisode,
             close = { WatchNav.back() },
+            retry = if (roomOwnsPlayback) null else ({
+                val start = if (route.target is com.cosmotune.watch.model.PlayTarget.Live) 0L
+                    else player.engine.positionMs().takeIf { it > 0 }
+                val selected = player.state.value.takeIf { it.target?.key == route.target.key }?.stream
+                player.open(route.target, route.summary, selected ?: route.stream, startMs = start)
+            }),
+            toggleMute = player::toggleMute,
             watchTogether = {
                 val s = player.state.value
                 s.target?.let { t -> actions.watchTogether(t, s.summary ?: route.summary, s.stream, s.durationMs.takeIf { it > 0 } ?: player.engine.snapshot.value.durationMs) }
@@ -146,8 +162,8 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
             delay(60_000)
         }
     }
-    val otherChannels by androidx.compose.runtime.produceState(emptyList<com.cosmotune.watch.LiveNowItem>(), channel, frame.wide) {
-        if (channel != null && !frame.wide) value = runCatching { actions.repository.liveNow(12) }.getOrDefault(emptyList()).filter { it.channel.key != channel.key }
+    val otherChannels by androidx.compose.runtime.produceState(emptyList<com.cosmotune.watch.LiveNowItem>(), channel) {
+        if (channel != null) value = runCatching { actions.repository.liveNow(12) }.getOrDefault(emptyList()).filter { it.channel.key != channel.key }
     }
     WatchPlayerScreen(
         state = state,
@@ -198,28 +214,34 @@ internal fun WatchPlayerScreen(
     var localView by remember { mutableStateOf(VideoView.WHOLE) }
     val view = keptView ?: localView
     val setView: (VideoView) -> Unit = { v -> if (settings != null) settings.setVideoView(v) else localView = v }
-    var cinema by remember { mutableStateOf(startInCinema) }
+    var cinema by rememberSaveable { mutableStateOf(startInCinema) }
+    val fullscreen = LocalWatchFullscreen.current
     val summary = state.summary
     val (fill, ink) = coverFill(summary?.backdropUrl ?: summary?.posterUrl, summary?.key?.value ?: "watch")
     val picture: @Composable (Modifier, Dp) -> Unit = { m, radius ->
         WatchVideo(view, aspect, radius, surface, still = summary?.backdropUrl, key = summary?.key?.value ?: "watch", modifier = m, onDoubleTap = { cinema = !cinema })
     }
     // The keyboard (the desktop's): Esc leaves Cinema, else closes the player; F goes in and out of Cinema.
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    val keys = Modifier.focusRequester(focus).focusable().onPreviewKeyEvent { e ->
-        if (e.type != KeyEventType.KeyDown || e.isCtrlPressed || e.isMetaPressed || e.isAltPressed) return@onPreviewKeyEvent false
+    val keyHandler: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = handler@ { e ->
+        if (e.type != KeyEventType.KeyDown || e.isCtrlPressed || e.isMetaPressed || e.isAltPressed) return@handler false
         when (e.key) {
             Key.Escape -> { if (cinema) cinema = false else controls.close(); true }
             Key.F -> { cinema = !cinema; true }
+            Key.M -> { controls.toggleMute(); true }
             else -> false
         }
     }
-    Box(Modifier.fillMaxSize().then(keys)) {
-        if (cinema) WatchCinema(picture, state, playing, position, durationMs, controls, view, setView, onLeave = { cinema = false }, fonts = fonts, look = look, fill = fill, ink = ink, programme = programme)
-        else WatchPlayerLayout(state, playing, position, durationMs, controls, watchTogether, view, setView, picture, onCinema = { cinema = true }, fonts, look, wide, padding, fill, ink,
-            programme = programme, channels = channels, onChannel = onChannel)
+    val content: @Composable () -> Unit = {
+        val focus = remember { FocusRequester() }
+        LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+        Box(Modifier.fillMaxSize().focusRequester(focus).focusable().onPreviewKeyEvent(keyHandler)) {
+            if (cinema) WatchCinema(picture, state, playing, position, durationMs, controls, view, setView, onLeave = { cinema = false }, fonts = fonts, look = look, fill = fill, ink = ink, programme = programme,
+                channels = channels, onChannel = onChannel)
+            else WatchPlayerLayout(state, playing, position, durationMs, controls, watchTogether, view, setView, picture, onCinema = { cinema = true }, fonts, look, wide, padding, fill, ink,
+                programme = programme, channels = channels, onChannel = onChannel)
+        }
     }
+    if (cinema && fullscreen != null) fullscreen({ cinema = false }, aspect >= 1f, content) else content()
 }
 
 @Composable
@@ -252,22 +274,22 @@ private fun WatchPlayerLayout(
             state.lengthNote?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(start = 6.dp, top = 8.dp)) }
             Spacer(Modifier.height(14.dp))
             if (state.status == WatchPlayerStatus.NOT_FOUND || state.status == WatchPlayerStatus.ERROR) {
-                WatchMessage(
-                    if (state.status == WatchPlayerStatus.NOT_FOUND) "Not on your sources" else "Could not play",
-                    if (state.status == WatchPlayerStatus.NOT_FOUND) "No plugin can play this" else "This copy did not play",
-                    state.error ?: "Switch on more plugins, or add your own server or add-on in Plugins.", fonts, look,
-                    action = "Open Plugins", onAction = { controls.close(); WatchNav.go(WatchTab.PLUGINS) },
-                )
+                WatchPlaybackFailure(state, controls, fonts, look)
                 Spacer(Modifier.weight(1f))
-            } else if (wide) {
-                picture(Modifier.weight(1f).fillMaxWidth(), 34.dp)
             } else {
-                picture(Modifier.fillMaxWidth().aspectRatio(16f / 9f), 26.dp)
+                val size = if (wide) Modifier.weight(1f).fillMaxWidth() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                Box(size) {
+                    picture(Modifier.fillMaxSize(), if (wide) 34.dp else 26.dp)
+                    WatchLoading(state, fonts)
+                    Box(Modifier.align(Alignment.BottomEnd).padding(12.dp).background(Color.Black.copy(alpha = 0.72f), CircleShape)) {
+                        WatchRoundButton(CosmoIcons.Expand, "Full screen", look, onClick = onCinema, ink = Color.White)
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                NextEpisodeRow(state, controls, wide, fonts, look)
+                FilmCard(state, playing, position, durationMs, controls, view, setView, fonts, look, fill, ink, slim = false, wide = wide,
+                    programme = programme, channels = channels, onChannel = onChannel)
             }
-            Spacer(Modifier.height(14.dp))
-            NextEpisodeRow(state, controls, wide, fonts, look)
-            FilmCard(state, playing, position, durationMs, controls, view, setView, onCinema = onCinema, fonts = fonts, look = look, fill = fill, ink = ink, slim = false, wide = wide,
-                programme = programme)
             if (!wide && state.isLive && channels.isNotEmpty()) {
                 // The phone's lower half: the other channels on now, a tap switches to one.
                 val clock = remember { { System.currentTimeMillis() } }
@@ -279,6 +301,33 @@ private fun WatchPlayerLayout(
                 }
             } else if (!wide) Spacer(Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+private fun WatchPlaybackFailure(state: WatchPlayerState, controls: WatchPlayerControls, fonts: OrbitFonts, look: OrbitLook) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        WatchMessage(
+            if (state.status == WatchPlayerStatus.NOT_FOUND) "Sources" else "Playback",
+            if (state.status == WatchPlayerStatus.NOT_FOUND) "No playable copy yet" else "This copy did not play",
+            state.error ?: "The source could not start. Try again or choose another source.", fonts, look,
+            action = "Retry".takeIf { controls.retry != null }, onAction = controls.retry,
+        )
+        WatchCardChip("Open Plugins", look.ink, fonts, onClick = { controls.close(); WatchNav.go(WatchTab.PLUGINS) })
+    }
+}
+
+@Composable
+private fun WatchLoading(state: WatchPlayerState, fonts: OrbitFonts) {
+    val label = when (state.status) {
+        WatchPlayerStatus.RESOLVING -> if (state.isLive) "Finding a live stream" else "Finding a copy"
+        WatchPlayerStatus.LOADING -> "Starting playback"
+        WatchPlayerStatus.BUFFERING -> "Buffering"
+        else -> return
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(label, style = fonts.body, color = Color.White,
+            modifier = Modifier.background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(16.dp)).padding(12.dp))
     }
 }
 
@@ -375,6 +424,7 @@ private fun NextEpisodeRow(state: WatchPlayerState, controls: WatchPlayerControl
  * The film card (Now Playing's song card become the film's): the mono time, the title and the episode line, back 10 and
  * forward 30 seconds, audio, subtitles and the screen button, the seek line, and play in the bite. [slim] is Cinema's.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FilmCard(
     state: WatchPlayerState,
@@ -384,21 +434,22 @@ private fun FilmCard(
     controls: WatchPlayerControls,
     view: VideoView,
     setView: (VideoView) -> Unit,
-    onCinema: () -> Unit,
     fonts: OrbitFonts,
     look: OrbitLook,
     fill: Color,
     ink: Color,
     slim: Boolean,
-    onCinemaLeave: (() -> Unit)? = null,
     wide: Boolean = true,
     programme: String? = null,
+    channels: List<com.cosmotune.watch.LiveNowItem> = emptyList(),
+    onChannel: (com.cosmotune.watch.model.Channel) -> Unit = {},
 ) {
     var audio by remember { mutableStateOf(false) }
     // The phone's card is narrow: the title may take two lines, and Audio and Subtitles are round buttons so all the controls clear the bite.
     val narrow = !wide && !slim
     var subtitles by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf(false) }
+    var guide by remember { mutableStateOf(false) }
     // The label is redrawn every half second, not every frame.
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(playing) { while (playing) { delay(500); tick++ } }
@@ -422,10 +473,20 @@ private fun FilmCard(
             if (!state.isLive && durationMs > 0) {
                 OrbitProgressLine({ (position().toFloat() / durationMs).coerceIn(0f, 1f) }, ink, Modifier.padding(top = 12.dp, end = 90.dp), onSeek = { controls.seekTo((it * durationMs).toLong()) })
             }
-            Row(Modifier.padding(top = if (slim) 8.dp else 12.dp, end = 84.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(Modifier.padding(top = if (slim) 8.dp else 12.dp, end = 68.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                WatchRoundButton(CosmoIcons.Volume, if (state.muted) "Unmute" else "Mute", look,
+                    onClick = controls.toggleMute, ink = ink, on = state.muted)
                 if (!state.isLive) {
                     WatchRoundButton(CosmoIcons.Replay, "Back 10 seconds", look, onClick = { controls.seekTo((position() - 10_000).coerceAtLeast(0)) }, ink = ink)
                     WatchRoundButton(CosmoIcons.Next, "Forward 30 seconds", look, onClick = { controls.seekTo(position() + 30_000) }, ink = ink)
+                } else {
+                    controls.retry?.let { WatchRoundButton(CosmoIcons.Replay, "Jump to live", look, onClick = it, ink = ink) }
+                    if (channels.isNotEmpty()) Box {
+                        WatchRoundButton(CosmoIcons.Queue, "Channels", look, onClick = { guide = true }, ink = ink)
+                        OrbitMenu(guide, { guide = false }, fonts = fonts, look = look, header = "Also on now", items =
+                            channels.map { row -> OrbitMenuItem(row.channel.name, row.now?.title) { onChannel(row.channel) } })
+                    }
                 }
                 Box {
                     if (narrow) WatchRoundButton(CosmoIcons.Volume, "Audio", look, onClick = { audio = true }, ink = ink, enabled = state.audioTracks.size > 1)
@@ -447,11 +508,10 @@ private fun FilmCard(
                     })
                 }
                 Box {
-                    WatchRoundButton(CosmoIcons.Canvas, "Screen", look, onClick = { screen = true }, ink = ink)
-                    OrbitMenu(screen, { screen = false }, fonts = fonts, look = look, header = "Screen", items = listOf(
-                        OrbitMenuItem("Whole", "Nothing cut", selected = onCinemaLeave == null && view == VideoView.WHOLE) { onCinemaLeave?.invoke(); setView(VideoView.WHOLE) },
-                        OrbitMenuItem("Fill", "Fills the frame, cuts the edges", selected = onCinemaLeave == null && view == VideoView.FILL) { onCinemaLeave?.invoke(); setView(VideoView.FILL) },
-                        OrbitMenuItem("Cinema", "The whole window", selected = onCinemaLeave != null) { if (onCinemaLeave == null) onCinema() },
+                    WatchRoundButton(CosmoIcons.Canvas, "Picture size", look, onClick = { screen = true }, ink = ink)
+                    OrbitMenu(screen, { screen = false }, fonts = fonts, look = look, header = "Picture size", items = listOf(
+                        OrbitMenuItem("Fit", "Shows the full picture", selected = view == VideoView.WHOLE) { setView(VideoView.WHOLE) },
+                        OrbitMenuItem("Fill", "Fills the frame and crops the edges", selected = view == VideoView.FILL) { setView(VideoView.FILL) },
                     ))
                 }
             }
@@ -476,10 +536,16 @@ private fun WatchCinema(
     fill: Color,
     ink: Color,
     programme: String? = null,
+    channels: List<com.cosmotune.watch.LiveNowItem> = emptyList(),
+    onChannel: (com.cosmotune.watch.model.Channel) -> Unit = {},
 ) {
     var stir by remember { mutableIntStateOf(0) }
     var chrome by remember { mutableStateOf(true) }
-    LaunchedEffect(stir) { chrome = true; delay(3_000); chrome = false }
+    val failed = state.status == WatchPlayerStatus.ERROR || state.status == WatchPlayerStatus.NOT_FOUND
+    LaunchedEffect(stir, playing, failed) {
+        chrome = true
+        if (playing && !failed) { delay(3_000); chrome = false }
+    }
     Box(
         Modifier.fillMaxSize().background(Color(0xFF050304)).pointerInput(Unit) {
             awaitPointerEventScope {
@@ -491,14 +557,19 @@ private fun WatchCinema(
         },
     ) {
         picture(Modifier.fillMaxSize(), 0.dp)
+        WatchLoading(state, fonts)
+        if (failed) Box(Modifier.align(Alignment.Center).widthIn(max = 500.dp).padding(24.dp)) {
+            WatchPlaybackFailure(state, controls, fonts, look)
+        }
         AnimatedVisibility(chrome, Modifier.fillMaxSize(), enter = fadeIn(tween(220)), exit = fadeOut(tween(420))) {
             Box(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     WatchRoundButton(CosmoIcons.ChevronDown, "Close the player", look, onClick = controls.close, ink = Color(0xFFF7ECE4))
-                    WatchRoundButton(CosmoIcons.Expand, "Leave Cinema", look, onClick = onLeave, ink = Color(0xFFF7ECE4))
+                    WatchRoundButton(CosmoIcons.Expand, "Exit full screen", look, onClick = onLeave, ink = Color(0xFFF7ECE4))
                 }
-                Box(Modifier.align(Alignment.BottomCenter).padding(24.dp).widthIn(max = 860.dp).fillMaxWidth()) {
-                    FilmCard(state, playing, position, durationMs, controls, view, setView, onCinema = {}, fonts = fonts, look = look, fill = fill, ink = ink, slim = true, onCinemaLeave = onLeave, programme = programme)
+                if (!failed) Box(Modifier.align(Alignment.BottomCenter).padding(24.dp).widthIn(max = 860.dp).fillMaxWidth()) {
+                    FilmCard(state, playing, position, durationMs, controls, view, setView, fonts, look, fill, ink, slim = true, programme = programme,
+                        channels = channels, onChannel = onChannel)
                 }
             }
         }

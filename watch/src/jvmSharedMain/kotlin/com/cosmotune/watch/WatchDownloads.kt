@@ -9,6 +9,9 @@ import com.cosmotune.watch.model.StreamSource
 import com.cosmotune.watch.model.TitleSummary
 import com.cosmotune.watch.model.WatchKey
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -103,6 +106,7 @@ class WatchDownloads(
      * Starts keeping [stream] of [target]; an existing download of the same copy is returned as it is (or started again when it
      * had stopped). Null when the copy is not a direct file.
      */
+    @Synchronized
     fun start(target: PlayTarget, summary: TitleSummary?, stream: Stream, line: String? = null): WatchDownload? {
         val container = containerOf(stream) ?: return null
         if (!canDownload(stream) || target is PlayTarget.Live) return null
@@ -132,6 +136,7 @@ class WatchDownloads(
     }
 
     /** Starts a stopped download again; false when its address is not known in this session (open its page and download again). */
+    @Synchronized
     fun retry(id: String): Boolean {
         val d = state.value.firstOrNull { it.id == id } ?: return false
         val stream = streams[id] ?: return false
@@ -140,6 +145,7 @@ class WatchDownloads(
     }
 
     /** Stops a download and forgets it, or deletes a finished one and its file. */
+    @Synchronized
     fun remove(id: String) {
         synchronized(jobs) { jobs.remove(id) }?.cancel()
         val d = state.value.firstOrNull { it.id == id } ?: return
@@ -173,14 +179,11 @@ class WatchDownloads(
                             state.update { list -> list.map { if (it.id == id) it.copy(bytes = written, totalBytes = total ?: it.totalBytes) else it } }
                         }
                     }
-                    val file = fileOf(start)
-                    if (file.exists()) file.delete()
-                    if (!part.renameTo(file)) { part.copyTo(file, overwrite = true); part.delete() }
-                    put((current(id) ?: start).copy(status = WatchDownload.Status.DONE, bytes = length, totalBytes = length, error = null))
+                    finish(start, part, length, coroutineContext[Job])
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    put((current(id) ?: start).copy(status = WatchDownload.Status.FAILED, error = e.message?.take(200) ?: "The download stopped."))
+                    fail(id, e, coroutineContext[Job])
                 } finally {
                     synchronized(jobs) { if (jobs[id] === coroutineContext[Job]) jobs.remove(id) }
                 }
@@ -190,9 +193,31 @@ class WatchDownloads(
 
     private fun current(id: String) = state.value.firstOrNull { it.id == id }
 
+    @Synchronized
+    private fun finish(start: WatchDownload, part: File, length: Long, job: Job?) {
+        if (!isCurrentJob(start.id, job)) return
+        val current = current(start.id) ?: return
+        val file = fileOf(start)
+        if (file.exists()) file.delete()
+        if (!part.renameTo(file)) { part.copyTo(file, overwrite = true); part.delete() }
+        put(current.copy(status = WatchDownload.Status.DONE, bytes = length, totalBytes = length, error = null))
+    }
+
+    @Synchronized
+    private fun fail(id: String, failure: Exception, job: Job?) {
+        if (!isCurrentJob(id, job)) return
+        current(id)?.let { put(it.copy(status = WatchDownload.Status.FAILED, error = failure.message?.take(200) ?: "The download stopped.")) }
+    }
+
+    private fun isCurrentJob(id: String, job: Job?) = job != null && synchronized(jobs) { jobs[id] === job }
+
+    @Synchronized
     private fun put(d: WatchDownload) {
-        state.update { list -> if (list.any { it.id == d.id }) list.map { if (it.id == d.id) d else it } else listOf(d) + list }
-        save()
+        fun replace(list: List<WatchDownload>) =
+            if (list.any { it.id == d.id }) list.map { if (it.id == d.id) d else it } else listOf(d) + list
+        val saved = save(replace(state.value))
+        check(d.status != WatchDownload.Status.DONE || saved) { "Could not save the completed download index." }
+        state.update(::replace)
     }
 
     private fun partOf(d: WatchDownload) = File(directory, d.fileName + ".part")
@@ -205,14 +230,17 @@ class WatchDownloads(
     }.getOrDefault(emptyList())
 
     @Synchronized
-    private fun save() {
+    private fun save(items: List<WatchDownload> = state.value): Boolean =
         runCatching {
             directory.mkdirs()
             val tmp = File(directory, "downloads.json.tmp")
-            tmp.writeText(json.encodeToString(serializer, state.value))
-            if (!tmp.renameTo(index)) { index.delete(); tmp.renameTo(index) }
-        }
-    }
+            tmp.writeText(json.encodeToString(serializer, items))
+            try {
+                Files.move(tmp.toPath(), index.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(tmp.toPath(), index.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        }.isSuccess
 
     companion object {
         /** The container of a direct file, from the plugin's guess or the address; null for anything that is not MP4, MKV or WebM. */

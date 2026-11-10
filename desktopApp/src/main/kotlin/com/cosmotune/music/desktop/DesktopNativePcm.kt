@@ -30,10 +30,25 @@ internal interface DesktopNativePcm : AutoCloseable {
 }
 
 internal object DesktopUnixAudio {
-    fun openDop(format: DesktopPcmFormat, selection: String): Result<DesktopNativePcm> = runCatching {
-        require(DesktopPlatform.isLinux && selection.matches(Regex("alsa:hw:\\d+,\\d+"))) { "DoP requires an explicitly selected ALSA hardware device" }
+    fun openNativeDsd(format: DesktopPcmFormat, selection: String): Result<DesktopNativePcm> = runCatching {
+        require(DesktopPlatform.isLinux && selection.matches(Regex("alsa:hw:\\d+,\\d+"))) { "Native DSD requires explicitly selected ALSA hardware" }
         require(!format.isFloat && format.bytesPerSample == 3 && format.channels in 1..2)
-        AlsaPcm(format, selection.removePrefix("alsa:"))
+        for (word in AlsaDsdWord.entries) {
+            if (format.sampleRate % word.carrierFramesPerWord != 0) continue
+            runCatching { AlsaPcm(format, selection.removePrefix("alsa:"), word) }
+                .getOrNull()?.let { return Result.success(it) }
+        }
+        error("ALSA refused native DSD at the source rate")
+    }
+
+    fun openDop(format: DesktopPcmFormat, selection: String): Result<DesktopNativePcm> = runCatching {
+        require(!format.isFloat && format.bytesPerSample == 3 && format.channels in 1..2)
+        when {
+            DesktopPlatform.isLinux && selection.matches(Regex("alsa:hw:\\d+,\\d+")) ->
+                AlsaPcm(format, selection.removePrefix("alsa:"))
+            DesktopPlatform.isMac && selection.startsWith("coreaudio:") -> CoreAudioDop(format, selection)
+            else -> error("DoP requires an explicitly selected hardware device")
+        }
     }
     fun devices(): List<DesktopAudioDevice> = when {
         DesktopPlatform.isLinux -> alsaDevices()
@@ -63,12 +78,18 @@ internal object DesktopUnixAudio {
     }
 }
 
-private class AlsaPcm(override val format: DesktopPcmFormat, override val device: String) : DesktopNativePcm {
+private class AlsaPcm(
+    override val format: DesktopPcmFormat,
+    override val device: String,
+    private val dsdWord: AlsaDsdWord? = null,
+) : DesktopNativePcm {
     private val lib = NativeLibrary.getInstance("asound")
     private val pcm: Pointer
     private val submitted = AtomicLong()
     private var memory = Memory(1)
-    override val api = "ALSA hardware (resampling disabled)"
+    private val carrierFramesPerWord = dsdWord?.carrierFramesPerWord ?: 1
+    private val hardwareFrameBytes = dsdWord?.let { it.bytes * format.channels } ?: format.frameBytes
+    override val api = dsdWord?.let { "ALSA hardware · ${it.name}" } ?: "ALSA hardware (resampling disabled)"
     override var bufferBytes = 0
         private set
     private fun call(name: String, vararg args: Any?): Int = lib.getFunction(name).invokeInt(args)
@@ -77,9 +98,17 @@ private class AlsaPcm(override val format: DesktopPcmFormat, override val device
         check(call("snd_pcm_open", ref, device, 0, 0) >= 0) { "ALSA hardware unavailable or busy" }
         pcm = ref.value
         try {
-            val name = when { format.isFloat -> "FLOAT_LE"; format.bytesPerSample == 4 -> "S32_LE"; format.bytesPerSample == 3 -> "S24_3LE"; else -> "S16_LE" }
+            val name = dsdWord?.name ?: when {
+                format.isFloat -> "FLOAT_LE"
+                format.bytesPerSample == 4 -> "S32_LE"
+                format.bytesPerSample == 3 -> "S24_3LE"
+                else -> "S16_LE"
+            }
             val encoding = call("snd_pcm_format_value", name)
-            check(call("snd_pcm_set_params", pcm, encoding, 3, format.channels, format.sampleRate, 0, 200_000) >= 0) { "ALSA refused the exact PCM format" }
+            val hardwareRate = format.sampleRate / carrierFramesPerWord
+            check(encoding >= 0 && call("snd_pcm_set_params", pcm, encoding, 3, format.channels, hardwareRate, 0, 200_000) >= 0) {
+                "ALSA refused the exact ${if (dsdWord == null) "PCM" else "DSD"} format"
+            }
             val params = PointerByReference()
             check(call("snd_pcm_hw_params_malloc", params) >= 0)
             try {
@@ -88,30 +117,42 @@ private class AlsaPcm(override val format: DesktopPcmFormat, override val device
                 check(call("snd_pcm_hw_params_get_rate", params.value, rate, IntByReference()) >= 0)
                 check(call("snd_pcm_hw_params_get_channels", params.value, channels) >= 0)
                 check(call("snd_pcm_hw_params_get_format", params.value, actual) >= 0)
-                check(rate.value == format.sampleRate && channels.value == format.channels && actual.value == encoding) { "ALSA negotiated a different format" }
+                check(rate.value == hardwareRate && channels.value == format.channels && actual.value == encoding) { "ALSA negotiated a different format" }
             } finally { lib.getFunction("snd_pcm_hw_params_free").invokeVoid(arrayOf(params.value)) }
             val frames = NativeLongByReference(); val period = NativeLongByReference()
             check(call("snd_pcm_get_params", pcm, frames, period) >= 0)
-            bufferBytes = Math.toIntExact(frames.value.toLong() * format.frameBytes)
+            bufferBytes = Math.toIntExact(frames.value.toLong() * hardwareFrameBytes)
         } catch (failure: Throwable) { call("snd_pcm_close", pcm); throw failure }
     }
     override fun write(samples: FloatArray, count: Int, gain: Float): Int {
-        val bytes = encodeDesktopPcm(samples, count, format, gain)
+        val bytes = if (dsdWord == null) encodeDesktopPcm(samples, count, format, gain) else {
+            check(gain == 1f) { "Native DSD cannot use software gain" }
+            dsdWord.pack(samples, count, format.channels)
+        }
+        if (bytes.isEmpty()) return 0
         if (memory.size() < bytes.size) { memory.close(); memory = Memory(bytes.size.toLong()) }
         memory.write(0, bytes, 0, bytes.size)
         var frames = 0L; var recoveries = 0
-        val total = count / format.channels
+        val total = bytes.size / hardwareFrameBytes
+        val sourceFrames = count / format.channels
         while (frames < total) {
-            val wrote = lib.getFunction("snd_pcm_writei").invokeLong(arrayOf(pcm, memory.share(frames * format.frameBytes), NativeLong(total - frames)))
+            val wrote = lib.getFunction("snd_pcm_writei").invokeLong(arrayOf(pcm, memory.share(frames * hardwareFrameBytes), NativeLong(total - frames)))
             if (wrote < 0) {
                 check(recoveries++ < 2 && call("snd_pcm_recover", pcm, wrote.toInt(), 1) >= 0) { "ALSA output failed" }
-            } else { check(wrote > 0) { "ALSA made no progress" }; frames += wrote; submitted.addAndGet(wrote) }
+            } else {
+                check(wrote > 0) { "ALSA made no progress" }
+                val old = frames
+                frames += wrote
+                submitted.addAndGet(minOf(sourceFrames.toLong(), frames * carrierFramesPerWord) - old * carrierFramesPerWord)
+            }
         }
-        return Math.toIntExact(frames * format.frameBytes)
+        return count * format.bytesPerSample
     }
     override fun framesPlayed(): Long {
         val delay = NativeLongByReference()
-        return if (call("snd_pcm_delay", pcm, delay) >= 0) (submitted.get() - delay.value.toLong().coerceAtLeast(0)).coerceAtLeast(0) else submitted.get()
+        return if (call("snd_pcm_delay", pcm, delay) >= 0) {
+            (submitted.get() - delay.value.toLong().coerceAtLeast(0) * carrierFramesPerWord).coerceAtLeast(0)
+        } else submitted.get()
     }
     override fun pause() { if (call("snd_pcm_pause", pcm, 1) < 0) flush() }
     override fun resume() { if (call("snd_pcm_pause", pcm, 0) < 0) call("snd_pcm_prepare", pcm) }

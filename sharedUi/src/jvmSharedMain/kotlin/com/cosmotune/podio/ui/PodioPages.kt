@@ -387,7 +387,9 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
     EpisodeRow(episode.title, PodioFormat.episodeMeta(episode.author, PodioFormat.duration(episode.durationSeconds), state), episode.artwork,
         heardFraction(env, episode.id, episode.durationSeconds * 1000), now = now, playing = now && env.playback.playing,
         progress = if (now) ({ env.playedFraction() }) else null, download = DownloadMark.NONE,
-        onPlay = { if (now) env.onToggle() else m.play(episode) }, onDownload = {}, onMore = null, fonts = fonts, look = look, modifier = modifier)
+        onPlay = { if (now) env.onToggle() else m.play(episode) }, onDownload = {},
+        onMore = if (m.host.onRemoveDownload != null) ({ m.downloadToRemove = episode }) else null,
+        fonts = fonts, look = look, modifier = modifier, moreLabel = "Remove downloaded episode")
 }
 
 // ---- Search ----------------------------------------------------------------------------------------------------------------
@@ -501,7 +503,11 @@ private fun splitStarted(entries: List<InboxEpisode>, env: PodioEnv): Pair<List<
                 when (m.downloadMark(item, env.downloaded, env.downloadsRunning)) {
                     DownloadMark.AVAILABLE -> OrbitSelectChip("Download", false, fonts, look, { m.host.onDownloadEpisode?.invoke(item) }, icon = CosmoIcons.Download, haptic = false)
                     DownloadMark.RUNNING -> OrbitSelectChip("Cancel download", false, fonts, look, { m.host.onDownloadEpisode?.invoke(item) }, icon = CosmoIcons.Close, haptic = false)
-                    DownloadMark.DONE -> OrbitSelectChip("Downloaded", true, fonts, look, {}, icon = CosmoIcons.Downloaded, haptic = false)
+                    DownloadMark.DONE -> if (m.host.onRemoveDownload != null) {
+                        OrbitSelectChip("Remove download", false, fonts, look, {
+                            m.downloadToRemove = env.downloaded.firstOrNull { it.id == item.id }
+                        }, icon = CosmoIcons.Close, haptic = false)
+                    } else Text("Downloaded", style = fonts.body, color = look.dim)
                     DownloadMark.NONE -> {}
                 }
                 // The episode for everyone in the room, each device fetching it itself; hidden where rooms are not offered.

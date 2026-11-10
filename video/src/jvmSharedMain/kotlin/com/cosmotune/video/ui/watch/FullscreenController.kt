@@ -38,6 +38,13 @@ internal expect fun FullscreenController(orientation: WatchOrientation, lightSta
 @Composable
 internal expect fun VideoFullWindow(onExit: () -> Unit, content: @Composable () -> Unit)
 
+/** Fullscreen for callers that need the platform to hold landscape for a wide picture. */
+@Composable
+fun WatchFullWindow(onExit: () -> Unit, landscape: Boolean, content: @Composable () -> Unit) {
+    FullscreenController(if (landscape) WatchOrientation.LANDSCAPE else WatchOrientation.FREE, lightStatusBar = false)
+    VideoFullWindow(onExit, content)
+}
+
 /**
  * Enters picture-in-picture now (the full screen's button, spec 6.5), with the shape the page last gave
  * `PictureInPictureState.update`; null where there is none (the desktop, an activity that cannot).

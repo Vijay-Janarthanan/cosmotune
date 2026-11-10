@@ -112,7 +112,10 @@ class DesktopPlaybackEngine(
         // PipeWire, so it needs no help.
         DesktopLinuxAudioWatcher.ensureStarted()
         scope.launch {
-            DesktopOutputMode.dopDevice.collect { if (current?.dsdOverPcm == true) commands += Command.Reconfigure }
+            DesktopOutputMode.dopDevice.collect { if (current?.directDsd == true) commands += Command.Reconfigure }
+        }
+        scope.launch {
+            DesktopOutputMode.nativeDsdDevice.collect { if (current?.directDsd == true) commands += Command.Reconfigure }
         }
         scope.launch {
             DesktopAudioDevices.changes.collect {
@@ -194,8 +197,9 @@ class DesktopPlaybackEngine(
          * decoder, and a position published against an unmoved start is short by the whole cue.
          */
         var startUs: Long,
-        val dsdOverPcm: Boolean = false,
+        val dsdTransport: DesktopDsdTransport? = null,
     ) {
+        val directDsd get() = dsdTransport != null
         var gain = 1f
         val normalizer = com.cosmotune.audio.LoudnessNormalizer()
         var finished = false
@@ -323,13 +327,14 @@ class DesktopPlaybackEngine(
     /** Opens a decoder on [stream], off the audio thread. */
     private suspend fun openTrack(song: Song, stream: DesktopStream, startAtMs: Long): Result<Track> =
         withContext(Dispatchers.IO) {
-            if (DesktopOutputMode.dopAllowed() && DesktopDopSource.isCandidate(stream.url)) {
+            val transport = DesktopOutputMode.dsdTransport()
+            if (transport != null && DesktopDopSource.isCandidate(stream.url)) {
                 return@withContext DesktopDopSource.open(stream.url).map { source ->
                     if (startAtMs > 0) source.seek(startAtMs * 1_000)
                     val ahead = DesktopDecodeAhead(source, source.format, source.info.durationUs, source.measured,
                         aheadSamples = minOf(source.format.sampleRate, 352_800) * source.format.channels,
-                        name = "Cosmotune-DoP ${song.title.take(24)}")
-                    Track(song, ahead, stream, startAtMs * 1_000, dsdOverPcm = true)
+                        name = "Cosmotune-DSD ${song.title.take(24)}")
+                    Track(song, ahead, stream, startAtMs * 1_000, dsdTransport = transport)
                 }
             }
             val decoder = DesktopAudioDecoder()
@@ -495,8 +500,8 @@ class DesktopPlaybackEngine(
     }
 
     fun play() {
-        if (current?.dsdOverPcm == true && (volume != 1f || playbackSpeed != 1f)) {
-            stopDop("DoP requires player volume 100% and speed 1×. Use the DAC volume control, or disable DoP and replay.")
+        if (current?.directDsd == true && (volume != 1f || playbackSpeed != 1f)) {
+            stopDirectDsd("Direct DSD requires player volume 100% and speed 1×. Use the DAC volume control, or disable direct DSD and replay.")
             return
         }
         paused = false
@@ -525,7 +530,7 @@ class DesktopPlaybackEngine(
         volume = value.coerceIn(0f, 1f)
         sink.gain = outputGain()
         _state.update { it.copy(volume = volume) }
-        if (current?.dsdOverPcm == true && volume != 1f) stopDop("DoP paused: software volume cannot alter DSD. Use the DAC volume control, or disable DoP and replay.")
+        if (current?.directDsd == true && volume != 1f) stopDirectDsd("Direct DSD paused: software volume cannot alter DSD. Use the DAC volume control, or disable direct DSD and replay.")
     }
 
     /** Sets the source quality ceiling used the next time a track is resolved. */
@@ -569,7 +574,7 @@ class DesktopPlaybackEngine(
      */
     fun beginSkipMix(nextVideoId: String, fadeSeconds: Int): Boolean {
         if (!mixWatchdog.overlapAllowed) return false
-        if (current?.dsdOverPcm == true || upcoming?.dsdOverPcm == true) return false
+        if (current?.directDsd == true || upcoming?.directDsd == true) return false
         if (blendActive || nextDeckOpenId != nextVideoId) return false
         commands += Command.MixNow(fadeSeconds.coerceIn(2, MAX_CROSSFADE_SECONDS * 2))
         return true
@@ -921,13 +926,13 @@ class DesktopPlaybackEngine(
             return
         }
 
-        if (track.dsdOverPcm) {
+        if (track.directDsd) {
             try {
-                check(volume == 1f && playbackSpeed == 1f && DesktopOutputMode.dopAllowed()) { "DoP requires its confirmed device, volume 100% and speed 1×" }
-                check(sink.dsdOverPcm && sink.format == track.decoder.outputFormat) { "DoP requires the exact carrier format" }
+                check(volume == 1f && playbackSpeed == 1f && DesktopOutputMode.dsdTransport() == track.dsdTransport) { "Direct DSD requires its confirmed device, volume 100% and speed 1×" }
+                check(sink.dsdTransport == track.dsdTransport && sink.format == track.decoder.outputFormat) { "Direct DSD requires the exact carrier format" }
                 play(track, block, count)
                 publishPosition(track)
-            } catch (failure: Exception) { stopDop("DoP stopped: ${failure.message}. Disable DoP and replay for PCM conversion.") }
+            } catch (failure: Exception) { stopDirectDsd("Direct DSD stopped: ${failure.message}. Disable direct DSD and replay for PCM conversion.") }
             return
         }
 
@@ -960,7 +965,7 @@ class DesktopPlaybackEngine(
             )
         }
         val written = sink.write(samples, count)
-        if (track.dsdOverPcm) check(written == count * 3) { "The exclusive DoP device stopped accepting complete frames" }
+        if (track.directDsd) check(written == count * 3) { "The exclusive DSD device stopped accepting complete frames" }
         framesWritten += count / sink.format.channels.coerceAtLeast(1)
         if (count > 0 && _state.value.awaitingAudio) _state.update { it.copy(awaitingAudio = false) }
     }
@@ -971,7 +976,7 @@ class DesktopPlaybackEngine(
 
     /** Source time each output frame of [track] covers: the listener's speed times the deck's. */
     private fun usPerFrame(track: Track): Double =
-        1_000_000.0 / sink.format.sampleRate.coerceAtLeast(1) * (if (track.dsdOverPcm) 1f else playbackSpeed) * deckRate(track)
+        1_000_000.0 / sink.format.sampleRate.coerceAtLeast(1) * (if (track.directDsd) 1f else playbackSpeed) * deckRate(track)
 
     /** Starts [playhead] over: what the speakers are playing right now is [positionUs] of [track]. */
     private fun resetPlayhead(track: Track, positionUs: Long) {
@@ -1184,7 +1189,7 @@ class DesktopPlaybackEngine(
     private fun readSource(track: Track, waitMs: Long?): FloatArray? {
         val block = track.decoder.readSamples(waitMs) ?: return null
         val count = track.decoder.sampleCount
-        if (track.dsdOverPcm) { sourceReadCount = count; return block }
+        if (track.directDsd) { sourceReadCount = count; return block }
         track.normalizer.process(
             block, count, track.decoder.outputFormat.channels, track.decoder.outputFormat.sampleRate,
             if (track.stream.sourceId == "youtube") com.cosmotune.music.data.innertube.StreamResolver.loudnessDbFor(track.song.videoId)
@@ -1238,7 +1243,7 @@ class DesktopPlaybackEngine(
         val processor = speedProcessor ?: return samples to count
         // Pitch apart from speed (Extras): stretch by speed / pitch, then resample by pitch, which brings the length back
         // to the listener's speed and moves every frequency by the pitch factor.
-        val pitch = if (current?.dsdOverPcm == true) 1f else com.cosmotune.settings.Extras.settings.pitchFactor
+        val pitch = if (current?.directDsd == true) 1f else com.cosmotune.settings.Extras.settings.pitchFactor
         processor.speed = playbackSpeed / pitch
         val out = processor.process(samples, count)
         val resampler = pitchResampler ?: return out to processor.outputCount
@@ -1250,7 +1255,7 @@ class DesktopPlaybackEngine(
 
     /** The volume the sink plays at: the listener's, under the maximum-volume cap. DoP is never scaled. */
     private fun outputGain(): Float =
-        if (current?.dsdOverPcm == true) volume else volume * com.cosmotune.settings.Extras.settings.maxVolumeGain
+        if (current?.directDsd == true) volume else volume * com.cosmotune.settings.Extras.settings.maxVolumeGain
 
     private var pitchResampler: com.cosmotune.audio.PitchResampler? = null
 
@@ -1273,7 +1278,7 @@ class DesktopPlaybackEngine(
     private fun promoteUpcoming() {
         val incoming = upcoming ?: return
         incoming.mixHandoff = blendActive
-        if (current?.dsdOverPcm == true || incoming.dsdOverPcm) {
+        if (current?.directDsd == true || incoming.directDsd) {
             sink.drain()
             upcoming = null; nextSong = null; nextDeckOpenId = null
             incomingSourceFrames = 0.0
@@ -1596,14 +1601,14 @@ class DesktopPlaybackEngine(
         mixWatchdog.resetClocks()
 
         val decoded = track.decoder.outputFormat
-        if (track.dsdOverPcm && (volume != 1f || playbackSpeed != 1f)) {
-            stopDop("DoP requires player volume 100% and speed 1×. Disable DoP and replay for PCM conversion.")
+        if (track.directDsd && (volume != 1f || playbackSpeed != 1f)) {
+            stopDirectDsd("Direct DSD requires player volume 100% and speed 1×. Disable direct DSD and replay for PCM conversion.")
             return
         }
         // Only renegotiate when the device would actually have to change.
-        val output = if (track.dsdOverPcm) sink.openDop(decoded) else if (
+        val output = if (track.dsdTransport != null) sink.openDsd(decoded, track.dsdTransport) else if (
             !sink.isOpen ||
-            sink.dsdOverPcm ||
+            sink.dsdTransport != null ||
             !sink.isUsingSelection(DesktopAudioDevices.selected.value) ||
             sink.format.sampleRate != decoded.sampleRate ||
             sink.format.channels != decoded.channels
@@ -1638,8 +1643,8 @@ class DesktopPlaybackEngine(
     /** Reopens the output on the current decoder, keeping the track playing. */
     private fun reconfigureSink() {
         val track = current ?: return
-        if (track.dsdOverPcm) {
-            stopDop("DoP output changed. Replay on the confirmed DAC, or disable DoP for PCM conversion.")
+        if (track.directDsd) {
+            stopDirectDsd("Direct DSD output changed. Replay on the confirmed DAC, or disable direct DSD for PCM conversion.")
             return
         }
         val decoded = track.decoder.outputFormat
@@ -1831,7 +1836,7 @@ class DesktopPlaybackEngine(
 
     private fun maybeStartCrossfade(track: Track, positionMs: Long) {
         val incoming = upcoming
-        if (track.dsdOverPcm || incoming?.dsdOverPcm == true) {
+        if (track.directDsd || incoming?.directDsd == true) {
             _state.update { it.copy(transitionWindow = null) }
             return
         }
@@ -1869,7 +1874,7 @@ class DesktopPlaybackEngine(
      */
     private fun armIncomingBlend(incoming: Track, plan: TransitionPlan) {
         if (!mixWatchdog.overlapAllowed) return
-        if (current?.dsdOverPcm == true || incoming.dsdOverPcm) return
+        if (current?.directDsd == true || incoming.directDsd) return
         val seconds = plan.fadeSeconds.takeIf { it > 0 } ?: return
         // A planned transition says where the incoming track should be entered, which is the whole
         // difference between Automix and a crossfade.
@@ -2113,9 +2118,10 @@ class DesktopPlaybackEngine(
         val decoded = track?.decoder?.outputFormat
         val out = sink.format
         return DesktopAudioPipeline(
-            sourceFormat = if (track?.dsdOverPcm == true) track.decoder.measuredFormat else track?.stream?.format,
-            decoderName = if (track?.dsdOverPcm == true) "DoP framing" else track?.stream?.format?.codec,
-            dsdOverPcm = track?.dsdOverPcm == true && sink.dsdOverPcm,
+            sourceFormat = if (track?.directDsd == true) track.decoder.measuredFormat else track?.stream?.format,
+            decoderName = track?.stream?.format?.codec,
+            dsdOverPcm = track?.dsdTransport == DesktopDsdTransport.DOP && sink.dsdTransport == DesktopDsdTransport.DOP,
+            nativeDsd = track?.dsdTransport == DesktopDsdTransport.ALSA_NATIVE && sink.dsdTransport == DesktopDsdTransport.ALSA_NATIVE,
             decodedSampleRateHz = decoded?.sampleRate,
             decodedChannels = decoded?.channels,
             outputSampleRateHz = out.sampleRate.takeIf { sink.isOpen },
@@ -2124,22 +2130,22 @@ class DesktopPlaybackEngine(
             outputBytesPerSample = out.bytesPerSample.takeIf { sink.isOpen },
             deviceName = sink.deviceName,
             bufferBytes = sink.bufferBytes,
-            equalizerEnabled = equalizerEnabled && track?.dsdOverPcm != true,
-            skipSilence = skipSilence(track) && track?.dsdOverPcm != true,
+            equalizerEnabled = equalizerEnabled && track?.directDsd != true,
+            skipSilence = skipSilence(track) && track?.directDsd != true,
             outputApi = sink.outputApi,
             directOutput = sink.isDirect,
             processingStage = when {
-                track?.dsdOverPcm == true -> null
+                track?.directDsd == true -> null
                 fadeRemaining > 0 -> "crossfade or Automix"
                 playbackSpeed != 1f || (track?.tempo != null && !track.tempoDrained) -> "time stretching"
                 spatialEnabled && track?.stream?.isDolbyAtmos != true -> "spatial processing"
                 else -> null
             },
-            loudnessActive = track != null && !track.dsdOverPcm && loudnessNormalization && (
+            loudnessActive = track != null && !track.directDsd && loudnessNormalization && (
                 if (track.stream.sourceId == "youtube") com.cosmotune.music.data.innertube.StreamResolver.loudnessDbFor(track.song.videoId)
                 else com.cosmotune.audio.LibraryLoudness.loudnessDbFor(track.song.videoId)
                 ) != null,
-            volumeBelowFull = volume < 1f && track?.dsdOverPcm != true,
+            volumeBelowFull = volume < 1f && track?.directDsd != true,
             systemName = when {
                 DesktopPlatform.isWindows -> "Windows"
                 DesktopPlatform.isMac -> "macOS"
@@ -2148,7 +2154,7 @@ class DesktopPlaybackEngine(
         )
     }
 
-    private fun stopDop(message: String) {
+    private fun stopDirectDsd(message: String) {
         paused = true
         _state.update { it.copy(isPlaying = false, awaitingAudio = false, error = message) }
         DesktopOutputMode.status.value = message

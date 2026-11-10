@@ -16,6 +16,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -26,6 +27,7 @@ import com.cosmotune.music.wear.ui.LocalAmbient
 import com.cosmotune.music.wear.data.PhoneLink
 import com.cosmotune.music.wear.ui.CosmotuneWearTheme
 import com.cosmotune.music.wear.ui.WearApp
+import com.cosmotune.music.wear.playback.StandalonePodioService
 
 class WearViewModel(app: Application) : AndroidViewModel(app) {
     /** Outlives a rotation-less recreate (theme, locale) so the last state stays drawn. */
@@ -39,6 +41,7 @@ class WearActivity : ComponentActivity() {
     private val model: WearViewModel by viewModels()
 
     private val ambient = mutableStateOf(Ambient())
+    private val standaloneRequest = mutableIntStateOf(0)
 
     /**
      * Always-on. The activity stays up when the screen dims instead of handing
@@ -70,6 +73,7 @@ class WearActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleMediaIntent(intent)
         lifecycle.addObserver(ambientObserver)
         // For the watch-face icon while the phone plays. Asked once; a "no"
         // only costs that icon — the app itself works the same.
@@ -97,9 +101,20 @@ class WearActivity : ComponentActivity() {
         setContent {
             CosmotuneWearTheme {
                 CompositionLocalProvider(LocalAmbient provides ambient.value) {
-                    WearApp(model.link)
+                    WearApp(model.link, standaloneRequest.intValue)
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleMediaIntent(intent)
+    }
+
+    private fun handleMediaIntent(intent: Intent) {
+        if (intent.action == StandalonePodioService.OPEN_PLAYER) {
+            standaloneRequest.intValue++
         }
     }
 }

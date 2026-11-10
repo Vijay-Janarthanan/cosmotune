@@ -43,6 +43,7 @@ internal interface ReadingPdfEngine : AutoCloseable {
     val supportsSearch: Boolean get() = false
 }
 internal expect fun openReadingPdf(file: File): ReadingPdfEngine
+internal expect fun supportsReadingPdfSearch(): Boolean
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun ReadingPdfView(document: ReadingDocument.Pdf, locator: ReadingLocator,

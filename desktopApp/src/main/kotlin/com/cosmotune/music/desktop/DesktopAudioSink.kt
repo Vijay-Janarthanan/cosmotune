@@ -16,7 +16,7 @@ internal class DesktopAudioSink {
     private var windowsBufferBytes = 0
     private var nativePcm: DesktopNativePcm? = null
     private var openedDirect = false
-    var dsdOverPcm: Boolean = false
+    var dsdTransport: DesktopDsdTransport? = null
         private set
     private var renderedOffset = 0L
 
@@ -54,7 +54,7 @@ internal class DesktopAudioSink {
 
     /** Opens the best line the mixer will give for [requested]. */
     fun open(requested: DesktopPcmFormat, systemFallback: Boolean = false): Result<DesktopPcmFormat> = runCatching {
-        dsdOverPcm = false
+        dsdTransport = null
         val selectedDevice = DesktopAudioDevices.selected.value
         val wantDirect = DesktopOutputMode.direct.value && !systemFallback
         nativePcm?.close(); nativePcm = null
@@ -173,17 +173,19 @@ internal class DesktopAudioSink {
     }
 
     /** No format ladder, rate conversion, system default or shared-mode recovery is allowed. */
-    fun openDop(requested: DesktopPcmFormat): Result<DesktopPcmFormat> = runCatching {
+    fun openDsd(requested: DesktopPcmFormat, transport: DesktopDsdTransport): Result<DesktopPcmFormat> = runCatching {
         val selected = DesktopAudioDevices.selected.value
-        require(DesktopOutputMode.validateDopDevice(selected)) { "Confirm DoP support for this specific DAC first" }
+        require(DesktopOutputMode.validateDsdDevice(selected, transport)) { "Confirm ${transport.label} support for this specific DAC first" }
         close()
-        if (DesktopPlatform.isWindows) {
+        if (transport == DesktopDsdTransport.ALSA_NATIVE) {
+            nativePcm = DesktopUnixAudio.openNativeDsd(requested, selected).getOrThrow()
+        } else if (DesktopPlatform.isWindows) {
             windowsBufferBytes = DesktopWindowsAudio.openDop(selected, requested).getOrThrow()
             windowsOutput = true
         } else nativePcm = DesktopUnixAudio.openDop(requested, selected).getOrThrow()
         format = requested; openedForSelection = selected; openedDirect = true; renderedOffset = 0
-        dsdOverPcm = true
-        DesktopOutputMode.status.value = "DoP · exact 24-bit carrier · DSP bypassed · DAC support confirmed by you"
+        dsdTransport = transport
+        DesktopOutputMode.status.value = "${transport.label} · exact format · DSP bypassed · DAC support confirmed by you"
         requested
     }
 
@@ -213,8 +215,10 @@ internal class DesktopAudioSink {
 
     /** Writes [count] interleaved samples, blocking until the device takes them. */
     fun write(samples: FloatArray, count: Int): Int {
-        if (dsdOverPcm) {
-            check(gain == 1f && DesktopOutputMode.dopAllowed() && openedForSelection == DesktopAudioDevices.selected.value) { "DoP output settings changed; playback stopped" }
+        val transport = dsdTransport
+        if (transport != null) {
+            check(gain == 1f && DesktopOutputMode.dsdTransport() == transport &&
+                openedForSelection == DesktopAudioDevices.selected.value) { "DSD output settings changed; playback stopped" }
             return if (windowsOutput) DesktopWindowsAudio.write(samples, count, 1f)
             else requireNotNull(nativePcm).write(samples, count, 1f)
         }
@@ -290,7 +294,7 @@ internal class DesktopAudioSink {
     }
 
     fun close() {
-        dsdOverPcm = false
+        dsdTransport = null
         renderedOffset = 0L
         nativePcm?.let { nativePcm = null; it.close(); openedOn = null; openedForSelection = null }
         if (windowsOutput) {

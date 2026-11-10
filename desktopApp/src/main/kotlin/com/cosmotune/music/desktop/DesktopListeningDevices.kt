@@ -65,10 +65,11 @@ private fun DesktopListeningDeviceDialog(pipeline: DesktopAudioPipeline?, onDism
             pipeline?.outputSampleRateHz?.let { add("Accepted app rate" to "$it Hz") }
             pipeline?.outputBytesPerSample?.let { add("Accepted app PCM" to if (pipeline.outputIsFloat == true) "32-bit float" else "${it * 8}-bit integer") }
             if (pipeline?.dsdOverPcm == true) add("Transport" to "DoP · software DSP bypassed")
+            if (pipeline?.nativeDsd == true) add("Transport" to "Native DSD · software DSP bypassed")
         },
         unavailable = "Bluetooth codec / air bitrate, headset internal DAC and ANC are not exposed by this desktop backend",
         spatial = "System spatial processing and head tracking are not reported by this backend. The optional app effect is stereo widening.",
-        tuningAvailable = pipeline?.dsdOverPcm != true,
+        tuningAvailable = pipeline?.dsdOverPcm != true && pipeline?.nativeDsd != true,
     )
     ListeningDeviceSheet(facts, DesktopListeningDevices.store, DesktopListeningDevices::captureEq, DesktopListeningDevices::applyEq,
         onOpenSystem = null, onOpenGuide = { url -> runCatching { java.awt.Desktop.getDesktop().browse(URI(url)) } }, onDismiss = onDismiss)

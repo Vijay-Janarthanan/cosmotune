@@ -44,6 +44,7 @@ import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.components.cosmoFocusRing
 import com.cosmotune.ui.live.cardLabel
 import com.cosmotune.ui.live.cricketScore
+import com.cosmotune.ui.live.label
 import com.cosmotune.ui.live.pillDescription
 import com.cosmotune.ui.live.pillScore
 import com.cosmotune.ui.live.rowTitle
@@ -124,7 +125,7 @@ fun OnAirDot(modifier: Modifier = Modifier, size: Dp = 8.dp) {
  */
 @Composable
 fun OrbitLivePill(
-    event: LiveEvent,
+    event: LiveEvent?,
     more: Int,
     fonts: OrbitFonts,
     look: OrbitLook,
@@ -135,22 +136,26 @@ fun OrbitLivePill(
     interactionSource: MutableInteractionSource? = null,
 ) {
     val interaction = interactionSource ?: remember { MutableInteractionSource() }
-    val ground = if (look.dark) ON_AIR_GROUND else ON_AIR_GROUND_LIGHT
-    val red = if (look.dark) ON_AIR_TEXT else ON_AIR_INK_LIGHT
-    val p = pillScore(event)
+    val live = event?.isLive == true
+    val ground = if (!live) look.accent.copy(alpha = 0.12f) else if (look.dark) ON_AIR_GROUND else ON_AIR_GROUND_LIGHT
+    val red = if (!live) look.accent else if (look.dark) ON_AIR_TEXT else ON_AIR_INK_LIGHT
+    val edge = if (live) ON_AIR else look.accent
+    val p = event?.let(::pillScore)
     val text = fonts.chip.copy(fontSize = 13.5.sp)
     Row(
         modifier.height(height).then(if (interactionSource == null) Modifier.cosmoFocusRing(interaction, height / 2) else Modifier)
-            .clip(CircleShape).background(ground).border(1.dp, ON_AIR.copy(alpha = if (look.dark) 0.35f else 0.4f), CircleShape)
+            .clip(CircleShape).background(ground).border(1.dp, edge.copy(alpha = if (look.dark) 0.35f else 0.4f), CircleShape)
             .clickable(interactionSource = interaction, indication = androidx.compose.foundation.LocalIndication.current, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = pillDescription(event, more) }
+            .semantics { contentDescription = event?.let { pillDescription(it, more) } ?: "Open Spotlight" }
             .padding(start = 10.dp, end = if (more > 0) 6.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        OnAirDot()
-        if (!stretch) OrbitLabel("Live", fonts, red)
-        if (p.title != null) {
+        if (live) OnAirDot()
+        if (!stretch || !live) OrbitLabel(if (live) "Live" else event?.kind?.label() ?: "Spotlight", fonts, red)
+        if (event == null || p == null) {
+            Text("Events and reminders", style = text, color = look.ink, maxLines = 1)
+        } else if (p.title != null) {
             Text(p.title, style = text, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = if (stretch) 420.dp else 260.dp).then(if (stretch) Modifier.weight(1f, fill = false) else Modifier))
         } else {
             p.lead?.let { LiveTeamMark(it, event.id, if (stretch) 20.dp else 22.dp) }
@@ -175,8 +180,8 @@ fun OrbitLivePill(
         }
         if (more > 0) {
             if (stretch) Spacer(Modifier.weight(1f))
-            Box(Modifier.height(height - 12.dp).clip(CircleShape).background(ON_AIR.copy(alpha = if (look.dark) 0.18f else 0.14f)).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-                Text(if (stretch) "+$more" else "+$more live", style = fonts.chip.copy(fontSize = 12.sp), color = red, maxLines = 1)
+            Box(Modifier.height(height - 12.dp).clip(CircleShape).background(edge.copy(alpha = if (look.dark) 0.18f else 0.14f)).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                Text(if (stretch || !live) "+$more" else "+$more live", style = fonts.chip.copy(fontSize = 12.sp), color = red, maxLines = 1)
             }
         }
     }
@@ -264,15 +269,18 @@ fun OrbitLiveRow(event: LiveEvent, fonts: OrbitFonts, look: OrbitLook, onWatch: 
         LiveEventTile(event, fonts)
         Column(Modifier.weight(1f)) {
             Text(rowTitle(event), style = fonts.title.copy(fontSize = 14.sp), color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val rest = listOfNotNull(
+            val rest = if (event.status == LiveEventStatus.FEATURED) "${event.kind.label()} · ${event.source}" else listOfNotNull(
                 event.statusText.takeIf { event.kind != LiveEventKind.SHOW },
                 event.competition ?: watchNames(event).ifBlank { null },
-                "score only".takeIf { onWatch == null && event.kind != LiveEventKind.SHOW },
+                "score only".takeIf { onWatch == null && event.link == null && event.kind != LiveEventKind.SHOW },
             ).joinToString(" · ")
             if (event.status == LiveEventStatus.LIVE) WatchLiveLine(rest.ifBlank { null }, fonts, look)
             else Text(rest, style = fonts.body.copy(fontSize = 12.sp, lineHeight = 15.sp), color = look.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (onWatch != null) WatchCardChip("Watch", look.ink, fonts, onWatch, icon = CosmoIcons.Play, iconGap = 6.dp)
+        if (onWatch != null) {
+            val opensArticle = event.kind == LiveEventKind.NEWS
+            WatchCardChip(if (opensArticle) "Read" else "Watch", look.ink, fonts, onWatch, icon = CosmoIcons.Play.takeUnless { opensArticle }, iconGap = 6.dp)
+        }
     }
 }
 

@@ -34,6 +34,10 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    - uses: ./.github/actions/bundle-watch-torrent
+      with:
+        target: android
+
     - name: Build Signed Prod Release APK
       run: ./gradlew --max-workers=1 :app:assembleProdRelease :wearos:assembleProdRelease :tv:testProdDebugUnitTest :tv:assembleProdRelease
 
@@ -45,6 +49,7 @@ jobs:
         python3 tools/verify-opencanvas-import.py --apk-dir tv/build/outputs/apk/prod/release
         python3 tools/verify-recommendations.py --apk-dir tv/build/outputs/apk/prod/release
         python3 tools/verify-tv-packaging.py --apk-dir tv/build/outputs/apk/prod/release --phone-apk app/build/outputs/apk/prod/release/app-prod-arm64-v8a-release.apk
+        python3 native/watch-torrent/build.py verify-apks --apk-dir app/build/outputs/apk/prod/release --apk-dir tv/build/outputs/apk/prod/release
         python3 tools/verify-companion-imports.py
 
     - name: Upload APK Artifact

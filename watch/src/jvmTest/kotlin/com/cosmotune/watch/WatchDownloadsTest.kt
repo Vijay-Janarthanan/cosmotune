@@ -52,11 +52,8 @@ class WatchDownloadsTest {
                 val file = downloads.fileOf(done)
                 assertTrue(file.readBytes().contentEquals(body))
                 assertEquals(StreamProtocol.LOCAL_FILE, downloads.streamOf(done).protocol)
-                // The list is written just after the state says done; wait for that write.
-                var text = ""
-                withTimeout(5_000) {
-                    while ("DONE" !in text) { text = runCatching { dir.resolve("downloads.json").readText() }.getOrDefault(""); kotlinx.coroutines.delay(20) }
-                }
+                val text = dir.resolve("downloads.json").readText()
+                assertTrue("DONE" in text, "completion is published after the index is written")
                 assertFalse(server.url("/film.mp4") in text, "the address is never written down")
                 val again = WatchDownloads(dir, OkHttpClient())
                 assertEquals(done.id, again.doneFor(film.key)?.id)

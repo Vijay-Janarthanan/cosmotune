@@ -14,6 +14,7 @@ internal data class DesktopAudioPipeline(
     val sourceFormat: DesktopStreamFormat? = null,
     val decoderName: String? = null,
     val dsdOverPcm: Boolean = false,
+    val nativeDsd: Boolean = false,
     val decodedSampleRateHz: Int? = null,
     val decodedChannels: Int? = null,
     val outputSampleRateHz: Int? = null,
@@ -37,7 +38,11 @@ internal data class DesktopAudioPipeline(
 ) {
     /** The decoder under its usual name, the same one the quality badge shows. */
     val decoderLabel: String?
-        get() = if (dsdOverPcm) "DoP framing · DSD preserved" else decoderName?.let { DesktopStreamFormat(codec = it).codecLabel }
+        get() = when {
+            nativeDsd -> "DSD unpacking"
+            dsdOverPcm -> "DoP framing · DSD preserved"
+            else -> decoderName?.let { DesktopStreamFormat(codec = it).codecLabel }
+        }
 
     /** Whether the decoder's rate had to be converted to reach the device. */
     val resampling: Boolean
@@ -57,7 +62,7 @@ internal fun DesktopAudioPipeline.fidelityFacts(): OutputFidelityFacts {
     val narrowed = outputIsFloat != true && sourceBits != null && outputBits != null && outputBits < sourceBits
     val floatPrecisionLost = sourceBits != null && sourceBits > 24
     return OutputFidelityFacts(
-        dsdConvertedToPcm = !dsdOverPcm && sourceFormat?.codec?.substringAfterLast('/')?.substringBefore(';')?.trim()?.lowercase() in DSD_CODECS,
+        dsdConvertedToPcm = !dsdOverPcm && !nativeDsd && sourceFormat?.codec?.substringAfterLast('/')?.substringBefore(';')?.trim()?.lowercase() in DSD_CODECS,
         alteringStage = when {
             loudnessActive -> "loudness normalization"
             equalizerEnabled -> "equalizer"

@@ -126,6 +126,29 @@ class PodioInteractionTest {
         }
     }
 
+    @Test fun closingPodcastSearchRestoresTheCharts() {
+        Fixture().use { fixture ->
+            val file = temporary.newFile("search-close.json")
+            compose.setContent { PodioTestTheme { Box(Modifier.size(412.dp, 892.dp)) {
+                PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = fixture.catalogue)
+            } } }
+            podcastsTab().performClick()
+            waitForDirectory()
+            compose.onNodeWithContentDescription("Search").performClick()
+            val field = compose.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("podio:search")))
+            field.performTextInput("different podcast")
+            field.performImeAction()
+            compose.waitUntil(10_000) {
+                requests.any { it.contains("different%20podcast") || it.contains("different+podcast") }
+            }
+            compose.onNodeWithContentDescription("Close search").performClick()
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithText("Popular ·", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNodeWithText("Results for", substring = true).assertDoesNotExist()
+        }
+    }
+
     @Test fun episodesListTheFollowedShowsAndTheGlobeCanFillThePhone() {
         Fixture().use { fixture ->
             val file = temporary.newFile("episodes.json")
@@ -184,6 +207,31 @@ class PodioInteractionTest {
             compose.onNodeWithTag("podio:radio").assertIsDisplayed()
         }
     }
+    @Test fun downloadsCanBeRemovedOnlyAfterConfirmation() {
+        Fixture().use { fixture ->
+            val file = temporary.newFile("downloads.json")
+            val episode = PodioItem("podio:episode:one", "Saved episode", "Test show", "https://audio.example/episode.mp3")
+            val downloads = mutableStateOf(listOf(episode))
+            val removed = mutableListOf<String>()
+            compose.setContent { PodioTestTheme { Box(Modifier.size(412.dp, 892.dp)) {
+                PodioApp(file, PodioPlayback(), { _, _ -> }, {}, {}, {}, {}, directory = fixture.catalogue,
+                    downloadedEpisodes = downloads.value, onRemoveDownload = {
+                        removed += it.id
+                        downloads.value = downloads.value.filter { downloaded -> downloaded.id != it.id }
+                        true
+                    })
+            } } }
+            compose.onNode(podioTab("Downloads")).performClick()
+            compose.onNodeWithContentDescription("Remove downloaded episode").performClick()
+            compose.onNodeWithText("Cancel").performClick()
+            compose.runOnIdle { assertTrue(removed.isEmpty()) }
+            compose.onNodeWithContentDescription("Remove downloaded episode").performClick()
+            compose.onNodeWithText("Remove download").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("No downloads").fetchSemanticsNodes().isNotEmpty() }
+            compose.runOnIdle { assertEquals(listOf(episode.id), removed) }
+        }
+    }
+
     /** The Podcasts tab of the dock or the rail (the page's own title says "Podcasts" too). */
     private fun podcastsTab() = compose.onNode(podioTab("Podcasts") and hasAnyAncestor(hasTestTag("podio:root")) and !hasAnyAncestor(hasTestTag("podio:search")))
 

@@ -13,6 +13,18 @@ import org.junit.Test
 import kotlin.test.*
 
 class ReadingCatalogueTest {
+    @Test fun protectedLoansAreNotAdvertisedAsDirectPdfOrEpubDownloads() {
+        val link = ReadingLink("Library edition", "https://library.example/edition", kind = ReadingLinkKind.ACQUIRE)
+        assertEquals(ReadingFormat.PDF, link.copy(mediaType = "Application/PDF; charset=binary").downloadFormat)
+        assertEquals(ReadingFormat.EPUB, link.copy(mediaType = "application/epub+zip").downloadFormat)
+        assertNull(link.copy(mediaType = "application/pdf", kind = ReadingLinkKind.BORROW).downloadFormat)
+        for (type in listOf("application/pdf+lcp", "application/vnd.readium.lcp.license.v1.0+json", "application/vnd.adobe.adept+xml")) {
+            val loan = link.copy(mediaType = type)
+            assertNull(loan.downloadFormat)
+            assertTrue(loan.requiresExternalReader)
+        }
+    }
+
     @Test fun standardEbooksOffersOnlyTheCompatibleEpubFromItsOwnSite() = runBlocking<Unit> {
         val client = OkHttpClient.Builder().addInterceptor { chain ->
             assertEquals("https://standardebooks.org/feeds/atom/new-releases", chain.request().url.toString())

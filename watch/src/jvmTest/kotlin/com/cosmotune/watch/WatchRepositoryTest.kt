@@ -32,6 +32,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -65,7 +66,22 @@ class WatchRepositoryTest {
     @Test fun builtInsHaveTheAgreedDefaults() {
         val defaults = BuiltInPlugins.all.associate { it.id to it.defaultEnabled }
         assertEquals(mapOf("iptv" to true, "free-tv" to true, "pluto" to true, "samsung" to true, "dd" to true, "ytlive" to true, "plex" to true, "ia" to true, "youtube" to true,
-            "pdm" to false, "opensubtitles" to true, "watchhub" to false), defaults)
+            "pdm" to false, "torrent-playback" to true, "opensubtitles" to true, "watchhub" to false), defaults)
+    }
+
+    @Test fun torrentDefaultAndSavedOptOutApplyToPlayback() = runBlocking<Unit> {
+        val directory = dir()
+        val id = BuiltInPlugins.TORRENT_PLAYBACK
+        val offer = stream("test", "Torrent", 1080).copy(url = "magnet:?xt=urn:btih:" + "a".repeat(40))
+        val fresh = repo(emptyList(), directory)
+        assertTrue(fresh.plugins.value.single { it.id == id }.enabled)
+        assertEquals("The torrent engine is missing from this Cosmotune build.",
+            assertFailsWith<IllegalStateException> { fresh.openPlayback(offer) }.message)
+        fresh.setPluginEnabled(id, false)
+        val reopened = repo(emptyList(), directory)
+        assertFalse(reopened.plugins.value.single { it.id == id }.enabled)
+        assertEquals(com.cosmotune.watch.plugins.stremio.BundledTorrentPlayback.DISABLED,
+            assertFailsWith<IllegalStateException> { reopened.openPlayback(offer) }.message)
     }
 
     @Test fun sourcesFillInBestFirstAndSkipDisabledAndFailingPlugins() = runBlocking<Unit> {

@@ -23,6 +23,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,8 +68,11 @@ import androidx.compose.ui.zIndex
 import androidx.media3.session.MediaController
 import com.cosmotune.music.R
 import com.cosmotune.music.data.model.BrowseType
+import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.TvSettings
 import com.cosmotune.music.playback.PlayerState
+import com.cosmotune.music.playback.playSongs
+import kotlinx.coroutines.launch
 import com.cosmotune.music.ui.MainViewModel
 import com.cosmotune.music.ui.tv.components.LocalTvChrome
 import com.cosmotune.music.ui.tv.components.TvArtwork
@@ -105,7 +111,11 @@ enum class TvDestination(val label: String) {
     EXPLORE("Explore"),
     LIBRARY("Library"),
     WATCH("Watch"),
+    VIDEO("Video"),
+    READ("Read"),
+    MANGA("Manga"),
     PODIO("Radio"),
+    PODIO_TOOLS("Podio tools"),
     /** "Live now", the page the Live pill of the chips row opens (it is not a chip of its own). */
     LIVE("Live now"),
     SETTINGS("Settings"),
@@ -389,6 +399,7 @@ private fun TvMainShell(
                 chrome.scrollToTopRequests++
                 runCatching { tabFocus.requestFocus() }
             }
+            destination == TvDestination.PODIO_TOOLS -> select(TvDestination.PODIO)
             else -> select(TvDestination.HOME)
         }
     }
@@ -420,6 +431,7 @@ private fun TvMainShell(
 
     // The bar floats over pushed pages too, stepping aside as they scroll.
     val barVisible = !chrome.contentScrolled || barHasFocus
+    val scope = rememberCoroutineScope()
     val barProgress by animateFloatAsState(if (barVisible) 1f else 0f, tween(260), label = "barProgress")
 
     CompositionLocalProvider(LocalTvChrome provides chrome, com.cosmotune.ui.live.LocalLiveNow provides live) {
@@ -449,7 +461,39 @@ private fun TvMainShell(
                 ) {
                     stateHolder.SaveableStateProvider(destination.name) {
                         when (destination) {
-                            TvDestination.PODIO -> com.cosmotune.music.ui.tv.screens.TvPodioScreen(mediaController, playerState, openNowPlaying)
+                            TvDestination.PODIO -> com.cosmotune.music.ui.tv.screens.TvPodioScreen(
+                                mediaController, playerState, openNowPlaying, onTools = { select(TvDestination.PODIO_TOOLS) },
+                            )
+                            TvDestination.PODIO_TOOLS -> com.cosmotune.ui.theme.CosmoLookTheme(dark = true, legacy = { it() }) {
+                                Box(Modifier.padding(top = TvDimensions.ContentTop)) {
+                                    com.cosmotune.podio.PhonePodioPage(remoteGlobeControls = true, onMusic = { select(TvDestination.PODIO) })
+                                }
+                            }
+                            TvDestination.VIDEO -> com.cosmotune.ui.theme.CosmoLookTheme(dark = true, legacy = { it() }) {
+                                BoxWithConstraints(Modifier.fillMaxSize().padding(top = TvDimensions.ContentTop)) {
+                                    val links = remember(mediaController) {
+                                        com.cosmotune.video.ui.VideoHostLinks(
+                                            switchToMusic = { select(TvDestination.HOME) },
+                                            playAsSong = { id, title, artist, artwork ->
+                                                scope.launch {
+                                                    mediaController?.playSongs(listOf(Song(videoId = id, title = title, artist = artist, thumbnailUrl = artwork)), 0)
+                                                }
+                                                select(TvDestination.HOME)
+                                            },
+                                            pauseMusic = { mediaController?.pause() },
+                                            pendingVideo = { null },
+                                            onPendingHandled = {},
+                                        )
+                                    }
+                                    com.cosmotune.video.ui.CosmoVideoApp(maxWidth, maxHeight, links)
+                                }
+                            }
+                            TvDestination.READ -> com.cosmotune.ui.theme.CosmoLookTheme(dark = true, legacy = { it() }) {
+                                com.cosmotune.reading.ui.ReadApp(contentPadding = PaddingValues(top = TvDimensions.ContentTop), showAccount = false)
+                            }
+                            TvDestination.MANGA -> com.cosmotune.ui.theme.CosmoLookTheme(dark = true, legacy = { it() }) {
+                                com.cosmotune.manga.ui.MangaApp(contentPadding = PaddingValues(top = TvDimensions.ContentTop))
+                            }
                             TvDestination.WATCH -> com.cosmotune.music.ui.tv.screens.TvWatchScreen()
                             TvDestination.LIVE -> com.cosmotune.music.ui.tv.screens.TvLiveScreen()
                             TvDestination.HOME -> TvHomeScreen(
@@ -577,7 +621,8 @@ private fun TvTopBar(
     // Pages fill the screen from its top edge so they can scroll under the chips,
     // which puts them outside a plain "below" search from a chip. Point Down at them.
     val downToContent = Modifier.focusProperties { down = contentFocus }
-    val chips = listOf(TvDestination.HOME, TvDestination.SEARCH, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.WATCH, TvDestination.PODIO)
+    val chips = listOf(TvDestination.HOME, TvDestination.SEARCH, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.WATCH,
+        TvDestination.PODIO, TvDestination.VIDEO, TvDestination.READ, TvDestination.MANGA)
     val onFocusTabs = setOf(TvDestination.HOME, TvDestination.EXPLORE, TvDestination.LIBRARY, TvDestination.WATCH, TvDestination.PODIO)
     // In Watch, Watch's own tabs follow the Watch chip in this one row (the Watch chip is Watch's home), rather than a second row.
     val watchTab by WatchNav.tab.collectAsState()
@@ -605,7 +650,8 @@ private fun TvTopBar(
             chips.forEach { tab ->
                 val interaction = remember { MutableInteractionSource() }
                 val focused by interaction.collectIsFocusedAsState()
-                val selected = destination == tab && (tab != TvDestination.WATCH || watchTab == WatchTab.HOME)
+                val selected = (destination == tab && (tab != TvDestination.WATCH || watchTab == WatchTab.HOME)) ||
+                    (destination == TvDestination.PODIO_TOOLS && tab == TvDestination.PODIO)
                 if (tab in onFocusTabs) {
                     LaunchedEffect(focused) {
                         if (focused && !selected) {

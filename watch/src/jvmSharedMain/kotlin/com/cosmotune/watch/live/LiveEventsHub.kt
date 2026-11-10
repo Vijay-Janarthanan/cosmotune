@@ -47,13 +47,14 @@ class LiveEventsHub(
     private val livePollMs: Long = 60_000,
     private val idlePollMs: Long = 10 * 60_000L,
     private val limit: Int = 40,
+    private val spotlight: suspend (WatchPlace, Long) -> List<LiveEvent> = { _, _ -> emptyList() },
 ) {
     private val lock = Mutex()
-    @Volatile private var last: List<LiveEvent>? = null
+    @Volatile private var last: Pair<WatchPlace, List<LiveEvent>>? = null
 
     /** The events at once (the last answer when there is one), then after every poll while collected. */
     fun flow(): Flow<List<LiveEvent>> = channelFlow {
-        last?.let { send(it) }
+        last?.takeIf { it.first == place() }?.let { send(it.second) }
         while (true) {
             val list = current()
             send(list)
@@ -64,10 +65,12 @@ class LiveEventsHub(
     /** Asks every source now (each keeps its own cache) and ranks the answer. Never throws. */
     suspend fun current(): List<LiveEvent> = lock.withLock {
         val t = now()
-        val (matches, channels) = coroutineScope {
+        val viewer = place()
+        val (matches, channels, featured) = coroutineScope {
             val m = sources().map { s -> async { runCatching { withTimeoutOrNull(timeoutMs) { s.events(t) } }.getOrNull().orEmpty() } }
             val c = async { runCatching { withTimeoutOrNull(timeoutMs) { liveChannels() } }.getOrNull().orEmpty() }
-            m.awaitAll().flatten() to c.await()
+            val f = async { withTimeoutOrNull(timeoutMs) { spotlight(viewer, t) }.orEmpty() }
+            Triple(m.awaitAll().flatten(), c.await(), f.await())
         }
         val used = mutableSetOf<String>()
         val withOptions = dedupe(matches).filter { inWindow(it, t) }.map { e ->
@@ -78,8 +81,8 @@ class LiveEventsHub(
             }
         }
         val shows = mergeSameShow(channels.flatMap { shows(it, t) }.filter { it.id.removePrefix("show:yt:") !in used && inWindow(it, t) })
-        val ranked = rank(withOptions + shows, place())
-        ranked.take(limit).also { last = it }
+        val ranked = rank(withOptions + shows, viewer)
+        (ranked.take((limit - featured.size).coerceAtLeast(0)) + featured.take(limit)).also { last = viewer to it }
     }
 
     /** Two services can list the same match: the one with a running score wins (football-data.org over TheSportsDB). */
@@ -103,6 +106,7 @@ class LiveEventsHub(
         LiveEventStatus.LIVE -> true
         LiveEventStatus.UPCOMING -> e.startMs == null || e.startMs in (t - HOUR)..(t + 24 * HOUR)
         LiveEventStatus.FINISHED -> e.startMs != null && e.startMs >= t - 16 * HOUR
+        LiveEventStatus.FEATURED -> false
     }
 
     private fun option(c: LiveChannelNow, v: VideoItem): WatchOption =
@@ -149,7 +153,7 @@ class LiveEventsHub(
 
         /** Live, then upcoming, then finished; inside each the viewer's country and language first; upcoming by start, the rest newest first. */
         fun rank(events: List<LiveEvent>, place: WatchPlace): List<LiveEvent> = events.sortedWith(
-            compareBy<LiveEvent>({ it.status.ordinal }, { local(it, place) }, { if (it.watchOptions.isEmpty()) 1 else 0 },
+            compareBy<LiveEvent>({ it.status.ordinal }, { it.kind == LiveEventKind.SHOW }, { local(it, place) }, { if (it.watchOptions.isEmpty()) 1 else 0 },
                 { if (it.status == LiveEventStatus.UPCOMING) it.startMs ?: Long.MAX_VALUE else -(it.startMs ?: 0) }, { it.title }),
         )
 

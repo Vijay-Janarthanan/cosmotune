@@ -9,9 +9,11 @@ import com.cosmotune.video.player.TrackType
 import com.cosmotune.video.player.UrlKind
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.watch.WatchPlayer
+import com.cosmotune.watch.WatchPlaybackLease
 import com.cosmotune.watch.WatchPlayerState
 import com.cosmotune.watch.WatchPlayerStatus
 import com.cosmotune.watch.WatchRepository
+import com.cosmotune.watch.SourcesState
 import com.cosmotune.watch.model.AudioTrack
 import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.model.Stream
@@ -22,16 +24,23 @@ import com.cosmotune.watch.model.SubtitleOrigin
 import com.cosmotune.watch.model.TitleSummary
 import com.cosmotune.watch.model.WatchProgress
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.ChannelResult
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 
 /**
  * [WatchPlayer] on the platform's [VideoPlayerEngine] (Video mode's own engine: Media3 on the phone and TV, libmpv on the
@@ -60,7 +69,11 @@ class EngineWatchPlayer(
 
     private var job: Job? = null
     private var ticker: Job? = null
-    private val tried = mutableSetOf<String>()
+    private var playbackResolve: Job? = null
+    private val playbackLock = Any()
+    private var playbackId = 0L
+    private var playbackLease: WatchPlaybackLease? = null
+    private val tried = mutableSetOf<Pair<String, Int?>>()
     private var external = listOf<Subtitle>()
     private val added = mutableSetOf<String>()
     private var lastSavedAt = 0L
@@ -78,9 +91,11 @@ class EngineWatchPlayer(
     override fun open(target: PlayTarget, summary: TitleSummary?, stream: Stream?, startMs: Long?, hint: StreamHint?, fallback: Stream?) {
         this.fallback = fallback
         saveNow()
-        job?.cancel(); ticker?.cancel()
+        job?.cancel(); ticker?.cancel(); releasePlayback()
+        engine.unload()
         tried.clear(); external = emptyList(); added.clear(); countdownCancelled = false; autoNextDone = false
-        mutable.value = WatchPlayerState(WatchPlayerStatus.RESOLVING, target, summary, subtitleLine(target), isLive = target is PlayTarget.Live)
+        val muted = state.value.muted
+        mutable.value = WatchPlayerState(WatchPlayerStatus.RESOLVING, target, summary, subtitleLine(target), isLive = target is PlayTarget.Live, muted = muted)
         job = scope.launch {
             val saved = if (target is PlayTarget.Live) null else runCatching { repository.progress(target.key) }.getOrNull()
             val start = startMs ?: saved?.takeIf { !it.completed }?.positionMs ?: 0L
@@ -98,35 +113,103 @@ class EngineWatchPlayer(
     }
 
     /** Fills [WatchPlayerState.streams] as plugins answer; with [startWith], starts the best copy once the list settles. */
-    private suspend fun collectSources(target: PlayTarget, hint: StreamHint?, startWith: Long?) {
-        var firstAt = 0L
+    private suspend fun collectSources(target: PlayTarget, hint: StreamHint?, startWith: Long?) = coroutineScope {
+        val updates = repository.sources(target, hint).produceIn(this)
+        var settle: Deferred<Unit>? = null
         var started = startWith == null
-        repository.sources(target, hint).collect { s ->
-            mutable.update { it.copy(streams = s.streams) }
-            val best = s.best
-            if (!started && best != null) {
-                if (firstAt == 0L) firstAt = now()
-                if (s.done || now() - firstAt >= settleMs) { started = true; play(best, startWith!!) }
-            }
-            if (s.done && !started) {
-                val found = s.best
-                val backup = fallback
-                if (found != null) { started = true; play(found, startWith!!) }
-                else if (backup != null) { started = true; mutable.update { it.copy(streams = listOf(backup)) }; play(backup, startWith!!) }
-                else mutable.update { it.copy(status = WatchPlayerStatus.NOT_FOUND, error = "Not on your sources") }
-            }
+
+        fun start(stream: Stream) {
+            started = true
+            settle?.cancel()
+            settle = null
+            play(stream, checkNotNull(startWith))
         }
-        // A list that settled while waiting for a slow plugin: start with what there is.
-        if (!started) (state.value.streams.firstOrNull { it.isPlayable } ?: fallback)?.let { play(it, startWith!!) }
-            ?: mutable.update { if (it.stream == null) it.copy(status = WatchPlayerStatus.NOT_FOUND, error = "Not on your sources") else it }
+
+        var last: SourcesState? = null
+        while (true) {
+            val timer = settle
+            val update = if (timer == null) updates.receiveCatching() else select<ChannelResult<SourcesState>?> {
+                timer.onAwait { null }
+                updates.onReceiveCatching { it }
+            }
+            if (state.value.stream != null) {
+                started = true
+                settle?.cancel()
+                settle = null
+            }
+            if (update == null) {
+                settle = null
+                if (!started) last?.best?.let(::start)
+                continue
+            }
+            update.exceptionOrNull()?.let { throw it }
+            val sources = update.getOrNull() ?: break
+            last = sources
+            synchronized(playbackLock) {
+                mutable.update { current ->
+                    val active = current.stream
+                    val streams = if (active != null && sources.streams.none { it.url == active.url && it.torrentFileIndex == active.torrentFileIndex })
+                        listOf(active) + sources.streams else sources.streams
+                    current.copy(streams = streams)
+                }
+                val current = state.value
+                if (started && current.status == WatchPlayerStatus.ERROR &&
+                    sources.streams.any { it.isPlayable && (it.url to it.torrentFileIndex) !in tried }) {
+                    failover(current.error ?: "That source failed")
+                }
+            }
+            if (started) continue
+            val best = sources.best ?: continue
+            if (sources.done || settleMs <= 0) start(best)
+            else if (settle == null) settle = async { delay(settleMs) }
+        }
+        settle?.cancel()
+        if (!started) {
+            val best = last?.best ?: fallback?.also { backup -> mutable.update { it.copy(streams = listOf(backup)) } }
+            if (best != null) start(best)
+            else mutable.update { it.copy(status = WatchPlayerStatus.NOT_FOUND, error =
+                last?.errors?.values?.firstOrNull { it == com.cosmotune.watch.plugins.stremio.BundledTorrentPlayback.DISABLED }
+                    ?: "Your enabled plugins returned no playable copy.") }
+        }
     }
 
     private fun play(stream: Stream, startMs: Long) {
         val current = state.value
         val target = current.target ?: return
-        tried += stream.url
+        val attempt = releasePlayback()
+        ticker?.cancel()
+        tried += stream.url to stream.torrentFileIndex
         lastSavedAt = now()
         mutable.update { it.copy(status = WatchPlayerStatus.LOADING, stream = stream, error = null, durationMs = stream.durationMs ?: 0, isLive = stream.isLive || target is PlayTarget.Live) }
+        if (stream.isTorrent) {
+            stopOthers()
+            engine.unload()
+            val resolve = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                val lease = try {
+                    repository.openPlayback(stream)
+                } catch (error: kotlinx.coroutines.CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    ensureActive()
+                    failover(error.message ?: "This torrent could not start.")
+                    return@launch
+                }
+                synchronized(playbackLock) {
+                    if (attempt != playbackId || !isActive) {
+                        lease.close()
+                    } else {
+                        playbackLease = lease
+                        load(stream, lease.url, startMs, current, target)
+                        startTicker()
+                    }
+                }
+            }
+            synchronized(playbackLock) {
+                if (attempt == playbackId) { playbackResolve = resolve; resolve.start() }
+                else resolve.cancel()
+            }
+            return
+        }
         when (stream.protocol) {
             StreamProtocol.EXTERNAL -> { failover("That source only opens elsewhere"); return }
             StreamProtocol.YOUTUBE -> {
@@ -135,21 +218,27 @@ class EngineWatchPlayer(
             }
             else -> {
                 stopOthers()
-                engine.load(PlaybackRequest(
-                    videoId = target.key.value,
-                    input = MediaInput.Url(stream.url, kindOf(stream.protocol), mimeOf(stream)),
-                    subtitles = stream.subtitles.filter { it.url != null }.map { SubtitleTrack(it.url!!, mimeOfSubtitle(it), it.language, it.label, false) },
-                    headers = stream.headers,
-                    startMs = if (stream.isLive) 0 else startMs,
-                    live = stream.isLive,
-                    title = current.summary?.name ?: (target as? PlayTarget.Live)?.channel?.name ?: "",
-                    channel = current.subtitleLine,
-                    thumbnailUrl = current.summary?.posterUrl ?: (target as? PlayTarget.Live)?.channel?.logoUrl,
-                ))
-                engine.play()
+                load(stream, stream.url, startMs, current, target)
             }
         }
         startTicker()
+    }
+
+    private fun load(stream: Stream, url: String, startMs: Long, current: WatchPlayerState, target: PlayTarget) {
+        val live = stream.isLive || target is PlayTarget.Live
+        engine.load(PlaybackRequest(
+            videoId = target.key.value,
+            input = MediaInput.Url(url, kindOf(stream.protocol), mimeOf(stream)),
+            subtitles = stream.subtitles.filter { it.url != null }.map { SubtitleTrack(it.url!!, mimeOfSubtitle(it), it.language, it.label, false) },
+            headers = stream.headers,
+            startMs = if (live) 0 else startMs,
+            live = live,
+            title = current.summary?.name ?: (target as? PlayTarget.Live)?.channel?.name ?: "",
+            channel = current.subtitleLine,
+            thumbnailUrl = current.summary?.posterUrl ?: (target as? PlayTarget.Live)?.channel?.logoUrl,
+        ))
+        engine.setMuted(state.value.muted)
+        engine.play()
     }
 
     private fun startTicker() {
@@ -173,7 +262,16 @@ class EngineWatchPlayer(
             PlayerStatus.ENDED -> WatchPlayerStatus.ENDED
             PlayerStatus.ERROR -> WatchPlayerStatus.ERROR
         }
-        if (status == WatchPlayerStatus.ERROR) { failover(snap.error?.message ?: "That source failed"); return }
+        if (status == WatchPlayerStatus.ERROR) {
+            val error = if (s.stream?.isTorrent == true) "The torrent engine could not play this copy. Try another copy with available peers."
+                else snap.error?.message ?: "That source failed"
+            failover(error)
+            return
+        }
+        if (status == WatchPlayerStatus.ENDED && s.isLive) {
+            failover("The live stream ended. Retry to reconnect.")
+            return
+        }
         val duration = if (snap.durationMs > 0) snap.durationMs else s.durationMs
         val position = engine.positionMs()
         val remaining = duration - position
@@ -191,13 +289,14 @@ class EngineWatchPlayer(
     }
 
     /** The next copy not tried yet, or the error. */
-    private fun failover(reason: String) {
+    private fun failover(reason: String) = synchronized(playbackLock) {
         val s = state.value
-        val next = s.streams.firstOrNull { it.isPlayable && it.url !in tried }
+        val next = s.streams.firstOrNull { it.isPlayable && (it.url to it.torrentFileIndex) !in tried }
         if (next == null) {
             ticker?.cancel()
+            releasePlayback()
             mutable.update { it.copy(status = WatchPlayerStatus.ERROR, error = reason, failover = null) }
-            return
+            return@synchronized
         }
         mutable.update { it.copy(failover = "That source failed, trying ${next.source.pluginName}") }
         play(next, if (s.isLive) 0 else engine.positionMs().coerceAtLeast(0))
@@ -206,11 +305,17 @@ class EngineWatchPlayer(
     override fun switchStream(stream: Stream) {
         val position = if (state.value.isLive) 0 else engine.positionMs()
         saveNow()
-        tried.remove(stream.url)
+        tried.remove(stream.url to stream.torrentFileIndex)
         play(stream, position)
     }
 
     override fun selectAudio(trackId: String) = engine.selectAudioTrack(trackId)
+
+    override fun toggleMute() {
+        val muted = !state.value.muted
+        engine.setMuted(muted)
+        mutable.update { it.copy(muted = muted) }
+    }
 
     override fun selectSubtitle(id: String?) {
         mutable.update { it.copy(selectedSubtitleId = id) }
@@ -256,9 +361,18 @@ class EngineWatchPlayer(
 
     override fun stop() {
         saveNow()
-        job?.cancel(); ticker?.cancel()
+        job?.cancel(); ticker?.cancel(); releasePlayback()
         engine.unload()
+        if (state.value.muted) engine.setMuted(false)
         mutable.value = WatchPlayerState()
+    }
+
+    private fun releasePlayback(): Long = synchronized(playbackLock) {
+        playbackResolve?.cancel()
+        playbackResolve = null
+        playbackLease?.close()
+        playbackLease = null
+        ++playbackId
     }
 
     /** Saves where this is (films and episodes; never a channel), with the release played so it reopens the same copy. */

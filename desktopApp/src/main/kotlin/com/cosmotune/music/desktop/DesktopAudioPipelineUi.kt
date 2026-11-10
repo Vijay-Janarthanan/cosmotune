@@ -79,6 +79,7 @@ internal fun DesktopAudioPipelineDialog(
             }
             PipelineStage(DesktopStrings["pipeline_dsp", "DSP"]) {
                 if (pipeline.dsdOverPcm) PipelineRow("DSD transport", "DoP · all software DSP bypassed; DAC support confirmed by you")
+                if (pipeline.nativeDsd) PipelineRow("DSD transport", "Native DSD · all software DSP bypassed")
                 PipelineRow(
                     DesktopStrings["equalizer", "Equalizer"],
                     if (pipeline.equalizerEnabled) DesktopStrings["on", "On"] else DesktopStrings["off", "Off"],
@@ -97,13 +98,14 @@ internal fun DesktopAudioPipelineDialog(
                 PipelineRow(DesktopStrings["pipeline_device_name", "Device"], pipeline.deviceName)
                 PipelineRow(
                     DesktopStrings["pipeline_pcm_format", "PCM format"],
-                    pipeline.outputBytesPerSample?.let {
+                    pipeline.outputBytesPerSample?.takeUnless { pipeline.nativeDsd }?.let {
                         if (pipeline.outputIsFloat == true) "32-bit float" else "${it * 8}-bit"
                     },
                 )
                 PipelineRow(
                     DesktopStrings["pipeline_sample_rate", "Sample rate"],
-                    pipeline.outputSampleRateHz?.let { "${it / 1000.0} kHz" },
+                    if (pipeline.nativeDsd) pipeline.sourceFormat?.sampleRateHz?.let { "${it / 1_000_000.0} MHz DSD" }
+                    else pipeline.outputSampleRateHz?.let { "${it / 1000.0} kHz" },
                 )
                 PipelineRow(DesktopStrings["pipeline_channels", "Channels"], channelLabel(pipeline.outputChannels))
                 PipelineRow(

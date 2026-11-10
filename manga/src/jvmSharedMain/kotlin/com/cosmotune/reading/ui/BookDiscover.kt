@@ -42,10 +42,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** The catalogue a publication came from, as its row and its page name it. */
-internal fun ReadingPublication.sourceLabel(sources: List<ReadingOpdsSource>): String =
-    if (id.startsWith("gutenberg")) "Project Gutenberg · Public-domain catalogue" else if (id.startsWith("openlibrary")) "Open Library · Book metadata"
-    else if (id.startsWith("standardebooks:")) "Standard Ebooks · Public-domain EPUB"
-    else sources.find { it.id == sourceId }?.name ?: "Personal library"
+internal fun ReadingPublication.sourceLabel(sources: List<ReadingOpdsSource>): String = when {
+    id.startsWith("gutenberg") -> "Project Gutenberg · Public-domain catalogue"
+    id.startsWith("openlibrary") -> "Open Library · Book metadata"
+    id.startsWith("standardebooks:") -> "Standard Ebooks · Public-domain EPUB"
+    sourceId == ArchiveBookCatalogue.ID -> "Internet Archive · Historical editions"
+    sourceId == MaduraiBookCatalogue.ID -> "Project Madurai · Tamil books"
+    sourceId == TextosBookCatalogue.ID -> "textos.info · Spanish books"
+    sourceId == OpenStaxBookCatalogue.ID -> "OpenStax · Open textbooks"
+    sourceId == GlobalGreyBookCatalogue.ID -> "Global Grey · Classic editions"
+    else -> sources.find { it.id == sourceId }?.name ?: "Personal library"
+}
 
 /**
  * Browse (slot 2, after Kavita and Booklore): a search field, the catalogues as chips (Trending on Open Library, Project
@@ -60,6 +67,7 @@ internal fun BookDiscover(scope: ReadScope) {
     val list = rememberLazyListState()
     var category by rememberSaveable { mutableStateOf("Trending") }
     var query by rememberSaveable { mutableStateOf("") }
+    var submittedQuery by rememberSaveable { mutableStateOf("") }
     var publications by remember { mutableStateOf(emptyList<ReadingPublication>()) }
     var navigation by remember { mutableStateOf(emptyList<ReadingLink>()) }
     var searchLinks by remember { mutableStateOf(emptyList<ReadingLink>()) }
@@ -96,12 +104,17 @@ internal fun BookDiscover(scope: ReadScope) {
                 } finally { if (generation == requestGeneration) busy = false }
                 return@launch
             }
-            if (reset) { publications = emptyList(); navigation = emptyList(); next = null; nextOffset = null; page = 1 }
+            if (reset) {
+                submittedQuery = query.trim()
+                publications = emptyList(); navigation = emptyList(); next = null; nextOffset = null; page = 1
+            }
             try {
                 if (category == "My libraries" && sourceId.isBlank()) { loaded = true; return@launch }
                 val result = when (category) {
-                    "Public domain" -> repository.gutenberg(query, if (reset) 1 else page + 1)
+                    "Public domain" -> repository.gutenberg(submittedQuery, if (reset) 1 else page + 1)
                     "New Classics" -> repository.standardEbooks()
+                    "Global Grey" -> repository.globalGreyBooks()
+                    "Spanish books" -> repository.spanishBooks(address, submittedQuery.takeIf { searchRequested })
                     "My libraries" -> if (searchRequested) repository.searchOpds(sourceId, query) else repository.browseOpds(sourceId, address)
                     else -> null
                 }
@@ -110,8 +123,14 @@ internal fun BookDiscover(scope: ReadScope) {
                     navigation = result.navigation; next = result.next; if (result.search.isNotEmpty()) searchLinks = result.search
                     if (!reset) page++
                 } else {
-                    val resultSearch = if (category == "Search") repository.search(query, if (reset) 0 else nextOffset ?: 0)
-                        else repository.trending(if (reset) 0 else nextOffset ?: 0)
+                    val offset = if (reset) 0 else nextOffset ?: 0
+                    val resultSearch = when (category) {
+                        "Search" -> repository.search(submittedQuery, offset)
+                        "Archive books" -> repository.archiveBooks(submittedQuery, offset)
+                        "Tamil books" -> repository.tamilBooks(submittedQuery, offset)
+                        "Textbooks" -> repository.textbooks(submittedQuery, offset)
+                        else -> repository.trending(offset)
+                    }
                     publications = if (reset) resultSearch.publications else publications + resultSearch.publications
                     nextOffset = resultSearch.nextOffset
                 }
@@ -122,9 +141,9 @@ internal fun BookDiscover(scope: ReadScope) {
         }
     }
     fun submit() {
-        if (query.trim().length < 2 || busy || category == "New Classics" || (category == "My libraries" && searchLinks.isEmpty())) return
-        if (category != "Public domain" && category != "My libraries") category = "Search"
-        load(searchRequested = category == "My libraries")
+        if (query.trim().length < 2 || busy || category in setOf("New Classics", "Global Grey") || (category == "My libraries" && searchLinks.isEmpty())) return
+        if (category in setOf("Trending", "Search")) category = "Search"
+        load(searchRequested = category in setOf("My libraries", "Spanish books"))
     }
     LaunchedEffect(category, sourceId) { searchLinks = emptyList(); if (category != "Search") load() }
     LaunchedEffect(state.sources) { if (state.sources.none { it.id == sourceId }) sourceId = state.sources.firstOrNull()?.id.orEmpty() }
@@ -132,13 +151,15 @@ internal fun BookDiscover(scope: ReadScope) {
     val palette = LocalCosmoColors.current.palette
     Column(Modifier.fillMaxSize().testTag("books:discover")) {
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(bottom = scope.bottom)) {
-            item(key = "heading") { ReadPageHead("Browse", "Open Library · Project Gutenberg · Standard Ebooks · your libraries") { ReadRootActions(scope) } }
-            if (category != "New Classics") item(key = "search") {
+            item(key = "heading") { ReadPageHead("Browse", "Free ebooks, archive scans and connected libraries") { ReadRootActions(scope) } }
+            if (category !in setOf("New Classics", "Global Grey")) item(key = "search") {
                 ReadSearchField(query, { query = it }, "Search books and authors", Modifier.testTag("books:catalogue-search"), onSearch = ::submit)
             }
             item(key = "catalogues") {
                 ReadChipRow(Modifier.padding(vertical = 4.dp)) {
-                    listOf("Trending", "Public domain", "New Classics", "My libraries").forEach { item -> ReadChip(item, category == item || (item == "Trending" && category == "Search"), { category = item; query = "" }) }
+                    listOf("Trending", "Public domain", "New Classics", "Archive books", "Global Grey", "Textbooks", "Spanish books", "Tamil books", "My libraries").forEach { item ->
+                        ReadChip(item, category == item || (item == "Trending" && category == "Search"), { category = item; query = "" })
+                    }
                     if (query.trim().length >= 2) ReadButton("Search", ::submit, kind = ReadKind.TONAL, icon = CosmoIcons.Search,
                         enabled = !busy && (category != "My libraries" || searchLinks.isNotEmpty()), modifier = Modifier.testTag("books:search-submit"))
                 }
@@ -150,6 +171,11 @@ internal fun BookDiscover(scope: ReadScope) {
                 Text(when (category) {
                     "Public domain" -> "Project Gutenberg · Check the edition's copyright status where you live."
                     "New Classics" -> "Standard Ebooks · Recently published EPUB editions of public-domain books."
+                    "Global Grey" -> "Recently added public-domain classics in EPUB and PDF."
+                    "Archive books" -> "Internet Archive · Search historical editions. Each book page checks which files are available."
+                    "Spanish books" -> "textos.info · Browse or search free Spanish EPUBs and PDFs."
+                    "Tamil books" -> "Project Madurai · Free Tamil literature in PDF."
+                    "Textbooks" -> "OpenStax · Free, openly licensed textbooks in PDF."
                     "My libraries" -> if (searchLinks.isEmpty() && sourceId.isNotBlank()) "Your OPDS library · This feed does not advertise a search. Browse its collections below." else "Your OPDS library · Availability comes from your connected server."
                     "Search" -> "Open Library · Search results describe books. Readable copies depend on the edition and provider."
                     else -> "Trending on Open Library · A live discovery list, with source links for each book."
@@ -175,7 +201,7 @@ internal fun BookDiscover(scope: ReadScope) {
             }
             if (nextOffset != null || next != null) item(key = "more") {
                 Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                    ReadButton("Load more books", { if (category == "My libraries") load(address = next?.url) else load(reset = false) }, kind = ReadKind.TONAL, enabled = !busy)
+                    ReadButton("Load more books", { load(reset = false, address = next?.url) }, kind = ReadKind.TONAL, enabled = !busy)
                 }
             }
         }
@@ -218,7 +244,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
         catch (failure: Exception) { scope.onError(failure.message ?: "This action could not be completed.") }
     }
     LaunchedEffect(initialPublication.id, detailsRetry) { withContext(Dispatchers.Main.immediate) {
-        if (initialPublication.sourceId == "gutenberg" || initialPublication.id.startsWith("gutenberg:")) {
+        if (initialPublication.sourceId in setOf("gutenberg", ArchiveBookCatalogue.ID, GlobalGreyBookCatalogue.ID) || initialPublication.id.startsWith("gutenberg:")) {
             detailsLoading = true; detailsError = null
             try { publication = repository.details(initialPublication) }
             catch (cancelled: CancellationException) { throw cancelled }
@@ -254,7 +280,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
                     run {
                         if (detailsLoading) {
                             ReadSkeletonRows(2)
-                            Text("Loading available editions from Project Gutenberg…", style = ReadType.meta(), color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = ReadMargin))
+                            Text("Checking available downloads…", style = ReadType.meta(), color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = ReadMargin))
                         }
                         detailsError?.let { message -> ReadError(message, onRetry = { detailsRetry++ }, title = "Editions could not be loaded", retryLabel = "Retry available editions") }
                         if (transfer?.isActive == true) Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalAlignment = Alignment.CenterVertically) {
@@ -266,10 +292,17 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
             }
             item(key = "links:header") { ReadSection("Get this book") }
             items(publication.links.filterNot { it.kind == ReadingLinkKind.ACQUIRE && (detailsLoading || detailsError != null) }.distinctBy { it.url }, key = { it.url }) { link ->
-                val downloadable = link.kind == ReadingLinkKind.ACQUIRE && (link.mediaType.contains("epub", true) || link.mediaType.contains("pdf", true))
-                val label = if (downloadable) "Download ${if (link.mediaType.contains("epub", true)) "EPUB" else "PDF"}" +
-                    link.title.takeIf { it.isNotBlank() && it != publication.title }?.let { " · ${it.take(100)}" }.orEmpty()
-                    else when (link.kind) { ReadingLinkKind.BORROW -> "Borrow from provider"; ReadingLinkKind.BUY -> "Buy from provider"; ReadingLinkKind.SAMPLE -> "Open sample"; else -> link.title.ifBlank { "View at source" } }
+                val format = link.downloadFormat
+                val downloadable = format != null
+                val label = when {
+                    format != null -> "Download ${format.name}" +
+                        link.title.takeIf { it.isNotBlank() && it != publication.title }?.let { " · ${it.take(100)}" }.orEmpty()
+                    link.kind == ReadingLinkKind.BORROW -> "Borrow from provider"
+                    link.kind == ReadingLinkKind.BUY -> "Buy from provider"
+                    link.kind == ReadingLinkKind.SAMPLE -> "Open sample"
+                    link.requiresExternalReader -> "Open protected edition with provider"
+                    else -> link.title.ifBlank { "View at source" }
+                }
                 ReadSheetRow(label, if (downloadable) CosmoIcons.Download else Icons.AutoMirrored.Rounded.OpenInNew, enabled = transfer?.isActive != true, onClick = {
                     if (downloadable) transfer = action {
                         val book = repository.download(publication, link) { done, total -> progress = if (total != null && total > 0) "${done / 1024} / ${total / 1024} KB" else "${done / 1024} KB downloaded" }
@@ -277,7 +310,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
                     } else runCatching { uri.openUri(link.url) }.onFailure { scope.onError("This source link could not be opened.") }
                 })
             }
-            if (!detailsLoading && detailsError == null && publication.links.none { it.kind == ReadingLinkKind.ACQUIRE }) item(key = "no-download") {
+            if (!detailsLoading && detailsError == null && publication.links.none { it.downloadFormat != null }) item(key = "no-download") {
                 Text("No downloadable edition was supplied by this catalogue. You can import an EPUB or PDF you already have.", style = ReadType.body(),
                     color = Color(palette.textSecondary), modifier = Modifier.padding(horizontal = ReadMargin, vertical = 12.dp))
             }

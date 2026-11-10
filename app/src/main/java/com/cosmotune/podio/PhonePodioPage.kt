@@ -24,7 +24,7 @@ import com.cosmotune.podio.ui.PodioPlayback
 import java.io.File
 
 /** Uses the existing foreground media service, notification, audio focus and Bluetooth controls. */
-@Composable fun PhonePodioPage(onMusic: () -> Unit) {
+@Composable fun PhonePodioPage(remoteGlobeControls: Boolean = false, onMusic: () -> Unit) {
     val context = LocalContext.current
     val controller = rememberMediaController()
     val state = rememberPlayerState(controller)
@@ -36,11 +36,15 @@ import java.io.File
     suspend fun chooseFile(saving: Boolean): Uri? {
         check(pendingFile == null) { "Finish the open file chooser first." }
         val answer = CompletableDeferred<Uri?>().also { pendingFile = it }
-        picker.launch(Intent(if (saving) Intent.ACTION_CREATE_DOCUMENT else Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE); type = if (saving) "text/x-opml" else "*/*"
-            if (saving) putExtra(Intent.EXTRA_TITLE, "Cosmotune-podcasts.opml")
-        })
-        return answer.await()
+        return try {
+            picker.launch(Intent(if (saving) Intent.ACTION_CREATE_DOCUMENT else Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE); type = if (saving) "text/x-opml" else "*/*"
+                if (saving) putExtra(Intent.EXTRA_TITLE, "Cosmotune-podcasts.opml")
+            })
+            answer.await()
+        } finally {
+            if (pendingFile === answer) pendingFile = null
+        }
     }
     val savedDownloads by Downloads.saved.collectAsState()
     val activeDownloads by Downloads.active.collectAsState()
@@ -98,6 +102,8 @@ import java.io.File
             }
         },
         downloadedEpisodes = offlineEpisodes,
+        onRemoveDownload = { item -> Downloads.delete(context, item.id) },
+        remoteGlobeControls = remoteGlobeControls,
         episodeDownloadStatus = activeDownloads.mapValues { (_, status) -> when (status) {
             DownloadState.Queued -> "Queued"
             is DownloadState.Running -> "Downloading ${(status.fraction.coerceIn(0f, 1f) * 100).toInt()}%"

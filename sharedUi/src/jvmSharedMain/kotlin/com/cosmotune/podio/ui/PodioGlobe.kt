@@ -80,6 +80,11 @@ internal class GlobeView(latitude: MutableState<Float>, longitude: MutableState<
     fun zoomTo(next: Float) { zoom = next.coerceIn(MIN_ZOOM, MAX_ZOOM) }
     fun zoomIn() = zoomTo(zoom * 1.6f)
     fun zoomOut() = zoomTo(zoom / 1.6f)
+    fun pan(north: Int = 0, east: Int = 0) {
+        val step = 30f / zoom
+        latitude = (latitude + north * step).coerceIn(-75f, 75f)
+        longitude = (longitude + east * step + 540f) % 360f - 180f
+    }
     /** Jumps to a random place among [stations]. */
     fun random(stations: List<RadioStation>) {
         PodioPlaces.group(stations).randomOrNull()?.let {

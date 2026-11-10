@@ -34,8 +34,7 @@ import kotlinx.serialization.json.JsonElement
 
 /**
  * A Stremio-protocol add-on as a Watch plugin: the built-in Public Domain Movies, OpenSubtitles and WatchHub, Cinemeta, and
- * every add-on the user installs by its manifest URL. Only `url` streams (http or https), YouTube ids and "open elsewhere"
- * links are kept; `infoHash`, `nzbUrl`, archive and every other kind of stream is dropped.
+ * every add-on the user installs by its manifest URL. Torrent offers are resolved by the optional local playback bridge.
  */
 class StremioPlugin(
     override val id: String,
@@ -47,6 +46,7 @@ class StremioPlugin(
     /** WatchHub: streams are places a title streams elsewhere, never played. */
     private val whereToWatchOnly: Boolean = false,
     private val subtitleOrigin: SubtitleOrigin = SubtitleOrigin.ADDON,
+    private val torrentsEnabled: () -> Boolean = { false },
 ) : WatchPlugin {
     private val lock = Mutex()
     private var cached: StremioManifest? = null
@@ -107,7 +107,11 @@ class StremioPlugin(
         if (whereToWatchOnly || Capability.STREAMS !in capabilities) return emptyList()
         val (type, streamId) = streamRef(target) ?: return emptyList()
         if (!manifest().supports("stream", type, streamId)) return emptyList()
-        return client.streams(type, streamId).mapNotNull { streamOf(it, type == "tv" || type == "channel") }
+        val raw = client.streams(type, streamId)
+        val mapped = raw.mapNotNull { streamOf(it, type == "tv" || type == "channel") }
+        if (!torrentsEnabled() && mapped.none { it.isPlayable } && type in setOf("movie", "series") &&
+            raw.any { BundledTorrentPlayback.magnet(it.str("infoHash")) != null }) error(BundledTorrentPlayback.DISABLED)
+        return mapped
     }
 
     override suspend fun whereToWatch(target: PlayTarget): List<WatchProvider> {
@@ -174,15 +178,20 @@ class StremioPlugin(
         val url = s.str("url")
         val ytId = s.str("ytId")
         val external = s.str("externalUrl")
+        val magnet = if (!live && torrentsEnabled()) BundledTorrentPlayback.magnet(s.str("infoHash")) else null
+        val index = s.int("fileIdx")?.takeIf { it in 0 until Int.MAX_VALUE }
         val (address, protocol) = when {
             url != null && StreamGuess.playableScheme(url) -> url to StreamGuess.protocol(url)
             ytId != null -> "https://www.youtube.com/watch?v=$ytId" to StreamProtocol.YOUTUBE
+            magnet != null -> magnet to StreamProtocol.PROGRESSIVE
             external != null && StreamGuess.playableScheme(external) -> external to StreamProtocol.EXTERNAL
-            // infoHash (torrents), nzbUrl (usenet), archive and rtmp streams are never shown.
             else -> return null
         }
         val text = listOfNotNull(name, description, hints.str("filename"))
-        return Stream(source, label, description, address, protocol, StreamGuess.container(address), headers,
+        val torrent = address == magnet
+        return Stream(source, if (torrent) "$label · P2P" else label, description, address, protocol,
+            StreamGuess.container(if (torrent) hints.str("filename").orEmpty() else address),
+            if (torrent) emptyMap() else headers,
             height = StreamGuess.height(*text.toTypedArray()), hdr = StreamGuess.hdr(*text.toTypedArray()),
             videoCodec = StreamGuess.codec(*text.toTypedArray()),
             sizeBytes = hints.long("videoSize") ?: StreamGuess.size(description), filename = hints.str("filename"),
@@ -190,7 +199,10 @@ class StremioPlugin(
             subtitles = s.list("subtitles").mapNotNull { sub ->
                 val su = sub.str("url")?.takeIf(StreamGuess::playableScheme) ?: return@mapNotNull null
                 Subtitle("$id:${sub.str("id") ?: su.hashCode()}", su, sub.str("lang") ?: "und", sub.str("lang")?.let(::languageName) ?: "Subtitles", origin = SubtitleOrigin.STREAM)
-            })
+            }, torrentFileIndex = index.takeIf { torrent },
+            torrentTrackers = if (torrent) s.strings("sources").asSequence()
+                .filter { it.startsWith("tracker:udp://") && it.length <= 256 }
+                .map { it.removePrefix("tracker:") }.distinct().take(8).toList() else emptyList())
     }
 
     private fun metaRef(key: WatchKey): Pair<String, String>? {

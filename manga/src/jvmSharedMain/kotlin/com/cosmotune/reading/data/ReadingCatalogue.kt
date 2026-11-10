@@ -24,7 +24,21 @@ import kotlinx.serialization.Serializable
 @Serializable enum class ReadingLinkKind { BROWSE, SEARCH, ACQUIRE, SAMPLE, BORROW, BUY, DETAILS, OTHER }
 
 @Serializable data class ReadingLink(val title: String, val url: String, val mediaType: String = "", val relation: String = "",
-    val kind: ReadingLinkKind = ReadingLinkKind.OTHER)
+    val kind: ReadingLinkKind = ReadingLinkKind.OTHER) {
+    private val mime get() = mediaType.substringBefore(';').trim().lowercase()
+
+    val downloadFormat: ReadingFormat? get() = when {
+        kind != ReadingLinkKind.ACQUIRE -> null
+        mime == "application/epub+zip" -> ReadingFormat.EPUB
+        mime == "application/pdf" -> ReadingFormat.PDF
+        else -> null
+    }
+
+    val requiresExternalReader: Boolean get() = when (mime) {
+        "application/vnd.readium.lcp.license.v1.0+json", "application/pdf+lcp", "application/vnd.adobe.adept+xml" -> true
+        else -> false
+    }
+}
 
 data class ReadingCataloguePage(val sourceId: String, val title: String, val publications: List<ReadingPublication>,
     val navigation: List<ReadingLink> = emptyList(), val next: ReadingLink? = null,

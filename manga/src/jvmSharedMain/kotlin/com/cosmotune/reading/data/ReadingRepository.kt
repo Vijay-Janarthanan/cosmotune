@@ -27,6 +27,11 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     private val imports = Mutex()
     // A real app contact can replace this before distribution; all metadata calls identify this app.
     private val metadata = OpenLibraryBookCatalogue("Cosmotune/Reading (https://github.com/Vijay-Janarthanan/cosmotune)", client)
+    private val archive = ArchiveBookCatalogue(client)
+    private val madurai = MaduraiBookCatalogue(client)
+    private val textos = TextosBookCatalogue(client)
+    private val openStax = OpenStaxBookCatalogue(client)
+    private val globalGrey = GlobalGreyBookCatalogue(client)
 
     suspend fun importFile(name: String, open: () -> InputStream): ReadingBook = imports.withLock {
         withContext(Dispatchers.IO) { importOwned(name, open, null) }
@@ -160,19 +165,24 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
     suspend fun editions(publication: ReadingPublication, offset: Int = 0) = metadata.editions(publication, offset)
     suspend fun gutenberg(query: String = "", page: Int = 1) = GutenbergBookCatalogue(client).browse(query, page)
     suspend fun standardEbooks() = StandardEbooksCatalogue(client).browse()
-    suspend fun details(publication: ReadingPublication): ReadingPublication =
-        if (publication.sourceId == "gutenberg") GutenbergBookCatalogue(client).details(publication) else publication
+    suspend fun archiveBooks(query: String, offset: Int) = archive.browse(query, offset)
+    suspend fun tamilBooks(query: String, offset: Int) = madurai.browse(query, offset)
+    suspend fun spanishBooks(address: String?, query: String?) = textos.browse(address, query)
+    suspend fun textbooks(query: String, offset: Int) = openStax.browse(query, offset)
+    suspend fun globalGreyBooks() = globalGrey.browse()
+    suspend fun details(publication: ReadingPublication): ReadingPublication = when (publication.sourceId) {
+        "gutenberg" -> GutenbergBookCatalogue(client).details(publication)
+        ArchiveBookCatalogue.ID -> archive.details(publication)
+        GlobalGreyBookCatalogue.ID -> globalGrey.details(publication)
+        else -> publication
+    }
     suspend fun publicationDetails(publication: ReadingPublication): ReadingPublication = details(publication)
 
     /** Only an explicit server-offered full-file acquisition can become an owned EPUB/PDF. */
     suspend fun download(publication: ReadingPublication, link: ReadingLink, onProgress: (Long, Long?) -> Unit = { _, _ -> }): ReadingBook = imports.withLock {
         withContext(Dispatchers.IO) {
             require(link in publication.links && link.kind == ReadingLinkKind.ACQUIRE) { "Open borrowing, purchase and sample links on their source." }
-            val format = when (link.mediaType.substringBefore(';').lowercase()) {
-                "application/epub+zip" -> "epub"
-                "application/pdf" -> "pdf"
-                else -> error("Only full EPUB or PDF files can be downloaded here.")
-            }
+            val format = link.downloadFormat?.name?.lowercase() ?: error("Only full EPUB or PDF files can be downloaded here.")
             val url = link.url.toHttpUrl()
             require(url.username.isEmpty() && url.password.isEmpty() && url.fragment == null)
             val source = state.value.sources.find { it.id == publication.sourceId }
@@ -184,6 +194,11 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
                 val allowed = when (publication.sourceId) {
                     "gutenberg" -> url.isHttps && url.host in setOf("www.gutenberg.org", "gutenberg.org")
                     StandardEbooksCatalogue.ID -> format == "epub" && StandardEbooksCatalogue.isEditionUrl(url)
+                    ArchiveBookCatalogue.ID -> ArchiveBookCatalogue.itemId(publication)?.let { ArchiveBookCatalogue.isEdition(url, it) } == true
+                    MaduraiBookCatalogue.ID -> format == "pdf" && MaduraiBookCatalogue.isEdition(url)
+                    TextosBookCatalogue.ID -> TextosBookCatalogue.isEdition(url, format)
+                    OpenStaxBookCatalogue.ID -> format == "pdf" && OpenStaxBookCatalogue.isEdition(url)
+                    GlobalGreyBookCatalogue.ID -> GlobalGreyBookCatalogue.isEdition(url, format)
                     else -> false
                 }
                 require(allowed) { "Connect this publication's library before downloading it." }
@@ -200,8 +215,18 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
                 val redirect = http.newCall(nextRequest).awaitReading { response ->
                     if (response.isRedirect) {
                         val address = response.header("Location")?.let { response.request.url.resolve(it) } ?: error("The download redirect has no valid target.")
-                        require(address.scheme == url.scheme && address.host == url.host && address.port == url.port &&
-                            address.username.isEmpty() && address.password.isEmpty() && address.fragment == null) { "The download redirected outside its authorized source." }
+                        val sameOrigin = address.scheme == url.scheme && address.host == url.host && address.port == url.port
+                        val allowedRedirect = if (source != null) sameOrigin else when (publication.sourceId) {
+                            ArchiveBookCatalogue.ID -> ArchiveBookCatalogue.isRedirect(url, address)
+                            MaduraiBookCatalogue.ID -> MaduraiBookCatalogue.isEdition(address) && address.encodedPath == url.encodedPath
+                            TextosBookCatalogue.ID -> TextosBookCatalogue.isEdition(address, format) && address.encodedPath == url.encodedPath
+                            OpenStaxBookCatalogue.ID -> OpenStaxBookCatalogue.isEdition(address) && address.encodedPath == url.encodedPath
+                            GlobalGreyBookCatalogue.ID -> GlobalGreyBookCatalogue.isEdition(address, format) && address.encodedPath == url.encodedPath
+                            else -> sameOrigin
+                        }
+                        require(allowedRedirect && address.username.isEmpty() && address.password.isEmpty() && address.fragment == null) {
+                            "The download redirected outside its authorized source."
+                        }
                         if (publication.sourceId == StandardEbooksCatalogue.ID) require(StandardEbooksCatalogue.isEditionUrl(address)) {
                             "The download redirected away from the advertised edition."
                         }
@@ -209,7 +234,9 @@ class ReadingRepository(val root: File, protection: MangaFileProtection = Unseal
                     }
                     check(response.isSuccessful) { "The source did not provide a downloadable file (HTTP ${response.code})." }
                     val type = response.body.contentType()?.toString()?.substringBefore(';')?.lowercase()
-                    require(type == link.mediaType.substringBefore(';').lowercase() || type == "application/octet-stream") { "The source returned a different file type or a sign-in page." }
+                    require(type == link.mediaType.substringBefore(';').trim().lowercase() || type == "application/octet-stream") {
+                        "The source returned a different file type or a sign-in page."
+                    }
                     val length = response.body.contentLength().takeIf { it >= 0 }
                     require(length == null || length <= MAX_FILE_BYTES) { "The book exceeds the 512 MB download limit." }
                     response.body.byteStream().use { input -> download.outputStream().use { output ->

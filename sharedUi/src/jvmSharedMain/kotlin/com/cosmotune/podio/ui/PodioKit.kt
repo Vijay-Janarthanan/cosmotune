@@ -119,7 +119,8 @@ internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
  * on ([now]) is the peach row, its orbit moving with [progress]. A tap plays it (or resumes); a hold or [onMore] opens its sheet.
  */
 @Composable internal fun EpisodeRow(title: String, meta: String, artUrl: String?, heard: Float, now: Boolean, playing: Boolean, progress: (() -> Float?)?,
-    download: DownloadMark, onPlay: () -> Unit, onDownload: () -> Unit, onMore: (() -> Unit)?, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+    download: DownloadMark, onPlay: () -> Unit, onDownload: () -> Unit, onMore: (() -> Unit)?, fonts: OrbitFonts, look: OrbitLook,
+    modifier: Modifier = Modifier, moreLabel: String = "Episode details") {
     val art = artUrl?.takeIf(String::isNotBlank)
     OrbitSongRow(title, meta, art, fonts, look, onPlay, modifier.fillMaxWidth(), now = now, playing = playing, progress = progress, onLongClick = onMore, endPadding = 6.dp,
         discContent = if (now) null else ({ OrbitHeardDisc(art, 44.dp, heard, look) }),
@@ -132,7 +133,7 @@ internal enum class DownloadMark { NONE, AVAILABLE, RUNNING, DONE }
                     Icon(CosmoIcons.Downloaded, null, tint = look.dim, modifier = Modifier.size(18.dp))
                 }
             }
-            if (onMore != null) { Spacer(Modifier.width(4.dp)); OrbitRoundButton(CosmoIcons.MoreVertical, "Episode details", look.ink, onMore, size = 36.dp) }
+            if (onMore != null) { Spacer(Modifier.width(4.dp)); OrbitRoundButton(CosmoIcons.MoreVertical, moreLabel, look.ink, onMore, size = 36.dp) }
         })
 }
 

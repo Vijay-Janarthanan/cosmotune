@@ -37,6 +37,7 @@ object AndroidWatch {
                 tmdbKey = BuildConfig.TMDB_API_KEY,
                 videoSource = { androidVideoGraph(app).source },
                 scoreKeys = com.cosmotune.watch.live.LiveScoreKeys(BuildConfig.CRICKETDATA_API_KEY, BuildConfig.FOOTBALL_DATA_API_KEY, BuildConfig.THESPORTSDB_API_KEY),
+                torrentExecutable = { File(app.applicationInfo.nativeLibraryDir, "libcosmotorrent.so") },
             ),
             store(app),
         )

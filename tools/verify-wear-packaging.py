@@ -54,6 +54,11 @@ def main():
     watch_identity, watch_info = identity(args.wear_apk)
     if "android.hardware.type.watch" not in watch_info:
         raise AssertionError('Companion APK does not declare watch hardware')
+    with zipfile.ZipFile(args.wear_apk) as archive:
+        unused = [name for name in archive.namelist()
+                  if name.startswith(('models/', 'recommendations/', 'yt_ejs/')) or name.endswith('/libquickjs.so')]
+        if unused:
+            raise AssertionError(f'Companion APK includes phone-only playback assets: {unused}')
     watch_cert = certificate(args.wear_apk)
     phones = sorted(args.apk_dir.glob('*.apk'))
     if not phones:

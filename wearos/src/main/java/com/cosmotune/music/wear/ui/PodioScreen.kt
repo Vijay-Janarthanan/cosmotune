@@ -33,7 +33,7 @@ data class PodioDest(val kind: W.Kind? = null, val parent: String = "", val offs
 
 /** Public radio and the paired phone's followed podcasts; the phone owns URLs and playback. */
 @Composable
-fun PodioScreen(link: PhoneLink, dest: PodioDest, open: (PodioDest) -> Unit, back: () -> Unit, onPlayer: () -> Unit, onOutput: () -> Unit) {
+fun PodioScreen(link: PhoneLink, dest: PodioDest, open: (PodioDest) -> Unit, back: () -> Unit, onPlayer: () -> Unit, onOutput: () -> Unit, onStandalone: () -> Unit) {
     val state by link.podio.collectAsStateWithLifecycle()
     val connection by link.link.collectAsStateWithLifecycle()
     val watchOutput by link.watchSpeaker.collectAsStateWithLifecycle()
@@ -65,6 +65,7 @@ fun PodioScreen(link: PhoneLink, dest: PodioDest, open: (PodioDest) -> Unit, bac
                     modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp))
             }
             if (kind == null) {
+                item("standalone") { PodioCell("Listen on this watch", "Public radio and podcasts · no phone needed", onClick = onStandalone) }
                 link.lastSavedPodio()?.let { saved -> item("last-saved") { PodioCell("Last saved view", "Browse the saved catalogue") {
                     open(PodioDest(saved.kind, saved.parent, saved.offset))
                 } } }
@@ -124,7 +125,7 @@ fun PodioScreen(link: PhoneLink, dest: PodioDest, open: (PodioDest) -> Unit, bac
  * letters inside (the board's "FM 98" discs; the watch is sent no logos), and an episode already begun wears the orbit round it
  * for how much is heard ([heard]). [play] is the peach Play / Resume of an item's page.
  */
-@Composable private fun PodioCell(
+@Composable internal fun PodioCell(
     title: String,
     subtitle: String = "",
     enabled: Boolean = true,
@@ -162,7 +163,7 @@ fun PodioScreen(link: PhoneLink, dest: PodioDest, open: (PodioDest) -> Unit, bac
 /** The first letters of a name, for a disc with no logo. */
 private fun initials(name: String): String =
     name.split(' ', '-', '.').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(if (it.any(Char::isDigit)) 4 else 1) }.uppercase().take(4)
-@Composable private fun PodioHint(text: String) {
+@Composable internal fun PodioHint(text: String) {
     Text(text, style = WearType.rowSub, color = WearOrbit.Dim, textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().padding(horizontal = WearTextInset, vertical = 8.dp))
 }
