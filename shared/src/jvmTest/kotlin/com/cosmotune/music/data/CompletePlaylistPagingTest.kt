@@ -16,6 +16,14 @@ class CompletePlaylistPagingTest {
         assertEquals(listOf("page2", "page3"), visited)
         assertEquals(listOf("first", "middle", "last"), rows.map { it.videoId })
     }
+    @Test fun importingKeepsRepeatedSongsInTheCloudPlaylistSnapshot() = runBlocking<Unit> {
+        val rows = YtMusicRepository.collectCompleteSongPages(
+            page("first", "second", next = "more"), { Result.success(page("first", "third")) }, keepRepeated = true,
+        )
+        val saved = com.cosmotune.cloud.SyncPlaylists.data("Shared playlist", rows)
+        assertEquals("Shared playlist", com.cosmotune.cloud.SyncPlaylists.title(saved))
+        assertEquals(listOf("first", "second", "first", "third"), com.cosmotune.cloud.SyncPlaylists.songs(saved).map { it.videoId })
+    }
     @Test fun aFailedContinuationRepeatedTokenOrPageCapNeverReturnsAPartialSuccess() = runBlocking<Unit> {
         assertFailsWith<IllegalStateException> { YtMusicRepository.collectCompleteSongPages(page("first", next = "page2"), { Result.failure(IllegalStateException("failed")) }) }
         assertFailsWith<IllegalStateException> { YtMusicRepository.collectCompleteSongPages(page("first", next = "same"), { Result.success(page("other", next = "same")) }) }

@@ -4,6 +4,7 @@ import android.app.SearchManager
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
+import com.cosmotune.music.data.spotify.SharedPlaylistLink
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,8 @@ sealed interface LinkRequest {
 
     /** An album, playlist or artist page, by browse id. */
     data class Page(val browseId: String) : LinkRequest
+
+    data class ImportPlaylist(val link: String) : LinkRequest
 
     /**
      * Words rather than an id: "play Blinding Lights", or a shared search URL.
@@ -65,10 +68,14 @@ object MusicLink {
     fun consume(intent: Intent?): Boolean {
         if (intent == null || intent.getBooleanExtra(EXTRA_CONSUMED, false)) return false
         val request = when (intent.action) {
-            Intent.ACTION_VIEW -> intent.data?.let(::parse)
-            Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
-                ?.let(::firstUrl)
-                ?.let { parse(Uri.parse(it)) }
+            Intent.ACTION_VIEW -> intent.data?.let { uri ->
+                if (uri.scheme == "cosmotune") SharedPlaylistLink.fromOpenUri(uri.toString())?.let(LinkRequest::ImportPlaylist)
+                else parse(uri)
+            }
+            Intent.ACTION_SEND -> intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.let { shared ->
+                SharedPlaylistLink.fromText(shared)?.let(LinkRequest::ImportPlaylist)
+                    ?: firstUrl(shared)?.let { parse(Uri.parse(it)) }
+            }
             // The assistant's "play <something>". An empty query is the whole
             // point of the Resume case: "play music" names nothing, and the
             // useful answer is to carry on with what was already on.

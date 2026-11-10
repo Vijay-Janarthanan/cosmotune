@@ -12,6 +12,8 @@ import com.cosmotune.music.data.innertube.StreamResolver
 import com.cosmotune.music.data.innertube.potoken.PoTokenGenerator
 import com.cosmotune.music.data.lyrics.LyricsTranslation
 import com.cosmotune.music.data.spotify.SpotifyLibrary
+import com.cosmotune.music.data.spotify.SharedPlaylistLink
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,21 +31,32 @@ import java.awt.Toolkit
 import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 
+internal val desktopSharedPlaylist = MutableStateFlow<String?>(null)
+
+private fun offerDesktopLink(link: String) {
+    val playlist = SharedPlaylistLink.fromOpenUri(link)
+    if (playlist != null) desktopSharedPlaylist.value = playlist
+    else com.cosmotune.desktop.DesktopWatch.offer(link)
+}
+
 fun main(args: Array<String>) {
     if (args.contentEquals(arrayOf("--provider-auth-browser"))) { ProviderVerificationBrowserMain.run(); return }
     // A Watch add-on link the system opened Cosmotune with (stremio://..., cosmotune://watch/...): its Install sheet waits.
-    val watchLink = args.firstOrNull { com.cosmotune.watch.InstallLinks.isInstallLink(it) || com.cosmotune.watch.InstallLinks.isPackLink(it) }
-    watchLink?.let { com.cosmotune.desktop.DesktopWatch.offer(it) }
+    val openLink = args.firstOrNull {
+        com.cosmotune.watch.InstallLinks.isInstallLink(it) || com.cosmotune.watch.InstallLinks.isPackLink(it) ||
+            SharedPlaylistLink.fromOpenUri(it) != null
+    }
+    openLink?.let(::offerDesktopLink)
     // macOS hands URL-scheme opens (the bundle declares stremio:// and cosmotune://) to a running app through this handler.
     runCatching {
         if (java.awt.Desktop.isDesktopSupported() && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.APP_OPEN_URI)) {
-            java.awt.Desktop.getDesktop().setOpenURIHandler { event -> com.cosmotune.desktop.DesktopWatch.offer(event.uri.toString()) }
+            java.awt.Desktop.getDesktop().setOpenURIHandler { event -> offerDesktopLink(event.uri.toString()) }
         }
     }
     // Cosmotune already running: the link goes to that process (its Install sheet opens there) and this one ends.
     val instance = com.cosmotune.desktop.DesktopSingleInstance.acquire(
-        link = watchLink,
-        onLink = { com.cosmotune.desktop.DesktopWatch.offer(it) },
+        link = openLink,
+        onLink = ::offerDesktopLink,
         onActivate = DesktopWindowVisibility::show,
     ) ?: return
     // An exception nobody caught used to leave no line anywhere: a window that froze mid-song had nothing to read afterwards.

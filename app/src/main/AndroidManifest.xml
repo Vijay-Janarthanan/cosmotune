@@ -263,12 +263,14 @@
                     android:host="party" />
             </intent-filter>
 
-            <!--
-              Share → Cosmotune, from YT Music's own share sheet or from
-              anywhere a link can be sent. The text is whatever the sending app
-              wrote around the URL, so the URL is picked out of it rather than
-              parsed whole.
-            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="cosmotune" android:host="import" android:path="/playlist" />
+            </intent-filter>
+
+            <!-- Playlist shares and YouTube links can arrive with text around the URL. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />

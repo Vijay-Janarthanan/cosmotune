@@ -796,20 +796,24 @@ object YtMusicRepository {
         collectCompleteSongPages(browseSongs(browseId).getOrThrow(), ::moreSongs).ifEmpty { error("No tracks here") }
     }
 
-    internal suspend fun collectCompleteSongPages(first: SongPage, more: suspend (String) -> Result<SongPage>, maxPages: Int = com.cosmotune.listening.ListeningStore.MAX_TRACKS): List<Song> {
-        val songs = LinkedHashMap<String, Song>()
+    internal suspend fun collectCompleteSongPages(
+        first: SongPage, more: suspend (String) -> Result<SongPage>,
+        maxPages: Int = com.cosmotune.listening.ListeningStore.MAX_TRACKS, keepRepeated: Boolean = false,
+    ): List<Song> {
+        val songs = ArrayList<Song>()
+        val ids = HashSet<String>()
         val tokens = HashSet<String>()
         var page = first
         var count = 0
         while (true) {
             check(++count <= maxPages) { "The playlist did not finish loading. No synchronization changes were applied." }
-            page.songs.forEach { songs.putIfAbsent(it.videoId, it) }
+            page.songs.filterTo(songs) { keepRepeated || ids.add(it.videoId) }
             require(songs.size <= com.cosmotune.listening.ListeningStore.MAX_TRACKS) { "This playlist exceeds the local track limit." }
             val next = page.continuation ?: break
             check(tokens.add(next)) { "The playlist repeated a continuation. No synchronization changes were applied." }
             page = more(next).getOrThrow()
         }
-        return songs.values.toList()
+        return songs
     }
 
     /**

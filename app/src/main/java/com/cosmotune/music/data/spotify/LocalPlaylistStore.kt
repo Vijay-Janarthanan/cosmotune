@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import com.cosmotune.music.data.model.Song
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.updateAndGet
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -26,7 +25,7 @@ object LocalPlaylistStore {
     private val _playlists = MutableStateFlow<List<LocalPlaylist>>(emptyList())
     val playlists = _playlists.asStateFlow()
 
-    fun init(context: Context) {
+    @Synchronized fun init(context: Context) {
         prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         load()
     }
@@ -68,7 +67,7 @@ object LocalPlaylistStore {
         }
     }
 
-    fun savePlaylist(title: String, songs: List<Song>): LocalPlaylist {
+    @Synchronized fun savePlaylist(title: String, songs: List<Song>): LocalPlaylist {
         val id = "sp_local_" + java.util.UUID.randomUUID()
         val playlist = LocalPlaylist(id = id, title = title, songs = songs)
         val updated = listOf(playlist) + _playlists.value.filterNot { it.id == id }
@@ -77,13 +76,13 @@ object LocalPlaylistStore {
         return playlist
     }
 
-    fun deletePlaylist(id: String) {
+    @Synchronized fun deletePlaylist(id: String) {
         val updated = _playlists.value.filterNot { it.id == id || it.browseId == id || it.id == id.removePrefix("local:playlist:") }
         _playlists.value = updated
         persist(updated)
     }
 
-    fun renamePlaylist(id: String, newTitle: String) {
+    @Synchronized fun renamePlaylist(id: String, newTitle: String) {
         val cleanId = id.removePrefix("local:playlist:").removePrefix("VL")
         val updated = _playlists.value.map {
             if (it.id == cleanId || it.id == id || it.browseId == id) {
@@ -100,7 +99,7 @@ object LocalPlaylistStore {
     }
 
     /** Reviewed peer records update stable local identities; paths and credentials never come from the peer. */
-    fun applySyncedPlaylists(records: List<com.cosmotune.remote.SyncRecord>, file: (String) -> java.io.File?) {
+    @Synchronized fun applySyncedPlaylists(records: List<com.cosmotune.remote.SyncRecord>, file: (String) -> java.io.File?) {
         check(this::prefs.isInitialized)
         var updated = _playlists.value
         for (record in records) {
@@ -134,12 +133,13 @@ object LocalPlaylistStore {
         private set
 
     /**
-     * Writes what cloud sync pulled. [merge] is pure and may run more than once: the update is a compare-and-set, so a playlist saved
-     * on the main thread while the merge runs is merged into rather than written over.
+     * Serialize cloud pulls with local saves so an incoming edit cannot overwrite a playlist being imported.
      */
-    fun applyFromCloud(merge: (List<LocalPlaylist>) -> List<LocalPlaylist>) {
+    @Synchronized fun applyFromCloud(merge: (List<LocalPlaylist>) -> List<LocalPlaylist>) {
         if (!this::prefs.isInitialized) return
-        val updated = _playlists.updateAndGet { current -> merge(current).also { lastCloudWrite = it } }
+        val updated = merge(_playlists.value)
+        lastCloudWrite = updated
+        _playlists.value = updated
         persist(updated)
     }
 

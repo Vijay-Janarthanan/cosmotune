@@ -23,6 +23,7 @@ class PhoneLinkRoutingTest {
     fun aLinkThatIsNotOneVideoIsNothingForVideoToOpen() {
         assertNull(videoOf(null))
         assertNull(videoOf(LinkRequest.Page("VLPL123")))
+        assertNull(videoOf(LinkRequest.ImportPlaylist("https://music.amazon.in/playlists/B0FG74YMDQ")))
         assertNull(videoOf(LinkRequest.Search("blinding lights", play = true)))
         assertNull(videoOf(LinkRequest.Resume))
     }
@@ -30,6 +31,7 @@ class PhoneLinkRoutingTest {
     @Test
     fun aPageASearchAndPlayMusicBelongToMusicSoTheHostLeavesVideo() {
         assertTrue(belongsToMusic(LinkRequest.Page("MPREb_abc")))
+        assertTrue(belongsToMusic(LinkRequest.ImportPlaylist("https://music.amazon.in/playlists/B0FG74YMDQ")))
         assertTrue(belongsToMusic(LinkRequest.Search("lofi", play = false)))
         assertTrue(belongsToMusic(LinkRequest.Search("lofi", play = true)))
         assertTrue(belongsToMusic(LinkRequest.Resume))

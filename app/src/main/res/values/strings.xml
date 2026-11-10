@@ -1129,10 +1129,10 @@
     <string name="import_spotify">Import Spotify</string>
     <string name="import_spotify_subtitle">From a playlist link</string>
     <string name="spotify_import_title">Import a playlist</string>
-    <string name="spotify_import_description">Paste a public Spotify, Apple Music or Deezer playlist link. Songs are matched on YouTube Music.</string>
+    <string name="spotify_import_description">Paste a public Spotify, Amazon Music, Apple Music, Deezer or YouTube Music playlist link. Cosmotune saves the playlist to your library.</string>
     <string name="spotify_import_description_local">Paste a public Spotify, Apple Music or Deezer playlist link. Songs are matched on YouTube Music and saved on this device.</string>
-    <string name="spotify_import_hint">open.spotify.com/playlist/…</string>
-    <string name="spotify_import_invalid">That isn\'t a Spotify, Apple Music or Deezer playlist link.</string>
+    <string name="spotify_import_hint">Paste a playlist link</string>
+    <string name="spotify_import_invalid">Choose a supported public playlist link.</string>
     <string name="spotify_import_fetching">Reading the playlist…</string>
     <string name="spotify_import_matching">Matching songs %1$d of %2$d</string>
     <string name="spotify_import_none">None of those songs were found on YouTube Music.</string>
@@ -1141,6 +1141,8 @@
     <string name="spotify_import_local_fallback">Couldn\'t create it on YouTube Music, so \'%1$s\' was saved on this device instead.</string>
     <string name="spotify_import_done">Imported \'%1$s\'</string>
     <string name="spotify_import_unmatched">%1$d songs weren\'t found on YouTube Music</string>
+    <string name="playlist_import_saved">Playlist saved in Cosmotune.</string>
+    <string name="playlist_import_unavailable">The source did not expose %1$d tracks.</string>
     <string name="local_playlist_subtitle">%1$d songs · On this device</string>
     <string name="spotify_import_empty_playlist">No songs in this playlist</string>
     <string name="spotify_library_subtitle">Your Spotify playlists</string>

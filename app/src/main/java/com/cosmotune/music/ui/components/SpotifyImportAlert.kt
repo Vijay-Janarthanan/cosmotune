@@ -1,11 +1,9 @@
 package com.cosmotune.music.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -17,65 +15,53 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cosmotune.music.R
-import com.cosmotune.music.data.model.PlaylistPrivacy
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.data.spotify.SharedPlaylistLink
 import com.cosmotune.music.data.spotify.SpotifyImportTrack
-import com.cosmotune.music.data.spotify.SpotifyImporter
 import com.cosmotune.ui.theme.CosmoRadii
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/**
- * Paste a Spotify, Apple Music or Deezer playlist link, match its songs on YouTube Music, keep the result.
- *
- * The same frosted card as the addon editor, rather than a Material dialog.
- * The "who can see it" row exists only for [signedIn]: it is a YouTube Music
- * setting, and a playlist kept on this device has no audience to choose.
- * Songs that matched nothing are listed once the playlist is made, instead of
- * being dropped without a word.
- */
+/** Imports a pasted link or starts immediately when opened from Android's share sheet. */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun SpotifyImportAlert(
     hazeState: HazeState,
-    signedIn: Boolean,
-    /** Called once the songs are matched; [privacy] is meaningful only when signed in. */
-    onImported: (title: String, privacy: PlaylistPrivacy, songs: List<Song>) -> Unit,
+    initialLink: String?,
+    onImported: (title: String, songs: List<Song>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var link by remember { mutableStateOf("") }
-    var privacy by remember { mutableStateOf(PlaylistPrivacy.PRIVATE) }
+    var link by rememberSaveable { mutableStateOf(initialLink.orEmpty()) }
     var working by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var failed by remember { mutableStateOf(false) }
     var unmatched by remember { mutableStateOf<List<SpotifyImportTrack>?>(null) }
+    var completed by rememberSaveable { mutableStateOf(false) }
+    var unavailable by rememberSaveable { mutableStateOf(0) }
 
     fun start() {
-        val id = SpotifyImporter.extractPlaylistId(link)
-        // Apple Music and Deezer links are read the same way (PlaylistLinkImport) and matched exactly.
-        val other = if (id == null) com.cosmotune.music.data.spotify.PlaylistLinkImport.serviceOf(link) else null
-        if (id == null && other == null) {
+        if (working || completed) return
+        if (SharedPlaylistLink.fromText(link) == null) {
             status = context.getString(R.string.spotify_import_invalid)
             failed = true
             return
@@ -85,75 +71,72 @@ fun SpotifyImportAlert(
         status = context.getString(R.string.spotify_import_fetching)
         scope.launch {
             try {
-                val (name, matched) = if (id != null) {
-                    val (name, tracks) = SpotifyImporter.fetchPlaylistTracks(id)
-                    name to SpotifyImporter.resolveToSongs(tracks) { done, total ->
-                        status = context.getString(R.string.spotify_import_matching, done, total)
-                    }
-                } else {
-                    val playlist = com.cosmotune.music.data.spotify.PlaylistLinkImport.read(link)
-                    playlist.name to com.cosmotune.music.data.spotify.PlaylistLinkImport.match(playlist.tracks) { done, total ->
-                        status = context.getString(R.string.spotify_import_matching, done, total)
-                    }
+                val result = SharedPlaylistLink.import(link) { done, total ->
+                    status = context.getString(R.string.spotify_import_matching, done, total)
                 }
-                val (songs, missed) = matched
-                if (songs.isEmpty()) error(context.getString(R.string.spotify_import_none))
-                onImported(name, privacy, songs)
-                if (missed.isEmpty()) onDismiss() else unmatched = missed
+                if (result.songs.isEmpty()) error(context.getString(R.string.spotify_import_none))
+                onImported(result.name, result.songs)
+                unavailable = result.unavailable
+                unmatched = result.unmatched
+                completed = true
+                if (result.unmatched.isEmpty() && unavailable == 0) onDismiss()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 status = context.getString(R.string.spotify_import_failed, e.message.orEmpty())
                 failed = true
-            }
-            working = false
+            } finally { working = false }
         }
     }
+
+    LaunchedEffect(initialLink) { if (initialLink != null && !completed) start() }
+    BackHandler { if (!working) onDismiss() }
 
     AlertScaffold(hazeState = hazeState, onDismiss = { if (!working) onDismiss() }) {
         com.cosmotune.ui.sheets.CosmoDialogBody(
             overline = null,
             title = stringResource(R.string.spotify_import_title),
             message = null,
-            confirmLabel = if (unmatched != null) null else stringResource(R.string.spotify_import_button),
+            confirmLabel = if (completed) null else stringResource(R.string.spotify_import_button),
             onConfirm = ::start,
             confirmEnabled = link.isNotBlank() && !working,
-            dismissLabel = stringResource(if (unmatched != null) R.string.done else R.string.cancel),
+            dismissLabel = stringResource(if (completed) R.string.done else R.string.cancel),
             onDismiss = onDismiss,
             dismissEnabled = !working,
         ) {
-            val missed = unmatched
-            if (missed != null) {
+            val missed = unmatched.orEmpty()
+            if (completed) {
                 Text(
-                    text = stringResource(R.string.spotify_import_unmatched, missed.size),
+                    text = if (missed.isEmpty()) stringResource(R.string.playlist_import_saved)
+                        else stringResource(R.string.spotify_import_unmatched, missed.size),
                     modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
                     color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 200.dp)
-                        .clip(RoundedCornerShape(CosmoRadii.rSm))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    missed.forEach { track ->
-                        Text(
-                            text = if (track.artist.isBlank()) track.title else "${track.title} · ${track.artist}",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                )
+                if (unavailable > 0) Text(stringResource(R.string.playlist_import_unavailable, unavailable))
+                if (missed.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .clip(RoundedCornerShape(CosmoRadii.rSm))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        missed.forEach { track ->
+                            Text(
+                                text = if (track.artist.isBlank()) track.title else "${track.title} · ${track.artist}",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             } else {
                 Text(
-                    text = status ?: stringResource(
-                        if (signedIn) R.string.spotify_import_description
-                        else R.string.spotify_import_description_local,
-                    ),
+                    text = status ?: stringResource(R.string.spotify_import_description),
                     modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
                     color = when {
@@ -161,7 +144,7 @@ fun SpotifyImportAlert(
                         failed -> MaterialTheme.colorScheme.error
                         else -> MaterialTheme.colorScheme.primary
                     },
-                                    )
+                )
                 PillTextField(
                     value = link,
                     onValueChange = {
@@ -176,43 +159,6 @@ fun SpotifyImportAlert(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { if (link.isNotBlank() && !working) start() }),
                 )
-                if (signedIn) {
-                    Text(
-                        text = stringResource(R.string.who_can_see_it),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 14.dp, bottom = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        PlaylistPrivacy.entries.forEach { option ->
-                            val selected = option == privacy
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(percent = 50))
-                                    .background(
-                                        if (selected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surfaceVariant,
-                                    )
-                                    .clickable(enabled = !working) { privacy = option }
-                                    .padding(vertical = 7.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = option.label,
-                                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp),
-                                    color = if (selected) MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
             }
         }
     }

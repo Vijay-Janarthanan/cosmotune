@@ -1641,45 +1641,11 @@ fun CosmotuneDesktopApp() {
         )
     }
 
-    /**
-     * Keeps an imported Spotify playlist where the phone does: on the account when signed in,
-     * otherwise on this computer, which is also the fallback if the account refuses it. Returns a
-     * note only for that fallback.
-     */
-    suspend fun importSpotifyPlaylist(title: String, songs: List<Song>): String? {
-        val signedIn = DesktopYouTubeAuth.isSignedIn
-        if (signedIn) {
-            val created = DesktopSearchClient.createPlaylist(title, PlaylistPrivacy.PRIVATE, songs.map(Song::videoId))
-            created.getOrNull()?.let { playlistId ->
-                editPlaylistShelf { items ->
-                    val card = ShelfItem(
-                        title = title,
-                        subtitle = "${songs.size} songs",
-                        thumbnailUrl = songs.firstOrNull()?.thumbnailUrl,
-                        videoId = null,
-                        browseId = "VL$playlistId",
-                    )
-                    listOf(card) + items.filterNot { it.browseId == card.browseId }
-                }
-                libraryStale = true
-                openCollection("VL$playlistId")
-                return null
-            }
-            DesktopTrackLog.log("spotify import: account playlist failed: ${created.exceptionOrNull()?.message}")
-        }
+    fun importSharedPlaylist(title: String, songs: List<Song>) {
         val playlist = DesktopPlaylist(title = title, songs = songs)
         playlists = playlists + playlist
         persistence.savePlaylists(playlists)
         openPlaylist(playlist)
-        return if (signedIn) {
-            DesktopStrings.format(
-                "spotify_import_local_fallback",
-                title,
-                fallback = "Couldn't create it on YouTube Music, so '%1\$s' was saved on this device instead.",
-            )
-        } else {
-            null
-        }
     }
 
     fun addToPlaylist(playlist: DesktopPlaylist) {
@@ -3552,6 +3518,10 @@ fun CosmotuneDesktopApp() {
         legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) },
     ) {
         val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current
+        val sharedPlaylistLink by desktopSharedPlaylist.collectAsState()
+        LaunchedEffect(sharedPlaylistLink) {
+            if (sharedPlaylistLink != null) cosmoShell?.settings?.setMode(com.cosmotune.design.AppMode.MUSIC)
+        }
         cosmoShell?.FollowCover(selectedSong, liveQueue.songs.getOrNull(liveQueue.index + 1))
         val ambientBackdrop by DesktopAppearanceSettings.ambientBackdrop.collectAsState()
         val windowActions = LocalDesktopWindowActions.current
@@ -4199,12 +4169,17 @@ fun CosmotuneDesktopApp() {
                         )
                     }
 
-                    if (spotifyImportOpen) {
-                        DesktopSpotifyImportDialog(
-                            signedIn = youtubeSignedIn,
-                            onImported = ::importSpotifyPlaylist,
-                            onDismiss = { spotifyImportOpen = false },
-                        )
+                    if (spotifyImportOpen || sharedPlaylistLink != null) {
+                        androidx.compose.runtime.key(sharedPlaylistLink) {
+                            DesktopSpotifyImportDialog(
+                                initialLink = sharedPlaylistLink,
+                                onImported = ::importSharedPlaylist,
+                                onDismiss = {
+                                    desktopSharedPlaylist.compareAndSet(sharedPlaylistLink, null)
+                                    spotifyImportOpen = false
+                                },
+                            )
+                        }
                     }
 
                     if (overlays.signIn) {
@@ -6848,7 +6823,7 @@ private fun DesktopSettingsScreen(
     }
     val settingsQuery = query
     val searching = settingsQuery.isNotBlank()
-    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.20" }
+    val settingsVersion = remember { System.getProperty("cosmotune.version") ?: "1.0.21" }
     val highlight = remember { com.cosmotune.ui.settings.SettingsHighlight() }
     // The pages the desktop has: a category with none of its settings here (backup is the phone's) is left out of the list.
     val pages = remember {
@@ -7992,7 +7967,7 @@ private fun DesktopSettingsScreen(
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
 private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
-    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.20" }
+    val version = remember { System.getProperty("cosmotune.version") ?: "1.0.21" }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )

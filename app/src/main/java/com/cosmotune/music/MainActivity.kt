@@ -684,6 +684,7 @@ private fun CosmotuneApp(
     // creating the playlist is the whole errand.
     var creatingPlaylist by remember { mutableStateOf(false) }
     var showSpotifyImportDialog by remember { mutableStateOf(false) }
+    var sharedPlaylistLink by rememberSaveable { mutableStateOf<String?>(null) }
     // Which album or playlist the collection menu is open on, or null when it
     // is shut. One slot for every surface that can open it â€” the shelves on
     // three tabs, the search rows, the artist page's carousels, the release
@@ -1846,6 +1847,12 @@ private fun CosmotuneApp(
     val linkRequest by MusicLink.pending.collectAsStateWithLifecycle()
     LaunchedEffect(linkRequest, controller) {
         val request = linkRequest ?: return@LaunchedEffect
+        if (request is LinkRequest.ImportPlaylist) {
+            dismissPlayer()
+            sharedPlaylistLink = request.link
+            MusicLink.handled()
+            return@LaunchedEffect
+        }
         // Nothing here can be served without somewhere to play it â€” even the
         // branches that only push a page are a beat away from a tap on one of
         // its rows, and half-serving a request would spend it.
@@ -1896,6 +1903,7 @@ private fun CosmotuneApp(
             // bounded queue before the controller connects, so this resumes
             // both a live session and one recovered after process death.
             LinkRequest.Resume -> if (session.mediaItemCount > 0) session.play()
+            is LinkRequest.ImportPlaylist -> Unit
         }
         MusicLink.handled()
     }
@@ -4852,32 +4860,22 @@ private fun CosmotuneApp(
             }
         }
 
-        if (showSpotifyImportDialog) {
-            BackHandler { showSpotifyImportDialog = false }
-            SpotifyImportAlert(
-                hazeState = hazeState,
-                signedIn = signedIn,
-                onImported = { title, privacy, songs ->
-                    viewModel.createPlaylistWithVideoIds(
-                        title,
-                        privacy,
-                        songs.map { it.videoId },
-                        songs,
-                    ) { browseId, pTitle, savedLocally ->
-                        showQueueNotice(
-                            context.getString(
-                                if (savedLocally && signedIn) R.string.spotify_import_local_fallback
-                                else R.string.spotify_import_done,
-                                pTitle,
-                            ),
-                        )
-                        browseId?.let { id ->
-                            viewModel.openDetail(id, pTitle, "${songs.size} songs", songs.firstOrNull()?.thumbnailUrl)
-                        }
-                    }
-                },
-                onDismiss = { showSpotifyImportDialog = false },
-            )
+        if (showSpotifyImportDialog || sharedPlaylistLink != null) {
+            androidx.compose.runtime.key(sharedPlaylistLink) {
+                SpotifyImportAlert(
+                    hazeState = hazeState,
+                    initialLink = sharedPlaylistLink,
+                    onImported = { title, songs ->
+                        val playlist = com.cosmotune.music.data.spotify.LocalPlaylistStore.savePlaylist(title, songs)
+                        showQueueNotice(context.getString(R.string.spotify_import_done, playlist.title))
+                        viewModel.openDetail(playlist.browseId, playlist.title, "${songs.size} songs", songs.firstOrNull()?.thumbnailUrl)
+                    },
+                    onDismiss = {
+                        sharedPlaylistLink = null
+                        showSpotifyImportDialog = false
+                    },
+                )
+            }
         }
 
         // ---- Album / playlist actions ----

@@ -48,7 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.spotify.SpotifyImportTrack
-import com.cosmotune.music.data.spotify.SpotifyImporter
+import com.cosmotune.music.data.spotify.SharedPlaylistLink
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.OrbitPillButton
 import com.cosmotune.ui.orbit.OrbitRoundButton
@@ -303,34 +303,27 @@ private fun DialogHeading(title: String, message: String, isError: Boolean = fal
     }
 }
 
-/**
- * Paste a Spotify playlist link, match its songs on YouTube Music, keep the result: the phone's
- * `SpotifyImportAlert`. [onImported] makes the playlist and returns a note when it ended up
- * somewhere the listener would not expect. Songs with no match are listed afterwards rather than
- * dropped without a word. The link has to be public; no Spotify sign-in is involved.
- */
+/** Imports a public playlist from a pasted or opened link and reports entries the service or matcher could not supply. */
 @Composable
 internal fun DesktopSpotifyImportDialog(
-    signedIn: Boolean,
-    onImported: suspend (title: String, songs: List<Song>) -> String?,
+    initialLink: String?,
+    onImported: (title: String, songs: List<Song>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    var link by remember { mutableStateOf("") }
+    var link by remember { mutableStateOf(initialLink.orEmpty()) }
     var working by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var failed by remember { mutableStateOf(false) }
     var unmatched by remember { mutableStateOf<List<SpotifyImportTrack>?>(null) }
+    var unavailable by remember { mutableStateOf(0) }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val title = DesktopStrings["spotify_import_title", "Import a playlist"]
 
     fun start() {
         if (working) return
-        val id = SpotifyImporter.extractPlaylistId(link)
-        // Apple Music and Deezer links are read the same way (PlaylistLinkImport) and matched exactly.
-        if (id == null && com.cosmotune.music.data.spotify.PlaylistLinkImport.serviceOf(link) == null) {
-            status = DesktopStrings["spotify_import_invalid", "That isn't a Spotify, Apple Music or Deezer playlist link."]
+        if (SharedPlaylistLink.fromText(link) == null) {
+            status = DesktopStrings["spotify_import_invalid", "Choose a supported public playlist link."]
             failed = true
             return
         }
@@ -342,23 +335,17 @@ internal fun DesktopSpotifyImportDialog(
                 val progress: (Int, Int) -> Unit = { done, total ->
                     status = DesktopStrings.format("spotify_import_matching", done, total, fallback = "Matching songs %1\$d of %2\$d")
                 }
-                val (name, matched) = if (id != null) {
-                    val (name, tracks) = SpotifyImporter.fetchPlaylistTracks(id)
-                    name to SpotifyImporter.resolveToSongs(tracks, progress)
-                } else {
-                    val playlist = com.cosmotune.music.data.spotify.PlaylistLinkImport.read(link)
-                    playlist.name to com.cosmotune.music.data.spotify.PlaylistLinkImport.match(playlist.tracks, progress)
-                }
-                val (songs, missed) = matched
-                if (songs.isEmpty()) {
+                val result = SharedPlaylistLink.import(link, progress)
+                if (result.songs.isEmpty()) {
                     error(DesktopStrings["spotify_import_none", "None of those songs were found on YouTube Music."])
                 }
-                val note = onImported(name, songs)
-                if (missed.isEmpty() && note == null) {
+                onImported(result.name, result.songs)
+                unavailable = result.unavailable
+                if (result.unmatched.isEmpty() && unavailable == 0) {
                     onDismiss()
                 } else {
-                    status = note
-                    unmatched = missed
+                    status = DesktopStrings["playlist_import_saved", "Playlist saved in Cosmotune."]
+                    unmatched = result.unmatched
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -370,9 +357,12 @@ internal fun DesktopSpotifyImportDialog(
                     fallback = "Couldn't import the playlist: %1\$s",
                 )
                 failed = true
-            }
-            working = false
+            } finally { working = false }
         }
+    }
+
+    LaunchedEffect(initialLink) {
+        if (initialLink != null) start() else runCatching { focus.requestFocus() }
     }
 
     // Not dismissed mid-import, which would leave the matching running with nowhere to report.
@@ -381,14 +371,7 @@ internal fun DesktopSpotifyImportDialog(
         if (missed == null) {
             DialogHeading(
                 title = title,
-                message = if (signedIn) {
-                    DesktopStrings["spotify_import_description", "Paste a public Spotify, Apple Music or Deezer playlist link. Songs are matched on YouTube Music."]
-                } else {
-                    DesktopStrings[
-                        "spotify_import_description_local",
-                        "Paste a public Spotify, Apple Music or Deezer playlist link. Songs are matched on YouTube Music and saved on this device.",
-                    ]
-                },
+                message = DesktopStrings["spotify_import_description", "Paste a public Spotify, Amazon Music, Apple Music, Deezer or YouTube Music playlist link."],
             )
             DialogField(
                 value = link,
@@ -423,6 +406,8 @@ internal fun DesktopSpotifyImportDialog(
                 title = title,
                 message = listOfNotNull(
                     status,
+                    DesktopStrings.format("playlist_import_unavailable", unavailable, fallback = "The source did not expose %1\$d tracks.")
+                        .takeIf { unavailable > 0 },
                     DesktopStrings.format(
                         "spotify_import_unmatched",
                         missed.size,

@@ -16,9 +16,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import java.util.concurrent.atomic.AtomicInteger
@@ -27,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger
 data class SpotifyImportTrack(
     val title: String,
     val artist: String,
+    val durationMs: Long? = null,
 )
 
 /** The result of fetching and resolving a Spotify playlist's tracks. */
@@ -129,7 +132,7 @@ object SpotifyImporter {
                     }
                     ?: ""
                 if (title.isNotBlank()) {
-                    tracks.add(SpotifyImportTrack(title = title.trim(), artist = subtitle.trim()))
+                    tracks.add(SpotifyImportTrack(title.trim(), subtitle.trim(), (obj["duration"] as? JsonPrimitive)?.longOrNull))
                 }
             }
 
@@ -222,7 +225,8 @@ object SpotifyImporter {
                     ?.mapNotNull { it.jsonObject["profile"]?.jsonObject?.get("name")?.jsonPrimitive?.content }
                     ?.joinToString(", ")
                     .orEmpty()
-                out.add(SpotifyImportTrack(title = title, artist = artist))
+                val duration = (data["trackDuration"] as? JsonObject)?.get("totalMilliseconds")?.jsonPrimitive?.longOrNull
+                out.add(SpotifyImportTrack(title, artist, duration))
             }
             val total = content["totalCount"]?.jsonPrimitive?.content?.toIntOrNull() ?: break
             offset += items.size
