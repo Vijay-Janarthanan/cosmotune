@@ -38,7 +38,7 @@ class WatchDownloadsTest {
     private val source = StreamSource("ia", "Internet Archive", "IA")
     private val film = PlayTarget.Film(WatchKey.tmdbFilm(7), ExternalIds(tmdb = 7), "Night of the Living Dead", 1968)
 
-    @Test fun changingDestinationKeepsOldFilesAndPersistsTheApprovedFolder() = runBlocking {
+    @Test fun changingDestinationKeepsOldFilesAndPersistsTheApprovedFolder() = runBlocking<Unit> {
         val root = Files.createTempDirectory("watch-folders").toFile()
         try {
             TestServer().use { server ->
