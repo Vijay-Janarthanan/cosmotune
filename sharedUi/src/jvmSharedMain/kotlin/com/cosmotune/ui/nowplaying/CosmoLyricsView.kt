@@ -80,7 +80,9 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontSynthesis
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -245,6 +247,8 @@ internal class LyricEnv(
     val ink: LyricInk,
     val type: CosmoType,
     val baseStyle: TextStyle,
+    /** The face the line being sung is set in (wide Archivo, the board's Orbit Read), over [baseStyle]'s size; null keeps one face. */
+    val readStyle: TextStyle?,
     val subStyle: TextStyle,
     val style: LyricsStyle,
     val reduced: Boolean,
@@ -335,6 +339,14 @@ private fun LyricsList(
             fontWeight = FontWeight(LyricsMetrics.SUB_WEIGHT),
         )
     }
+    // The line being sung in wide Archivo (`wdth` 112, `wght` 800); every other line stays in the text face, dim.
+    val stageFonts = rememberLyricStageFonts()
+    val readStyle = remember(stageFonts, synced) {
+        if (!synced) null else TextStyle(
+            fontFamily = stageFonts.read, fontWeight = FontWeight(StageWeights.READ), fontSynthesis = FontSynthesis.None,
+            letterSpacing = (-0.01).em,
+        )
+    }
     val subReveal = rememberSubReveal(subLines, trackKey, reduced)
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val lyricsBlur by PlayerSettings.lyricsBlur.collectAsStateWithLifecycle()
@@ -343,12 +355,12 @@ private fun LyricsList(
     val seek by rememberUpdatedState(onSeekToLine)
     val onSeek = remember { { timeMs: Long -> seek(timeMs) } }
     val env = remember(
-        lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, subStyle, style, reduced, rtl, selection, particles,
-        subReveal, bloom,
+        lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, readStyle, subStyle, style, reduced, rtl, selection,
+        particles, subReveal, bloom,
     ) {
         LyricEnv(
-            lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, subStyle, style, reduced, rtl, selection,
-            particles, subReveal, bloom, onSeek,
+            lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, readStyle, subStyle, style, reduced, rtl,
+            selection, particles, subReveal, bloom, onSeek,
         )
     }
     val viewportPx by remember(listState) { derivedStateOf { listState.layoutInfo.viewportSize.height } }
@@ -456,9 +468,14 @@ private fun LyricItem(index: Int, env: LyricEnv) {
     val fromRight = LyricTextDirection.fromRight(textRtl, onEnd)
     val align = if (fromRight) TextAlign.Right else TextAlign.Left
     val direction = if (textRtl) TextDirection.Rtl else TextDirection.Ltr
-    val textStyle = remember(env.baseStyle, line.text, align, direction) {
+    val restStyle = remember(env.baseStyle, line.text, align, direction) {
         env.type.forText(env.baseStyle.copy(textAlign = align, textDirection = direction), line.text)
     }
+    // The face of the line while it is sung (the fill, the lift and the bloom are laid out in it); the rest face otherwise. Both
+    // are laid out, one over the other, so the row is as tall as the taller of the two whatever its state: becoming current
+    // crossfades the faces and moves no row.
+    val textStyle = remember(restStyle, env.readStyle) { env.readStyle?.let { restStyle.merge(it) } ?: restStyle }
+    val twoFaces = textStyle !== restStyle
     val subStyle = remember(env.subStyle, align) { env.subStyle.copy(textAlign = align) }
     val sub = env.subReveal.lines?.getOrNull(index)
     val subText = sub?.text?.takeIf { it.isNotBlank() && it != line.text }
@@ -591,12 +608,25 @@ private fun LyricItem(index: Int, env: LyricEnv) {
                         },
                     ),
             ) {
+                if (twoFaces) {
+                    // The rest face, read by a screen reader; it gives way to the sung face as the line becomes current.
+                    BasicText(
+                        text = line.text,
+                        style = restStyle,
+                        color = baseInk,
+                        modifier = Modifier.fillMaxWidth().graphicsLayer { alpha = 1f - fill.value },
+                    )
+                }
                 BasicText(
                     text = line.text,
                     style = textStyle,
                     color = baseInk,
                     onTextLayout = { layoutRef.value = it },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = if (twoFaces) {
+                        Modifier.fillMaxWidth().clearAndSetSemantics { }.graphicsLayer { alpha = fill.value }
+                    } else {
+                        Modifier.fillMaxWidth()
+                    },
                 )
                 if (fillOn) {
                     BasicText(

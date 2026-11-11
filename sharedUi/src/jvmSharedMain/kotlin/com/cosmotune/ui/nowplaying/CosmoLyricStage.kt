@@ -50,6 +50,8 @@ class LyricStageSong(val title: String, val artist: String, val album: String?, 
  */
 @Immutable
 class LyricStageFonts internal constructor(
+    /** Orbit Read's line being sung: `wdth` 112, `wght` 800 (the board's `.read .now`). */
+    val read: FontFamily,
     /** Orbital's line: `wdth` 100, `wght` 800. */
     val orbital: FontFamily,
     /** Pulse's line: `wdth` 118, `wght` 850. */
@@ -63,6 +65,7 @@ class LyricStageFonts internal constructor(
 )
 
 internal object StageWeights {
+    const val READ = 800
     const val ORBITAL = 800
     const val PULSE = 850
     const val POSTER = 900
@@ -71,13 +74,14 @@ internal object StageWeights {
 
 @Composable
 fun rememberLyricStageFonts(): LyricStageFonts {
+    val read = archivo(StageWeights.READ, 112f)
     val orbital = archivo(StageWeights.ORBITAL, 100f)
     val pulse = archivo(StageWeights.PULSE, 118f)
     val poster = archivo(StageWeights.POSTER, 62f)
     val stretch = List(StretchCurve.INSTANCES) { i -> archivo(StageWeights.stretch(i), StretchCurve.width(StretchCurve.instanceAmount(i))) }
     val text = cosmoFontFamilies().second
-    return remember(orbital, pulse, poster, stretch, text) {
-        LyricStageFonts(FontFamily(orbital), FontFamily(pulse), FontFamily(poster), stretch.map { FontFamily(it) }, text)
+    return remember(read, orbital, pulse, poster, stretch, text) {
+        LyricStageFonts(FontFamily(read), FontFamily(orbital), FontFamily(pulse), FontFamily(poster), stretch.map { FontFamily(it) }, text)
     }
 }
 

@@ -83,7 +83,6 @@ fun LyricsSidePanel(
     var showLyricsProviders by remember { mutableStateOf(false) }
 
     val orbit = LocalCosmoShell.current != null
-    val orbitWide = orbitFonts().wide
     Box(modifier) {
         if (orbit) Box(Modifier.fillMaxSize().hazeSource(haze)) {
             CosmoLyricsPanel(
@@ -96,7 +95,8 @@ fun LyricsSidePanel(
                 isPlaying = isPlaying && position.advancing,
                 onSeekToLine = seekToLyric,
                 onOpenProviders = { showLyricsProviders = true },
-                style = remember(orbitWide) { SIDE_LYRICS_STYLE.copy(fontFamily = orbitWide) },
+                // The line being sung in wide Archivo, the others in the text face (the lyrics board's Orbit Read).
+                style = SIDE_LYRICS_STYLE,
                 modifier = Modifier.fillMaxSize(),
                 topPadding = 4.dp,
                 // The side panel is Orbit Read, compact (the lyrics board's "Where they go").

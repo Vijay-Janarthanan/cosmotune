@@ -425,7 +425,7 @@ fun CosmoNowPlaying(
             panel = { m ->
                 NowPlayingPanelSwitch(
                     panels.widePanel, modifier = m,
-                    lyrics = { lm -> lyricsPanel(lm, WIDE_LYRICS_STYLE.copy(fontFamily = orbitType.wide), WIDE_LYRICS_TOP_PADDING) },
+                    lyrics = { lm -> lyricsPanel(lm, WIDE_LYRICS_STYLE, WIDE_LYRICS_TOP_PADDING) },
                     upNext = { um -> upNextPanel(um, true) },
                     related = { rm -> relatedPanel(rm, true) },
                 )
@@ -515,7 +515,10 @@ fun CosmoNowPlaying(
 /** Where the first line of the phone's lyrics starts: their panel already sits under the top row. */
 private val PHONE_LYRICS_TOP_PADDING = 8.dp
 
-/** The wide page's lyrics (board section 3): title-m in the Orbit heading face, the line being sung a little larger, the sung ones smaller. */
+/**
+ * The wide page's lyrics (board section 3): title-m, the line being sung a little larger and in wide Archivo (the lyrics board's
+ * Orbit Read), the others in the text face, the sung ones smaller.
+ */
 private val WIDE_LYRICS_STYLE = LyricsStyle(TypeScale.TITLE_M, 1.12f, 0.9f)
 
 /** The wide column starts at the top of the media, so the list needs only a little air at its top. */
