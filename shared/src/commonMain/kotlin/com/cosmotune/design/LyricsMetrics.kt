@@ -120,6 +120,19 @@ object LyricsMetrics {
     fun lineState(index: Int, current: Int, active: Boolean): LineState =
         if (active) LineState.CURRENT else lineState(index, current)
 
+    // ---- the moon under the line being sung (Orbit Read) ------------------------------------------------------------------------
+
+    /**
+     * The lane under every synced line that the moon travels in while the line is sung (the board's `.now { padding-bottom: 16px }`):
+     * kept under every line, not only the one being sung, so a line becoming current never moves the rows around it.
+     */
+    const val MOON_ROOM_DP = 10f
+
+    /** The moon's radius, the faint track's thickness, and the halo round the moon. */
+    const val MOON_RADIUS_DP = 4f
+    const val MOON_TRACK_DP = 2f
+    const val MOON_HALO = 2.4f
+
     // ---- duets ---------------------------------------------------------------------------------------------------------------
 
     /** The lane kept clear on the far side of a duet line (the old panel's `DUET_LANE`): each voice keeps its own column. */

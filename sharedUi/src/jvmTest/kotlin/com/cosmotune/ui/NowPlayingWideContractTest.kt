@@ -92,7 +92,8 @@ class NowPlayingWideContractTest {
 
     @Test fun thePanelIsUpNextAsSongRowsTheLyricsInTheWideFaceOrRelated() {
         val src = screen
-        assertTrue(src.contains("WIDE_LYRICS_STYLE.copy(fontFamily = orbitType.wide)"), "the lyrics in the wide heading face")
+        // The lyrics board's Orbit Read: the line being sung in wide Archivo (the view's read face), the others in the text face.
+        assertTrue(src.contains("lyricsPanel(lm, WIDE_LYRICS_STYLE, WIDE_LYRICS_TOP_PADDING)"), "the lyrics in the text face, the sung line in the read face")
         assertTrue(src.contains("NowPlayingUpNext(") && src.contains("NowPlayingRelated("))
         val upNext = code(nowPlaying("NowPlayingUpNext.kt"))
         assertTrue(upNext.contains("OrbitSongRow("), "Home's song rows")

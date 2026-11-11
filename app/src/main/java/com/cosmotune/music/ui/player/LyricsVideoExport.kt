@@ -20,6 +20,7 @@ import android.text.Spanned
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.style.ForegroundColorSpan
+import androidx.compose.ui.graphics.asImageBitmap
 import com.cosmotune.lyrics.video.LyricsVideoPlan
 import com.cosmotune.music.data.Http
 import com.cosmotune.music.data.innertube.StreamResolver
@@ -39,6 +40,8 @@ import kotlin.math.roundToInt
  * A lyrics video for sharing: an MP4 (H.264 and AAC, 720×1280 at 24 frames a second) of the chosen lines over the cover,
  * each lighting up as it is sung, with that stretch of the song underneath. The frames come from the shared
  * [LyricsVideoPlan]; they are drawn with Android's canvas and encoded with MediaCodec, so nothing is uploaded anywhere.
+ * With [frames] the video is drawn in one of the lyric styles (Poster, Stretch, Orbital) by the shared
+ * [com.cosmotune.ui.nowplaying.LyricVideoFrames] instead, at the same size, from the same stretch of the song.
  */
 internal object LyricsVideoExport {
 
@@ -52,11 +55,19 @@ internal object LyricsVideoExport {
     private class Sample(val track: Int, val data: ByteArray, val timeUs: Long, val flags: Int)
 
     /** Writes the video to [target]; [onProgress] goes 0..1. The audio is left out when the song cannot be read. */
-    suspend fun export(context: Context, request: LyricsShareRequest, plan: LyricsVideoPlan, target: File, onProgress: (Float) -> Unit) =
+    suspend fun export(
+        context: Context,
+        request: LyricsShareRequest,
+        plan: LyricsVideoPlan,
+        target: File,
+        frames: ((androidx.compose.ui.graphics.ImageBitmap?) -> com.cosmotune.ui.nowplaying.LyricVideoFrames?)? = null,
+        onProgress: (Float) -> Unit,
+    ) =
         withContext(Dispatchers.Default) {
             val cover = runCatching { loadCover(context, request.artworkUrl) }.getOrNull()
+            val styled = frames?.invoke(cover?.asImageBitmap())
             val samples = ArrayList<Sample>()
-            val videoFormat = encodeVideo(request, plan, cover, samples) { onProgress(it * 0.8f) }
+            val videoFormat = encodeVideo(request, plan, cover, styled, samples) { onProgress(it * 0.8f) }
             val audio = runCatching { decodeClip(context, request, plan) }.getOrNull()
             val audioFormat = audio?.let { (pcm, rate, channels) -> encodeAudio(pcm, rate, channels, samples) }
             onProgress(0.95f)
@@ -85,6 +96,7 @@ internal object LyricsVideoExport {
         request: LyricsShareRequest,
         plan: LyricsVideoPlan,
         cover: Bitmap?,
+        styled: com.cosmotune.ui.nowplaying.LyricVideoFrames?,
         out: MutableList<Sample>,
         onProgress: (Float) -> Unit,
     ): MediaFormat {
@@ -116,8 +128,13 @@ internal object LyricsVideoExport {
                             codec.queueInputBuffer(input, 0, 0, index * 1_000_000L / FPS, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             inputDone = true
                         } else {
-                            painter.draw(canvas, plan.frameAt(index * 1_000L / FPS))
-                            frame.getPixels(pixels, 0, WIDTH, 0, 0, WIDTH, HEIGHT)
+                            if (styled != null) {
+                                // The lyric style's frame, drawn by the shared stages at the song's own moment.
+                                styled.render(plan.startMs + index * 1_000L / FPS, pixels)
+                            } else {
+                                painter.draw(canvas, plan.frameAt(index * 1_000L / FPS))
+                                frame.getPixels(pixels, 0, WIDTH, 0, 0, WIDTH, HEIGHT)
+                            }
                             val image = codec.getInputImage(input) ?: error("The encoder gave no input image")
                             writeYuv(pixels, image)
                             codec.queueInputBuffer(input, 0, WIDTH * HEIGHT * 3 / 2, index * 1_000_000L / FPS, 0)

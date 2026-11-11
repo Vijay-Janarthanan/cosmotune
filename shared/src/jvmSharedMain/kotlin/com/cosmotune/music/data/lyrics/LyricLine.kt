@@ -110,6 +110,17 @@ data class LyricSyllable(
     }
 }
 
+/** A singer's name as a source gives it, kept only when it is a name rather than a voice's number. */
+object LyricSinger {
+    private val numbered = Regex("""^\s*v?\s*[0-9]{1,4}\s*$""", RegexOption.IGNORE_CASE)
+
+    /** [raw] trimmed, or null when it is blank or only numbers a voice ("v1", "V2", "3"). */
+    fun name(raw: String?): String? {
+        val trimmed = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return if (numbered.matches(trimmed)) null else trimmed.take(40)
+    }
+}
+
 /**
  * Which side of the panel a line is sung from.
  *
@@ -151,6 +162,12 @@ data class LyricLine(
     val alignment: LyricAlignment = LyricAlignment.Start,
     /** Display-only translation: drive its sweep and bloom from the original vocal. */
     val timingSource: LyricLine? = null,
+    /**
+     * Who sings the line, where the source names its voices (a TTML `<ttm:agent>` with a `<ttm:name>`, a LyricsPlus agent with
+     * a name): what Call & Answer prints over a duet's bubble. Null when the source only numbers them ("v1", "v2"), which says
+     * which side, not who; see [LyricSinger.name].
+     */
+    val singer: String? = null,
 ) {
     val isGap: Boolean get() = text.isEmpty()
 

@@ -77,6 +77,9 @@ class PrecisionAudioSink(
      */
     private val isAudible: () -> Boolean = { true },
 ) : ForwardingAudioSink(delegate) {
+    /** The audio level tap ([LevelTapProcessor]): pass-through, after the DSP chain. */
+    private val levelTap = LevelTapProcessor()
+
 
     /** Whether the precision Float32 DSP path is currently active for the configured format. */
     var isPrecisionActive: Boolean = false
@@ -149,6 +152,7 @@ class PrecisionAudioSink(
 
                 // 1. Configure the Float32 DSP chain
                 dspChain.configure(sampleRate, channelCount)
+                levelTap.configure(sampleRate, channelCount)
 
                 // 2. Ensure internal buffers are sized for max frames and channel count
                 ensureBuffers(channelCount)
@@ -345,6 +349,8 @@ class PrecisionAudioSink(
             dspChain.process(audioBlock)
             // Read-only and dormant when Visuals is closed; never changes the PCM sent to the sink.
             com.cosmotune.music.data.audio.AudioVisuals.publish(audioBlock.samples, audioBlock.sampleCount)
+            // The Pulse lyric style's levels, from the sink the listener hears; read-only, and idle while nothing listens.
+            if (isAudible()) levelTap.process(audioBlock)
 
             // Encode processed samples to target PCM output buffer (Float32 or PCM16)
             outputByteBuffer.clear()
@@ -418,6 +424,7 @@ class PrecisionAudioSink(
         val processed = processedEndUs
         if (position != AudioSink.CURRENT_POSITION_NOT_SET && processed != C.TIME_UNSET) {
             dspChain.transition.leadUs = (processed - position).coerceAtLeast(0L)
+            levelTap.leadUs = dspChain.transition.leadUs
         }
         return position
     }

@@ -38,6 +38,7 @@ import com.cosmotune.design.LyricsMetrics
 import com.cosmotune.design.NowPlayingLayout
 import com.cosmotune.design.TypeScale
 import com.cosmotune.design.VideoView
+import com.cosmotune.lyrics.styles.LyricSurface
 import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.data.lyrics.LyricsSource
@@ -340,12 +341,14 @@ fun CosmoNowPlaying(
         }
     }
     val coverPlaced: (Rect) -> Unit = { shell?.playerCoverBounds = it }
+    val lyricStageSong = remember(song.title, song.artist, song.albumName, remoteArt) { LyricStageSong(song.title, song.artist, song.albumName, remoteArt) }
     val lyricsPanel: @Composable (Modifier, LyricsStyle, Dp) -> Unit = { m, style, topPadding ->
         CosmoLyricsPanel(
             lyrics = lyrics, lyricsUnavailable = lyricsUnavailable, loadingText = lyricsLoadingText, translation = lyricsTranslation,
             trackKey = song.videoId, playhead = lyricsPlayhead, isPlaying = isPlaying && position.advancing,
             onSeekToLine = seekToLyric, onOpenProviders = { sheets.providers = true },
             style = style, modifier = m, topPadding = topPadding, share = lyricShare,
+            song = lyricStageSong, surface = if (wide) LyricSurface.DESKTOP else LyricSurface.PHONE,
         )
     }
     val upNextPanel: @Composable (Modifier, Boolean) -> Unit = { m, header ->
@@ -424,7 +427,7 @@ fun CosmoNowPlaying(
             panel = { m ->
                 NowPlayingPanelSwitch(
                     panels.widePanel, modifier = m,
-                    lyrics = { lm -> lyricsPanel(lm, WIDE_LYRICS_STYLE.copy(fontFamily = orbitType.wide), WIDE_LYRICS_TOP_PADDING) },
+                    lyrics = { lm -> lyricsPanel(lm, WIDE_LYRICS_STYLE, WIDE_LYRICS_TOP_PADDING) },
                     upNext = { um -> upNextPanel(um, true) },
                     related = { rm -> relatedPanel(rm, true) },
                 )
@@ -514,7 +517,10 @@ fun CosmoNowPlaying(
 /** Where the first line of the phone's lyrics starts: their panel already sits under the top row. */
 private val PHONE_LYRICS_TOP_PADDING = 8.dp
 
-/** The wide page's lyrics (board section 3): title-m in the Orbit heading face, the line being sung a little larger, the sung ones smaller. */
+/**
+ * The wide page's lyrics (board section 3): title-m, the line being sung a little larger and in wide Archivo (the lyrics board's
+ * Orbit Read), the others in the text face, the sung ones smaller.
+ */
 private val WIDE_LYRICS_STYLE = LyricsStyle(TypeScale.TITLE_M, 1.12f, 0.9f)
 
 /** The wide column starts at the top of the media, so the list needs only a little air at its top. */

@@ -66,6 +66,12 @@ fun DesktopLyricsShare(request: LyricsShareRequest, onDismiss: () -> Unit) {
                     val videoPlan = remember(request) {
                         com.cosmotune.lyrics.video.LyricsVideoPlan.forSelection(request.lrcLines, request.lines.filterNot { it.isGap }.map { it.text })
                     }
+                    // The video's look, picked before saving: a lyric style (Poster first), or the classic one.
+                    var videoLook by remember { mutableStateOf(com.cosmotune.ui.nowplaying.LyricVideoLook.POSTER) }
+                    val videoFrames = com.cosmotune.ui.nowplaying.rememberLyricVideoFrames(request)
+                    if (videoPlan != null) com.cosmotune.ui.sheets.CosmoDialogQuietButton("Video style · ${videoLook.title}", enabled = !saving, onClick = {
+                        videoLook = videoLook.next()
+                    })
                     if (videoPlan != null) com.cosmotune.ui.sheets.CosmoDialogQuietButton("Save as video", enabled = !saving, onClick = {
                         scope.launch {
                             saving = true
@@ -74,7 +80,8 @@ fun DesktopLyricsShare(request: LyricsShareRequest, onDismiss: () -> Unit) {
                                 if (target != null) {
                                     message = "Making the video…"
                                     withContext(Dispatchers.IO) {
-                                        DesktopLyricsVideo.export(request, videoPlan, target) { message = "Making the video… ${(it * 100).toInt()}%" }
+                                        val look = videoLook
+                                        DesktopLyricsVideo.export(request, videoPlan, target, frames = { cover -> videoFrames(look, cover) }) { message = "Making the video… ${(it * 100).toInt()}%" }
                                     }
                                     message = "Lyrics video saved"
                                 }

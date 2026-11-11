@@ -81,7 +81,11 @@ import androidx.media3.common.Player
 import com.cosmotune.music.data.NerdStats
 import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.cosmotune.music.data.canvas.CanvasRepository
+import com.cosmotune.lyrics.styles.LyricStyle
+import com.cosmotune.lyrics.styles.LyricStyles
 import com.cosmotune.music.data.lyrics.LyricLine
+import com.cosmotune.ui.nowplaying.LyricStageSong
+import com.cosmotune.ui.nowplaying.LyricStyleStage
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.AppSettings
 import com.cosmotune.music.playback.PlaybackPosition
@@ -170,7 +174,13 @@ internal fun TvNowPlayingStage(
     controlsVisible: Boolean,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    lyricStyle: LyricStyle = LyricStyle.ORBIT_READ,
 ) {
+    // Orbital, Stretch and Poster take the whole screen (Orbital draws the disc itself, in the middle); the rest sit beside the disc.
+    if (showLyrics && LyricStyles.fullScreenOnTv(lyricStyle)) {
+        TvFullScreenLyrics(song, isPlaying, position, lyrics, lyricStyle, controlsVisible, onSeek, modifier)
+        return
+    }
     val up by animateFloatAsState(if (controlsVisible) 1f else 0f, tween(360), label = "cardUp")
     val canvasEnabled by AppSettings.animatedCanvas.collectAsState()
     var canvas by remember(song.videoId) { mutableStateOf<CanvasArtwork?>(null) }
@@ -299,20 +309,87 @@ internal fun TvNowPlayingStage(
                     Density(density = density.density, fontScale = density.fontScale * LYRIC_FONT_SCALE)
                 }
                 CompositionLocalProvider(LocalDensity provides lyricDensity) {
-                    SyncedLyricsPanel(
-                        lines = lyrics,
-                        trackKey = song.videoId,
-                        position = position,
-                        looking = lyricsLoading,
-                        isPlaying = isPlaying,
-                        onSeekToLine = onSeek,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                    if (lyricStyle == LyricStyle.ORBIT_READ || lyrics.isEmpty()) {
+                        SyncedLyricsPanel(
+                            lines = lyrics,
+                            trackKey = song.videoId,
+                            position = position,
+                            looking = lyricsLoading,
+                            isPlaying = isPlaying,
+                            onSeekToLine = onSeek,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        // Call & Answer and Pulse, in the lyrics' column beside the disc.
+                        LyricStyleStage(
+                            style = lyricStyle, lines = lyrics, trackKey = song.videoId, position = position, isPlaying = isPlaying,
+                            onSeek = onSeek, song = tvStageSong(song), modifier = Modifier.fillMaxSize().padding(vertical = 72.dp),
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/** What the lyric stages need of the song: its names and cover. */
+internal fun tvStageSong(song: Song) = LyricStageSong(song.title, song.artist, song.albumName, song.thumbnailUrl)
+
+/**
+ * A full-screen lyric style (board: "TV Now Playing & screensaver: Orbital or Stretch, full screen"): the stage is the screen,
+ * Orbital with the cover as its disc in the middle. While the transport card is up the stage steps back above it, as the
+ * lyrics beside the disc do.
+ */
+@Composable
+internal fun TvFullScreenLyrics(
+    song: Song,
+    isPlaying: Boolean,
+    position: PlaybackPosition,
+    lyrics: List<LyricLine>,
+    lyricStyle: LyricStyle,
+    controlsVisible: Boolean,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val up by animateFloatAsState(if (controlsVisible) 1f else 0f, tween(360), label = "cardUp")
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val fraction = ((maxHeight - TransportReach) / maxHeight).coerceIn(0.4f, 1f)
+        val poster = lyricStyle == LyricStyle.POSTER
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(if (poster) 0.dp else 40.dp)
+                .graphicsLayer {
+                    // Above the card while it is up: smaller and higher, never under it.
+                    val scale = lerp(1f, fraction, up)
+                    transformOrigin = TransformOrigin(0.5f, 0f)
+                    scaleX = scale
+                    scaleY = scale
+                    alpha = lerp(1f, if (poster) 0.25f else 0.92f, up)
+                },
+        ) {
+            LyricStyleStage(
+                style = lyricStyle, lines = lyrics, trackKey = song.videoId, position = position, isPlaying = isPlaying,
+                onSeek = onSeek, song = tvStageSong(song), modifier = Modifier.fillMaxSize(), fullScreen = true,
+            )
+        }
+    }
+}
+
+/**
+ * The TV's ambient mode: after [TV_AMBIENT_IDLE_MS] with no press of the remote while a song with lyrics plays, the screen
+ * becomes Poster, the line as a typographic card in the cover's colour. Any press brings Now Playing back.
+ */
+@Composable
+internal fun TvLyricsAmbient(song: Song, isPlaying: Boolean, position: PlaybackPosition, lyrics: List<LyricLine>, onSeek: (Long) -> Unit, modifier: Modifier = Modifier) {
+    LyricStyleStage(
+        style = LyricStyle.POSTER, lines = lyrics, trackKey = song.videoId, position = position,
+        isPlaying = isPlaying, onSeek = onSeek, song = tvStageSong(song), modifier = modifier.fillMaxSize(), fullScreen = true,
+    )
+}
+
+/** How long the remote has to be left alone before the ambient Poster comes up (the board's two minutes). */
+internal const val TV_AMBIENT_IDLE_MS = 120_000L
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Transport: the song's colour card
@@ -356,6 +433,8 @@ internal fun TvTransport(
     shuffle: Boolean = false,
     repeatMode: Int = Player.REPEAT_MODE_OFF,
     onSleepTimer: () -> Unit = {},
+    lyricStyle: LyricStyle? = null,
+    onNextLyricStyle: () -> Unit = {},
 ) {
     val showStats by AppSettings.showNerdStats.collectAsState()
     val sleep = com.cosmotune.ui.sleep.rememberSleepTimer()
@@ -390,6 +469,8 @@ internal fun TvTransport(
                                 Player.REPEAT_MODE_ALL -> TvActiveTag(CosmoIcons.Repeat, "Repeat all", ink, fill)
                             }
                             if (shuffle) TvActiveTag(CosmoIcons.Shuffle, "Shuffle", ink, fill)
+                            // The lyric style in force, so stepping through them with the Style button says where it is.
+                            if (lyricsOn && lyricStyle != null) TvActiveTag(CosmoIcons.Waveform, lyricStyle.title, ink, fill)
                         }
                         Text(
                             text = song.title,
@@ -411,6 +492,9 @@ internal fun TvTransport(
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(start = 20.dp)) {
                         TvCardButton(if (isLiked) CosmoIcons.HeartFill else CosmoIcons.Heart, if (isLiked) "Unlove" else "Love", ink, on = isLiked, onClick = onToggleLike)
                         TvCardButton(CosmoIcons.Lyrics, "Lyrics", ink, on = lyricsOn, enabled = lyricsAvailable, onClick = onToggleLyrics)
+                        if (lyricStyle != null) {
+                            TvCardButton(CosmoIcons.Waveform, "Lyric style: " + lyricStyle.title, ink, enabled = lyricsOn, onClick = onNextLyricStyle)
+                        }
                         TvCardButton(CosmoIcons.Queue, "Up Next", ink, on = upNextOpen, onClick = onToggleUpNext)
                         TvCardButton(CosmoIcons.Timer, "Sleep timer", ink, on = sleep != null, onClick = onSleepTimer)
                         TvCardButton(CosmoIcons.More, "More", ink, onClick = onMore)

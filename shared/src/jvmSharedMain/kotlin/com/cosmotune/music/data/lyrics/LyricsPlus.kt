@@ -128,6 +128,7 @@ object LyricsPlus {
         }.sortedBy { it.first.timeMs }
 
         val sides = lineAlignments(sung.map { singerOf(it.second) }, response.agentTypes())
+        val names = response.agentNames()
         return sung.mapIndexed { index, (line, element) ->
             // A payload that names no voices at all can still mark a line as the
             // answering side, which is how the older shape of this API said the
@@ -138,7 +139,7 @@ object LyricsPlus {
             } else {
                 LyricAlignment.Start
             }
-            line.copy(alignment = side)
+            line.copy(alignment = side, singer = singerOf(element)?.let { names[it] })
         }.withInstrumentalGaps()
     }
 
@@ -196,6 +197,14 @@ object LyricsPlus {
                 put(agent.alias ?: id, type)
             }
         }
+
+        /** The declared voices' names, keyed like [agentTypes]; an agent with no real name is left out. */
+        fun agentNames(): Map<String, String> = buildMap {
+            metadata?.agents?.forEach { (id, agent) ->
+                val name = LyricSinger.name(agent.name) ?: return@forEach
+                put(agent.alias ?: id, name)
+            }
+        }
     }
 
     @Serializable
@@ -207,6 +216,7 @@ object LyricsPlus {
     data class Agent(
         val type: String? = null,
         val alias: String? = null,
+        val name: String? = null,
     )
 
     @Serializable

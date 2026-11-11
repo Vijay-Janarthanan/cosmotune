@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorProducer
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
@@ -79,7 +80,9 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontSynthesis
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -100,6 +103,9 @@ import com.cosmotune.lyrics.LyricRows
 import com.cosmotune.lyrics.LyricTextDirection
 import com.cosmotune.lyrics.SungFraction
 import com.cosmotune.lyrics.WordFill
+import com.cosmotune.lyrics.styles.LyricMoon
+import com.cosmotune.lyrics.styles.LyricStyle
+import com.cosmotune.lyrics.styles.LyricSurface
 import com.cosmotune.theme.CoverColors
 import com.cosmotune.ui.components.CosmoIconButton
 import com.cosmotune.ui.components.CosmoIconButtonStyle
@@ -241,6 +247,8 @@ internal class LyricEnv(
     val ink: LyricInk,
     val type: CosmoType,
     val baseStyle: TextStyle,
+    /** The face the line being sung is set in (wide Archivo, the board's Orbit Read), over [baseStyle]'s size; null keeps one face. */
+    val readStyle: TextStyle?,
     val subStyle: TextStyle,
     val style: LyricsStyle,
     val reduced: Boolean,
@@ -331,6 +339,14 @@ private fun LyricsList(
             fontWeight = FontWeight(LyricsMetrics.SUB_WEIGHT),
         )
     }
+    // The line being sung in wide Archivo (`wdth` 112, `wght` 800); every other line stays in the text face, dim.
+    val stageFonts = rememberLyricStageFonts()
+    val readStyle = remember(stageFonts, synced) {
+        if (!synced) null else TextStyle(
+            fontFamily = stageFonts.read, fontWeight = FontWeight(StageWeights.READ), fontSynthesis = FontSynthesis.None,
+            letterSpacing = (-0.01).em,
+        )
+    }
     val subReveal = rememberSubReveal(subLines, trackKey, reduced)
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val lyricsBlur by PlayerSettings.lyricsBlur.collectAsStateWithLifecycle()
@@ -339,12 +355,12 @@ private fun LyricsList(
     val seek by rememberUpdatedState(onSeekToLine)
     val onSeek = remember { { timeMs: Long -> seek(timeMs) } }
     val env = remember(
-        lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, subStyle, style, reduced, rtl, selection, particles,
-        subReveal, bloom,
+        lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, readStyle, subStyle, style, reduced, rtl, selection,
+        particles, subReveal, bloom,
     ) {
         LyricEnv(
-            lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, subStyle, style, reduced, rtl, selection,
-            particles, subReveal, bloom, onSeek,
+            lines, synced, duet, clock, current, anchor, activity, ink, type, baseStyle, readStyle, subStyle, style, reduced, rtl,
+            selection, particles, subReveal, bloom, onSeek,
         )
     }
     val viewportPx by remember(listState) { derivedStateOf { listState.layoutInfo.viewportSize.height } }
@@ -452,9 +468,14 @@ private fun LyricItem(index: Int, env: LyricEnv) {
     val fromRight = LyricTextDirection.fromRight(textRtl, onEnd)
     val align = if (fromRight) TextAlign.Right else TextAlign.Left
     val direction = if (textRtl) TextDirection.Rtl else TextDirection.Ltr
-    val textStyle = remember(env.baseStyle, line.text, align, direction) {
+    val restStyle = remember(env.baseStyle, line.text, align, direction) {
         env.type.forText(env.baseStyle.copy(textAlign = align, textDirection = direction), line.text)
     }
+    // The face of the line while it is sung (the fill, the lift and the bloom are laid out in it); the rest face otherwise. Both
+    // are laid out, one over the other, so the row is as tall as the taller of the two whatever its state: becoming current
+    // crossfades the faces and moves no row.
+    val textStyle = remember(restStyle, env.readStyle) { env.readStyle?.let { restStyle.merge(it) } ?: restStyle }
+    val twoFaces = textStyle !== restStyle
     val subStyle = remember(env.subStyle, align) { env.subStyle.copy(textAlign = align) }
     val sub = env.subReveal.lines?.getOrNull(index)
     val subText = sub?.text?.takeIf { it.isNotBlank() && it != line.text }
@@ -587,12 +608,25 @@ private fun LyricItem(index: Int, env: LyricEnv) {
                         },
                     ),
             ) {
+                if (twoFaces) {
+                    // The rest face, read by a screen reader; it gives way to the sung face as the line becomes current.
+                    BasicText(
+                        text = line.text,
+                        style = restStyle,
+                        color = baseInk,
+                        modifier = Modifier.fillMaxWidth().graphicsLayer { alpha = 1f - fill.value },
+                    )
+                }
                 BasicText(
                     text = line.text,
                     style = textStyle,
                     color = baseInk,
                     onTextLayout = { layoutRef.value = it },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = if (twoFaces) {
+                        Modifier.fillMaxWidth().clearAndSetSemantics { }.graphicsLayer { alpha = fill.value }
+                    } else {
+                        Modifier.fillMaxWidth()
+                    },
                 )
                 if (fillOn) {
                     BasicText(
@@ -621,6 +655,10 @@ private fun LyricItem(index: Int, env: LyricEnv) {
                 }
             }
         }
+        if (synced) {
+            // The moon's lane: room under every synced line, so becoming current moves nothing; the moon itself only on the line being sung.
+            MoonLane(index, line, env, fill, layoutRef, textRtl)
+        }
         if (subText != null) {
             // The romanisation or translation, opening out of the line above it; a line the service handed back unchanged gets no second copy.
             val particlesOn = env.particles != null && if (synced) abs(index - env.anchor.value) <= 1 else index < 4
@@ -641,6 +679,43 @@ private fun LyricItem(index: Int, env: LyricEnv) {
         }
     }
 }
+
+/**
+ * The moon under the line being sung (the board's Orbit Read): a faint track the width of the line's words and the moon on it, at
+ * the singer's place by time ([LyricMoon]), so it keeps moving through a held note where the fill rests on one syllable. It fades
+ * in and out with the fill, and the clock is read only while the fill is showing: a line nobody is singing never redraws for it.
+ * Reduced motion: no moon (it is movement); the fill still says where the song is.
+ */
+@Composable
+private fun MoonLane(index: Int, line: LyricLine, env: LyricEnv, fill: State<Float>, layoutRef: LayoutHolder, textRtl: Boolean) {
+    Spacer(
+        Modifier
+            .fillMaxWidth()
+            .height(LyricsMetrics.MOON_ROOM_DP.dp)
+            .drawBehind {
+                val shown = fill.value
+                if (env.reduced || shown <= 0f || line.isGap) return@drawBehind
+                val layout = layoutRef.value ?: return@drawBehind
+                var left = Float.MAX_VALUE
+                var right = 0f
+                for (row in 0 until layout.lineCount) {
+                    left = minOf(left, layout.getLineLeft(row))
+                    right = maxOf(right, layout.getLineRight(row))
+                }
+                if (right <= left) return@drawBehind
+                val y = size.height / 2f
+                val through = LyricMoon.fraction(env.lines, index, env.clock.longValue)
+                val x = if (textRtl) right - (right - left) * through else left + (right - left) * through
+                drawLine(env.ink.primary.copy(alpha = MOON_TRACK_ALPHA * shown), Offset(left, y), Offset(right, y), strokeWidth = LyricsMetrics.MOON_TRACK_DP.dp.toPx(), cap = StrokeCap.Round)
+                val radius = LyricsMetrics.MOON_RADIUS_DP.dp.toPx()
+                drawCircle(env.ink.accent.copy(alpha = MOON_HALO_ALPHA * shown), radius * LyricsMetrics.MOON_HALO, Offset(x, y))
+                drawCircle(env.ink.accent.copy(alpha = shown), radius, Offset(x, y))
+            },
+    )
+}
+
+private const val MOON_TRACK_ALPHA = 0.12f
+private const val MOON_HALO_ALPHA = 0.26f
 
 /**
  * The bloom behind a held note: the line's text again in the accent, blurred, lit only on the letters being held, each at its own
@@ -814,11 +889,18 @@ internal fun CosmoLyricsPanel(
     modifier: Modifier = Modifier,
     topPadding: Dp = LyricsMetrics.PORTRAIT_TOP_PADDING_DP.dp,
     share: CosmoLyricShare? = null,
+    song: LyricStageSong? = null,
+    surface: LyricSurface = LyricSurface.PHONE,
+    /** False where the board keeps Orbit Read alone (the desktop's side panel): no Style chip, and the list whatever the choice. */
+    offerStyles: Boolean = true,
 ) {
     val lines = lyrics.orEmpty()
     // A pick belongs to the open lyrics: when they close with one under way, it is dropped.
     val latestShare by rememberUpdatedState(share)
     DisposableEffect(Unit) { onDispose { latestShare?.cancel() } }
+    // The Style chip's choice; a pick of lines for a card is always made in the list, whatever the style.
+    val styleChoice = rememberLyricStyleChoice(trackKey, lines, surface)
+    val shownStyle = if (!offerStyles || share?.picking == true || lines.isEmpty()) LyricStyle.ORBIT_READ else styleChoice.style
     Column(modifier) {
         // The motes that rise off the new text when the romanisation or translation is switched, over the list and outside its animation clock.
         LyricsTranslationMotion(
@@ -826,20 +908,33 @@ internal fun CosmoLyricsPanel(
             reduceMotion = translation.reduceMotion,
             modifier = Modifier.weight(1f).fillMaxWidth(),
         ) { particleProgress ->
-            CosmoLyricsView(
-                lines = lines,
-                subLines = translation.subLines,
-                trackKey = trackKey,
-                playhead = playhead,
-                isPlaying = isPlaying,
-                onSeekToLine = onSeekToLine,
-                style = style,
-                modifier = Modifier.fillMaxSize(),
-                emptyText = if (lyrics == null && !lyricsUnavailable) loadingText else stringResource(Res.string.lyrics_not_available),
-                topPadding = topPadding,
-                selection = share?.selection ?: LyricSelection.None,
-                particles = particleProgress,
-            )
+            if (shownStyle == LyricStyle.ORBIT_READ) {
+                CosmoLyricsView(
+                    lines = lines,
+                    subLines = translation.subLines,
+                    trackKey = trackKey,
+                    playhead = playhead,
+                    isPlaying = isPlaying,
+                    onSeekToLine = onSeekToLine,
+                    style = style,
+                    modifier = Modifier.fillMaxSize(),
+                    emptyText = if (lyrics == null && !lyricsUnavailable) loadingText else stringResource(Res.string.lyrics_not_available),
+                    topPadding = topPadding,
+                    selection = share?.selection ?: LyricSelection.None,
+                    particles = particleProgress,
+                )
+            } else {
+                key(trackKey) {
+                    // The same frame clock the list runs on, read by the stage in its draw lambdas only.
+                    val clock = rememberCosmoLyricClock(trackKey, playhead, isPlaying)
+                    val selection = share?.selection ?: LyricSelection.None
+                    CosmoLyricStage(
+                        style = shownStyle, lines = lines, subLines = translation.subLines, clock = clock, isPlaying = isPlaying,
+                        onSeek = onSeekToLine, song = song, modifier = Modifier.fillMaxSize().padding(top = topPadding),
+                        onPick = if (selection.canPick) selection.onPick else null,
+                    )
+                }
+            }
         }
         if (share != null && share.picking) {
             LyricsPickFooter(shareEnabled = share.shareEnabled, onCancel = share::cancel, onShare = share::share)
@@ -849,14 +944,21 @@ internal fun CosmoLyricsPanel(
             LyricsFooter(
                 translation.status.takeUnless { looking && it == loadingText }.orEmpty(), translation, hasLines = lines.isNotEmpty(),
                 onOpenProviders = onOpenProviders,
+                styleChip = if (offerStyles && SungFraction.isSynced(lines)) ({ LyricStyleChip(styleChoice, Modifier.padding(horizontal = 4.dp)) }) else null,
             )
         }
     }
 }
 
-/** The line that names the source (or what the translation is doing) and the two toggles; 48 dp tall. */
+/** The line that names the source (or what the translation is doing), the Style chip (synced lyrics only) and the two toggles; 48 dp tall. */
 @Composable
-private fun LyricsFooter(status: String, translation: LyricsTranslationUi, hasLines: Boolean, onOpenProviders: () -> Unit) {
+private fun LyricsFooter(
+    status: String,
+    translation: LyricsTranslationUi,
+    hasLines: Boolean,
+    onOpenProviders: () -> Unit,
+    styleChip: (@Composable () -> Unit)? = null,
+) {
     val type = LocalCosmoType.current
     val ink = Color(LocalCosmoColors.current.palette.textSecondary)
     val statusStyle = remember(type) { TextStyle(fontFamily = type.textFamily, fontSize = 13.sp, fontWeight = FontWeight(600), textDecoration = TextDecoration.Underline) }
@@ -877,6 +979,7 @@ private fun LyricsFooter(status: String, translation: LyricsTranslationUi, hasLi
         } else {
             Spacer(Modifier.weight(1f))
         }
+        styleChip?.invoke()
         LyricsToggle(
             Icons.Rounded.Language,
             stringResource(if (translation.showingRomanization) Res.string.show_original_lyrics else Res.string.romanize_lyrics),
