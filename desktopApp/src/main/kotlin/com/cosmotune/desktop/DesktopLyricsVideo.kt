@@ -6,6 +6,7 @@ import com.cosmotune.music.desktop.DesktopPcmFormat
 import com.cosmotune.music.desktop.DesktopStream
 import com.cosmotune.music.desktop.DesktopStreamClient
 import com.cosmotune.music.ui.player.LyricsShareRequest
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import org.bytedeco.ffmpeg.avcodec.AVCodec
 import org.bytedeco.ffmpeg.avcodec.AVCodecContext
 import org.bytedeco.ffmpeg.avformat.AVFormatContext
@@ -34,7 +35,8 @@ import kotlin.math.roundToInt
 /**
  * The desktop's lyrics video: the same [LyricsVideoPlan] frames as the phone's, drawn with Java2D and encoded with the
  * FFmpeg libraries the desktop already ships (H.264 through whichever encoder this build of FFmpeg has, OpenH264, Media
- * Foundation or VideoToolbox, and MPEG-4 Part 2 when it has none; AAC audio), muxed into an MP4.
+ * Foundation or VideoToolbox, and MPEG-4 Part 2 when it has none; AAC audio), muxed into an MP4. With a lyric style's frames
+ * ([com.cosmotune.ui.nowplaying.LyricVideoFrames]) those are drawn instead of the classic layout.
  */
 internal object DesktopLyricsVideo {
 
@@ -44,10 +46,18 @@ internal object DesktopLyricsVideo {
     private const val RATE = 44_100
 
     /** Writes the video to [target]; [onProgress] goes 0..1. The audio is left out when the song cannot be read. */
-    suspend fun export(request: LyricsShareRequest, plan: LyricsVideoPlan, target: File, onProgress: (Float) -> Unit) {
+    suspend fun export(
+        request: LyricsShareRequest,
+        plan: LyricsVideoPlan,
+        target: File,
+        frames: ((androidx.compose.ui.graphics.ImageBitmap?) -> com.cosmotune.ui.nowplaying.LyricVideoFrames?)? = null,
+        onProgress: (Float) -> Unit,
+    ) {
         val audio = runCatching { decodeClip(request, plan) }.getOrNull()
         val cover = runCatching { loadCover(request.artworkUrl) }.getOrNull()
-        encode(request, plan, cover, audio, target, onProgress)
+        // In one of the lyric styles, the shared stages draw the frames (the same size, the song's own moments).
+        val styled = frames?.invoke(cover?.let { runCatching { it.toComposeImageBitmap() }.getOrNull() })
+        encode(request, plan, cover, styled, audio, target, onProgress)
     }
 
     private suspend fun decodeClip(request: LyricsShareRequest, plan: LyricsVideoPlan): FloatArray? {
@@ -89,7 +99,15 @@ internal object DesktopLyricsVideo {
         }
     }
 
-    private fun encode(request: LyricsShareRequest, plan: LyricsVideoPlan, cover: BufferedImage?, audio: FloatArray?, target: File, onProgress: (Float) -> Unit) {
+    private fun encode(
+        request: LyricsShareRequest,
+        plan: LyricsVideoPlan,
+        cover: BufferedImage?,
+        styled: com.cosmotune.ui.nowplaying.LyricVideoFrames?,
+        audio: FloatArray?,
+        target: File,
+        onProgress: (Float) -> Unit,
+    ) {
         val output = AVFormatContext(null as org.bytedeco.javacpp.Pointer?)
         check(avformat_alloc_output_context2(output, null, "mp4", target.absolutePath) >= 0 && !output.isNull) { "No MP4 muxer" }
         val io = AVIOContext(null as org.bytedeco.javacpp.Pointer?)
@@ -148,11 +166,22 @@ internal object DesktopLyricsVideo {
             val image = BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_3BYTE_BGR)
             val pixels = (image.raster.dataBuffer as DataBufferByte).data
             val painter = Painter(request, cover)
+            val argb = if (styled != null) IntArray(WIDTH * HEIGHT) else null
             val total = (plan.durationMs * FPS / 1000).toInt().coerceAtLeast(1)
             val audioFrames = audio?.let { it.size / 2 } ?: 0
             var audioAt = 0
             for (index in 0 until total) {
-                painter.draw(image, plan.frameAt(index * 1_000L / FPS))
+                if (styled != null && argb != null) {
+                    styled.render(plan.startMs + index * 1_000L / FPS, argb)
+                    for (i in argb.indices) {
+                        val c = argb[i]
+                        pixels[3 * i] = (c and 0xFF).toByte()
+                        pixels[3 * i + 1] = ((c shr 8) and 0xFF).toByte()
+                        pixels[3 * i + 2] = ((c shr 16) and 0xFF).toByte()
+                    }
+                } else {
+                    painter.draw(image, plan.frameAt(index * 1_000L / FPS))
+                }
                 check(av_frame_make_writable(bgr) >= 0 && av_frame_make_writable(yuv) >= 0)
                 val stride = bgr.linesize(0)
                 val plane = bgr.data(0)

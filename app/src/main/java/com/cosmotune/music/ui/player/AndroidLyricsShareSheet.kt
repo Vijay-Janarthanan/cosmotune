@@ -96,6 +96,9 @@ internal fun AndroidLyricsShareSheet(
     }
     var videoProgress by remember(request) { mutableStateOf<Float?>(null) }
     var videoSaved by remember(request) { mutableStateOf(false) }
+    // The video's look, picked before saving: one of the lyric styles (Poster first, the board's share style), or the classic one.
+    var videoLook by remember { mutableStateOf(com.cosmotune.ui.nowplaying.LyricVideoLook.POSTER) }
+    val videoFrames = com.cosmotune.ui.nowplaying.rememberLyricVideoFrames(request)
     val videoTarget = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("video/mp4"),
     ) { uri ->
@@ -104,7 +107,7 @@ internal fun AndroidLyricsShareSheet(
             videoProgress = 0f
             val temporary = java.io.File(context.cacheDir, "lyrics-video.mp4")
             videoSaved = runCatching {
-                LyricsVideoExport.export(context, request, plan, temporary) { videoProgress = it }
+                LyricsVideoExport.export(context, request, plan, temporary, frames = { cover -> videoFrames(videoLook, cover) }) { videoProgress = it }
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     context.contentResolver.openOutputStream(uri, "wt")!!.use { out -> temporary.inputStream().use { it.copyTo(out) } }
                 }
@@ -132,6 +135,17 @@ internal fun AndroidLyricsShareSheet(
             LyricsShareAction(label = "Save as .lrc", icon = Icons.Rounded.Download, done = lrcSaved, doneLabel = savedLabel) {
                 haptics.play(Haptic.Tap)
                 lrcTarget.launch(request.lrcFileName)
+            },
+        )
+        if (videoPlan != null) add(
+            LyricsShareAction(
+                label = "Video style · ${videoLook.title}",
+                icon = Icons.Rounded.PhoneIphone,
+                enabled = videoProgress == null,
+            ) {
+                haptics.play(Haptic.Tap)
+                videoLook = videoLook.next()
+                videoSaved = false
             },
         )
         if (videoPlan != null) add(
