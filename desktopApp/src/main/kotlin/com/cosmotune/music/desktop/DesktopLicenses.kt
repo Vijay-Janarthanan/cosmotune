@@ -100,6 +100,12 @@ internal object DesktopLicenses {
                     "https://github.com/marcologous/hanken-grotesk",
                     "The typeface of body text and labels in the new look, bundled as a variable font. Copyright 2021 The Hanken Grotesk Project Authors.",
                 ),
+                DesktopLicense(
+                    "Instrument Serif",
+                    "OFL-1.1",
+                    "https://github.com/Instrument/instrument-serif",
+                    "The italic serif of album title art for acoustic, jazz and classical albums. Copyright 2022 The Instrument Serif Project Authors.",
+                ),
             ),
         ),
         DesktopLicenseGroup(
