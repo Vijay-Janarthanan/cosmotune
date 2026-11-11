@@ -28,7 +28,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cosmotune.theme.OnePalette
 import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.ArcTitle
 import com.cosmotune.ui.orbit.OrbitPlayButton
+import com.cosmotune.ui.orbit.arcText
+import androidx.compose.ui.unit.sp
 import com.cosmotune.ui.orbit.OrbitRing
 import com.cosmotune.ui.orbit.OrbitRoundButton
 import com.cosmotune.ui.orbit.orbitFonts
@@ -39,7 +42,8 @@ import com.cosmotune.ui.theme.LocalCosmoColors
 
 /**
  * The compact mini player's contents in Orbit, sized for the desktop's small always-on-top window: the artwork as a disc inside the
- * orbit ring, whose arc and moon are the song's [progress] (peach: it is what plays), the title and the artist in Orbit's faces, and
+ * orbit ring, whose arc and moon are the song's [progress] (peach: it is what plays), with the title and the artist set round the
+ * disc between them like a record's label (the Arc title of the lyrics-titles board), the title and the artist in Orbit's faces, and
  * the round previous and next buttons beside the play button, with the round button that opens Cosmotune at the end. The window stands
  * outside the app's theme, so the panel brings Orbit's own palette for [dark] (the system's by default). The host supplies the
  * artwork loader.
@@ -58,7 +62,11 @@ fun MiniPlayerPanel(
         Box(Modifier.fillMaxSize().background(look.ground).testTag("mini:root")) {
             Row(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) {
-                    artwork(Modifier.size(80.dp).clip(CircleShape))
+                    // The disc steps in to leave the label its band inside the orbit; the box, and the window, keep their size.
+                    artwork(Modifier.size(60.dp).clip(CircleShape))
+                    if (title.isNotBlank()) {
+                        ArcTitle(arcText(title, artist), radius = 37.dp, size = 8.5.sp, ink = look.ink, modifier = Modifier.size(96.dp).testTag("mini:arc"))
+                    }
                     OrbitRing(96.dp, look.accent, progress = { progress.coerceIn(0f, 1f) }, spinning = playing)
                 }
                 Spacer(Modifier.width(12.dp))
