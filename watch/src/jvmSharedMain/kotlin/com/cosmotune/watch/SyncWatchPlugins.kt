@@ -37,7 +37,13 @@ object SyncWatchPlugins {
         val sources = state.sources.filterNot { it.id in gone }.map { s ->
             val data = upserts[s.id] ?: return@map s
             if (s.spec !is UserSourceSpec.StremioAddon && s.spec !is UserSourceSpec.NuvioScript) return@map s
-            s.copy(enabled = (data["enabled"] as? JsonPrimitive)?.booleanOrNull ?: s.enabled, name = text(data, "name") ?: s.name, updatedAtMs = nowMs)
+            // A script update approved on another device moves its pin here too. Same address only;
+            // the code is fetched and checked against the new fingerprint the next time it runs.
+            val spec = (s.spec as? UserSourceSpec.NuvioScript)?.let { script ->
+                val sha = text(data, "sha256")?.takeIf { it.matches(Regex("[a-f0-9]{64}")) }
+                if (sha != null && text(data, "url", 2048) == script.scriptUrl) script.copy(sha256 = sha) else script
+            } ?: s.spec
+            s.copy(spec = spec, enabled = (data["enabled"] as? JsonPrimitive)?.booleanOrNull ?: s.enabled, name = text(data, "name") ?: s.name, updatedAtMs = nowMs)
         }.toMutableList()
         for ((id, data) in upserts) {
             if (sources.any { it.id == id } || sources.size >= MAX) continue
@@ -46,8 +52,8 @@ object SyncWatchPlugins {
                 val sha = text(data, "sha256")?.takeIf { it.matches(Regex("[a-f0-9]{64}")) } ?: continue
                 val domains = (data["domains"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: continue
                 val valid = runCatching {
-                    val uri = java.net.URI(url)
-                    require(id.matches(Regex("js-[a-f0-9]{10}")) && uri.scheme == "https" && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null)
+                    com.cosmotune.watch.plugins.nuvio.NuvioPackages.scriptUri(url)
+                    require(id.matches(Regex("js-[a-f0-9]{10}")))
                     com.cosmotune.providers.ProviderManifest("watch-script", "1.0.0", type = listOf("metadata_provider"),
                         permissions = com.cosmotune.providers.ProviderPermissions(network = domains)).validate()
                 }.isSuccess

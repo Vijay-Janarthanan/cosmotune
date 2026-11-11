@@ -98,6 +98,7 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
     val builtIn = plugins.filter { it.builtIn }
     val yours = plugins.filter { !it.builtIn }
     var adding by remember { mutableStateOf(false) }
+    var updating by remember { mutableStateOf<PluginInfo?>(null) }
     var sharing by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
     var importLink by remember { mutableStateOf<String?>(null) }
@@ -118,6 +119,7 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
                     menu = listOfNotNull(
                         OrbitMenuItem("Move up", "Its copies rank higher", enabled = i > 0) { scope.launch { repository.moveUserSource(p.id, i - 1) } },
                         OrbitMenuItem("Move down", null, enabled = i < yours.lastIndex) { scope.launch { repository.moveUserSource(p.id, i + 1) } },
+                        if (p.kind == com.cosmotune.watch.plugin.PluginKind.NUVIO_SCRIPT) OrbitMenuItem("Check for update", "Compare with its source before installing") { updating = p } else null,
                         OrbitMenuItem("Remove", "Forget it and its sign-in", CosmoIcons.Close) { scope.launch { repository.removeUserSource(p.id) } },
                     ))
             }
@@ -160,6 +162,7 @@ internal fun WatchPluginsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFr
         }
     }
     if (adding) AddSourceDialog(repository, fonts, look) { adding = false }
+    updating?.let { plugin -> ScriptUpdateDialog(plugin, repository, fonts, look) { updating = null } }
     if (sharing) SharePackDialog(repository, fonts, look) { sharing = false }
     if (importing) ImportPackDialog(repository, fonts, look) { importing = false }
     importLink?.let { link -> ImportPackDialog(repository, fonts, look, initialLink = link) { importLink = null } }
@@ -359,6 +362,55 @@ internal fun WatchDialog(label: String, title: String, onDismiss: () -> Unit, co
             Spacer(Modifier.height(16.dp))
             content()
         }
+    }
+}
+
+/**
+ * "Check for update" on a Watch script: downloads its source, says whether it changed, and installs
+ * the downloaded version only when asked. Nothing changes until Install, and Install takes exactly
+ * the copy that was checked.
+ */
+@Composable
+private fun ScriptUpdateDialog(plugin: PluginInfo, repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook, onDone: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var update by remember(plugin.id) { mutableStateOf<com.cosmotune.watch.WatchScriptUpdate?>(null) }
+    var message by remember(plugin.id) { mutableStateOf<String?>(null) }
+    var busy by remember(plugin.id) { mutableStateOf(true) }
+    LaunchedEffect(plugin.id) {
+        update = runCatching { repository.checkScriptUpdate(plugin.id) }.getOrElse { message = it.message ?: "Could not read the script's source."; null }
+        if (update == null && message == null) message = "This plugin has no script to update."
+        busy = false
+    }
+    WatchDialog("Watch script", plugin.name, onDone) {
+        val found = update
+        val line = when {
+            busy -> "Reading the script's source…"
+            found == null -> message
+            !found.available -> "Up to date. The source matches the installed copy."
+            else -> "A changed version is available (${(found.sizeBytes + 1023) / 1024} KB). Install only if you trust its author; it runs with the same permissions as now."
+        }
+        line?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(bottom = 12.dp)) }
+        if (found != null) {
+            OrbitLabel("Source · ${found.url.substringAfter("://").substringBefore('/')}", fonts, look.dim, Modifier.padding(start = 6.dp, bottom = 4.dp))
+            OrbitLabel("Installed · ${found.installedSha256.take(12)}", fonts, look.dim, Modifier.padding(start = 6.dp, bottom = 4.dp))
+            if (found.available) OrbitLabel("Available · ${found.availableSha256.take(12)}", fonts, look.dim, Modifier.padding(start = 6.dp, bottom = 12.dp))
+        }
+        com.cosmotune.ui.sheets.CosmoDialogActions(
+            confirmLabel = if (busy && found != null) "Installing…" else "Install update",
+            onConfirm = {
+                val offer = found ?: return@CosmoDialogActions
+                busy = true
+                scope.launch {
+                    val done = runCatching { repository.applyScriptUpdate(offer.id, offer.availableSha256) }.getOrDefault(false)
+                    busy = false
+                    if (done) onDone() else message = "The update could not be installed. Check again."
+                    if (!done) update = null
+                }
+            },
+            confirmEnabled = !busy && found?.available == true,
+            dismissLabel = "Close",
+            onDismiss = onDone,
+        )
     }
 }
 

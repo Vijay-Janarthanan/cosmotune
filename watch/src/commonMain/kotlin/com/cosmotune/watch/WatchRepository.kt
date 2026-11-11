@@ -177,6 +177,16 @@ class WatchPlaybackLease(val url: String, val close: () -> Unit) {
 
 interface WatchRepository {
     suspend fun scriptRepository(url: String): List<WatchScriptEntry> = emptyList()
+    /**
+     * Downloads an installed Watch script's current source and compares it with the pinned one,
+     * without changing anything. Null for anything that is not an installed script.
+     */
+    suspend fun checkScriptUpdate(id: String): WatchScriptUpdate? = null
+    /**
+     * Installs the version [checkScriptUpdate] downloaded, and only if its fingerprint is still
+     * [sha256]: what is installed is exactly what was offered, never a later upstream change.
+     */
+    suspend fun applyScriptUpdate(id: String, sha256: String): Boolean = false
     val playlists: StateFlow<List<com.cosmotune.watch.model.WatchPlaylist>> get() = DEFAULT_WATCH_PLAYLISTS
     suspend fun createPlaylist(name: String): String? = null
     suspend fun renamePlaylist(id: String, name: String) {}
@@ -302,3 +312,8 @@ private val DEFAULT_WATCH_UNLOCKED: StateFlow<Boolean> = kotlinx.coroutines.flow
 private val DEFAULT_WATCH_PLAYLISTS: StateFlow<List<com.cosmotune.watch.model.WatchPlaylist>> = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
 
 data class WatchScriptEntry(val id: String, val name: String, val url: String, val description: String = "")
+
+/** An installed script's pinned fingerprint against the one its address serves now. */
+data class WatchScriptUpdate(val id: String, val name: String, val url: String, val installedSha256: String, val availableSha256: String, val sizeBytes: Int) {
+    val available: Boolean get() = installedSha256 != availableSha256
+}

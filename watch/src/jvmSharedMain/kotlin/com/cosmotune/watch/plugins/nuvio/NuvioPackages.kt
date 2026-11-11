@@ -23,9 +23,46 @@ object NuvioPackages {
         }.distinctBy { it.url }
     }
     fun sha256(code: String) = MessageDigest.getInstance("SHA-256").digest(code.toByteArray()).joinToString("") { "%02x".format(it) }
+
+    /**
+     * The one rule for a script's address, shared by install, update, fetch and cloud restore:
+     * public HTTPS with a host, and no credentials, query or fragment. A query could carry a token
+     * into the synced descriptor, and would let two addresses differing only in it pin as one.
+     */
+    fun scriptUri(url: String): URI {
+        val text = url.trim()
+        val uri = runCatching { URI(text) }.getOrNull()
+        require(uri != null && uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.rawUserInfo == null &&
+            uri.rawQuery == null && uri.rawFragment == null && '?' !in text && '#' !in text) {
+            "Use a public HTTPS script address without a query"
+        }
+        return uri
+    }
+
+    /**
+     * Downloads a script and checks it is one Watch can run, without installing anything. [reader]
+     * is the network read (tests answer it themselves); the address rule and limits apply either way.
+     */
+    suspend fun download(url: String, reader: (suspend (String) -> String)? = null): String {
+        scriptUri(url)
+        return (if (reader != null) reader(url) else fetch(url)).also {
+            require(it.toByteArray().size in 1..512_000) { "Watch source exceeds the size limit" }
+            require("getStreams" in it) { "This source does not export a supported Watch getStreams script" }
+        }
+    }
+
+    /** Writes [code] to [file] in one step, so a reader never sees half a script. */
+    suspend fun store(file: File, code: String) = withContext(Dispatchers.IO) {
+        check(file.parentFile.isDirectory || file.parentFile.mkdirs())
+        val part = File.createTempFile("watch-js-", ".part", file.parentFile)
+        try {
+            part.writeText(code)
+            java.nio.file.Files.move(part.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        } finally { part.delete() }
+    }
+
     suspend fun fetch(url: String): String = withContext(Dispatchers.IO) {
-        val uri = URI(url)
-        require(uri.scheme == "https" && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null) { "Use a public HTTPS script address" }
+        val uri = scriptUri(url)
         val network = ProviderNetwork(ProviderPermissions(network = listOf(uri.host)))
         try {
             val result = network.request(url, JsonObject(emptyMap()))
@@ -35,18 +72,13 @@ object NuvioPackages {
             }
         } finally { network.cancel() }
     }
-    suspend fun load(file: File, url: String, expected: String): String = withContext(Dispatchers.IO) {
+    suspend fun load(file: File, url: String, expected: String, reader: (suspend (String) -> String)? = null): String = withContext(Dispatchers.IO) {
         require(expected.matches(Regex("[a-f0-9]{64}"))) { "Reinstall this Watch script to verify its source" }
         val cached = file.takeIf { it.isFile && it.length() <= 512_000 }?.readText()
         if (cached != null && sha256(cached) == expected) return@withContext cached
-        val code = fetch(url)
-        require(sha256(code) == expected) { "This Watch script changed upstream. Review and reinstall the update." }
-        check(file.parentFile.isDirectory || file.parentFile.mkdirs())
-        val part = File.createTempFile("watch-js-", ".part", file.parentFile)
-        try {
-            part.writeText(code)
-            java.nio.file.Files.move(part.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-        } finally { part.delete() }
+        val code = download(url, reader)
+        require(sha256(code) == expected) { "This Watch script changed upstream. Check for its update on the Plugins page." }
+        store(file, code)
         code
     }
 }

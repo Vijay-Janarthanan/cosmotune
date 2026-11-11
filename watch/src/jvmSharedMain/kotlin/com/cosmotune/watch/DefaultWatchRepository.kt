@@ -142,6 +142,8 @@ class DefaultWatchRepository(
     val store: WatchStore = WatchStore(File(config.dataDir, "watch.json")),
     /** Tests replace the built-in plugins. */
     builtIns: ((WatchHttp, WatchState) -> List<WatchPlugin>)? = null,
+    /** How Watch scripts are downloaded; tests answer it without the network. */
+    private val scriptFetch: suspend (String) -> String = { com.cosmotune.watch.plugins.nuvio.NuvioPackages.fetch(it) },
 ) : WatchRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val http = WatchHttp(config.client, config.cacheDir, config.now)
@@ -168,7 +170,10 @@ class DefaultWatchRepository(
     override val metadataSource: StateFlow<MetadataSource> = MutableStateFlow(metadata.source)
 
     private val builtInPlugins: List<WatchPlugin> = builtIns?.invoke(http, store.state.value) ?: defaultBuiltIns()
-    private val userPlugins = ConcurrentHashMap<String, WatchPlugin>()
+    /** Built plugins, with the spec each was built from: a changed spec (a script update, a cloud restore) rebuilds it. */
+    private val userPlugins = ConcurrentHashMap<String, Pair<UserSourceSpec, WatchPlugin>>()
+    /** What [checkScriptUpdate] downloaded, held so [applyScriptUpdate] installs exactly those bytes. */
+    private val offeredScripts = ConcurrentHashMap<String, Pair<String, String>>()
     private val status = MutableStateFlow<Map<String, Pair<String?, Boolean>>>(emptyMap())
     private val titles = ConcurrentHashMap<WatchKey, Title>()
     private val channelLock = Mutex()
@@ -244,11 +249,12 @@ class DefaultWatchRepository(
     private fun host(url: String) = runCatching { java.net.URI(if ("://" in url) url else "http://$url").host }.getOrNull() ?: url
 
     /** Builds (once) the plugin of a stored source. */
-    private fun pluginFor(s: StoredSource): WatchPlugin? = userPlugins[s.id] ?: runCatching { build(s) }.getOrNull()?.also { userPlugins[s.id] = it }
+    private fun pluginFor(s: StoredSource): WatchPlugin? = userPlugins[s.id]?.takeIf { it.first == s.spec }?.second
+        ?: runCatching { build(s) }.getOrNull()?.also { userPlugins[s.id] = s.spec to it }
 
     private fun build(s: StoredSource): WatchPlugin = when (val spec = s.spec) {
         is UserSourceSpec.NuvioScript -> com.cosmotune.watch.plugins.nuvio.NuvioScriptPlugin(s.id, s.name ?: spec.label.ifBlank { "Watch script" },
-            { com.cosmotune.watch.plugins.nuvio.NuvioPackages.load(File(config.dataDir, "scripts/${s.id}.js"), spec.scriptUrl, spec.sha256) }, spec.domains, File(config.dataDir, "script-data/${s.id}"), spec.settings)
+            { com.cosmotune.watch.plugins.nuvio.NuvioPackages.load(File(config.dataDir, "scripts/${s.id}.js"), spec.scriptUrl, spec.sha256, scriptFetch) }, spec.domains, File(config.dataDir, "script-data/${s.id}"), spec.settings)
         is UserSourceSpec.StremioAddon -> {
             val name = s.name ?: spec.label.ifBlank { "Add-on" }
             StremioPlugin(s.id, name, badgeOf(name), StremioClient(http, spec.manifestUrl),
@@ -267,6 +273,26 @@ class DefaultWatchRepository(
 
     private fun badgeOf(name: String) = name.filter { it.isLetterOrDigit() }.take(4).uppercase().ifBlank { "ADD" }
     override suspend fun scriptRepository(url: String): List<WatchScriptEntry> = com.cosmotune.watch.plugins.nuvio.NuvioPackages.repository(url)
+
+    override suspend fun checkScriptUpdate(id: String): WatchScriptUpdate? {
+        val stored = store.state.value.sources.firstOrNull { it.id == id } ?: return null
+        val spec = stored.spec as? UserSourceSpec.NuvioScript ?: return null
+        val code = com.cosmotune.watch.plugins.nuvio.NuvioPackages.download(spec.scriptUrl, scriptFetch)
+        val sha = com.cosmotune.watch.plugins.nuvio.NuvioPackages.sha256(code)
+        if (sha != spec.sha256) offeredScripts[id] = sha to code else offeredScripts.remove(id)
+        return WatchScriptUpdate(id, stored.name ?: spec.label.ifBlank { "Watch script" }, spec.scriptUrl, spec.sha256, sha, code.toByteArray().size)
+    }
+
+    override suspend fun applyScriptUpdate(id: String, sha256: String): Boolean {
+        val (sha, code) = offeredScripts[id]?.takeIf { it.first == sha256 } ?: return false
+        val stored = store.state.value.sources.firstOrNull { it.id == id } ?: return false
+        val spec = stored.spec as? UserSourceSpec.NuvioScript ?: return false
+        com.cosmotune.watch.plugins.nuvio.NuvioPackages.store(File(config.dataDir, "scripts/$id.js"), code)
+        update { s -> s.copy(sources = s.sources.map { if (it.id == id) it.copy(spec = spec.copy(sha256 = sha), updatedAtMs = config.now()) else it }) }
+        offeredScripts.remove(id)
+        userPlugins.remove(id)
+        return true
+    }
 
     /** Plugins that are switched on, in rank order: built-ins in page order, then the user's sources. */
     fun activePlugins(): List<WatchPlugin> {
@@ -317,28 +343,16 @@ class DefaultWatchRepository(
         val now = config.now()
         val stored: StoredSource = when (spec) {
             is UserSourceSpec.NuvioScript -> {
-                val uri = java.net.URI(spec.scriptUrl.trim())
+                val uri = com.cosmotune.watch.plugins.nuvio.NuvioPackages.scriptUri(spec.scriptUrl)
                 val id = "js-" + hash(uri.toString())
                 require(store.state.value.sources.none { it.id == id }) { "This script is already installed" }
-                require(uri.scheme == "https" && uri.host != null && uri.userInfo == null && uri.fragment == null) { "Use an HTTPS JavaScript source URL" }
                 val domains = spec.domains.map { it.trim().lowercase() }.filter { it.isNotBlank() }.distinct()
                 require(spec.settings.size <= 100 && spec.settings.toString().length <= 16_384 && spec.settings.values.all { it is kotlinx.serialization.json.JsonPrimitive })
                 val permissions = com.cosmotune.providers.ProviderPermissions(network = domains)
                 com.cosmotune.providers.ProviderManifest("watch-script", "1.0.0", type = listOf("metadata_provider"), permissions = permissions).validate()
-                val network = com.cosmotune.providers.ProviderNetwork(com.cosmotune.providers.ProviderPermissions(network = listOf(uri.host)))
-                val code = try {
-                    val response = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        network.request(uri.toString(), kotlinx.serialization.json.JsonObject(emptyMap()))
-                    }
-                    require(response["ok"]?.jsonPrimitive?.booleanOrNull == true) { "The script could not be downloaded" }
-                    response["body"]?.jsonPrimitive?.content.orEmpty()
-                } finally { network.cancel() }
-                require(code.toByteArray().size in 1..512_000 && "getStreams" in code) { "This source does not export a supported Watch getStreams script" }
-                val file = File(config.dataDir, "scripts/$id.js")
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    check(file.parentFile.isDirectory || file.parentFile.mkdirs())
-                    file.writeText(code)
-                }
+                // The same download, size limit and address rule as an update or a cloud restore.
+                val code = com.cosmotune.watch.plugins.nuvio.NuvioPackages.download(uri.toString(), scriptFetch)
+                com.cosmotune.watch.plugins.nuvio.NuvioPackages.store(File(config.dataDir, "scripts/$id.js"), code)
                 StoredSource(id, spec.copy(scriptUrl = uri.toString(), domains = domains, sha256 = com.cosmotune.watch.plugins.nuvio.NuvioPackages.sha256(code)), addedAtMs = now, name = spec.label.ifBlank { "Watch script" })
             }
             is UserSourceSpec.StremioAddon -> {
