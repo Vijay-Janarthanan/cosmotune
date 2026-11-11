@@ -360,15 +360,19 @@ private fun BookBookmarks(scope: ReadScope) {
     }
 }
 
-/** A bookmark as an Orbit row: the mark, its name and when it was made, the cross that removes it. Tap opens the reader there. */
+/**
+ * A bookmark as an Orbit row: the mark, its name and when it was made, the cross that removes it. Tap opens the reader there.
+ * [nested] (the Bookmarks tab) steps it 24 dp in under its book's row; on the book's own page it stands on the page's margin, the
+ * start edge of the Details rows under it.
+ */
 @Composable
-internal fun BookmarkRow(scope: ReadScope, book: ReadingBook, mark: ReadingBookmark) {
+internal fun BookmarkRow(scope: ReadScope, book: ReadingBook, mark: ReadingBookmark, nested: Boolean = true) {
     val fonts = orbitFonts()
     val look = orbitLook()
     OrbitSongRow(
         title = mark.name, subtitle = agoLabel(mark.createdAtMs).replaceFirstChar(Char::uppercase), cover = null, fonts = fonts, look = look,
         onClick = { scope.action { scope.repository.saveLocator(book.id, mark.locator); scope.open(book) } },
-        modifier = Modifier.fillMaxWidth().padding(start = ReadMargin + 24.dp, end = ReadMargin, top = 4.dp, bottom = 4.dp), height = 62.dp, icon = Icons.Outlined.BookmarkBorder,
+        modifier = Modifier.fillMaxWidth().padding(start = ReadMargin + if (nested) 24.dp else 0.dp, end = ReadMargin, top = 4.dp, bottom = 4.dp), height = 62.dp, icon = Icons.Outlined.BookmarkBorder,
         discSize = 36.dp, endPadding = 8.dp,
         trailing = { ReadIconButton(CosmoIcons.Close, "Remove bookmark", { scope.action { scope.repository.removeBookmark(mark.id) } }) },
     )
@@ -414,7 +418,7 @@ private fun BookLocalDetails(scope: ReadScope, initial: ReadingBook) {
             val marks = state.bookmarks.filter { it.bookId == book.id }
             if (marks.isNotEmpty()) {
                 item(key = "marks:header") { ReadSection("Bookmarks") }
-                items(marks, key = { "mark:${it.id}" }) { mark -> BookmarkRow(scope, book, mark) }
+                items(marks, key = { "mark:${it.id}" }) { mark -> BookmarkRow(scope, book, mark, nested = false) }
             }
             item(key = "facts") {
                 ReadSection("Details")

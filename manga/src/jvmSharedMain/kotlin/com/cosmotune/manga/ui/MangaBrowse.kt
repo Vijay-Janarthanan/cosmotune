@@ -156,7 +156,7 @@ internal fun LazyGridScope.mangaGlobalResultItems(scope: MangaScope, search: Glo
             when {
                 query.trim().length < 2 -> Text(mangaText("Enter at least two characters to search enabled sources"), style = ReadType.meta(), color = Color(palette.textSecondary))
                 current != null -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${current.completed} / ${current.total} sources · ${current.books.size} series", style = ReadType.meta(), color = Color(palette.textSecondary), modifier = Modifier.weight(1f))
+                    Text("${current.completed} / ${current.total} sources · ${current.books.size} series", style = ReadType.meta(), color = Color(palette.textSecondary), modifier = Modifier.weight(1f).padding(end = 12.dp))
                     if (search.loading) ReadButton(mangaText("Stop search"), { search.job?.cancel() }, kind = ReadKind.TONAL)
                 }
             }

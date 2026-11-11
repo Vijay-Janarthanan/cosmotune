@@ -284,7 +284,7 @@ internal fun BookDetails(scope: ReadScope, initialPublication: ReadingPublicatio
                         }
                         detailsError?.let { message -> ReadError(message, onRetry = { detailsRetry++ }, title = "Editions could not be loaded", retryLabel = "Retry available editions") }
                         if (transfer?.isActive == true) Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalAlignment = Alignment.CenterVertically) {
-                            Text(progress, style = ReadType.meta(), color = Color(palette.textSecondary), modifier = Modifier.weight(1f))
+                            Text(progress, style = ReadType.meta(), color = Color(palette.textSecondary), modifier = Modifier.weight(1f).padding(end = 12.dp))
                             ReadTextButton("Cancel download", { transfer?.cancel() })
                         }
                     }
@@ -371,7 +371,7 @@ private fun BookConnections(repository: ReadingRepository, onDismiss: () -> Unit
             item { Text("Use your library's OPDS endpoint. Credentials stay with this device.", style = ReadType.body(), color = Color(palette.textSecondary)) }
             items(state.sources, key = { it.id }) { source ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(source.name, style = ReadType.rowTitle(), modifier = Modifier.weight(1f))
+                    Text(source.name, style = ReadType.rowTitle(), modifier = Modifier.weight(1f).padding(end = 12.dp))
                     com.cosmotune.manga.ui.ReadTextButton("Remove", { scope.launch { runCatching { repository.removeOpdsSource(source.id) }.onFailure { onError("The connection could not be removed.") } } })
                 }
             }

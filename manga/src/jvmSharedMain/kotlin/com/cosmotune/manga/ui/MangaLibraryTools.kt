@@ -39,8 +39,9 @@ internal class MangaBackupTransfer(val export: (ByteArray) -> Unit, val restore:
             } })
             ReadButton(mangaText("Restore library backup"), transfer.restore, kind = ReadKind.TONAL, icon = CosmoIcons.Replay, modifier = Modifier.testTag("manga:backup:restore"))
         }
-        Text("Backups contain reading history, collections and source URLs. Source credentials, browser sessions and comic files are excluded. Reimport local comics before restoring their collections.", style = ReadType.meta(), color = look.dim)
-        Text(mangaText("Automatic chapter updates"), style = ReadType.rowTitle(), color = look.ink, modifier = Modifier.padding(top = 8.dp))
+        // The note under the backup buttons stands a text-to-action gap from them (8 + 4), and the next group a group's gap (8 + 16).
+        Text("Backups contain reading history, collections and source URLs. Source credentials, browser sessions and comic files are excluded. Reimport local comics before restoring their collections.", style = ReadType.meta(), color = look.dim, modifier = Modifier.padding(top = 4.dp))
+        Text(mangaText("Automatic chapter updates"), style = ReadType.rowTitle(), color = look.ink, modifier = Modifier.padding(top = 16.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(0 to "Off", 24 to "Daily", 168 to "Weekly").forEach { (hours, label) ->
                 ReadChip(mangaText(label), state.updateIntervalHours == hours, { scope.launch {

@@ -74,7 +74,7 @@ internal fun MangaSources(repository: MangaRepository, bottom: androidx.compose.
                     error?.let { Text(it, style = ReadType.body(), color = Color(palette.danger)) }
                     ReadOverline(mangaText("Storage"), inset = 0.dp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${state.cacheLimitBytes / (1024 * 1024)} MB page storage", style = ReadType.rowTitle(), color = Color(palette.textPrimary), modifier = Modifier.weight(1f))
+                        Text("${state.cacheLimitBytes / (1024 * 1024)} MB page storage", style = ReadType.rowTitle(), color = Color(palette.textPrimary), modifier = Modifier.weight(1f).padding(end = 12.dp))
                         ReadTextButton(mangaText("Clear cache"), { action { repository.clearCache() } })
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

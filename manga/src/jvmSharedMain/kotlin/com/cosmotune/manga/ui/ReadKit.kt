@@ -306,7 +306,7 @@ internal fun ReadSheetRow(label: String, icon: ImageVector?, onClick: () -> Unit
 internal fun ReadSheetHeader(title: String, onDone: (() -> Unit)? = null, doneLabel: String = "Done") {
     val look = orbitLook()
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 4.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = ReadType.titleLarge(), color = look.ink, modifier = Modifier.weight(1f).semantics { heading() })
+        Text(title, style = ReadType.titleLarge(), color = look.ink, modifier = Modifier.weight(1f).padding(end = 12.dp).semantics { heading() })
         if (onDone != null) ReadButton(doneLabel, onDone)
     }
 }
@@ -413,7 +413,7 @@ internal fun ReadInlineBanner(text: String, modifier: Modifier = Modifier, actio
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(danger))
         Spacer(Modifier.width(12.dp))
-        Text(text, style = ReadType.body(), color = look.ink, modifier = Modifier.weight(1f).padding(vertical = 8.dp))
+        Text(text, style = ReadType.body(), color = look.ink, modifier = Modifier.weight(1f).padding(top = 8.dp, bottom = 8.dp, end = 12.dp))
         if (actionLabel != null && onAction != null) ReadButton(actionLabel, onAction, kind = ReadKind.TONAL)
         if (onDismiss != null) { Spacer(Modifier.width(6.dp)); ReadIconButton(CosmoIcons.Close, "Dismiss", onDismiss) }
     }
