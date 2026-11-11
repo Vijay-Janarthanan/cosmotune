@@ -125,6 +125,7 @@ private object DesktopVideoProcess {
         val device = Locale.getDefault()
         scope.followRegion(settings, source, device.country, device.language)
         scope.followSmoothness(settings, playback.engine)
+        scope.prepareVideoStart(source)
         Runtime.getRuntime().addShutdownHook(
             Thread({
                 runCatching { library.flush() }

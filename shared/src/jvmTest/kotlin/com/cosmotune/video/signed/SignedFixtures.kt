@@ -6,6 +6,7 @@ import com.cosmotune.youtube.account.SessionTransport
 import com.cosmotune.youtube.account.YouTubeSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -29,8 +30,16 @@ internal class FakeSignedHttp : SignedHttp {
 
     fun answer(client: SignedPlayerClient, body: String) = answer(client, SignedHttp.Answer(200, emptyList(), body))
 
+    /** How long each client (by its user agent) takes to answer, in the test's virtual time; none by default. */
+    private val slow = HashMap<String, Long>()
+
+    fun takes(client: SignedPlayerClient, ms: Long) {
+        slow[client.userAgent] = ms
+    }
+
     override suspend fun post(url: String, headers: Map<String, String>, body: String): SignedHttp.Answer {
         sent += Sent(url, headers, Json.parseToJsonElement(body).jsonObject)
+        slow[headers.getValue("User-Agent")]?.let { delay(it) }
         val queue = script[headers.getValue("User-Agent")] ?: return SignedHttp.Answer(200, emptyList(), PlayerJson.REFUSED)
         return if (queue.size > 1) queue.removeFirst() else queue.first()
     }
@@ -109,5 +118,6 @@ internal object SignedFixtures {
         tokens: FakeTokens = FakeTokens(),
         cipher: SignedCipher = FakeCipher(),
         scope: () -> Innertube.SignedScope = { SignedFixtures.scope() },
-    ) = SignedPlayerResolver(session, { scope() }, http, tokens::mint, cipher)
+        clock: () -> Long = { NOW_MS },
+    ) = SignedPlayerResolver(session, { scope() }, http, tokens::mint, cipher, clock)
 }

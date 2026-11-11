@@ -14,6 +14,7 @@ import com.cosmotune.video.player.PlayerError
 import com.cosmotune.video.player.PlayerErrorKind
 import com.cosmotune.video.player.PlayerSnapshot
 import com.cosmotune.video.player.PlayerStatus
+import com.cosmotune.video.player.StartupTrace
 import com.cosmotune.video.player.SubtitleCue
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.player.VideoScale
@@ -59,6 +60,10 @@ class DesktopVideoEngine internal constructor(
     private val natives: () -> MpvLibrary?,
     private val upstreamClient: OkHttpClient?,
     private val playerOptions: Map<String, String>,
+    /** Whether the proxy asks for both first pieces at registration (the startup harness turns it off to measure without). */
+    private val warmStart: Boolean = true,
+    /** Whether a picture up to 1080 lines starts in software and gets its hardware decoding once it plays (the harness turns it off). */
+    private val softwareStart: Boolean = true,
 ) : VideoPlayerEngine, VideoSurfaceProvider {
 
     /** The engine of a running app: libmpv from the runtime jar, the default HTTP client and the options of spec 6.3. */
@@ -86,6 +91,9 @@ class DesktopVideoEngine internal constructor(
 
     private val exchange = FrameExchange()
 
+    /** Where the frames go; the startup harness asks for a surface's size through it, as the watch page's surface does. */
+    internal val frames: FrameExchange get() = exchange
+
     /**
      * Real-time frame smoothing (Blend, Smooth): off until the settings turn it on, and then the frames of [exchange] pass through
      * it. Showing a frame between two source frames needs the newer one a source frame early, so the sound is shifted by that
@@ -108,6 +116,16 @@ class DesktopVideoEngine internal constructor(
     @Volatile private var audioOnly = false
     @Volatile private var subtitleLanguage: String? = null
 
+    /** The video of the latest load, for the startup trace, and whether its playback has started yet. */
+    @Volatile private var tracedId: String? = null
+    @Volatile private var restarted = false
+
+    /** The hardware decoding of the options (`auto-copy`), which a load starts without and turns on once it plays. */
+    private val steadyHwdec: String = (MpvPlayer.DEFAULT_OPTIONS + playerOptions)["hwdec"] ?: "no"
+
+    /** Whether the current load started in software and still has to turn [steadyHwdec] on. Engine thread. */
+    private var hardwareDue = false
+
     /** The proxy's bandwidth counts after its first 5 s of measuring (spec 6.4). */
     private val bandwidthWarmUp = BandwidthWarmUp(clock = { System.nanoTime() / 1_000_000 })
 
@@ -128,6 +146,9 @@ class DesktopVideoEngine internal constructor(
         if (released) return
         val number = generation.incrementAndGet()
         pendingStartMs = if (request.live) 0 else request.startMs.coerceAtLeast(0)
+        tracedId = request.videoId
+        restarted = false
+        exchange.onFirstFrame = null
         exchange.clear()
         smoothing.reset()
         cueFlow.value = emptyList()
@@ -142,7 +163,10 @@ class DesktopVideoEngine internal constructor(
 
     override fun play() = post { playerRef?.set("pause", "no") }
 
-    override fun pause() = post { playerRef?.set("pause", "yes") }
+    override fun pause() = post {
+        playerRef?.set("pause", "yes")
+        handOverToHardware()
+    }
 
     override fun seekTo(ms: Long) {
         val target = ms.coerceAtLeast(0)
@@ -150,6 +174,7 @@ class DesktopVideoEngine internal constructor(
         if (player == null || player.pending()) pendingStartMs = target else player.jumpClock(target)
         post {
             val p = playerRef ?: return@post
+            handOverToHardware()
             if (p.isLoaded()) p.seek(target) else pendingSeekMs = target
         }
     }
@@ -190,6 +215,8 @@ class DesktopVideoEngine internal constructor(
         if (released) return
         val number = generation.incrementAndGet()
         pendingStartMs = 0
+        tracedId = null
+        exchange.onFirstFrame = null
         exchange.clear(freeBuffers = true)
         smoothing.reset()
         cueFlow.value = emptyList()
@@ -276,7 +303,10 @@ class DesktopVideoEngine internal constructor(
 
     private fun doLoad(number: Int, request: PlaybackRequest) {
         if (number != generation.get()) return // a newer load or unload came first
+        val began = StartupTrace.now()
+        val fresh = playerRef == null
         val player = ensurePlayer() ?: return
+        if (fresh) StartupTrace.mark(request.videoId, "mpv core created", "in ${StartupTrace.msSince(began)}ms")
         this.request = request
         pendingSeekMs = null
         addedSubtitles.clear()
@@ -295,6 +325,10 @@ class DesktopVideoEngine internal constructor(
         }
         val userAgent = if (target.direct) request.headers.entries.firstOrNull { it.key.equals("User-Agent", true) }?.value else null
         val fields = if (target.direct) headerFields(request.headers) else emptyList()
+        val start = if (softwareStart) MpvPlayer.startDecoding(steadyHwdec, pictureHeight(request)) else steadyHwdec
+        player.set("hwdec", start)
+        hardwareDue = start != steadyHwdec
+        StartupTrace.mark(request.videoId, "mpv loadfile", "${if (target.direct) "direct" else if (target.remote) "through the loopback proxy" else "local file"}, decoding with hwdec=$start")
         player.load(number, target.url, request.startMs.coerceAtLeast(0), request.live, target.remote, audioOnly, userAgent, fields)
     }
 
@@ -334,9 +368,10 @@ class DesktopVideoEngine internal constructor(
         currentToken = proxy.reset()
         // The proxy measures from its first transfer; what it measures counts after 5 s (spec 6.4).
         bandwidthWarmUp.begin()
-        val videoUrl = video?.let { proxy.register(it.url, headers, it.contentLength) }
+        // Both first pieces are asked for now, together: mpv opens the picture and then the sound, and finds each on its way.
+        val videoUrl = video?.let { proxy.register(it.url, headers, it.contentLength, warm = warmStart) }
         // A muxed stream carries its own sound: its audio is not added again.
-        val audioUrl = audio?.takeIf { video?.hasAudio != true }?.let { proxy.register(it.url, headers, it.contentLength) }
+        val audioUrl = audio?.takeIf { video?.hasAudio != true }?.let { proxy.register(it.url, headers, it.contentLength, warm = warmStart) }
         val url = if (videoUrl != null && audioUrl != null) Edl.join(videoUrl, audioUrl) else (videoUrl ?: audioUrl)!!
         return Target(url, remote = true, direct = false)
     }
@@ -369,8 +404,22 @@ class DesktopVideoEngine internal constructor(
                         options = MpvPlayer.DEFAULT_OPTIONS + playerOptions,
                         latestLoad = generation::get,
                         onVideoSize = exchange::setVideoSize,
-                        onFileLoaded = { post(::afterFileLoaded) },
+                        onFileLoaded = {
+                            tracedId?.let { id ->
+                                StartupTrace.mark(id, "mpv file loaded")
+                                // Armed now: a frame of the file before can no longer come, so the next one is this video's first.
+                                exchange.armFirstFrame { StartupTrace.mark(id, "first frame") }
+                            }
+                            post(::afterFileLoaded)
+                        },
                         networkTrouble = { proxyRef?.networkFailed == true },
+                        onPlaybackRestart = {
+                            val id = tracedId
+                            if (id != null && !restarted) {
+                                restarted = true
+                                StartupTrace.mark(id, "playback started")
+                            }
+                        },
                     )
                     val renderer = MpvRenderer(mpv, player.handle, exchange)
                     if (renderer.start()) {
@@ -397,6 +446,26 @@ class DesktopVideoEngine internal constructor(
         status = PlayerStatus.ERROR, muted = from.muted, audioOnly = from.audioOnly,
         error = PlayerError(PlayerErrorKind.UNSUPPORTED, "video playback is not available on this computer"),
     )
+
+    /**
+     * A load that started in software ([MpvPlayer.startDecoding]) goes over to [steadyHwdec] at its first pause or seek, where the
+     * picture stops anyway: the hardware decoder's set-up holds the picture while it runs (326 ms for a 1080p60 video measured), which
+     * mid-play shows as a freeze. Engine thread.
+     */
+    private fun handOverToHardware() {
+        if (!hardwareDue) return
+        val player = playerRef ?: return
+        if (!player.isLoaded()) return
+        hardwareDue = false
+        player.set("hwdec", steadyHwdec)
+    }
+
+    /** The height of the picture [request] plays, when the request says it (a stream from the source); 0 when it does not. */
+    private fun pictureHeight(request: PlaybackRequest): Int = when (val input = request.input) {
+        is MediaInput.Progressive -> input.video?.height ?: 0
+        is MediaInput.Dash -> input.video?.height ?: 0
+        else -> 0
+    }
 
     /** The file is loaded: a seek asked for while it loaded, then the subtitles. */
     private fun afterFileLoaded() {

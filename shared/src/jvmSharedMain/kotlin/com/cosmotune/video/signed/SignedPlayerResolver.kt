@@ -7,14 +7,23 @@ import com.cosmotune.music.data.innertube.potoken.SessionBoundTokens
 import com.cosmotune.video.account.obj
 import com.cosmotune.video.account.str
 import com.cosmotune.video.model.StreamSet
+import com.cosmotune.video.player.StartupTrace
 import com.cosmotune.youtube.account.YouTubeCookieJar
 import com.cosmotune.youtube.account.YouTubeSession
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 /** Solves the ciphered links of the TV and web clients. An interface so a test needs no player script. */
 internal interface SignedCipher {
@@ -22,6 +31,20 @@ internal interface SignedCipher {
 
     /** The playable address of a format: its `signatureCipher` solved when it has one, its throttling parameter solved in either case. */
     suspend fun address(videoId: String, url: String?, signatureCipher: String?): String
+
+    /**
+     * The playable addresses of every link of one answer (`url` to `signatureCipher`), in their order; null for one that could not be
+     * solved. One by one here; the real cipher solves them as one batch.
+     */
+    suspend fun addresses(videoId: String, links: List<Pair<String?, String?>>): List<String?> = links.map { (url, signatureCipher) ->
+        try {
+            address(videoId, url, signatureCipher)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
 }
 
 /** The same player script and solvers Music's stream extraction uses. */
@@ -33,6 +56,11 @@ internal object InnerTubeXCipher : SignedCipher {
         val plain = url ?: checkNotNull(InnerTubeXResolver.decipher(player, checkNotNull(signatureCipher) { "A format with no address" })) { "The cipher was not solved" }
         return checkNotNull(InnerTubeXResolver.unthrottle(player, plain)) { "The throttling parameter was not solved" }
     }
+
+    override suspend fun addresses(videoId: String, links: List<Pair<String?, String?>>): List<String?> {
+        val player = checkNotNull(InnerTubeXResolver.playerUrl(videoId)) { "No player script" }
+        return InnerTubeXResolver.solveAll(player, links)
+    }
 }
 
 /** What a player answer gave: who answered, the answer, and its streams. */
@@ -42,16 +70,24 @@ internal class SignedPlayback(val client: SignedPlayerClient, val player: JsonOb
 internal class SignedPlaybackFailure(val reasons: List<String>) : Exception("No signed client answered: ${reasons.joinToString("; ")}")
 
 /**
- * Asks the player endpoint as each client in turn ([SignedPlayerClient]), signed with the one [YouTubeSession], until one answers with
- * streams that can be played. A client that refuses, answers no streams, needs a token that cannot be minted or gives links that cannot
- * be solved only moves the walk on to the next one.
+ * Asks the player endpoint as the clients of a list ([SignedPlayerClient]), signed with the one [YouTubeSession], and takes the first that
+ * answers with streams that can be played. A client that refuses, answers no streams, needs a token that cannot be minted or gives links
+ * that cannot be solved is only one that did not answer.
+ *
+ * The clients race ([resolve]): the first of the list is asked alone, the rest of it together as soon as it fails or once [hedgeMs] has
+ * passed without its answer, and the last resorts and the clients this session benched ([ClientRanking]) only when all those failed;
+ * the first answer with streams wins and the others are cancelled. When nothing has answered after [deadlineMs] the race is lost and
+ * the caller falls back. The race keeps the list's order, so the client that usually answers is asked first and the others cost
+ * nothing then.
  *
  * Signed requests carry the jar, the per-origin `Authorization` header, `X-Goog-AuthUser`, `X-Goog-PageId` and `onBehalfOfUser`, exactly
  * as [Innertube.postWeb] does; `Set-Cookie` values go back to the session, a 401 or 403 is a strike and starts the silent refresh (the
- * client is asked once more if that rotated the jar), and an answer that says it is logged out is reported.
+ * client is asked once more if that rotated the jar; a burst of refusals shares one refresh), and an answer that says it is logged out
+ * is reported.
  *
  * The WEB client's two PoTokens come from [tokens], which binds the streaming one to the account's identity
- * ([Innertube.SignedScope.dataSyncId], or the visitor id without one): a cookie rotation leaves that binding as it was.
+ * ([Innertube.SignedScope.dataSyncId], or the visitor id without one): a cookie rotation leaves that binding as it was. [prepare] mints
+ * them once ahead of the first video, so the page that mints them is up before anything waits on it.
  */
 internal class SignedPlayerResolver(
     private val session: YouTubeSession,
@@ -59,24 +95,121 @@ internal class SignedPlayerResolver(
     private val http: SignedHttp,
     private val tokens: suspend (videoId: String, identity: String) -> SessionBoundTokens.Tokens?,
     private val cipher: SignedCipher,
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val hedgeMs: Long = HEDGE_MS,
+    private val deadlineMs: Long = DEADLINE_MS,
 ) {
-    /** The first of [clients] that answers with streams, leaving out [skip]. Throws [SignedPlaybackFailure]. */
+    /** What this session learned about the clients. */
+    val ranking = ClientRanking(clock)
+
+    /** One client's go: its answer, or null with why it gave none. */
+    private class Attempt(val client: SignedPlayerClient, val playback: SignedPlayback?, val reason: String)
+
+    /**
+     * The first of [clients] (leaving out [skip]) that answers with streams, in a race (see the class). Throws [SignedPlaybackFailure],
+     * whose reasons are in the order of [clients], one per client asked.
+     */
     suspend fun resolve(videoId: String, clients: List<SignedPlayerClient>, skip: Set<SignedPlayerClient> = emptySet()): SignedPlayback {
-        val reasons = ArrayList<String>()
-        for (client in clients) {
-            if (client in skip) continue
-            try {
-                ask(videoId, client)?.let { return it }
-                reasons += "${client.name}: no streams"
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // By kind only: a message could quote a request.
-                reasons += "${client.name}: ${if (e is Refused) e.message else e.javaClass.simpleName}"
-            }
-            TrackLog.d(TAG, "signed player: ${reasons.last()}", about = videoId)
+        val asked = clients.filter { it !in skip }
+        val reasons = ConcurrentHashMap<SignedPlayerClient, String>()
+        val failedBefore = CopyOnWriteArrayList<SignedPlayerClient>()
+        val winner = if (asked.isEmpty()) null else withTimeoutOrNull(deadlineMs) { race(videoId, ranking.waves(asked), reasons, failedBefore) }
+        if (winner != null) {
+            ranking.answered(winner.client, failedBefore)
+            return winner
         }
-        throw SignedPlaybackFailure(reasons)
+        throw SignedPlaybackFailure(asked.map { client -> "${client.name}: ${reasons[client] ?: "no answer within ${deadlineMs}ms"}" })
+    }
+
+    private suspend fun race(
+        videoId: String,
+        waves: ClientRanking.Waves,
+        reasons: MutableMap<SignedPlayerClient, String>,
+        failedBefore: MutableList<SignedPlayerClient>,
+    ): SignedPlayback? = coroutineScope {
+        // Every attempt's end comes through here, and so does the hedge's moment (null): nothing is waited on but this one channel.
+        val answers = Channel<Attempt?>(Channel.UNLIMITED)
+        var running = 0
+        fun start(clients: List<SignedPlayerClient>) {
+            for (client in clients) {
+                running++
+                launch { answers.send(attempt(videoId, client)) }
+            }
+        }
+        // The late clients go one at a time, each only after everything before it failed.
+        val late = ArrayDeque(waves.late)
+        start(waves.first)
+        var restStarted = waves.rest.isEmpty()
+        if (!restStarted) launch {
+            delay(hedgeMs)
+            answers.send(null)
+        }
+        var winner: SignedPlayback? = null
+        while (winner == null) {
+            if (running == 0) {
+                when {
+                    !restStarted -> { start(waves.rest); restStarted = true }
+                    late.isNotEmpty() -> start(listOf(late.removeFirst()))
+                    else -> break
+                }
+                continue
+            }
+            val got = answers.receive()
+            if (got == null) {
+                // The first client kept the rest waiting long enough: they go now.
+                if (!restStarted) { start(waves.rest); restStarted = true }
+                continue
+            }
+            running--
+            if (got.playback != null) {
+                winner = got.playback
+            } else {
+                reasons[got.client] = got.reason
+                failedBefore += got.client
+            }
+        }
+        coroutineContext.cancelChildren()
+        winner
+    }
+
+    /** One client asked, timed and logged; what it throws (but a cancellation) is its reason. */
+    private suspend fun attempt(videoId: String, client: SignedPlayerClient): Attempt {
+        val began = StartupTrace.now()
+        val attempt = try {
+            Attempt(client, ask(videoId, client), "no streams")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // By kind only: a message could quote a request.
+            Attempt(client, null, (if (e is Refused) e.message else null) ?: e.javaClass.simpleName)
+        }
+        val ms = StartupTrace.msSince(began)
+        if (attempt.playback != null) {
+            StartupTrace.mark(videoId, "signed ${client.name}", "answered in ${ms}ms")
+        } else {
+            TrackLog.d(TAG, "signed player: ${client.name}: ${attempt.reason} (${ms}ms)", about = videoId)
+            StartupTrace.mark(videoId, "signed ${client.name}", "${attempt.reason} in ${ms}ms")
+        }
+        return attempt
+    }
+
+    /**
+     * Pays the signed path's first costs before a video waits on them: the player script's config (the signature timestamp the TV
+     * clients send) and the BotGuard page with the account's streaming token. A failure is only logged: a video then pays it itself.
+     */
+    suspend fun prepare() {
+        val began = StartupTrace.now()
+        try {
+            timestampOf(PREPARE_VIDEO_ID)
+            val scope = scopes()
+            val identity = scope.dataSyncId ?: scope.visitorData
+            if (identity != null) tokens(PREPARE_VIDEO_ID, identity)
+            TrackLog.d(TAG, "signed player: prepared in ${StartupTrace.msSince(began)}ms")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            TrackLog.w(TAG, "signed player: preparing failed (${e.javaClass.simpleName})")
+        }
     }
 
     private class Refused(message: String) : Exception(message)
@@ -85,18 +218,32 @@ internal class SignedPlayerResolver(
         val scope = scopes()
         val minted = if (client.needsPoToken) {
             val identity = scope.dataSyncId ?: scope.visitorData ?: throw Refused("no identity to bind a token to")
-            tokens(videoId, identity) ?: throw Refused("no token")
+            val began = StartupTrace.now()
+            val minted = tokens(videoId, identity)
+            StartupTrace.mark(videoId, "PoToken", "${if (minted == null) "none" else "minted"} in ${StartupTrace.msSince(began)}ms")
+            minted ?: throw Refused("no token")
         } else {
             null
         }
         val timestamp = if (client.takesCookies) timestampOf(videoId) else null
         val body = SignedPlayerRequest.body(client, scope, videoId, timestamp, minted?.playerToken)
+        val asked = StartupTrace.now()
         val player = post(client, scope, body)
         val status = player.obj("playabilityStatus").str("status")
+        StartupTrace.mark(videoId, "signed ${client.name} player", "${status ?: "no status"} in ${StartupTrace.msSince(asked)}ms")
         if (status != "OK") throw Refused(status ?: "no status")
-        val streams = SignedPlayerParser.streams(player, client, minted?.streamingToken) { url, signatureCipher ->
-            if (signatureCipher == null && url != null && !NEEDS_SOLVING.containsMatchIn(url)) url else cipher.address(videoId, url, signatureCipher)
+        val solving = StartupTrace.now()
+        var solved = 0
+        val streams = SignedPlayerParser.streams(player, client, minted?.streamingToken) { links ->
+            // What needs no solving is taken as it is; the rest go to the cipher as one batch.
+            val needed = links.indices.filter { i -> links[i].second != null || links[i].first?.let { NEEDS_SOLVING.containsMatchIn(it) } != false }
+            solved = needed.size
+            val answers = if (needed.isEmpty()) emptyList() else cipher.addresses(videoId, needed.map { links[it] })
+            val out = links.map { it.first }.toMutableList()
+            needed.forEachIndexed { k, i -> out[i] = answers.getOrNull(k) }
+            out
         }
+        StartupTrace.mark(videoId, "signed ${client.name} links", "$solved solved in ${StartupTrace.msSince(solving)}ms")
         return if (streams.videoOnly.isEmpty() && streams.muxed.isEmpty() && streams.hlsUrl == null) null else SignedPlayback(client, player, streams)
     }
 
@@ -141,6 +288,19 @@ internal class SignedPlayerResolver(
     companion object {
         private const val TAG = "CosmoVideo"
         const val URL = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false"
+
+        /** How long the first client of a race is waited for alone before the others are asked too. */
+        const val HEDGE_MS = 700L
+
+        /**
+         * How long a race may take at most before it is lost. Long on purpose: the anonymous source already joins a slow race (see
+         * [SignedVideoSource]), so this only stops a request that hangs, and an age-restricted video whose links are slow to solve
+         * still gets its signed answer.
+         */
+        const val DEADLINE_MS = 20_000L
+
+        /** The video [prepare] warms the path with: the site's first upload, which will always be there. */
+        const val PREPARE_VIDEO_ID = "jNQXAC9IVRw"
         private val JSON = Json { ignoreUnknownKeys = true }
 
         /** A plain address with an `n` parameter is throttled until that is solved; the app clients' have none. */

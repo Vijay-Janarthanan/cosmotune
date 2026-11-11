@@ -16,21 +16,28 @@ import com.cosmotune.video.model.PlaylistItem
 import com.cosmotune.video.model.PlaylistPage
 import com.cosmotune.video.model.StreamSet
 import com.cosmotune.video.model.VideoDetails
+import com.cosmotune.video.player.StartupTrace
 import com.cosmotune.video.source.VideoSource
 import com.cosmotune.video.source.VideoSourceError
 import com.cosmotune.youtube.account.YouTubeAuthState
 import com.cosmotune.youtube.account.YouTubeSession
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.put
 
 /**
  * Video's source with the signed path in front of [anonymous] (the NewPipe adapter, which stays exactly what it was: no account, no cookie).
  *
- * Signed in, the watch page and its streams come from [SignedPlayerResolver] and the site's `next` answer, so age-restricted and members'
- * videos and the account's own private and unlisted ones play; any failure there falls back to [anonymous], and what that cannot read
- * either is tried once more with the app clients that need no credential ([SignedPlayerClient.RESCUE]). Signed out, or with a session
- * that has expired, every playback call is simply [anonymous]'s.
+ * Signed in, the watch page and its streams come from [SignedPlayerResolver] and the site's `next` answer (asked at the same time), so
+ * age-restricted and members' videos and the account's own private and unlisted ones play. The signed clients get a head start of
+ * [ANONYMOUS_AFTER_MS]; when they have not answered by then, or failed, [anonymous] is asked too and the first good answer of the two
+ * plays. What neither can read is tried once more with the app clients that need no credential ([SignedPlayerClient.RESCUE]). Signed
+ * out, or with a session that has expired, every playback call is simply [anonymous]'s.
  *
  * A stream set is asked again soon after it was given only because the player's fetch was refused (a set lasts for hours), so the client
  * that minted it sits out for [REFUSED_MS] and the next one answers. When they have all sat out, [anonymous] answers.
@@ -85,6 +92,7 @@ class SignedVideoSource internal constructor(
             lastGiven.clear()
             refused.clear()
         }
+        resolver.ranking.clear()
     }
 
     override fun setRegion(country: String, language: String) {
@@ -95,24 +103,108 @@ class SignedVideoSource internal constructor(
     // ---- Watching --------------------------------------------------------------------------------------------------------
 
     override suspend fun details(videoId: String): VideoDetails {
-        if (!signedIn()) return anonymous.details(videoId)
+        if (!signedIn()) {
+            StartupTrace.mark(videoId, "source", "anonymous (signed out)")
+            return anonymous.details(videoId)
+        }
         followIdentity()
         synchronized(lock) { cache[videoId]?.takeIf { clock() - it.fetchedAtMs in 0 until DETAILS_TTL_MS } }?.let { return it }
-        val playback = attemptSigned(videoId) ?: return anonymousOrRescue(videoId, { anonymous.details(videoId) }) { rescue ->
-            SignedPlayerParser.details(videoId, rescue, nextAnswer(videoId), clock())
+        StartupTrace.mark(videoId, "source", "signed, the anonymous source in parallel after ${ANONYMOUS_AFTER_MS}ms")
+        return coroutineScope {
+            // The watch page's second answer goes out with the player request, not after it.
+            val next = async { nextAnswer(videoId) }
+            try {
+                firstGood(
+                    videoId,
+                    signed = { playback ->
+                        SignedPlayerParser.details(videoId, playback, next.await(), clock()).also { details -> synchronized(lock) { cache[videoId] = details } }
+                    },
+                    anonymous = { anonymous.details(videoId) },
+                    rescued = { rescue -> SignedPlayerParser.details(videoId, rescue, next.await(), clock()) },
+                )
+            } finally {
+                next.cancel()
+            }
         }
-        val details = SignedPlayerParser.details(videoId, playback, nextAnswer(videoId), clock())
-        synchronized(lock) { cache[videoId] = details }
-        return details
     }
 
     override suspend fun streams(videoId: String): StreamSet {
         if (!signedIn()) return anonymous.streams(videoId)
         followIdentity()
         noteRefusal(videoId)
-        val playback = attemptSigned(videoId) ?: return anonymousOrRescue(videoId, { anonymous.streams(videoId) }) { it.streams }
-        synchronized(lock) { cache[videoId]?.let { cache[videoId] = it.copy(streams = playback.streams) } }
-        return playback.streams
+        return firstGood(
+            videoId,
+            signed = { playback ->
+                synchronized(lock) { cache[videoId]?.let { cache[videoId] = it.copy(streams = playback.streams) } }
+                playback.streams
+            },
+            anonymous = { anonymous.streams(videoId) },
+            rescued = { it.streams },
+        )
+    }
+
+    /** What a race between the two paths ended with: the signed answer, or the anonymous source's value or error. */
+    private class Outcome<T>(val playback: SignedPlayback?, val value: T?, val error: Exception?)
+
+    /**
+     * The signed answer when it comes first, else the anonymous source's: the signed clients are asked at once, the anonymous source
+     * [ANONYMOUS_AFTER_MS] later if they have not answered by then (or as soon as they failed), and the first good answer of the two
+     * is used, the other cancelled. What neither could read goes to the rescue clients ([anonymousErrorOrRescue]).
+     */
+    private suspend fun <T : Any> firstGood(
+        videoId: String,
+        signed: suspend (SignedPlayback) -> T,
+        anonymous: suspend () -> T,
+        rescued: suspend (SignedPlayback) -> T,
+    ): T = coroutineScope {
+        val signedRace = async { attemptSigned(videoId) }
+        val anonymousRace = async(start = CoroutineStart.LAZY) {
+            val began = StartupTrace.now()
+            try {
+                Outcome<T>(null, anonymous(), null).also { StartupTrace.mark(videoId, "anonymous source", "answered in ${StartupTrace.msSince(began)}ms") }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                StartupTrace.mark(videoId, "anonymous source", "${e.javaClass.simpleName} in ${StartupTrace.msSince(began)}ms")
+                Outcome<T>(null, null, e)
+            }
+        }
+        try {
+            // A head start: the signed answer is the one with everything the account may see, and it usually comes first anyway.
+            val early = withTimeoutOrNull(ANONYMOUS_AFTER_MS) { Outcome<T>(signedRace.await(), null, null) }
+            early?.playback?.let { playback ->
+                StartupTrace.mark(videoId, "source decided", "signed, within the head start")
+                return@coroutineScope signed(playback)
+            }
+            StartupTrace.mark(videoId, "anonymous source", if (early == null) "asked too: the signed clients are slow" else "asked: the signed clients failed")
+            anonymousRace.start()
+            var signedOutcome: Outcome<T>? = early
+            var anonymousOutcome: Outcome<T>? = null
+            while (true) {
+                val signedDone = signedOutcome != null
+                if (signedDone && anonymousOutcome != null) break
+                select {
+                    if (!signedDone) signedRace.onAwait { signedOutcome = Outcome<T>(it, null, null) }
+                    if (anonymousOutcome == null) anonymousRace.onAwait { anonymousOutcome = it }
+                }
+                signedOutcome?.playback?.let { playback ->
+                    anonymousRace.cancel()
+                    StartupTrace.mark(videoId, "source decided", "signed")
+                    return@coroutineScope signed(playback)
+                }
+                anonymousOutcome?.value?.let { value ->
+                    signedRace.cancel()
+                    StartupTrace.mark(videoId, "source decided", "anonymous")
+                    return@coroutineScope value
+                }
+            }
+            val error = anonymousOutcome!!.error!!
+            if (error !is VideoSourceError) throw error
+            anonymousErrorOrRescue(videoId, error, rescued)
+        } finally {
+            signedRace.cancel()
+            anonymousRace.cancel()
+        }
     }
 
     override suspend fun related(videoId: String): List<ListItem> {
@@ -149,32 +241,38 @@ class SignedVideoSource internal constructor(
         null
     }
 
-    /** [ask]s the anonymous source; what it throws is answered by the rescue clients when they can, and is rethrown when they cannot. */
-    private suspend fun <T> anonymousOrRescue(videoId: String, ask: suspend () -> T, rescued: suspend (SignedPlayback) -> T): T {
-        try {
-            return ask()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: VideoSourceError) {
-            val playback = try {
-                resolver.resolve(videoId, SignedPlayerClient.RESCUE, sittingOut(videoId))
-            } catch (rescue: CancellationException) {
-                throw rescue
-            } catch (rescue: Exception) {
-                throw e
-            }
-            synchronized(lock) { lastGiven[videoId] = playback.client to clock() }
-            return rescued(playback)
+    /** What the anonymous source could not read either ([error]) is answered by the rescue clients when they can, else [error] leaves. */
+    private suspend fun <T> anonymousErrorOrRescue(videoId: String, error: VideoSourceError, rescued: suspend (SignedPlayback) -> T): T {
+        StartupTrace.mark(videoId, "rescue clients", "after the anonymous source's ${error.javaClass.simpleName}")
+        val playback = try {
+            resolver.resolve(videoId, SignedPlayerClient.RESCUE, sittingOut(videoId))
+        } catch (rescue: CancellationException) {
+            throw rescue
+        } catch (rescue: Exception) {
+            throw error
         }
+        synchronized(lock) { lastGiven[videoId] = playback.client to clock() }
+        return rescued(playback)
+    }
+
+    /**
+     * Pays the signed path's first costs ahead of the first video ([SignedPlayerResolver.prepare]): only signed in, where they would
+     * otherwise be paid on the click.
+     */
+    suspend fun prepare() {
+        if (signedIn()) resolver.prepare()
     }
 
     /** The watch page's `next` answer. Without it the page still plays: it only has no related videos, chapters or like count. */
-    private suspend fun nextAnswer(videoId: String): JsonObject? = runCatchingSource {
-        web.post("next") {
-            put("videoId", videoId)
-            put("contentCheckOk", true)
-            put("racyCheckOk", true)
-        }.also { response -> YoutubeFeedParser.errorOf(response)?.let { throw it } }
+    private suspend fun nextAnswer(videoId: String): JsonObject? {
+        val began = StartupTrace.now()
+        return runCatchingSource {
+            web.post("next") {
+                put("videoId", videoId)
+                put("contentCheckOk", true)
+                put("racyCheckOk", true)
+            }.also { response -> YoutubeFeedParser.errorOf(response)?.let { throw it } }
+        }.also { StartupTrace.mark(videoId, "next", "${if (it == null) "failed" else "answered"} in ${StartupTrace.msSince(began)}ms") }
     }
 
     // ---- Comments --------------------------------------------------------------------------------------------------------
@@ -260,5 +358,8 @@ class SignedVideoSource internal constructor(
 
         /** A set asked for again this soon was refused; its client sits out this long. */
         const val REFUSED_MS = 10 * 60_000L
+
+        /** The signed clients' head start: the anonymous source is asked too when they have not answered by then. */
+        const val ANONYMOUS_AFTER_MS = 800L
     }
 }

@@ -18,6 +18,7 @@ import com.cosmotune.video.model.SearchFilter
 import com.cosmotune.video.model.StreamSet
 import com.cosmotune.video.model.VideoDetails
 import com.cosmotune.video.model.VideoItem
+import com.cosmotune.video.player.StartupTrace
 import com.cosmotune.video.source.VideoSource
 import com.cosmotune.video.source.VideoSourceError
 import kotlinx.coroutines.CancellationException
@@ -199,7 +200,14 @@ class NewPipeVideoSource internal constructor(
     }
 
     private fun fetchDetails(videoId: String): VideoDetails {
-        val info = streamInfoLoader(NewPipeAddresses.watchUrl(videoId))
+        val began = StartupTrace.now()
+        val info = try {
+            streamInfoLoader(NewPipeAddresses.watchUrl(videoId))
+        } catch (e: Exception) {
+            StartupTrace.mark(videoId, "anonymous extract", "${e.javaClass.simpleName} in ${StartupTrace.msSince(began)}ms")
+            throw e
+        }
+        StartupTrace.mark(videoId, "anonymous extract", "answered in ${StartupTrace.msSince(began)}ms")
         val details = NewPipeMapper.details(info, clock(), NewPipeHost.localization())
         if (details.related.none { it is ListItem.Video }) {
             // Nothing of the id: only how many errors the extractor kept, by kind, so a log shows why "Up next" starts empty.

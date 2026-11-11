@@ -74,6 +74,7 @@ fun VideoResultCard(
     val snippet = item.snippet?.takeIf { it.isNotBlank() }
     val more = stringResource(Res.string.video_more)
     val hover = rememberCardHover()
+    PreResolveOnHover(hover, item)
     Row(
         with(hover) { modifier.fillMaxWidth().track() }
             .padding(horizontal = CosmoSpacing.margin, vertical = 6.dp)

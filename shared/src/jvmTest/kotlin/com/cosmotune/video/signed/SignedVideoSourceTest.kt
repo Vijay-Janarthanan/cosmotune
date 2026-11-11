@@ -92,6 +92,23 @@ class SignedVideoSourceTest {
         assertTrue(h.anonymous.calls.any { it.startsWith("details") })
     }
 
+    @Test fun signedClientsThatKeepItWaitingLoseToTheAnonymousSourceAfterTheirHeadStart() = runTest {
+        val h = Harness()
+        h.http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.PLAYABLE)
+        h.http.takes(SignedPlayerClient.TV_SAMSUNG, 10_000)
+        val details = h.source.details(video)
+        assertEquals(FakeVideoSource.sampleItem(video)!!.title, details.item.title, "the anonymous answer came first")
+        assertEquals(SignedVideoSource.ANONYMOUS_AFTER_MS, testScheduler.currentTime, "asked after the head start, answered at once")
+    }
+
+    @Test fun aSignedAnswerWithinTheHeadStartNeverAsksTheAnonymousSource() = runTest {
+        val h = Harness()
+        h.http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.PLAYABLE)
+        h.http.takes(SignedPlayerClient.TV_SAMSUNG, SignedVideoSource.ANONYMOUS_AFTER_MS - 1)
+        assertEquals("Private film", h.source.details(video).item.title)
+        assertTrue(h.anonymous.calls.none { it.startsWith("details") })
+    }
+
     @Test fun whatNeitherCouldReadIsTriedWithTheAppClientsInOrder() = runTest {
         val h = Harness()
         h.http.answer(SignedPlayerClient.ANDROID_VR, PlayerJson.PLAYABLE)

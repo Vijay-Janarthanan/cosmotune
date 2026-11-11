@@ -19,6 +19,7 @@ import com.metrolist.innertubex.extraction.PlayerConfig
 import com.metrolist.innertubex.extraction.YtConfigParserImpl
 import com.metrolist.innertubex.extraction.generateClientPlaybackNonce
 import com.metrolist.innertubex.models.YouTubeLocale
+import com.metrolist.innertubex.models.response.PlayerResponse
 import com.cosmotune.music.data.Http
 import com.cosmotune.music.data.TrackLog
 import com.cosmotune.music.data.innertube.potoken.SessionBoundTokens
@@ -281,6 +282,41 @@ object InnerTubeXResolver {
 
     /** [url] with its throttling parameter solved, or null when it cannot be solved. */
     suspend fun unthrottle(playerUrl: String, url: String): String? = cipherService.processNParameter(playerUrl, url)
+
+    /**
+     * The playable addresses of one player answer's links (each a `url`, a `signatureCipher`, or both), solved as one batch: the cipher
+     * service answers every signature and throttling challenge of the batch in one go, where one call per link pays the solver's start
+     * each time (a TV answer's 25 links took 20 s that way). Null for a link that could not be solved; in the order given.
+     */
+    suspend fun solveAll(playerUrl: String, links: List<Pair<String?, String?>>): List<String?> {
+        if (links.isEmpty()) return emptyList()
+        // The itag carries each link's place in the batch, so the answer is matched back whatever the service leaves out or reorders.
+        val formats = links.mapIndexed { index, (url, signatureCipher) ->
+            PlayerResponse.StreamingData.Format(
+                index, url, "", 0, null, null, null, null, null, null, null, null, null, null, null, null, false, signatureCipher, null,
+            )
+        }
+        val solved = cipherService.processFormats(playerUrl, formats)
+        val byPlace = arrayOfNulls<String>(links.size)
+        for (format in solved) {
+            val place = format.itag
+            if (place !in links.indices) continue
+            val address = format.url ?: continue
+            val (url, signatureCipher) = links[place]
+            // A link whose challenge the batch could not answer comes back as it went in: no signature, or the same throttled `n`.
+            if (signatureCipher != null && address == url) continue
+            val before = nOf(url ?: urlOfCipher(signatureCipher))
+            if (before != null && nOf(address) == before) continue
+            byPlace[place] = address
+        }
+        return byPlace.toList()
+    }
+
+    private fun nOf(url: String?): String? =
+        url?.substringAfter('?', "")?.split('&')?.firstOrNull { it.startsWith("n=") }?.substringAfter("n=")
+
+    private fun urlOfCipher(signatureCipher: String?): String? = signatureCipher?.split('&')
+        ?.firstOrNull { it.startsWith("url=") }?.substringAfter("url=")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
 
     /** The PoTokens of a signed-in Video request; null where the platform has no minter (see [SessionBoundTokens]). */
     suspend fun sessionBoundTokens(videoId: String, identity: String): SessionBoundTokens.Tokens? =

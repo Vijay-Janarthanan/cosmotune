@@ -16,6 +16,7 @@ import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_EVENT_END_FIL
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_EVENT_FILE_LOADED
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_EVENT_LOG_MESSAGE
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_EVENT_NONE
+import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_EVENT_PLAYBACK_RESTART
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_EVENT_PROPERTY_CHANGE
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_EVENT_SHUTDOWN
 import com.cosmotune.video.player.desktop.MpvLibrary.Companion.MPV_EVENT_START_FILE
@@ -64,6 +65,8 @@ internal class MpvPlayer(
     private val onFileLoaded: () -> Unit = {},
     /** Whether the proxy's last trouble was the network rather than the source (an error then is `NETWORK`). */
     private val networkTrouble: () -> Boolean = { false },
+    /** Playback of the current file (re)started: after its load and after each seek; called on the event thread. */
+    private val onPlaybackRestart: () -> Unit = {},
 ) : AutoCloseable {
 
     /** The properties observed, with their `reply_userdata` (ordinal + 1), their format, and whether they belong to the file. */
@@ -318,6 +321,7 @@ internal class MpvPlayer(
                     if (current) onFileLoaded()
                 }
                 MPV_EVENT_END_FILE -> onEndFile(event.getPointer(MpvEventLayout.EVENT_DATA))
+                MPV_EVENT_PLAYBACK_RESTART -> if (synchronized(lock) { isCurrentFile() }) onPlaybackRestart()
             }
         }
     }
@@ -559,6 +563,18 @@ internal class MpvPlayer(
             put("input-vo-keyboard", "no")
             put("audio-client-name", "Cosmotune")
         }
+
+        /**
+         * The decoding a load starts with: software for a picture up to [SOFTWARE_START_MAX_HEIGHT] lines when the options ask for hardware
+         * decoding ([steady]), whose set-up costs a quarter to a whole second before the first frame; the options' own otherwise (a
+         * taller picture, a file whose height is not known, or no hardware decoding at all). The engine turns [steady] on at the
+         * load's first pause or seek.
+         */
+        internal fun startDecoding(steady: String, pictureHeight: Int): String =
+            if (steady != "no" && pictureHeight in 1..SOFTWARE_START_MAX_HEIGHT) "no" else steady
+
+        /** The tallest picture that starts in software: a 1080p frame decodes in a few milliseconds on any desktop processor. */
+        const val SOFTWARE_START_MAX_HEIGHT = 1080
 
         /** FFmpeg's reconnect options for live HLS (spec 6.3). */
         const val LIVE_LAVF_OPTIONS = "reconnect=1,reconnect_delay_max=30"

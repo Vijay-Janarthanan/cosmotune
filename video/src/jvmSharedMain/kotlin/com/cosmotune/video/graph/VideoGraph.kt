@@ -7,6 +7,7 @@ import com.cosmotune.video.account.VideoAccount
 import com.cosmotune.video.downloads.DownloadController
 import com.cosmotune.video.feed.SubscriptionFeed
 import com.cosmotune.video.library.VideoLibrary
+import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.music.VideoMusicBridge
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoSurfaceProvider
@@ -46,7 +47,10 @@ class VideoGraph(
     val metered: () -> Boolean,
     val shorts: ShortsFeed,
     val account: VideoAccount = SignedOutVideoAccount,
-)
+) {
+    /** A card the pointer rests on: its streams are resolved ahead of the click ([VideoPlayback.prefetch]). One instance per graph. */
+    val preResolve: (VideoItem) -> Unit = { playback.prefetch(it.id) }
+}
 
 /** The graph of the screen being drawn; provided by the shell ([com.cosmotune.video.ui.CosmoVideoApp] on the phone, the desktop page). */
 val LocalVideoGraph = staticCompositionLocalOf<VideoGraph> { error("LocalVideoGraph: no VideoGraph is provided here") }

@@ -10,6 +10,7 @@ private const val TV_OLD_VERSION = "5.20260707"
  * @param takesCookies false for an app client, which cannot use a cookie session: it is sent with no credential at all.
  * @param needsPoToken its links stop after the first megabyte without the session-bound token.
  * @param browser native apps send no Origin and no Referer; sending them anyway is as wrong as omitting them from a web client.
+ * @param lastResort asked only when every other client of its list has failed, never raced with them.
  */
 internal enum class SignedPlayerClient(
     val clientName: String,
@@ -21,6 +22,7 @@ internal enum class SignedPlayerClient(
     val needsPoToken: Boolean = false,
     val embedded: Boolean = false,
     val browser: Boolean = true,
+    val lastResort: Boolean = false,
 ) {
     /**
      * The older TV app as a Samsung TV: the first TV client for signed-in users since 2026-10, when the plain older one began to answer
@@ -83,6 +85,7 @@ internal enum class SignedPlayerClient(
         extra = mapOf("deviceMake" to "Oculus", "deviceModel" to "Quest 3", "osName" to "Android", "osVersion" to "12L", "androidSdkVersion" to "32"),
         takesCookies = false,
         browser = false,
+        lastResort = true,
     );
 
     companion object {

@@ -10,6 +10,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.session.CacheBitmapLoader
@@ -55,6 +56,7 @@ object VideoPlayerHolder {
         val built = ExoPlayer.Builder(context, VideoRenderersFactory(context).setEnableDecoderFallback(true))
             .setMediaSourceFactory(VideoMediaSourceFactory(context))
             .setBandwidthMeter(meter)
+            .setLoadControl(startQuickly())
             .setAudioAttributes(attributes, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
@@ -64,6 +66,26 @@ object VideoPlayerHolder {
         com.cosmotune.ui.sleep.SleepPausers.add(sleepPause)
         return built
     }
+
+    /**
+     * Media3's buffering, with the start made quick: playback begins once [START_BUFFER_MS] of the video is in (Media3's default waits
+     * for 2.5 s), and after a stall once [REBUFFER_MS] is, so a slow network does not stutter in and out of buffering. How far ahead it
+     * reads once playing stays Media3's default (50 s).
+     */
+    internal fun startQuickly(): DefaultLoadControl = DefaultLoadControl.Builder()
+        .setBufferDurationsMs(
+            DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+            DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+            START_BUFFER_MS,
+            REBUFFER_MS,
+        )
+        .build()
+
+    /** How much video is buffered before the first frame plays. */
+    internal const val START_BUFFER_MS = 1_000
+
+    /** How much video is buffered before playback goes on after a stall. */
+    internal const val REBUFFER_MS = 2_500
 
     /** Forgets [released] (the service's player, about to be released) and releases it. */
     @MainThread

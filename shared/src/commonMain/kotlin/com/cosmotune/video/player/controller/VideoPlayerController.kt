@@ -23,6 +23,7 @@ import com.cosmotune.video.player.RelatedState
 import com.cosmotune.video.player.SegmentDecider
 import com.cosmotune.video.player.SegmentDecision
 import com.cosmotune.video.player.Selection
+import com.cosmotune.video.player.StartupTrace
 import com.cosmotune.video.player.StreamChooser
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoPlayerEngine
@@ -98,8 +99,11 @@ class VideoPlayerController(
     private val clock: () -> Long,
 ) : VideoPlayback {
 
-    /** Details with the moment they were fetched, for the 10 minute cache. */
-    private class Cached(val details: VideoDetails, val atMs: Long)
+    /**
+     * Details with the moment they were fetched, for the 10 minute cache. [ahead] marks details resolved ahead of a click (a card under
+     * the pointer, the next video in Up next): they are kept only [PRE_RESOLVE_TTL_MS] unless that video is played.
+     */
+    private class Cached(val details: VideoDetails, val atMs: Long, val ahead: Boolean = false)
 
     /** Everything about the video being played; replaced as a whole by every new `play`. Guarded by the controller's lock. */
     private class Load(
@@ -151,6 +155,9 @@ class VideoPlayerController(
 
         /** Bumped by every reload, so a slow fetch of an older one is dropped. */
         var opSeq = 0
+
+        /** Whether the video after this one was resolved ahead yet (once, near this one's end). */
+        var nextResolved = false
 
         /** The related videos' second request: where it stands, and the job that runs it. */
         var relatedState = RelatedState.IDLE
@@ -275,7 +282,10 @@ class VideoPlayerController(
         when {
             local != null && known != null -> applyLocal(l, explicitStartMs, known, local)
             premiere != null -> showUpcoming(l, premiere, details = null)
-            else -> opJob = scope.launch { startRemote(l, explicitStartMs) }
+            else -> {
+                StartupTrace.click(videoId, if (cachedDetails(videoId) != null) "details cached" else if (inFlight.containsKey(videoId)) "details in flight" else "")
+                opJob = scope.launch { startRemote(l, explicitStartMs) }
+            }
         }
     }
 
@@ -320,11 +330,15 @@ class VideoPlayerController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
+            StartupTrace.mark(l.videoId, "details failed", e::class.simpleName.orEmpty())
             failLoad(l, ErrorMapping.map(e))
             return
         }
+        StartupTrace.mark(l.videoId, "details ready")
+        keepPlayed(l.videoId)
         var streams = details.streams
         if (streams.isExpired(clock())) {
+            StartupTrace.mark(l.videoId, "cached streams expired, asking again")
             // The cached set is about to stop working: a fresh one before the first request fails (spec 6.1).
             streams = try {
                 source.streams(l.videoId)
@@ -373,6 +387,7 @@ class VideoPlayerController(
         val start = startPosition(item, explicitStartMs, l.short, l.live, s)
         val selection = select(l, streams, pinned = null, s)
         l.selection = selection
+        StartupTrace.mark(l.videoId, "streams chosen", describe(selection))
         doLoad(l, buildRequest(l, item, selection.input, start), play = true)
         startSegments(l, s)
         startRelatedIfMissing(l)
@@ -414,7 +429,7 @@ class VideoPlayerController(
         if (list != null && list.any { it is ListItem.Video }) {
             l.details = details.copy(related = list)
             // The cache keeps the filled list too: playing the video again shows it at once.
-            cache[l.videoId]?.let { cache[l.videoId] = Cached(it.details.copy(related = list), it.atMs) }
+            cache[l.videoId]?.let { cache[l.videoId] = Cached(it.details.copy(related = list), it.atMs, it.ahead) }
             l.relatedState = RelatedState.IDLE
         } else {
             l.relatedState = if (list == null) RelatedState.FAILED else RelatedState.EMPTY
@@ -475,6 +490,14 @@ class VideoPlayerController(
         val entry = library.history.value.firstOrNull { it.item.id == item.id }
         if (entry != null && entry.isWatched) return 0
         return stored.coerceAtLeast(0)
+    }
+
+    /** The chosen streams as the startup trace says them: resolution, frame rate and codec of the picture, codec and bitrate of the sound. */
+    private fun describe(selection: Selection): String {
+        val video = selection.video?.let { "${it.width}x${it.height}@${it.fps} ${it.codec.name.lowercase()} ${it.bitrate / 1000}kbps${if (it.hasAudio) " muxed" else ""}" }
+        val audio = selection.audio?.let { "${it.codec.name.lowercase()} ${it.bitrate / 1000}kbps" }
+        val kind = selection.input::class.simpleName.orEmpty().lowercase()
+        return listOfNotNull(video, audio, kind).joinToString(", ")
     }
 
     /**
@@ -557,7 +580,7 @@ class VideoPlayerController(
     @Synchronized
     private fun cachedDetails(id: String): VideoDetails? {
         val cached = cache[id] ?: return null
-        if (clock() - cached.atMs >= DETAILS_TTL_MS) {
+        if (clock() - cached.atMs >= if (cached.ahead) PRE_RESOLVE_TTL_MS else DETAILS_TTL_MS) {
             cache.remove(id)
             return null
         }
@@ -594,17 +617,40 @@ class VideoPlayerController(
         inFlight.remove(id)
         val details = result.getOrNull() ?: return
         if (details.item.isUpcoming) return     // a premiere may start any minute: asked again next time (spec 5.13)
-        putInCache(id, details)
+        // Fetched for something other than the video being opened: resolved ahead, kept for a short while.
+        putInCache(id, details, ahead = load?.videoId != id)
     }
 
-    private fun putInCache(id: String, details: VideoDetails) {
-        cache[id] = Cached(details, clock())
+    private fun putInCache(id: String, details: VideoDetails, ahead: Boolean) {
+        cache[id] = Cached(details, clock(), ahead)
         while (cache.size > CACHE_MAX) cache.remove(cache.keys.first())
+    }
+
+    /** [id] is played: details resolved ahead for it are kept as long as any played video's. */
+    @Synchronized
+    private fun keepPlayed(id: String) {
+        val cached = cache[id]?.takeIf { it.ahead } ?: return
+        cache[id] = Cached(cached.details, cached.atMs, ahead = false)
     }
 
     private fun refreshCachedStreams(id: String, streams: StreamSet) {
         val cached = cache[id] ?: return
-        cache[id] = Cached(cached.details.copy(streams = streams), cached.atMs)
+        cache[id] = Cached(cached.details.copy(streams = streams), cached.atMs, cached.ahead)
+    }
+
+    /**
+     * Near the end of [l] ([UP_NEXT_AHEAD_MS] before it), the video that will play after it (the queue's next, else autoplay's pick)
+     * is resolved ahead, once, so the move to it starts at once. Nothing for a Short, a live stream, a file on the device or a loop.
+     */
+    private fun resolveNextAhead(l: Load, positionMs: Long) {
+        // A looping video plays itself again: nothing comes after it while the loop is on.
+        if (l.nextResolved || l.short || l.live || l.local != null || l.loop) return
+        val duration = durationNow(l)
+        if (duration <= 0 || duration - positionMs > UP_NEXT_AHEAD_MS) return
+        l.nextResolved = true
+        val next = queueState.next(l.item)?.item
+            ?: if (autoplay) queueState.autoplayPick(l.item, l.details?.related.orEmpty(), library.history.value) else null
+        next?.takeUnless { it.isUpcoming || it.isLive || LocalVideo.isLocal(it.id) }?.let { prefetch(it.id) }
     }
 
     // ------------------------------------------------------------------ the engine's snapshot
@@ -758,7 +804,7 @@ class VideoPlayerController(
     @Synchronized
     private fun applyLiveReload(l: Load, seq: Int, fresh: VideoDetails) {
         if (load !== l || l.opSeq != seq) return
-        if (!fresh.item.isUpcoming) putInCache(l.videoId, fresh)
+        if (!fresh.item.isUpcoming) putInCache(l.videoId, fresh, ahead = false)
         if (fresh.kind != StreamKind.LIVE || fresh.streams.hlsUrl == null) {
             playOnOrStop(l)                     // the broadcast is over
             publish()
@@ -785,8 +831,10 @@ class VideoPlayerController(
         val snap = lastSnap ?: return
         if (!snap.playing) return
         if (historyTicker.poll()) recordNow()
-        evaluateSegments(l, engine.positionMs())
+        val position = engine.positionMs()
+        evaluateSegments(l, position)
         if (load === l) checkFrameDrops(l, engine.snapshot.value)
+        if (load === l) resolveNextAhead(l, position)
     }
 
     /** Writes the position to history, unless history is paused, the stream is live, or the engine has no valid position yet (spec 6.1). */
@@ -1324,6 +1372,12 @@ class VideoPlayerController(
 
         /** Details are cached 10 minutes (spec 6.1). */
         const val DETAILS_TTL_MS = 10 * 60_000L
+
+        /** How long details resolved ahead of a click are kept when that video is not played: stream addresses do not last. */
+        const val PRE_RESOLVE_TTL_MS = 5 * 60_000L
+
+        /** How long before a video's end the video after it is resolved ahead. */
+        const val UP_NEXT_AHEAD_MS = 30_000L
 
         /** At most this many details are kept. */
         const val CACHE_MAX = 24

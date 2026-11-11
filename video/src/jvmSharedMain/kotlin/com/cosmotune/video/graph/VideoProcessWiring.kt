@@ -5,9 +5,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import com.cosmotune.design.AppMode
+import com.cosmotune.music.data.TrackLog
+import com.cosmotune.video.player.StartupTrace
 import com.cosmotune.video.player.VideoPlayback
 import com.cosmotune.video.player.VideoPlayerEngine
 import com.cosmotune.video.settings.VideoSettingsRepository
+import com.cosmotune.video.signed.SignedVideoSource
 import com.cosmotune.video.source.VideoSource
 import com.cosmotune.video.ui.VideoHostLinks
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +24,16 @@ import kotlinx.coroutines.launch
  * What both graph factories wire besides the slots (plan task Y-16): the audio of the two modes, the region of the source. The
  * platform parts (the store flush, the app's version, the notification's buttons) are in each factory.
  */
+
+/**
+ * What makes the first click quick, done when Video opens: the startup trace's lines (click to first frame, one per stage) go to
+ * Video's log, filed under the video they are about, and the signed path's first costs (the player script's config, the PoToken page)
+ * are paid now rather than on the click ([SignedVideoSource.prepare]; nothing when signed out).
+ */
+internal fun CoroutineScope.prepareVideoStart(source: VideoSource): Job {
+    StartupTrace.sink = { videoId, line -> TrackLog.d("CosmoVideo", line, about = videoId) }
+    return launch { (source as? SignedVideoSource)?.prepare() }
+}
 
 /**
  * Audio is exclusive across the two modes (the controller's ruling after Y-3). The graph lives as long as the process, so the
