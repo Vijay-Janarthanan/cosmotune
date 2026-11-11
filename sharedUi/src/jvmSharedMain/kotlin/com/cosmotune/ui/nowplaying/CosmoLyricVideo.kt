@@ -146,7 +146,7 @@ class LyricVideoFrames(
         when (look) {
             LyricVideoLook.POSTER -> {
                 drawText(label, ink.text.copy(alpha = 0.6f), Offset(pad, pad))
-                poster?.let { drawPoster(it, positionMs, ink.text, Offset(pad, pad + 110f), reduced = false) }
+                poster?.let { drawPoster(it, positionMs, ink.text, coverFill, Offset(pad, pad + 110f), reduced = false) }
                 nextLine?.let { drawText(it, ink.next, Offset(pad, HEIGHT - pad - 150f)) }
                 drawText(brand, ink.text.copy(alpha = 0.6f), Offset(pad, HEIGHT - pad - brand.size.height - 20f))
                 coverDisc(miniDisc, Offset(WIDTH - pad - 54f, HEIGHT - pad - 54f), 54f)

@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
@@ -35,8 +36,10 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cosmotune.lyrics.styles.PosterLines
 import com.cosmotune.lyrics.styles.StageFit
 import com.cosmotune.lyrics.styles.StageLine
 import com.cosmotune.ui.orbit.Disc
@@ -54,47 +57,117 @@ internal class PosterScene(
     val words: Array<TextLayoutResult>,
     val x: FloatArray,
     val y: FloatArray,
+    /** When each of [words] is sung: a long word of a script without spaces is broken into rows, each lit as its share is sung. */
+    val startMs: LongArray,
 ) {
     companion object {
         fun build(measurer: TextMeasurer, stage: StageLine, fonts: LyricStageFonts, density: Density, width: Float, height: Float): PosterScene {
-            val n = stage.count
-            val text = Array(n) { stage.text.substring(stage.charStart[it], stage.charEnd[it]).uppercase(Locale.ROOT) }
+            // Words of Chinese, Japanese, Thai and the like have no spaces to break at: such a word is cut into balanced rows of a few
+            // letters, so the line is still a poster, not one small row.
+            val pieces = ArrayList<String>()
+            val starts = ArrayList<Long>()
+            for (w in 0 until stage.count) {
+                val word = stage.text.substring(stage.charStart[w], stage.charEnd[w]).uppercase(Locale.ROOT)
+                val parts = PosterLines.chunks(word)
+                val span = (stage.wordEndMs[w] - stage.startMs[w]).coerceAtLeast(0L)
+                var done = 0
+                for (part in parts) {
+                    pieces += part
+                    starts += stage.startMs[w] + span * done / word.length
+                    done += part.length
+                }
+            }
+            val n = pieces.size
+            val text = Array(n) { pieces[it] }
+            val startMs = LongArray(n) { starts[it] }
+            // Fitted with the row height the line's scripts need (fallback glyphs are taller than Archivo's caps)...
+            val factor = PosterLines.factor(stage.text)
             val ref = 100f
             val refStyle = stageStyle(fonts.poster, StageWeights.POSTER, ref, density, LINE)
             val widths = FloatArray(n) { measurer.measure(text[it], refStyle, softWrap = false, maxLines = 1).size.width.toFloat() }
             val space = measurer.measure("M", refStyle, softWrap = false, maxLines = 1).size.width * 0.32f
             val rowStart = IntArray(n.coerceAtLeast(1))
-            val fit = StageFit.posterSize(widths, n, space, ref, LINE, width, height, minSize = 12f, maxSize = height / 2.2f, rowStart = rowStart)
-            val style = stageStyle(fonts.poster, StageWeights.POSTER, fit.size, density, LINE)
+            val fit = StageFit.posterSize(widths, n, space, ref, factor, width, height, minSize = 12f, maxSize = height / 2.2f, rowStart = rowStart)
+            // ...then placed by the shaped text itself: a row is never shorter than its tallest word's glyphs, so no script runs
+            // into the next row. Shrunk a step at a time if the measured rows come out taller than the frame.
+            var size = fit.size
+            var placed = place(measurer, text, widths, space, ref, fonts, density, size, fit.onePerRow, width, rowStart)
+            var tries = 0
+            while (placed.second > height && size > 12f && tries < 8) {
+                size *= (height / placed.second).coerceIn(0.7f, 0.95f)
+                placed = place(measurer, text, widths, space, ref, fonts, density, size, fit.onePerRow, width, rowStart)
+                tries++
+            }
+            return placed.first.let { (words, xs, ys) -> PosterScene(stage, words, xs, ys, startMs) }
+        }
+
+        /** The words at [size], packed into rows and each row set at the height its shaped glyphs need; and the total height. */
+        private fun place(
+            measurer: TextMeasurer,
+            text: Array<String>,
+            widthsAtRef: FloatArray,
+            spaceAtRef: Float,
+            ref: Float,
+            fonts: LyricStageFonts,
+            density: Density,
+            size: Float,
+            onePerRow: Boolean,
+            width: Float,
+            rowStart: IntArray,
+        ): Pair<Triple<Array<TextLayoutResult>, FloatArray, FloatArray>, Float> {
+            val n = text.size
+            val k = size / ref
+            val rows = StageFit.packRows(FloatArray(n) { widthsAtRef[it] * k }, n, spaceAtRef * k, width, onePerRow, rowStart)
+            // The natural line height (no fixed line height) carries the real ascent and descent of whatever font drew the glyphs.
+            val style = stageStyle(fonts.poster, StageWeights.POSTER, size, density, LINE).copy(lineHeight = TextUnit.Unspecified)
             val words = Array(n) { measurer.measure(text[it], style, softWrap = false, maxLines = 1) }
             val xs = FloatArray(n)
             val ys = FloatArray(n)
-            val k = fit.size / ref
-            var row = 0
-            var x = 0f
-            for (i in 0 until n) {
-                if (row + 1 < fit.rows && i >= rowStart[row + 1]) { row++; x = 0f }
-                if (i == rowStart[row]) x = 0f
-                xs[i] = x
-                ys[i] = row * fit.size * LINE
-                x += words[i].size.width + space * k
+            var top = 0f
+            for (r in 0 until rows) {
+                val first = rowStart[r]
+                val end = if (r + 1 < rows) rowStart[r + 1] else n
+                var tight = true
+                var ascent = 0f
+                var descent = 0f
+                for (i in first until end) {
+                    if (!PosterLines.tight(text[i])) tight = false
+                    ascent = maxOf(ascent, words[i].firstBaseline)
+                    descent = maxOf(descent, words[i].size.height - words[i].firstBaseline)
+                }
+                // Archivo's caps alone sit tight, as on the board; anything else gets the room its glyphs measure.
+                val baseline = if (tight) top + size * CAPS else top + ascent
+                val rowHeight = if (tight) size * LINE else ascent + descent
+                var x = 0f
+                for (i in first until end) {
+                    xs[i] = x
+                    ys[i] = baseline - words[i].firstBaseline
+                    x += words[i].size.width + spaceAtRef * k
+                }
+                top += rowHeight
             }
-            return PosterScene(stage, words, xs, ys)
+            return Triple(words, xs, ys) to top
         }
+
+        /** Where the caps' baseline sits in a tight row, as a fraction of the size. */
+        private const val CAPS = 0.8f
 
         /** Rows sit tight, as on the board (`line-height: .86`). */
         const val LINE = 0.88f
     }
 }
 
-/** Draws [scene] from [origin]: each word at [UNSUNG_ALPHA] of [ink] until it is sung, then whole, fading in over [WORD_LIGHT_MS]. */
-internal fun DrawScope.drawPoster(scene: PosterScene, positionMs: Long, ink: Color, origin: Offset, reduced: Boolean) {
-    val stage = scene.stage
+/**
+ * Draws [scene] from [origin]: each word at [UNSUNG_ALPHA] of [ink] until it is sung, then whole, fading in over [WORD_LIGHT_MS].
+ * The dim is an opaque colour between [card] and [ink], not a see-through [ink]: glyphs whose parts overlap (the Indian scripts'
+ * joined letters) would show their overlaps lighter, painted twice.
+ */
+internal fun DrawScope.drawPoster(scene: PosterScene, positionMs: Long, ink: Color, card: Color, origin: Offset, reduced: Boolean) {
     for (i in 0 until scene.words.size) {
-        val since = positionMs - stage.startMs[i]
+        val since = positionMs - scene.startMs[i]
         val lit = if (since < 0L) 0f else if (reduced) 1f else (since / WORD_LIGHT_MS).coerceIn(0f, 1f)
         val alpha = UNSUNG_ALPHA + (1f - UNSUNG_ALPHA) * lit
-        drawText(scene.words[i], ink.copy(alpha = ink.alpha * alpha), Offset(origin.x + scene.x[i], origin.y + scene.y[i]))
+        drawText(scene.words[i], lerp(card, ink.copy(alpha = 1f), ink.alpha * alpha), Offset(origin.x + scene.x[i], origin.y + scene.y[i]))
     }
 }
 
@@ -152,7 +225,7 @@ internal fun PosterStage(cursor: StageCursor, song: LyricStageSong?, onSeek: (Lo
                 )
                 .drawBehind {
                     drawText(labelLayout, ink.copy(alpha = 0.6f), Offset(pad, pad))
-                    if (scene != null) drawPoster(scene, clock.longValue, ink, Offset(pad, head + pad * 0.6f), reduced)
+                    if (scene != null) drawPoster(scene, clock.longValue, ink, fill, Offset(pad, head + pad * 0.6f), reduced)
                     nextLayout?.let { drawText(it, ink.copy(alpha = 0.6f), Offset(pad, size.height - pad - it.size.height - with(density) { 10.dp.toPx() })) }
                 },
         )
