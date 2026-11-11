@@ -149,7 +149,7 @@ object DesktopCanvasClient {
      * download carries both a videoId and a local path, and skipping on the path alone is what
      * left downloaded tracks with no canvas.
      */
-    suspend fun lookup(song: Song, provisional: ((DesktopCanvasArtwork) -> Unit)? = null): DesktopCanvasArtwork? {
+    suspend fun lookup(song: Song, background: Boolean = false, provisional: ((DesktopCanvasArtwork) -> Unit)? = null): DesktopCanvasArtwork? {
         if (song.videoId.startsWith("podio:")) return null
         if (song.videoId.isBlank() && (song.localUri != null || song.localPath != null)) return null
         val title = song.title.cleanedForCanvas()
@@ -171,16 +171,19 @@ object DesktopCanvasClient {
             // The music video is looked up from the moment the question is asked, not when the label
             // sources get their turn: it is the last resort, so its answer should already be there when
             // they come up empty, and a lookup queued behind another one must not hold it back.
+            // [background] is the queue's next song: its search waits while the playing song's runs.
             val musicVideo = if (openCanvasActive) async(Dispatchers.IO) {
-                DesktopOpenCanvasProvider.search(song.title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
+                DesktopOpenCanvasProvider.search(song.title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes,
+                    durationSec = seconds, background = background)
             } else null
+            // A music video that lines up with the song beats a label's short loop, so it is asked first; the label
+            // sources are only the fallback for songs without one. It is awaited before taking the lock, not under it:
+            // a queued song's search that is waiting for the playing song's must not hold the playing song's lookup back.
+            val video = musicVideo?.let { pending ->
+                runCatching { pending.await() }.getOrNull()?.takeIf { it.matches(title, artist, album) }
+            }
 
             val answer = resolve(key, withAlbum, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS, acceptCached = acceptCached) {
-                // A music video that lines up with the song beats a label's short loop, so it is asked
-                // first; the label sources are only the fallback for songs without one.
-                val video = musicVideo?.let { pending ->
-                    runCatching { pending.await() }.getOrNull()?.takeIf { it.matches(title, artist, album) }
-                }
                 video ?: firstHit(
                     { DesktopAppleMusicCanvas.search(title, artist, album) },
                     { DesktopTidalCanvas.search(title, artist, album) },

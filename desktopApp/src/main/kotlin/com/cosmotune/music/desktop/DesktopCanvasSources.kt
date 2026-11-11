@@ -590,6 +590,7 @@ internal object DesktopOpenCanvasProvider {
         trackVideoId: String?,
         resolutionLabel: String = "720p",
         durationSec: Long = 0L,
+        background: Boolean = false,
     ): DesktopCanvasArtwork? {
         val clip = com.cosmotune.music.data.canvas.OpenCanvasProvider.search(
             title = title,
@@ -598,6 +599,7 @@ internal object DesktopOpenCanvasProvider {
             trackVideoId = trackVideoId,
             resolutionLabel = resolutionLabel,
             durationSec = durationSec,
+            background = background,
         ) ?: return null
         return artwork(clip)
     }

@@ -44,6 +44,15 @@ interface PlayerHost {
      */
     suspend fun canvasFor(song: Song, provisional: (CanvasArtwork) -> Unit): CanvasArtwork? = canvasFor(song)
 
+    /**
+     * Looks the Canvas up for a song that is not playing yet (the next one in the queue), so it is ready when it
+     * starts. Hosts whose lookups compete for the network make it yield to the playing song's own; the default
+     * just asks [canvasFor].
+     */
+    suspend fun prefetchCanvas(song: Song) {
+        canvasFor(song)
+    }
+
     /** The looping clip over the cover, decoded however this platform decodes video. */
     @Composable
     fun CanvasVideo(spec: CanvasVideoSpec, modifier: Modifier)

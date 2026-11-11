@@ -2074,8 +2074,11 @@ fun CosmotuneDesktopApp() {
             return@LaunchedEffect
         }
         // Paint what is already known before waiting on anything: re-opening the player on a track
-        // resolved a minute ago should not go dark on its way back to the same clip.
-        canvas = DesktopCanvasClient.cached(current)
+        // resolved a minute ago should not go dark on its way back to the same clip. A clip that is
+        // already showing and is this song's (the same song under another track id, a new copy of it)
+        // stays until a different answer arrives: the video is never dropped in the middle of the song.
+        val showing = canvas?.takeIf { it.matches(current.title.cleanedForCanvas(), current.artist.cleanedForCanvas(), current.albumName) }
+        canvas = DesktopCanvasClient.cached(current) ?: showing
         // The film a song is from is what makes the video search find it, and it only comes with the track's
         // links, which are otherwise fetched once the player is open. Asked here as well, for a moment at most,
         // so a song played from the bar is searched for with its film too.
@@ -2084,7 +2087,7 @@ fun CosmotuneDesktopApp() {
                 ?.albumName?.takeIf { it.isNotBlank() }
         } else null
         val asked = if (film != null) current.copy(albumName = film) else current
-        canvas = withContext(Dispatchers.IO) { DesktopCanvasClient.lookup(asked) }
+        canvas = withContext(Dispatchers.IO) { DesktopCanvasClient.lookup(asked) } ?: showing
     }
 
     LaunchedEffect(
