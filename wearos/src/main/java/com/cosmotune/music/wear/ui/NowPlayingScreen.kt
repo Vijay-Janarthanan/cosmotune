@@ -74,6 +74,7 @@ import androidx.wear.compose.material3.Text
 import com.cosmotune.music.wear.R
 import com.cosmotune.music.wear.data.NowPlaying
 import com.cosmotune.music.wear.data.Volume
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -376,10 +377,11 @@ private fun formatDelta(ms: Long): String =
 /**
  * The playhead, run on from the phone's last reading.
  *
- * Read only in the orbit's draw pass, so a tick redraws one arc and recomposes
- * nothing. Twice a second is a pixel or so of orbit on a three-minute song —
- * smooth to the eye at a fraction of a frame-clock's cost — and only while the
- * screen is on.
+ * Read only in the orbit's draw pass, so a frame redraws one arc and recomposes
+ * nothing. It is advanced on the frame clock, not on a timer: a half-second step
+ * is a visible hop of the moon on a watch face. The loop runs only while the
+ * song is moving, the screen is on and the always-on player is not covering it;
+ * no frames are delivered with the screen off, so it costs nothing there.
  */
 @Composable
 private fun rememberProgress(np: NowPlaying): State<Float> {
@@ -392,8 +394,7 @@ private fun rememberProgress(np: NowPlaying): State<Float> {
         if (!np.advancing || ambient) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
-                progress.floatValue = np.progressAt(System.currentTimeMillis())
-                delay(PROGRESS_TICK_MS)
+                withFrameNanos { progress.floatValue = np.progressAt(System.currentTimeMillis()) }
             }
         }
     }
@@ -519,7 +520,6 @@ private fun BoxScope.VolumeReadout(volume: Volume?, nudge: Int, edgeInset: Dp) {
 
 /** Crown travel per volume step, for crowns that report a stream of small events. */
 private const val ROTARY_STEP_PX = RotaryDetents.DEFAULT_STEP_PX
-private const val PROGRESS_TICK_MS = 500L
 private const val VOLUME_SHOWN_MS = 1_400L
 private const val VOLUME_ARC = 64f
 private const val SCRUB_STEP_MS = 5_000L

@@ -1,5 +1,6 @@
 package com.cosmotune.podio.ui
 
+import com.cosmotune.music.playback.rememberLivePlayheadOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -187,10 +188,11 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
         // The dock steps aside for the full-screen globe only (design system 4.16).
         val dockShown = compact && !m.globeFull
         val bottom = if (compact) with(density) { dockPx.toDp() } + 16.dp else 16.dp
+        val head = rememberLivePlayheadOf(playback.positionMs, playback.playing && !playback.loading, playback.rate, playback.id)
         val env = PodioEnv(saved, playback, downloadedEpisodes, episodeDownloadStatus, episodeDownloadsRunning, bottom,
             // The rail carries the account (or the way back to Music) on a tablet; the page's head does elsewhere.
             onMusic.takeIf { compact || !showNavigation },
-            ::chooseSection, wide = !compact, onToggle = onToggle)
+            ::chooseSection, wide = !compact, onToggle = onToggle, head = head)
         // The player bar along the foot of the wide layouts: an episode anywhere; a station where no page shows its card.
         val stationCardShown = live && (detailOpen && playingStation != null ||
             (section == PodioSection.RADIO || section == PodioSection.GLOBE) && !m.searching && m.requestedFeed == null)

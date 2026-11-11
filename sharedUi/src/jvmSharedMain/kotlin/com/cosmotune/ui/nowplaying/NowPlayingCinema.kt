@@ -66,6 +66,8 @@ internal fun NowPlayingCinema(
     fonts: OrbitFonts,
     look: OrbitLook,
     buttons: List<CardButton>,
+    /** The window is wide (the desktop): the slim card carries the volume. */
+    volume: Boolean = false,
     menuOpen: Boolean,
     onLeave: () -> Unit,
     modifier: Modifier = Modifier,
@@ -108,8 +110,8 @@ internal fun NowPlayingCinema(
                     CinemaButton(CosmoIcons.Expand, "Leave Cinema (Esc)", onLeave)
                 }
                 NowPlayingSlimCard(
-                    t, fonts, look, buttons,
-                    Modifier.align(Alignment.BottomCenter).padding(start = 24.dp, end = 24.dp, bottom = 24.dp).widthIn(max = 860.dp).fillMaxWidth(),
+                    t, fonts, look, buttons, volume = volume,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(start = 24.dp, end = 24.dp, bottom = 24.dp).widthIn(max = 860.dp).fillMaxWidth(),
                 )
             }
         }

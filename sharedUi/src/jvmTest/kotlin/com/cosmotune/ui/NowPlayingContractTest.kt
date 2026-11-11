@@ -129,7 +129,7 @@ class NowPlayingContractTest {
         // transport had it): never per frame in composition.
         assertTrue("remember(position) { derivedStateOf { position.positionMs > BACK_RESTARTS_AFTER_MS } }" in screen)
         val card = code(nowPlaying("NowPlayingCard.kt"))
-        assertTrue(card.contains("fun progress(): Float = scrub.shown(position.positionMs, durationMs)"), "the line and the ring read it while drawing")
+        assertTrue(card.contains("fun progress(): Float = scrub.shown(live?.positionMs() ?: position.positionMs, durationMs)"), "the line and the ring read the interpolated playhead while drawing")
         assertEquals(2, Regex("""position\.positionMs""").findAll(card).count(), "the progress and the NOW ORBITING label")
     }
 

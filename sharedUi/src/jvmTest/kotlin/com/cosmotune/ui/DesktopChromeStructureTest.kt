@@ -116,10 +116,13 @@ class DesktopChromeStructureTest {
     @Test fun thePlayheadIsReadByTheClockTheOrbitAndTheSeekLineOnly() {
         val text = bar
         val reads = Regex("""position\.positionMs""").findAll(text).map { it.range.first }.toList()
-        assertEquals(3, reads.size, "the clock, the orbit's progress lambda and the seek line's: no other place reads the playhead")
+        assertEquals(1, reads.size, "only the clock reads the stepped reading: no other place reads the playhead")
         val clock = text.indexOf("private fun Clock(")
-        assertTrue(reads.any { it > clock && it < text.indexOf("private fun VolumeBar(") }, "one is in Clock, which recomposes alone")
-        assertEquals(2, reads.count { text.lastIndexOf("progress = {", it) > text.lastIndexOf("\n", it) }, "the other two are progress lambdas, read when drawing")
+        assertTrue(reads.all { it > clock && it < text.indexOf("private fun VolumeBar(") }, "it is in Clock, which recomposes alone")
+        // The orbit's and the seek line's progress lambdas read the playhead run on every frame, while drawing.
+        val live = Regex("""playhead\.positionMs\(\)""").findAll(text).map { it.range.first }.toList()
+        assertEquals(2, live.size, "the orbit's progress lambda and the seek line's")
+        assertEquals(2, live.count { text.lastIndexOf("progress = {", it) > text.lastIndexOf("\n", it) }, "both are progress lambdas, read when drawing")
     }
 
     @Test fun theNarrowPlanKeepsLyricsAndQueueAndTheVolumeIsTheHostsOwn() {

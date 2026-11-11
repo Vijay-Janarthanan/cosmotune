@@ -4,6 +4,7 @@
  */
 package com.cosmotune.music.ui.tv.screens
 
+import com.cosmotune.music.playback.rememberLivePlayhead
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -139,6 +140,7 @@ private fun TvHomeCard(
     if (song != null) {
         val position = playerState.position
         val duration = playerState.durationMs
+        val head = rememberLivePlayhead(position, playerState.isPlaying)
         val second by remember(position) { derivedStateOf { position.positionMs / 1000L } }
         val state = if (playerState.isPlaying) "Now orbiting" else "Paused"
         TvColourCard(
@@ -150,7 +152,7 @@ private fun TvHomeCard(
             playing = playerState.isPlaying,
             onPlay = onTogglePlay,
             onClick = onOpenNowPlaying,
-            progress = { if (duration > 0) position.positionMs.toFloat() / duration else null },
+            progress = { if (duration > 0) head.fraction(duration) else null },
             spinning = playerState.isPlaying,
             modifier = modifier,
         )

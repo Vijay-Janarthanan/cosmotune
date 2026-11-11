@@ -69,6 +69,7 @@ import com.cosmotune.design.ShellMetrics
 import com.cosmotune.design.Springs
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.playback.PlaybackPosition
+import com.cosmotune.music.playback.rememberLivePlayhead
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.cosmo_close
 import com.cosmotune.music.sharedui.resources.now_playing
@@ -309,6 +310,8 @@ private fun MiniCapsule(
     val density = LocalDensity.current
     val reduced = LocalReducedMotion.current
     val scope = rememberCoroutineScope()
+    // Runs the playhead on between readings so the ring glides; read while drawing only.
+    val playhead = rememberLivePlayhead(position, isPlaying)
     val coverUrl = if (ownMedia) song.thumbnailUrl else PlayerPlatform.host.rememberRemoteArtworkUrl(song)
     val nowPlaying = stringResource(Res.string.now_playing)
     val next = stringResource(Res.string.widget_next)
@@ -392,7 +395,7 @@ private fun MiniCapsule(
                     // The playhead is read here and nowhere else, while the orbit draws: a tick of the song recomposes nothing.
                     OrbitRing(
                         OrbitMiniMetrics.RING_DP.dp, ink,
-                        progress = { if (durationMs > 0L) (position.positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else null },
+                        progress = { if (durationMs > 0L) playhead.fraction(durationMs) else null },
                         spinning = isPlaying, stroke = 2.dp, moon = 4.dp,
                     )
                 }

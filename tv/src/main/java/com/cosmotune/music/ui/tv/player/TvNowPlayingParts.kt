@@ -4,6 +4,7 @@
  */
 package com.cosmotune.music.ui.tv.player
 
+import com.cosmotune.music.playback.rememberLivePlayhead
 import android.view.KeyEvent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -177,6 +178,8 @@ internal fun TvNowPlayingStage(
         canvas = if (canvasEnabled) CanvasRepository.canvasFor(song) else null
     }
     val side by animateFloatAsState(if (showLyrics) 1f else 0f, tween(520), label = "discToSide")
+    // The playhead run on between Media3 readings, so the ring and moon glide; read only while the ring draws.
+    val head = rememberLivePlayhead(position, isPlaying)
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         // The disc at its full size, the card down; every other state is a scale of it.
@@ -215,7 +218,7 @@ internal fun TvNowPlayingStage(
             OrbitRing(
                 ring,
                 TvGlass.Ink,
-                progress = { if (durationMs > 0) position.positionMs.toFloat() / durationMs else null },
+                progress = { if (durationMs > 0) head.fraction(durationMs) else null },
                 spinning = isPlaying,
                 stroke = 3.dp,
                 moon = 8.dp,

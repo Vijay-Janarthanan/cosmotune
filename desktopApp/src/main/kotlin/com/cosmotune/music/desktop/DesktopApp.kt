@@ -1993,6 +1993,9 @@ fun CosmotuneDesktopApp() {
     // The shared player reads the playhead off this one object, and only where it
     // draws it — see PlaybackPosition — so a tick never recomposes the player.
     val playerPosition = remember { PlaybackPosition() }
+    SideEffect { DesktopMiniPlayer.position = playerPosition }
+    // The playhead run on between engine reports, for the rings drawn from it: the playing row in the queue panel.
+    val livePlayhead = com.cosmotune.music.playback.rememberLivePlayhead(playerPosition, playback.isPlaying)
     LaunchedEffect(playbackEngine) {
         playbackEngine.state.collect {
             // The audio thread's own timestamp, not this collector's: it runs on the UI thread and
@@ -2851,7 +2854,8 @@ fun CosmotuneDesktopApp() {
     LaunchedEffect(selectedSong, playback.isPlaying, playback.positionMs / 1000, playback.durationMs) {
         val song = selectedSong
         DesktopMiniPlayer.publish(DesktopMiniPlayer.NowPlaying(song?.title.orEmpty(), song?.artist.orEmpty(), song?.thumbnailUrl,
-            playback.isPlaying, if (playback.durationMs > 0) playback.positionMs.toFloat() / playback.durationMs else 0f))
+            playback.isPlaying, if (playback.durationMs > 0) playback.positionMs.toFloat() / playback.durationMs else 0f,
+            playback.durationMs))
     }
 
     LaunchedEffect(Unit) {
@@ -3894,7 +3898,7 @@ fun CosmotuneDesktopApp() {
                                 modifier = Modifier.fillMaxSize(),
                                 // The playing row's orbit and AutoPlay, as the phone's Up next has them. The playhead is read while drawing.
                                 isPlaying = playback.isPlaying,
-                                progress = { if (playback.durationMs > 0L) (playerPosition.positionMs.toFloat() / playback.durationMs).coerceIn(0f, 1f) else 0f },
+                                progress = { livePlayhead.fraction(playback.durationMs) },
                                 onToggleAutoplay = { setAutoplay(!DesktopAutoplay.enabled(partyState, autoplay)) },
                             )
                         }

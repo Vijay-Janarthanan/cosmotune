@@ -50,6 +50,8 @@ fun MiniPlayerPanel(
     artwork: @Composable (Modifier) -> Unit,
     onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onOpen: () -> Unit,
     dark: Boolean = isSystemInDarkTheme(),
+    /** The playhead run on between readings, drawn instead of [progress] so the ring glides; the host supplies it when it has the clock. */
+    liveProgress: (() -> Float)? = null,
 ) {
     val colors = remember(dark) { CosmoColors(CosmoPaletteState(OnePalette.of(dark), dark)) }
     CompositionLocalProvider(LocalCosmoColors provides colors) {
@@ -59,7 +61,7 @@ fun MiniPlayerPanel(
             Row(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) {
                     artwork(Modifier.size(80.dp).clip(CircleShape))
-                    OrbitRing(96.dp, look.accent, progress = { progress.coerceIn(0f, 1f) }, spinning = playing)
+                    OrbitRing(96.dp, look.accent, progress = { (liveProgress?.invoke() ?: progress).coerceIn(0f, 1f) }, spinning = playing)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {

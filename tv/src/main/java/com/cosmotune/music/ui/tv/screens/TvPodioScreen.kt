@@ -1,5 +1,6 @@
 package com.cosmotune.music.ui.tv.screens
 
+import com.cosmotune.music.playback.rememberLivePlayhead
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -266,7 +267,7 @@ fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowP
                 if (playing != null) item(key = "playing") {
                     val live = playing.videoId.startsWith("podio:radio:")
                     val duration = playerState.durationMs
-                    val position = playerState.position
+                    val head = rememberLivePlayhead(playerState.position, playerState.isPlaying)
                     TvColourCard(
                         cover = playing.thumbnailUrl,
                         key = playing.videoId,
@@ -277,7 +278,7 @@ fun TvPodioScreen(controller: MediaController?, playerState: PlayerState, onNowP
                         onPlay = togglePlay,
                         onClick = onNowPlaying,
                         spinning = playerState.isPlaying,
-                        progress = if (live) null else ({ if (duration > 0) position.positionMs.toFloat() / duration else null }),
+                        progress = if (live) null else ({ if (duration > 0) head.fraction(duration) else null }),
                         discContent = if (playing.thumbnailUrl == null) ({ StationMark(playing.title) }) else null,
                         modifier = Modifier.padding(horizontal = side).padding(top = 4.dp, bottom = 14.dp),
                     )

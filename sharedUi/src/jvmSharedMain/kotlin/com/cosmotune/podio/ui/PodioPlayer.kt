@@ -1,5 +1,6 @@
 package com.cosmotune.podio.ui
 
+import com.cosmotune.music.playback.rememberLivePlayheadOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -35,9 +36,11 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
 /** The disc of what is on: the station's logo disc, or the episode's (or show's) cover; the orbit round it in [ring]. */
 @Composable private fun NowDisc(station: RadioStation?, artUrl: String?, size: Dp, ring: Color, playback: PodioPlayback, fonts: OrbitFonts, outer: Dp = size + 12.dp) {
     val live = playback.id?.startsWith("podio:radio:") == true
+    // The episode's playhead run on between readings, at its speed, so the orbit glides; read while the ring draws.
+    val head = rememberLivePlayheadOf(playback.positionMs, playback.playing && !playback.loading, playback.rate, playback.id)
     Box(Modifier.size(outer), contentAlignment = Alignment.Center) {
         if (station != null) OrbitLogoDisc(station.artwork, station.name, size, fonts) else Disc(artUrl?.takeIf(String::isNotBlank), size)
-        val progress: (() -> Float?)? = if (live || playback.durationMs <= 0) null else ({ (playback.positionMs.toFloat() / playback.durationMs).coerceIn(0f, 1f) })
+        val progress: (() -> Float?)? = if (live || playback.durationMs <= 0) null else ({ head.fraction(playback.durationMs) })
         OrbitRing(outer, ring, progress = progress, spinning = playback.playing, stroke = if (outer > 120.dp) 2.dp else 1.5.dp, moon = if (outer > 120.dp) 5.dp else 3.dp)
     }
 }
@@ -119,8 +122,9 @@ internal class PodioTimer(val minutes: Int?, val afterEpisode: Boolean, val onTi
 /** The seek line of an episode with its two times under it, in [ink]. */
 @Composable private fun EpisodeLine(playback: PodioPlayback, onSeek: (Long) -> Unit, ink: Color, fonts: OrbitFonts, modifier: Modifier = Modifier) {
     if (playback.durationMs <= 0) return
+    val head = rememberLivePlayheadOf(playback.positionMs, playback.playing && !playback.loading, playback.rate, playback.id)
     Column(modifier) {
-        OrbitProgressLine({ (playback.positionMs.toFloat() / playback.durationMs).coerceIn(0f, 1f) }, ink, Modifier.fillMaxWidth(),
+        OrbitProgressLine({ head.fraction(playback.durationMs) }, ink, Modifier.fillMaxWidth(),
             onSeek = { onSeek((it * playback.durationMs).toLong()) })
         Row(Modifier.fillMaxWidth()) {
             Text(PodioFormat.clock(playback.positionMs), style = fonts.label, color = ink.copy(alpha = 0.7f))

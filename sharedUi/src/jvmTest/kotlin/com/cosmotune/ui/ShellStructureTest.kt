@@ -118,8 +118,9 @@ class ShellStructureTest {
 
     @Test fun theMiniCapsuleReadsThePlayheadOnlyWhenDrawing() {
         val text = chrome
-        val reads = Regex("""position\.positionMs""").findAll(text).map { it.range.first }.toList()
-        assertEquals(1, reads.size, "the playhead is read in exactly one place")
+        assertTrue(!Regex("""position\.positionMs""").containsMatchIn(text), "the stepped reading is not read here at all")
+        val reads = Regex("""playhead\.fraction\(""").findAll(text).map { it.range.first }.toList()
+        assertEquals(1, reads.size, "the interpolated playhead is read in exactly one place")
         val at = reads.single()
         val capsuleStart = text.indexOf("private fun MiniCapsule(")
         assertTrue(capsuleStart in 0 until at, "and it is in the mini capsule")
@@ -187,7 +188,7 @@ class ShellStructureTest {
 
     @Test fun theProgressIsTheOrbitRoundTheDisc() {
         val mini = SourceContract.functionBody(chrome, "MiniCapsule")
-        assertTrue("OrbitRing(" in mini && "position.positionMs.toFloat() / durationMs" in mini, "the orbit is the progress (Orbit rule 2)")
+        assertTrue("OrbitRing(" in mini && "playhead.fraction(durationMs)" in mini, "the orbit is the progress (Orbit rule 2)")
         assertTrue("enabled = onPrevious != null" in mini, "the sideways swipe is opt-in")
     }
 

@@ -47,6 +47,7 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.LastPlayerScreen
 import com.cosmotune.music.playback.BACK_RESTARTS_AFTER_MS
 import com.cosmotune.music.playback.PlaybackPosition
+import com.cosmotune.music.playback.rememberLivePlayhead
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.lyrics_loading_lines
 import com.cosmotune.music.sharedui.resources.played_by
@@ -208,6 +209,7 @@ fun CosmoNowPlaying(
         onToggleShuffle = onToggleShuffle, onCycleRepeat = onCycleRepeat, onToggleLike = onToggleLike, onSeekFraction = onSeekFraction,
         onOpenArtist = { onOpenArtist(song.artistId, song.artist) },
         isLoading = isLoading,
+        live = rememberLivePlayhead(position, isPlaying),
     )
     val inParty = rememberInParty()
     val sheets = remember { NowPlayingSheetFlags() }
@@ -281,7 +283,7 @@ fun CosmoNowPlaying(
         )
     }
     val screenButton: CardButton? = if (!musicVideo) null else CardButton(
-        VIDEO_VIEW_ICON, "How the video is shown", { videoMenuOpen = true }, on = videoMenuOpen, menu = videoMenu,
+        VIDEO_VIEW_ICON, "How the video is shown", { videoMenuOpen = true }, on = videoMenuOpen, menu = videoMenu, movable = true,
     )
     var visualsOpen by rememberSaveable { mutableStateOf(false) }
     if (visualsOpen) LocalVisualsPresentation.current({ visualsOpen = false }) { PlayerVisualsContent(song, { visualsOpen = false }) }
@@ -413,8 +415,8 @@ fun CosmoNowPlaying(
                 NowPlayingSongCard(
                     transport, orbitType, orbitInk, modifier = m, wide = wideCard, showLine = wideCard, format = true, volume = true,
                     buttons = listOfNotNull(
-                        CardButton(CosmoIcons.Shuffle, if (shuffleEnabled) "Shuffle on" else "Shuffle off", onToggleShuffle, on = shuffleEnabled),
-                        CardButton(if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, repeatLabel(repeatMode), onCycleRepeat, on = repeatMode != RepeatModes.OFF),
+                        CardButton(CosmoIcons.Shuffle, if (shuffleEnabled) "Shuffle on" else "Shuffle off", onToggleShuffle, on = shuffleEnabled, movable = true),
+                        CardButton(if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, repeatLabel(repeatMode), onCycleRepeat, on = repeatMode != RepeatModes.OFF, movable = true),
                         previousButton, nextButton, likeButton, screenButton,
                     ),
                 )
@@ -495,7 +497,7 @@ fun CosmoNowPlaying(
                     canvas = canvas, isPlaying = isPlaying, view = keptView, aspect = videoAspect, onAspect = { videoAspect = it },
                     reveal = reveal, onRenderedChanged = { rendered = it }, coverUrl = remoteArt, t = transport,
                     fonts = orbitType, look = orbitInk, menuOpen = videoMenuOpen, onLeave = leaveCinema,
-                    buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton),
+                    buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton), volume = wide,
                 )
             }
             NowPlayingSheets(
