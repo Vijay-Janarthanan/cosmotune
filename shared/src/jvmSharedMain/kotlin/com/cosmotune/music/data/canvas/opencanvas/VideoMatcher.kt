@@ -35,10 +35,14 @@ object VideoMatcher {
     /** The film behind an album title: "Sakkarakatti (Original Motion Picture Soundtrack)" is the film "Sakkarakatti". */
     fun cleanFilmName(album: String): String = album.replace(SOUNDTRACK_NOTE, "").trim().ifEmpty { album.trim() }
 
-    /** Single-number film names require an entire token, never a digit inside a year or resolution. */
+    /**
+     * Single-number film names require an entire token, never a digit inside a year or resolution. So do two-letter
+     * names ("DC", "Ko"): "Hangova - Music Video | DC | Lokesh Kanagaraj" names the film, a "dc" inside a longer word
+     * does not. A one-letter name is never context.
+     */
     fun hasFilmContext(candidateTitle: String, album: String): Boolean {
         val film = filmKey(cleanFilmName(album))
-        if (film.isNotEmpty() && film.all(Char::isDigit)) {
+        if (film.isNotEmpty() && (film.all(Char::isDigit) || film.length == 2)) {
             return Regex("(^|[^\\p{L}\\p{N}])${Regex.escape(film)}($|[^\\p{L}\\p{N}])").containsMatchIn(candidateTitle.lowercase())
         }
         return film.length >= 3 && filmKey(candidateTitle).contains(film)
@@ -52,17 +56,61 @@ object VideoMatcher {
     }
 
     /** Audio correlation also matches fan dances; independent publisher evidence is required. */
-    fun hasPublisherEvidence(candidate: VideoCandidate, title: String, artist: String, album: String? = null): Boolean {
-        if (!candidate.isOfficialMusicVideo && !candidate.isVerifiedChannel && !candidate.linkedVerifiedPublisher) return false
-        val name = compact(candidate.title)
-        val titleMatches = searchTitleVariants(title).any { variant -> compact(variant).let { it.length >= 3 && name.contains(it) } }
+    fun hasPublisherEvidence(candidate: VideoCandidate, title: String, artist: String, album: String? = null): Boolean =
+        publisherRejection(candidate, title, artist, album) == null
+
+    /**
+     * Why [candidate] is not a publisher's video of the song, or null when it is. The title must name the song itself:
+     * a film's other songs carry the film's name too, so "Hangova - Music Video | DC" is never evidence for "Ain't
+     * Nobody" from the same film. Then a verified channel must stand behind it: the credited artist's own, a label or
+     * TV channel ("Sun TV", "Sony Music South", "T-Series"), or any verified channel that names the film.
+     */
+    fun publisherRejection(candidate: VideoCandidate, title: String, artist: String, album: String? = null): String? {
+        talkOverUpload(candidate, title, artist)?.let { return "a reaction, review or cover upload (\"$it\")" }
+        if (!candidate.isOfficialMusicVideo && !candidate.isVerifiedChannel && !candidate.linkedVerifiedPublisher) return "channel not verified"
+        if (!namesSong(candidate, title)) return "title does not name the song"
         val filmMatches = album?.let { hasFilmContext(candidate.title, it) } == true
         val artistMatches = isCreditedArtistChannel(candidate, artist)
         val channel = compact(candidate.channelTitle)
-        if (!artistMatches && listOf("dance", "fitness", "choreo", "reaction", "fan", "edits", "status").any { channel.contains(it) }) return false
-        val publisherRole = listOf("music", "records", "labels", "films", "movies", "vevo", "entertainment").any { channel.contains(it) }
-        return (titleMatches || filmMatches) && (artistMatches || publisherRole ||
-            candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo && filmMatches)
+        if (!artistMatches && listOf("dance", "fitness", "choreo", "reaction", "fan", "edits", "status").any { channel.contains(it) }) return "fan, dance or reaction channel"
+        val publisherRole = PUBLISHER_ROLES.any { channel.contains(it) }
+        return if (artistMatches || publisherRole || candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo && filmMatches) null
+            else "verified channel is neither the artist, a label nor tied to the film"
+    }
+
+    /** Channel-name words of the labels, studios and TV channels that publish film songs ("Sun TV", "T-Series", "Sun Pictures"). */
+    private val PUBLISHER_ROLES = listOf("music", "records", "labels", "films", "movies", "vevo", "entertainment",
+        "tv", "series", "pictures", "studios", "cinemas")
+
+    /** Whether the video's title names the song itself (a search variant, or its transliteration), not only its film. */
+    fun namesSong(candidate: VideoCandidate, title: String): Boolean {
+        val name = compact(candidate.title)
+        val loose = looseKey(candidate.title)
+        return searchTitleVariants(title).any { variant ->
+            compact(variant).let { it.length >= 3 && name.contains(it) } || looseKey(variant).let { it.length >= 3 && loose.contains(it) }
+        }
+    }
+
+    /**
+     * Why a search result is not among the song's eligible videos, or null when it is. The expanded search logs it for
+     * every result it leaves out, so an empty "eligible" list says which filter took each one out.
+     */
+    fun rejection(candidate: VideoCandidate, title: String, artist: String, durationSec: Long = 0L, album: String? = null): String? {
+        val publisher = publisherRejection(candidate, title, artist, album)
+        if (publisher != null && !hasFallbackEvidence(candidate, title, artist, album)) return publisher
+        val score = scoreCandidate(candidate, title, artist, durationSec) +
+            if (!album.isNullOrBlank() && hasFilmContext(candidate.title, album)) 80 else 0
+        return if (score > 0) null else "ranked out (${scoreNote(candidate, title, artist, durationSec)})"
+    }
+
+    private fun scoreNote(candidate: VideoCandidate, title: String, artist: String, durationSec: Long): String {
+        talkOverUpload(candidate, title, artist)?.let { return "a reaction, review or cover upload (\"$it\")" }
+        val titleNorm = candidate.title.lowercase()
+        NEGATIVE_KEYWORDS.firstOrNull { it.containsMatchIn(titleNorm) && !it.containsMatchIn(title.lowercase()) && !it.containsMatchIn(artist.lowercase()) }
+            ?.let { negative -> return "says \"${negative.find(titleNorm)?.value?.trim()}\"" }
+        if (candidate.durationSec in 1 until MIN_SONG_VIDEO_SEC) return "a ${candidate.durationSec}s clip"
+        if (durationSec >= 120L && candidate.durationSec in 1 until durationSec / 2) return "far shorter than the song"
+        return "another edition, or the length is far off"
     }
 
     /**
@@ -72,15 +120,82 @@ object VideoMatcher {
      */
     fun hasFallbackEvidence(candidate: VideoCandidate, title: String, artist: String, album: String? = null): Boolean {
         if (!advertisesVideo(candidate.title)) return false
+        if (talkOverUpload(candidate, title, artist) != null) return false
         val channel = compact(candidate.channelTitle)
         if (listOf("dance", "fitness", "choreo", "reaction", "edits", "status").any { channel.contains(it) }) return false
+        if (!namesSong(candidate, title)) return false
         val name = compact(candidate.title)
-        val loose = looseKey(candidate.title)
-        val titleMatches = searchTitleVariants(title).any { variant ->
-            compact(variant).let { it.length >= 3 && name.contains(it) } || looseKey(variant).let { it.length >= 3 && loose.contains(it) } }
-        if (!titleMatches) return false
         val artistNamed = creditedArtists(artist).any { it.length >= 4 && (name.contains(it) || channel.contains(it)) }
         return artistNamed || album?.let { hasFilmContext(candidate.title, it) } == true
+    }
+
+    /**
+     * Words of uploads that carry the song under someone talking over it or performing it again: reactions ("Producer
+     * Reacts", "first time hearing"), reviews and breakdowns, covers, podcasts, live streams and vlogs. The song's audio
+     * plays inside them, so they line up with it; their picture is a person with headphones, never the music video.
+     */
+    private val TALK_OVER_TITLE = listOf(
+        "react", "reacts", "reacting", "reaction", "reactions", "rxn", "reax", "reaxn", "review", "reviews", "reviewing",
+        "breakdown", "explained", "explaining", "explanation", "decoded", "decoding", "analysis", "first time", "1st time",
+        "hearing", "listening to", "cover", "covers", "cover song", "dance cover", "podcast", "live stream", "livestream",
+        "vlog", "vlogs", "commentary", "watch along", "watchalong", "public opinion", "public review", "public talk",
+        "honest opinion", "roast",
+    ).map { Regex("(^|[^\\p{L}\\p{N}])" + Regex.escape(it) + "($|[^\\p{L}\\p{N}])") }
+
+    /** The same in a channel's name, read without spaces ("ProducerReacts", "Tamil Reviews", "Pod Cast"). */
+    private val TALK_OVER_CHANNEL = listOf("react", "review", "podcast", "vlog", "rxn", "commentary", "breakdown", "livestream")
+    private val COVER_CHANNEL = Regex("(^|[^\\p{L}\\p{N}])covers?($|[^\\p{L}\\p{N}])")
+
+    /**
+     * The word that makes [candidate] a reaction, review, cover or similar upload, or null. A word the song's own title or
+     * credit contains ("Cover Me", an artist called "The Reviewers") does not count against it.
+     */
+    fun talkOverUpload(candidate: VideoCandidate, title: String = "", artist: String = ""): String? {
+        val own = "${title.lowercase()} ${artist.lowercase()}"
+        val titleNorm = candidate.title.lowercase()
+        TALK_OVER_TITLE.firstOrNull { it.containsMatchIn(titleNorm) && !it.containsMatchIn(own) }
+            ?.let { return it.find(titleNorm)?.value?.trim() }
+        val channelNorm = candidate.channelTitle.lowercase()
+        val channel = compact(candidate.channelTitle)
+        val ownKey = compact(own)
+        TALK_OVER_CHANNEL.firstOrNull { channel.contains(it) && !ownKey.contains(it) }?.let { return it }
+        if (COVER_CHANNEL.containsMatchIn(channelNorm) && !COVER_CHANNEL.containsMatchIn(own)) return "cover"
+        return null
+    }
+
+    /**
+     * The longest stretch of video the song has nothing for, inside the song: between two segments the video jumps
+     * ahead by this much. A reaction stops the song to talk, so its map has such holes; a music video's edits cut the
+     * song shorter (the jump goes back) or pause briefly.
+     */
+    fun longestTalkGapMs(segments: List<com.opencanvas.core.sync.SyncSegment>): Long =
+        segments.sortedBy { it.songStartMs }.zipWithNext { a, b -> b.offsetMs - a.offsetMs }.maxOrNull()?.coerceAtLeast(0L) ?: 0L
+
+    /** Longer than this inside the song is talk over it, not an edit of the video. */
+    const val TALK_GAP_MS = 10_000L
+
+    /** A music video runs about the song's length; beyond this either way it is suspect. */
+    const val LENGTH_TOLERANCE = 0.25
+
+    /** Coverage at which a much longer upload is still believed (a long cinematic intro with the whole song in it). */
+    const val LONG_UPLOAD_COVERAGE = 0.97
+
+    /**
+     * Why a measured match must still not be shown, or null when it may: the candidate is a reaction or similar upload,
+     * the video holds long stretches of something else between parts of the song, or it is far longer or shorter than
+     * the song without matching nearly all of it. No video is better than a wrong one.
+     */
+    fun alignedButWrong(candidate: VideoCandidate, songTitle: String, artist: String, songDurationSec: Long,
+        segments: List<com.opencanvas.core.sync.SyncSegment>, coverage: Double): String? {
+        talkOverUpload(candidate, songTitle, artist)?.let { return "a reaction, review or cover upload (\"$it\"), never the music video" }
+        val gap = longestTalkGapMs(segments)
+        if (gap > TALK_GAP_MS) return "the video stops the song for ${gap / 1000}s between its parts (talk over it), not a music video"
+        if (songDurationSec > 0L && candidate.durationSec > 0L) {
+            val ratio = candidate.durationSec.toDouble() / songDurationSec
+            if ((ratio > 1 + LENGTH_TOLERANCE || ratio < 1 - LENGTH_TOLERANCE) && !(coverage >= LONG_UPLOAD_COVERAGE && gap <= TALK_GAP_MS / 2))
+                return "${candidate.durationSec}s against the song's ${songDurationSec}s with ${(coverage * 100).toInt()}% matched: not the song's video"
+        }
+        return null
     }
 
     /** Transliterations differ ("Marudaani" / "Marudhani", "Chinnama" / "Chinnamma"): no h, no doubled letters. */
@@ -140,6 +255,8 @@ object VideoMatcher {
         val expectedEditions = distinctVersion.findAll(trackTitleNorm).map { it.value.substringBefore(' ') }.toSet()
         val videoEditions = distinctVersion.findAll(titleNorm).map { it.value.substringBefore(' ') }.toSet()
         if (videoEditions != expectedEditions || gameEdit.containsMatchIn(titleNorm) && !gameEdit.containsMatchIn(trackTitleNorm)) return -1_000
+        // Never the music video, even as the only result: someone talking over the song, or performing it again.
+        if (talkOverUpload(candidate, expectedTitle, expectedArtist) != null) return -1_000
 
         // 1. Verified-artist channel
         if (candidate.isOfficialMusicVideo) {
