@@ -87,8 +87,7 @@ internal fun watchPipWish(
         player.engine.seekTo(if (duration > 0) to.coerceAtMost(duration) else to)
     }
     val title = listOfNotNull(state.summary?.name, state.subtitleLine).joinToString(" · ")
-    val aspectWidth = if (videoWidth > 0 && videoHeight > 0) videoWidth else 16
-    val aspectHeight = if (videoWidth > 0 && videoHeight > 0) videoHeight else 9
+    val (aspectWidth, aspectHeight) = watchPipAspect(videoWidth, videoHeight)
     fun controls(next: (() -> Unit)?) = PipControls(
         playPause = { if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() },
         next = next,
@@ -139,6 +138,23 @@ internal object WatchPipReturns {
     /** Whether [key] came back from picture-in-picture; asking forgets it. */
     fun take(key: String): Boolean = keys.remove(key)
 }
+
+/**
+ * The shape picture-in-picture is given: the video's own display size as the engine reports it (its pixels times their own shape),
+ * never the box the page drew it in; 16:9 until the size is known.
+ */
+internal fun watchPipAspect(videoWidth: Int, videoHeight: Int): Pair<Int, Int> =
+    if (videoWidth > 0 && videoHeight > 0) videoWidth to videoHeight else 16 to 9
+
+/**
+ * Where the picture sits in a [width] x [height] box (dp), as (x, y, w, h): Whole at the video's own [aspect], as large as fits and
+ * centred; Fill the whole box.
+ */
+internal fun watchPictureFrame(view: com.cosmotune.design.VideoView, width: Float, height: Float, aspect: Float): FloatArray =
+    if (view == com.cosmotune.design.VideoView.FILL) floatArrayOf(0f, 0f, width, height) else com.cosmotune.design.VideoView.whole(width, height, aspect)
+
+/** The key the engine's surface is made anew on: the picture's frame in whole dp, so only a real move or resize remakes it. */
+internal fun surfaceFrameKey(frame: FloatArray): List<Int> = frame.map { kotlin.math.round(it).toInt() }
 
 /** Whether leaving the app takes Watch into picture-in-picture by itself: the film plays here and has not failed. */
 internal fun watchPipReady(local: Boolean, playing: Boolean, status: WatchPlayerStatus): Boolean =
