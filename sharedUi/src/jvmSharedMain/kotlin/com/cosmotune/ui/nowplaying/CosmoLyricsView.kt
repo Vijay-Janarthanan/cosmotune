@@ -861,6 +861,8 @@ internal fun CosmoLyricsPanel(
     share: CosmoLyricShare? = null,
     song: LyricStageSong? = null,
     surface: LyricSurface = LyricSurface.PHONE,
+    /** False where the board keeps Orbit Read alone (the desktop's side panel): no Style chip, and the list whatever the choice. */
+    offerStyles: Boolean = true,
 ) {
     val lines = lyrics.orEmpty()
     // A pick belongs to the open lyrics: when they close with one under way, it is dropped.
@@ -868,7 +870,7 @@ internal fun CosmoLyricsPanel(
     DisposableEffect(Unit) { onDispose { latestShare?.cancel() } }
     // The Style chip's choice; a pick of lines for a card is always made in the list, whatever the style.
     val styleChoice = rememberLyricStyleChoice(trackKey, lines, surface)
-    val shownStyle = if (share?.picking == true || lines.isEmpty()) LyricStyle.ORBIT_READ else styleChoice.style
+    val shownStyle = if (!offerStyles || share?.picking == true || lines.isEmpty()) LyricStyle.ORBIT_READ else styleChoice.style
     Column(modifier) {
         // The motes that rise off the new text when the romanisation or translation is switched, over the list and outside its animation clock.
         LyricsTranslationMotion(
@@ -912,7 +914,7 @@ internal fun CosmoLyricsPanel(
             LyricsFooter(
                 translation.status.takeUnless { looking && it == loadingText }.orEmpty(), translation, hasLines = lines.isNotEmpty(),
                 onOpenProviders = onOpenProviders,
-                styleChip = if (SungFraction.isSynced(lines)) ({ LyricStyleChip(styleChoice, Modifier.padding(horizontal = 4.dp)) }) else null,
+                styleChip = if (offerStyles && SungFraction.isSynced(lines)) ({ LyricStyleChip(styleChoice, Modifier.padding(horizontal = 4.dp)) }) else null,
             )
         }
     }

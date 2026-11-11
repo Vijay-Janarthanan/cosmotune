@@ -99,6 +99,8 @@ fun LyricsSidePanel(
                 style = remember(orbitWide) { SIDE_LYRICS_STYLE.copy(fontFamily = orbitWide) },
                 modifier = Modifier.fillMaxSize(),
                 topPadding = 4.dp,
+                // The side panel is Orbit Read, compact (the lyrics board's "Where they go").
+                offerStyles = false,
             )
         } else Box(Modifier.fillMaxSize().hazeSource(haze)) {
             LandscapeLyricsPane(
