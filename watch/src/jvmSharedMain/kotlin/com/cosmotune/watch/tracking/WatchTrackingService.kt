@@ -109,43 +109,52 @@ class WatchTrackingService(private val client: OkHttpClient, private val store: 
         val profile = store.state.value.activeProfile
         status(service, profile) { it.copy(busy = true, message = null) }
         try {
-            val saved = freshSession(service, profile)
-            val local = store.state.value.allProfiles()[profile] ?: return@withLock
-            val remoteLibrary = readList(service, saved)
-            val remote = remoteLibrary.items
-            val localKeys = local.myList.map { it.key.value }.toSet()
-            val remoteKeys = remote.map { it.key.value }.toSet()
-            val localDeletes = saved.listBaseline - localKeys
-            val remoteDeletes = saved.listBaseline - remoteKeys
-            val merged = (local.myList + remote).distinctBy { it.key }.filterNot { it.key.value in localDeletes + remoteDeletes }
-            val adds = merged.filter { it.key.value !in remoteKeys }
-            writeList(service, saved, adds, remove = false)
-            writeList(service, saved, remote.filter { it.key.value in localDeletes }, remove = true)
-            val history = readHistory(service, saved, remoteLibrary.activity)
-            val playbacks = history + readPlayback(service, saved, local)
-            val knownWatches = saved.remoteWatched + history.associate { historyKey(it) to it.updatedAtMs }
-            val sentHistory = writeHistory(service, saved, local.progress.values.filter { it.completed &&
-                it.updatedAtMs > maxOf(saved.watchedBaseline[it.key.value] ?: 0, knownWatches[historyKey(it)] ?: 0) })
-            store.update { state ->
-                val current = state.allProfiles()[profile] ?: return@update state
-                // Preserve edits made while the network was busy.
-                val duringDeletes = localKeys - current.myList.map { it.key.value }.toSet()
-                val duringAdds = current.myList.filter { it.key.value !in localKeys }
-                val list = (duringAdds + merged).distinctBy { it.key }.filterNot { it.key.value in duringDeletes }
-                val progress = current.progress.toMutableMap()
-                playbacks.forEach { p -> if ((progress[p.key.value]?.updatedAtMs ?: 0) < p.updatedAtMs) progress[p.key.value] = p }
-                val updated = current.copy(myList = list, progress = progress)
-                state.copy(profiles = state.allProfiles() + (profile to updated),
-                    myList = if (state.activeProfile == profile) list else state.myList,
-                    progress = if (state.activeProfile == profile) progress else state.progress)
-            }
-            save(service, profile, saved.copy(listBaseline = merged.map { it.key.value }.toSet(),
-                watchedBaseline = saved.watchedBaseline + history.associate { it.key.value to it.updatedAtMs } + sentHistory,
-                remoteListCache = remote, activity = remoteLibrary.activity, remoteWatched = knownWatches, historyReady = true))
-            status(service, profile) { it.copy(connected = true, message = "Synced ${merged.size} saved titles and ${playbacks.size} resume points") }
+            // Re-run once with a renewed token if the service answers 401 part-way: every step reads
+            // the remote state again first, so a second pass does not repeat a write.
+            authorized(service, profile) { saved -> syncOnce(service, profile, saved) }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) { status(service, profile) { it.copy(message = safeError(error)) } }
         finally { status(service, profile) { it.copy(busy = false) } }
+    }
+
+    private suspend fun syncOnce(service: WatchTracker, profile: String, saved: Session) {
+        val local = store.state.value.allProfiles()[profile] ?: return
+        val remoteLibrary = readList(service, saved)
+        val remote = remoteLibrary.items
+        val localKeys = local.myList.map { it.key.value }.toSet()
+        val remoteKeys = remote.map { it.key.value }.toSet()
+        val localDeletes = saved.listBaseline - localKeys
+        val remoteDeletes = saved.listBaseline - remoteKeys
+        val merged = (local.myList + remote).distinctBy { it.key }.filterNot { it.key.value in localDeletes + remoteDeletes }
+        val adds = merged.filter { it.key.value !in remoteKeys }
+        val removals = remote.filter { it.key.value in localDeletes }
+        writeList(service, saved, adds, remove = false)
+        writeList(service, saved, removals, remove = true)
+        // What the service holds now, as far as this sync knows: Simkl answers from this cache
+        // while its activities are unchanged, and must not be sent the same additions again.
+        val remoteNow = (remote.filterNot { it in removals } + adds).distinctBy { it.key }
+        val history = readHistory(service, saved, remoteLibrary.activity)
+        val playbacks = history + readPlayback(service, saved, local)
+        val knownWatches = saved.remoteWatched + history.associate { historyKey(it) to it.updatedAtMs }
+        val sentHistory = writeHistory(service, saved, local.progress.values.filter { it.completed &&
+            it.updatedAtMs > maxOf(saved.watchedBaseline[it.key.value] ?: 0, knownWatches[historyKey(it)] ?: 0) })
+        store.update { state ->
+            val current = state.allProfiles()[profile] ?: return@update state
+            // Preserve edits made while the network was busy.
+            val duringDeletes = localKeys - current.myList.map { it.key.value }.toSet()
+            val duringAdds = current.myList.filter { it.key.value !in localKeys }
+            val list = (duringAdds + merged).distinctBy { it.key }.filterNot { it.key.value in duringDeletes }
+            val progress = current.progress.toMutableMap()
+            playbacks.forEach { p -> if ((progress[p.key.value]?.updatedAtMs ?: 0) < p.updatedAtMs) progress[p.key.value] = p }
+            val updated = current.copy(myList = list, progress = progress)
+            state.copy(profiles = state.allProfiles() + (profile to updated),
+                myList = if (state.activeProfile == profile) list else state.myList,
+                progress = if (state.activeProfile == profile) progress else state.progress)
+        }
+        save(service, profile, saved.copy(listBaseline = merged.map { it.key.value }.toSet(),
+            watchedBaseline = saved.watchedBaseline + history.associate { it.key.value to it.updatedAtMs } + sentHistory,
+            remoteListCache = remoteNow, activity = remoteLibrary.activity, remoteWatched = knownWatches, historyReady = true))
+        status(service, profile) { it.copy(connected = true, message = "Synced ${merged.size} saved titles and ${playbacks.size} resume points") }
     }
 
     override suspend fun report(progress: WatchProgress, action: String) {
@@ -170,7 +179,7 @@ class WatchTrackingService(private val client: OkHttpClient, private val store: 
                     } else putJsonObject("movie") { put("ids", ids(summary.ids)); put("title", summary.name) }
                 }
                 try {
-                    request(service, endpoints.getValue(service), "/scrobble/$action", saved, body)
+                    authorized(service, profile, saved) { session -> request(service, endpoints.getValue(service), "/scrobble/$action", session, body) }
                     lastReports[reportKey] = identity to now()
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (error: Exception) { status(service, profile) { it.copy(message = safeError(error)) } }
@@ -209,15 +218,49 @@ class WatchTrackingService(private val client: OkHttpClient, private val store: 
 
     /** Called under the provider mutex by sync and scrobbling, so refresh tokens cannot race. */
     private suspend fun freshSession(service: WatchTracker, profile: String): Session {
-        var saved = requireNotNull(session(service, profile)) { "Connect an account first" }
-        if (saved.expiresAtMs <= now() + 60_000 && saved.refresh.isNotBlank()) {
-            val token = call(service, if (service == WatchTracker.TRAKT) traktAuth else endpoints.getValue(service),
+        val saved = requireNotNull(session(service, profile)) { "Connect an account first" }
+        return if (saved.expiresAtMs <= now() + 60_000 && saved.refresh.isNotBlank()) renew(service, profile, saved) else saved
+    }
+
+    /**
+     * Runs [block] with a fresh session; if the service still answers 401 (a token revoked or
+     * replaced elsewhere before its expiry), renews once and runs it again. Under the provider mutex.
+     */
+    private suspend fun <T> authorized(service: WatchTracker, profile: String, first: Session? = null, block: suspend (Session) -> T): T {
+        val saved = first ?: freshSession(service, profile)
+        return try { block(saved) } catch (failure: TrackingFailure) {
+            if (failure.status != 401) throw failure
+            block(renew(service, profile, saved))
+        }
+    }
+
+    /**
+     * Swaps the refresh token for a new access token and saves both. Simkl returns the same refresh
+     * token and ends the previous access token at once, so the new pair is saved before anything
+     * else is sent. A refusal (400/401: the grant was revoked or expired) signs this viewer out of
+     * the service and keeps the local library; a network failure leaves the session for next time.
+     */
+    private suspend fun renew(service: WatchTracker, profile: String, saved: Session): Session {
+        if (saved.refresh.isBlank()) signOut(service, profile)
+        val token = try {
+            call(service, if (service == WatchTracker.TRAKT) traktAuth else endpoints.getValue(service),
                 if (service == WatchTracker.TRAKT) "/oauth/token" else "/oauth2/token",
                 fields = mapOf("grant_type" to "refresh_token", "client_id" to saved.clientId, "refresh_token" to saved.refresh))
-            saved = saved.copy(token = requireNotNull(token.text("access_token")), refresh = token.text("refresh_token") ?: saved.refresh, expiresAtMs = expiry(token))
-            save(service, profile, saved)
+        } catch (failure: TrackingFailure) {
+            if (failure.status == 400 || failure.status == 401) signOut(service, profile)
+            throw failure
         }
-        return saved
+        val renewed = saved.copy(token = token.text("access_token") ?: signOut(service, profile),
+            refresh = token.text("refresh_token") ?: saved.refresh, expiresAtMs = expiry(token))
+        save(service, profile, renewed)
+        return renewed
+    }
+
+    private suspend fun signOut(service: WatchTracker, profile: String): Nothing {
+        save(service, profile, null)
+        val failure = SignedOut(service)
+        status(service, profile) { WatchTrackingStatus(service, message = failure.message) }
+        throw failure
     }
 
     private suspend fun writeList(service: WatchTracker, saved: Session, items: List<MyListEntry>, remove: Boolean) {
@@ -346,7 +389,8 @@ class WatchTrackingService(private val client: OkHttpClient, private val store: 
     private fun timestamp(value: String?) = runCatching { Instant.parse(value).toEpochMilli() }.getOrDefault(0)
     private fun JsonObject.text(key: String) = (get(key) as? JsonPrimitive)?.contentOrNull
     private fun JsonObject.number(key: String) = (get(key) as? JsonPrimitive)?.longOrNull ?: 0
-    private fun safeError(error: Exception) = if (error is TrackingFailure) "Tracker request failed (${error.status}${error.oauth?.let { ", $it" }.orEmpty()}). Your local library is kept." else "Could not sync. Check your connection and client ID, then retry."
+    private fun safeError(error: Exception) = if (error is SignedOut) error.message.orEmpty() else if (error is TrackingFailure) "Tracker request failed (${error.status}${error.oauth?.let { ", $it" }.orEmpty()}). Your local library is kept." else "Could not sync. Check your connection and client ID, then retry."
+    private class SignedOut(service: WatchTracker) : IOException("${service.label} sign-in expired. Connect again; your library on this device is kept.")
     private class TrackingFailure(val status: Int, code: String?) : IOException("Tracker request failed ($status)") {
         val oauth = code?.takeIf { it.matches(Regex("[a-z_]{1,80}")) }
     }
