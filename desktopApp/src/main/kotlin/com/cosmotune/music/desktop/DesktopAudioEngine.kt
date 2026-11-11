@@ -979,6 +979,11 @@ class DesktopPlaybackEngine(
                 skippedUs = skippedFrames.coerceAtLeast(0L) * 1_000_000.0 / rate * deck,
             )
         }
+        // The Pulse lyric style's levels: read-only, dated by what the device still has queued ahead of this block, and a
+        // single flag check while nothing listens. Never for an exclusive DSD stream, whose samples are not PCM.
+        if (!track.directDsd && DesktopAudioLevels.meter.active) {
+            DesktopAudioLevels.offer(samples, count, rate, sink.format.channels, framesWritten - sink.framesPlayed())
+        }
         val written = sink.write(samples, count)
         if (track.directDsd) check(written == count * 3) { "The exclusive DSD device stopped accepting complete frames" }
         framesWritten += count / sink.format.channels.coerceAtLeast(1)

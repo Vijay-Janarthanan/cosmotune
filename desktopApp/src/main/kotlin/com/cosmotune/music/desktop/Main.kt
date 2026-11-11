@@ -86,6 +86,8 @@ private fun runDesktop() {
     com.cosmotune.desktop.TorConnection.install()
     // The listener's proxy and offline mode (Extras), right after Tor has chosen the routing.
     DesktopExtras.install()
+    // The audio level tap the Pulse lyric style moves to; idle until a Pulse stage listens.
+    DesktopAudioLevels.install()
     coil3.SingletonImageLoader.setSafe(DesktopArtworkCache::imageLoader)
     com.cosmotune.ui.pages.ArtistVisualSettings.install(DesktopSignatureSettings.enabled, DesktopSignatureSettings.url,
         java.io.File(com.cosmotune.desktop.desktopListeningFile().parentFile, "artist-visuals"))
