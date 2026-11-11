@@ -1395,12 +1395,17 @@ fun SettingsScreen(
         // ---- Appearance ----
         SearchableSettingsGroup(search, category = SettingsCategory.APPEARANCE, header = stringResource(R.string.appearance)) {
             val themeTitle = stringResource(R.string.theme)
+            val themeChoice = com.cosmotune.ui.theme.LocalThemeChoice.current
             row(themeTitle, "dark mode", "light mode") {
                 SettingsRow(icon = Icons.Rounded.Brightness4, title = themeTitle)
                 SegmentedControl(
                     options = ThemeMode.entries.map { it.localizedLabel() },
                     selectedIndex = ThemeMode.entries.indexOf(theme),
-                    onSelect = { AppSettings.setThemeMode(ThemeMode.entries[it]) },
+                    // Through the app's theme choice, as the drawer's quick switch does: the same cross-fade.
+                    onSelect = { index ->
+                        val mode = ThemeMode.entries[index]
+                        themeChoice?.choose(com.cosmotune.ui.theme.ThemeChoice.valueOf(mode.name)) ?: AppSettings.setThemeMode(mode)
+                    },
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
