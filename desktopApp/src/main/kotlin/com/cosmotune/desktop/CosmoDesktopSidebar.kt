@@ -219,19 +219,24 @@ internal fun CosmoDesktopSidebar(
             ) {
                 if (playlists.isEmpty()) {
                     item(key = "empty") {
-                        Text(
-                            text = DesktopStrings["d_sidebar_no_playlists", "Your playlists will appear here"],
-                            style = LocalCosmoType.current.body().copy(fontSize = EMPTY_SP.sp, lineHeight = EMPTY_SP.sp * 1.4f),
-                            color = Color(LocalCosmoColors.current.palette.textTertiary),
-                            modifier = Modifier.padding(start = 12.dp, end = 8.dp, top = 6.dp),
-                        )
-                        nav.firstOrNull { it.icon == com.cosmotune.ui.components.CosmoIcons.Library }?.let { library ->
-                            com.cosmotune.ui.components.CosmoButton(
-                                text = DesktopStrings["d_sidebar_open_library", "Open Library"],
-                                onClick = library.onClick,
-                                kind = com.cosmotune.ui.components.CosmoButtonKind.QUIET,
-                                modifier = Modifier.padding(start = 6.dp),
+                        // The line and its button share the rows' 12 dp start, with a full step of air between them.
+                        androidx.compose.foundation.layout.Column(
+                            Modifier.padding(start = 12.dp, end = 8.dp, top = 6.dp),
+                            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(EMPTY_GAP),
+                        ) {
+                            Text(
+                                text = DesktopStrings["d_sidebar_no_playlists", "Your playlists will appear here"],
+                                style = LocalCosmoType.current.body().copy(fontSize = EMPTY_SP.sp, lineHeight = EMPTY_SP.sp * 1.4f),
+                                color = Color(LocalCosmoColors.current.palette.textTertiary),
                             )
+                            nav.firstOrNull { it.icon == com.cosmotune.ui.components.CosmoIcons.Library }?.let { library ->
+                                com.cosmotune.ui.components.CosmoButton(
+                                    text = DesktopStrings["d_sidebar_open_library", "Open Library"],
+                                    onClick = library.onClick,
+                                    kind = com.cosmotune.ui.components.CosmoButtonKind.QUIET,
+                                    size = com.cosmotune.ui.components.CosmoButtonSize.SMALL,
+                                )
+                            }
                         }
                     }
                 } else {
@@ -389,4 +394,6 @@ private val SECTION_GAP = 12.dp
 private val CAPTION_HEIGHT = 34.dp
 private val NAV_LIST_GAP = 2.dp
 private const val EMPTY_SP = 13f
+/** Air between the empty playlists line and its button. */
+private val EMPTY_GAP = 14.dp
 private val RING_ROOM = 6.dp
