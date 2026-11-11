@@ -85,6 +85,8 @@ class LyricStylesVisualReviewTest {
                 text = words.joinToString(" ") { it.first },
                 words = timed,
                 alignment = if (index == 1) LyricAlignment.End else LyricAlignment.Start,
+                // The voices named, as a TTML source with <ttm:name> names them (Call & Answer prints them).
+                singer = if (index == 1) "Juno" else "Mira",
                 background = if (index == 2) LyricLine(base + 7_100, "(hold the line)", listOf(
                     LyricWord(base + 7_100, base + 7_400, "(hold"), LyricWord(base + 7_400, base + 7_600, "the"), LyricWord(base + 7_600, base + 8_200, "line)"),
                 )) else null,
@@ -186,6 +188,35 @@ class LyricStylesVisualReviewTest {
     }
 
     @Test fun orbital() = hosts { for ((_, at) in moments) stage(LyricStyle.ORBITAL, at) }
+
+    /** A line of [text] sung evenly from 10 s to 16 s, and a next line after it, sung at 13 s: half of it lit. */
+    private fun lengthOf(text: String): List<LyricLine> {
+        val words = text.split(' ')
+        val step = 6_000L / words.size
+        val timed = words.mapIndexed { i, w -> LyricWord(10_000 + i * step, 10_000 + (i + 1) * step, w) }
+        return listOf(LyricLine(10_000, text, timed), LyricLine(16_500, "and the coast kept time", listOf(LyricWord(16_500, 18_000, "and the coast kept time"))))
+    }
+
+    private val lengths = listOf(
+        "short" to "Hold on",
+        "long" to "We drew a map across the night and every light",
+        "verylong" to "We drew a map across the night, and every light we passed became a place we had already been before the morning",
+    )
+
+    /** Orbital for a short, a long (smaller on one arc) and a very long line (two arcs), on the phone's panel and the TV. */
+    @Test fun orbitalLineLengths() = hosts {
+        for ((label, text) in lengths) {
+            val lines = lengthOf(text)
+            for (dark in listOf(true, false)) shoot("orbital-$label", dark) {
+                val clock = remember { mutableLongStateOf(13_000L) }
+                CosmoLyricStage(LyricStyle.ORBITAL, lines, null, clock, isPlaying = false, onSeek = {}, song = song, modifier = Modifier.fillMaxSize().padding(16.dp))
+            }
+            shoot("tv-orbital-$label", dark = true, width = 1920, height = 1080) {
+                val clock = remember { mutableLongStateOf(13_000L) }
+                CosmoLyricStage(LyricStyle.ORBITAL, lines, null, clock, isPlaying = false, onSeek = {}, song = song, modifier = Modifier.fillMaxSize().padding(48.dp), fullScreen = true)
+            }
+        }
+    }
 
     @Test fun stretch() = hosts { for ((_, at) in moments) stage(LyricStyle.STRETCH, at) }
 

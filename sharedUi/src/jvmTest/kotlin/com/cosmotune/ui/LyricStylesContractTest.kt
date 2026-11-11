@@ -106,6 +106,29 @@ class LyricStylesContractTest {
         assertTrue(chip.contains("Extras.settings.setLyricStyleFor(songId, pick.key)") && chip.contains("Extras.settings.setLyricStyle(pick.key)"))
     }
 
+    @Test fun orbitalKeepsTheLineReadableOnTheUpperArcOutsideTheTrack() {
+        val orbital = LyricSourceRules.file("CosmoLyricOrbital.kt")
+        assertTrue(orbital.contains("LyricArc.fitUpper(widths, widths.size, space, inner, outer)"), "smaller to the floor, then two arcs")
+        assertTrue(orbital.contains("LyricArc.upperStart("), "kept to the upper arc")
+        assertTrue(orbital.contains("ArcText.build(measurer, it.text, lineStyle, rings.inner, rings.outer)"), "the line on its rings outside the track")
+        assertTrue(orbital.contains("LyricArc.x(cx, rings.track, deg)"), "the moon on the track")
+        assertTrue(orbital.contains("internal const val ORBITAL_UNLIT_ALPHA = 0.5f") && orbital.contains("maxOf(ink.unlit.alpha, ORBITAL_UNLIT_ALPHA)"), "words to come stay readable")
+        assertTrue(orbital.contains("nextRing(rings, arc)"), "the next line's ring clears a line on two arcs too")
+    }
+
+    @Test fun orbitReadSetsOnlyTheLineBeingSungInWideArchivo() {
+        assertTrue(view.contains("fontFamily = stageFonts.read, fontWeight = FontWeight(StageWeights.READ)"))
+        assertTrue(LyricSourceRules.file("CosmoLyricStage.kt").contains("val read = archivo(StageWeights.READ, 112f)"), "wdth 112, wght 800")
+        assertTrue(view.contains("Modifier.fillMaxWidth().graphicsLayer { alpha = 1f - fill.value }"), "the rest face gives way as the line becomes current")
+        assertTrue(view.contains("Modifier.fillMaxWidth().clearAndSetSemantics { }.graphicsLayer { alpha = fill.value }"), "the sung face is read once")
+        assertTrue(view.contains("onTextLayout = { layoutRef.value = it }"), "the fill, the lift, the bloom and the moon follow the sung face")
+    }
+
+    @Test fun callAndAnswerNamesOnlyTheVoicesTheSourceNames() {
+        val duet = LyricSourceRules.file("CosmoLyricCallAnswer.kt")
+        assertTrue(duet.contains("line.singer?.let { name ->"))
+    }
+
     @Test fun pulseListensToTheTapOnlyWhileItShows() {
         val pulse = LyricSourceRules.file("CosmoLyricPulse.kt")
         assertTrue(pulse.contains("val handle = levels.source?.listen()") && pulse.contains("onDispose { handle?.close() }"))
