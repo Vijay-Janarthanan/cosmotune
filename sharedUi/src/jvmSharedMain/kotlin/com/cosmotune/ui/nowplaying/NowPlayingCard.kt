@@ -18,6 +18,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import com.cosmotune.music.ui.player.SystemVolume
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -140,15 +152,64 @@ internal fun OrbitFormatLabel(fonts: OrbitFonts, ink: Color, modifier: Modifier 
     )
 }
 
-/** The host's volume as a short line with its moon, the speaker before it (desktop). */
+/** How [OrbitVolume] is drawn: the speaker and a 104 dp line, the speaker and a 72 dp line, or the speaker alone as a button. */
+internal enum class VolumeStyle { Full, Compact }
+
+/**
+ * The mouse wheel over a volume control: a notch up raises it, a notch down lowers it, by 5 %. [level] is read when the wheel
+ * turns, not when composed, so the modifier does not restart as the level moves.
+ */
+internal fun Modifier.volumeWheel(level: () -> Float, set: (Float) -> Unit): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent()
+            if (event.type == PointerEventType.Scroll) {
+                val change = event.changes.firstOrNull() ?: continue
+                set((level() - change.scrollDelta.y * VOLUME_WHEEL_STEP).coerceIn(0f, 1f))
+                change.consume()
+            }
+        }
+    }
+}
+
+private const val VOLUME_WHEEL_STEP = 0.05f
+
+/**
+ * The host's volume as a short line with its moon, the speaker before it (desktop). [source] is the volume to drive; null is the
+ * host's own. The mouse wheel over it changes the volume.
+ */
 @Composable
-internal fun OrbitVolume(ink: Color, modifier: Modifier = Modifier) {
-    val volume = PlayerPlatform.host.volume
+internal fun OrbitVolume(ink: Color, modifier: Modifier = Modifier, style: VolumeStyle = VolumeStyle.Full, source: SystemVolume? = null) {
+    val volume = source ?: PlayerPlatform.host.volume
     val level by volume.level.collectAsStateWithLifecycle()
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.volumeWheel({ level }, volume::set).testTag("volume:line"), verticalAlignment = Alignment.CenterVertically) {
         Icon(if (level < 0.4f) CosmoIcons.VolumeLow else CosmoIcons.Volume, "Volume", tint = ink.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
-        OrbitProgressLine({ level }, ink, Modifier.width(104.dp), onSeek = volume::set, moon = 5.dp, live = true)
+        OrbitProgressLine({ level }, ink, Modifier.width(if (style == VolumeStyle.Full) 104.dp else 72.dp), onSeek = volume::set, moon = 5.dp, live = true)
+    }
+}
+
+/**
+ * The speaker as a round button, for a card with no room for even the short line: a press opens the line in a popover under it.
+ * The mouse wheel over the speaker changes the volume without opening it.
+ */
+@Composable
+internal fun OrbitVolumeButton(ink: Color, fill: Color, size: Dp, modifier: Modifier = Modifier, source: SystemVolume? = null) {
+    val volume = source ?: PlayerPlatform.host.volume
+    val level by volume.level.collectAsStateWithLifecycle()
+    var open by remember { mutableStateOf(false) }
+    Box(modifier.testTag("volume:button")) {
+        OrbitRoundButton(
+            if (level < 0.4f) CosmoIcons.VolumeLow else CosmoIcons.Volume, "Volume", ink, onClick = { open = !open },
+            size = size, on = open, onInk = fill, modifier = Modifier.volumeWheel({ level }, volume::set),
+        )
+        if (open) {
+            Popup(alignment = Alignment.TopEnd, offset = IntOffset(0, with(LocalDensity.current) { (size + 6.dp).roundToPx() }), onDismissRequest = { open = false }) {
+                Box(Modifier.clip(RoundedCornerShape(20.dp)).background(fill.copy(alpha = 1f)).padding(horizontal = 16.dp, vertical = 14.dp).volumeWheel({ level }, volume::set)) {
+                    OrbitProgressLine({ level }, ink, Modifier.width(140.dp), onSeek = volume::set, moon = 5.dp, live = true)
+                }
+            }
+        }
     }
 }
 
@@ -172,6 +233,8 @@ internal fun NowPlayingSongCard(
     format: Boolean = false,
     volume: Boolean = false,
     buttonSize: Dp = 40.dp,
+    /** The volume to drive; null is the host's own. For tests and hosts that bring their own. */
+    volumeSource: SystemVolume? = null,
 ) {
     val (fill, ink) = coverFill(t.coverUrl, t.song.title)
     OrbitBiteCard(fill, modifier, bite = { NowPlayingPlayButton(t, look, 66.dp, HERO_BITE_RING) }) {
@@ -187,30 +250,41 @@ internal fun NowPlayingSongCard(
                     Spacer(Modifier.width(16.dp))
                     Column(Modifier.padding(end = 64.dp, top = 12.dp), horizontalAlignment = Alignment.End) {
                         CardButtons(buttons, ink, fill, buttonSize, 6.dp)
-                        if (volume) OrbitVolume(ink, Modifier.padding(top = 14.dp))
+                        if (volume) OrbitVolume(ink, Modifier.padding(top = 14.dp), source = volumeSource)
                     }
                 }
                 OrbitProgressLine(t::progress, ink, Modifier.align(Alignment.BottomStart).padding(end = 64.dp), onSeek = t::seek)
             }
         } else {
-            Column(Modifier.fillMaxWidth().padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 22.dp)) {
-                OrbitingLabel(t, fonts, ink)
-                Spacer(Modifier.height(12.dp))
-                CardTitle(t, fonts, ink, 26, maxLines = 2)
-                if (format) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 6.dp))
-                if (showLine) {
-                    Spacer(Modifier.height(16.dp))
-                    OrbitProgressLine(t::progress, ink, onSeek = t::seek)
-                }
-                Spacer(Modifier.height(16.dp))
-                androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(end = 70.dp)) {
-                    // The volume only where it fits beside the buttons.
-                    val roomForVolume = maxWidth >= buttonSize * buttons.size + 8.dp * buttons.size + VOLUME_WIDTH
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                // The volume is always there. Beside the buttons where they leave room for it; otherwise at the top right on the
+                // label's row, as the short line where that row is wide enough and as the speaker button (its line in a popover) where not.
+                val inner = maxWidth - 44.dp
+                val footer = inner - 70.dp
+                val roomBesideButtons = footer >= buttonSize * buttons.size + 8.dp * buttons.size + VOLUME_WIDTH
+                val topRight = volume && !roomBesideButtons
+                Column(Modifier.fillMaxWidth().padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 22.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        OrbitingLabel(t, fonts, ink, Modifier.weight(1f))
+                        if (topRight) {
+                            Spacer(Modifier.width(8.dp))
+                            if (inner >= COMPACT_VOLUME_MIN_WIDTH) OrbitVolume(ink, style = VolumeStyle.Compact, source = volumeSource)
+                            else OrbitVolumeButton(ink, fill, 32.dp, source = volumeSource)
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    CardTitle(t, fonts, ink, 26, maxLines = 2)
+                    if (format) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 6.dp))
+                    if (showLine) {
+                        Spacer(Modifier.height(16.dp))
+                        OrbitProgressLine(t::progress, ink, onSeek = t::seek)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(Modifier.fillMaxWidth().padding(end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
                         CardButtons(buttons, ink, fill, buttonSize, 8.dp)
-                        if (volume && roomForVolume) {
+                        if (volume && roomBesideButtons) {
                             Spacer(Modifier.weight(1f))
-                            OrbitVolume(ink, Modifier.padding(start = 12.dp))
+                            OrbitVolume(ink, Modifier.padding(start = 12.dp), source = volumeSource)
                         }
                     }
                 }
@@ -252,6 +326,9 @@ internal val SLIM_BITE_RING = 76.dp
 /** What the volume takes beside the buttons: the speaker, the gap and the line. */
 private val VOLUME_WIDTH = 150.dp
 
+/** The card width (inside its padding) from which the short volume line fits on the label's row; below it the speaker is a button. */
+private val COMPACT_VOLUME_MIN_WIDTH = 300.dp
+
 /** The slim card's bite: in the middle of its end edge (Cinema, board section 2). */
 private val SlimBite = BiteShape(corner = 30.dp, bite = 38.dp, inset = 56.dp)
 
@@ -260,7 +337,10 @@ private val SlimBite = BiteShape(corner = 30.dp, bite = 38.dp, inset = 56.dp)
  * the title and the artists, [buttons] at the end and play / pause in the bite in the middle of the end edge.
  */
 @Composable
-internal fun NowPlayingSlimCard(t: NowPlayingTransport, fonts: OrbitFonts, look: OrbitLook, buttons: List<CardButton>, modifier: Modifier = Modifier) {
+internal fun NowPlayingSlimCard(
+    t: NowPlayingTransport, fonts: OrbitFonts, look: OrbitLook, buttons: List<CardButton>, modifier: Modifier = Modifier,
+    volume: Boolean = false, volumeSource: SystemVolume? = null,
+) {
     val (fill, ink) = coverFill(t.coverUrl, t.song.title)
     OrbitBiteCard(
         fill.copy(alpha = 0.95f), modifier.height(112.dp), shape = SlimBite, biteInset = 24.dp,
@@ -278,6 +358,10 @@ internal fun NowPlayingSlimCard(t: NowPlayingTransport, fonts: OrbitFonts, look:
                 Text(t.song.artist, style = fonts.body.copy(fontSize = 13.sp), color = ink.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
             }
             Spacer(Modifier.width(12.dp))
+            if (volume) {
+                OrbitVolumeButton(ink, fill, 40.dp, source = volumeSource)
+                Spacer(Modifier.width(6.dp))
+            }
             CardButtons(buttons, ink, fill, 40.dp, 6.dp)
         }
     }

@@ -497,7 +497,7 @@ fun CosmoNowPlaying(
                     canvas = canvas, isPlaying = isPlaying, view = keptView, aspect = videoAspect, onAspect = { videoAspect = it },
                     reveal = reveal, onRenderedChanged = { rendered = it }, coverUrl = remoteArt, t = transport,
                     fonts = orbitType, look = orbitInk, menuOpen = videoMenuOpen, onLeave = leaveCinema,
-                    buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton),
+                    buttons = listOfNotNull(previousButton, nextButton, likeButton, screenButton), volume = wide,
                 )
             }
             NowPlayingSheets(
