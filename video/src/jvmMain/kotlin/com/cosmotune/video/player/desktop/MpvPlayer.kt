@@ -567,17 +567,14 @@ internal class MpvPlayer(
         /**
          * The decoding a load starts with: software for a picture up to [SOFTWARE_START_MAX_HEIGHT] lines when the options ask for hardware
          * decoding ([steady]), whose set-up costs a quarter to a whole second before the first frame; the options' own otherwise (a
-         * taller picture, a file whose height is not known, or no hardware decoding at all). The engine turns [steady] on
-         * [HARDWARE_AFTER_MS] after playback starts.
+         * taller picture, a file whose height is not known, or no hardware decoding at all). The engine turns [steady] on at the
+         * load's first pause or seek.
          */
         internal fun startDecoding(steady: String, pictureHeight: Int): String =
             if (steady != "no" && pictureHeight in 1..SOFTWARE_START_MAX_HEIGHT) "no" else steady
 
         /** The tallest picture that starts in software: a 1080p frame decodes in a few milliseconds on any desktop processor. */
         const val SOFTWARE_START_MAX_HEIGHT = 1080
-
-        /** How long after playback starts the hardware decoding comes on. */
-        const val HARDWARE_AFTER_MS = 3_000L
 
         /** FFmpeg's reconnect options for live HLS (spec 6.3). */
         const val LIVE_LAVF_OPTIONS = "reconnect=1,reconnect_delay_max=30"

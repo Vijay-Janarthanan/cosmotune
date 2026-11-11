@@ -88,6 +88,31 @@ class VideoStartupLiveTest {
                 rows += "round $round $id: details ${at("details ready")} | chosen ${at("streams chosen")} | loadfile ${at("mpv loadfile")} | " +
                     "file loaded ${at("mpv file loaded")} | first frame ${at("first frame")} | playing ${at("playback started")} | $chosen" +
                     (if (done == true) "" else " | DID NOT START (${controller.state.value.error ?: engine.snapshot.value.error})")
+                val watchMs = System.getenv("VIDEO_STARTUP_WATCH_MS")?.toLongOrNull()
+                if (watchMs != null && done == true) {
+                    // Watches the hand-over to the hardware decoder: the decoder before and after, the frames dropped, the longest
+                    // stretch with no new picture.
+                    val decoderAtStart = engine.snapshot.value.decoderName
+                    val dropsAtStart = engine.snapshot.value.droppedFrames
+                    var last = engine.frames.frames.value
+                    var stillSince = System.nanoTime()
+                    var longestStillMs = 0L
+                    val until = System.nanoTime() + watchMs * 1_000_000
+                    while (System.nanoTime() < until) {
+                        delay(20)
+                        val now = engine.frames.frames.value
+                        if (now != last) { last = now; stillSince = System.nanoTime() }
+                        longestStillMs = maxOf(longestStillMs, (System.nanoTime() - stillSince) / 1_000_000)
+                    }
+                    val decoderAfterWatching = engine.snapshot.value.decoderName
+                    // A pause hands a software start over to the hardware decoder.
+                    controller.togglePlayPause()
+                    delay(1_000)
+                    val decoderAfterPause = engine.snapshot.value.decoderName
+                    controller.togglePlayPause()
+                    rows += "watch $id: decoder $decoderAtStart, after ${watchMs}ms of playing $decoderAfterWatching, after a pause $decoderAfterPause; " +
+                        "${engine.snapshot.value.droppedFrames - dropsAtStart} frames dropped, no new picture for at most ${longestStillMs}ms while playing"
+                }
                 delay(1_500) // a second and a half of playing, as someone who clicked would watch
                 controller.stop()
                 delay(300)

@@ -126,11 +126,6 @@ class DesktopVideoEngine internal constructor(
     /** Whether the current load started in software and still has to turn [steadyHwdec] on. Engine thread. */
     private var hardwareDue = false
 
-    /** Runs the engine's delayed work (the hardware decoding after the start). */
-    private val timer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { task ->
-        Thread(task, "cosmotune-video-engine-timer").apply { isDaemon = true }
-    }
-
     /** The proxy's bandwidth counts after its first 5 s of measuring (spec 6.4). */
     private val bandwidthWarmUp = BandwidthWarmUp(clock = { System.nanoTime() / 1_000_000 })
 
@@ -168,7 +163,10 @@ class DesktopVideoEngine internal constructor(
 
     override fun play() = post { playerRef?.set("pause", "no") }
 
-    override fun pause() = post { playerRef?.set("pause", "yes") }
+    override fun pause() = post {
+        playerRef?.set("pause", "yes")
+        handOverToHardware()
+    }
 
     override fun seekTo(ms: Long) {
         val target = ms.coerceAtLeast(0)
@@ -176,6 +174,7 @@ class DesktopVideoEngine internal constructor(
         if (player == null || player.pending()) pendingStartMs = target else player.jumpClock(target)
         post {
             val p = playerRef ?: return@post
+            handOverToHardware()
             if (p.isLoaded()) p.seek(target) else pendingSeekMs = target
         }
     }
@@ -245,7 +244,6 @@ class DesktopVideoEngine internal constructor(
         exchange.clear(freeBuffers = true)
         smoothing.close()
         cueFlow.value = emptyList()
-        timer.shutdownNow()
         try {
             executor.execute {
                 renderer?.close()
@@ -420,7 +418,6 @@ class DesktopVideoEngine internal constructor(
                             if (id != null && !restarted) {
                                 restarted = true
                                 StartupTrace.mark(id, "playback started")
-                                hardwareAfterStart(generation.get())
                             }
                         },
                     )
@@ -451,21 +448,16 @@ class DesktopVideoEngine internal constructor(
     )
 
     /**
-     * Load [number] is playing: [MpvPlayer.HARDWARE_AFTER_MS] later its decoding goes over to [steadyHwdec] (mpv hands the decoder over
-     * without a pause: it feeds the new one the packets since the last key frame). Starting in software saves the hardware decoder's
-     * set-up (a quarter to a whole second measured) on the way to the first frame.
+     * A load that started in software ([MpvPlayer.startDecoding]) goes over to [steadyHwdec] at its first pause or seek, where the
+     * picture stops anyway: the hardware decoder's set-up holds the picture while it runs (326 ms for a 1080p60 video measured), which
+     * mid-play shows as a freeze. Engine thread.
      */
-    private fun hardwareAfterStart(number: Int) {
-        try {
-            timer.schedule({
-                post {
-                    if (number != generation.get() || !hardwareDue) return@post
-                    hardwareDue = false
-                    playerRef?.set("hwdec", steadyHwdec)
-                }
-            }, MpvPlayer.HARDWARE_AFTER_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
-        } catch (_: RejectedExecutionException) {
-        }
+    private fun handOverToHardware() {
+        if (!hardwareDue) return
+        val player = playerRef ?: return
+        if (!player.isLoaded()) return
+        hardwareDue = false
+        player.set("hwdec", steadyHwdec)
     }
 
     /** The height of the picture [request] plays, when the request says it (a stream from the source); 0 when it does not. */

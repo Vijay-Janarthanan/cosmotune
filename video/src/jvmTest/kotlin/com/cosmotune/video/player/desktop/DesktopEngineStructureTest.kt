@@ -84,17 +84,21 @@ class DesktopEngineStructureTest {
     }
 
     @Test
-    fun aPictureUpTo1080LinesStartsInSoftwareAndGetsItsHardwareDecodingOnceItPlays() {
+    fun aPictureUpTo1080LinesStartsInSoftwareAndGetsItsHardwareDecodingAtItsFirstPauseOrSeek() {
         val steady = MpvPlayer.DEFAULT_OPTIONS.getValue("hwdec")
         assertEquals("no", MpvPlayer.startDecoding(steady, 1080), "the hardware decoder's set-up is not on the way to the first frame")
         assertEquals("no", MpvPlayer.startDecoding(steady, 360))
         assertEquals(steady, MpvPlayer.startDecoding(steady, 1440), "a taller picture needs the hardware from its first frame")
         assertEquals(steady, MpvPlayer.startDecoding(steady, 0), "a file whose height nobody told keeps the options' decoding")
         assertEquals("no", MpvPlayer.startDecoding("no", 2160), "no hardware decoding asked for: none")
-        assertTrue(MpvPlayer.HARDWARE_AFTER_MS in 1_000L..10_000L, "on soon after the start, well inside the frame-drop window")
         val engine = VideoSourceContract.code(source("DesktopVideoEngine.kt"))
         assertTrue("player.set(\"hwdec\", start)" in engine, "each load sets its start decoding before loadfile")
-        assertTrue("playerRef?.set(\"hwdec\", steadyHwdec)" in engine, "and the options' decoding once it plays")
+        assertTrue("player.set(\"hwdec\", steadyHwdec)" in VideoSourceContract.functionBody(engine, "handOverToHardware"))
+        val pause = engine.substringAfter("override fun pause() = post {").substringBefore("\n    }")
+        val seek = engine.substringAfter("override fun seekTo(ms: Long) {").substringBefore("\n    }")
+        assertTrue("handOverToHardware()" in pause && "handOverToHardware()" in seek, "at a pause or a seek, where the picture stops anyway")
+        assertFalse("handOverToHardware()" in engine.substringAfter("onPlaybackRestart = {").substringBefore("},"),
+            "never mid-play: the hand-over holds the picture while the hardware decoder starts")
     }
 
     @Test
