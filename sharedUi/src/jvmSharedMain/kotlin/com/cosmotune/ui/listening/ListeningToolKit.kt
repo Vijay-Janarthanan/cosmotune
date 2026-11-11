@@ -27,6 +27,7 @@ import com.cosmotune.ui.orbit.OrbitChip
 import com.cosmotune.ui.orbit.OrbitFormCard
 import com.cosmotune.ui.orbit.OrbitFormField
 import com.cosmotune.ui.orbit.OrbitPillButton
+import com.cosmotune.ui.orbit.OrbitSpace
 import com.cosmotune.ui.orbit.OrbitSwitchRow
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
@@ -42,16 +43,20 @@ internal enum class ToolKind { MAIN, QUIET }
 
 @Composable
 internal fun ToolButton(text: String, onClick: () -> Unit, enabled: Boolean = true, kind: ToolKind = ToolKind.MAIN, tag: String = "") {
-    val modifier = Modifier.padding(vertical = 4.dp).then(if (tag.isNotBlank()) Modifier.testTag(tag) else Modifier)
+    // 6 dp above, so a note or a card line over it stands a text-to-action gap (OrbitSpace.textToAction) away with the card's own 6.
+    val modifier = Modifier.padding(top = 6.dp, bottom = 4.dp).then(if (tag.isNotBlank()) Modifier.testTag(tag) else Modifier)
     OrbitPillButton(text, onClick, orbitFonts(), orbitLook(), modifier, primary = kind == ToolKind.MAIN, enabled = enabled)
 }
 
-/** A page's heading: the [title] in the wide face and the [detail] under it in the dim ink. */
+/**
+ * A page's heading: the [title] in the wide face and the [detail] under it in the dim ink, a group's gap
+ * ([OrbitSpace.betweenGroups]) under the row of page chips above it.
+ */
 @Composable
 internal fun Heading(title: String, detail: String) {
     val fonts = orbitFonts()
     val look = orbitLook()
-    Column(Modifier.padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.padding(top = 12.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(OrbitSpace.labelToControl)) {
         Text(title, style = fonts.section, color = look.ink, modifier = Modifier.semantics { heading() })
         Text(detail, style = fonts.body, color = look.dim)
     }
@@ -100,7 +105,10 @@ internal fun ToolChipRow(modifier: Modifier = Modifier, content: @Composable Row
     )
 }
 
-/** A field: [label] is its placeholder, and over it too when [labelled] (a field that opens filled). [tag] goes on the field. */
+/**
+ * A field: [label] is its placeholder, and over it too when [labelled] (a field that opens filled). [tag] goes on the field. It keeps
+ * a text-to-action gap ([OrbitSpace.textToAction], 12 dp with the button's own 4) from the button or field under it.
+ */
 @Composable
 internal fun ToolField(
     value: String,
@@ -113,7 +121,7 @@ internal fun ToolField(
     labelled: Boolean = false,
 ) {
     OrbitFormField(
-        value, onValueChange, placeholder = label, modifier = modifier.padding(vertical = 4.dp),
+        value, onValueChange, placeholder = label, modifier = modifier.padding(top = 4.dp, bottom = 8.dp),
         fieldModifier = if (tag.isNotBlank()) Modifier.testTag(tag) else Modifier,
         label = label.takeIf { labelled }, enabled = enabled, secret = secret,
     )
