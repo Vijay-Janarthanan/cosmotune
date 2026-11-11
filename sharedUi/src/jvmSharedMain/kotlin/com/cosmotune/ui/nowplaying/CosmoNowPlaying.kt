@@ -38,6 +38,7 @@ import com.cosmotune.design.LyricsMetrics
 import com.cosmotune.design.NowPlayingLayout
 import com.cosmotune.design.TypeScale
 import com.cosmotune.design.VideoView
+import com.cosmotune.lyrics.styles.LyricSurface
 import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.cosmotune.music.data.lyrics.LyricLine
 import com.cosmotune.music.data.lyrics.LyricsSource
@@ -338,12 +339,14 @@ fun CosmoNowPlaying(
         }
     }
     val coverPlaced: (Rect) -> Unit = { shell?.playerCoverBounds = it }
+    val lyricStageSong = remember(song.title, song.artist, song.albumName, remoteArt) { LyricStageSong(song.title, song.artist, song.albumName, remoteArt) }
     val lyricsPanel: @Composable (Modifier, LyricsStyle, Dp) -> Unit = { m, style, topPadding ->
         CosmoLyricsPanel(
             lyrics = lyrics, lyricsUnavailable = lyricsUnavailable, loadingText = lyricsLoadingText, translation = lyricsTranslation,
             trackKey = song.videoId, playhead = lyricsPlayhead, isPlaying = isPlaying && position.advancing,
             onSeekToLine = seekToLyric, onOpenProviders = { sheets.providers = true },
             style = style, modifier = m, topPadding = topPadding, share = lyricShare,
+            song = lyricStageSong, surface = if (wide) LyricSurface.DESKTOP else LyricSurface.PHONE,
         )
     }
     val upNextPanel: @Composable (Modifier, Boolean) -> Unit = { m, header ->
