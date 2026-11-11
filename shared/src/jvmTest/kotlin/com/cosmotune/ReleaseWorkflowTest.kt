@@ -128,6 +128,39 @@ class ReleaseWorkflowTest {
         }
     }
 
+    /**
+     * The apps show only a release's `## Highlights` (see [ReleaseHighlights] and docs/releases/README.md), so the current
+     * release must have them, and every notes file that has them must keep the format: one to five items, each naming a known
+     * icon in its comment, a bold title of two to four words and one plain sentence after the dash, short enough (48 characters) for one phone line.
+     */
+    @Test
+    fun theReleaseNotesLeadWithHighlightsTheAppsCanShow() {
+        val version = Regex("""cosmotuneVersionName"] = providers\.gradleProperty\("cosmotune\.version"\)\.getOrElse\("([^"]+)"\)""")
+            .find(read("build.gradle.kts"))?.groupValues?.get(1) ?: error("No cosmotuneVersionName default in build.gradle.kts")
+        val current = File(root, "docs/releases/$version.md").readText()
+        assertTrue(ReleaseHighlights.highlights(current) != null, "docs/releases/$version.md has no ## Highlights section")
+
+        val item = Regex("""^- <!-- icon: ([a-z-]+) --> \*\*([^*]+)\*\* — (.+)$""")
+        val checked = File(root, "docs/releases").listFiles { f -> f.name.matches(Regex("""\d+(\.\d+)+\.md""")) }.orEmpty().sortedBy { it.name }.mapNotNull { file ->
+            val text = file.readText().replace("\r\n", "\n")
+            val parsed = ReleaseHighlights.highlights(text) ?: return@mapNotNull null
+            val name = file.name
+            assertTrue(parsed.size in 1..ReleaseHighlights.MAX, "$name: ${parsed.size} highlights, expected 1 to ${ReleaseHighlights.MAX}")
+            val raw = text.substringAfter("## Highlights").substringBefore("\n#").lines().filter { it.startsWith("- ") }
+            assertEquals(parsed.size, raw.size, "$name: every Highlights line is one item")
+            for (line in raw) {
+                val match = item.matchEntire(line) ?: error("$name: `$line` is not `- <!-- icon: keyword --> **Title** — Sentence.`")
+                val (icon, title, sentence) = match.destructured
+                assertTrue(HighlightIcon.of(icon) != null, "$name: `$icon` is not a HighlightIcon keyword")
+                assertTrue(title.trim().split(' ').filter(String::isNotBlank).size in 2..4, "$name: `$title` is not two to four words")
+                assertTrue(sentence.endsWith(".") && sentence.length <= 48, "$name: `$sentence` is not one short sentence")
+                assertTrue("](" !in sentence && "`" !in sentence && "**" !in sentence, "$name: `$sentence` carries Markdown")
+            }
+            name
+        }
+        assertTrue("$version.md" in checked && "1.0.17.md" in checked, "Highlights checked in $checked")
+    }
+
     @Test
     fun theAndroidBuildJobsStopWhenASigningSecretIsMissing() {
         for ((start, end) in listOf("  android-phone:" to "\n  android-tv:", "  android-tv:" to "\n  android:\n")) {

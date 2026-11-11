@@ -13,6 +13,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import com.cosmotune.ReleaseHighlight
+import com.cosmotune.ReleaseHighlights
 
 /**
  * Looks at the repo's "latest release" on GitHub once per launch and says whether it is newer
@@ -29,8 +32,16 @@ internal object DesktopUpdateChecker {
         val releaseUrl: String,
         /** The installer for this platform, or null when the release has none. */
         val downloadUrl: String?,
+        /** The release's whole notes, which the update card links to rather than shows. */
         val notes: String?,
+        /** What the update card shows of [notes]: their Highlights, or an older release's first lines. */
+        val highlights: List<ReleaseHighlight> = ReleaseHighlights.of(notes),
+        /** The installer's size in bytes, when the release says. */
+        val downloadSize: Long? = null,
     )
+
+    /** The running build's own release, for the "what's new" card on the first launch after an update. */
+    data class WelcomeInfo(val version: String, val releaseUrl: String, val highlights: List<ReleaseHighlight>)
 
     private const val LATEST_RELEASE_URL = com.cosmotune.CosmoConfig.LATEST_RELEASE_API
 
@@ -57,13 +68,58 @@ internal object DesktopUpdateChecker {
         val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
         val latest = tag.removePrefix("v")
         if (!isNewer(latest, currentVersion)) return@runCatching null
+        val installer = installerUrl(release)
         UpdateInfo(
             version = latest,
             releaseUrl = url,
-            downloadUrl = installerUrl(release),
+            downloadUrl = installer,
             notes = release["body"]?.jsonPrimitive?.contentOrNull,
+            downloadSize = installer?.let { assetSize(release, it) },
         )
     }.getOrNull()
+
+    /** Where the last launched version is kept, so the first launch of a newer one can say what is new. */
+    private const val KEY_SEEN_VERSION = "whats_new_seen_version"
+
+    /**
+     * The running build's "what's new", once per update: when the version last launched ([persistence]) is older than this one,
+     * reads this version's own release and gives its highlights. A first launch with nothing recorded (a fresh install, or the
+     * build before this card existed) only records the version. Null as well with no network, which leaves the record alone so
+     * the next launch tries again; [welcomeSeen] records the version once the card is closed.
+     */
+    suspend fun checkWelcome(persistence: DesktopPersistence): WelcomeInfo? = runCatching {
+        val seen = persistence.string(KEY_SEEN_VERSION)
+        if (seen.isEmpty()) {
+            persistence.saveString(KEY_SEEN_VERSION, currentVersion)
+            return@runCatching null
+        }
+        if (!isNewer(currentVersion, seen)) return@runCatching null
+        val response = http.get("https://api.github.com/repos/${com.cosmotune.CosmoConfig.PROJECT_REPO}/releases/tags/v$currentVersion") {
+            header("Accept", "application/vnd.github+json")
+        }
+        if (response.status.value == 404) {
+            persistence.saveString(KEY_SEEN_VERSION, currentVersion)
+            return@runCatching null
+        }
+        if (!response.status.isSuccess()) return@runCatching null
+        val release = json.parseToJsonElement(response.bodyAsText()) as? JsonObject ?: return@runCatching null
+        val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
+        val highlights = ReleaseHighlights.of(release["body"]?.jsonPrimitive?.contentOrNull)
+        if (highlights.isEmpty()) {
+            persistence.saveString(KEY_SEEN_VERSION, currentVersion)
+            return@runCatching null
+        }
+        WelcomeInfo(currentVersion, url, highlights)
+    }.getOrNull()
+
+    /** The welcome card was closed: this version is not welcomed again. */
+    fun welcomeSeen(persistence: DesktopPersistence) = persistence.saveString(KEY_SEEN_VERSION, currentVersion)
+
+    /** The size in bytes the release gives for the asset downloaded from [url]. */
+    private fun assetSize(release: JsonObject, url: String): Long? =
+        release["assets"]?.jsonArray?.mapNotNull { it as? JsonObject }
+            ?.firstOrNull { it["browser_download_url"]?.jsonPrimitive?.contentOrNull == url }
+            ?.get("size")?.jsonPrimitive?.longOrNull
 
     /**
      * The release names its files `Cosmotune-<version>-windows-x64-setup.exe` and

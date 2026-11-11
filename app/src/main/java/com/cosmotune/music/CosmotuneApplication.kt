@@ -193,6 +193,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
         // format or key change between builds can't serve stale or mismatched
         // bytes from a cache the new code didn't write.
         if (AppSettings.consumeVersionUpdate(BuildConfig.VERSION_CODE)) {
+            // The first launch of this build after an update owes the listener its "what's new" card.
+            com.cosmotune.music.data.AppUpdateChecker.markUpdated(this)
             AudioCache.clear()
             SingletonImageLoader.get(this).let { loader ->
                 loader.memoryCache?.clear()

@@ -5,42 +5,27 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.halilibo.richtext.markdown.Markdown
-import com.halilibo.richtext.ui.RichTextStyle
-import com.halilibo.richtext.ui.material3.RichText
-import com.cosmotune.music.R
+import com.cosmotune.music.BuildConfig
 import com.cosmotune.music.data.AppUpdateChecker
-import com.cosmotune.music.data.settings.AppSettings
+import com.cosmotune.ui.whatsnew.WhatsNew
+import com.cosmotune.ui.whatsnew.WhatsNewAction
+import com.cosmotune.ui.whatsnew.WhatsNewSheet
+import com.cosmotune.ui.whatsnew.whatsNewMeta
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
 
 /** UIAlertController's own metrics: fixed narrow width, 14pt corner, 44pt rows. */
 internal val ALERT_WIDTH = 270.dp
@@ -54,144 +39,76 @@ internal val ACTION_HEIGHT = 44.dp
  */
 internal val SCRIM_COLOR = Color.Black.copy(alpha = 0.28f)
 
-private val DOWNLOAD_ROW_HEIGHT = 4.dp
-
-/** How much of the card's height the release notes are allowed to fill before scrolling. */
-private val NOTES_MAX_HEIGHT = 220.dp
-
 /**
  * Once-per-launch nudge that a newer build is on GitHub Releases — the top
- * bar's [Icons.Rounded.Upgrade][androidx.compose.material.icons.rounded.Upgrade]
- * icon is the quiet, always-there version of this; this is the one-time,
- * hard-to-miss version shown the moment the check comes back.
+ * bar's update icon is the quiet, always-there version of this; this is the
+ * one-time, hard-to-miss version shown the moment the check comes back.
  *
- * Shaped like an iOS system alert, which is the same lineage as the rest of the
- * app's Apple Music styling: frosted card, hairline rules, full-width actions
- * stacked under the message rather than a Material button pair in the corner.
+ * An Orbit sheet ([WhatsNewSheet]): "What's new · <version>" over "Fresh in
+ * Cosmotune", the release's Highlights as Orbit rows (never the whole notes,
+ * which the quiet "Full release notes" link opens on the release page), then
+ * the version and download size, and Update now beside Later.
  *
- * The update round trip happens here rather than in a browser: Download pulls
- * the release's APK into the app cache (progress fills the hairline under the
- * message), then Install hands it to the system installer. Where the release
- * carries no APK at all, the actions fall back to opening the releases page.
- *
- * Sits over the whole app as an overlay rather than an Android [Dialog][androidx.compose.ui.window.Dialog]
- * so its glass can sample the same [HazeState] the rest of the app's frosted
- * surfaces use, the way [FrostedTopBar] and [MiniPlayer] already do.
+ * The update round trip happens here rather than in a browser: Update now
+ * pulls the release's APK into the app cache (its orbit fills in place of the
+ * version line), then Install now hands it to the system installer. Where the
+ * release carries no APK at all, Update now opens the releases page instead.
+ * Drawn over the whole app in its own tree; [hazeState] is kept for the caller.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun UpdateAvailableDialog(
-    version: String,
-    notes: String?,
-    hazeState: HazeState,
+    update: AppUpdateChecker.UpdateInfo,
+    @Suppress("UNUSED_PARAMETER") hazeState: HazeState,
     onDismiss: () -> Unit,
     onDownload: () -> Unit,
     onCancelDownload: () -> Unit,
     onInstall: () -> Unit,
     onOpenReleasePage: () -> Unit,
+    onOpenFullNotes: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by AppUpdateChecker.download.collectAsStateWithLifecycle()
-
-    // Tapping the scrim reads the same as Remind Me Later — nothing about this update is mandatory, so backing out of it should be
-    // as easy as getting into it. Mid-download it only closes the card; the download keeps going and the top-bar icon reopens this.
-    Box(modifier.fillMaxSize()) {
-        com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = 420.dp) {
-            val (confirm, dismiss) = when (state) {
-                is AppUpdateChecker.DownloadState.Downloading -> null to (stringResource(R.string.cancel) to onCancelDownload)
-                is AppUpdateChecker.DownloadState.Ready ->
-                    (stringResource(R.string.install_now) to onInstall) to (stringResource(R.string.later) to onDismiss)
-                is AppUpdateChecker.DownloadState.Failed ->
-                    (stringResource(R.string.try_again) to onDownload) to (stringResource(R.string.open_releases_page) to onOpenReleasePage)
-                else -> (stringResource(R.string.download_now) to onDownload) to (stringResource(R.string.remind_me_later) to onDismiss)
-            }
-            com.cosmotune.ui.sheets.CosmoDialogBody(
-                overline = null,
-                title = stringResource(R.string.software_update),
-                message = when (state) {
-                    is AppUpdateChecker.DownloadState.Downloading -> stringResource(R.string.update_downloading_body, version)
-                    is AppUpdateChecker.DownloadState.Ready -> stringResource(R.string.update_ready_body, version)
-                    is AppUpdateChecker.DownloadState.Failed -> stringResource(R.string.update_failed_body, version)
-                    else -> stringResource(R.string.update_available_body, version)
-                },
-                confirmLabel = confirm?.first,
-                onConfirm = { confirm?.second?.invoke() },
-                dismissLabel = dismiss.first,
-                onDismiss = dismiss.second,
-                scroll = false,
-            ) {
-                // The download's progress, drawn as a thin fill across a
-                // hairline track — same weight as [AlertRule], so it reads as
-                // part of the card rather than a widget bolted onto it.
-                val downloading = state as? AppUpdateChecker.DownloadState.Downloading
-                if (downloading != null || state is AppUpdateChecker.DownloadState.Failed) {
-                    Box(
-                        Modifier
-                            .padding(top = 12.dp)
-                            .fillMaxWidth()
-                            .height(DOWNLOAD_ROW_HEIGHT)
-                            .clip(RoundedCornerShape(DOWNLOAD_ROW_HEIGHT / 2))
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)),
-                    ) {
-                        if (downloading != null && downloading.fraction > 0f) {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth(downloading.fraction)
-                                    .height(DOWNLOAD_ROW_HEIGHT)
-                                    .clip(RoundedCornerShape(DOWNLOAD_ROW_HEIGHT / 2))
-                                    .background(MaterialTheme.colorScheme.primary),
-                            )
-                        }
-                    }
-                }
-                if (state is AppUpdateChecker.DownloadState.Failed) {
-                    Text(
-                        text = (state as AppUpdateChecker.DownloadState.Failed).message,
-                        modifier = Modifier.padding(top = 6.dp),
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = MaterialTheme.colorScheme.error,
-                                            )
-                }
-
-                // The release's own notes, rendered as Markdown rather than
-                // dumped as raw text — GitHub release bodies lean on headings,
-                // bullet lists and bold for the changelog, and those are the
-                // whole point of reading this before installing.
-                if (!notes.isNullOrBlank()) {
-                    AlertRule(modifier = Modifier.padding(top = 12.dp))
-                    Text(
-                        text = stringResource(R.string.whats_new),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp),
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.W600,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        textAlign = TextAlign.Start,
-                    )
-                    Box(
-                        modifier = Modifier
-                            .padding(top = 4.dp)
-                            .heightIn(max = NOTES_MAX_HEIGHT)
-                            .verticalScroll(rememberScrollState()),
-                    ) {
-                        // RichText's Material3 Text leans on LocalContentColor,
-                        // which nothing here provides — this card is a plain
-                        // Column.background(...), not a Surface, so without
-                        // this the notes render at LocalContentColor's black
-                        // default regardless of theme.
-                        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
-                            RichText(style = RichTextStyle.Default) {
-                                Markdown(notes)
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    val version = update.version
+    val later = WhatsNewAction("Later", onDismiss)
+    // Tapping the scrim reads the same as Later: nothing about this update is mandatory. Mid-download it only closes the sheet;
+    // the download keeps going and the top bar's icon reopens this onto wherever it got to.
+    val card = when (val s = state) {
+        is AppUpdateChecker.DownloadState.Downloading -> WhatsNew(
+            version, update.highlights, WhatsNewAction("Hide", onDismiss), WhatsNewAction("Cancel", onCancelDownload),
+            onOpenFullNotes, progress = s.fraction,
+        )
+        is AppUpdateChecker.DownloadState.Ready -> WhatsNew(
+            version, update.highlights, WhatsNewAction("Install now", onInstall), later, onOpenFullNotes,
+            meta = "Cosmotune $version is ready to install",
+        )
+        is AppUpdateChecker.DownloadState.Failed -> WhatsNew(
+            version, update.highlights, WhatsNewAction("Try again", onDownload), WhatsNewAction("Release page", onOpenReleasePage),
+            onOpenFullNotes, problem = s.message,
+        )
+        else -> WhatsNew(
+            version, update.highlights, WhatsNewAction("Update now", onDownload), later, onOpenFullNotes,
+            meta = whatsNewMeta(BuildConfig.VERSION_NAME, version, update.apkSize),
+        )
     }
+    WhatsNewSheet(card, onDismiss, modifier)
+}
+
+/**
+ * The first launch after an update: the same Orbit sheet with the running
+ * build's own Highlights and a single Got it ([AppUpdateChecker.welcome]).
+ */
+@Composable
+fun WhatsNewWelcomeSheet(
+    welcome: AppUpdateChecker.WelcomeInfo,
+    onDismiss: () -> Unit,
+    onOpenFullNotes: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    WhatsNewSheet(
+        WhatsNew(welcome.version, welcome.highlights, WhatsNewAction("Got it", onDismiss), onFullNotes = onOpenFullNotes),
+        onDismiss,
+        modifier,
+    )
 }
 
 /**

@@ -71,9 +71,13 @@ from `CosmotuneDesktopApp` in `DesktopApp.kt`:
 1. At launch it calls `GET https://api.github.com/repos/Vijay-Janarthanan/cosmotune/releases/latest`.
 2. It strips the `v` from `tag_name` and compares it with `cosmotune.version` (numeric, dot by dot;
    a `-beta` current version is older than the same release).
-3. If newer, it picks the asset for the running OS and shows "Update available" with Download and
-   Later. Download opens the asset URL in the browser. If no asset matches it opens the release
-   page instead. Nothing is installed automatically.
+3. If newer, it picks the asset for the running OS and shows the "What's new" card: the release's
+   Highlights (never the whole notes; see `docs/releases/README.md`), the version and installer
+   size, Update now and Later, and a "Full release notes" link to the release page. Update now
+   opens the asset URL in the browser. If no asset matches it opens the release page instead.
+   Nothing is installed automatically.
+   On the first launch of a newer version (with nothing newer out), the same card shows that
+   version's own Highlights with a single Got it.
 4. Network and parse errors are swallowed. No internet means no dialog.
 
 What this means for releasing:

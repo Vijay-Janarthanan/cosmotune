@@ -259,6 +259,14 @@ fun TvApp(
         if (pendingUpdate != null && !updateDismissed && !isRunningSetup && !showAccountDialog) {
             TvUpdateDialog(update = pendingUpdate, onDismiss = { updateDismissed = true })
         }
+        // The first launch after an update says what is new in it; an offered update comes first.
+        val whatsNewWelcome by com.cosmotune.music.data.AppUpdateChecker.welcome.collectAsState()
+        val welcomeContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+        if (pendingUpdate == null && !isRunningSetup && !showAccountDialog) {
+            whatsNewWelcome?.let { welcome ->
+                com.cosmotune.music.ui.tv.dialogs.TvWhatsNewDialog(welcome) { com.cosmotune.music.data.AppUpdateChecker.welcomeSeen(welcomeContext) }
+            }
+        }
     }
 }
 

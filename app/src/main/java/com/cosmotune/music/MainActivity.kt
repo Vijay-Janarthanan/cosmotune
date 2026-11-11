@@ -5150,8 +5150,7 @@ private fun CosmotuneApp(
         if (showUpdateDialog) {
             updateNotice?.let { update ->
                 UpdateAvailableDialog(
-                    version = update.version,
-                    notes = update.notes,
+                    update = update,
                     hazeState = hazeState,
                     // A download in progress keeps running behind the closed
                     // sheet â€” only the sheet itself goes away. The top bar's
@@ -5176,6 +5175,24 @@ private fun CosmotuneApp(
                         AppUpdateChecker.resetDownload()
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl)))
                         showUpdateDialog = false
+                    },
+                    onOpenFullNotes = {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl)))
+                    },
+                )
+            }
+        }
+
+        // ---- What's new (the first launch after an update; an offered update comes first) ----
+        val whatsNewWelcome by AppUpdateChecker.welcome.collectAsStateWithLifecycle()
+        if (!showUpdateDialog) {
+            whatsNewWelcome?.let { welcome ->
+                BackHandler { AppUpdateChecker.welcomeSeen(context) }
+                com.cosmotune.music.ui.components.WhatsNewWelcomeSheet(
+                    welcome = welcome,
+                    onDismiss = { AppUpdateChecker.welcomeSeen(context) },
+                    onOpenFullNotes = {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(welcome.releaseUrl)))
                     },
                 )
             }
