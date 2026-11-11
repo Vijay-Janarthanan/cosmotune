@@ -54,7 +54,7 @@
       "normalizeLf": true,
       "upstreamSha256": "0167082df0251875fe56f3ee30211c1d2cc85eb5f82183ba3d97f30d9b212e61",
       "localAdaptation": "Require compatible vocal editions and reject unrelated gaming edits in music-video matches.",
-      "sha256": "4836f7443e95067a781b3730b4a8d3c004c6c4f9150318e4a7d80dd5305db351"
+      "sha256": "2850b1f0c4f4125fb1a41c60f74c037c32a2a9af37515cf7368e0a48a4aca6bd"
     },
     {
       "source": "packages/opencanvas-core/src/commonMain/kotlin/com/opencanvas/core/models/OpenCanvasModels.kt",
@@ -102,13 +102,13 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/CanvasSession.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/CanvasSession.kt",
       "normalizeLf": true,
-      "sha256": "e190eeeceba1bb9c86efeeb4bdf323386e90b9a3a9da6637d37d1abf0d8aace5"
+      "sha256": "706b674a2f71750be35ee223f800827bda66a84713184aefda4a88b809af27cd"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvas.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/OpenCanvas.kt",
       "normalizeLf": true,
-      "sha256": "fa784249f087f20f6fc7d5aeee325fb04ef232e146eef5b6ba157fe8da47f809"
+      "sha256": "49f07edbeb6123bb5826cbcc891d34365baecbe6316e92993dec2e0b83ad2f49"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/OpenCanvasConfig.kt",
@@ -168,7 +168,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/MusicVideoSearch.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/MusicVideoSearch.kt",
       "normalizeLf": true,
-      "sha256": "06f60817012372a74a22ba123583832359ddc96b1b0ce7bcc3e122a783e9d4ba"
+      "sha256": "313ce857b2663d619c1b46a07af109cc3d77fe98de83b6f66ba570723dca3872"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/ProgressiveRangeSource.kt",
@@ -192,7 +192,7 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/SyncStore.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SyncStore.kt",
       "normalizeLf": true,
-      "sha256": "c3b1f1d5c7f6bf072a4f03aa2fa9418e07a6db8572ede2c18049b41ae8aac903"
+      "sha256": "4632bdb5e10e9ffce23dd923d8b50c150aac512abd00d43239aab5d098f48a19"
     },
     {
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/YouTubeStreamResolver.kt",
@@ -258,9 +258,21 @@
       "source": "packages/opencanvas-core/src/jvmSharedMain/kotlin/com/opencanvas/core/stream/PublisherChannelProof.kt",
       "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/PublisherChannelProof.kt",
       "normalizeLf": true,
-      "sha256": "2dfe4adb5073cfafd5a2098204af35b2e590602e2a80d14968715bcd6a8332d4"
+      "sha256": "2e0c1b0ba16960a8eec8d6ea483d01a6db8a99f72c7a4282b846669a6d5dd98a"
+    },
+    {
+      "source": null,
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SearchTraffic.kt",
+      "normalizeLf": true,
+      "sha256": "3857928f15ae11f8fe2d62fd57be2cc3e95ec8a9a67b8c3de87b08f1c87c489f"
+    },
+    {
+      "source": null,
+      "target": "shared/src/jvmSharedMain/kotlin/com/cosmotune/music/data/canvas/opencanvas/SongIdentity.kt",
+      "normalizeLf": true,
+      "sha256": "f410937701d810829360ef4e3fd4605bc264498789f13ecaf362b782253238be"
     }
   ],
   "revisionStatus": "Published base revision; generic subtitle discovery and reciprocal publisher-channel proof staged in standalone checkout pending validation/publication",
-  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing, film abbreviation matching and signed-stream expiry handling are published in standalone OpenCanvas at the recorded revision. Cosmotune additionally retries a stalled search page on a fresh connection with its own request queue and logs each failed try, strips an album\u0027s soundtrack note before matching a film, rejects a teaser under half the song\u0027s length, and falls back to a full-length upload by anyone when no publisher has the video (the audio check still decides). The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module."
+  "localChanges": "Cosmotune retains OpenCanvas.kt SUBJECT_FRAMING=false for its steady portrait host. Frame-table recovery, alternate-client retry, search timing, film abbreviation matching and signed-stream expiry handling are published in standalone OpenCanvas at the recorded revision. Cosmotune additionally retries a stalled search page on a fresh connection with its own request queue and logs each failed try, strips an album's soundtrack note before matching a film, rejects a teaser under half the song's length, and falls back to a full-length upload by anyone when no publisher has the video (the audio check still decides). The 4:5 layout and ForwardOnlySyncMap host transform live outside this imported module. Since 1.0.21 Cosmotune also lets a film song's label and TV-channel uploads qualify, refuses reaction, review, cover and podcast videos, searches for the playing song first with a longer wait, keeps a verified video under any track id of the same song (SongIdentity.kt) and does not remember a failed search as no video, lets a publisher's film video song keep its dialogue and scenes, keeps ads and promos out of the search results, and paces its searches (SearchTraffic.kt). SongIdentity.kt and SearchTraffic.kt are Cosmotune's own and have no OpenCanvas source."
 }
