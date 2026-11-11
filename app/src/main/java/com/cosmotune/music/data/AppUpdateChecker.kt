@@ -16,6 +16,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import com.cosmotune.ReleaseHighlight
+import com.cosmotune.ReleaseHighlights
 import okhttp3.Request
 import java.io.File
 
@@ -36,13 +39,32 @@ object AppUpdateChecker {
         val version: String,
         val releaseUrl: String,
         val apkUrl: String?,
-        /** The release's own Markdown body, shown as this update's "what's new". */
+        /** The release's own Markdown body: the full notes, which the update card links to rather than shows. */
         val notes: String?,
+        /** What the update card shows of [notes]: their Highlights, or an older release's first lines ([ReleaseHighlights]). */
+        val highlights: List<ReleaseHighlight> = ReleaseHighlights.of(notes),
+        /** The size in bytes of the APK at [apkUrl], when the release says. */
+        val apkSize: Long? = null,
+    )
+
+    /** The release the running build came from, for the "what's new" card on the first launch after an update. */
+    data class WelcomeInfo(
+        val version: String,
+        val releaseUrl: String,
+        val highlights: List<ReleaseHighlight>,
     )
 
     private const val CACHE_SUBDIR = "updates"
 
     private const val LATEST_RELEASE_URL = com.cosmotune.CosmoConfig.LATEST_RELEASE_API
+
+    /** The release published for one tag (`v1.0.21`): where the welcome card reads the running build's own notes. */
+    private fun releaseForTagUrl(version: String) =
+        "https://api.github.com/repos/${com.cosmotune.CosmoConfig.PROJECT_REPO}/releases/tags/v$version"
+
+    /** The welcome card's own small store: whether the first launch after an update still owes the listener one. */
+    private const val WELCOME_PREFS = "cosmotune_whats_new"
+    private const val KEY_WELCOME_PENDING = "welcome_pending"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -56,6 +78,11 @@ object AppUpdateChecker {
         data class Ready(val file: File) : DownloadState
         data class Failed(val message: String) : DownloadState
     }
+
+    private val _welcome = MutableStateFlow<WelcomeInfo?>(null)
+
+    /** The running build's "what's new", set once per update on its first launch (see [markUpdated]) until it is seen. */
+    val welcome = _welcome.asStateFlow()
 
     private val _download = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val download = _download.asStateFlow()
@@ -77,10 +104,58 @@ object AppUpdateChecker {
             val notes = release["body"]?.jsonPrimitive?.contentOrNull
             val latest = tag.removePrefix("v")
             if (isNewer(latest, BuildConfig.VERSION_NAME)) {
-                _available.value = UpdateInfo(latest, url, apkUrl, notes)
+                _available.value = UpdateInfo(latest, url, apkUrl, notes, apkSize = apkUrl?.let { assetSize(release, it) })
             }
         }
     }
+
+    /**
+     * Called from the application's start when the installed versionCode has risen since the last launch (an update, never a
+     * fresh install): the next [checkWelcome] owes the listener the new build's "what's new".
+     */
+    fun markUpdated(context: Context) {
+        context.getSharedPreferences(WELCOME_PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_WELCOME_PENDING, true).apply()
+    }
+
+    /**
+     * When an update is owed its welcome, reads the running build's own release and sets [welcome] to its highlights. The debt
+     * stays until [welcomeSeen], so a launch without the network tries again next time; a build that has no release (a beta, a
+     * local build) or whose notes give nothing to show settles it quietly.
+     */
+    suspend fun checkWelcome(context: Context) = withContext(Dispatchers.IO) {
+        val prefs = context.getSharedPreferences(WELCOME_PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(KEY_WELCOME_PENDING, false)) return@withContext
+        val version = BuildConfig.VERSION_NAME
+        runCatching {
+            val request = Request.Builder().url(releaseForTagUrl(version)).build()
+            Http.client.newCall(request).execute().use { response ->
+                if (response.code == 404) {
+                    prefs.edit().putBoolean(KEY_WELCOME_PENDING, false).apply()
+                    return@runCatching
+                }
+                if (!response.isSuccessful) return@runCatching
+                val release = json.parseToJsonElement(response.body?.string() ?: return@runCatching) as? JsonObject ?: return@runCatching
+                val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching
+                val highlights = ReleaseHighlights.of(release["body"]?.jsonPrimitive?.contentOrNull)
+                if (highlights.isEmpty()) prefs.edit().putBoolean(KEY_WELCOME_PENDING, false).apply()
+                else _welcome.value = WelcomeInfo(version, url, highlights)
+            }
+        }
+        Unit
+    }
+
+    /** The welcome card was closed: it is not shown again for this build. */
+    fun welcomeSeen(context: Context) {
+        _welcome.value = null
+        context.getSharedPreferences(WELCOME_PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_WELCOME_PENDING, false).apply()
+    }
+
+    /** The size in bytes the release gives for the asset downloaded from [url]. */
+    private fun assetSize(release: JsonObject, url: String): Long? = runCatching {
+        release["assets"]?.jsonArray?.mapNotNull { it as? JsonObject }
+            ?.firstOrNull { it["browser_download_url"]?.jsonPrimitive?.contentOrNull == url }
+            ?.get("size")?.jsonPrimitive?.longOrNull
+    }.getOrNull()
 
     /**
      * Wipes any APK left over from a previous run. Called once at cold start

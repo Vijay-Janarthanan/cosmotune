@@ -4,34 +4,35 @@
  */
 package com.cosmotune.music.ui.tv.dialogs
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
+import com.cosmotune.music.BuildConfig
 import com.cosmotune.music.data.AppUpdateChecker
 import com.cosmotune.music.data.AppUpdateChecker.DownloadState
 import com.cosmotune.music.ui.tv.auth.TvQrCodeView
-import com.cosmotune.music.ui.tv.components.TvDialog
-import com.cosmotune.music.ui.tv.components.TvDialogButton
 import com.cosmotune.music.ui.tv.theme.TvGlass
 import com.cosmotune.music.ui.tv.theme.TvType
+import com.cosmotune.ui.whatsnew.WhatsNew
+import com.cosmotune.ui.whatsnew.WhatsNewAction
+import com.cosmotune.ui.whatsnew.WhatsNewDialog
+import com.cosmotune.ui.whatsnew.WhatsNewSurface
+import com.cosmotune.ui.whatsnew.whatsNewMeta
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,153 +44,94 @@ import kotlinx.coroutines.launch
  */
 private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+/** A TV dialog closes on Back only: a stray press beside the card must not throw away the offer. */
+private val TV_DIALOG = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false, usePlatformDefaultWidth = false)
+
 /**
- * A new Cosmotune TV release is out: download its APK and hand it to the system
- * installer without leaving the app, as the phone's update sheet does.
+ * A new Cosmotune TV release is out: the Orbit "What's new" card ([WhatsNewDialog] on the TV's surface), with the release's
+ * Highlights as rows, the version line, and Update now beside Later, the peach action holding D-pad focus and every button
+ * showing the TV's ring. Update now downloads the APK and hands it to the system installer without leaving the app, as the
+ * phone's update sheet does.
  *
- * Closing the alert mid-download only hides it — the download keeps going, and
- * Settings' "Software Update" row reopens the alert onto wherever it got to.
- * A release with no TV APK on it (or a download that can't be installed) has
- * nowhere on a TV to send the user, as most have no browser, so the releases
- * page is offered as a code to scan with a phone instead.
+ * Closing the card mid-download only hides it: the download keeps going, and Settings' "Software Update" row reopens the card
+ * onto wherever it got to. A TV has no browser to send anyone to, so "Full release notes" shows the release page as a code to
+ * scan with a phone in the rows' place, and a release with no TV APK on it offers the same code to get the update with a phone.
  */
 @Composable
 fun TvUpdateDialog(update: AppUpdateChecker.UpdateInfo, onDismiss: () -> Unit) {
     val state by AppUpdateChecker.download.collectAsState()
-    val notes = remember(update.notes) { update.notes?.let(::plainNotes) }
-
-    TvDialog(
-        title = "Cosmotune ${update.version} Is Available",
-        message = when {
-            update.apkUrl == null -> "Scan the code with your phone to get this update from GitHub."
-            state is DownloadState.Ready -> "Downloaded. Select Install Now to update."
-            state is DownloadState.Failed -> (state as DownloadState.Failed).message
-            else -> null
-        },
-        width = 512.dp,
-        onDismissRequest = onDismiss,
-    ) {
-        if (update.apkUrl == null) {
-            TvQrCodeView(content = update.releaseUrl, size = 147.dp)
-            Spacer(modifier = Modifier.height(21.dp))
-            TvDialogButton(text = "OK", onClick = onDismiss, initialFocus = true)
-        } else {
-            TvUpdateControls(state, notes, onDismiss)
-        }
-    }
-}
-
-@Composable
-private fun TvUpdateControls(state: DownloadState, notes: String?, onDismiss: () -> Unit) {
     val context = LocalContext.current.applicationContext
-    if (!notes.isNullOrBlank() && state is DownloadState.Idle) {
-        Text(
-            text = notes,
-            style = TvType.Callout,
-            color = TvGlass.TextSecondary,
-            textAlign = TextAlign.Start,
-            maxLines = 8,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 21.dp),
-        )
-    }
-
-    // Keyed on the state's kind, so each new set of buttons comes in with
-    // focus on its first one rather than leaving focus on a button that
-    // has just gone away.
-    key(state::class) {
-        when (val s = state) {
-            DownloadState.Idle -> {
-                TvDialogButton(
-                    text = "Download and Install",
-                    onClick = { downloadScope.launch { AppUpdateChecker.downloadApk(context) } },
-                    initialFocus = true,
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                TvDialogButton(text = "Not Now", onClick = onDismiss)
-            }
-
-            is DownloadState.Downloading -> {
-                TvDownloadProgress(fraction = s.fraction)
-                Spacer(modifier = Modifier.height(21.dp))
-                TvDialogButton(text = "Hide", onClick = onDismiss, initialFocus = true)
-                Spacer(modifier = Modifier.height(6.dp))
-                TvDialogButton(
-                    text = "Cancel Download",
-                    destructive = true,
-                    onClick = AppUpdateChecker::cancelDownload,
-                )
-            }
-
-            is DownloadState.Ready -> {
-                TvDialogButton(
-                    text = "Install Now",
-                    onClick = { AppUpdateChecker.installApk(context, s.file) },
-                    initialFocus = true,
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                TvDialogButton(text = "Not Now", onClick = onDismiss)
-            }
-
-            is DownloadState.Failed -> {
-                TvDialogButton(
-                    text = "Try Again",
-                    onClick = { downloadScope.launch { AppUpdateChecker.downloadApk(context) } },
-                    initialFocus = true,
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                TvDialogButton(
-                    text = "Not Now",
-                    onClick = {
-                        AppUpdateChecker.resetDownload()
-                        onDismiss()
-                    },
-                )
-            }
+    var showCode by remember { mutableStateOf(false) }
+    val download = { downloadScope.launch { AppUpdateChecker.downloadApk(context) }; Unit }
+    val later = WhatsNewAction("Later", onDismiss)
+    val notes = { showCode = !showCode }
+    val card = when {
+        update.apkUrl == null -> WhatsNew(update.version, update.highlights, WhatsNewAction("OK", onDismiss), onFullNotes = notes, meta = versionLine(update))
+        else -> when (val s = state) {
+            is DownloadState.Downloading -> WhatsNew(
+                update.version, update.highlights, WhatsNewAction("Hide", onDismiss),
+                WhatsNewAction("Cancel download", AppUpdateChecker::cancelDownload), notes, progress = s.fraction,
+            )
+            is DownloadState.Ready -> WhatsNew(
+                update.version, update.highlights,
+                WhatsNewAction("Install now") { AppUpdateChecker.installApk(context, s.file) }, later, notes,
+                meta = "Cosmotune ${update.version} is ready to install",
+            )
+            is DownloadState.Failed -> WhatsNew(
+                update.version, update.highlights, WhatsNewAction("Try again", download),
+                WhatsNewAction("Later") {
+                    AppUpdateChecker.resetDownload()
+                    onDismiss()
+                },
+                notes, problem = s.message,
+            )
+            DownloadState.Idle -> WhatsNew(update.version, update.highlights, WhatsNewAction("Update now", download), later, notes, meta = versionLine(update))
         }
     }
-}
-
-/** A thin rounded bar and the percentage under it. The fill is drawn, not laid out. */
-@Composable
-private fun TvDownloadProgress(fraction: Float) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(6.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .drawBehind {
-                drawRect(TvGlass.FillStrong)
-                drawRoundRect(
-                    color = TvGlass.TextPrimary,
-                    size = Size(size.width * fraction.coerceIn(0f, 1f), size.height),
-                    cornerRadius = CornerRadius(size.height / 2f),
-                )
-            },
-    )
-    Spacer(modifier = Modifier.height(10.dp))
-    Text(
-        text = "Downloading… ${(fraction * 100).toInt()}%",
-        style = TvType.Caption,
-        color = TvGlass.TextSecondary,
-    )
+    val link = when {
+        showCode -> "Back to what's new"
+        update.apkUrl == null -> "Get it with your phone"
+        else -> null
+    }
+    WhatsNewDialog(card.showingCode(showCode, link), onDismiss, WhatsNewSurface.TV, TV_DIALOG) {
+        if (showCode) {
+            ReleaseCode(
+                update.releaseUrl,
+                if (update.apkUrl == null) "Scan with your phone to get this update from GitHub." else "Scan with your phone to read the full release notes.",
+            )
+        }
+    }
 }
 
 /**
- * The release body is GitHub Markdown; an alert shows it as plain lines —
- * headings and emphasis markers dropped, list items as bullets, links as their
- * text.
+ * The first launch after an update on the TV: the same card with the running build's own Highlights and a single Got it. The
+ * full notes are a code to scan, as on the update card.
  */
-private fun plainNotes(markdown: String): String =
-    markdown.lineSequence()
-        .map { it.trim() }
-        .filter { it.isNotEmpty() && !it.startsWith("<!--") && !it.startsWith("![") }
-        .map { line ->
-            line.replace(Regex("""\[([^\]]+)]\([^)]*\)"""), "$1")
-                .replace(Regex("""^#+\s*"""), "")
-                .replace(Regex("""^[-*+]\s+"""), "• ")
-                .replace("**", "")
-                .replace("__", "")
-                .replace("`", "")
-        }
-        .joinToString("\n")
+@Composable
+fun TvWhatsNewDialog(welcome: AppUpdateChecker.WelcomeInfo, onDismiss: () -> Unit) {
+    var showCode by remember { mutableStateOf(false) }
+    val card = WhatsNew(welcome.version, welcome.highlights, WhatsNewAction("Got it", onDismiss), onFullNotes = { showCode = !showCode })
+    WhatsNewDialog(card.showingCode(showCode, if (showCode) "Back to what's new" else null), onDismiss, WhatsNewSurface.TV, TV_DIALOG) {
+        if (showCode) ReleaseCode(welcome.releaseUrl, "Scan with your phone to read the full release notes.")
+    }
+}
+
+private fun versionLine(update: AppUpdateChecker.UpdateInfo) = whatsNewMeta(BuildConfig.VERSION_NAME, update.version, update.apkSize)
+
+/** The card with the code to scan in its rows' place while [code], and its link's words changed to [label] when given. */
+private fun WhatsNew.showingCode(code: Boolean, label: String?): WhatsNew =
+    if (!code && label == null) this
+    else WhatsNew(version, if (code) emptyList() else highlights, primary, secondary, onFullNotes, meta, progress, problem, title, overline, label ?: fullNotesLabel)
+
+/** The release page as a code to scan, with what scanning it does under it. */
+@Composable
+private fun ColumnScope.ReleaseCode(url: String, caption: String) {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        TvQrCodeView(content = url, size = 132.dp)
+        Text(caption, style = TvType.Caption, color = TvGlass.TextSecondary, textAlign = TextAlign.Center)
+    }
+}
