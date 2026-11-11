@@ -4,7 +4,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -39,81 +38,121 @@ import kotlin.math.hypot
 import kotlin.math.min
 
 /**
- * A line set on a ring, glyph by glyph: each glyph is measured flat in the line's own layout (so kerning is kept) and laid out on
- * its own, then turned to its angle on the ring at draw time. Scripts whose letters join or stack (Arabic, Devanagari and the
- * rest) are cut at the spaces instead, a word to a piece, so nothing that shapes across letters is cut apart; a word is short
- * against the ring and sits on it as a chord. Built once a line.
+ * A line set on the upper arc of a ring, glyph by glyph: each glyph is measured flat in its arc's own layout (so kerning is kept)
+ * and laid out on its own, then turned to its angle at draw time. A line too long for the upper arc at [LyricArc.SCALE_FLOOR] of
+ * its size is split over two concentric arcs, its first words on the outer one ([LyricArc.fitUpper]). Scripts whose letters join
+ * or stack (Arabic, Devanagari and the rest) are cut at the spaces instead, a word to a piece, so nothing that shapes across
+ * letters is cut apart. Built once a line.
  */
 internal class ArcText(
     val text: String,
-    /** The pieces: their layouts, the characters each covers, its width, and its angle on the ring at [radius]. */
+    /** The pieces: their layouts, the characters each covers, its width, its ring and its angle there, and its arc's start. */
     val pieces: Array<TextLayoutResult>,
     val pieceStart: IntArray,
     val pieceEnd: IntArray,
     val widths: FloatArray,
+    val radii: FloatArray,
     val angles: FloatArray,
-    /** Each piece's left edge along the flat line, for the moon to find a character's place. */
-    val lefts: FloatArray,
-    val radius: Float,
-    val startDeg: Float,
-    /** Each character's start and end edge along the flat line, in reading order (so right to left on a right-to-left line). */
+    val starts: FloatArray,
+    /** Each character's start and end angle, in reading order (so right to left on a right-to-left line). */
     private val charFrom: FloatArray,
     private val charTo: FloatArray,
     val baseline: Float,
+    /** Whether the line is on two arcs, which moves the next line's ring out. */
+    val split: Boolean,
 ) {
     val count: Int get() = pieces.size
 
     /** The angle at [chars] of the text sung: the sweep's edge, where the moon is. */
     fun angleAtChars(chars: Float): Float {
         val length = text.length
-        if (length == 0) return startDeg
+        if (length == 0) return LyricArc.TOP_DEG
         val c = chars.coerceIn(0f, length.toFloat())
         val whole = c.toInt().coerceAtMost(length - 1)
-        val x = if (c >= length) charTo[length - 1] else charFrom[whole] + (charTo[whole] - charFrom[whole]) * (c - whole)
-        return LyricArc.angleAt(x, radius, startDeg)
+        return if (c >= length) charTo[length - 1] else charFrom[whole] + (charTo[whole] - charFrom[whole]) * (c - whole)
     }
 
-    /** The angle of piece [i] when the ring is drawn at [at] instead of [radius] (sliding in from the outer ring). */
-    fun angleOn(i: Int, at: Float): Float = startDeg + (angles[i] - startDeg) * (radius / at.coerceAtLeast(1f))
+    /** The angle of piece [i] when its ring is drawn at [at] instead of its own (sliding in from the outer ring). */
+    fun angleOn(i: Int, at: Float): Float = starts[i] + (angles[i] - starts[i]) * (radii[i] / at.coerceAtLeast(1f))
 
     companion object {
-        fun build(measurer: TextMeasurer, text: String, style: TextStyle, radius: Float, startDeg: Float = LyricArc.TOP_DEG): ArcText {
-            var flat = measurer.measure(text, style, softWrap = false, maxLines = 1)
-            val scale = LyricArc.fitScale(flat.size.width.toFloat(), radius)
-            val used = if (scale < 1f) style.copy(fontSize = style.fontSize * scale, lineHeight = style.lineHeight * scale) else style
-            if (scale < 1f) flat = measurer.measure(text, used, softWrap = false, maxLines = 1)
-            val byGlyph = glyphSafe(text)
-            val starts = ArrayList<Int>()
-            val ends = ArrayList<Int>()
+        /**
+         * Sets [text] in [style] on the upper arc of [inner], or over [inner] and [outer] when it is too long for one arc ([outer]
+         * null: one arc whatever the length, smaller as it must be; the next line's ring).
+         */
+        fun build(measurer: TextMeasurer, text: String, style: TextStyle, inner: Float, outer: Float?): ArcText {
+            // The words and their widths at full size.
+            val wordStart = ArrayList<Int>()
+            val wordEnd = ArrayList<Int>()
             var i = 0
             while (i < text.length) {
                 if (text[i].isWhitespace()) { i++; continue }
                 val from = i
-                i = if (byGlyph) i + 1 else { var j = i; while (j < text.length && !text[j].isWhitespace()) j++; j }
-                starts += from
-                ends += i
+                while (i < text.length && !text[i].isWhitespace()) i++
+                wordStart += from
+                wordEnd += i
             }
-            val n = starts.size
-            val lefts = FloatArray(n)
-            val widths = FloatArray(n)
-            val pieces = Array(n) { k ->
-                val a = flat.getBoundingBox(starts[k])
-                val b = flat.getBoundingBox(ends[k] - 1)
-                lefts[k] = minOf(a.left, b.left)
-                widths[k] = maxOf(a.right, b.right) - lefts[k]
-                measurer.measure(text.substring(starts[k], ends[k]), used, softWrap = false, maxLines = 1)
+            val full = measurer.measure(text, style, softWrap = false, maxLines = 1)
+            val widths = FloatArray(wordStart.size) { w ->
+                val a = full.getBoundingBox(wordStart[w])
+                val b = full.getBoundingBox(wordEnd[w] - 1)
+                maxOf(a.right, b.right) - minOf(a.left, b.left)
             }
-            val angles = FloatArray(n)
-            LyricArc.place(lefts, widths, n, radius, startDeg, angles)
-            val from = FloatArray(text.length)
-            val to = FloatArray(text.length)
-            for (c in text.indices) {
-                val box = flat.getBoundingBox(c)
-                val rtl = flat.getParagraphDirection(c) == ResolvedTextDirection.Rtl
-                from[c] = if (rtl) box.right else box.left
-                to[c] = if (rtl) box.left else box.right
+            val space = measurer.measure("a a", style, softWrap = false).size.width - measurer.measure("aa", style, softWrap = false).size.width.toFloat()
+            val fit = LyricArc.fitUpper(widths, widths.size, space, inner, outer)
+            val used = if (fit.scale < 1f) style.copy(fontSize = style.fontSize * fit.scale, lineHeight = style.lineHeight * fit.scale) else style
+            // The arcs: the whole line on the inner one, or its first words on the outer one and the rest on the inner.
+            val arcs = if (fit.split < 0 || outer == null) {
+                listOf(Triple(0, text.length, inner))
+            } else {
+                listOf(Triple(0, wordEnd[fit.split - 1], outer), Triple(wordStart[fit.split], text.length, inner))
             }
-            return ArcText(text, pieces, starts.toIntArray(), ends.toIntArray(), widths, angles, lefts, radius, startDeg, from, to, flat.firstBaseline)
+            val byGlyph = glyphSafe(text)
+            val pieces = ArrayList<TextLayoutResult>()
+            val starts = ArrayList<Int>()
+            val ends = ArrayList<Int>()
+            val pieceWidths = ArrayList<Float>()
+            val radii = ArrayList<Float>()
+            val angles = ArrayList<Float>()
+            val arcStarts = ArrayList<Float>()
+            val charFrom = FloatArray(text.length)
+            val charTo = FloatArray(text.length)
+            var baseline = 0f
+            for ((from, until, radius) in arcs) {
+                val segment = text.substring(from, until)
+                val flat = measurer.measure(segment, used, softWrap = false, maxLines = 1)
+                baseline = flat.firstBaseline
+                val start = LyricArc.upperStart(LyricArc.sweepDeg(flat.size.width.toFloat(), radius))
+                for (c in segment.indices) {
+                    val box = flat.getBoundingBox(c)
+                    val rtl = flat.getParagraphDirection(c) == ResolvedTextDirection.Rtl
+                    charFrom[from + c] = LyricArc.angleAt(if (rtl) box.right else box.left, radius, start)
+                    charTo[from + c] = LyricArc.angleAt(if (rtl) box.left else box.right, radius, start)
+                }
+                var j = 0
+                while (j < segment.length) {
+                    if (segment[j].isWhitespace()) { j++; continue }
+                    val pieceFrom = j
+                    j = if (byGlyph) j + 1 else { var k = j; while (k < segment.length && !segment[k].isWhitespace()) k++; k }
+                    val a = flat.getBoundingBox(pieceFrom)
+                    val b = flat.getBoundingBox(j - 1)
+                    val left = minOf(a.left, b.left)
+                    val width = maxOf(a.right, b.right) - left
+                    pieces += measurer.measure(segment.substring(pieceFrom, j), used, softWrap = false, maxLines = 1)
+                    starts += from + pieceFrom
+                    ends += from + j
+                    pieceWidths += width
+                    radii += radius
+                    angles += LyricArc.angleAt(left + width / 2f, radius, start)
+                    arcStarts += start
+                }
+            }
+            // Characters between the two arcs (the space at the split) are where the first arc ends.
+            if (arcs.size == 2) for (c in arcs[0].second until arcs[1].first) { charFrom[c] = charTo[(arcs[0].second - 1).coerceAtLeast(0)]; charTo[c] = charFrom[c] }
+            return ArcText(
+                text, pieces.toTypedArray(), starts.toIntArray(), ends.toIntArray(), pieceWidths.toFloatArray(), radii.toFloatArray(),
+                angles.toFloatArray(), arcStarts.toFloatArray(), charFrom, charTo, baseline, split = arcs.size == 2,
+            )
         }
 
         /** Whether [text] can be cut a character at a time: letters that neither join nor stack, and no surrogates or marks. */
@@ -130,13 +169,14 @@ internal class ArcText(
 }
 
 /**
- * Draws [arc] round ([cx], [cy]) on a ring of [at] (its own radius, or another while it slides in): each piece turned to its
- * angle and standing on the ring, lit by [chars] of its text from [unlit] to [lit] (null: every piece in [unlit]).
+ * Draws [arc] round ([cx], [cy]): each piece turned to its angle and standing on its ring, or, while [slide] is under 1, on a ring
+ * on its way in from [from]; lit by [chars] of its text from [unlit] to [lit] (null: every piece in [unlit]).
  */
-internal fun DrawScope.drawArcText(arc: ArcText, cx: Float, cy: Float, at: Float, chars: Float?, unlit: Color, lit: Color, alpha: Float) {
+internal fun DrawScope.drawArcText(arc: ArcText, cx: Float, cy: Float, from: Float, slide: Float, chars: Float?, unlit: Color, lit: Color, alpha: Float) {
     for (i in 0 until arc.count) {
         val piece = arc.pieces[i]
-        val deg = if (at == arc.radius) arc.angles[i] else arc.angleOn(i, at)
+        val at = from + (arc.radii[i] - from) * slide
+        val deg = if (slide >= 1f) arc.angles[i] else arc.angleOn(i, at)
         val color = if (chars == null) unlit else {
             val through = ((chars - arc.pieceStart[i]) / (arc.pieceEnd[i] - arc.pieceStart[i]).coerceAtLeast(1)).coerceIn(0f, 1f)
             lerp(unlit, lit, through)
@@ -147,10 +187,13 @@ internal fun DrawScope.drawArcText(arc: ArcText, cx: Float, cy: Float, at: Float
     }
 }
 
+/** Upcoming words on the ring stay readable: never dimmer than this. */
+internal const val ORBITAL_UNLIT_ALPHA = 0.5f
+
 /**
- * Orbital (board 02): the line being sung wraps round the cover disc, lit as it is sung, with the moon on its ring at the
- * singer's place; the next line waits on an outer ring and slides inward when its turn comes (reduced motion: it is simply
- * there). [fullScreen] is the TV's, where the stage is the screen.
+ * Orbital (board 02): the line being sung on the upper arc round the cover disc, outside the moon's track, lit as it is sung with
+ * the moon on the track at the singer's place; the next line on an outer ring well clear of it, sliding inward when its turn
+ * comes (reduced motion: it is simply there). [fullScreen] is the TV's, where the stage is the screen.
  */
 @Composable
 internal fun OrbitalStage(
@@ -172,13 +215,12 @@ internal fun OrbitalStage(
     val next = cursor.next.value
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val side = min(constraints.maxWidth, constraints.maxHeight).toFloat().coerceAtLeast(1f)
-        val rings = remember(side) { LyricArc.rings(side) }
+        val rings = remember(side, density) { LyricArc.rings(side, density.density) }
         val current = remember(lines, focus, side, fonts, density) { stageLineOf(lines, focus) }
-        val arc = remember(current, rings, fonts, density) {
-            current?.let { ArcText.build(measurer, it.text, stageStyle(fonts.orbital, StageWeights.ORBITAL, rings.fontPx, density), rings.current) }
-        }
-        val nextArc = remember(lines, next, rings, fonts, density) {
-            lines.getOrNull(next)?.let { ArcText.build(measurer, it.text, stageTextStyle(fonts, rings.nextFontPx, density, 600), rings.next) }
+        val (lineStyle, nextStyle) = remember(fonts, rings, density) { orbitalStyles(fonts, rings, density) }
+        val arc = remember(current, rings, lineStyle) { current?.let { ArcText.build(measurer, it.text, lineStyle, rings.inner, rings.outer) } }
+        val nextArc = remember(lines, next, rings, nextStyle, arc?.split) {
+            lines.getOrNull(next)?.let { ArcText.build(measurer, it.text, nextStyle, nextRing(rings, arc), null) }
         }
         // The new line comes in from the outer ring when its turn comes.
         val slide = remember { Animatable(1f) }
@@ -198,7 +240,7 @@ internal fun OrbitalStage(
                     target = { at ->
                         // The outer ring seeks to the line waiting on it; the line being sung, and the disc, to its start.
                         val r = hypot(at.x - width / 2f, at.y - height / 2f)
-                        if (r > (rings.current + rings.next) / 2f) lines.getOrNull(next)?.timeMs else current?.line?.timeMs
+                        if (r > nextRing(rings, arc) - rings.lineHeight * 0.5f) lines.getOrNull(next)?.timeMs else current?.line?.timeMs
                     },
                     onSeek = onSeek, onLongPress = onLongPress,
                 ),
@@ -208,10 +250,13 @@ internal fun OrbitalStage(
     }
 }
 
+/** Where the next line waits: [LyricArc.NEXT_GAP_LINES] line heights beyond the line being sung, which may be on two arcs. */
+internal fun nextRing(rings: LyricArc.Rings, current: ArcText?): Float = if (current?.split == true) rings.nextSplit else rings.next
+
 /**
- * Orbital at [positionMs] in any [DrawScope] (the stage's canvas, and the share video's frames): the ring the line stands on, the
- * next line on the outer ring, the line being sung lit to the singer's place, and the moon there. [slide] (0..1) brings a new line
- * in from the outer ring; the disc is the caller's.
+ * Orbital at [positionMs] in any [DrawScope] (the stage's canvas, and the share video's frames): the track, the next line on its
+ * ring, the line being sung lit to the singer's place, and the moon on the track there. [slide] (0..1) brings a new line in from
+ * the outer ring; the disc is the caller's.
  */
 internal fun DrawScope.drawOrbital(
     arc: ArcText?,
@@ -227,15 +272,15 @@ internal fun DrawScope.drawOrbital(
 ) {
     val cx = size.width / 2f
     val cy = size.height / 2f
-    drawCircle(ink.faint, rings.current, Offset(cx, cy), style = Stroke(trackPx))
-    if (nextArc != null) drawArcText(nextArc, cx, cy, nextArc.radius, null, ink.next, ink.next, alpha = slide)
+    drawCircle(ink.faint, rings.track, Offset(cx, cy), style = Stroke(trackPx))
+    if (nextArc != null) drawArcText(nextArc, cx, cy, rings.nextSplit, 1f, null, ink.next, ink.next, alpha = slide)
     if (arc == null || current == null) return
     val chars = current.revealedChars(positionMs)
-    val at = rings.next + (rings.current - rings.next) * slide
-    drawArcText(arc, cx, cy, at, chars, ink.unlit, ink.text, alpha = 0.35f + 0.65f * slide)
+    val unlit = ink.text.copy(alpha = maxOf(ink.unlit.alpha, ORBITAL_UNLIT_ALPHA))
+    drawArcText(arc, cx, cy, rings.nextSplit, slide, chars, unlit, ink.text, alpha = 0.35f + 0.65f * slide)
     if (!moon) return
     val deg = arc.angleAtChars(chars)
-    val place = Offset(LyricArc.x(cx, at, deg), LyricArc.y(cy, at, deg))
+    val place = Offset(LyricArc.x(cx, rings.track, deg), LyricArc.y(cy, rings.track, deg))
     drawCircle(ink.accent.copy(alpha = 0.28f), moonPx * 2.2f, place)
     drawCircle(ink.accent, moonPx, place)
 }

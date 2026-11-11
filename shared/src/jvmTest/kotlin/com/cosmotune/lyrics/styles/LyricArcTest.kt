@@ -32,21 +32,54 @@ class LyricArcTest {
         assertEquals(0f, LyricArc.sweepDeg(100f, 0f))
     }
 
-    @Test fun aLineThatWouldRunIntoItselfIsScaledToFitAndNoFurtherThanTheFloor() {
-        val radius = 100f
-        val full = (2 * PI * radius).toFloat()
-        assertEquals(1f, LyricArc.fitScale(full * 0.5f, radius))
-        val scale = LyricArc.fitScale(full, radius)
-        assertEquals(LyricArc.MAX_SWEEP_DEG, LyricArc.sweepDeg(full * scale, radius), 0.01f)
-        assertEquals(0.5f, LyricArc.fitScale(full * 10, radius))
+    @Test fun aShortLineIsCentredOnTwelveOClockAndALongerOneStartsAtTheUpperArcsStart() {
+        assertEquals(-130f, LyricArc.upperStart(80f), 0.001f)
+        assertEquals(LyricArc.UPPER_FROM_DEG, LyricArc.upperStart(170f))
+        for (sweep in listOf(10f, 100f, 140f, 141f, 180f)) {
+            val start = LyricArc.upperStart(sweep)
+            assertTrue(start >= LyricArc.UPPER_FROM_DEG - 0.001f && start + sweep <= LyricArc.UPPER_TO_DEG + 0.001f, "$sweep stays on the upper arc")
+        }
     }
 
-    @Test fun theRingsKeepTheBoardsProportions() {
-        val rings = LyricArc.rings(300f)
-        assertEquals(78f, rings.disc, 0.01f)
-        assertEquals(112f, rings.current, 0.01f)
-        assertTrue(rings.next > rings.current + rings.fontPx, "the next line's ring clears the current line's letters")
-        assertTrue(rings.disc < rings.current - 8f, "the disc stays inside the line")
+    @Test fun aLineThatFitsTheUpperArcIsSetWholeOnOneArc() {
+        val inner = 100f
+        val fit = LyricArc.fitUpper(floatArrayOf(60f, 60f), 2, 10f, inner, inner + 20f)
+        assertEquals(1f, fit.scale)
+        assertEquals(-1, fit.split)
+    }
+
+    @Test fun aLongerLineIsSetSmallerDownToTheFloorOnOneArc() {
+        val inner = 100f
+        val arc = LyricArc.upperLength(inner)
+        val fit = LyricArc.fitUpper(floatArrayOf(arc * 0.6f, arc * 0.6f), 2, 0f, inner, inner + 20f)
+        assertEquals(-1, fit.split)
+        assertEquals(1f / 1.2f, fit.scale, 0.001f)
+        assertTrue(fit.scale >= LyricArc.SCALE_FLOOR)
+    }
+
+    @Test fun pastTheFloorTheLineIsSplitOverTwoArcsTheFirstWordsOnTheOuter() {
+        val inner = 100f
+        val outer = 120f
+        val arc = LyricArc.upperLength(inner)
+        val words = FloatArray(6) { arc * 0.3f }
+        val fit = LyricArc.fitUpper(words, 6, 0f, inner, outer)
+        assertTrue(fit.split in 1..5, "split: ${fit.split}")
+        assertTrue(fit.scale > LyricArc.SCALE_FLOOR, "two arcs set it larger than the floor: ${fit.scale}")
+        // The outer arc is the longer, so it takes at least half the words.
+        assertTrue(fit.split >= 3)
+        // Without a second arc (the next line), the line just goes smaller.
+        assertEquals(-1, LyricArc.fitUpper(words, 6, 0f, inner, null).split)
+    }
+
+    @Test fun theRingsKeepTheLineOutsideTheTrackAndTheNextLineWellClear() {
+        val dp = 2f
+        val rings = LyricArc.rings(600f, dp)
+        assertTrue(rings.disc < rings.track, "the disc is inside the track")
+        assertTrue(rings.inner - rings.fontPx * 0.24f - rings.track >= LyricArc.CLEAR_DP * dp - 0.01f, "8 dp between the track and the descenders")
+        assertEquals(rings.lineHeight, rings.outer - rings.inner, 0.01f)
+        assertTrue(rings.next - rings.inner >= 1.5f * rings.lineHeight - 0.01f, "the next ring stands 1.5 line heights out")
+        assertTrue(rings.nextSplit - rings.outer >= 1.5f * rings.lineHeight - 0.01f, "and from a split line's outer half too")
+        assertTrue(rings.nextSplit + rings.nextFontPx <= 300f, "and inside the stage")
         assertTrue(rings.nextFontPx < rings.fontPx, "the next line is the smaller")
     }
 }

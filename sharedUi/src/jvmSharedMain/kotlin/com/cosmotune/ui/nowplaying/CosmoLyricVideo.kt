@@ -95,7 +95,7 @@ class LyricVideoFrames(
         song.artist, stageTextStyle(fonts, 28f, density, 500).copy(textAlign = TextAlign.Center),
         overflow = TextOverflow.Ellipsis, maxLines = 1, constraints = Constraints(maxWidth = (WIDTH - 2 * pad).toInt()),
     )
-    private val rings = LyricArc.rings(WIDTH - 40f)
+    private val rings = LyricArc.rings(WIDTH - 40f, dp = 2f)
     private val disc = Path().apply { addOval(Rect(Offset(WIDTH / 2f, ORBIT_CY), rings.disc)) }
     private val miniDisc = Path().apply { addOval(Rect(Offset(WIDTH - pad - 54f, HEIGHT - pad - 54f), 54f)) }
 
@@ -133,8 +133,9 @@ class LyricVideoFrames(
             LyricVideoLook.STRETCH -> stretch = StretchScene.build(measurer, current, next, fonts, density, width, HEIGHT - 2 * pad - 360f, perWidth = 5.6f)
             LyricVideoLook.ORBITAL -> {
                 val (lineStyle, nextStyle) = orbitalStyles(fonts, rings, density)
-                arc = ArcText.build(measurer, current.text, lineStyle, rings.current)
-                nextArc = next?.let { ArcText.build(measurer, it, nextStyle, rings.next) }
+                val built = ArcText.build(measurer, current.text, lineStyle, rings.inner, rings.outer)
+                arc = built
+                nextArc = next?.let { ArcText.build(measurer, it, nextStyle, nextRing(rings, built), null) }
             }
             LyricVideoLook.CLASSIC -> Unit
         }
