@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.toArgb
 import com.cosmotune.theme.CoverField
 import com.cosmotune.theme.CoverWash
+import com.cosmotune.ui.orbit.NEUTRAL_CARD_SEED
+import com.cosmotune.ui.orbit.vivid
 
 /** A radial glow squashed to an ellipse ([rx] x [ry]) at ([cx], [cy]); [stops] are (fraction of rx, colour). */
 fun DrawScope.drawEllipseGlow(stops: Array<Pair<Float, Color>>, cx: Float, cy: Float, rx: Float, ry: Float) {
@@ -61,29 +63,41 @@ fun Modifier.cosmoAmbientGround(artwork: Boolean = false): Modifier {
 /**
  * The ground's brushes for a page [height] tall: the linear gradient, then the cover's wash while there is one ([wash] its share);
  * the player's [artwork] fade alone with [artwork].
+ *
+ * Both are the one colour of [coverWash]: the song card's fill made into a ground, so the card and the page are one family.
  */
 private fun groundBrushes(colors: CosmoColors, wash: Float, artwork: Boolean, height: Float): List<Brush> {
+    val tint = coverWash(colors, wash)
     if (artwork) {
         val bottom = colors.live(CoverField.BACKGROUND_BOTTOM)
-        return listOf(
-            Brush.verticalGradient(
-                0f to readableBehind(colors.live(CoverField.ACCENT_CONTAINER), colors.live(CoverField.TEXT_PRIMARY)),
-                0.65f to bottom,
-                endY = height,
-            ),
-        )
+        return listOf(Brush.verticalGradient(0f to tint, 0.65f to bottom, endY = height))
     }
     val linear = Brush.verticalGradient(
         0f to colors.live(CoverField.BACKGROUND_TOP), 0.46f to colors.live(CoverField.BACKGROUND_MID),
         0.82f to colors.live(CoverField.BACKGROUND_BOTTOM), endY = height,
     )
     if (wash <= 0f) return listOf(linear)
-    // The cover's accent (its strongest colour), moved toward black or white only as far as the page's text needs.
-    val tint = readableBehind(colors.live(CoverField.ACCENT), colors.live(CoverField.TEXT_PRIMARY))
     val cover = Brush.verticalGradient(
         0f to tint.copy(alpha = wash), 0.35f to tint.copy(alpha = 0.55f * wash), 0.8f to tint.copy(alpha = 0f), endY = height,
     )
     return listOf(linear, cover)
+}
+
+/**
+ * The cover's wash this frame: the song card's fill ([coverCardTint] of the live seed: what `coverFill` paints the card with) made
+ * into a ground by [CoverWash.ground], the card's OKLCH hue and chroma at a lightness all the page's text reads on (4.5:1), just under
+ * the card's in the dark theme and a pale tint of it in the light one. With no cover followed ([wash] 0: the brand or One palette,
+ * a grey cover) it is the neutral charcoal card's ground; between the two it blends in OKLab as the palette fades.
+ */
+internal fun coverWash(colors: CosmoColors, wash: Float): Color {
+    val primary = colors.live(CoverField.TEXT_PRIMARY).toArgb()
+    val secondary = colors.live(CoverField.TEXT_SECONDARY).toArgb()
+    val tertiary = colors.live(CoverField.TEXT_TERTIARY).toArgb()
+    fun groundOf(seed: Int) = Color(CoverWash.ground(vivid(seed).fill.toArgb(), colors.dark, primary, secondary, tertiary))
+    val neutral = groundOf(NEUTRAL_CARD_SEED)
+    if (wash <= 0f) return neutral
+    val cover = groundOf(colors.live(CoverField.SEED).toArgb())
+    return if (wash >= 1f) cover else androidx.compose.ui.graphics.lerp(neutral, cover, wash)
 }
 
 /**

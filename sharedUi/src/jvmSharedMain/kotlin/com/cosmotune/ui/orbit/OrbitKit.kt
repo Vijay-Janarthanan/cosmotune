@@ -188,10 +188,20 @@ fun rememberCoverTint(url: String?): CoverTint? {
     // Collected, not read once: turning "Colours follow the cover" off (or on) recolours the cards that are already showing.
     val follow = LocalCosmoShell.current?.settings?.coverColours?.collectAsState()?.value != false
     val tint by produceState<CoverTint?>(null, url, follow) {
-        value = if (!follow || url == null) null else CoverPaletteLoader.load(context, url, dark = true)?.let { vivid(it.seed) }
+        value = if (!follow || url == null) null else CoverPaletteLoader.load(context, url, dark = true)?.let(::coverCardTint)
     }
     return tint
 }
+
+/** What a card is filled with when no cover is followed, and for a grey cover: a neutral charcoal (the grey branch of [vivid]). */
+const val NEUTRAL_CARD_SEED: Int = 0xFF808080.toInt()
+
+/**
+ * The card of a cover's [palette]: [vivid] of its seed, the one source of the card's fill and of the page's wash
+ * (`cosmoAmbientGround`). A grey cover (black and white, plain white: its palette is the fallback, and its seed the brand apricot)
+ * gets the neutral charcoal instead of an apricot brown that is in no part of the picture.
+ */
+fun coverCardTint(palette: com.cosmotune.theme.CoverColors): CoverTint = vivid(if (palette.isFallback) NEUTRAL_CARD_SEED else palette.seed)
 
 /**
  * The cover's own hue made into a card: saturated and deep enough for light ink to read on it (a near-grey cover stays a quiet
