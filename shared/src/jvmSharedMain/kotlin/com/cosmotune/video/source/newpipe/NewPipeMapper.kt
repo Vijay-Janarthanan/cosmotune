@@ -23,6 +23,7 @@ import com.cosmotune.video.model.VideoDetails
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.model.VideoStream
 import com.cosmotune.video.player.net.GooglevideoRequests
+import com.cosmotune.youtube.YoutubeAds
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
@@ -203,7 +204,7 @@ internal object NewPipeMapper {
 
     /** One entry of a mixed list, or null for a kind of item Video does not show or a video without an id. */
     fun listItem(item: InfoItem, nowMs: Long): ListItem? = when (item) {
-        is StreamInfoItem -> if (videoIdOf(item.url) != null) ListItem.Video(videoItem(item, nowMs)) else null
+        is StreamInfoItem -> if (videoIdOf(item.url) != null && !YoutubeAds.isPromoListing(item.name, item.uploaderName)) ListItem.Video(videoItem(item, nowMs)) else null
         is ChannelInfoItem -> ListItem.Channel(channelItem(item))
         is PlaylistInfoItem -> ListItem.Playlist(playlistItem(item))
         else -> null

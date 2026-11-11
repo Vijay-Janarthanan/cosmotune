@@ -4,6 +4,7 @@ import com.cosmotune.music.data.DebugLog as Log
 import com.cosmotune.video.model.ChannelItem
 import com.cosmotune.video.model.PlaylistItem
 import com.cosmotune.video.model.VideoItem
+import com.cosmotune.youtube.YoutubeAds
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -99,6 +100,8 @@ internal object YoutubeFeedParser {
     private fun parseNodes(response: JsonObject, roots: List<JsonElement?>): ParsedFeed {
         val walk = Walk()
         for (root in roots) root?.let { walk.visit(it, 0) }
+        // The site's own promo cards that came without any ad flag ("Try YouTube Premium free") are told by what they say.
+        walk.videos.removeAll { YoutubeAds.isPromoListing(it.title, it.channelName) }
         val ids = walk.videos.mapTo(HashSet()) { it.id }
         val seen = walk.looseVideoIds.count { it !in ids }
         if (walk.unreadable > 0 || (walk.videos.isEmpty() && seen > 0)) {
@@ -172,6 +175,13 @@ internal object YoutubeFeedParser {
 
     private val ROOTS = listOf("contents", "onResponseReceivedActions", "onResponseReceivedEndpoints", "continuationContents", "items")
 
+    /** The renderers that stand for one list entry: each is checked as a whole by [YoutubeAds.isAdItem] before it is read. */
+    private val ITEM_KEYS = setOf(
+        "lockupViewModel", "shortsLockupViewModel", "videoRenderer", "gridVideoRenderer", "compactVideoRenderer", "playlistVideoRenderer",
+        "reelItemRenderer", "playlistRenderer", "gridPlaylistRenderer", "compactPlaylistRenderer", "channelRenderer",
+        "gridChannelRenderer", "compactChannelRenderer", "richItemRenderer", "videoWithContextRenderer",
+    )
+
     private class Walk {
         val videos = ArrayList<VideoItem>()
         val playlists = ArrayList<PlaylistItem>()
@@ -207,6 +217,8 @@ internal object YoutubeFeedParser {
                     if (value is JsonArray) visit(value, depth)
                     continue
                 }
+                // Ads, promos and upsells never reach a list: the renderer's own name, or its flags, badges and addresses, say so.
+                if (YoutubeAds.isAdRenderer(key) || (key in ITEM_KEYS && YoutubeAds.isAdItem(value))) continue
                 when (key) {
                     "lockupViewModel" -> lockup(value)
                     "shortsLockupViewModel" -> item(key) { shortsLockup(value)?.let(videos::add) }
@@ -224,8 +236,6 @@ internal object YoutubeFeedParser {
                             ?: value.obj("continuationCommand").obj("continuationCommand").str("token"),
                         depth,
                     )
-                    // Ads, banners and prompts sit in the same lists and are not content.
-                    "adSlotRenderer", "feedNudgeRenderer", "mealbarPromoRenderer", "statementBannerRenderer", "bannerPromoRenderer" -> Unit
                     else -> visit(value, depth + 1)
                 }
             }
