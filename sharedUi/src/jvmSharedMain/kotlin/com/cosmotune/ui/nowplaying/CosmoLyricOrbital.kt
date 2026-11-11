@@ -15,6 +15,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
@@ -26,6 +27,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.ResolvedTextDirection
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.cosmotune.lyrics.LyricTextDirection
@@ -38,15 +42,16 @@ import kotlin.math.hypot
 import kotlin.math.min
 
 /**
- * A line set on the upper arc of a ring, glyph by glyph: each glyph is measured flat in its arc's own layout (so kerning is kept)
- * and laid out on its own, then turned to its angle at draw time. A line too long for the upper arc at [LyricArc.SCALE_FLOOR] of
- * its size is split over two concentric arcs, its first words on the outer one ([LyricArc.fitUpper]). Scripts whose letters join
- * or stack (Arabic, Devanagari and the rest) are cut at the spaces instead, a word to a piece, so nothing that shapes across
- * letters is cut apart. Built once a line.
+ * A line set for Orbital, built once a line. Usually on the ring, glyph by glyph, within [LyricArc.SPAN_HALF_DEG] of twelve
+ * o'clock: each glyph is measured flat in its arc's own layout (so kerning is kept) and laid out on its own, then turned to its
+ * angle at draw time; a line too long for one arc at [LyricArc.SCALE_FLOOR] of its size goes over two concentric arcs, its first
+ * words on the outer one. Scripts whose letters join or stack (Arabic, Devanagari and the rest) are cut at the spaces instead, a
+ * word to a piece. A line too long even for two arcs is not wrapped round the ring: it is [flat], plain horizontal text centred
+ * above the disc (or, for the next line after such a line, below it), lit by the same sweep.
  */
 internal class ArcText(
     val text: String,
-    /** The pieces: their layouts, the characters each covers, its width, its ring and its angle there, and its arc's start. */
+    /** The pieces on the ring: their layouts, the characters each covers, its width, its ring and its angle, and its arc's start. */
     val pieces: Array<TextLayoutResult>,
     val pieceStart: IntArray,
     val pieceEnd: IntArray,
@@ -54,12 +59,17 @@ internal class ArcText(
     val radii: FloatArray,
     val angles: FloatArray,
     val starts: FloatArray,
-    /** Each character's start and end angle, in reading order (so right to left on a right-to-left line). */
+    /** Each character's start and end angle, in reading order: where the moon is when the sweep reaches it. */
     private val charFrom: FloatArray,
     private val charTo: FloatArray,
     val baseline: Float,
     /** Whether the line is on two arcs, which moves the next line's ring out. */
     val split: Boolean,
+    /** The line as horizontal text, when it is not on the ring; [flatAbove] puts it over the disc, else under it, [flatGap] from the centre. */
+    val flat: TextLayoutResult? = null,
+    val flatAbove: Boolean = true,
+    val flatGap: Float = 0f,
+    private val flatRows: FlatRows? = null,
 ) {
     val count: Int get() = pieces.size
 
@@ -75,23 +85,17 @@ internal class ArcText(
     /** The angle of piece [i] when its ring is drawn at [at] instead of its own (sliding in from the outer ring). */
     fun angleOn(i: Int, at: Float): Float = starts[i] + (angles[i] - starts[i]) * (radii[i] / at.coerceAtLeast(1f))
 
+    /** Where the flat text's top left is, round a centre at ([cx], [cy]). */
+    fun flatLeft(cx: Float): Float = cx - (flat?.size?.width ?: 0) / 2f
+    fun flatTop(cy: Float): Float = if (flatAbove) cy - flatGap - (flat?.size?.height ?: 0) else cy + flatGap
+
+    /** The flat text's rows and characters, measured once, so the sweep over it allocates nothing. */
+    fun rows(): FlatRows? = flatRows
+
     companion object {
-        /**
-         * Sets [text] in [style] on the upper arc of [inner], or over [inner] and [outer] when it is too long for one arc ([outer]
-         * null: one arc whatever the length, smaller as it must be; the next line's ring).
-         */
-        fun build(measurer: TextMeasurer, text: String, style: TextStyle, inner: Float, outer: Float?): ArcText {
-            // The words and their widths at full size.
-            val wordStart = ArrayList<Int>()
-            val wordEnd = ArrayList<Int>()
-            var i = 0
-            while (i < text.length) {
-                if (text[i].isWhitespace()) { i++; continue }
-                val from = i
-                while (i < text.length && !text[i].isWhitespace()) i++
-                wordStart += from
-                wordEnd += i
-            }
+        /** The line being sung, on the rings of [rings]: one arc, two, or flat above the disc. */
+        fun line(measurer: TextMeasurer, text: String, style: TextStyle, rings: LyricArc.Rings): ArcText {
+            val (wordStart, wordEnd) = words(text)
             val full = measurer.measure(text, style, softWrap = false, maxLines = 1)
             val widths = FloatArray(wordStart.size) { w ->
                 val a = full.getBoundingBox(wordStart[w])
@@ -99,14 +103,85 @@ internal class ArcText(
                 maxOf(a.right, b.right) - minOf(a.left, b.left)
             }
             val space = measurer.measure("a a", style, softWrap = false).size.width - measurer.measure("aa", style, softWrap = false).size.width.toFloat()
-            val fit = LyricArc.fitUpper(widths, widths.size, space, inner, outer)
-            val used = if (fit.scale < 1f) style.copy(fontSize = style.fontSize * fit.scale, lineHeight = style.lineHeight * fit.scale) else style
-            // The arcs: the whole line on the inner one, or its first words on the outer one and the rest on the inner.
-            val arcs = if (fit.split < 0 || outer == null) {
-                listOf(Triple(0, text.length, inner))
-            } else {
-                listOf(Triple(0, wordEnd[fit.split - 1], outer), Triple(wordStart[fit.split], text.length, inner))
+            val fit = LyricArc.fitUpper(widths, widths.size, space, rings.inner, rings.outer)
+            if (fit.flat) {
+                // Too long for the ring: plain text centred over the disc, as large as fits the room between the track and the top.
+                val gap = rings.track + rings.clear
+                val room = rings.half - gap - rings.clear / 2f
+                val width = (rings.half * 1.85f).toInt().coerceAtLeast(1)
+                var scale = 1f
+                fun at(k: Float) = measurer.measure(
+                    text, style.copy(fontSize = style.fontSize * k, lineHeight = style.lineHeight * k, textAlign = TextAlign.Center),
+                    constraints = Constraints(maxWidth = width),
+                )
+                var layout = at(scale)
+                while (layout.size.height > room && scale > LyricArc.NEXT_SCALE_FLOOR) {
+                    scale *= 0.92f
+                    layout = at(scale)
+                }
+                return flatText(text, layout, above = true, gap = gap)
             }
+            val used = scaled(style, fit.scale)
+            val arcs = if (fit.split < 0) {
+                listOf(Triple(0, text.length, rings.inner))
+            } else {
+                listOf(Triple(0, wordEnd[fit.split - 1], rings.outer), Triple(wordStart[fit.split], text.length, rings.inner))
+            }
+            return onArcs(measurer, text, used, arcs)
+        }
+
+        /**
+         * The next line, smaller, on its ring beyond [after] (the line being sung): within the span, set smaller to fit down to
+         * [LyricArc.NEXT_SCALE_FLOOR] and cut with an ellipsis past that. After a line set flat, the next one is flat too, under
+         * the disc, so the two never meet.
+         */
+        fun next(measurer: TextMeasurer, text: String, style: TextStyle, rings: LyricArc.Rings, after: ArcText?): ArcText {
+            if (after?.flat != null) {
+                val layout = measurer.measure(
+                    text, style.copy(textAlign = TextAlign.Center), overflow = TextOverflow.Ellipsis, maxLines = 2,
+                    constraints = Constraints(maxWidth = (rings.half * 1.6f).toInt().coerceAtLeast(1)),
+                )
+                return flatText(text, layout, above = false, gap = rings.track + rings.clear)
+            }
+            val radius = if (after?.split == true) rings.nextSplit else rings.next
+            val total = measurer.measure(text, style, softWrap = false, maxLines = 1).size.width.toFloat()
+            val scale = LyricArc.nextScale(total, radius)
+            val used = scaled(style, scale)
+            var shown = text
+            if (total * scale > LyricArc.upperLength(radius)) {
+                // Still too long at its smallest: as many words as fit, and an ellipsis.
+                val (starts, ends) = words(text)
+                var k = ends.size
+                while (k > 1) {
+                    shown = text.substring(0, ends[k - 1]) + "…"
+                    if (measurer.measure(shown, used, softWrap = false, maxLines = 1).size.width <= LyricArc.upperLength(radius)) break
+                    k--
+                }
+                if (k <= 1) shown = text.substring(0, ends.firstOrNull() ?: text.length) + "…"
+                if (starts.isEmpty()) shown = text
+            }
+            return onArcs(measurer, shown, used, listOf(Triple(0, shown.length, radius)))
+        }
+
+        private fun scaled(style: TextStyle, scale: Float): TextStyle =
+            if (scale < 1f) style.copy(fontSize = style.fontSize * scale, lineHeight = style.lineHeight * scale) else style
+
+        private fun words(text: String): Pair<List<Int>, List<Int>> {
+            val starts = ArrayList<Int>()
+            val ends = ArrayList<Int>()
+            var i = 0
+            while (i < text.length) {
+                if (text[i].isWhitespace()) { i++; continue }
+                val from = i
+                while (i < text.length && !text[i].isWhitespace()) i++
+                starts += from
+                ends += i
+            }
+            return starts to ends
+        }
+
+        /** [text] in [used] on [arcs] (each its characters from, until, and its ring), centred on twelve o'clock. */
+        private fun onArcs(measurer: TextMeasurer, text: String, used: TextStyle, arcs: List<Triple<Int, Int, Float>>): ArcText {
             val byGlyph = glyphSafe(text)
             val pieces = ArrayList<TextLayoutResult>()
             val starts = ArrayList<Int>()
@@ -155,6 +230,17 @@ internal class ArcText(
             )
         }
 
+        /** [text] laid out flat as [layout]; the moon runs the span of the ring as the sweep runs the text. */
+        private fun flatText(text: String, layout: TextLayoutResult, above: Boolean, gap: Float): ArcText {
+            val length = text.length.coerceAtLeast(1)
+            val from = FloatArray(text.length) { LyricArc.spanAngle(it.toFloat() / length) }
+            val to = FloatArray(text.length) { LyricArc.spanAngle((it + 1f) / length) }
+            return ArcText(
+                text, emptyArray(), IntArray(0), IntArray(0), FloatArray(0), FloatArray(0), FloatArray(0), FloatArray(0), from, to,
+                baseline = 0f, split = false, flat = layout, flatAbove = above, flatGap = gap, flatRows = FlatRows(layout),
+            )
+        }
+
         /** Whether [text] can be cut a character at a time: letters that neither join nor stack, and no surrogates or marks. */
         fun glyphSafe(text: String): Boolean {
             if (LyricTextDirection.isRtl(text)) return false
@@ -168,11 +254,64 @@ internal class ArcText(
     }
 }
 
+/** A flat line's rows and the edges of each character along them, measured once, for a sweep that allocates nothing. */
+internal class FlatRows(layout: TextLayoutResult) {
+    val rows = layout.lineCount
+    val top = FloatArray(rows) { layout.getLineTop(it) }
+    val bottom = FloatArray(rows) { layout.getLineBottom(it) }
+    val left = FloatArray(rows) { layout.getLineLeft(it) }
+    val right = FloatArray(rows) { layout.getLineRight(it) }
+    private val length = layout.layoutInput.text.length
+    val charRow = IntArray(length) { layout.getLineForOffset(it) }
+    /** Each character's start and end edge in reading order (right to left on a right-to-left row). */
+    val charFrom = FloatArray(length)
+    val charTo = FloatArray(length)
+
+    init {
+        for (c in 0 until length) {
+            val box = layout.getBoundingBox(c)
+            val rtl = layout.getParagraphDirection(c) == ResolvedTextDirection.Rtl
+            charFrom[c] = if (rtl) box.right else box.left
+            charTo[c] = if (rtl) box.left else box.right
+        }
+    }
+}
+
 /**
  * Draws [arc] round ([cx], [cy]): each piece turned to its angle and standing on its ring, or, while [slide] is under 1, on a ring
- * on its way in from [from]; lit by [chars] of its text from [unlit] to [lit] (null: every piece in [unlit]).
+ * on its way in from [from]; lit by [chars] of its text from [unlit] to [lit] (null: every piece in [unlit]). A flat line is drawn
+ * as text, the rows above the sweep's edge lit whole and the edge's row up to the edge.
  */
 internal fun DrawScope.drawArcText(arc: ArcText, cx: Float, cy: Float, from: Float, slide: Float, chars: Float?, unlit: Color, lit: Color, alpha: Float) {
+    val flat = arc.flat
+    val rows = arc.rows()
+    if (flat != null && rows != null) {
+        val topLeft = Offset(arc.flatLeft(cx), arc.flatTop(cy))
+        drawText(flat, unlit.copy(alpha = unlit.alpha * alpha), topLeft)
+        val length = arc.text.length
+        if (chars == null || chars <= 0f || length == 0) return
+        val litColor = lit.copy(alpha = lit.alpha * alpha)
+        if (chars >= length) {
+            drawText(flat, litColor, topLeft)
+            return
+        }
+        val whole = chars.toInt().coerceIn(0, length - 1)
+        val row = rows.charRow[whole]
+        for (r in 0 until row) {
+            clipRect(topLeft.x + rows.left[r], topLeft.y + rows.top[r], topLeft.x + rows.right[r], topLeft.y + rows.bottom[r]) { drawText(flat, litColor, topLeft) }
+        }
+        val x0 = rows.charFrom[whole]
+        val x1 = rows.charTo[whole]
+        val edge = topLeft.x + x0 + (x1 - x0) * (chars - whole)
+        val top = topLeft.y + rows.top[row]
+        val bottom = topLeft.y + rows.bottom[row]
+        if (x1 < x0) {
+            clipRect(edge, top, topLeft.x + rows.right[row], bottom) { drawText(flat, litColor, topLeft) }
+        } else {
+            clipRect(topLeft.x + rows.left[row], top, edge, bottom) { drawText(flat, litColor, topLeft) }
+        }
+        return
+    }
     for (i in 0 until arc.count) {
         val piece = arc.pieces[i]
         val at = from + (arc.radii[i] - from) * slide
@@ -190,10 +329,14 @@ internal fun DrawScope.drawArcText(arc: ArcText, cx: Float, cy: Float, from: Flo
 /** Upcoming words on the ring stay readable: never dimmer than this. */
 internal const val ORBITAL_UNLIT_ALPHA = 0.5f
 
+/** The next line, waiting on its ring. */
+internal const val ORBITAL_NEXT_ALPHA = 0.6f
+
 /**
- * Orbital (board 02): the line being sung on the upper arc round the cover disc, outside the moon's track, lit as it is sung with
- * the moon on the track at the singer's place; the next line on an outer ring well clear of it, sliding inward when its turn
- * comes (reduced motion: it is simply there). [fullScreen] is the TV's, where the stage is the screen.
+ * Orbital (board 02): the line being sung on the upper part of the ring round the cover disc, outside the moon's track, lit as it
+ * is sung with the moon on the track at the singer's place; the next line on an outer ring well clear of it, sliding inward when
+ * its turn comes (reduced motion: it is simply there). A line too long for the ring is plain text above the disc. [fullScreen] is
+ * the TV's, where the stage is the screen.
  */
 @Composable
 internal fun OrbitalStage(
@@ -218,9 +361,9 @@ internal fun OrbitalStage(
         val rings = remember(side, density) { LyricArc.rings(side, density.density) }
         val current = remember(lines, focus, side, fonts, density) { stageLineOf(lines, focus) }
         val (lineStyle, nextStyle) = remember(fonts, rings, density) { orbitalStyles(fonts, rings, density) }
-        val arc = remember(current, rings, lineStyle) { current?.let { ArcText.build(measurer, it.text, lineStyle, rings.inner, rings.outer) } }
-        val nextArc = remember(lines, next, rings, nextStyle, arc?.split) {
-            lines.getOrNull(next)?.let { ArcText.build(measurer, it.text, nextStyle, nextRing(rings, arc), null) }
+        val arc = remember(current, rings, lineStyle) { current?.let { ArcText.line(measurer, it.text, lineStyle, rings) } }
+        val nextArc = remember(lines, next, rings, nextStyle, arc) {
+            lines.getOrNull(next)?.let { ArcText.next(measurer, it.text, nextStyle, rings, arc) }
         }
         // The new line comes in from the outer ring when its turn comes.
         val slide = remember { Animatable(1f) }
@@ -238,9 +381,10 @@ internal fun OrbitalStage(
                 .semantics { contentDescription = current?.text.orEmpty() }
                 .stageTouch(
                     target = { at ->
-                        // The outer ring seeks to the line waiting on it; the line being sung, and the disc, to its start.
+                        // The next line seeks to itself; the line being sung, and the disc, to its start.
                         val r = hypot(at.x - width / 2f, at.y - height / 2f)
-                        if (r > nextRing(rings, arc) - rings.lineHeight * 0.5f) lines.getOrNull(next)?.timeMs else current?.line?.timeMs
+                        val onNext = if (arc?.flat != null) at.y > height / 2f + rings.track else r > nextRing(rings, arc) - rings.lineHeight * 0.5f
+                        if (onNext) lines.getOrNull(next)?.timeMs else current?.line?.timeMs
                     },
                     onSeek = onSeek, onLongPress = onLongPress,
                 ),
@@ -254,9 +398,9 @@ internal fun OrbitalStage(
 internal fun nextRing(rings: LyricArc.Rings, current: ArcText?): Float = if (current?.split == true) rings.nextSplit else rings.next
 
 /**
- * Orbital at [positionMs] in any [DrawScope] (the stage's canvas, and the share video's frames): the track, the next line on its
- * ring, the line being sung lit to the singer's place, and the moon on the track there. [slide] (0..1) brings a new line in from
- * the outer ring; the disc is the caller's.
+ * Orbital at [positionMs] in any [DrawScope] (the stage's canvas, and the share video's frames): the track, the next line, the
+ * line being sung lit to the singer's place, and the moon on the track there. [slide] (0..1) brings a new line in from the outer
+ * ring; the disc is the caller's.
  */
 internal fun DrawScope.drawOrbital(
     arc: ArcText?,
@@ -273,7 +417,8 @@ internal fun DrawScope.drawOrbital(
     val cx = size.width / 2f
     val cy = size.height / 2f
     drawCircle(ink.faint, rings.track, Offset(cx, cy), style = Stroke(trackPx))
-    if (nextArc != null) drawArcText(nextArc, cx, cy, rings.nextSplit, 1f, null, ink.next, ink.next, alpha = slide)
+    val waiting = ink.text.copy(alpha = ORBITAL_NEXT_ALPHA)
+    if (nextArc != null) drawArcText(nextArc, cx, cy, rings.nextSplit, 1f, null, waiting, waiting, alpha = slide)
     if (arc == null || current == null) return
     val chars = current.revealedChars(positionMs)
     val unlit = ink.text.copy(alpha = maxOf(ink.unlit.alpha, ORBITAL_UNLIT_ALPHA))

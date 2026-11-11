@@ -133,9 +133,9 @@ class LyricVideoFrames(
             LyricVideoLook.STRETCH -> stretch = StretchScene.build(measurer, current, next, fonts, density, width, HEIGHT - 2 * pad - 360f, perWidth = 5.6f)
             LyricVideoLook.ORBITAL -> {
                 val (lineStyle, nextStyle) = orbitalStyles(fonts, rings, density)
-                val built = ArcText.build(measurer, current.text, lineStyle, rings.inner, rings.outer)
+                val built = ArcText.line(measurer, current.text, lineStyle, rings)
                 arc = built
-                nextArc = next?.let { ArcText.build(measurer, it, nextStyle, nextRing(rings, built), null) }
+                nextArc = next?.let { ArcText.next(measurer, it, nextStyle, rings, built) }
             }
             LyricVideoLook.CLASSIC -> Unit
         }

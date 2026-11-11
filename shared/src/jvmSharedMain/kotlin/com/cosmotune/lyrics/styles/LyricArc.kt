@@ -10,43 +10,41 @@ import kotlin.math.sin
  * line's own layout); here those flat positions become angles. Angles are degrees, clockwise from three o'clock on a screen (y
  * down), so -90 is twelve o'clock; a glyph's baseline sits on the ring and its top points away from the centre.
  *
- * Reading comes first: a line keeps to the upper arc ([UPPER_FROM_DEG] to [UPPER_TO_DEG]), where its letters stand more or less
- * upright, rather than running round the side where they turn sideways and then upside down. A line too long for that arc is
- * set smaller, down to [SCALE_FLOOR]; past that it is split into two concentric arcs, the first half on the outer one (read
- * first, as the upper of two rows), the rest on the inner.
+ * Readability beats the effect. Text only sits within [SPAN_HALF_DEG] either side of twelve o'clock, so no glyph is ever turned
+ * more than that from upright, and it is centred there. A line that does not fit at [SCALE_FLOOR] of its size is split over two
+ * concentric arcs, each within the same span, the first words on the outer one (read first, as the upper of two rows). A line
+ * that does not fit even so is not wrapped round the ring at all: it is set as plain horizontal text above the disc ([Fit.flat]).
  */
 object LyricArc {
     /** Twelve o'clock. */
     const val TOP_DEG = -90f
 
-    /** The upper arc a line keeps to: from a little above nine o'clock to a little below three. */
-    const val UPPER_FROM_DEG = -160f
-    const val UPPER_TO_DEG = 20f
-    const val UPPER_SWEEP_DEG = UPPER_TO_DEG - UPPER_FROM_DEG
+    /** How far either side of twelve o'clock text may sit: no glyph is turned further than this from upright. */
+    const val SPAN_HALF_DEG = 65f
+    const val UPPER_FROM_DEG = TOP_DEG - SPAN_HALF_DEG
+    const val UPPER_TO_DEG = TOP_DEG + SPAN_HALF_DEG
+    const val UPPER_SWEEP_DEG = 2f * SPAN_HALF_DEG
 
-    /** A line short enough to sit within this much either side of twelve o'clock is centred there. */
-    const val CENTRED_SWEEP_DEG = 140f
+    /** The smallest a line on the ring is set; below it the line is split, and past that set flat. */
+    const val SCALE_FLOOR = 0.75f
 
-    /** The smallest a line is set to stay on one arc; below it the line is split over two. */
-    const val SCALE_FLOOR = 0.7f
-
-    /** The smallest a line is ever set (a very long line, even split, then runs a little past the arc's end). */
-    const val SCALE_MIN = 0.45f
+    /** The next line, which is only waiting, may be set this small before it is cut short with an ellipsis. */
+    const val NEXT_SCALE_FLOOR = 0.6f
 
     /** How many degrees [length] of text takes round a ring of [radius]. */
     fun sweepDeg(length: Float, radius: Float): Float = if (radius <= 0f) 0f else toDeg(length / radius)
 
-    /** How long the upper arc is on a ring of [radius]. */
+    /** How long the span is on a ring of [radius]. */
     fun upperLength(radius: Float): Float = (radius * UPPER_SWEEP_DEG * PI / 180.0).toFloat()
 
     /** The angle of the point [x] along the line, for a line that starts at [startDeg] on a ring of [radius]. */
     fun angleAt(x: Float, radius: Float, startDeg: Float = TOP_DEG): Float = startDeg + sweepDeg(x, radius)
 
-    /**
-     * Where a line [sweep] degrees long starts: centred on twelve o'clock while it fits [CENTRED_SWEEP_DEG], else from the
-     * start of the upper arc, so it never reaches past [UPPER_TO_DEG] while it fits the arc at all.
-     */
-    fun upperStart(sweep: Float): Float = if (sweep <= CENTRED_SWEEP_DEG) TOP_DEG - sweep / 2f else UPPER_FROM_DEG
+    /** Where a line [sweep] degrees long starts: centred on twelve o'clock. */
+    fun upperStart(sweep: Float): Float = TOP_DEG - sweep / 2f
+
+    /** The angle a fraction [through] (0..1) of the way along the span: where the moon is under a line set flat. */
+    fun spanAngle(through: Float): Float = UPPER_FROM_DEG + UPPER_SWEEP_DEG * through.coerceIn(0f, 1f)
 
     /**
      * Fills [out] with the angle of the centre of each of the first [count] glyphs, whose flat left edges are [lefts] and widths
@@ -57,21 +55,20 @@ object LyricArc {
         for (i in 0 until count) out[i] = angleAt(lefts[i] + widths[i] / 2f, radius, startDeg)
     }
 
-    /** How a line fits the upper arc: the scale it is set at, and the word the second arc starts at (-1: one arc). */
-    class Fit(val scale: Float, val split: Int)
+    /** How a line fits: the scale it is set at, the word its second arc starts at (-1: one arc), or [flat]: not on the ring. */
+    class Fit(val scale: Float, val split: Int, val flat: Boolean)
 
     /**
-     * Fits a line of [count] words, [widths] wide with [space] between them (all at full size), to the upper arc of [inner]: at
-     * full size if it fits, smaller down to [SCALE_FLOOR], and past that over two arcs, the first words on [outer] (when there is
-     * one) and the rest on [inner], split where the two can be set largest. A line that will not fit even so is set at
-     * [SCALE_MIN] and runs on.
+     * Fits a line of [count] words, [widths] wide with [space] between them (all at full size), to the span of [inner]: at full
+     * size if it fits, smaller down to [SCALE_FLOOR], then over two arcs (the first words on [outer], the rest on [inner], split
+     * where the two can be set largest) at no less than [SCALE_FLOOR] either, and otherwise flat.
      */
-    fun fitUpper(widths: FloatArray, count: Int, space: Float, inner: Float, outer: Float?): Fit {
+    fun fitUpper(widths: FloatArray, count: Int, space: Float, inner: Float, outer: Float): Fit {
         var total = 0f
         for (i in 0 until count) total += widths[i]
         total += space * (count - 1).coerceAtLeast(0)
         val single = if (total <= 0f) 1f else minOf(1f, upperLength(inner) / total)
-        if (single >= SCALE_FLOOR || outer == null || count < 2) return Fit(single.coerceAtLeast(SCALE_MIN), -1)
+        if (single >= SCALE_FLOOR) return Fit(single, -1, flat = false)
         var best = -1
         var bestScale = 0f
         var first = 0f
@@ -81,8 +78,12 @@ object LyricArc {
             val scale = minOf(1f, upperLength(outer) / first.coerceAtLeast(1e-3f), upperLength(inner) / second.coerceAtLeast(1e-3f))
             if (scale > bestScale) { bestScale = scale; best = k }
         }
-        return if (bestScale > single) Fit(bestScale.coerceAtLeast(SCALE_MIN), best) else Fit(single.coerceAtLeast(SCALE_MIN), -1)
+        return if (best > 0 && bestScale >= SCALE_FLOOR) Fit(bestScale, best, flat = false) else Fit(1f, -1, flat = true)
     }
+
+    /** The scale the next line ([total] long) is set at on its ring of [radius]: to fit the span, down to [NEXT_SCALE_FLOOR]. */
+    fun nextScale(total: Float, radius: Float): Float =
+        if (total <= 0f) 1f else minOf(1f, upperLength(radius) / total).coerceAtLeast(NEXT_SCALE_FLOOR)
 
     /** The x of the point at [deg] on a ring of [radius] round ([cx], [cy]); [y] the same for y. */
     fun x(cx: Float, radius: Float, deg: Float): Float = cx + radius * cos(toRad(deg))
@@ -93,9 +94,10 @@ object LyricArc {
 
     /**
      * The rings of an Orbital stage, outwards: the cover disc; the track the moon runs on; the baseline of the line being sung
-     * ([inner]), set outside the track with [CLEAR_DP] between the track and the line's descenders; the baseline of a split
-     * line's first half ([outer]), a line height further out; and the next line's baseline, [NEXT_GAP_LINES] line heights
-     * beyond the line being sung, on [next] after a line on one arc and on [nextSplit] after one on two.
+     * ([inner]), set outside the track with [clear] between the track and the line's descenders; the baseline of a split line's
+     * first half ([outer]), [ARC_GAP_LINES] line heights further out; and the next line's baseline, [NEXT_GAP_LINES] line
+     * heights beyond the line being sung, on [next] after a line on one arc and on [nextSplit] after one on two. [half] is the
+     * stage's half size and [clear] the clearance, in px.
      */
     class Rings(
         val disc: Float,
@@ -107,6 +109,8 @@ object LyricArc {
         val fontPx: Float,
         val nextFontPx: Float,
         val lineHeight: Float,
+        val half: Float,
+        val clear: Float,
     )
 
     /**
@@ -120,7 +124,7 @@ object LyricArc {
         val nextFont = font * NEXT_FONT_OF_FONT
         val nextSplit = half - MARGIN_DP * dp - nextFont * ASCENT_EM
         val outer = nextSplit - NEXT_GAP_LINES * line
-        val inner = outer - line
+        val inner = outer - ARC_GAP_LINES * line
         val track = inner - font * DESCENT_EM - CLEAR_DP * dp
         return Rings(
             disc = (track - maxOf(DISC_GAP_DP * dp, track * 0.1f)).coerceAtLeast(0f),
@@ -132,6 +136,8 @@ object LyricArc {
             fontPx = font,
             nextFontPx = nextFont,
             lineHeight = line,
+            half = half,
+            clear = CLEAR_DP * dp,
         )
     }
 
@@ -140,7 +146,8 @@ object LyricArc {
     const val MARGIN_DP = 4f
     private const val DISC_GAP_DP = 8f
 
-    /** How far the next line's ring stands from the line being sung's, in line heights. */
+    /** Between the two arcs of one line, and from the line being sung to the next line's ring, in line heights. */
+    const val ARC_GAP_LINES = 1.3f
     const val NEXT_GAP_LINES = 1.5f
 
     private const val FONT_OF_HALF = 0.105f

@@ -57,7 +57,7 @@ class LyricStylesContractTest {
     }
 
     @Test fun aFrameAllocatesNothing() {
-        val forbidden = listOf(".forEach", ".map {", ".filter {", ".any {", ".all {", "listOf(", "mutableListOf", "arrayListOf", "emptyList(", ".toList(", ".firstOrNull {", ".indexOfFirst", ".indexOfLast", "Brush.", "measure(", "ArrayList", "getBoundingBox(")
+        val forbidden = listOf("substring(", ".forEach", ".map {", ".filter {", ".any {", ".all {", "listOf(", "mutableListOf", "arrayListOf", "emptyList(", ".toList(", ".firstOrNull {", ".indexOfFirst", ".indexOfLast", "Brush.", "measure(", "ArrayList", "getBoundingBox(")
         val bodies = (stageFiles + "CosmoLyricVideo.kt").flatMap { drawBodies(LyricSourceRules.file(it)) }
         assertTrue(bodies.map { it.first }.containsAll(listOf("drawWordsLit", "drawArcText", "drawOrbital", "drawStretch", "drawPulse", "drawPoster")))
         for ((fn, body) in bodies) {
@@ -108,12 +108,14 @@ class LyricStylesContractTest {
 
     @Test fun orbitalKeepsTheLineReadableOnTheUpperArcOutsideTheTrack() {
         val orbital = LyricSourceRules.file("CosmoLyricOrbital.kt")
-        assertTrue(orbital.contains("LyricArc.fitUpper(widths, widths.size, space, inner, outer)"), "smaller to the floor, then two arcs")
-        assertTrue(orbital.contains("LyricArc.upperStart("), "kept to the upper arc")
-        assertTrue(orbital.contains("ArcText.build(measurer, it.text, lineStyle, rings.inner, rings.outer)"), "the line on its rings outside the track")
+        assertTrue(orbital.contains("LyricArc.fitUpper(widths, widths.size, space, rings.inner, rings.outer)"), "smaller to the floor, then two arcs")
+        assertTrue(orbital.contains("LyricArc.upperStart("), "centred within the span either side of twelve o'clock")
+        assertTrue(orbital.contains("if (fit.flat) {") && orbital.contains("flatText(text, layout, above = true, gap = gap)"), "too long for two arcs: flat text above the disc")
+        assertTrue(orbital.contains("ArcText.line(measurer, it.text, lineStyle, rings)"), "the line on its rings outside the track")
+        assertTrue(orbital.contains("LyricArc.nextScale(total, radius)") && orbital.contains("internal const val ORBITAL_NEXT_ALPHA = 0.6f"), "the next line within the span, smaller, at 0.6")
         assertTrue(orbital.contains("LyricArc.x(cx, rings.track, deg)"), "the moon on the track")
         assertTrue(orbital.contains("internal const val ORBITAL_UNLIT_ALPHA = 0.5f") && orbital.contains("maxOf(ink.unlit.alpha, ORBITAL_UNLIT_ALPHA)"), "words to come stay readable")
-        assertTrue(orbital.contains("nextRing(rings, arc)"), "the next line's ring clears a line on two arcs too")
+        assertTrue(orbital.contains("if (after?.split == true) rings.nextSplit else rings.next"), "the next line's ring clears a line on two arcs too")
     }
 
     @Test fun orbitReadSetsOnlyTheLineBeingSungInWideArchivo() {
@@ -136,7 +138,7 @@ class LyricStylesContractTest {
     }
 
     @Test fun theShareVideoDrawsWithTheStagesOwnScenesAndDrawFunctions() {
-        for (call in listOf("PosterScene.build(", "StretchScene.build(", "ArcText.build(", "drawPoster(", "drawStretch(", "drawOrbital(")) {
+        for (call in listOf("PosterScene.build(", "StretchScene.build(", "ArcText.line(", "ArcText.next(", "drawPoster(", "drawStretch(", "drawOrbital(")) {
             assertTrue(video.contains(call), call)
         }
         assertTrue(video.contains("bitmap.readPixels(into, 0, 0, WIDTH, HEIGHT)"))
