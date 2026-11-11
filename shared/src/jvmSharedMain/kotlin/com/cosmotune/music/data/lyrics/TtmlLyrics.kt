@@ -77,9 +77,34 @@ object TtmlLyrics {
         sung.sortBy { it.first.timeMs }
 
         val sides = lineAlignments(sung.map { it.second }, agentTypes(document))
-        sung.mapIndexed { index, (line, _) -> line.copy(alignment = sides[index]) }
+        val names = agentNames(document)
+        sung.mapIndexed { index, (line, agent) -> line.copy(alignment = sides[index], singer = agent?.let { names[it] }) }
             .withInstrumentalGaps()
     }.getOrDefault(emptyList())
+
+    /**
+     * The names the head gives its voices, as id to name: `<ttm:agent xml:id="v1"><ttm:name>Mira</ttm:name></ttm:agent>`.
+     * An agent with no name, or one named only by its number, is left out (see [LyricSinger.name]).
+     */
+    private fun agentNames(document: org.w3c.dom.Document): Map<String, String> {
+        val agents = document.getElementsByTagName("ttm:agent")
+            .takeIf { it.length > 0 }
+            ?: document.getElementsByTagName("agent")
+        val names = HashMap<String, String>(agents.length)
+        for (i in 0 until agents.length) {
+            val agent = agents.item(i) as? Element ?: continue
+            val id = agent.qualified("xml:id").takeIf { it.isNotEmpty() } ?: continue
+            val children = agent.childNodes
+            for (c in 0 until children.length) {
+                val child = children.item(c) as? Element ?: continue
+                if (child.nodeName == "ttm:name" || child.nodeName.substringAfter(':') == "name") {
+                    LyricSinger.name(child.textContent)?.let { names[id] = it }
+                    break
+                }
+            }
+        }
+        return names
+    }
 
     /** One optional parser feature, set if this parser has it. */
     private fun DocumentBuilderFactory.harden(feature: String, value: Boolean = true) {

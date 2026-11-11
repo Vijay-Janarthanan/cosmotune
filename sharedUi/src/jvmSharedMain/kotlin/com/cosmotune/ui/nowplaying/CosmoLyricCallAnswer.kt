@@ -104,6 +104,8 @@ internal fun CallAndAnswerStage(
     val density = LocalDensity.current
     val bubbleStyle = remember(fonts, density) { TextStyle(fontFamily = fonts.text, fontWeight = FontWeight(700), fontSize = 19.sp, lineHeight = 25.sp) }
     val subStyle = remember(fonts) { TextStyle(fontFamily = fonts.text, fontWeight = FontWeight(500), fontSize = 13.sp, lineHeight = 17.sp) }
+    // Who sings, where the source names its voices (the board's `.who`): a small mono label over the bubble.
+    val singerStyle = remember { TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium, fontSize = 9.5.sp, letterSpacing = 1.2.sp) }
     val backingStyle = remember { TextStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic, fontWeight = FontWeight.Normal, fontSize = 21.sp, lineHeight = 26.sp) }
     val viewportPx by remember(listState) { derivedStateOf { listState.layoutInfo.viewportSize.height } }
     val bottom = with(density) { LyricsMetrics.bottomRoomPx(viewportPx).toDp() }
@@ -143,7 +145,7 @@ internal fun CallAndAnswerStage(
                 },
                 horizontalAlignment = if (answer) Alignment.End else Alignment.Start,
             ) {
-                Bubble(line, index, lines, text, fill, bubbleStyle, sub, subStyle, now == LyricsMetrics.LineState.CURRENT, clock, onSeek, onLongPress)
+                Bubble(line, index, lines, text, fill, bubbleStyle, sub, subStyle, now == LyricsMetrics.LineState.CURRENT, clock, onSeek, onLongPress, singerStyle)
                 val backing = remember(line) { line.background?.let { LyricBacking.display(it) } }
                 if (backing != null) {
                     BackingLine(line.background!!, backing, duetInk.backing, backingStyle, clock, Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp))
@@ -168,6 +170,7 @@ private fun Bubble(
     clock: androidx.compose.runtime.LongState,
     onSeek: (Long) -> Unit,
     onLongPress: (() -> Unit)?,
+    singerStyle: TextStyle,
 ) {
     val layoutRef = remember { LayoutHolder() }
     val dim = remember(textColor) { ColorProducer { textColor.copy(alpha = 0.5f) } }
@@ -184,6 +187,10 @@ private fun Bubble(
             )
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
+        // Named only where the source names the voice; a voice that is only numbered (v1, v2) says nothing here.
+        line.singer?.let { name ->
+            BasicText(name.uppercase(), style = singerStyle, color = remember(textColor) { ColorProducer { textColor.copy(alpha = 0.6f) } }, modifier = Modifier.padding(bottom = 3.dp))
+        }
         Box {
             BasicText(line.text, style = style, color = if (current) dim else full, onTextLayout = { layoutRef.value = it })
             if (current) {
