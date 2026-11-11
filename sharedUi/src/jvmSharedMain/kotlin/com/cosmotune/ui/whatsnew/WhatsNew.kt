@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -313,10 +314,32 @@ fun WhatsNewBody(
                 whatsNew.highlights.forEachIndexed { index, item -> HighlightRow(item, index, fonts, look, tv, Modifier.fillMaxWidth()) }
             }
             extra?.invoke(this)
+            SignOff(fonts, look, tv)
         }
         Spacer(Modifier.height(ACTIONS_GAP))
         StatusLine(whatsNew, fonts, look, tv)
         if (surface == WhatsNewSurface.PHONE) PhoneActions(whatsNew, fonts, look) else WideActions(whatsNew, fonts, look, tv)
+    }
+}
+
+/** The note under the highlights: who makes Cosmotune and why, signed with a heart. */
+@Composable
+private fun SignOff(fonts: OrbitFonts, look: OrbitLook, tv: Boolean) {
+    val body = fonts.body.let { if (tv) it.copy(fontSize = 15.sp, lineHeight = 20.sp) else it }
+    val heart = if (look.dark) Color(0xFFFF8FAE) else Color(0xFFD6336C)
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("Always bringing you something new to enjoy.", style = body, color = look.dim, textAlign = TextAlign.Center)
+        Text(
+            androidx.compose.ui.text.buildAnnotatedString {
+                append("With ")
+                withStyle(androidx.compose.ui.text.SpanStyle(color = heart)) { append("♥") }
+                append(" from Vijay")
+            },
+            style = body.copy(fontWeight = FontWeight(600)),
+            color = look.ink,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }
 
