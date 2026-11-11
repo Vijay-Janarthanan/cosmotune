@@ -1,5 +1,11 @@
 package com.cosmotune.music.wear.ui
 
+import androidx.wear.compose.foundation.CurvedLayout
+import androidx.wear.compose.foundation.CurvedModifier
+import androidx.wear.compose.foundation.CurvedTextStyle
+import androidx.wear.compose.foundation.basicCurvedText
+import androidx.wear.compose.foundation.sizeIn
+import androidx.compose.ui.unit.sp
 import android.view.HapticFeedbackConstants
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.LinearEasing
@@ -221,6 +227,21 @@ fun NowPlayingScreen(
             }
         }
 
+        // The Arc title (the lyrics-titles board): the album round the top of the disc, inside its rim and clear of the time
+        // above it, like a record's label. Not while seeking, when the screen is the scrubber.
+        if (target == null && np.album.isNotBlank()) {
+            key(np.mediaId) {
+                CurvedLayout(Modifier.fillMaxSize().padding(w * 0.105f), anchor = 270f) {
+                    basicCurvedText(
+                        np.album.uppercase(),
+                        style = CurvedTextStyle(ArcLabel),
+                        modifier = CurvedModifier.sizeIn(maxSweepDegrees = 104f),
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+
         EdgeOrbit(np = np, scrubMs = target)
 
         // The title and artist above the button, or the scrub target while seeking.
@@ -364,6 +385,9 @@ private fun BoxScope.EdgeOrbit(np: NowPlaying, scrubMs: Long?) {
         )
     }
 }
+
+/** The arc's type: Hanken Grotesk heavy, in capitals, tracked open, in the ink a little dimmed over the cover. */
+private val ArcLabel = WearType.title.copy(fontSize = 11.sp, letterSpacing = 1.4.sp, color = WearOrbit.Ink.copy(alpha = 0.9f))
 
 private fun formatTime(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
