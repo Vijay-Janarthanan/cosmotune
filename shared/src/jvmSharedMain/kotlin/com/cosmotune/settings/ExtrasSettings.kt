@@ -24,6 +24,8 @@ class ExtrasSettings(private val store: KeyValueStore) {
     private val spatialPresetFlow = MutableStateFlow(SpatialPreset.named(store.getString(KEY_SPATIAL_PRESET, SpatialPreset.DEFAULT.name)))
     private val spatialSurroundFlow = MutableStateFlow(store.getBoolean(KEY_SPATIAL_SURROUND, false))
     private val songRecognitionFlow = MutableStateFlow(store.getBoolean(KEY_SONG_RECOGNITION, false))
+    private val lyricStyleFlow = MutableStateFlow(store.getString(KEY_LYRIC_STYLE, "").ifEmpty { null })
+    private val lyricStyleSongsFlow = MutableStateFlow(LyricStyleMemory.decode(store.getString(KEY_LYRIC_STYLE_SONGS, "")))
 
     /** The loudest the app plays, in percent of full scale; 100 is no cap. Applied after every other stage. */
     val maxVolumePercent: StateFlow<Int> = maxVolumeFlow.asStateFlow()
@@ -55,8 +57,30 @@ class ExtrasSettings(private val store: KeyValueStore) {
      */
     val songRecognition: StateFlow<Boolean> = songRecognitionFlow.asStateFlow()
 
+    /**
+     * The lyric style the listener chose for every song (a `com.cosmotune.lyrics.styles.LyricStyle` key), or null while they have
+     * not chosen one: then a duet is drawn in Call & Answer by itself and everything else in Orbit Read.
+     */
+    val lyricStyle: StateFlow<String?> = lyricStyleFlow.asStateFlow()
+
+    /** Songs the listener gave a style of their own, song id to style key, the most recent last. */
+    val lyricStyleSongs: StateFlow<Map<String, String>> = lyricStyleSongsFlow.asStateFlow()
+
     init {
         publishNetwork()
+    }
+
+    /** Chooses [key] for every song (null forgets the choice). */
+    fun setLyricStyle(key: String?) {
+        lyricStyleFlow.value = key?.ifEmpty { null }
+        store.putString(KEY_LYRIC_STYLE, key.orEmpty())
+    }
+
+    /** Gives song [songId] a style of its own, [key], or with null takes it away so the song follows [lyricStyle] again. */
+    fun setLyricStyleFor(songId: String, key: String?) {
+        val next = LyricStyleMemory.with(lyricStyleSongsFlow.value, songId, key)
+        lyricStyleSongsFlow.value = next
+        store.putString(KEY_LYRIC_STYLE_SONGS, LyricStyleMemory.encode(next))
     }
 
     fun setSongRecognition(value: Boolean) {
@@ -140,6 +164,8 @@ class ExtrasSettings(private val store: KeyValueStore) {
         const val KEY_SPATIAL_PRESET = "extras_spatial_preset"
         const val KEY_SPATIAL_SURROUND = "extras_spatial_surround"
         const val KEY_SONG_RECOGNITION = "extras_song_recognition"
+        const val KEY_LYRIC_STYLE = "extras_lyric_style"
+        const val KEY_LYRIC_STYLE_SONGS = "extras_lyric_style_songs"
 
         const val MIN_VOLUME_PERCENT = 10
 
@@ -147,6 +173,39 @@ class ExtrasSettings(private val store: KeyValueStore) {
         fun clampPitch(value: Int) = value.coerceIn(-12, 12)
         fun pitchFactorOf(semitones: Int): Float = 2.0.pow(semitones / 12.0).toFloat()
     }
+}
+
+/**
+ * How the songs that have a lyric style of their own are kept: one `id<TAB>style` per line, in one string, at most [LIMIT] of
+ * them and [MAX_CHARS] characters (the desktop's preferences take 8 KB a value), the oldest choice going first. An id that could
+ * break the format (a tab or a line break in it) is not kept.
+ */
+object LyricStyleMemory {
+    const val LIMIT = 200
+    const val MAX_CHARS = 7_000
+
+    fun decode(raw: String): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        for (row in raw.split('\n')) {
+            val tab = row.indexOf('\t')
+            if (tab <= 0 || tab == row.length - 1) continue
+            out[row.substring(0, tab)] = row.substring(tab + 1)
+        }
+        return out
+    }
+
+    fun encode(map: Map<String, String>): String = map.entries.joinToString("\n") { "${it.key}\t${it.value}" }
+
+    /** [map] with [songId] set to [key] as its newest entry (or taken out, for null), cut to [LIMIT] and [MAX_CHARS]. */
+    fun with(map: Map<String, String>, songId: String, key: String?): Map<String, String> {
+        val out = LinkedHashMap(map)
+        out.remove(songId)
+        if (!key.isNullOrEmpty() && songId.isNotEmpty() && songId.none(::breaks) && key.none(::breaks)) out[songId] = key
+        while (out.size > LIMIT || (out.isNotEmpty() && encode(out).length > MAX_CHARS)) out.remove(out.keys.first())
+        return out
+    }
+
+    private fun breaks(c: Char): Boolean = c == '\t' || c == '\n'
 }
 
 /** A proxy the listener typed in: "host:port", HTTP or SOCKS, with an optional login. */
