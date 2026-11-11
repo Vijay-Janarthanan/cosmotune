@@ -20,14 +20,21 @@ enum class VideoTab(val root: VideoRoute) {
  * Video mode's back stack (spec 4.4): one stack per tab, pure and in plain memory (the snapshot-state wrapper the screens
  * observe is `VideoNavigator`, in `:video`).
  *
- * - [push] lands on the current tab. Pushing the route that is already on top changes nothing; a [VideoRoute.Watch] on top of
- *   a [VideoRoute.Watch] of the same video is replaced by the newer request (a new start time), and a [VideoRoute.Search] on
- *   top of a [VideoRoute.Search] is replaced, so a stack never holds the same video or two searches one after the other; a
- *   [VideoRoute.LocalPlayer] on top of another is replaced too (opening a second file takes the player's place).
+ * - [push] lands on the current tab. Pushing the route that is already on top changes nothing; a [VideoRoute.Search] on top
+ *   of a [VideoRoute.Search] is replaced, so a stack never holds two searches one after the other; a [VideoRoute.LocalPlayer]
+ *   on top of another is replaced too (opening a second file takes the player's place).
  *   A tab root pushed shows that root (the tab is selected and its stack dropped): a root is never stacked on something.
- * - [pop] removes the top and answers whether it did: it refuses at a tab root.
+ * - There is one player, so the stacks hold one watch page at most, as in the YouTube app. A [VideoRoute.Watch] pushed on a
+ *   watch page takes its place (a related video, Up next, an end-screen card, a new start time of the same video): the video
+ *   before it is not a page to go back to; the player's Previous button reaches it, through the queue. A [VideoRoute.Watch]
+ *   pushed anywhere else goes on top, and the watch page that stood lower down, on any tab, leaves the stacks: Back from the
+ *   new one comes to the page it was opened from, and Back from there does not find the old video again. The pages above the
+ *   old watch page (a channel opened from it) stay where they were.
+ * - [pop] removes the top and answers whether it did: it refuses at a tab root. Back from a watch page therefore comes to the
+ *   page the video was opened from (a feed, search results, a channel, a playlist), and the video goes on in the mini player.
  * - [selectTab] of another tab shows that tab's own stack as it was left; of the current tab it pops this one to its root.
- * - [replaceTop] swaps the top for another route. The root is not swapped: on a root the route is pushed.
+ * - [replaceTop] swaps the top for another route. The root is not swapped: on a root the route is pushed. A watch page put on
+ *   top this way is the only one too.
  *
  * A stack keeps at most [MAX_DEPTH] pages above each root; the oldest go first. [encode] and [decode] turn the whole stack into
  * one line of text for the phone's `Saver`.
@@ -55,7 +62,7 @@ class VideoBackStack {
         val last = list.lastOrNull()
         when {
             last == route -> Unit
-            last is VideoRoute.Watch && route is VideoRoute.Watch && last.videoId == route.videoId -> list[list.lastIndex] = route
+            last is VideoRoute.Watch && route is VideoRoute.Watch -> list[list.lastIndex] = route
             last is VideoRoute.Search && route is VideoRoute.Search -> list[list.lastIndex] = route
             last is VideoRoute.LocalPlayer && route is VideoRoute.LocalPlayer -> list[list.lastIndex] = route
             else -> {
@@ -63,6 +70,15 @@ class VideoBackStack {
                 if (list.size > MAX_DEPTH) list.removeAt(0)
             }
         }
+        if (route is VideoRoute.Watch) keepOneWatchPage()
+    }
+
+    /** Takes every watch page off the stacks but the one on top of the current tab (see the class comment: one player). */
+    private fun keepOneWatchPage() {
+        val list = pushed.getValue(current)
+        val kept = list.lastOrNull()?.takeIf { it is VideoRoute.Watch }
+        for (each in pushed.values) each.removeAll { it is VideoRoute.Watch }
+        if (kept != null) list += kept
     }
 
     /** Takes the top page off the current tab; false (and nothing changes) at the tab's root. */
@@ -88,7 +104,12 @@ class VideoBackStack {
     fun replaceTop(route: VideoRoute) {
         VideoTab.rootedAt(route)?.let { showRoot(it); return }
         val list = pushed.getValue(current)
-        if (list.isEmpty()) push(route) else list[list.lastIndex] = route
+        if (list.isEmpty()) {
+            push(route)
+        } else {
+            list[list.lastIndex] = route
+            if (route is VideoRoute.Watch) keepOneWatchPage()
+        }
     }
 
     /** The stack as one line: `v1|<tab>|<routes of Home>|<routes of Subscriptions>|<routes of Library>`, routes joined by `;`. */

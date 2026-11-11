@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 
 /**
  * The back stack of Video mode (plan task Y-14, step 1): one stack per tab, `pop` refuses at a root, the tab button of the
- * current tab goes to its root, the same video pushed twice replaces itself, searches replace each other, and the stack and
+ * current tab goes to its root, the stacks hold one watch page (a video opened on a watch page replaces it), searches replace each other, and the stack and
  * every route turn into text for the phone's `Saver` and back.
  */
 class VideoBackStackTest {
@@ -88,23 +88,104 @@ class VideoBackStackTest {
         assertFalse(stack.canPop)
     }
 
+    // ---- One watch page (one player), as in the YouTube app ---------------------------------------------------------------
+
     @Test
-    fun anotherVideoStacksAndBackComesToTheFirst() {
+    fun aRelatedVideoReplacesTheWatchPageInsteadOfStacking() {
         val stack = VideoBackStack()
         stack.push(VideoRoute.Watch("fakevideo01"))
         stack.push(VideoRoute.Watch("fakevideo02"))
         assertEquals(VideoRoute.Watch("fakevideo02"), stack.top)
-        stack.pop()
+        assertEquals(listOf(VideoRoute.Home, VideoRoute.Watch("fakevideo02")), stack.routesOf(VideoTab.HOME), "the first video is not a page")
+        stack.push(VideoRoute.Watch("fakevideo03", startMs = 12_000))
+        assertEquals(listOf(VideoRoute.Home, VideoRoute.Watch("fakevideo03", 12_000)), stack.routesOf(VideoTab.HOME))
+        assertTrue(stack.pop())
+        assertEquals(VideoRoute.Home, stack.top, "back leaves the watch page for the feed, not for the video before")
+        assertFalse(stack.canPop)
+    }
+
+    @Test
+    fun backFromTheWatchPageComesToThePageTheVideoWasOpenedFrom() {
+        for (origin in listOf(VideoRoute.Search("cats"), VideoRoute.Channel("UCfakechannel0000000001"), VideoRoute.Playlist("PLfake01"), VideoRoute.History)) {
+            val stack = VideoBackStack()
+            stack.push(origin)
+            stack.push(VideoRoute.Watch("fakevideo01"))
+            stack.push(VideoRoute.Watch("fakevideo02"))
+            stack.push(VideoRoute.Watch("fakevideo03"))
+            assertTrue(stack.pop())
+            assertEquals(origin, stack.top, "back from the third related video comes to $origin")
+            assertTrue(stack.pop())
+            assertEquals(VideoRoute.Home, stack.top)
+        }
+    }
+
+    @Test
+    fun aChannelOpenedFromTheWatchPageIsPushedAndBackComesToTheWatchPage() {
+        val stack = VideoBackStack()
+        stack.push(VideoRoute.Watch("fakevideo01"))
+        stack.push(VideoRoute.Channel("UCfakechannel0000000001"))
+        assertEquals(VideoRoute.Channel("UCfakechannel0000000001"), stack.top)
+        assertTrue(stack.pop())
+        assertEquals(VideoRoute.Watch("fakevideo01"), stack.top, "back from the channel comes to the watch page")
+        stack.push(VideoRoute.Playlist("PLfake01"))
+        stack.push(VideoRoute.Search("lofi"))
+        assertEquals(4, stack.routesOf(VideoTab.HOME).size, "a playlist and a search from the watch page are pushed too")
+        assertTrue(stack.pop())
+        assertTrue(stack.pop())
         assertEquals(VideoRoute.Watch("fakevideo01"), stack.top)
     }
 
     @Test
-    fun theSameVideoNotInARowStacksAgain() {
+    fun aVideoOpenedFromThatChannelTakesTheOldWatchPageOffTheStack() {
+        val stack = VideoBackStack()
+        stack.push(VideoRoute.Watch("fakevideo01"))
+        stack.push(VideoRoute.Channel("UCfakechannel0000000001"))
+        stack.push(VideoRoute.Watch("fakevideo05"))
+        assertEquals(listOf(VideoRoute.Home, VideoRoute.Channel("UCfakechannel0000000001"), VideoRoute.Watch("fakevideo05")), stack.routesOf(VideoTab.HOME))
+        assertTrue(stack.pop())
+        assertEquals(VideoRoute.Channel("UCfakechannel0000000001"), stack.top, "back comes to the channel the video was opened from")
+        assertTrue(stack.pop())
+        assertEquals(VideoRoute.Home, stack.top, "and from the channel to the feed: the first video is not found again")
+    }
+
+    @Test
+    fun theMiniPlayerReopensTheOneWatchPageOnTopOfThePageOnShow() {
         val stack = VideoBackStack()
         stack.push(VideoRoute.Watch("fakevideo01"))
         stack.push(VideoRoute.Channel("UCfakechannel0000000001"))
         stack.push(VideoRoute.Watch("fakevideo01"))
-        assertEquals(3, stack.routesOf(VideoTab.HOME).size - 1, "three pushed entries")
+        assertEquals(listOf(VideoRoute.Home, VideoRoute.Channel("UCfakechannel0000000001"), VideoRoute.Watch("fakevideo01")), stack.routesOf(VideoTab.HOME))
+        assertTrue(stack.pop())
+        assertEquals(VideoRoute.Channel("UCfakechannel0000000001"), stack.top)
+    }
+
+    @Test
+    fun aWatchPageOnAnotherTabLeavesWhenAVideoOpensHere() {
+        val stack = VideoBackStack()
+        stack.push(VideoRoute.Search("cats"))
+        stack.push(VideoRoute.Watch("fakevideo01"))
+        stack.selectTab(VideoTab.SUBSCRIPTIONS)
+        stack.push(VideoRoute.Watch("fakevideo02"))
+        assertEquals(listOf(VideoRoute.Home, VideoRoute.Search("cats")), stack.routesOf(VideoTab.HOME), "Home keeps the page under its old video")
+        assertEquals(listOf(VideoRoute.Subscriptions, VideoRoute.Watch("fakevideo02")), stack.routesOf(VideoTab.SUBSCRIPTIONS))
+    }
+
+    @Test
+    fun aWatchPageReplacingTheTopIsTheOnlyOneToo() {
+        val stack = VideoBackStack()
+        stack.push(VideoRoute.Watch("fakevideo01"))
+        stack.push(VideoRoute.Channel("UCfakechannel0000000001"))
+        stack.replaceTop(VideoRoute.Watch("fakevideo02"))
+        assertEquals(listOf(VideoRoute.Home, VideoRoute.Watch("fakevideo02")), stack.routesOf(VideoTab.HOME))
+    }
+
+    @Test
+    fun theShortsPagerOpenedFromTheWatchPageIsPushedAndBackComesToTheWatchPage() {
+        val stack = VideoBackStack()
+        stack.push(VideoRoute.Watch("fakevideo01"))
+        stack.push(VideoRoute.Shorts(ShortsOrigin.Related("fakevideo01"), "fakeshort01"))
+        assertTrue(stack.pop())
+        assertEquals(VideoRoute.Watch("fakevideo01"), stack.top)
     }
 
     @Test
@@ -288,8 +369,8 @@ class VideoBackStackTest {
     @Test
     fun theStackStopsGrowingAtItsLimit() {
         val stack = VideoBackStack()
-        repeat(VideoBackStack.MAX_DEPTH + 40) { stack.push(VideoRoute.Watch("v$it")) }
+        repeat(VideoBackStack.MAX_DEPTH + 40) { stack.push(VideoRoute.Channel("c$it")) }
         assertEquals(VideoBackStack.MAX_DEPTH + 1, stack.routesOf(VideoTab.HOME).size)
-        assertEquals(VideoRoute.Watch("v${VideoBackStack.MAX_DEPTH + 39}"), stack.top, "the newest is on top")
+        assertEquals(VideoRoute.Channel("c${VideoBackStack.MAX_DEPTH + 39}"), stack.top, "the newest is on top")
     }
 }

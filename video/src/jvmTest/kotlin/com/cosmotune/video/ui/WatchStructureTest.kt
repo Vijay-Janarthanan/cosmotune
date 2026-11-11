@@ -204,7 +204,10 @@ class WatchStructureTest {
             onWatchPageKey(name, shift, ctrl, playback, VideoSettings(), null, onFullWindow = { fullWindow++ }, onTheatre = { theatre++ })
         assertTrue(key("T")); assertEquals(1, theatre, "T: theatre")
         assertTrue(key("F")); assertEquals(1, fullWindow, "F: the full window")
-        assertFalse(key("Escape"), "Escape is not the page's: no full window here")
+        assertFalse(key("Escape"), "Escape has no full window to leave here, and with nowhere to go it is not the page's")
+        var left = 0
+        assertTrue(onWatchPageKey("Escape", false, false, playback, VideoSettings(), null, {}, {}, onLeave = { left++ }))
+        assertEquals(1, left, "Escape leaves the page, as Back and Minimise do")
         assertTrue(key("K")); assertTrue(key("Right")); assertTrue(key("5"))
         assertTrue(listOf("togglePlayPause()", "seekBy(5000)", "seekTo(300000)").all { it in playback.calls }, "${playback.calls}")
         assertFalse(key("K", ctrl = true), "Ctrl K focuses search")
@@ -212,6 +215,7 @@ class WatchStructureTest {
         val wide = flat(file("WatchPageWide"))
         assertTrue(".focusRequester(focus) .focusable() .onPreviewKeyEvent { event ->" in wide, "the page handles the keys while it has the focus")
         assertTrue("onWatchPageKey(" in wide && "playerKeyName(event)" in wide)
+        assertTrue("onLeave = if (navigator.canPop && !fullWindow) ({ navigator.pop(); Unit }) else null" in wide, "Escape minimises like the chevron")
     }
 
     @Test fun fullScreenDrawsOnlyThePlayerInItsOwnWindow() {
