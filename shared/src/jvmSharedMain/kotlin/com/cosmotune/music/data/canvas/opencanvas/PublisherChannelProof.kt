@@ -19,11 +19,16 @@ internal class PublisherChannelProof(private val http: OkHttpClient) {
         if (!channelId.matches(Regex("UC[A-Za-z0-9_-]{22}"))) return false
         val now = System.currentTimeMillis()
         cache[channelId]?.takeIf { now - it.at < if (it.proved) 86_400_000L else 60_000L }?.let { return it.proved }
-        val child = page("https://www.youtube.com/channel/$channelId/about")
-        val proved = child != null && metadata(child)?.get("externalId")?.text() == channelId &&
+        // A page that could not be read proves nothing either way, so it is not remembered as "not a publisher".
+        val child = page("https://www.youtube.com/channel/$channelId/about") ?: return false
+        var unread = false
+        val proved = metadata(child)?.get("externalId")?.text() == channelId &&
             channelLinks(child).take(2).any { parentUrl ->
-                page(parentUrl)?.let { parent -> corroborates(parent, channelId) } == true
+                val parent = page(parentUrl)
+                if (parent == null) unread = true
+                parent?.let { corroborates(it, channelId) } == true
             }
+        if (!proved && unread) return false
         if (cache.size > 128) cache.clear()
         cache[channelId] = Cached(proved, now)
         return proved
