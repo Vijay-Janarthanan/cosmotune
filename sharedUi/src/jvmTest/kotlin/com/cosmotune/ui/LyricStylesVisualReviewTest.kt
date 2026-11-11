@@ -226,6 +226,27 @@ class LyricStylesVisualReviewTest {
 
     @Test fun poster() = hosts { for ((_, at) in moments) stage(LyricStyle.POSTER, at) }
 
+    /** Poster with invented lines in scripts Archivo does not draw: each row has to clear the one above it. */
+    @Test fun posterScripts() = hosts {
+        val samples = listOf(
+            "chinese" to "夜里的小灯照亮回家的路",
+            "japanese" to "夜の小さな灯りが道を照らす",
+            "korean" to "밤하늘의 작은 불빛이 길을 비춘다",
+            "tamil" to "இரவில் ஒரு சிறிய விளக்கு எரிகிறது",
+            "devanagari" to "रात में एक छोटा दीया जलता है",
+        )
+        for ((label, text) in samples) {
+            val words = text.split(' ').takeIf { it.size > 1 } ?: listOf(text)
+            val step = 6_000L / words.size
+            val timed = words.mapIndexed { i, w -> LyricWord(10_000 + i * step, 10_000 + (i + 1) * step, w) }
+            val lines = listOf(LyricLine(10_000, text, timed), LyricLine(16_500, "and the coast kept time", listOf(LyricWord(16_500, 18_000, "and the coast kept time"))))
+            for (dark in listOf(true, false)) shoot("poster-script-$label", dark) {
+                val clock = remember { mutableLongStateOf(12_000L) }
+                CosmoLyricStage(LyricStyle.POSTER, lines, null, clock, isPlaying = false, onSeek = {}, song = song, modifier = Modifier.fillMaxSize().padding(16.dp))
+            }
+        }
+    }
+
     @Test fun reducedMotionIsColourOnly() = hosts {
         for (style in listOf(LyricStyle.STRETCH, LyricStyle.ORBITAL, LyricStyle.PULSE)) {
             shoot("${style.key}-reduced", dark = true, reduced = true) {

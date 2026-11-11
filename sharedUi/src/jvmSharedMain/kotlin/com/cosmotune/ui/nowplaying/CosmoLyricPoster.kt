@@ -35,8 +35,10 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cosmotune.lyrics.styles.PosterLines
 import com.cosmotune.lyrics.styles.StageFit
 import com.cosmotune.lyrics.styles.StageLine
 import com.cosmotune.ui.orbit.Disc
@@ -59,28 +61,77 @@ internal class PosterScene(
         fun build(measurer: TextMeasurer, stage: StageLine, fonts: LyricStageFonts, density: Density, width: Float, height: Float): PosterScene {
             val n = stage.count
             val text = Array(n) { stage.text.substring(stage.charStart[it], stage.charEnd[it]).uppercase(Locale.ROOT) }
+            // Fitted with the row height the line's scripts need (fallback glyphs are taller than Archivo's caps)...
+            val factor = PosterLines.factor(stage.text)
             val ref = 100f
             val refStyle = stageStyle(fonts.poster, StageWeights.POSTER, ref, density, LINE)
             val widths = FloatArray(n) { measurer.measure(text[it], refStyle, softWrap = false, maxLines = 1).size.width.toFloat() }
             val space = measurer.measure("M", refStyle, softWrap = false, maxLines = 1).size.width * 0.32f
             val rowStart = IntArray(n.coerceAtLeast(1))
-            val fit = StageFit.posterSize(widths, n, space, ref, LINE, width, height, minSize = 12f, maxSize = height / 2.2f, rowStart = rowStart)
-            val style = stageStyle(fonts.poster, StageWeights.POSTER, fit.size, density, LINE)
+            val fit = StageFit.posterSize(widths, n, space, ref, factor, width, height, minSize = 12f, maxSize = height / 2.2f, rowStart = rowStart)
+            // ...then placed by the shaped text itself: a row is never shorter than its tallest word's glyphs, so no script runs
+            // into the next row. Shrunk a step at a time if the measured rows come out taller than the frame.
+            var size = fit.size
+            var placed = place(measurer, text, widths, space, ref, fonts, density, size, fit.onePerRow, width, rowStart)
+            var tries = 0
+            while (placed.second > height && size > 12f && tries < 8) {
+                size *= (height / placed.second).coerceIn(0.7f, 0.95f)
+                placed = place(measurer, text, widths, space, ref, fonts, density, size, fit.onePerRow, width, rowStart)
+                tries++
+            }
+            return placed.first.let { (words, xs, ys) -> PosterScene(stage, words, xs, ys) }
+        }
+
+        /** The words at [size], packed into rows and each row set at the height its shaped glyphs need; and the total height. */
+        private fun place(
+            measurer: TextMeasurer,
+            text: Array<String>,
+            widthsAtRef: FloatArray,
+            spaceAtRef: Float,
+            ref: Float,
+            fonts: LyricStageFonts,
+            density: Density,
+            size: Float,
+            onePerRow: Boolean,
+            width: Float,
+            rowStart: IntArray,
+        ): Pair<Triple<Array<TextLayoutResult>, FloatArray, FloatArray>, Float> {
+            val n = text.size
+            val k = size / ref
+            val rows = StageFit.packRows(FloatArray(n) { widthsAtRef[it] * k }, n, spaceAtRef * k, width, onePerRow, rowStart)
+            // The natural line height (no fixed line height) carries the real ascent and descent of whatever font drew the glyphs.
+            val style = stageStyle(fonts.poster, StageWeights.POSTER, size, density, LINE).copy(lineHeight = TextUnit.Unspecified)
             val words = Array(n) { measurer.measure(text[it], style, softWrap = false, maxLines = 1) }
             val xs = FloatArray(n)
             val ys = FloatArray(n)
-            val k = fit.size / ref
-            var row = 0
-            var x = 0f
-            for (i in 0 until n) {
-                if (row + 1 < fit.rows && i >= rowStart[row + 1]) { row++; x = 0f }
-                if (i == rowStart[row]) x = 0f
-                xs[i] = x
-                ys[i] = row * fit.size * LINE
-                x += words[i].size.width + space * k
+            var top = 0f
+            for (r in 0 until rows) {
+                val first = rowStart[r]
+                val end = if (r + 1 < rows) rowStart[r + 1] else n
+                var tight = true
+                var ascent = 0f
+                var descent = 0f
+                for (i in first until end) {
+                    if (!PosterLines.tight(text[i])) tight = false
+                    ascent = maxOf(ascent, words[i].firstBaseline)
+                    descent = maxOf(descent, words[i].size.height - words[i].firstBaseline)
+                }
+                // Archivo's caps alone sit tight, as on the board; anything else gets the room its glyphs measure.
+                val baseline = if (tight) top + size * CAPS else top + ascent
+                val rowHeight = if (tight) size * LINE else ascent + descent
+                var x = 0f
+                for (i in first until end) {
+                    xs[i] = x
+                    ys[i] = baseline - words[i].firstBaseline
+                    x += words[i].size.width + spaceAtRef * k
+                }
+                top += rowHeight
             }
-            return PosterScene(stage, words, xs, ys)
+            return Triple(words, xs, ys) to top
         }
+
+        /** Where the caps' baseline sits in a tight row, as a fraction of the size. */
+        private const val CAPS = 0.8f
 
         /** Rows sit tight, as on the board (`line-height: .86`). */
         const val LINE = 0.88f
