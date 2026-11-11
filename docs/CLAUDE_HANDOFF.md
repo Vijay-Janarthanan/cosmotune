@@ -1,5 +1,7 @@
 # Continue the AETHER / Euthopiar integration
 
+> **Continued after this handoff.** The build issues below were fixed and items 1 to 6 of "Still finish / assess" were worked through; the current done / unverified / not-done matrix is in [AETHER_EUTHOPIAR_INTEGRATION.md](AETHER_EUTHOPIAR_INTEGRATION.md). The rest of this page is the handoff as written.
+
 Handoff requested 11 November 2026 because the user's Codex tokens are nearly exhausted. **Incomplete: do not claim everything is done, restart research, discard working files, or release untested code.**
 
 ## Request and workspace
