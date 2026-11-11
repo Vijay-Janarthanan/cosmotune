@@ -55,6 +55,10 @@ import com.cosmotune.ui.orbit.BiteShape
 import com.cosmotune.ui.orbit.Disc
 import com.cosmotune.ui.orbit.OrbitBiteCard
 import com.cosmotune.ui.orbit.OrbitFonts
+import com.cosmotune.ui.orbit.OrbitMenu
+import com.cosmotune.ui.orbit.OrbitMenuItem
+import com.cosmotune.ui.orbit.orbitFonts
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.orbit.OrbitLook
 import com.cosmotune.ui.orbit.OrbitPlayButton
 import com.cosmotune.ui.orbit.OrbitProgressLine
@@ -112,18 +116,61 @@ internal class CardButton(
     val on: Boolean = false,
     val enabled: Boolean = true,
     val menu: (@Composable () -> Unit)? = null,
+    /** May move into the card's More menu when the row has no room (shuffle, repeat, the video view); previous, next and like never do. */
+    val movable: Boolean = false,
 )
 
+/** Which buttons stay in the row, which go to the More menu, and the size they are drawn at. */
+internal class ButtonPlan(val inline: List<Int>, val overflow: List<Int>, val size: Dp, val gap: Dp)
+
+/**
+ * The row never overflows its [available] width. All the buttons if they fit; else the [movable] ones go to the More menu, in
+ * order, until the rest and the More button fit; else the same at 36 dp with 4 dp gaps. Buttons that are not movable always stay.
+ */
+internal fun planButtons(movable: List<Boolean>, available: Dp, size: Dp, gap: Dp): ButtonPlan {
+    fun fits(count: Int, s: Dp, g: Dp) = s * count + g * (count - 1).coerceAtLeast(0) <= available
+    for ((s, g) in listOf(size to gap, 36.dp to 4.dp)) {
+        var inline = movable.indices.toList()
+        var over = emptyList<Int>()
+        while (true) {
+            if (fits(inline.size + if (over.isEmpty()) 0 else 1, s, g)) return ButtonPlan(inline, over, s, g)
+            val next = inline.firstOrNull { movable[it] } ?: break
+            inline = inline - next
+            over = over + next
+        }
+    }
+    return ButtonPlan(movable.indices.filter { !movable[it] }, movable.indices.filter { movable[it] }, 36.dp, 4.dp)
+}
+
+/**
+ * The card's round buttons in one row that never overflows. With [available] (the width the row has) the [movable] ones go into a
+ * More menu when it is short of room: each is an item showing its on state (solid), one tap away; the More button is itself solid
+ * while any of them is on.
+ */
 @Composable
-private fun CardButtons(buttons: List<CardButton>, ink: Color, fill: Color, size: Dp, gap: Dp) {
-    Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) {
-        buttons.forEach { b ->
+private fun CardButtons(buttons: List<CardButton>, ink: Color, fill: Color, size: Dp, gap: Dp, available: Dp? = null) {
+    val plan = if (available == null) ButtonPlan(buttons.indices.toList(), emptyList(), size, gap) else planButtons(buttons.map { it.movable }, available, size, gap)
+    Row(horizontalArrangement = Arrangement.spacedBy(plan.gap), verticalAlignment = Alignment.CenterVertically) {
+        plan.inline.map { buttons[it] }.forEach { b ->
             Box {
                 OrbitRoundButton(
                     b.icon, b.label, if (b.enabled) ink else ink.copy(alpha = 0.4f), onClick = { if (b.enabled) b.onClick() },
-                    size = size, on = b.on, onInk = fill,
+                    size = plan.size, on = b.on, onInk = fill,
                 )
                 b.menu?.invoke()
+            }
+        }
+        if (plan.overflow.isNotEmpty()) {
+            val moved = plan.overflow.map { buttons[it] }
+            var open by remember { mutableStateOf(false) }
+            Box(Modifier.testTag("card:more")) {
+                OrbitRoundButton(CosmoIcons.More, "More", ink, onClick = { open = !open }, size = plan.size, on = open || moved.any { it.on }, onInk = fill)
+                OrbitMenu(
+                    open, { open = false },
+                    moved.map { b -> OrbitMenuItem(b.label, icon = b.icon, selected = b.on, enabled = b.enabled, keepOpen = b.menu == null, onClick = b.onClick) },
+                    orbitFonts(), orbitLook(), width = 220.dp,
+                )
+                moved.forEach { it.menu?.invoke() }
             }
         }
     }
@@ -281,7 +328,7 @@ internal fun NowPlayingSongCard(
                     }
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth().padding(end = 70.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CardButtons(buttons, ink, fill, buttonSize, 8.dp)
+                        CardButtons(buttons, ink, fill, buttonSize, 8.dp, available = footer)
                         if (volume && roomBesideButtons) {
                             Spacer(Modifier.weight(1f))
                             OrbitVolume(ink, Modifier.padding(start = 12.dp), source = volumeSource)

@@ -56,7 +56,14 @@ class NowPlayingVolumeTest {
         onCycleRepeat = {}, onToggleLike = {}, onSeekFraction = {}, onOpenArtist = {},
     )
 
-    private val sixButtons = List(6) { CardButton(CosmoIcons.Shuffle, "Button $it", {}) }
+    private val sixButtons = listOf(
+        CardButton(CosmoIcons.Shuffle, "Shuffle on", {}, on = true, movable = true),
+        CardButton(CosmoIcons.Repeat, "Repeat", {}, movable = true),
+        CardButton(CosmoIcons.Previous, "Previous", {}),
+        CardButton(CosmoIcons.Next, "Next", {}),
+        CardButton(CosmoIcons.Heart, "Like", {}),
+        CardButton(CosmoIcons.Lyrics, "How the video is shown", {}, movable = true),
+    )
 
     private fun render(name: String, widthDp: Int, wide: Boolean, volume: Boolean, slim: Boolean): Bitmap {
         val scene = ImageComposeScene(width = widthDp, height = 330, density = Density(1f)) {

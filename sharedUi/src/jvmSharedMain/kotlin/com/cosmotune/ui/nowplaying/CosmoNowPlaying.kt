@@ -283,7 +283,7 @@ fun CosmoNowPlaying(
         )
     }
     val screenButton: CardButton? = if (!musicVideo) null else CardButton(
-        VIDEO_VIEW_ICON, "How the video is shown", { videoMenuOpen = true }, on = videoMenuOpen, menu = videoMenu,
+        VIDEO_VIEW_ICON, "How the video is shown", { videoMenuOpen = true }, on = videoMenuOpen, menu = videoMenu, movable = true,
     )
     var visualsOpen by rememberSaveable { mutableStateOf(false) }
     if (visualsOpen) LocalVisualsPresentation.current({ visualsOpen = false }) { PlayerVisualsContent(song, { visualsOpen = false }) }
@@ -415,8 +415,8 @@ fun CosmoNowPlaying(
                 NowPlayingSongCard(
                     transport, orbitType, orbitInk, modifier = m, wide = wideCard, showLine = wideCard, format = true, volume = true,
                     buttons = listOfNotNull(
-                        CardButton(CosmoIcons.Shuffle, if (shuffleEnabled) "Shuffle on" else "Shuffle off", onToggleShuffle, on = shuffleEnabled),
-                        CardButton(if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, repeatLabel(repeatMode), onCycleRepeat, on = repeatMode != RepeatModes.OFF),
+                        CardButton(CosmoIcons.Shuffle, if (shuffleEnabled) "Shuffle on" else "Shuffle off", onToggleShuffle, on = shuffleEnabled, movable = true),
+                        CardButton(if (repeatMode == RepeatModes.ONE) CosmoIcons.RepeatOne else CosmoIcons.Repeat, repeatLabel(repeatMode), onCycleRepeat, on = repeatMode != RepeatModes.OFF, movable = true),
                         previousButton, nextButton, likeButton, screenButton,
                     ),
                 )
