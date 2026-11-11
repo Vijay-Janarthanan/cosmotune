@@ -223,7 +223,8 @@ class AndroidEngineStructureTest {
         assertTrue("actual fun rememberPictureInPicture(): PictureInPictureState" in text)
         assertTrue("ActivityPip.handle(activity, PipOwner.VIDEO)" in text && "componentActivity()" in text)
         assertTrue("onDispose { handle.shared.release() }" in text, "leaving takes Video's wish with it: auto-enter goes off")
-        assertTrue("shared.update(PipWish(ready = enabled, aspectWidth = aspectWidth, aspectHeight = aspectHeight, sourceRect = sourceRect))" in text)
+        assertTrue("ready = enabled, aspectWidth = aspectWidth, aspectHeight = aspectHeight, sourceRect = sourceRect," in text && "shared.update(wish)" in text)
+        assertTrue("previous = playback::playPrevious" in text && "next = playback::playNext" in text, "the window's buttons are Video's queue and play or pause")
         // the mechanics of spec 6.2 now stand in the shared one
         val shared = flat(read("sharedUi/src/androidMain/kotlin/com/cosmotune/ui/pip/Pip.android.kt"))
         assertTrue("PackageManager.FEATURE_PICTURE_IN_PICTURE" in shared)
