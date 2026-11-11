@@ -16,6 +16,7 @@ import okio.Buffer
 import okio.BufferedSource
 import okio.ForwardingSource
 import okio.buffer
+import okio.source
 import java.io.IOException
 import java.io.OutputStream
 import java.net.InetAddress
@@ -27,6 +28,8 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /** Complete immutable byte spans only; identity and lifetime are confined to one playback session. */
 internal class SessionRangeCache(private val limitBytes: Long = 32L * 1024 * 1024) {
@@ -94,6 +97,9 @@ class LoopbackProxy(
 
         /** The next `rn`: every request of the stream counts, from 0 (NewPipe's `YoutubeHttpDataSource`). */
         val requestNumber = AtomicInteger(0)
+
+        /** The first piece, asked for at registration, while it is the one to read from. */
+        @Volatile var warm: WarmPiece? = null
     }
 
     private class Session(val token: String) {
@@ -107,6 +113,82 @@ class LoopbackProxy(
         override fun contentType() = mime?.toMediaTypeOrNull()
         override fun contentLength() = bytes.size.toLong()
         override fun source(): BufferedSource = input
+    }
+
+    /**
+     * A stream's first piece (bytes 0 to [end]), asked for the moment the stream is registered ([register] with `warm`), before the
+     * player opens it: the video's and the sound's first answers then come in together instead of one after the other, and the
+     * player's first read finds its bytes on the way. Whoever reads it gets the bytes as they arrive ([WarmBody]); a piece that
+     * ends short or fails only sends its reader back to the source for the rest.
+     */
+    private class WarmPiece(val end: Long) {
+        private val data = ByteArray((end + 1).toInt())
+        private val lock = ReentrantLock()
+        private val moved = lock.newCondition()
+        private var filled = 0
+        private var done = false
+
+        /** Whether the piece failed before it was complete (its reader then goes to the source itself). */
+        @Volatile var failed = false
+            private set
+
+        fun append(buffer: ByteArray, count: Int) = lock.withLock {
+            val n = minOf(count, data.size - filled)
+            System.arraycopy(buffer, 0, data, filled, n)
+            filled += n
+            moved.signalAll()
+        }
+
+        fun finish(failed: Boolean) = lock.withLock {
+            this.failed = failed && filled < data.size
+            done = true
+            moved.signalAll()
+        }
+
+        /** Waits until the source has answered: the first bytes are in, or the piece ended (or failed) with none. */
+        fun awaitStart() = lock.withLock {
+            while (filled == 0 && !done) moved.await(WAIT_STEP_MS, TimeUnit.MILLISECONDS)
+        }
+
+        /** The whole piece once complete, for the session's cache; null before or when it ended short. */
+        fun complete(): ByteArray? = lock.withLock { if (done && filled == data.size) data else null }
+
+        /**
+         * Copies up to [length] bytes from [at] into [into], waiting for them to arrive; -1 at the end of what the piece holds (its
+         * end, or where it stopped short). Throws when the piece failed before reaching [at].
+         */
+        fun read(at: Long, into: ByteArray, offset: Int, length: Int): Int = lock.withLock {
+            while (at >= filled && !done) moved.await(WAIT_STEP_MS, TimeUnit.MILLISECONDS)
+            if (at >= filled) {
+                if (failed) throw IOException("the first piece failed")
+                return@withLock -1
+            }
+            val n = minOf(length.toLong(), filled - at).toInt()
+            System.arraycopy(data, at.toInt(), into, offset, n)
+            n
+        }
+    }
+
+    /** A reader of a [WarmPiece] from [start]: the bytes as they arrive, up to the piece's end. */
+    private class WarmBody(private val piece: WarmPiece, start: Long, private val mime: String?) : ResponseBody() {
+        private var at = start
+        private val input = object : java.io.InputStream() {
+            override fun read(): Int {
+                val one = ByteArray(1)
+                return if (read(one, 0, 1) < 0) -1 else one[0].toInt() and 0xff
+            }
+
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (len == 0) return 0
+                val n = piece.read(at, b, off, len)
+                if (n > 0) at += n
+                return n
+            }
+        }
+        override fun contentType() = mime?.toMediaTypeOrNull()
+        override fun contentLength() = piece.end - at + 1
+        private val buffered = input.source().buffer()
+        override fun source(): BufferedSource = buffered
     }
 
     /** Keep the call cancellable until its body finishes, not merely until headers arrive. */
@@ -131,6 +213,9 @@ class LoopbackProxy(
     private val random = SecureRandom()
     private val executor: ExecutorService = Executors.newFixedThreadPool(THREADS) { task ->
         Thread(task, "cosmotune-video-proxy").apply { isDaemon = true }
+    }
+    private val warmer: ExecutorService = Executors.newFixedThreadPool(2) { task ->
+        Thread(task, "cosmotune-video-proxy-warm").apply { isDaemon = true }
     }
     private val server: HttpServer = HttpServer.create(InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), BACKLOG)
     private val calls = ConcurrentHashMap<Call, Session>()
@@ -162,9 +247,9 @@ class LoopbackProxy(
     /**
      * Makes [upstreamUrl] readable through the proxy with [headers] on every request, and returns its loopback address. Give
      * [contentLength] when the stream's length is known (the source's `contentLength`), so a `HEAD` or the first answer needs no
-     * upstream request to know it.
+     * upstream request to know it. With [warm] the stream's first piece is asked for at once ([WarmPiece]), before anyone reads it.
      */
-    fun register(upstreamUrl: String, headers: Map<String, String>, contentLength: Long? = null): String {
+    fun register(upstreamUrl: String, headers: Map<String, String>, contentLength: Long? = null, warm: Boolean = false): String {
         val current = session
         val stream = Stream(
             url = upstreamUrl,
@@ -176,7 +261,46 @@ class LoopbackProxy(
             current.streams += stream
             current.streams.size - 1
         }
+        if (warm) startWarm(current, stream)
         return "http://127.0.0.1:$port/${current.token}/$n"
+    }
+
+    /** Asks for [stream]'s first piece on the warm threads; what arrives is readable at once, and cached once complete. */
+    private fun startWarm(current: Session, stream: Stream) {
+        val piece = WarmPiece(pieceEnd(0, null, stream.length))
+        stream.warm = piece
+        try {
+            warmer.execute {
+                var failed = true
+                val began = System.nanoTime()
+                var got = 0L
+                try {
+                    open(current, stream, 0, piece.end, warming = true).use { response ->
+                        val input = response.body.byteStream()
+                        val buffer = ByteArray(COPY_BUFFER)
+                        while (got <= piece.end) {
+                            if (closed || current !== session) break
+                            val n = input.read(buffer, 0, minOf(buffer.size.toLong(), piece.end + 1 - got).toInt())
+                            if (n < 0) break
+                            piece.append(buffer, n)
+                            got += n
+                        }
+                    }
+                    failed = got < piece.end + 1 && !(stream.length in 1..got)
+                } catch (_: Expired) {
+                    onExpired(current.token)
+                } catch (_: IOException) {
+                } catch (_: RuntimeException) {
+                } finally {
+                    piece.finish(failed)
+                    if (!failed && got > 0) measure(got, System.nanoTime() - began)
+                    piece.complete()?.let { if (!closed && current === session) current.ranges.put(stream, 0, piece.end, it) }
+                    if (failed && stream.warm === piece) stream.warm = null
+                }
+            }
+        } catch (_: java.util.concurrent.RejectedExecutionException) {
+            stream.warm = null
+        }
     }
 
     /** Forgets every registered stream and starts a session with a fresh token, which it returns. Readers of the old one stop. */
@@ -198,6 +322,7 @@ class LoopbackProxy(
         server.stop(0)
         calls.keys.forEach { it.cancel() }
         executor.shutdownNow()
+        warmer.shutdownNow()
     }
 
     private fun newToken(): String {
@@ -257,6 +382,7 @@ class LoopbackProxy(
                 return unsatisfiable(exchange, stream.length)
             }
             firstEnd = pieceEnd(start, range?.end, stream.length)
+            (first.body as? WarmBody)?.let { firstEnd = minOf(firstEnd, start + it.contentLength() - 1) }
             if (head) {
                 first.close()
                 first = null
@@ -314,8 +440,11 @@ class LoopbackProxy(
                     throw e
                 }
                 open = null
+                // A warm piece ends where it ends: the next piece is asked for from there.
+                val warmBody = response.body as? WarmBody
+                if (warmBody != null) openEnd = minOf(openEnd, position + warmBody.contentLength() - 1)
                 val want = openEnd - position + 1
-                val cacheHit = response.body is CachedBody
+                val cacheHit = response.body is CachedBody || warmBody != null
                 val cacheBytes = if (!cacheHit && want in 1..GooglevideoRequests.CHUNK_BYTES.toLong() &&
                     cacheable(response, stream, position, openEnd)) ByteArray(want.toInt()) else null
                 val cacheStart = position
@@ -387,8 +516,15 @@ class LoopbackProxy(
      * and `&rn=` for a googlevideo address (until it refuses one with 400 or 405), else a GET with a `Range` header. Learns the
      * content type and, when it can, the length.
      */
-    private fun open(current: Session, stream: Stream, start: Long, end: Long): Response {
+    private fun open(current: Session, stream: Stream, start: Long, end: Long, warming: Boolean = false): Response {
         if (closed || current !== session) throw IOException("playback session ended")
+        // The source's answer to the warm piece came first (so a 403 is still answered as one, and the type and length are known).
+        if (!warming) stream.warm?.takeIf { start <= it.end }?.also { it.awaitStart() }?.takeIf { !it.failed }?.let { piece ->
+            return Response.Builder().request(Request.Builder().url(stream.url).build()).protocol(Protocol.HTTP_1_1)
+                .code(206).message("Warm partial content")
+                .header("Content-Range", "bytes $start-${minOf(end, piece.end)}/${stream.length.takeIf { it >= 0 } ?: "*"}")
+                .body(WarmBody(piece, start, stream.contentType)).build()
+        }
         current.ranges.get(stream, start, end)?.let { bytes ->
             return Response.Builder().request(Request.Builder().url(stream.url).build()).protocol(Protocol.HTTP_1_1)
                 .code(206).message("Cached partial content")
@@ -525,6 +661,9 @@ class LoopbackProxy(
         private const val COPY_BUFFER = 64 * 1024
         private const val MEASURE_MIN_BYTES = 256 * 1024L
         private const val SMOOTHING = 0.3
+
+        /** How long a reader of a warm piece waits at a time for its next bytes (it waits again until they come or the piece ends). */
+        private const val WAIT_STEP_MS = 250L
 
         /** Video's client for the source: no cookie jar, timeouts that let a slow piece finish. */
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()

@@ -304,6 +304,66 @@ class LoopbackProxyTest {
         assertEquals(1, upstream.seen.size, "the later complete verified span is reusable")
     }
 
+    // ---- The warm start ------------------------------------------------------------------------------------------------
+
+    /** Waits until the mock has seen [count] requests. */
+    private fun awaitSeen(count: Int) {
+        val until = System.nanoTime() + 5_000_000_000L
+        while (upstream.seen.size < count && System.nanoTime() < until) Thread.sleep(5)
+    }
+
+    @Test fun aWarmStreamsFirstPieceIsAskedForAtRegistrationAndItsReaderAsksForItNoMore() {
+        val url = proxy.register(videoplayback(), headers, contentLength = total.toLong(), warm = true)
+        awaitSeen(1)
+        assertEquals(listOf("0-2097151"), upstream.seen.map { it.rangeParameter }, "asked before anything read it")
+
+        val answer = get(url)
+
+        assertEquals(200, answer.code)
+        assertContentEquals(file, answer.body)
+        assertEquals(listOf("0-2097151", "2097152-4194303", "4194304-${total - 1}"), upstream.seen.map { it.rangeParameter }, "the first piece once")
+        assertEquals(listOf("0", "1", "2"), upstream.seen.map { it.requestNumber }, "rn still counts every request of the stream")
+    }
+
+    @Test fun thePictureAndTheSoundAreAskedForTogether() {
+        proxy.register(videoplayback(itag = 137), headers, contentLength = total.toLong(), warm = true)
+        proxy.register(videoplayback(itag = 251), headers, contentLength = total.toLong(), warm = true)
+        awaitSeen(2)
+        assertEquals(setOf("itag=137", "itag=251"), upstream.seen.map { Regex("itag=\\d+").find(it.url)!!.value }.toSet())
+    }
+
+    @Test fun aReaderThatComesWhileTheFirstPieceIsArrivingGetsItsBytesAsTheyCome() {
+        upstream.delayBodyOnce = true
+        val url = proxy.register(videoplayback(), headers, contentLength = total.toLong(), warm = true)
+        val answer = get(url, "bytes=100-199")
+        assertEquals(206, answer.code)
+        assertContentEquals(file.copyOfRange(100, 200), answer.body)
+        assertEquals(listOf("0-2097151"), upstream.seen.map { it.rangeParameter }, "it waited for the piece on its way, it did not ask again")
+    }
+
+    @Test fun aWarmPieceTheSourceRefusesIsStillA403ForItsReader() {
+        upstream.expired = true
+        val url = proxy.register(videoplayback(), headers, contentLength = total.toLong(), warm = true)
+        assertEquals(403, get(url).code)
+        assertTrue(expired.isNotEmpty(), "the addresses expired")
+    }
+
+    @Test fun aWarmPieceCutShortSendsItsReaderToTheSourceForTheRest() {
+        upstream.disconnectOnce = true
+        val url = proxy.register(videoplayback(), headers, contentLength = total.toLong(), warm = true)
+        awaitSeen(1)
+        val answer = get(url)
+        assertEquals(200, answer.code)
+        assertContentEquals(file, answer.body)
+    }
+
+    @Test fun aNewSessionLetsGoOfTheOldWarmPiece() {
+        val old = proxy.register(videoplayback(), headers, contentLength = total.toLong(), warm = true)
+        awaitSeen(1)
+        proxy.reset()
+        assertEquals(404, get(old).code)
+    }
+
     /** What the mock saw of one request. */
     private class Seen(val method: String, val url: String, val rangeHeader: String?, val body: ByteArray, val userAgent: String?) {
         val rangeParameter: String? get() = parameter("range")

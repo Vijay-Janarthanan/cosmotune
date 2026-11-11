@@ -279,6 +279,18 @@ internal class FrameExchange {
     /** Called when the target size may have changed (the renderer sets it to its wake-up). */
     @Volatile var onChange: () -> Unit = {}
 
+    /** Called once, on the render thread, with the next frame published after [armFirstFrame] (the startup trace's "first frame"). */
+    @Volatile var onFirstFrame: (() -> Unit)? = null
+    private var firstOfEpoch = false
+
+    /** The next published frame calls [action] (once). */
+    fun armFirstFrame(action: () -> Unit) {
+        synchronized(lock) {
+            onFirstFrame = action
+            firstOfEpoch = true
+        }
+    }
+
     /** A counter that moves with every published frame or clear: the screen redraws when it changes. */
     val frames: StateFlow<Long> get() = sequence
 
@@ -373,14 +385,18 @@ internal class FrameExchange {
     /** The renderer finished [buffer]; [published] says whether it holds a frame to show. Render thread only. */
     fun endWrite(buffer: FrameBuffer, published: Boolean) {
         if (!published) return
+        var first = false
         synchronized(lock) {
             if (writingEpoch != epoch) return // a frame of the video a clear sent away
             val index = slots.indexOfFirst { it === buffer }
             if (index < 0) return
             this.published = index // the previous published buffer, never taken, is free again
             buffer.serial = buffer.serial + 1
+            first = firstOfEpoch
+            firstOfEpoch = false
         }
         sequence.update { it + 1 }
+        if (first) onFirstFrame?.invoke()
     }
 
     /** The newest complete frame for the screen (which then holds it), or the one it holds, or null for nothing to show. */
@@ -414,6 +430,7 @@ internal class FrameExchange {
             published = -1
             blank = true
             epoch++
+            firstOfEpoch = false
             if (freeBuffers) {
                 free = true
                 for (i in slots.indices) if (i != held) slots[i] = null
