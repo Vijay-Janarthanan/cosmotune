@@ -35,42 +35,61 @@ import kotlinx.serialization.json.longOrNull
  */
 internal object SignedPlayerParser {
 
-    /** The streams of [player]. [solve] gets a format's `url` and `signatureCipher` and gives the playable address. */
+    /**
+     * The streams of [player]. [solveAll] gets every format's `url` and `signatureCipher` (in the answer's order, formats first) and gives
+     * each one's playable address, or null for one that cannot be played.
+     */
     suspend fun streams(
         player: JsonObject,
         client: SignedPlayerClient,
         streamingToken: String?,
-        solve: suspend (url: String?, signatureCipher: String?) -> String,
+        solveAll: suspend (links: List<Pair<String?, String?>>) -> List<String?>,
     ): StreamSet {
         val data = player.obj("streamingData")
-        val videoOnly = ArrayList<VideoStream>()
-        val muxed = ArrayList<VideoStream>()
-        val audio = ArrayList<AudioStream>()
+        val candidates = ArrayList<Pair<JsonObject, Boolean>>()
         for ((formats, isMuxed) in listOf(data.arr("formats") to true, data.arr("adaptiveFormats") to false)) {
             for (element in formats.orEmpty()) {
                 val format = element as? JsonObject ?: continue
-                val address = addressOf(format, streamingToken, solve) ?: continue
-                val mime = format.str("mimeType").orEmpty()
-                when {
-                    mime.startsWith("video/") -> videoStream(format, mime, address, isMuxed)?.let { if (isMuxed) muxed += it else videoOnly += it }
-                    mime.startsWith("audio/") -> audioStream(format, mime, address)?.let { audio += it }
-                }
+                if (format.str("type") == "FORMAT_STREAM_TYPE_OTF" || format["drmFamilies"] != null) continue
+                if (format.str("url") == null && cipherOf(format) == null) continue
+                candidates += format to isMuxed
+            }
+        }
+        val addresses = try {
+            solveAll(candidates.map { (format, _) -> format.str("url") to cipherOf(format) })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
+        val videoOnly = ArrayList<VideoStream>()
+        val muxed = ArrayList<VideoStream>()
+        val audio = ArrayList<AudioStream>()
+        candidates.forEachIndexed { i, (format, isMuxed) ->
+            val solved = addresses.getOrNull(i) ?: return@forEachIndexed
+            val address = if (streamingToken == null) solved else solved + (if ('?' in solved) "&" else "?") + "pot=" + java.net.URLEncoder.encode(streamingToken, "UTF-8")
+            val mime = format.str("mimeType").orEmpty()
+            when {
+                mime.startsWith("video/") -> videoStream(format, mime, address, isMuxed)?.let { if (isMuxed) muxed += it else videoOnly += it }
+                mime.startsWith("audio/") -> audioStream(format, mime, address)?.let { audio += it }
             }
         }
         val hls = data.str("hlsManifestUrl")?.takeIf { it.isNotBlank() }
         val dash = data.str("dashManifestUrl")?.takeIf { it.isNotBlank() }
-        val addresses = videoOnly.map { it.url } + muxed.map { it.url } + audio.map { it.url }
+        val all = videoOnly.map { it.url } + muxed.map { it.url } + audio.map { it.url }
         return StreamSet(
             videoOnly = videoOnly,
             muxed = muxed,
             audio = audio,
             hlsUrl = hls,
             dashMpdUrl = dash,
-            expiresAtMs = NewPipeMapper.expiresAtMsOf(addresses) ?: NewPipeMapper.expiresAtMsOf(listOfNotNull(hls, dash)),
+            expiresAtMs = NewPipeMapper.expiresAtMsOf(all) ?: NewPipeMapper.expiresAtMsOf(listOfNotNull(hls, dash)),
             requestHeaders = mediaHeaders(client),
             durationMs = player.obj("videoDetails").long("lengthSeconds")?.takeIf { it > 0 }?.times(1000),
         )
     }
+
+    private fun cipherOf(format: JsonObject): String? = format.str("signatureCipher") ?: format.str("cipher")
 
     /**
      * What the media fetches must say for a link this client minted. Never a cookie: a stream address carries its own authority, and the
@@ -82,26 +101,6 @@ internal object SignedPlayerParser {
             put("Origin", "https://www.youtube.com")
             put("Referer", "https://www.youtube.com/")
         }
-    }
-
-    private suspend fun addressOf(
-        format: JsonObject,
-        streamingToken: String?,
-        solve: suspend (String?, String?) -> String,
-    ): String? {
-        if (format.str("type") == "FORMAT_STREAM_TYPE_OTF" || format["drmFamilies"] != null) return null
-        val url = format.str("url")
-        val cipher = format.str("signatureCipher") ?: format.str("cipher")
-        if (url == null && cipher == null) return null
-        val solved = try {
-            solve(url, cipher)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            return null
-        }
-        if (streamingToken == null) return solved
-        return solved + (if ('?' in solved) "&" else "?") + "pot=" + java.net.URLEncoder.encode(streamingToken, "UTF-8")
     }
 
     private fun videoStream(format: JsonObject, mime: String, address: String, isMuxed: Boolean): VideoStream? {

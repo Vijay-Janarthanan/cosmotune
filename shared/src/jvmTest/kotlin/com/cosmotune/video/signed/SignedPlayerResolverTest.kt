@@ -33,17 +33,80 @@ class SignedPlayerResolverTest {
         assertTrue(SignedPlayerClient.RESCUE.none { it.takesCookies }, "the app clients cannot")
     }
 
-    @Test fun theWalkAsksEachClientInOrderAndStopsAtTheFirstWithStreams() = runTest {
+    @Test fun theFirstClientIsAskedAloneAndWhenItFailsTheOthersRaceForTheAnswer() = runTest {
         val http = FakeSignedHttp()
         http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.REFUSED)
         http.answer(SignedPlayerClient.WEB_EMBEDDED, PlayerJson.NO_STREAMS)
         http.answer(SignedPlayerClient.TV_OLD, PlayerJson.PLAYABLE)
         val playback = SignedFixtures.resolver(SignedFixtures.session(), http).resolve("vid", clients)
-        assertEquals(SignedPlayerClient.TV_OLD, playback.client)
-        assertEquals(
-            listOf(SignedPlayerClient.TV_SAMSUNG, SignedPlayerClient.WEB_EMBEDDED, SignedPlayerClient.TV_OLD).map { it.userAgent },
-            http.sent.map { it.userAgent },
-        )
+        assertEquals(SignedPlayerClient.TV_OLD, playback.client, "the first with streams")
+        assertEquals(SignedPlayerClient.TV_SAMSUNG.userAgent, http.sent.first().userAgent, "the first of the order, alone")
+        assertEquals(clients.map { it.userAgent }, http.sent.map { it.userAgent }, "then the rest of it together, in its order")
+        assertEquals(0L, testScheduler.currentTime, "nothing waited for the hedge: the first failure started the others")
+    }
+
+    @Test fun theFirstToAnswerWinsAndASlowFirstClientIsHedgedAfterAMoment() = runTest {
+        val http = FakeSignedHttp()
+        http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.PLAYABLE)
+        http.takes(SignedPlayerClient.TV_SAMSUNG, 5_000)
+        http.answer(SignedPlayerClient.WEB_EMBEDDED, PlayerJson.PLAYABLE)
+        http.takes(SignedPlayerClient.WEB_EMBEDDED, 200)
+        val playback = SignedFixtures.resolver(SignedFixtures.session(), http).resolve("vid", clients)
+        assertEquals(SignedPlayerClient.WEB_EMBEDDED, playback.client)
+        assertEquals(SignedPlayerResolver.HEDGE_MS + 200, testScheduler.currentTime, "asked once the first kept it waiting, answered 200 ms later")
+    }
+
+    @Test fun aFirstClientThatAnswersAsksNoOther() = runTest {
+        val http = FakeSignedHttp()
+        http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.PLAYABLE)
+        http.takes(SignedPlayerClient.TV_SAMSUNG, SignedPlayerResolver.HEDGE_MS - 1)
+        SignedFixtures.resolver(SignedFixtures.session(), http).resolve("vid", clients)
+        assertEquals(listOf(SignedPlayerClient.TV_SAMSUNG.userAgent), http.sent.map { it.userAgent })
+    }
+
+    @Test fun aClientThatKeepsFailingWhileAnotherAnswersIsBenchedForTheSession() = runTest {
+        val http = FakeSignedHttp()
+        http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.REFUSED)
+        http.answer(SignedPlayerClient.WEB_EMBEDDED, PlayerJson.PLAYABLE)
+        var now = SignedFixtures.NOW_MS
+        val resolver = SignedFixtures.resolver(SignedFixtures.session(), http, clock = { now })
+        repeat(ClientRanking.STRIKES) { resolver.resolve("vid$it", clients) }
+        assertEquals(setOf(SignedPlayerClient.TV_SAMSUNG), resolver.ranking.benched())
+        http.sent.clear()
+        assertEquals(SignedPlayerClient.WEB_EMBEDDED, resolver.resolve("next", clients).client)
+        assertEquals(SignedPlayerClient.WEB_EMBEDDED.userAgent, http.sent.first().userAgent, "the next video does not wait on it")
+        assertTrue(http.sent.none { it.userAgent == SignedPlayerClient.TV_SAMSUNG.userAgent }, "nor asks it while another answers")
+        now += ClientRanking.BENCH_MS
+        http.sent.clear()
+        resolver.resolve("later", clients)
+        assertEquals(SignedPlayerClient.TV_SAMSUNG.userAgent, http.sent.first().userAgent, "after the bench it is first again")
+    }
+
+    @Test fun aVideoNoClientCanPlayBlamesNoClient() = runTest {
+        val resolver = SignedFixtures.resolver(SignedFixtures.session(), FakeSignedHttp())
+        repeat(ClientRanking.STRIKES + 1) { assertFailsWith<SignedPlaybackFailure> { resolver.resolve("gone$it", clients) } }
+        assertTrue(resolver.ranking.benched().isEmpty())
+    }
+
+    @Test fun nothingAnsweringBeforeTheDeadlineLosesTheRace() = runTest {
+        val http = FakeSignedHttp()
+        for (client in clients) {
+            http.answer(client, PlayerJson.PLAYABLE)
+            http.takes(client, 60_000)
+        }
+        val failure = assertFailsWith<SignedPlaybackFailure> { SignedFixtures.resolver(SignedFixtures.session(), http).resolve("vid", clients) }
+        assertEquals(SignedPlayerResolver.DEADLINE_MS, testScheduler.currentTime)
+        assertEquals(clients.map { "${it.name}: no answer within ${SignedPlayerResolver.DEADLINE_MS}ms" }, failure.reasons)
+    }
+
+    @Test fun aLastResortIsNeverRacedOnlyAskedAfterTheOthersFailed() = runTest {
+        val http = FakeSignedHttp()
+        http.answer(SignedPlayerClient.IOS, PlayerJson.PLAYABLE)
+        http.takes(SignedPlayerClient.IOS, 2_000)
+        http.answer(SignedPlayerClient.ANDROID_VR, PlayerJson.PLAYABLE)
+        val playback = SignedFixtures.resolver(SignedFixtures.session(), http).resolve("vid", SignedPlayerClient.RESCUE)
+        assertEquals(SignedPlayerClient.IOS, playback.client, "the VR client's links can stop after a megabyte: it waits")
+        assertEquals(listOf(SignedPlayerClient.IOS.userAgent), http.sent.map { it.userAgent })
     }
 
     @Test fun aServerErrorOrAnUnreadableAnswerOnlyMovesTheWalkOn() = runTest {
