@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.music.data.NerdStats
 import com.cosmotune.music.data.audioFormatLabel
 import com.cosmotune.music.data.model.Song
+import com.cosmotune.music.playback.LivePlayhead
 import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.ui.player.PlayerPlatform
 import com.cosmotune.music.ui.player.PlayerScrub
@@ -78,9 +79,11 @@ internal class NowPlayingTransport(
     val onOpenArtist: () -> Unit,
     /** The song is buffering or its stream is being found: the play button wears a circling moon until it is in. */
     val isLoading: Boolean = false,
+    /** The playhead run on between readings, so the ring and moon glide; without one they follow the readings (previews, tests). */
+    val live: LivePlayhead? = null,
 ) {
     /** Where the playhead is drawn (0..1): the dragged handle while scrubbing, else the song. Read it in draw. */
-    fun progress(): Float = scrub.shown(position.positionMs, durationMs)
+    fun progress(): Float = scrub.shown(live?.positionMs() ?: position.positionMs, durationMs)
 
     /** A seek from a line or the ring: held where it was dropped until the player catches up. */
     fun seek(fraction: Float) {

@@ -33,6 +33,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -441,6 +443,9 @@ private fun TvFilmCard(
     // The label is redrawn every half second, not every frame.
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(playing) { while (playing) { delay(500); tick++ } }
+    // The orbit is drawn from the engine's own clock every frame (read in the draw pass), so it glides between those half seconds.
+    val ringFrame = remember { mutableLongStateOf(0L) }
+    LaunchedEffect(playing) { while (playing) withFrameNanos { ringFrame.longValue = it } }
     val label = run {
         tick
         val p = player.engine.positionMs()
@@ -471,7 +476,7 @@ private fun TvFilmCard(
         playing = playing,
         onPlay = onPlayPause,
         height = 236.dp,
-        progress = if (durationMs > 0 && !state.isLive) ({ (player.engine.positionMs().toFloat() / durationMs).coerceIn(0f, 1f) }) else null,
+        progress = if (durationMs > 0 && !state.isLive) ({ ringFrame.longValue; (player.engine.positionMs().toFloat() / durationMs).coerceIn(0f, 1f) }) else null,
         spinning = playing,
         playFocus = playFocus,
         below = {

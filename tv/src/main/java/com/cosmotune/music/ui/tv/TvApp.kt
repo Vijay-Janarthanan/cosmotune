@@ -4,6 +4,7 @@
  */
 package com.cosmotune.music.ui.tv
 
+import com.cosmotune.music.playback.rememberLivePlayhead
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -777,7 +778,7 @@ private fun TvNowPlayingChip(playerState: PlayerState, onClick: () -> Unit, modi
     }
     val interaction = remember { MutableInteractionSource() }
     val duration = playerState.durationMs
-    val position = playerState.position
+    val head = rememberLivePlayhead(playerState.position, playerState.isPlaying)
     Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
         Box(
             modifier = modifier
@@ -789,7 +790,7 @@ private fun TvNowPlayingChip(playerState: PlayerState, onClick: () -> Unit, modi
         }
         OrbitRing(
             40.dp, TvGlass.Peach,
-            progress = { if (duration > 0) position.positionMs.toFloat() / duration else null },
+            progress = { if (duration > 0) head.fraction(duration) else null },
             spinning = playerState.isPlaying,
             stroke = 1.5.dp,
             moon = 3.dp,

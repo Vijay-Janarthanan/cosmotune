@@ -47,6 +47,7 @@ import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.settings.LastPlayerScreen
 import com.cosmotune.music.playback.BACK_RESTARTS_AFTER_MS
 import com.cosmotune.music.playback.PlaybackPosition
+import com.cosmotune.music.playback.rememberLivePlayhead
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.lyrics_loading_lines
 import com.cosmotune.music.sharedui.resources.played_by
@@ -208,6 +209,7 @@ fun CosmoNowPlaying(
         onToggleShuffle = onToggleShuffle, onCycleRepeat = onCycleRepeat, onToggleLike = onToggleLike, onSeekFraction = onSeekFraction,
         onOpenArtist = { onOpenArtist(song.artistId, song.artist) },
         isLoading = isLoading,
+        live = rememberLivePlayhead(position, isPlaying),
     )
     val inParty = rememberInParty()
     val sheets = remember { NowPlayingSheetFlags() }

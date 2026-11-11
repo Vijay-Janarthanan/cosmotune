@@ -45,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.design.PlayerBarMetrics
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.playback.PlaybackPosition
+import com.cosmotune.music.playback.rememberLivePlayhead
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.audio_output
 import com.cosmotune.music.sharedui.resources.like
@@ -142,6 +143,7 @@ fun CosmoPlayerBar(
     val capsuleShell = if (embedded) null else shell
     val coverUrl = PlayerPlatform.host.rememberRemoteArtworkUrl(song)
     val scrub = rememberPlayerScrub(song.videoId, position, durationMs)
+    val playhead = rememberLivePlayhead(position, isPlaying)
     val type = LocalCosmoType.current
     val fonts = orbitFonts()
     val look = orbitLook()
@@ -179,7 +181,7 @@ fun CosmoPlayerBar(
             ) {
                 SongBlock(
                     song, coverUrl, plan, titleStyle, artistStyle, bar,
-                    progress = { if (live || durationMs <= 0L) null else scrub.shown(position.positionMs, durationMs) },
+                    progress = { if (live || durationMs <= 0L) null else scrub.shown(playhead.positionMs(), durationMs) },
                     spinning = isPlaying, onExpand = onExpand.takeUnless { embedded },
                 )
                 if (plan.like) {
@@ -211,7 +213,7 @@ fun CosmoPlayerBar(
                             Tools(live, plan, bar, lyricsOn, queueOn, onLyrics, onQueue, onOutput, volumeLabel)
                         }
                         OrbitProgressLine(
-                            progress = { scrub.shown(position.positionMs, durationMs) },
+                            progress = { scrub.shown(playhead.positionMs(), durationMs) },
                             ink = ink,
                             modifier = Modifier.graphicsLayer { alpha = if (controlsLocked) LOCKED_ALPHA else 1f },
                             onSeek = { fraction -> if (controlsLocked) onBlockedControl() else { scrub.drag(fraction); scrub.release(onSeekFraction) } },

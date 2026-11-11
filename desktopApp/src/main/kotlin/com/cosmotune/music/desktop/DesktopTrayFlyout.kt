@@ -280,6 +280,7 @@ private fun PlayerCard(now: DesktopMiniPlayer.NowPlaying, actions: DesktopMiniPl
     val fonts = orbitFonts()
     val look = orbitLook()
     val (fill, ink) = coverFill(now.artworkUrl, now.title.ifBlank { "tray" })
+    val live = DesktopMiniPlayer.position?.let { com.cosmotune.music.playback.rememberLivePlayhead(it, now.playing) }
     OrbitBiteCard(
         fill = fill,
         modifier = modifier,
@@ -292,7 +293,7 @@ private fun PlayerCard(now: DesktopMiniPlayer.NowPlaying, actions: DesktopMiniPl
                 // The cover as a disc, its orbit the song's progress and the moon where it is.
                 Box(Modifier.size(RING_DP), contentAlignment = Alignment.Center) {
                     Disc(now.artworkUrl, DISC_DP)
-                    OrbitRing(RING_DP, ink, progress = { now.progress.coerceIn(0f, 1f) }, spinning = now.playing, stroke = 2.dp, moon = 4.dp)
+                    OrbitRing(RING_DP, ink, progress = { live?.fraction(now.durationMs) ?: now.progress.coerceIn(0f, 1f) }, spinning = now.playing, stroke = 2.dp, moon = 4.dp)
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {

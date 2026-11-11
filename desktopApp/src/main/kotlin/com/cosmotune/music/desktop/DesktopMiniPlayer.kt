@@ -48,7 +48,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 internal object DesktopMiniPlayer {
     data class NowPlaying(val title: String = "", val artist: String = "", val artworkUrl: String? = null,
-        val playing: Boolean = false, val progress: Float = 0f)
+        val playing: Boolean = false, val progress: Float = 0f, val durationMs: Long = 0L)
 
     class Actions(val playPause: () -> Unit, val next: () -> Unit, val previous: () -> Unit, val openMain: () -> Unit)
 
@@ -58,6 +58,11 @@ internal object DesktopMiniPlayer {
     val open: StateFlow<Boolean> = _open.asStateFlow()
     private val _state = MutableStateFlow(NowPlaying())
     val state: StateFlow<NowPlaying> = _state.asStateFlow()
+    /**
+     * The main window's playhead, shared so the tray card and the mini player run their rings on from its last reading on their
+     * own frame clock. [NowPlaying.progress] is published once a second and stays as the fallback.
+     */
+    @Volatile var position: com.cosmotune.music.playback.PlaybackPosition? = null
     @Volatile var actions: Actions = Actions({}, {}, {}, {})
 
     fun toggle() { _open.value = !_open.value }
@@ -68,6 +73,11 @@ internal object DesktopMiniPlayer {
 @Composable
 internal fun DesktopMiniPlayerContent(now: DesktopMiniPlayer.NowPlaying, actions: DesktopMiniPlayer.Actions) =
     com.cosmotune.ui.player.MiniPlayerPanel(now.title, now.artist, now.playing, now.progress,
+        liveProgress = DesktopMiniPlayer.position?.let { position ->
+            val live = com.cosmotune.music.playback.rememberLivePlayhead(position, now.playing)
+            val progress: () -> Float = { live.fraction(now.durationMs) }
+            progress
+        },
         artwork = { modifier -> DesktopArtwork(now.artworkUrl, modifier) },
         onPlayPause = actions.playPause, onNext = actions.next, onPrevious = actions.previous, onOpen = actions.openMain)
 
