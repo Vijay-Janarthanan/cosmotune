@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.PlaylistPrivacy
 import com.cosmotune.music.data.model.Song
@@ -101,7 +102,7 @@ internal fun DesktopPlaylistDialog(
                 DesktopStrings["d_this_track_is_not_from_youtube_music_so_it_can_only_go_i", "This track is not from YouTube Music, so it can only go in a playlist kept here."],
                 style = MaterialTheme.typography.bodySmall,
                 color = DesktopSecondary,
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = dialogSide(), vertical = 4.dp),
             )
         }
         val account = if (canUseAccount) accountPlaylists else emptyList()
@@ -122,7 +123,7 @@ internal fun DesktopPlaylistDialog(
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = DesktopSecondary,
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 14.dp),
+                modifier = Modifier.padding(horizontal = dialogSide(), vertical = 14.dp),
             )
             else -> LazyColumn(Modifier.heightIn(max = 320.dp)) {
                 if (account.isNotEmpty()) {
@@ -174,7 +175,7 @@ private fun NewPlaylistForm(
     val submit = { if (name.isNotBlank() && !busy) onCreate(name.trim(), privacy) }
 
     Row(
-        Modifier.fillMaxWidth().padding(start = if (onBack != null) 8.dp else 22.dp, end = 22.dp, top = 16.dp),
+        Modifier.fillMaxWidth().padding(start = if (onBack != null) 8.dp else dialogSide(), end = dialogSide(), top = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         onBack?.let {
@@ -201,7 +202,7 @@ private fun NewPlaylistForm(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 22.dp, vertical = 16.dp)
+            .padding(horizontal = dialogSide(), vertical = 16.dp)
             .clip(RoundedCornerShape(CosmoRadii.rMd))
             .background(Color.White.copy(alpha = 0.08f))
             .padding(horizontal = 12.dp, vertical = 12.dp),
@@ -235,7 +236,7 @@ private fun NewPlaylistForm(
     if (signedIn) {
         DialogSectionHeading("Who can see it")
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 22.dp),
+            Modifier.fillMaxWidth().padding(horizontal = dialogSide()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PlaylistPrivacy.entries.forEach { option ->
@@ -267,7 +268,7 @@ internal fun DesktopRenamePlaylistDialog(
         Box(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 14.dp)
+                .padding(horizontal = dialogSide(), vertical = 14.dp)
                 .clip(RoundedCornerShape(CosmoRadii.rMd))
                 .background(Color.White.copy(alpha = 0.08f))
                 .padding(horizontal = 12.dp, vertical = 12.dp),
@@ -360,7 +361,7 @@ internal fun DesktopReorderPlaylistDialog(
                     items(order.size, key = { DesktopReorder.keyOf(order[it], it) }) { index ->
                         val song = order[index]
                         Row(
-                            Modifier.fillMaxWidth().padding(start = 22.dp, end = 10.dp).heightIn(min = 48.dp),
+                            Modifier.fillMaxWidth().padding(start = dialogSide(), end = 10.dp).heightIn(min = 48.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
@@ -450,6 +451,13 @@ private fun DesktopDialogFrame(onDismiss: () -> Unit, content: @Composable () ->
     }
 }
 
+/**
+ * The side inset of everything in these dialogs: 24 dp in Orbit, the heading's and the buttons' (`CosmoDialogBody`), so a field, a
+ * row or a note starts on the heading's edge; 22 dp in the old look.
+ */
+@Composable
+private fun dialogSide(): Dp = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 24.dp else 22.dp
+
 @Composable
 private fun DialogHeading(title: String, subtitle: String) {
     if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
@@ -457,7 +465,7 @@ private fun DialogHeading(title: String, subtitle: String) {
             overline = null,
             title = title,
             message = subtitle.takeIf { it.isNotBlank() },
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 6.dp),
+            modifier = Modifier.padding(start = dialogSide(), end = dialogSide(), top = 24.dp, bottom = 6.dp),
         )
         return
     }
@@ -466,14 +474,14 @@ private fun DialogHeading(title: String, subtitle: String) {
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
         color = Color.White,
-        modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp),
+        modifier = Modifier.padding(start = dialogSide(), end = dialogSide(), top = 20.dp),
     )
     if (subtitle.isNotBlank()) {
         Text(
             subtitle,
             style = MaterialTheme.typography.bodySmall,
             color = DesktopSecondary,
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 6.dp),
+            modifier = Modifier.padding(start = dialogSide(), end = dialogSide(), top = 6.dp),
         )
     }
 }
@@ -484,7 +492,7 @@ private fun DialogSectionHeading(text: String) {
         text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         color = DesktopSecondary,
-        modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 4.dp),
+        modifier = Modifier.padding(start = dialogSide(), end = dialogSide(), top = 14.dp, bottom = 4.dp),
     )
 }
 
@@ -494,7 +502,7 @@ private fun DialogError(message: String) {
         message,
         style = MaterialTheme.typography.bodySmall,
         color = DesktopAccent,
-        modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 10.dp),
+        modifier = Modifier.padding(start = dialogSide(), end = dialogSide(), top = 10.dp),
     )
 }
 
@@ -511,7 +519,7 @@ private fun DialogAction(
             .fillMaxWidth()
             .heightIn(min = 52.dp)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = dialogSide()),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))

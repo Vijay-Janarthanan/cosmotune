@@ -241,7 +241,7 @@ private fun MemberRow(
                 Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 4.dp).testTag(RoomTags.confirmRemove(member.uid)),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(Res.string.cosmo_room_remove_confirm, member.name), style = fonts.body, color = look.ink, modifier = Modifier.weight(1f))
+                Text(stringResource(Res.string.cosmo_room_remove_confirm, member.name), style = fonts.body, color = look.ink, modifier = Modifier.weight(1f).padding(end = 12.dp))
                 OrbitPillButton(stringResource(Res.string.cosmo_room_cancel), onCancel, fonts, look, height = 40.dp)
                 Spacer(Modifier.width(8.dp))
                 OrbitPillButton(stringResource(Res.string.cosmo_room_remove), onRemove, fonts, look, primary = true, height = 40.dp)

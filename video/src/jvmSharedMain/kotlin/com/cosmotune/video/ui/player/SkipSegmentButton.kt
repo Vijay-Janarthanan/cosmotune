@@ -162,7 +162,7 @@ internal fun SegmentSkippedToast(segment: SkipSegment?, onUndo: () -> Unit, bott
             .padding(start = TOAST_PAD_START_DP.dp, top = TOAST_PAD_DP.dp, end = TOAST_PAD_DP.dp, bottom = TOAST_PAD_DP.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = message, style = style, color = look.ink, modifier = Modifier.weight(1f))
+        Text(text = message, style = style, color = look.ink, modifier = Modifier.weight(1f).padding(end = 12.dp))
         OrbitActionPill(
             label = stringResource(Res.string.video_undo),
             onClick = { shown = null; onUndo() },

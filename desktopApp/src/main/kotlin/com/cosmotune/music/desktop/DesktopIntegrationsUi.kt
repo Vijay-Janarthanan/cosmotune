@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.data.spotify.SpotifyImportTrack
@@ -195,7 +196,7 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
                     "3. Copy the value of the sp_dc cookie.\n" +
                     "4. Paste it below.",
             ],
-            modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(dialogSide()), vertical = 4.dp),
             style = MaterialTheme.typography.bodySmall,
             color = dimColor,
         )
@@ -209,7 +210,7 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
             modifier = Modifier.focusRequester(focus),
         )
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
+            Modifier.fillMaxWidth().padding(horizontal = panelInset(dialogSide())),
             horizontalArrangement = Arrangement.Start,
         ) {
             DialogLink(DesktopStrings["d_open_spotify", "Open Spotify"]) { DesktopExternalLinks.open("https://open.spotify.com/") }
@@ -256,7 +257,7 @@ internal fun DesktopListenBrainzTokenDialog(onDismiss: () -> Unit) {
             modifier = Modifier.focusRequester(focus),
         )
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
+            Modifier.fillMaxWidth().padding(horizontal = panelInset(dialogSide())),
             horizontalArrangement = Arrangement.Start,
         ) {
             DialogLink(DesktopStrings["d_open_listenbrainz", "Open ListenBrainz"]) { DesktopExternalLinks.open("https://listenbrainz.org/settings/") }
@@ -271,6 +272,13 @@ internal fun DesktopListenBrainzTokenDialog(onDismiss: () -> Unit) {
     }
 }
 
+/**
+ * The side inset of everything in these dialogs: 24 dp in Orbit, the heading's and the buttons' (`DesktopDialogButtons`), so a field,
+ * a note or a link starts on the heading's edge; 22 dp in the old look.
+ */
+@Composable
+private fun dialogSide(): Dp = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 24.dp else 22.dp
+
 @Composable
 private fun DialogHeading(title: String, message: String, isError: Boolean = false) {
     if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
@@ -278,13 +286,13 @@ private fun DialogHeading(title: String, message: String, isError: Boolean = fal
             overline = null,
             title = title,
             message = message,
-            modifier = Modifier.padding(start = panelInset(24.dp), end = panelInset(24.dp), top = 24.dp, bottom = 10.dp),
+            modifier = Modifier.padding(start = panelInset(dialogSide()), end = panelInset(dialogSide()), top = 24.dp, bottom = 10.dp),
             messageIsError = isError,
         )
         return
     }
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 18.dp),
+        Modifier.fillMaxWidth().padding(horizontal = panelInset(dialogSide()), vertical = 18.dp),
         horizontalAlignment = if (LocalDesktopPanelIsPage.current) Alignment.Start else Alignment.CenterHorizontally,
     ) {
         Text(
@@ -388,7 +396,7 @@ internal fun DesktopSpotifyImportDialog(
             status?.let {
                 Text(
                     it,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(dialogSide()), vertical = 6.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (failed) DesktopDestructive else dimColor,
                     textAlign = TextAlign.Center,
@@ -419,7 +427,7 @@ internal fun DesktopSpotifyImportDialog(
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = panelInset(22.dp))
+                        .padding(horizontal = panelInset(dialogSide()))
                         .heightIn(max = 200.dp)
                         .clip(RoundedCornerShape(CosmoRadii.rSm))
                         .background(inkColor.copy(alpha = 0.06f))
@@ -462,7 +470,7 @@ private fun DialogField(
             placeholder = placeholder,
             fonts = orbitFonts(),
             look = look,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)).then(modifier),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(dialogSide())).then(modifier),
             secret = isPassword,
             enabled = enabled,
             onSubmit = onSubmit,
@@ -476,7 +484,7 @@ private fun DialogField(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = panelInset(22.dp))
+            .padding(horizontal = panelInset(dialogSide()))
             .clip(RoundedCornerShape(CosmoRadii.rMd))
             .background(inkColor.copy(alpha = if (enabled) 0.08f else 0.04f))
             .padding(horizontal = 12.dp, vertical = 12.dp),

@@ -51,6 +51,7 @@ import com.cosmotune.ui.orbit.OrbitSelectChip
 import com.cosmotune.ui.orbit.WatchBadge
 import com.cosmotune.ui.orbit.WatchCard
 import com.cosmotune.ui.orbit.WatchCardChip
+import com.cosmotune.ui.orbit.WatchCardChipRow
 import com.cosmotune.ui.orbit.WatchLogoTile
 import com.cosmotune.ui.orbit.WatchMessage
 import com.cosmotune.ui.orbit.WatchPicture
@@ -235,10 +236,8 @@ private fun TitleCard(
             }
             val badges = listOfNotNull(page?.certification) + streamBadges(best)
             if (!series && badges.isNotEmpty()) Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { badges.forEach { WatchBadge(it, fonts, ink) } }
-            Row(
-                Modifier.padding(top = 18.dp, end = if (wide) 0.dp else 84.dp).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-            ) {
+            // On the phone the chips stop short of Play's bite and wrap rather than scroll under it.
+            WatchCardChipRow(wide, biteRoom = 84.dp, Modifier.padding(top = 18.dp)) {
                 if (!series) WatchCardChip(resume?.let { "Resume ${longClock(it.positionMs)}" } ?: "Play", ink, fonts, onPlay, icon = CosmoIcons.Play, solid = true, onSolid = fill)
                 WatchCardChip(if (inList) "In my list" else "My list", ink, fonts, onClick = { onMyList(!inList) }, icon = if (inList) CosmoIcons.Check else CosmoIcons.Plus)
                 WatchCardChip("Watch together", ink, fonts, onClick = onWatchTogether, icon = CosmoIcons.Together, enabled = watchTogether)

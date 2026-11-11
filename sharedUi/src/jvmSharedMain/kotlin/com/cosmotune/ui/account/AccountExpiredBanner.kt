@@ -1,6 +1,9 @@
 package com.cosmotune.ui.account
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +35,7 @@ import com.cosmotune.music.sharedui.resources.cosmo_account_expired_banner
 import com.cosmotune.music.sharedui.resources.cosmo_account_sign_in_again
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.kit.KitTextButton
+import com.cosmotune.ui.orbit.OrbitSpace
 import com.cosmotune.ui.orbit.orbitFonts
 import com.cosmotune.ui.orbit.orbitLook
 import androidx.compose.foundation.layout.Box
@@ -65,8 +69,9 @@ fun AccountExpiredBanner(
     val look = orbitLook()
     val danger = Color(LocalCosmoColors.current.palette.danger)
     // Orbit's quiet card (the ink at 5 %, radius 22), the user glyph on a disc of the theme's danger colour, the line in the body
-    // face, and up to two text actions after it in the accent.
-    Row(
+    // face, and up to two text actions in the accent: after the line when the card is wide, on a row of their own under it, at its
+    // end, when it is narrow, so the line is never squeezed to a few words and cut short.
+    BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .padding(horizontal = CosmoSpacing.margin, vertical = 8.dp)
@@ -75,24 +80,43 @@ fun AccountExpiredBanner(
             .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
             .semantics { liveRegion = LiveRegionMode.Polite }
             .testTag(AccountBannerTags.BANNER),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(36.dp).clip(CircleShape).background(danger.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-            Icon(CosmoIcons.User, contentDescription = null, tint = danger, modifier = Modifier.size(18.dp))
+        val stacked = maxWidth < BANNER_INLINE_MIN
+        val line: @Composable (Modifier) -> Unit = { lineModifier ->
+            Text(
+                message ?: stringResource(Res.string.cosmo_account_expired_banner),
+                style = fonts.body,
+                color = look.ink,
+                maxLines = if (stacked) 4 else 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = lineModifier,
+            )
         }
-        Spacer(Modifier.width(12.dp))
-        Text(
-            message ?: stringResource(Res.string.cosmo_account_expired_banner),
-            style = fonts.body,
-            color = look.ink,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(vertical = 8.dp),
-        )
-        KitTextButton(actionLabel ?: stringResource(Res.string.cosmo_account_sign_in_again), onSignIn, Modifier.testTag(AccountBannerTags.SIGN_IN))
-        if (onDismiss != null) KitTextButton(stringResource(Res.string.cosmo_account_dismiss), onDismiss)
+        val actions: @Composable () -> Unit = {
+            KitTextButton(actionLabel ?: stringResource(Res.string.cosmo_account_sign_in_again), onSignIn, Modifier.testTag(AccountBannerTags.SIGN_IN))
+            if (onDismiss != null) KitTextButton(stringResource(Res.string.cosmo_account_dismiss), onDismiss)
+        }
+        Row(verticalAlignment = if (stacked) Alignment.Top else Alignment.CenterVertically) {
+            Box(Modifier.padding(top = if (stacked) 4.dp else 0.dp).size(36.dp).clip(CircleShape).background(danger.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                Icon(CosmoIcons.User, contentDescription = null, tint = danger, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            if (stacked) {
+                Column(Modifier.weight(1f)) {
+                    line(Modifier.padding(top = 12.dp, end = 4.dp))
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) { actions() }
+                }
+            } else {
+                line(Modifier.weight(1f).padding(vertical = 8.dp))
+                Spacer(Modifier.width(OrbitSpace.labelToControl))
+                actions()
+            }
+        }
     }
 }
+
+/** Under this width the banner's actions go on a row of their own, under the line. */
+private val BANNER_INLINE_MIN = 520.dp
 
 /**
  * [AccountExpiredBanner] while the one session ([YouTubeSession.shared]) is expired; dismissed, it stays away until the sign-in

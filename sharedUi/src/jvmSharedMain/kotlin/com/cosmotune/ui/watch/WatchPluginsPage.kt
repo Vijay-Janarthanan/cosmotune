@@ -198,7 +198,7 @@ private fun RoomPacksCard(packs: WatchRoomPacks, repository: WatchRepository, fo
         }
         note?.let { Text(it, style = fonts.body.copy(fontSize = 12.5.sp), color = look.dim, modifier = Modifier.padding(top = 10.dp)) }
         offers.filter { !it.mine }.take(5).forEach { offer ->
-            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(com.cosmotune.ui.orbit.OrbitSpace.textToAction)) {
                 Text("${offer.from} shares their add-ons", style = fonts.body, color = look.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 WatchCardChip("Import", look.ink, fonts, icon = CosmoIcons.Download, onClick = { onImport(offer.link) })
             }

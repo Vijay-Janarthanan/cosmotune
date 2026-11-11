@@ -4,10 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -139,6 +143,30 @@ fun WatchCardChip(
     ) {
         if (icon != null) { Icon(icon, null, tint = text2, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(iconGap)) }
         Text(text, style = fonts.chip, color = text2, maxLines = 1)
+    }
+}
+
+/**
+ * The chips of a colour card that has Play in its bite ("My list", "Watch together", More). On a phone they never run under the
+ * bite: they stop [biteRoom] short of the card's end and wrap to a second row, 8 dp under the first, when they do not fit, rather
+ * than scrolling sideways under the bite and cutting a word in half. On a wide card, with room beside the bite, they stay one row.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun WatchCardChipRow(wide: Boolean, biteRoom: Dp, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+    if (wide) {
+        Row(
+            modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(OrbitSpace.chipGap), verticalAlignment = Alignment.CenterVertically, content = content,
+        )
+    } else {
+        FlowRow(
+            modifier.padding(end = biteRoom),
+            horizontalArrangement = Arrangement.spacedBy(OrbitSpace.chipGap),
+            verticalArrangement = Arrangement.spacedBy(OrbitSpace.chipGap),
+            itemVerticalAlignment = Alignment.CenterVertically,
+            content = content,
+        )
     }
 }
 

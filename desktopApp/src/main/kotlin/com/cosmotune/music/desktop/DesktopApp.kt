@@ -8268,7 +8268,11 @@ private fun DesktopSourceEditorDialog(
                     color = DesktopSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                com.cosmotune.ui.orbit.OrbitLabel(DesktopStrings["d_name_optional", "Name (optional)"], com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook().dim)
+                // The second field is a group of its own: a full step above its label, not the 8 dp between a label and its field.
+                com.cosmotune.ui.orbit.OrbitLabel(
+                    DesktopStrings["d_name_optional", "Name (optional)"], com.cosmotune.ui.orbit.orbitFonts(), com.cosmotune.ui.orbit.orbitLook().dim,
+                    Modifier.padding(top = com.cosmotune.ui.orbit.OrbitSpace.md),
+                )
                 com.cosmotune.ui.orbit.OrbitTextField(
                     value = label,
                     onValueChange = { if (!checking) label = it },
@@ -8280,8 +8284,8 @@ private fun DesktopSourceEditorDialog(
                 (message ?: status)?.let {
                     Text(it, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
                 }
-                // Test and Remove are quiet; Save is the dialog's one action.
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Test and Remove are quiet; Save is the dialog's one action. A text-to-action gap (8 + 4) under the field or the line.
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     com.cosmotune.ui.sheets.CosmoDialogQuietButton(
                         label = if (checking) "Checking…" else "Test",
                         onClick = {
@@ -8546,7 +8550,7 @@ private fun DesktopCollectionPage(
                     LaunchedEffect(collection.continuation, songs.size) {
                         if (collection.continuation != null && collection.paginationError == null) onLoadMore()
                     }
-                    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         collection.paginationError?.let { Text(it) }
                         if (loadingMore) CircularProgressIndicator(Modifier.size(22.dp), color = DesktopAccent)
                         else if (collection.continuation != null) TextButton(onClick = onLoadMore) {
@@ -9208,7 +9212,10 @@ private fun DesktopEmptyPage(icon: androidx.compose.ui.graphics.vector.ImageVect
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
         Text(message, color = DesktopSecondary, textAlign = TextAlign.Center)
-        if (onAction != null && actionLabel != null) TextButton(onClick = onAction) { Text(actionLabel) }
+        if (onAction != null && actionLabel != null) {
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onAction) { Text(actionLabel) }
+        }
     }
 }
 

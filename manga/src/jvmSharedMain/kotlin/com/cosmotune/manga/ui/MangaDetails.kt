@@ -149,7 +149,7 @@ private fun SeriesAbout(scope: MangaScope, book: MangaBook) {
     val look = orbitLook()
     Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (scope.transfer.active) Row(Modifier.fillMaxWidth().padding(horizontal = ReadMargin), verticalAlignment = Alignment.CenterVertically) {
-            Text(scope.transfer.progress, style = ReadType.meta(), color = look.dim, modifier = Modifier.weight(1f).padding(start = 4.dp))
+            Text(scope.transfer.progress, style = ReadType.meta(), color = look.dim, modifier = Modifier.weight(1f).padding(start = 4.dp, end = 12.dp))
             ReadTextButton(mangaText("Cancel download"), { scope.transfer.job?.cancel() })
         }
         if (book.description.isNotBlank()) {

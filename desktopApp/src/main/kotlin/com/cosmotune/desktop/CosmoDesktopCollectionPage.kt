@@ -267,7 +267,12 @@ internal fun CosmoDesktopCollectionPage(
                     LaunchedEffect(collection.continuation, songs.size) {
                         if (collection.continuation != null && collection.paginationError == null) onLoadMore()
                     }
-                    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    // The problem and its Try again stand a text-to-action gap apart rather than touching.
+                    Column(
+                        Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(com.cosmotune.ui.orbit.OrbitSpace.textToAction),
+                    ) {
                         collection.paginationError?.let { Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium) }
                         if (loadingMore) CosmoLoadingBlob(Modifier.size(24.dp))
                         else if (collection.continuation != null) CosmoButton(
