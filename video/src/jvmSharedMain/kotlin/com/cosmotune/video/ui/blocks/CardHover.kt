@@ -59,7 +59,7 @@ internal fun rememberCardHover(): CardHover {
  * What a card under the pointer asks for ahead of its click: the shell's player resolves the video's streams (a short-lived cache), so a
  * click a moment later starts playing at once. Nothing where no shell provides it (a render test, a card outside Video).
  */
-val LocalVideoPreResolve = staticCompositionLocalOf<(VideoItem) -> Unit> { {} }
+internal val LocalVideoPreResolve = staticCompositionLocalOf<(VideoItem) -> Unit> { {} }
 
 /** How long the pointer rests on a card before its streams are resolved: a pointer passing over does not count. */
 internal const val PRE_RESOLVE_DWELL_MS = 300L
