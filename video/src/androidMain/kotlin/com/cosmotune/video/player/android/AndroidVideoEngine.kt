@@ -178,6 +178,9 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     /** Whether the current load's playback has started (the startup trace marks it once per load). Main thread. */
     private var traceStarted = false
 
+    /** Whether the current load's first rendered frame is still to be marked. Main thread. */
+    private var traceFirstFrame = false
+
     /** A failure of the engine itself (no service, nothing to play), shown until the next load. */
     private var engineError: PlayerError? = null
 
@@ -230,6 +233,9 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
 
         // The startup trace's last two stages: the first frame on the surface, and the sound and picture moving.
         override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
+            // Only once per prepare: the surface coming back shows the picture again, which is no video's first frame.
+            if (!traceFirstFrame) return
+            traceFirstFrame = false
             current?.videoId?.let { StartupTrace.mark(it, "first frame") }
         }
 
@@ -331,6 +337,7 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
                 c.trackSelectionParameters = withText(c.trackSelectionParameters.buildUpon().clearOverrides()).build()
                 // load() never starts playback: the previous video's play state does not carry over
                 traceStarted = false
+                traceFirstFrame = true
                 StartupTrace.mark(request.videoId, "media3 prepare", item.localConfiguration?.mimeType ?: "progressive")
                 c.pause()
                 c.setMediaItem(item, start)
