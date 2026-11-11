@@ -56,6 +56,7 @@ import com.cosmotune.ui.orbit.OrbitSelectChip
 import com.cosmotune.ui.orbit.WatchBadge
 import com.cosmotune.ui.orbit.WatchCard
 import com.cosmotune.ui.orbit.WatchCardChip
+import com.cosmotune.ui.orbit.WatchCardChipRow
 import com.cosmotune.ui.orbit.WatchLiveLine
 import com.cosmotune.ui.orbit.WatchLogoTile
 import com.cosmotune.ui.orbit.WatchMessage
@@ -234,7 +235,8 @@ private fun WatchFeaturedCard(
             if (featured.badges.isNotEmpty()) Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 featured.badges.forEach { WatchBadge(it, fonts, ink) }
             }
-            Row(Modifier.padding(top = 16.dp, end = if (wide) 0.dp else 80.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // On the phone the chips stop short of Play's bite and wrap rather than scroll under it.
+            WatchCardChipRow(wide, biteRoom = 80.dp, Modifier.padding(top = 16.dp)) {
                 WatchCardChip(if (inList) "In my list" else "My list", ink, fonts, onClick = { onMyList(!inList) }, icon = if (inList) CosmoIcons.Check else CosmoIcons.Plus)
                 WatchCardChip("Watch together", ink, fonts, onClick = onWatchTogether, icon = CosmoIcons.Together, enabled = watchTogether)
             }

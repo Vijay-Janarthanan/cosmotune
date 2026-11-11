@@ -126,7 +126,7 @@ class WatchVisualReviewTest {
                 CompositionLocalProvider(LocalCosmoColors provides colors, LocalCosmoType provides type, LocalReducedMotion provides true) {
                     Box(Modifier.size(size.width.dp, size.height.dp).testTag("watch:review").background(Color(colors.palette.backgroundBottom))) {
                         ProvideWatch(repository = repository, playback = playback, clock = { evening }) {
-                            WatchApp(showNavigation = size === phone)
+                            WatchApp(showNavigation = size.width < 600)
                         }
                     }
                 }
@@ -134,10 +134,10 @@ class WatchVisualReviewTest {
         }
     }
 
-    private fun capture(name: String) {
+    private fun capture(name: String, dir: String = "../build/watch-review") {
         compose.mainClock.advanceTimeBy(1_000)
         compose.waitForIdle()
-        val file = File("../build/watch-review/$name.png").apply { parentFile.mkdirs() }
+        val file = File("$dir/$name.png").apply { parentFile.mkdirs() }
         ImageIO.write(compose.onNodeWithTag("watch:review").captureToImage().toAwtImage(), "png", file)
     }
 
@@ -161,6 +161,18 @@ class WatchVisualReviewTest {
             WatchNav.go(WatchTab.SEARCH); page(dark, size, repository)
             compose.onNode(hasSetTextAction()).performTextInput("the")
             capture("search-$tag")
+        }
+    }
+
+    /** The colour cards' chips at the narrow and the common phone widths: they wrap short of Play's bite, never under it. */
+    @Test fun cardChipsStayClearOfTheBiteOnPhones() = hosts {
+        for (dark in listOf(true, false)) for (width in listOf(360, 412)) {
+            val size = Size("phone-$width", width, 844)
+            val tag = "$width-${if (dark) "dark" else "light"}"
+            val repository = FakeWatchRepository()
+            WatchNav.go(WatchTab.HOME); page(dark, size, repository); capture("watch-home-$tag", "../build/spacing/current")
+            WatchNav.go(WatchTab.FILMS); WatchNav.openTitle(film); page(dark, size, repository); capture("watch-film-$tag", "../build/spacing/current")
+            WatchNav.go(WatchTab.SERIES); WatchNav.openTitle(series); page(dark, size, repository); capture("watch-series-$tag", "../build/spacing/current")
         }
     }
 
