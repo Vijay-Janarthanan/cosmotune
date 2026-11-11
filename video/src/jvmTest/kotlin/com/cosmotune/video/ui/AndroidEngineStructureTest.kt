@@ -218,18 +218,24 @@ class AndroidEngineStructureTest {
     }
 
     @Test fun pictureInPictureFollowsSpec62() {
+        // Video's handle is the activity's one picture-in-picture, shared with Watch and the song's music video (sharedUi), as Video's.
         val text = flat(pip)
         assertTrue("actual fun rememberPictureInPicture(): PictureInPictureState" in text)
-        assertTrue("PackageManager.FEATURE_PICTURE_IN_PICTURE" in text && "componentActivity()" in text)
-        assertTrue("addOnPictureInPictureModeChangedListener(modeListener)" in text)
-        assertTrue("removeOnPictureInPictureModeChangedListener(modeListener)" in text, "the listener goes when the callers leave")
-        assertTrue("addOnUserLeaveHintListener(leaveHintListener)" in text && "activity.enterPictureInPictureMode(wanted)" in text)
-        assertTrue("Build.VERSION.SDK_INT < Build.VERSION_CODES.S" in text, "the leave hint enters only on Android 8 to 11")
-        assertTrue("if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(enabled)" in text)
-        assertTrue("setSourceRectHint(" in text && "setAspectRatio(aspect)" in text)
-        assertTrue("Rational(239, 100)" in text && "Rational(100, 239)" in text, "clamped to between 1:2.39 and 2.39:1")
-        assertTrue("onDispose { handle.shared.leave(handle) }" in text)
-        assertTrue("apply(handle, enabled = false" in after(pip, "fun leave(handle: PictureInPictureHandle)", 300), "leaving turns auto-enter off")
+        assertTrue("ActivityPip.handle(activity, PipOwner.VIDEO)" in text && "componentActivity()" in text)
+        assertTrue("onDispose { handle.shared.release() }" in text, "leaving takes Video's wish with it: auto-enter goes off")
+        assertTrue("shared.update(PipWish(ready = enabled, aspectWidth = aspectWidth, aspectHeight = aspectHeight, sourceRect = sourceRect))" in text)
+        // the mechanics of spec 6.2 now stand in the shared one
+        val shared = flat(read("sharedUi/src/androidMain/kotlin/com/cosmotune/ui/pip/Pip.android.kt"))
+        assertTrue("PackageManager.FEATURE_PICTURE_IN_PICTURE" in shared)
+        assertTrue("addOnPictureInPictureModeChangedListener(modeListener)" in shared)
+        assertTrue("removeOnPictureInPictureModeChangedListener(modeListener)" in shared, "the listener goes when the callers leave")
+        assertTrue("addOnUserLeaveHintListener(leaveHintListener)" in shared && "activity.enterPictureInPictureMode(wanted)" in shared)
+        assertTrue("Build.VERSION.SDK_INT >= Build.VERSION_CODES.S || inPip" in shared, "the leave hint enters only on Android 8 to 11")
+        assertTrue("builder.setAutoEnterEnabled(wish?.ready == true)" in shared)
+        assertTrue("setSourceRectHint(" in shared && "setAspectRatio(clampedAspect(" in shared)
+        assertTrue("Rational(239, 100)" in shared && "Rational(100, 239)" in shared, "clamped to between 1:2.39 and 2.39:1")
+        assertTrue("withdraw(handle, handle.owner)" in after(read("sharedUi/src/androidMain/kotlin/com/cosmotune/ui/pip/Pip.android.kt"), "internal fun leave(handle: ActivityPipHandle)", 300),
+            "leaving withdraws the wish, which turns auto-enter off")
     }
 
     @Test fun nothingInAndroidMainReferencesMusicsPlayback() {

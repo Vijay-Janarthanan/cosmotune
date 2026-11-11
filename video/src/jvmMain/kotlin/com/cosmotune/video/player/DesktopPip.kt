@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
@@ -47,17 +50,23 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.pip.DesktopPipBoard
+import com.cosmotune.ui.pip.PipControls
+import com.cosmotune.ui.pip.PipOwner
+import com.cosmotune.ui.pip.PipWish
 import com.cosmotune.video.library.FileLibraryFiles
 import com.cosmotune.video.library.LibraryPlatform
 import com.cosmotune.video.library.videoLibraryDir
 import com.cosmotune.video.player.smooth.LocalVideoHostWindow
 import com.cosmotune.video.resources.Res
+import com.cosmotune.video.resources.video_next
 import com.cosmotune.video.resources.video_pip_back_10
 import com.cosmotune.video.resources.video_pip_back_to_app
 import com.cosmotune.video.resources.video_pip_close
 import com.cosmotune.video.resources.video_pip_forward_10
 import com.cosmotune.video.resources.video_pip_pause
 import com.cosmotune.video.resources.video_pip_play
+import com.cosmotune.video.resources.video_previous
 import com.cosmotune.video.settings.VideoSettingsRepository
 import com.cosmotune.video.ui.VideoIcons
 import com.cosmotune.video.ui.player.SeekBackIcon
@@ -83,16 +92,107 @@ import java.awt.event.WindowEvent
 import javax.swing.JFrame
 import javax.swing.SwingUtilities
 import javax.swing.Timer
-import kotlin.math.roundToInt
 
 /*
- * The desktop's picture-in-picture (Video mode): the video in a small borderless window that stays above every other window, so it
- * can be watched while the app is out of the way. The picture is the engine's own surface (one engine, one surface: the page it left
- * shows a placeholder meanwhile); the window keeps the video's shape, can be dragged from anywhere and resized from its corners, and
- * remembers its size and place. Closing it, or "Back to app", returns the video to the page and playback goes on. Its controls
- * (play and pause, 10 seconds back and forward, back to the app, close) show while the pointer is over the window and go a moment after
- * it stops or leaves. The window holds the picture and the controls only: the stats and the settings stay with the page it left.
+ * The desktop's picture-in-picture: the picture in a small borderless window that stays above every other window, so it can be
+ * watched while the app is out of the way. Video mode's video, Watch's film or channel and Now Playing's music video all use this one
+ * window, one at a time (`DesktopPipBoard` in sharedUi says who is in it). For Video the picture is the engine's own surface (one
+ * engine, one surface: the page it left shows a placeholder meanwhile); Watch and the music video hand their picture over in their
+ * wish ([PipWish.picture]). The window keeps the picture's shape, can be dragged from anywhere and resized from its corners, and
+ * remembers its size and place. "Back to app" returns the picture to the page and playback goes on; the close button returns it too
+ * and pauses a video or a film (the song's video leaves the music playing). Its controls (play and pause, 10 seconds back and
+ * forward, previous and next where the player has them, back to the app, close) show while the pointer is over the window and go a
+ * moment after it stops or leaves. The window holds the picture and the controls only: the stats and the settings stay with the
+ * page it left.
  */
+
+/**
+ * What the window shows of the player in it, read again whenever that changes: its title and shape, whether it plays, what its
+ * buttons do (null: no such button), the picture and what is drawn over it (Video's subtitles), and its keys.
+ */
+internal class PipView(
+    val title: String,
+    val aspect: Float,
+    val playing: Boolean,
+    val durationMs: Long,
+    /** Nothing left to show (the video was stopped, the player's page left): the window closes. */
+    val gone: Boolean,
+    val playPause: () -> Unit,
+    val positionMs: () -> Long,
+    val seekBy: ((Long) -> Unit)?,
+    val previous: (() -> Unit)?,
+    val next: (() -> Unit)?,
+    val picture: @Composable (Modifier) -> Unit,
+    val overlay: @Composable BoxScope.() -> Unit = {},
+    /** The player's own keys; Escape (which closes the window) is the window's. */
+    val onKey: (KeyEvent, close: () -> Unit) -> Boolean = { _, _ -> false },
+    /** The window's close button (not "Back to app"): Video pauses (Watch and the music video say in their wish). */
+    val onClose: () -> Unit = {},
+)
+
+/** The player in the window, as a composable read of its [PipView]. */
+internal fun interface PipSource {
+    @Composable
+    fun view(): PipView
+}
+
+/** Video mode's video in the window: the engine's surface and subtitles, the player's keys, paused when the window is closed. */
+internal fun videoPipSource(playback: VideoPlayback, surface: VideoSurfaceProvider, settings: VideoSettingsRepository) = PipSource {
+    val state by playback.state.collectAsState()
+    val cues by playback.engine.cues.collectAsState()
+    val options by settings.settings.collectAsState()
+    PipView(
+        title = state.item?.title.orEmpty(),
+        aspect = state.aspect,
+        playing = state.playing,
+        durationMs = state.durationMs,
+        gone = state.item == null,
+        playPause = playback::togglePlayPause,
+        positionMs = playback::positionMs,
+        seekBy = playback::seekBy,
+        previous = null,
+        next = null,
+        picture = { m -> surface.Surface(m, VideoScale.FIT) },
+        overlay = { SubtitleOverlay(cues, SUBTITLE_SP, options.captionsScale, options.captionsBackground, lift = { 0f }, liftDp = 0.dp) },
+        onKey = { event, close -> onKey(event, playback, options, close) },
+        onClose = { if (playback.state.value.playing) playback.togglePlayPause() },
+    )
+}
+
+/** Watch's film or channel, or the song's music video, in the window: everything from its latest [PipWish] (null: gone). */
+internal fun wishPipSource(wish: () -> PipWish?) = PipSource {
+    val now = wish()
+    val controls = now?.controls
+    PipView(
+        title = now?.title.orEmpty(),
+        aspect = if (now != null && now.aspectHeight > 0) now.aspectWidth.toFloat() / now.aspectHeight else 0f,
+        playing = now?.playing == true,
+        durationMs = controls?.durationMs?.invoke() ?: 0L,
+        gone = now == null,
+        playPause = { wish()?.controls?.playPause?.invoke() },
+        positionMs = { wish()?.controls?.positionMs?.invoke() ?: 0L },
+        seekBy = if (controls?.seekBy == null) null else ({ delta: Long -> wish()?.controls?.seekBy?.invoke(delta); Unit }),
+        previous = if (controls?.previous == null) null else ({ wish()?.controls?.previous?.invoke(); Unit }),
+        next = if (controls?.next == null) null else ({ wish()?.controls?.next?.invoke(); Unit }),
+        picture = now?.picture ?: { _ -> },
+        onKey = { event, _ -> wishKey(event, wish()?.controls) },
+    )
+}
+
+/** The keys of a window that shows a wish: space and K play and pause, J and L or the arrows go 10 seconds, N and P next and previous. */
+private fun wishKey(event: KeyEvent, controls: PipControls?): Boolean {
+    if (controls == null) return false
+    val action: (() -> Unit)? = when (event.key) {
+        Key.Spacebar, Key.K, Key.MediaPlayPause -> controls.playPause
+        Key.J, Key.DirectionLeft -> controls.seekBy?.let { seek -> { seek(-SEEK_MS) } }
+        Key.L, Key.DirectionRight -> controls.seekBy?.let { seek -> { seek(SEEK_MS) } }
+        Key.N, Key.MediaNext -> controls.next
+        Key.P, Key.MediaPrevious -> controls.previous
+        else -> null
+    }
+    action?.invoke()
+    return action != null
+}
 
 /** The window, made on first use and kept while it is open; every call is on the Compose (Swing) thread. */
 internal object DesktopPip {
@@ -100,12 +200,17 @@ internal object DesktopPip {
     var isOpen: Boolean by mutableStateOf(false)
         private set
 
+    /** Who is in the window while it is open: Video mode's video, Watch's film or channel, or the song's music video. */
+    var owner: PipOwner? by mutableStateOf(null)
+        private set
+
     private var frame: ComposeWindow? = null
+    private var closing: (() -> Unit)? = null
     private var aspect = 16f / 9f
 
     /**
-     * Opens the window for [playback] drawing [surface]; [provide] wraps its content in the composition locals of the screen it
-     * came from (the type). Does nothing when it is open or the machine has no screen.
+     * Opens the window for Video's [playback] drawing [surface]; [provide] wraps its content in the composition locals of the screen it
+     * came from (the type). Does nothing when it is open, another player is in picture-in-picture, or the machine has no screen.
      */
     fun open(
         playback: VideoPlayback,
@@ -114,28 +219,52 @@ internal object DesktopPip {
         provide: @Composable (@Composable () -> Unit) -> Unit,
     ) {
         if (isOpen || frame != null || surface == null || GraphicsEnvironment.isHeadless()) return
+        if (!DesktopPipBoard.board.ask(PipOwner.VIDEO)) return
         aspect = playback.state.value.aspect.takeIf { it > 0f } ?: aspect
+        if (openFor(PipOwner.VIDEO, videoPipSource(playback, surface, settings), playback.state.value.item?.title.orEmpty(), provide)) {
+            DesktopPipBoard.opened(PipOwner.VIDEO)
+        } else {
+            DesktopPipBoard.board.cancelAsk()
+        }
+    }
+
+    /** The shape the next window opens at (the wish's, before its picture has loaded). */
+    fun shape(value: Float) {
+        if (value > 0f && value.isFinite()) aspect = value
+    }
+
+    /** Opens the window for [owner] showing [source]; false when it is open already or the machine has no screen. */
+    fun openFor(owner: PipOwner, source: PipSource, title: String, provide: @Composable (@Composable () -> Unit) -> Unit): Boolean {
+        if (isOpen || frame != null || GraphicsEnvironment.isHeadless()) return false
         val window = ComposeWindow()
         frame = window
+        this.owner = owner
         window.type = Window.Type.UTILITY
         window.isUndecorated = true
         window.isAlwaysOnTop = true
         window.defaultCloseOperation = JFrame.DO_NOTHING_ON_CLOSE
-        window.title = playback.state.value.item?.title.orEmpty()
+        window.title = title
         window.bounds = awtBounds(PipWindowMath.onScreen(PipBoundsStore.read() ?: PipWindowMath.initial(aspect, screens().first()), screens()))
         window.addWindowListener(object : WindowAdapter() {
             override fun windowClosing(e: WindowEvent) = close(returnToApp = false)
         })
         window.setContent {
-            provide { CompositionLocalProvider(LocalVideoHostWindow provides window) { PipContent(window, playback, surface, settings) } }
+            provide { CompositionLocalProvider(LocalVideoHostWindow provides window) { PipContent(window, source) } }
         }
         isOpen = true
         window.isVisible = true
         window.toFront()
+        return true
+    }
+
+    /** What the window's close button does to the player in it ([PipView.onClose]), kept current by the window's content. */
+    fun onClosing(action: () -> Unit) {
+        closing = action
     }
 
     /**
-     * Closes the window (the video keeps playing in the page it returns to); with [returnToApp] the app's window is brought forward too.
+     * Closes the window. With [returnToApp] ("Back to app") the picture goes back to the page and plays on, and the app's window is
+     * brought forward too; without it (the close button, Escape) a video or a film pauses as it goes back ([PipView.onClose]).
      *
      * The window is hidden at once but taken apart a moment later, and the page it left takes the picture back only then ([isOpen]
      * stays true until the window's composition is gone): the close comes from this window's own click or effect, which must finish
@@ -144,11 +273,15 @@ internal object DesktopPip {
     fun close(returnToApp: Boolean) {
         val window = frame ?: return
         frame = null
+        if (!returnToApp) runCatching { closing?.invoke() }
+        closing = null
         PipBoundsStore.write(boundsOf(window))
         window.isVisible = false
         SwingUtilities.invokeLater {
             window.dispose()
             isOpen = false
+            owner = null
+            DesktopPipBoard.closed(returnToApp)
             if (returnToApp) bringAppForward()
         }
     }
@@ -225,16 +358,14 @@ private const val POINTER_POLL_MS = 50
 private fun nowMs(): Long = System.nanoTime() / 1_000_000
 
 /**
- * What the window holds: the picture, the subtitles, the drag layer, the controls and the four corner grips. The controls show while
- * the pointer is over the window and go a moment after it stops or leaves (see [PipControlsTimer]); where the pointer is comes from
- * the screen itself (the AWT mouse events of the window, and a short poll), not from Compose's hover, because an always-on-top
- * window that does not have the focus often gets no exit event, and then the controls would stay for good.
+ * What the window holds: the picture, what is drawn over it (Video's subtitles), the drag layer, the controls and the four corner
+ * grips. The controls show while the pointer is over the window and go a moment after it stops or leaves (see [PipControlsTimer]);
+ * where the pointer is comes from the screen itself (the AWT mouse events of the window, and a short poll), not from Compose's hover,
+ * because an always-on-top window that does not have the focus often gets no exit event, and then the controls would stay for good.
  */
 @Composable
-private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: VideoSurfaceProvider, settings: VideoSettingsRepository) {
-    val state by playback.state.collectAsState()
-    val cues by playback.engine.cues.collectAsState()
-    val options by settings.settings.collectAsState()
+private fun PipContent(window: ComposeWindow, source: PipSource) {
+    val view = source.view()
     val focus = remember { FocusRequester() }
     val timer = remember { PipControlsTimer(nowMs()) }
     val wake = remember { Channel<Unit>(Channel.CONFLATED) }
@@ -245,13 +376,15 @@ private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: 
     val lock = { timer.lock(); wake.trySend(Unit); Unit }
     val unlock = { timer.unlock(nowMs()); wake.trySend(Unit); Unit }
 
+    SideEffect { DesktopPip.onClosing(view.onClose) }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    // The video loaded or changed shape: the window follows.
-    LaunchedEffect(state.aspect) { DesktopPip.reshape(window, state.aspect) }
-    // The video was stopped (or replaced by nothing): there is nothing left to show.
-    LaunchedEffect(state.item) { if (state.item == null) close() }
-    LaunchedEffect(state.playing) {
-        timer.playing(nowMs(), state.playing)
+    // The picture loaded or changed shape: the window follows.
+    LaunchedEffect(view.aspect) { DesktopPip.reshape(window, view.aspect) }
+    // The player was stopped (or its page left): there is nothing left to show.
+    LaunchedEffect(view.gone) { if (view.gone) close() }
+    LaunchedEffect(view.title) { window.title = view.title }
+    LaunchedEffect(view.playing) {
+        timer.playing(nowMs(), view.playing)
         wake.trySend(Unit)
     }
     // The controls follow the timer: it says when they show and when it next needs to be asked.
@@ -289,9 +422,9 @@ private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: 
             toolkit.removeAWTEventListener(listener)
         }
     }
-    LaunchedEffect(shown, state.playing) {
-        while (shown || state.playing) {
-            position = playback.positionMs()
+    LaunchedEffect(shown, view.playing) {
+        while (shown || view.playing) {
+            position = view.positionMs()
             delay(POSITION_MS)
         }
     }
@@ -302,10 +435,10 @@ private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: 
             .background(Color.Black)
             .focusRequester(focus)
             .focusable()
-            .onPreviewKeyEvent { event -> onKey(event, playback, options, close) },
+            .onPreviewKeyEvent { event -> windowKey(event, view, close) },
     ) {
-        surface.Surface(Modifier.fillMaxSize(), VideoScale.FIT)
-        SubtitleOverlay(cues, SUBTITLE_SP, options.captionsScale, options.captionsBackground, lift = { 0f }, liftDp = 0.dp)
+        view.picture(Modifier.fillMaxSize())
+        view.overlay(this)
 
         // The drag layer: the whole picture moves the window; a double tap goes back to the app.
         Box(
@@ -328,7 +461,7 @@ private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: 
                         onDragCancel = { unlock() },
                     )
                 }
-                .pointerInput(playback) {
+                .pointerInput(source) {
                     detectTapGestures(onDoubleTap = { back() })
                 },
         )
@@ -351,17 +484,22 @@ private fun PipContent(window: ComposeWindow, playback: VideoPlayback, surface: 
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
             ) {
-                PipButton(SeekBackIcon, stringResource(Res.string.video_pip_back_10), BUTTON) { playback.seekBy(-SEEK_MS) }
+                view.previous?.let { PipButton(CosmoIcons.Previous, stringResource(Res.string.video_previous), BUTTON, it) }
+                view.seekBy?.let { seek -> PipButton(SeekBackIcon, stringResource(Res.string.video_pip_back_10), BUTTON) { seek(-SEEK_MS) } }
                 PipButton(
-                    if (state.playing) CosmoIcons.Pause else CosmoIcons.Play,
-                    stringResource(if (state.playing) Res.string.video_pip_pause else Res.string.video_pip_play),
+                    if (view.playing) CosmoIcons.Pause else CosmoIcons.Play,
+                    stringResource(if (view.playing) Res.string.video_pip_pause else Res.string.video_pip_play),
                     BUTTON_BIG,
-                ) { playback.togglePlayPause() }
-                PipButton(VideoIcons.Forward, stringResource(Res.string.video_pip_forward_10), BUTTON) { playback.seekBy(SEEK_MS) }
+                    view.playPause,
+                )
+                view.seekBy?.let { seek -> PipButton(VideoIcons.Forward, stringResource(Res.string.video_pip_forward_10), BUTTON) { seek(SEEK_MS) } }
+                view.next?.let { PipButton(CosmoIcons.Next, stringResource(Res.string.video_next), BUTTON, it) }
             }
-            val fraction = if (state.durationMs > 0) (position.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.25f))) {
-                Box(Modifier.fillMaxWidth(fraction).height(3.dp).background(Color.White))
+            if (view.durationMs > 0) {
+                val fraction = (position.toFloat() / view.durationMs).coerceIn(0f, 1f)
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.25f))) {
+                    Box(Modifier.fillMaxWidth(fraction).height(3.dp).background(Color.White))
+                }
             }
         }
 
@@ -424,13 +562,18 @@ private fun alignmentOf(corner: PipCorner): Alignment = when (corner) {
     PipCorner.BOTTOM_RIGHT -> Alignment.BottomEnd
 }
 
-/** The keys of the window: Escape and P close it; the player's other keys (space, J, L, arrows, M, C, ...) act on the video. */
-private fun onKey(event: androidx.compose.ui.input.key.KeyEvent, playback: VideoPlayback, settings: com.cosmotune.video.settings.VideoSettings, close: () -> Unit): Boolean {
+/** The window's keys: Escape closes it; the rest are the player's own ([PipView.onKey]). */
+private fun windowKey(event: KeyEvent, view: PipView, close: () -> Unit): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
     if (event.key == Key.Escape) {
         close()
         return true
     }
+    return view.onKey(event, close)
+}
+
+/** Video's keys in the window: P closes it; the player's other keys (space, J, L, arrows, M, C, ...) act on the video. */
+private fun onKey(event: KeyEvent, playback: VideoPlayback, settings: com.cosmotune.video.settings.VideoSettings, close: () -> Unit): Boolean {
     val name = playerKeyName(event) ?: return false
     val action = PlayerKeyMap.action(name, event.isShiftPressed, event.isCtrlPressed || event.isMetaPressed) ?: return false
     return performPlayerKey(
