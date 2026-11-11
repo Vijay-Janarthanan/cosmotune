@@ -116,8 +116,10 @@ class PipContractTest {
         val alone = np.indexOf("if (pip.active && !pip.manual && musicVideo && canvas != null) { NowPlayingPipPicture(")
         assertTrue(alone > 0 && alone < np.indexOf("CompositionLocalProvider(LocalCosmoColors provides colors"), "Now Playing: the video alone, before the page")
         assertTrue("glow = false" in flat(nowPlayingPip) && "view = VideoView.WHOLE" in flat(nowPlayingPip), "whole, nothing round it")
-        assertTrue("if (pip.active) { Box(modifier.fillMaxSize().background(Color.Black)) { playback.surface(scale, Modifier.fillMaxSize()) } return }" in flat(tvPlayer),
-            "the TV: the picture alone")
+        assertTrue("androidx.compose.runtime.key(maxWidth, maxHeight) { playback.surface(scale, Modifier.fillMaxSize()) } } return }" in flat(tvPlayer),
+            "the TV: the picture alone, on a surface made for the window's size")
+        assertTrue("androidx.compose.runtime.key(surfaceFrameKey(box)) {" in flat(watchPage), "Watch's surface is made anew when its frame moves")
+        assertTrue("val (aspectWidth, aspectHeight) = watchPipAspect(videoWidth, videoHeight)" in flat(watchPip), "the shape is the video's own")
         // the desktop's page stands aside while its small window holds the picture
         assertTrue("val wantVideo = musicVideo && !videoHidden && settled && !videoAway" in np, "the record while the window has the video")
         assertTrue("if (inPip && pipHandle?.manual == true) { WatchPipStandIn(" in flat(watchPage), "Watch's stand-in while the window has the film")

@@ -221,7 +221,10 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
 
     if (pip.active) {
         // In picture-in-picture the window is the picture alone: no card, no notes, nothing over it.
-        Box(modifier.fillMaxSize().background(Color.Black)) { playback.surface(scale, Modifier.fillMaxSize()) }
+        androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize().background(Color.Black)) {
+            // A new window size gets a new surface (a SurfaceView can keep its old place and size when only its boxes change).
+            androidx.compose.runtime.key(maxWidth, maxHeight) { playback.surface(scale, Modifier.fillMaxSize()) }
+        }
         return
     }
     Box(

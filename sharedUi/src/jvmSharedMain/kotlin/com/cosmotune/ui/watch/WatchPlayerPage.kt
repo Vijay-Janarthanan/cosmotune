@@ -436,13 +436,18 @@ private fun WatchLoading(state: WatchPlayerState, fonts: OrbitFonts) {
 @Composable
 private fun WatchVideo(view: VideoView, aspect: Float, radius: Dp, surface: @Composable (WatchSurfaceScale, Modifier) -> Unit, still: String?, key: String, modifier: Modifier, onDoubleTap: () -> Unit) {
     BoxWithConstraints(modifier) {
-        val box = if (view == VideoView.FILL) floatArrayOf(0f, 0f, maxWidth.value, maxHeight.value) else VideoView.whole(maxWidth.value, maxHeight.value, aspect)
+        val box = watchPictureFrame(view, maxWidth.value, maxHeight.value, aspect)
         Box(
             Modifier.offset(box[0].dp, box[1].dp).size(box[2].dp, box[3].dp).clip(RoundedCornerShape(radius)).background(Color.Black)
                 .pointerInput(Unit) { detectTapGestures(onDoubleTap = { onDoubleTap() }) },
         ) {
             if (still != null) WatchPicture(still, key, Modifier.fillMaxSize(), radius = 0.dp)
-            surface(if (view == VideoView.FILL) WatchSurfaceScale.CROP else WatchSurfaceScale.FIT, Modifier.fillMaxSize())
+            // The engine draws on a SurfaceView, which can keep the place and size it was first laid out at when only the boxes
+            // round it move (the video's shape becoming known, the window going into or out of picture-in-picture): the picture
+            // then sat off to one side, too large. A new frame gets a new surface, laid out where the frame is now.
+            androidx.compose.runtime.key(surfaceFrameKey(box)) {
+                surface(if (view == VideoView.FILL) WatchSurfaceScale.CROP else WatchSurfaceScale.FIT, Modifier.fillMaxSize())
+            }
         }
     }
 }
