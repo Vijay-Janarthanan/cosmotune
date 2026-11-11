@@ -122,6 +122,7 @@ private object AndroidVideoProcess {
         val device = Locale.getDefault()
         scope.followRegion(settings, source, device.country, device.language)
         scope.followSmoothness(settings, playback.engine)
+        scope.prepareVideoStart(source)
         application.registerComponentCallbacks(object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
                 if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {

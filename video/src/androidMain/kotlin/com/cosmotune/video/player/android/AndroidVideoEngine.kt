@@ -42,6 +42,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import com.cosmotune.video.player.EngineTrack
+import com.cosmotune.video.player.StartupTrace
 import com.cosmotune.video.player.TrackType
 import com.cosmotune.video.player.UrlKind
 import androidx.media3.common.text.CueGroup
@@ -174,6 +175,9 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
     private var attached: ExoPlayer? = null
     private var current: PlaybackRequest? = null
 
+    /** Whether the current load's playback has started (the startup trace marks it once per load). Main thread. */
+    private var traceStarted = false
+
     /** A failure of the engine itself (no service, nothing to play), shown until the next load. */
     private var engineError: PlayerError? = null
 
@@ -223,6 +227,19 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
         }
 
         override fun onPlayerError(eventTime: AnalyticsListener.EventTime, error: PlaybackException) = publish()
+
+        // The startup trace's last two stages: the first frame on the surface, and the sound and picture moving.
+        override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
+            current?.videoId?.let { StartupTrace.mark(it, "first frame") }
+        }
+
+        override fun onIsPlayingChanged(eventTime: AnalyticsListener.EventTime, isPlaying: Boolean) {
+            val id = current?.videoId ?: return
+            if (isPlaying && !traceStarted) {
+                traceStarted = true
+                StartupTrace.mark(id, "playback started")
+            }
+        }
 
         // The format is known before the first frame: it says whether smoothing has anything to do (its declared rate, HDR).
         override fun onVideoInputFormatChanged(
@@ -313,6 +330,8 @@ class AndroidVideoEngine(context: Context) : VideoPlayerEngine, VideoSurfaceProv
                 // Watch's track choices belong to the file they were made for.
                 c.trackSelectionParameters = withText(c.trackSelectionParameters.buildUpon().clearOverrides()).build()
                 // load() never starts playback: the previous video's play state does not carry over
+                traceStarted = false
+                StartupTrace.mark(request.videoId, "media3 prepare", item.localConfiguration?.mimeType ?: "progressive")
                 c.pause()
                 c.setMediaItem(item, start)
                 c.prepare()
