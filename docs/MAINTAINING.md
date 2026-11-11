@@ -223,8 +223,8 @@ Video's own wiring. Our own files that know about the stored mode and the drawer
    the `RoomVideoPlayer` it provides out of the `DesktopPartySync` construction in `DesktopApp.kt`, and the room then plays music,
    radio and podcasts only. The phone's counterpart lives in the Video folders (`video/host/RoomVideo`), and music code only knows
    the small `RoomVideoHost` interface, so nothing else there names the package.
-   The Video-specific Compose transport fixture is `uiTests/src/test/kotlin/com/cosmotune/ui/VideoMiniPlayerInteractionTest.kt`;
-   remove it and the `testImplementation(project(":video"))` dependency from `uiTests/build.gradle.kts` too.
+   The Video-specific Compose fixtures are `uiTests/src/test/kotlin/com/cosmotune/ui/VideoMiniPlayerInteractionTest.kt` (the transport)
+   and `uiTests/src/test/kotlin/com/cosmotune/ui/VideoWatchNavigationInteractionTest.kt` (the watch page's back stack); remove them and the `testImplementation(project(":video"))` dependency from `uiTests/build.gradle.kts` too.
    Watch mode plays its films, episodes and channels on Video's engine, so its player goes with the Video code: in `:watch`,
    `watch/src/commonMain/kotlin/com/cosmotune/watch/WatchPlayer.kt`, `watch/src/jvmSharedMain/kotlin/com/cosmotune/watch/DefaultWatchRepository.kt`,
    `WatchDownloads.kt`, `player/EngineWatchPlayer.kt` and `plugins/free/YouTubeFreePlugin.kt` (and `watch/src/jvmTest/kotlin/com/cosmotune/watch/EngineWatchPlayerTest.kt` and `WatchCastingTest.kt`, which drive a cast with Video's fake engine);
