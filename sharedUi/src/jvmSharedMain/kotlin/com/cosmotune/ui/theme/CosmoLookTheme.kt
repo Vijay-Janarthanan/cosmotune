@@ -36,12 +36,16 @@ val LocalReducedMotion = staticCompositionLocalOf { false }
  * With the switch on, the old screens also take the new look through Material: the cover palette as the colour scheme
  * ([toColorScheme]), the type, the corners and the ripple ([toMaterialTypography], [CosmoMaterialShapes], [CosmoRipple]), and
  * the ambient text colour as the content colour.
+ *
+ * [themeChoice] is where the platform keeps the theme the person chose (System, Light, Dark); the profile menus offer it through
+ * [LocalThemeChoice], and a change made there or in Settings cross-fades ([ThemeChoiceRoot]). [dark] is what that choice resolves to.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CosmoLookTheme(
     dark: Boolean,
     legacy: @Composable (content: @Composable () -> Unit) -> Unit,
+    themeChoice: ThemeChoiceHost? = null,
     content: @Composable () -> Unit,
 ) {
     val settings = rememberCosmoLookSettings()
@@ -49,6 +53,8 @@ fun CosmoLookTheme(
     val shell = remember(settings) { CosmoShellState(settings, dark) }
     val reduced = rememberReducedMotion()
     PaletteFollower(shell, newLook, dark, reduced)
+    // The theme choice for the chrome that changes it (the profile menus), and the cross-fade such a change goes through.
+    ThemeChoiceRoot(themeChoice, reduced) {
     legacy {
         val legacyScheme = MaterialTheme.colorScheme
         val legacyTypography = MaterialTheme.typography
@@ -77,6 +83,7 @@ fun CosmoLookTheme(
                 )
             }
         }
+    }
     }
 }
 
@@ -134,7 +141,9 @@ private fun PaletteFollower(shell: CosmoShellState, newLook: Boolean, dark: Bool
         if (fresh != null) shownIntensity = intensity
         // The first cover after launch snaps; after that every change fades. Both flags are set before the fade, which a
         // restart of this effect may cut short.
-        val animate = showedCover
+        // A theme flip is there at once: the app's own cross-fade ([ThemeChoiceRoot]) carries it, and text that changes in
+        // composition would stand on a ground still fading from the other theme.
+        val animate = showedCover && shell.palette.targetDark == dark
         if (fresh != null) showedCover = true
         lastAlbum = album
         showedMissing = missing || (showedMissing && fresh == null)
