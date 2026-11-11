@@ -8,7 +8,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import com.cosmotune.ui.theme.LocalReducedMotion
 import kotlin.math.abs
 import kotlinx.coroutines.delay
@@ -107,7 +107,7 @@ fun rememberLivePlayhead(position: PlaybackPosition, playing: Boolean, rate: Flo
             }
         } else {
             while (true) {
-                withFrameNanos { frameNanos ->
+                withInfiniteAnimationFrameNanos { frameNanos ->
                     // Readings are stamped on System.nanoTime. A vsync stamp is that clock on Android and the desktop and is
                     // evenly spaced; anywhere it is not, the two are seconds apart and the real clock is used.
                     val system = System.nanoTime()

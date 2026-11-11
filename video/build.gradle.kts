@@ -1,3 +1,4 @@
+import java.time.Duration
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 /*
@@ -133,6 +134,8 @@ kotlin {
 // reaches for AWT fails here on Windows too instead of only in CI.
 tasks.withType<Test>().configureEach {
     systemProperty("java.awt.headless", "true")
+    // A test that never goes idle fails after half an hour instead of holding the build, here and in CI.
+    timeout.set(Duration.ofMinutes(30))
     // Source-contract tests also read host files and maintenance notes outside this module.
     // Changing a mode hook must invalidate the test result, even if Video itself did not change.
     inputs.files(rootProject.files("README.md", "NOTICE.md", "FORK.md", "settings.gradle.kts", "build.gradle.kts",

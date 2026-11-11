@@ -114,9 +114,9 @@ class PlayerChromeStructureTest {
         }
         assertTrue(seen >= 3, "the check found the chrome's playhead reads (scrubber, skip line, ticker)")
         val box = VideoSourceContract.code(file("VideoPlayerBox"))
-        assertEquals(1, Regex("""withFrameNanos\(onFrame\)""").findAll(box).count(), "one frame ticker, with one lambda for every frame")
+        assertEquals(1, Regex("""withInfiniteAnimationFrameNanos\(onFrame\)""").findAll(box).count(), "one frame ticker, with one lambda for every frame")
         assertTrue("playing && (shown || scrubbing.value || state.pendingSkip != null) -> TickMode.FRAME" in box, "every frame only while playing and something shows it")
-        assertEquals(1, Regex("""withFrame(Nanos|Millis)\s*[({]""").findAll(allCode).count(), "no other frame loop")
+        assertEquals(1, Regex("""(?<![A-Za-z])with(InfiniteAnimation)?Frame(Nanos|Millis)\s*[({]""").findAll(allCode).count(), "no other frame loop")
     }
 
     @Test fun theLivePaletteIsReadOnlyWhileDrawing() {

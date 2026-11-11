@@ -5,7 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -22,7 +22,7 @@ internal fun SmoothingClock(pipeline: SmoothingPipeline?, frames: StateFlow<Long
         if (!on) return@LaunchedEffect
         while (true) {
             pipeline.awaitAnimation(frames)
-            withFrameNanos { now ->
+            withInfiniteAnimationFrameNanos { now ->
                 if (pipeline.vsync(System.nanoTime())) pace.longValue = now
             }
         }

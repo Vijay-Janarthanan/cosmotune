@@ -52,7 +52,7 @@ class LivePlayheadContractTest {
 
     @Test fun theFrameLoopIsPausedAndReducedMotionAware() {
         val src = read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/playback/LivePlayhead.kt")
-        assertTrue(src.contains("withFrameNanos"), "advanced on the frame clock")
+        assertTrue(src.contains("withInfiniteAnimationFrameNanos"), "advanced on the frame clock, as an infinite animation a UI test does not wait for")
         assertTrue(src.contains("if (!run) return@LaunchedEffect"), "no loop while paused")
         assertTrue(src.contains("LocalReducedMotion.current") && src.contains("REDUCED_STEP_MS"), "slower under reduced motion")
         assertFalse(src.contains("delay(1000") || src.contains("delay(1_000"), "no one-second loop")
@@ -60,7 +60,7 @@ class LivePlayheadContractTest {
 
     @Test fun theWatchRunsItsOrbitOnTheFrameClock() {
         val src = read("wearos/src/main/java/com/cosmotune/music/wear/ui/NowPlayingScreen.kt")
-        assertTrue(src.contains("withFrameNanos"), "the Wear orbit is advanced every frame")
+        assertTrue(src.contains("withInfiniteAnimationFrameNanos"), "the Wear orbit is advanced every frame")
         assertFalse(src.contains("PROGRESS_TICK_MS"), "not on a 500 ms tick")
     }
 }

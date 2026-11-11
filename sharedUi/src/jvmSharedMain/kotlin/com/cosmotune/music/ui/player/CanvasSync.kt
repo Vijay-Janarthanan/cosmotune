@@ -9,7 +9,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.Snapshot
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.cosmotune.music.playback.PlaybackPosition
 import com.cosmotune.music.ui.rememberIsForeground
@@ -129,7 +129,7 @@ private fun rememberSongClock(trackKey: Any, position: PlaybackPosition, isPlayi
             }
         }
         while (true) {
-            withFrameNanos { frameNanos ->
+            withInfiniteAnimationFrameNanos { frameNanos ->
                 val system = System.nanoTime()
                 val now = if (abs(system - frameNanos) < SAME_CLOCK_NANOS) frameNanos else system
                 val sampledAt = position.sampledAtNanos

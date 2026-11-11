@@ -11,7 +11,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -61,7 +61,7 @@ internal fun ShortsProgressLine(playback: VideoPlayback, durationMs: Long, playi
     val onFrame: (Long) -> Unit = remember(frame) { { nanos -> frame.longValue = nanos } }
     LaunchedEffect(active, playing) {
         frame.longValue += 1                      // draw once now: a seek while paused, a page that settled
-        if (active && playing) while (true) withFrameNanos(onFrame)
+        if (active && playing) while (true) withInfiniteAnimationFrameNanos(onFrame)
     }
     val label = stringResource(Res.string.video_seek_bar)
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl

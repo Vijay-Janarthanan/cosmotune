@@ -32,7 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -320,7 +320,7 @@ fun rememberMixPulse(mixBlend: () -> MixBlend?, enabled: Boolean): MixPulse {
         // second, and never visibly jumps. Runs until the pulse has faded out after the blend.
         var last = System.nanoTime()
         while ((active && playing) || pulse.depthAnim.value > 0f) {
-            withFrameNanos {
+            withInfiniteAnimationFrameNanos {
                 val now = System.nanoTime()
                 val dt = (now - last).coerceIn(0L, MAX_FRAME_NANOS)
                 last = now

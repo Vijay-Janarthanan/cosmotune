@@ -6,7 +6,7 @@ import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.runtime.snapshots.Snapshot
 import com.cosmotune.music.ui.player.LyricClock
 import com.cosmotune.music.ui.player.LyricPlayhead
@@ -19,7 +19,7 @@ import kotlin.math.abs
  * The driver loop is `rememberLyricClock` of the old lyrics panel (`PlayerLyrics.kt:608-660`), copied here because that one is
  * private to its file; the engine is the same [LyricClock], whose rules (a reading is dated by when it was taken, only an
  * announced jump moves the words backwards, readings steer the clock and do not set it) are written at the top of that class.
- * Not playing, each reading is the truth ([LyricClock.hold]); playing and on screen, a [withFrameNanos] loop asks the engine for
+ * Not playing, each reading is the truth ([LyricClock.hold]); playing and on screen, a [withInfiniteAnimationFrameNanos] loop asks the engine for
  * the position of each frame ([LyricClock.frame]).
  *
  * Returned as state so that it is read inside draw lambdas and derived states only: read in composition, a line would
@@ -55,7 +55,7 @@ internal fun rememberCosmoLyricClock(
         if (!isPlaying || !foreground) return@LaunchedEffect
         engine.restart()
         while (true) {
-            withFrameNanos { frameNanos ->
+            withInfiniteAnimationFrameNanos { frameNanos ->
                 // Readings are stamped on the System.nanoTime clock. The frame time is that clock too wherever it is a vsync
                 // stamp, and is preferred for being evenly spaced; anywhere it is not, the two are seconds apart and the real
                 // clock is used instead.

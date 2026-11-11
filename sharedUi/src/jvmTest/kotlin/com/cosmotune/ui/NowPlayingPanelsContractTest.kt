@@ -31,7 +31,7 @@ class NowPlayingPanelsContractTest {
         assertTrue(src.contains("LyricClock(clock.longValue)"), "the same engine")
         assertTrue(src.contains("engine.hold("), "paused: each reading is the truth")
         assertTrue(src.contains("engine.restart()"), "playing: a fresh run from the latest reading")
-        assertTrue(src.contains("withFrameNanos"), "playing: one reading a frame")
+        assertTrue(src.contains("withInfiniteAnimationFrameNanos"), "playing: one reading a frame")
         assertTrue(src.contains("engine.frame("))
         assertTrue(src.contains("rememberIsForeground()"), "the loop stops in the background")
         assertTrue(src.contains("SAME_CLOCK_NANOS = 250_000_000L"))

@@ -1,3 +1,4 @@
+import java.time.Duration
 plugins {
     id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.compose")
@@ -26,4 +27,7 @@ tasks.test {
     useJUnit()
     // Without a display on every system, as on the Linux runner, so a test that reaches for AWT fails on Windows too.
     systemProperty("java.awt.headless", "true")
+    // A composition that never goes idle (a frame loop on the plain frame clock) hangs waitForIdle for good; fail instead of
+    // holding the build, here and in CI.
+    timeout.set(Duration.ofMinutes(30))
 }

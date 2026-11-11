@@ -80,7 +80,7 @@ import androidx.wear.compose.material3.Text
 import com.cosmotune.music.wear.R
 import com.cosmotune.music.wear.data.NowPlaying
 import com.cosmotune.music.wear.data.Volume
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -418,7 +418,7 @@ private fun rememberProgress(np: NowPlaying): State<Float> {
         if (!np.advancing || ambient) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
-                withFrameNanos { progress.floatValue = np.progressAt(System.currentTimeMillis()) }
+                withInfiniteAnimationFrameNanos { progress.floatValue = np.progressAt(System.currentTimeMillis()) }
             }
         }
     }

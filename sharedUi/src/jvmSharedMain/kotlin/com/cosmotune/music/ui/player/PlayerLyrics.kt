@@ -75,7 +75,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.runtime.snapshots.Snapshot
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -708,7 +708,7 @@ private fun rememberLyricClock(
         if (!isPlaying || !foreground) return@LaunchedEffect
         engine.restart()
         while (true) {
-            withFrameNanos { frameNanos ->
+            withInfiniteAnimationFrameNanos { frameNanos ->
                 // Readings are stamped on the System.nanoTime clock. The frame
                 // time is that clock too wherever it is a vsync stamp, and is
                 // preferred for being evenly spaced; anywhere it is not, the

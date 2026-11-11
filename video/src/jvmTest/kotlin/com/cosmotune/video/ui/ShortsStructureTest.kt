@@ -86,7 +86,7 @@ class ShortsStructureTest {
         }
         assertEquals(1, reads, "the progress line reads the playhead, in its draw block")
         val line = VideoSourceContract.code(shorts("ShortsProgressLine"))
-        assertTrue("withFrameNanos(onFrame)" in line && "if (active && playing) while (true)" in line, "a frame ticker only while the settled Short plays")
+        assertTrue("withInfiniteAnimationFrameNanos(onFrame)" in line && "if (active && playing) while (true)" in line, "a frame ticker only while the settled Short plays")
         assertTrue(Regex("""\.drawBehind \{\s+frame\.longValue\s""").containsMatchIn(line), "the draw block reads the tick")
     }
 

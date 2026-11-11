@@ -19,7 +19,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -514,7 +514,7 @@ internal fun RunPlayhead(playhead: Playhead, mode: TickMode) {
     LaunchedEffect(playhead, mode) {
         playhead.refresh()
         when (mode) {
-            TickMode.FRAME -> while (true) withFrameNanos(onFrame)
+            TickMode.FRAME -> while (true) withInfiniteAnimationFrameNanos(onFrame)
             TickMode.SLOW -> while (true) {
                 delay(VideoPlayerController.TICK_MS)
                 playhead.refresh()

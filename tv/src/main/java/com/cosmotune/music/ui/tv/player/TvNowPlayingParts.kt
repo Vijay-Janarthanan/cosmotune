@@ -48,7 +48,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -607,7 +607,7 @@ private fun TvScrubber(
     val focused by interaction.collectIsFocusedAsState()
     val frame = remember { mutableLongStateOf(0L) }
     LaunchedEffect(isPlaying) {
-        if (isPlaying) while (true) withFrameNanos { frame.longValue = it }
+        if (isPlaying) while (true) withInfiniteAnimationFrameNanos { frame.longValue = it }
     }
     val thickness by animateDpAsState(if (focused) 6.dp else 4.dp, tween(160), label = "scrubThickness")
     val moon by animateDpAsState(if (focused) 9.dp else 6.dp, tween(160), label = "scrubMoon")
