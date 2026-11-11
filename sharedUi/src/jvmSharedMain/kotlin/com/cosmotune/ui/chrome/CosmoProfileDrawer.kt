@@ -116,6 +116,7 @@ import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.LocalReducedMotion
 import com.cosmotune.ui.theme.tabular
+import com.cosmotune.ui.theme.themeFadeSurface
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.cosmo_close
 import com.cosmotune.music.sharedui.resources.cosmo_mode_watch
@@ -160,6 +161,7 @@ data class CosmoDrawerEntry(val icon: ImageVector, val label: String, val aside:
  * the start closes it (RTL mirrors).
  *
  * Inside, top to bottom: the head (avatar, [name], [subtitle]; a tap is [onAccount], or nothing while that is null), the
+ * quick theme switch ([com.cosmotune.ui.orbit.OrbitThemeRow]: Light, Dark or the system's, the Settings choice itself), the
  * mode switch, the [entries] and the foot with the logo and the "not affiliated" line. The switch shows the stored mode
  * ([com.cosmotune.settings.CosmoLookSettings.mode]); a mode that works ([AppModes]) is stored when it is tapped and the drawer closes,
  * and a mode that does not (Library) carries a "Later" tag, stays unselected and opens a card that says
@@ -293,10 +295,13 @@ private fun DrawerLayer(
     }
     val profile = stringResource(Res.string.cosmo_profile)
     val closeLabel = stringResource(Res.string.cosmo_close)
+    val fadeSurface = Modifier.themeFadeSurface()
 
     BoxWithConstraints(
         modifier
             .fillMaxSize()
+            // Its own window: a theme changed from its switch cross-fades here too, not only in the app's window under it.
+            .then(fadeSurface)
             // The drawer's window does not see the main window's keys: its own rows' rings follow its own keys.
             .trackFocusModality()
             .onPreviewKeyEvent { event ->
@@ -366,7 +371,11 @@ private fun DrawerLayer(
                 // Everything but the foot scrolls; the foot stands under the list, never over its last row.
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     DrawerHead(name, subtitle, avatarUrl, onAccount)
-                    ModeSwitch(onChosen = onDismiss, onLater = { later = it })
+                    // The quick theme switch, right under the head: its label on the Mode label's line (24 dp), the pill's end on
+                    // the head card's (12 dp), 12 dp under the card. It stores the Settings choice, so the two always agree.
+                    val themeShown = com.cosmotune.ui.theme.LocalThemeChoice.current != null
+                    com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 12.dp), labelStart = 24.dp, end = 12.dp)
+                    ModeSwitch(onChosen = onDismiss, onLater = { later = it }, top = if (themeShown) 14.dp else 20.dp)
                     Spacer(Modifier.height(14.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { for (entry in entries) EntryRow(entry) }
                     // In a room, the room's small card under the rows; a tap opens the room.
@@ -432,12 +441,12 @@ private fun Avatar(avatarUrl: String?, size: Dp, modifier: Modifier = Modifier) 
  * that works stores it and calls [onChosen] (it closes the drawer); a mode that does not work opens the "later" card.
  */
 @Composable
-private fun ModeSwitch(onChosen: () -> Unit, onLater: (AppMode) -> Unit) {
+private fun ModeSwitch(onChosen: () -> Unit, onLater: (AppMode) -> Unit, top: Dp = 20.dp) {
     val palette = LocalCosmoColors.current.palette
     val type = LocalCosmoType.current
     val settings = LocalCosmoShell.current?.settings
     val current = settings?.mode?.collectAsState()?.value ?: AppMode.MUSIC
-    com.cosmotune.ui.orbit.OrbitNavSectionLabel(stringResource(Res.string.cosmo_mode), Modifier.padding(start = 24.dp, top = 20.dp, end = 20.dp, bottom = 8.dp).semantics { heading() })
+    com.cosmotune.ui.orbit.OrbitNavSectionLabel(stringResource(Res.string.cosmo_mode), Modifier.padding(start = 24.dp, top = top, end = 20.dp, bottom = 8.dp).semantics { heading() })
     Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         for (mode in DRAWER_MODES) {
             val available = AppModes.available(mode)

@@ -196,13 +196,14 @@ class ModeHooksContractTest {
     @Test fun theDrawerSwitchStoresTheChosenModeAndNoLongerNamesMusicAsTheCurrentOne() {
         val src = read(drawer)
         val body = VideoSourceContract.functionBody(src, "ModeSwitch").replace(Regex("\\s+"), " ")
-        assertEquals(listOf("onChosen: () -> Unit", "onLater: (AppMode) -> Unit"), VideoSourceContract.parameters(src, "ModeSwitch"))
+        // The third is the gap above the "Mode" label: 14 dp under the theme switch, 20 dp under the head where there is none.
+        assertEquals(listOf("onChosen: () -> Unit", "onLater: (AppMode) -> Unit", "top: Dp = 20.dp"), VideoSourceContract.parameters(src, "ModeSwitch"))
         assertFalse(Regex("""val current = AppMode\.MUSIC\b""").containsMatchIn(body), "the current mode is not hard-wired")
         assertTrue("val settings = LocalCosmoShell.current?.settings" in body)
         assertTrue("val current = settings?.mode?.collectAsState()?.value ?: AppMode.MUSIC" in body, "the stored mode; Music where there is no shell")
         assertTrue("onClick = { if (available) { settings?.setMode(mode); onChosen() } else onLater(mode) }" in body)
         assertTrue("selected = available && mode == current" in body, "a mode that is not available is never the selected one")
-        assertTrue("ModeSwitch(onChosen = onDismiss, onLater = { later = it })" in flat(drawer))
+        assertTrue("ModeSwitch(onChosen = onDismiss, onLater = { later = it }, top = if (themeShown) 14.dp else 20.dp)" in flat(drawer))
         assertFalse("onChooseMusic" in src)
     }
 
