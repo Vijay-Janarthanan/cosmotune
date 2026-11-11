@@ -49,6 +49,8 @@ class PodioToolsInteractionTest {
             libraryTab().performClick()
             compose.onNodeWithText("Import OPML").performScrollTo().performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Stories").fetchSemanticsNodes().isNotEmpty() }
+            // The import finishes off the UI thread; Export only acts once the show is in the library.
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Imported", substring = true).fetchSemanticsNodes().isNotEmpty() }
             assertEquals(1, imported)
             compose.onNodeWithText("Export OPML").performScrollTo().performClick()
             compose.waitUntil(5_000) { exports.isNotEmpty() }
