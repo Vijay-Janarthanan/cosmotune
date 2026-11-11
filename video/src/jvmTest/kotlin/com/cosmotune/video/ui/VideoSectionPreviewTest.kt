@@ -42,7 +42,7 @@ import kotlin.test.Test
  * only asserts that each picture is not blank; the looking is done by opening them.
  */
 class VideoSectionPreviewTest {
-    @BeforeTest fun mainDispatcher() = Dispatchers.setMain(Dispatchers.Unconfined)
+    @BeforeTest fun mainDispatcher() = Dispatchers.setMain(RenderThread)
 
     @AfterTest fun resetMainDispatcher() = Dispatchers.resetMain()
 

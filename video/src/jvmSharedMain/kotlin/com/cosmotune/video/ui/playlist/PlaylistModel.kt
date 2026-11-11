@@ -12,6 +12,9 @@ import com.cosmotune.video.ui.channel.PageLoads
 import com.cosmotune.video.ui.channel.PagedItems
 import com.cosmotune.video.ui.channel.PagedState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 /*
  * What the playlist page loads and says, apart from any window (plan task Y-20).
@@ -28,12 +31,18 @@ internal const val ALL_VIDEOS_LIMIT = 5_000
  * until [PagedItems.start] has read it.
  */
 @Stable
-internal class PlaylistModel(private val source: VideoSource, scope: CoroutineScope, val playlistId: String) {
+internal class PlaylistModel(
+    private val source: VideoSource,
+    scope: CoroutineScope,
+    val playlistId: String,
+    /** Where the source is asked (and its answer read); [info] and the pages are written back on [scope]. */
+    work: CoroutineContext = EmptyCoroutineContext,
+) {
     var info: PlaylistInfo? by mutableStateOf(null)
         private set
 
     val videos: PagedItems<VideoItem> = PagedItems(scope) { token ->
-        val page = source.playlist(playlistId, token)
+        val page = withContext(work) { source.playlist(playlistId, token) }
         if (token == null) info = PlaylistInfo(page.playlist, page.description)
         page.first
     }
@@ -56,7 +65,7 @@ internal object PlaylistModels {
     private val cache = ModelCache<PlaylistModel>(capacity = 8, ttlMs = 10 * 60_000L, clock = System::currentTimeMillis, reusable = { it.reusable })
 
     fun obtain(source: VideoSource, playlistId: String): PlaylistModel =
-        cache.obtain("playlist:$playlistId", source) { PlaylistModel(source, PageLoads.scope, playlistId) }
+        cache.obtain("playlist:$playlistId", source) { PlaylistModel(source, PageLoads.scope, playlistId, PageLoads.work) }
 }
 
 /** Words and numbers of the playlist page, apart from any window. */

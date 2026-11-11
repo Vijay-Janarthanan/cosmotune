@@ -82,7 +82,8 @@ import com.cosmotune.video.ui.watch.WatchPage
  * not blank; the looking is done by opening them.
  */
 class VideoPagePreviewTest {
-    @BeforeTest fun mainDispatcher() = Dispatchers.setMain(Dispatchers.Unconfined)
+    // The pages' UI thread is the render thread: their loads come back there and write their state between frames.
+    @BeforeTest fun mainDispatcher() = Dispatchers.setMain(RenderThread)
 
     @AfterTest fun resetMainDispatcher() = Dispatchers.resetMain()
 

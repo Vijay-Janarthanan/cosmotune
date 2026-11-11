@@ -12,11 +12,15 @@ import com.cosmotune.video.model.PageToken
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.source.VideoSource
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /*
  * What the channel and the playlist pages load, apart from any window (plan task Y-20): the sections of a channel page, a paged list
@@ -185,7 +189,13 @@ internal fun videosOf(items: List<ListItem>): List<VideoItem> = items.mapNotNull
  * [uploads] loads a tab far enough for "Download the latest".
  */
 @Stable
-internal class ChannelModel(private val source: VideoSource, private val scope: CoroutineScope, val channelId: String) {
+internal class ChannelModel(
+    private val source: VideoSource,
+    private val scope: CoroutineScope,
+    val channelId: String,
+    /** Where the source is asked (and its answer read); the state is written back on [scope]. */
+    private val work: CoroutineContext = EmptyCoroutineContext,
+) {
     var header: Loaded<ChannelPage> by mutableStateOf(Loaded.Loading)
         private set
 
@@ -194,7 +204,7 @@ internal class ChannelModel(private val source: VideoSource, private val scope: 
 
     /** The list of [tab], created on first use. */
     fun tab(tab: ChannelTab): PagedItems<ListItem> = synchronized(tabs) {
-        tabs.getOrPut(tab) { PagedItems(scope) { token -> source.channelTab(channelId, tab, token) } }
+        tabs.getOrPut(tab) { PagedItems(scope) { token -> withContext(work) { source.channelTab(channelId, tab, token) } } }
     }
 
     /** Loads the header, once. */
@@ -205,7 +215,7 @@ internal class ChannelModel(private val source: VideoSource, private val scope: 
         }
         scope.launch {
             header = try {
-                Loaded.Ready(source.channel(channelId))
+                Loaded.Ready(withContext(work) { source.channel(channelId) })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -232,9 +242,24 @@ internal class ChannelModel(private val source: VideoSource, private val scope: 
     }
 }
 
-/** The scope the pages' loads run on: one for the process, so a load goes on while its page is covered by another. */
+/**
+ * The scope the pages' loads run on: one for the process, so a load goes on while its page is covered by another. Its coroutines run on
+ * the UI thread ([UiThread]), so a page's lists, header and state are written where the page is laid out, while the source is asked,
+ * and its answer read, on [work]. Written from Dispatchers.Default, a list could change between the lazy list reading its count and
+ * its keys, which failed inside Compose (VideoPagePreviewTest).
+ */
 internal object PageLoads {
-    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + UiThread)
+    val work: CoroutineContext = Dispatchers.Default
+}
+
+/**
+ * Dispatchers.Main.immediate as it is at each dispatch, not when [PageLoads] was first touched: the app's UI thread, and in a test
+ * the main dispatcher it set (a process-wide scope made under one test keeps following the next one's).
+ */
+internal object UiThread : CoroutineDispatcher() {
+    override fun isDispatchNeeded(context: CoroutineContext): Boolean = Dispatchers.Main.immediate.isDispatchNeeded(context)
+    override fun dispatch(context: CoroutineContext, block: Runnable) = Dispatchers.Main.immediate.dispatch(context, block)
 }
 
 /**
@@ -272,5 +297,5 @@ internal object ChannelModels {
     private val cache = ModelCache<ChannelModel>(capacity = 8, ttlMs = 10 * 60_000L, clock = System::currentTimeMillis, reusable = { it.reusable })
 
     fun obtain(source: VideoSource, channelId: String): ChannelModel =
-        cache.obtain("channel:$channelId", source) { ChannelModel(source, PageLoads.scope, channelId) }
+        cache.obtain("channel:$channelId", source) { ChannelModel(source, PageLoads.scope, channelId, PageLoads.work) }
 }

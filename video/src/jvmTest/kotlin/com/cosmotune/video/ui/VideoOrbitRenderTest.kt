@@ -51,7 +51,7 @@ import kotlin.test.Test
  * sponsor segment on the line). Each picture is checked not to be blank; the looking is done by opening them.
  */
 class VideoOrbitRenderTest {
-    @BeforeTest fun mainDispatcher() = Dispatchers.setMain(Dispatchers.Unconfined)
+    @BeforeTest fun mainDispatcher() = Dispatchers.setMain(RenderThread)
 
     @AfterTest fun resetMainDispatcher() = Dispatchers.resetMain()
 
