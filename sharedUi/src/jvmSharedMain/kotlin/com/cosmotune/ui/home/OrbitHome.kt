@@ -80,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.LocalPlatformContext
 import com.cosmotune.design.HomePlan
+import com.cosmotune.design.TitleArt
 import com.cosmotune.music.data.model.HomeShelf
 import com.cosmotune.music.data.model.MoodGenre
 import com.cosmotune.music.data.model.ShelfItem
@@ -330,7 +331,11 @@ private fun OrbitHero(
                     val (p, d) = playbackTime()
                     if (d > 0) Text("${clock(p)} / ${clock(d)}", style = fonts.label, color = ink.copy(alpha = 0.72f), modifier = Modifier.padding(bottom = 10.dp))
                 }
-                Text(hero.title, style = fonts.heroTitle, color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // The hero's title as title art (Cover Cut, or Voiced type), in the plain title's two lines of 27 sp.
+                AlbumTitleArt(
+                    TitleArtAlbum(hero.title, hero.cover, artist = hero.subtitle), ink = ink, ground = fill, modifier = Modifier.fillMaxWidth(),
+                    place = TitleArt.Place.FEATURE, maxSize = 34.sp, minSize = 20.sp, maxLines = 2, maxHeight = 54.dp,
+                )
                 Text(hero.subtitle, style = fonts.body.copy(fontSize = 15.sp), color = ink.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
             }
         }
@@ -445,7 +450,12 @@ private fun OrbitFeature(shelf: HomeShelf, wide: Boolean, fonts: OrbitFonts, loo
                 Disc(first.thumbnailUrl, if (wide) 196.dp else 170.dp, Modifier.align(Alignment.CenterEnd).offset(x = if (wide) (-104).dp else 46.dp))
                 Column(Modifier.align(Alignment.CenterStart).padding(start = 22.dp, end = if (wide) 330.dp else 150.dp)) {
                     Text("FEATURED", style = fonts.label, color = ink.copy(alpha = 0.72f))
-                    Text(first.title, style = fonts.heroTitle.copy(fontSize = 24.sp), color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
+                    // The featured album's title art, in the plain title's room (three lines of 24 sp).
+                    AlbumTitleArt(
+                        TitleArtAlbum(first.title, first.thumbnailUrl, artist = first.subtitle), ink = ink, ground = fill,
+                        modifier = Modifier.padding(top = 10.dp).fillMaxWidth(), place = TitleArt.Place.FEATURE,
+                        maxSize = 32.sp, minSize = 18.sp, maxLines = 3, maxHeight = 78.dp,
+                    )
                     if (first.subtitle.isNotBlank()) Text(first.subtitle, style = fonts.body, color = ink.copy(alpha = 0.8f), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                 }
             }
