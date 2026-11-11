@@ -90,6 +90,9 @@ object OpenCanvas {
      *   `songAudio = SongAudio.YouTube(trackVideoId)`.
      * @param songAudio Where the song's own audio is readable, for songs that do not come from YouTube.
      * @param videoId Music video to use instead of searching for one.
+     * @param background True for a song that is not playing yet (the next one in a queue): its searches wait while the
+     *   playing song's run, and only one of its search pages is on the wire at a time. Asking again for the same song
+     *   without it (the song has started) lifts that at once.
      */
     fun resolveFlow(
         title: String,
@@ -101,8 +104,9 @@ object OpenCanvas {
         songAudio: SongAudio? = null,
         videoId: String? = null,
         album: String? = null,
+        background: Boolean = false,
     ): Flow<OpenCanvasTrack> = flow {
-        val session = session(request(title, artist, durationSec, mode, resolution, trackVideoId, songAudio, videoId, album))
+        val session = session(request(title, artist, durationSec, mode, resolution, trackVideoId, songAudio, videoId, album), foreground = !background)
         session.attach()
         try {
             session.updates().collect { emit(it) }
@@ -188,9 +192,9 @@ object OpenCanvas {
 
     private fun env(): Environment = synchronized(lock) { environment ?: Environment(OpenCanvasConfig()).also { environment = it } }
 
-    private fun session(request: CanvasRequest): CanvasSession = synchronized(lock) {
+    private fun session(request: CanvasRequest, foreground: Boolean = true): CanvasSession = synchronized(lock) {
         val existing = sessions[request.key]
-        if (existing != null && !existing.isStale()) return existing
-        CanvasSession(request, env(), scope).also { sessions[request.key] = it }
+        if (existing != null && !existing.isStale()) return existing.also { if (foreground) it.promote() }
+        CanvasSession(request, env(), scope, foreground).also { sessions[request.key] = it }
     }
 }

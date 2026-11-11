@@ -97,24 +97,106 @@ internal class SyncStore(
             }.getOrDefault(false) }?.name?.removePrefix(prefix)?.removeSuffix(".json")
     }
 
+    /**
+     * The music video chosen for a song, whichever track id it was measured under: what lets the same song played from
+     * another upload or service start with its video instead of searching again. The map itself stays in the
+     * `<trackId>_<videoId>.json` file named here; [SongVideo.durationSec] says which length of the song it was measured on.
+     */
+    internal data class SongVideo(
+        val trackVideoId: String,
+        val videoId: String,
+        val durationSec: Long,
+        val videoTitle: String = "",
+        val channelTitle: String = "",
+        val officialArtist: Boolean = false,
+        val verifiedChannel: Boolean = false,
+    )
+
+    private val songs = LinkedHashMap<String, SongVideo>()
+
+    /** The verified video for [song] and the track it was measured under, from memory or disk, or null. */
+    fun songVideo(song: SongIdentity): SongVideo? {
+        synchronized(songs) { songs[song.key] }?.let { return it }
+        val file = songFileFor(song) ?: return null
+        val found = runCatching {
+            val root = Json.parseToJsonElement(file.readText()).jsonObject
+            if (root["song"]?.jsonPrimitive?.content != song.key) return@runCatching null
+            SongVideo(
+                trackVideoId = root["trackId"]!!.jsonPrimitive.content,
+                videoId = root["videoId"]!!.jsonPrimitive.content,
+                durationSec = root["durationSec"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
+                videoTitle = root["videoTitle"]?.jsonPrimitive?.content.orEmpty(),
+                channelTitle = root["channelTitle"]?.jsonPrimitive?.content.orEmpty(),
+                officialArtist = root["officialArtist"]?.jsonPrimitive?.content == "true",
+                verifiedChannel = root["verifiedChannel"]?.jsonPrimitive?.content == "true",
+            )
+        }.getOrNull()?.takeIf { safe(it.trackVideoId) && safe(it.videoId) }
+            // Re-checked against today's rules: a reaction or cover upload is never the song's video.
+            ?.takeIf { com.opencanvas.core.matcher.VideoMatcher.talkOverUpload(
+                com.opencanvas.core.matcher.VideoCandidate(it.videoId, it.videoTitle, it.channelTitle, 0L)) == null }
+            ?: return null
+        synchronized(songs) { songs[song.key] = found }
+        return found
+    }
+
+    /** Remembers [video] as [song]'s verified video; only automatic selections that were measured belong here. */
+    fun putSong(song: SongIdentity, video: SongVideo) {
+        synchronized(songs) {
+            songs[song.key] = video
+            if (songs.size > capacity) songs.remove(songs.keys.first())
+        }
+        val file = songFileFor(song) ?: return
+        try {
+            file.parentFile?.mkdirs()
+            file.writeText(buildJsonObject {
+                put("song", song.key)
+                put("durationSec", video.durationSec)
+                put("trackId", video.trackVideoId)
+                put("videoId", video.videoId)
+                put("videoTitle", video.videoTitle)
+                put("channelTitle", video.channelTitle)
+                put("officialArtist", video.officialArtist)
+                put("verifiedChannel", video.verifiedChannel)
+            }.toString())
+        } catch (_: IOException) {
+            // Only a shortcut lost: the song is searched for again next time.
+        }
+    }
+
+    private fun songFileFor(song: SongIdentity): File? = directory?.resolve(SONGS)?.resolve(
+        java.security.MessageDigest.getInstance("SHA-1").digest(song.key.toByteArray()).take(10)
+            .joinToString("") { "%02x".format(it) } + ".json")
+
     /** Removes every in-memory entry and every file this store wrote. */
     fun clear() {
         synchronized(entries) { entries.clear(); verified.clear() }
+        synchronized(songs) { songs.clear() }
         directory?.listFiles { _, name -> name.endsWith(".json") }?.forEach { it.delete() }
+        directory?.resolve(SONGS)?.listFiles { _, name -> name.endsWith(".json") }?.forEach { it.delete() }
     }
 
     private fun fileFor(trackVideoId: String, videoId: String): File? =
         directory?.takeIf { safe(trackVideoId) && safe(videoId) }?.resolve("${trackVideoId}_$videoId.json")
 
+    /**
+     * The map in [file], re-checked against today's rules: one that stops the song for long stretches between its parts
+     * was measured on a reaction or similar upload (the song plays inside it, someone talks between) and is ignored, so
+     * the song is searched for again instead of showing that picture.
+     */
     private fun readFile(file: File): SyncOffset? =
         try {
-            if (file.isFile) YouTubeStreamResolver.parseSyncResponse(file.readText()) else null
+            if (file.isFile) YouTubeStreamResolver.parseSyncResponse(file.readText())
+                ?.takeIf { com.opencanvas.core.matcher.VideoMatcher.longestTalkGapMs(it.segments) <= com.opencanvas.core.matcher.VideoMatcher.TALK_GAP_MS }
+            else null
         } catch (_: IOException) {
             null
         }
 
     companion object {
         const val DEFAULT_CAPACITY = 256
+
+        /** The folder of song-to-video entries ([songVideo]), beside the maps. */
+        private const val SONGS = "songs"
 
         /** Cache key for a song/video pair. */
         fun key(trackVideoId: String, videoId: String): String = "$trackVideoId|$videoId"

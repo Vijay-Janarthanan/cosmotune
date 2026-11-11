@@ -32,8 +32,11 @@ object OpenCanvasProvider {
 
     private const val TAG = "OpenCanvas"
 
-    /** Upper bound for the whole lookup. */
-    private const val LOOKUP_TIMEOUT_MS = 20_000L
+    /**
+     * Upper bound for the whole lookup: the searches' own budget (about 15 s on a slow line), the measuring of the
+     * candidates and the stream. A lookup cut short here is abandoned with its search, so it must not be shorter.
+     */
+    private const val LOOKUP_TIMEOUT_MS = 30_000L
 
     @Volatile
     private var configured = false
@@ -81,6 +84,8 @@ object OpenCanvasProvider {
      * [trackVideoId] is the YouTube (Music) id of the song being played: the map is measured between
      * that audio and the video's, so without it nothing can be aligned and the answer is null.
      * [durationSec] (0 when unknown) helps tell the music video from clips and live takes.
+     * [background] marks a lookup for a song that is not playing yet (the next in the queue): it waits while the
+     * playing song is searching, and is promoted when the same song is asked for without it.
      */
     suspend fun search(
         title: String,
@@ -89,6 +94,7 @@ object OpenCanvasProvider {
         trackVideoId: String?,
         resolutionLabel: String = "480p",
         durationSec: Long = 0L,
+        background: Boolean = false,
     ): CanvasArtwork? = withContext(Dispatchers.IO) {
         if (trackVideoId.isNullOrBlank()) return@withContext null
         if (!configured) configure(null)
@@ -104,6 +110,7 @@ object OpenCanvasProvider {
             resolution = resolution,
             trackVideoId = trackVideoId,
             album = query.album,
+            background = background,
         ).resolvedCanvas(LOOKUP_TIMEOUT_MS) ?: return@withContext null
 
         if (track.syncStage != SyncStage.MEASURED) return@withContext null
