@@ -205,6 +205,9 @@ interface WatchRepository {
     suspend fun setProfilePin(pin: String?) {}
     suspend fun removeProfile(id: String) {}
     val preferences: StateFlow<WatchPreferences> get() = DEFAULT_WATCH_PREFERENCES
+    /** Whether Home's first-use guide was put away on this device. A repository without one never shows it. */
+    val setupGuideDismissed: StateFlow<Boolean> get() = DEFAULT_WATCH_UNLOCKED
+    suspend fun dismissSetupGuide() {}
     suspend fun setPreferences(preferences: WatchPreferences) {}
     /** Opens a playback-only address and owns any resources it needs until the player closes it. */
     suspend fun openPlayback(stream: Stream): WatchPlaybackLease = WatchPlaybackLease(stream.url) {}

@@ -79,6 +79,12 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.cosmotune.watch.WatchRepository
 
 /** The home wash (board section 1): a night blue. */
 private val HOME_WASH = Color(0xFF3C508C)
@@ -98,6 +104,7 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
     val cached by entry.collectOnPage()
     val live by repository.continueWatching.collectAsState()
     val myList by repository.myList.collectAsState()
+    val guideDismissed by repository.setupGuideDismissed.collectAsState()
     val clock = LocalWatchClock.current
     val side = frame.side
     val data = cached.data
@@ -127,6 +134,9 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
                         Box(Modifier.padding(start = side, top = 16.dp)) { chips() }
                     }
                 }
+            }
+            if (fixed == null && !guideDismissed) item(key = "watch:guide") {
+                WatchSetupCard(repository, fonts, look, Modifier.padding(horizontal = side).padding(top = 22.dp))
             }
             if (cached.refreshFailed) item(key = "watch:refresh-failed") {
                 RefreshFailedNote(onRetry = { entry.refresh() }, modifier = Modifier.padding(start = side + 6.dp, top = 14.dp))
@@ -195,6 +205,41 @@ internal fun summaryLine(summary: TitleSummary, lead: String? = null): String = 
     if (summary.type == TitleType.FILM) runtimeText(summary.runtimeMin) else null,
     summary.year?.toString(),
 ).joinToString(" · ")
+
+/**
+ * First use: what Watch already plays from, and the optional extras (more sources, a viewer for each
+ * person, Trakt or Simkl), each with the page that sets it up. Built from this device's own state,
+ * so a step that is done says so; put away with Hide, or gone once every step is done.
+ */
+@Composable
+internal fun WatchSetupCard(repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook, modifier: Modifier = Modifier) {
+    val scope = rememberCoroutineScope()
+    val plugins by repository.plugins.collectAsState()
+    val profiles by repository.profiles.collectAsState()
+    val dismissed by repository.setupGuideDismissed.collectAsState()
+    val tracking = repository.tracking
+    val trackers = tracking?.statuses?.collectAsState()?.value
+    val steps = com.cosmotune.watch.WatchSetupGuide.steps(plugins, profiles.size, trackers)
+    if (!com.cosmotune.watch.WatchSetupGuide.shouldShow(dismissed, steps)) return
+    Column(modifier.widthIn(max = 640.dp).clip(RoundedCornerShape(26.dp)).background(look.row).padding(22.dp)) {
+        OrbitLabel("Get started", fonts, look.dim)
+        Text("Set up Watch your way", style = fonts.section, color = look.ink, modifier = Modifier.padding(top = 10.dp))
+        steps.forEach { step ->
+            Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(step.title, style = fonts.title, color = look.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(step.detail, style = fonts.body, color = look.dim, modifier = Modifier.padding(top = 2.dp))
+                }
+                if (step.done) OrbitLabel("Done", fonts, look.dim)
+                else WatchCardChip(step.action, look.ink, fonts, onClick = {
+                    WatchNav.go(if (step.target == com.cosmotune.watch.WatchSetupTarget.PLUGINS) WatchTab.PLUGINS else WatchTab.SETTINGS)
+                })
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        WatchCardChip("Hide guide", look.ink, fonts, onClick = { scope.launch { repository.dismissSetupGuide() } })
+    }
+}
 
 /** The line under a poster: the year and the badge (or the first genre). */
 internal fun posterLine(summary: TitleSummary): String =

@@ -164,6 +164,30 @@ class WatchVisualReviewTest {
         }
     }
 
+    /** A repository that has not had its first-use guide put away, as on a first open. */
+    private class FirstOpen(private val fake: FakeWatchRepository = FakeWatchRepository()) : WatchRepository by fake {
+        val dismissed = MutableStateFlow(false)
+        override val setupGuideDismissed get() = dismissed
+        override suspend fun dismissSetupGuide() { dismissed.value = true }
+    }
+
+    @Test fun firstOpenShowsTheSetupGuideOnHomeUntilItIsHidden() = hosts {
+        each { dark, size, tag ->
+            val repository = FirstOpen()
+            WatchNav.go(WatchTab.HOME); page(dark, size, repository)
+            compose.onNodeWithText("Set up Watch your way").assertIsDisplayed()
+            compose.onNodeWithText("Choose where films come from").assertIsDisplayed()
+            capture("guide-$tag")
+            compose.onNodeWithText("Hide guide").performClick()
+            compose.waitForIdle()
+            compose.onNodeWithText("Set up Watch your way").assertDoesNotExist()
+        }
+        // Other tabs never carry it.
+        val repository = FirstOpen()
+        WatchNav.go(WatchTab.FILMS); page(true, phone, repository)
+        compose.onNodeWithText("Set up Watch your way").assertDoesNotExist()
+    }
+
     @Test fun watchPlayerInDarkAndLight() = hosts {
         each { dark, size, tag ->
             val repository = FakeWatchRepository()

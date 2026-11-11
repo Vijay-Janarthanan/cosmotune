@@ -900,6 +900,10 @@ class DefaultWatchRepository(
             selected.copy(profiles = selected.allProfiles() - id, settings = selected.settings - "profile.pin.$id")
         }
     }
+    /** A device setting, not synced: each phone or computer offers the guide until it is put away there. */
+    private val guideDismissedState = MutableStateFlow(store.state.value.settings[GUIDE_DISMISSED] == "1")
+    override val setupGuideDismissed: StateFlow<Boolean> = guideDismissedState.asStateFlow()
+    override suspend fun dismissSetupGuide() { update { it.copy(settings = it.settings + (GUIDE_DISMISSED to "1")) } }
     private val preferencesState = MutableStateFlow(preferencesOf(store.state.value))
     override val preferences: StateFlow<WatchPreferences> = preferencesState.asStateFlow()
     override suspend fun setPreferences(preferences: WatchPreferences) {
@@ -927,6 +931,7 @@ class DefaultWatchRepository(
         playlistsState.value = state.allProfiles()[state.activeProfile]?.playlists.orEmpty()
         unlockedState.value = state.settings["profile.pin.${state.activeProfile}"] == null || unlockedProfileId == state.activeProfile
         preferencesState.value = preferencesOf(state)
+        guideDismissedState.value = state.settings[GUIDE_DISMISSED] == "1"
         pluginsState.value = infos(state, status.value)
         myListState.value = state.myList
         favouritesState.value = state.favourites.map(::WatchKey).toSet()
@@ -970,6 +975,7 @@ class DefaultWatchRepository(
         private val SERVER_KINDS = setOf(PluginKind.JELLYFIN, PluginKind.EMBY, PluginKind.PLEX_SERVER, PluginKind.LOCAL_FOLDER)
         /** The built-in plugins that play films for free, asked for the featured card. */
         private val FREE_FILM_PLUGINS = setOf(BuiltInPlugins.PLUTO, BuiltInPlugins.PLEX, BuiltInPlugins.YOUTUBE, BuiltInPlugins.ARCHIVE, BuiltInPlugins.PUBLIC_DOMAIN)
+        private const val GUIDE_DISMISSED = "watch.guide.dismissed"
         private const val FEATURED_PROBE_MS = 6_000L
         /** The plugins whose channels play a YouTube live, so have nothing to play when nothing is live. */
         private val LIVE_ON_YOUTUBE = setOf(BuiltInPlugins.PRASAR_BHARATI, BuiltInPlugins.YOUTUBE_LIVE)
