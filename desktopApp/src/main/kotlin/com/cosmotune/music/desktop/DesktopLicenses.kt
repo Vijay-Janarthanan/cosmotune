@@ -136,7 +136,7 @@ internal object DesktopLicenses {
                     "https://github.com/Vijay-Janarthanan/OpenCanvas",
                     "Finds a song's music video and lines it up with the song.",
                 ),
-                DesktopLicense("AETHER", "GPL-3.0", "https://github.com/GHOSTxASR/AETHER", "Korean pronunciation rules and the measured-headphone catalogue; measurement authors are retained."),
+                DesktopLicense("AETHER", "GPL-3.0", "https://github.com/GHOSTxASR/AETHER", "Korean pronunciation rules, the measured-headphone catalogue (measurement authors retained) and the sound-alignment method, which AETHER credits to PODIUM."),
                 DesktopLicense("ICU4J", "Unicode-3.0", "https://icu.unicode.org/", "Desktop offline script transliteration. Android uses system ICU."),
                 DesktopLicense("CryptoJS", "MIT", "https://github.com/brix/crypto-js", "Cryptographic module compatibility inside the isolated Watch JavaScript runtime."),
                 DesktopLicense(

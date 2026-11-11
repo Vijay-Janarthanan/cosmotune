@@ -18,6 +18,16 @@ The catalogue retains measurement-author attribution. See `licenses/AETHER-LICEN
 `docs/AETHER_EUTHOPIAR_INTEGRATION.md`. Desktop script transliteration uses Unicode ICU4J;
 Android uses its system ICU implementation.
 
+The onset comparison used to line a better copy of a song up with the one playing
+(`shared/src/jvmSharedMain/kotlin/com/cosmotune/audio/AcousticAlignment.kt`) follows AETHER's
+`SoundAlignment`, which AETHER credits as a port from PODIUM, GPLv3, at the same AETHER revision. It
+is written afresh against Cosmotune's own decoders and is switched off by default.
+
+The Watch JavaScript runtime bundles CryptoJS 4.2.0 (MIT, `providers/third-party/LICENSE.crypto-js`).
+Watch features modelled on Euthopiar (Trakt and Simkl sync, Nuvio script plugins, profiles, casting,
+debrid, download checks) were implemented independently from the services' public documentation; no
+Euthopiar source is included, as its repository carries no licence.
+
 The Android TV and browser companion ports include code from the same GPLv3 upstream at
 https://github.com/kushagrasinghx/BitChord/tree/edc1e6f36febf71a118e649411d2fc21b70ead45.
 Original source hashes, file links and adaptations are recorded in `tv/UPSTREAM_IMPORT.json` and
