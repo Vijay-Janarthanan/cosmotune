@@ -180,6 +180,18 @@ class TitleArtTest {
         assertTrue(Contrast.ratio(TitleArt.over(stats.dark, ink, wash), deepRust) >= 3.0)
     }
 
+    @Test fun aMostlyDarkCoversMiddleIsLiftedToo() {
+        // The dusk cover on its indigo card: the darkest tenth alone would stop at 3:1 and the letters would read dim.
+        val indigo = 0xFF2B2160.toInt()
+        val floorOnly = TitleArt.CoverStats(0.2f, dark = 0xFF161028.toInt(), light = 0xFF8C9CF0.toInt(), hue = 250f, saturation = 0.6f)
+        val withMid = floorOnly.copy(mid = 0xFF2E2560.toInt())
+        val a = TitleArt.wash(floorOnly, ink, indigo, 3.0)
+        val b = TitleArt.wash(withMid, ink, indigo, 3.0)
+        assertTrue(b >= a, "never less than the floor asks: $a vs $b")
+        assertTrue(Contrast.ratio(TitleArt.over(withMid.mid!!, ink, b), indigo) >= TitleArt.MID_TARGET)
+        assertTrue(Contrast.ratio(TitleArt.over(withMid.dark, ink, b), indigo) >= 3.0)
+    }
+
     @Test fun aCoverThatReadsIsLeftAlone() {
         val stats = TitleArt.CoverStats(0.9f, dark = 0xFFE8E0D0.toInt(), light = 0xFFFFFFFF.toInt(), hue = 40f, saturation = 0.1f)
         assertEquals(0f, TitleArt.wash(stats, ink, deepRust, target = 4.5))
@@ -209,6 +221,7 @@ class TitleArtTest {
         val stats = requireNotNull(TitleArt.coverStats(pixels))
         assertEquals(0xFF000000.toInt(), stats.dark)
         assertEquals(0xFFE03020.toInt(), stats.light)
+        assertEquals(0xFFE03020.toInt(), stats.mid, "the median by brightness")
         assertTrue(stats.hue < 15f, "red: ${stats.hue}")
         assertTrue(stats.brightness in 0.1f..0.3f)
         assertNull(TitleArt.coverStats(IntArray(4) { 0 }), "a transparent picture has none")

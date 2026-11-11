@@ -124,33 +124,60 @@ internal fun rememberTitleArtGenre(album: TitleArtAlbum): String? {
     }
 }
 
-/** A cover ready for title art: the [image] the letters are cut from and its [stats]. */
-class TitleArtCover(val image: ImageBitmap, val stats: TitleArt.CoverStats)
+/**
+ * A cover ready for title art: the [image] the letters are cut from, its [stats], and a [GRID] by [GRID] sample of it ([grid]) from
+ * which the stats of the part Cover Cut draws into its letters are read ([regionStats]).
+ */
+class TitleArtCover(val image: ImageBitmap, val stats: TitleArt.CoverStats, internal val grid: IntArray) {
+
+    /**
+     * The stats of the part of the cover from ([left], [top]) to ([right], [bottom]), fractions of its size, with the extremes at
+     * the drawn part's darkest and brightest 4 %: what a letter can show, highlights included.
+     */
+    fun regionStats(left: Float, top: Float, right: Float, bottom: Float): TitleArt.CoverStats {
+        val x0 = (left * GRID).toInt().coerceIn(0, GRID - 1)
+        val y0 = (top * GRID).toInt().coerceIn(0, GRID - 1)
+        val x1 = kotlin.math.ceil(right * GRID).toInt().coerceIn(x0 + 1, GRID)
+        val y1 = kotlin.math.ceil(bottom * GRID).toInt().coerceIn(y0 + 1, GRID)
+        val pixels = IntArray((x1 - x0) * (y1 - y0)) { i -> grid[(y0 + i / (x1 - x0)) * GRID + x0 + i % (x1 - x0)] }
+        return TitleArt.coverStats(pixels, TitleArt.REGION_LOW, TitleArt.REGION_HIGH) ?: stats
+    }
+
+    companion object {
+        const val GRID = 64
+
+        /** [image] read for title art (pixels, so off the main thread); null for a picture with nothing opaque in it. */
+        fun of(image: ImageBitmap): TitleArtCover? {
+            val all = image.argbPixels()
+            val stride = max(1, all.size / 4_096)
+            val stats = TitleArt.coverStats(IntArray(all.size / stride) { all[it * stride] }) ?: return null
+            val grid = IntArray(GRID * GRID) { i ->
+                val x = (i % GRID) * image.width / GRID
+                val y = (i / GRID) * image.height / GRID
+                all[y * image.width + x]
+            }
+            return TitleArtCover(image, stats, grid)
+        }
+    }
+}
 
 /**
- * The covers' stats, once per cover (an LRU of 64 keyed by URL, as the palette loader keeps palettes; the picture at a URL does
- * not change). The picture itself is Coil's, from the cache the discs already fill, at the 480 px rung of the ladder.
+ * The covers read for title art, once per cover (an LRU of 64 keyed by URL, as the palette loader keeps palettes; the picture at a
+ * URL does not change). The picture itself is Coil's, from the cache the discs already fill, at the 480 px rung of the ladder.
  */
 internal object TitleArtCovers {
     private const val PX = 480
-    private val stats = object : LinkedHashMap<String, TitleArt.CoverStats>(0, 0.75f, true) {
-        override fun removeEldestEntry(eldest: Map.Entry<String, TitleArt.CoverStats>) = size > 64
+    private val read = object : LinkedHashMap<String, TitleArtCover>(0, 0.75f, true) {
+        override fun removeEldestEntry(eldest: Map.Entry<String, TitleArtCover>) = size > 64
     }
 
     suspend fun load(context: PlatformContext, url: String): TitleArtCover? {
+        synchronized(read) { read[url] }?.let { return it }
         val request = ImageRequest.Builder(context).data(url.artworkAt(PX)).size(PX).forPixelAccess().build()
         val image = (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image?.toImageBitmap() ?: return null
-        synchronized(stats) { stats[url] }?.let { return TitleArtCover(image, it) }
-        val read = withContext(Dispatchers.Default) { statsOf(image) } ?: return null
-        synchronized(stats) { stats[url] = read }
-        return TitleArtCover(image, read)
-    }
-
-    /** The stats of [image] from about 4,000 of its pixels, evenly spread. */
-    fun statsOf(image: ImageBitmap): TitleArt.CoverStats? {
-        val all = image.argbPixels()
-        val stride = max(1, all.size / 4_096)
-        return TitleArt.coverStats(IntArray(all.size / stride) { all[it * stride] })
+        val cover = withContext(Dispatchers.Default) { TitleArtCover.of(image) } ?: return null
+        synchronized(read) { read[url] = cover }
+        return cover
     }
 }
 
@@ -373,7 +400,15 @@ private fun BlockTitleArt(
         }
         val stats = cover?.stats
         val target = TitleArt.target(plan.sizePx / density.density)
-        val wash = if (stats == null) 1f else TitleArt.wash(stats, ink.toArgb(), ground.toArgb(), target)
+        // Cover Cut is held to the part of the cover its letters show, highlights and all; the other faces to the whole cover.
+        val washStats = if (cover != null && style == TitleArt.Style.CUT) {
+            remember(cover, plan) {
+                val wide = plan.first[faces.first.widest]
+                val (sx, sy, sw, sh) = coverCrop(cover.image, textBounds(wide, 0f))
+                cover.regionStats(sx / cover.image.width, sy / cover.image.height, (sx + sw) / cover.image.width, (sy + sh) / cover.image.height)
+            }
+        } else stats
+        val wash = if (washStats == null) 1f else TitleArt.wash(washStats, ink.toArgb(), ground.toArgb(), target)
         // The cover comes in under the letters as the wash lifts off them: a title never shows unfilled outlines.
         val shownWash by animateFloatAsState(if (cover == null) 1f else wash, tween(420), label = "titleWash")
         val tint = Color(TitleArt.tint(stats, ink.toArgb(), ground.toArgb(), target))
@@ -415,13 +450,19 @@ private fun textBounds(layout: TextLayoutResult, top: Float): Rect {
     return Rect(left, top, right, top + layout.size.height)
 }
 
-/** [image] over what is drawn, cropped to fill [box] from its middle (as a disc crops), kept only where letters are (SrcIn). */
-private fun DrawScope.drawCoverInto(image: ImageBitmap, box: Rect) {
+/** The part of [image] (x, y, width, height in its pixels) that fills [box] from its middle, as a disc crops. */
+private fun coverCrop(image: ImageBitmap, box: Rect): List<Float> {
     val boxAspect = box.width / box.height.coerceAtLeast(1f)
     val imageAspect = image.width.toFloat() / image.height.coerceAtLeast(1)
     val (sw, sh) = if (imageAspect > boxAspect) (image.height * boxAspect) to image.height.toFloat() else image.width.toFloat() to (image.width / boxAspect)
-    val sx = ((image.width - sw) / 2f).roundToInt().coerceAtLeast(0)
-    val sy = ((image.height - sh) / 2f).roundToInt().coerceAtLeast(0)
+    return listOf(((image.width - sw) / 2f).coerceAtLeast(0f), ((image.height - sh) / 2f).coerceAtLeast(0f), sw, sh)
+}
+
+/** [image] over what is drawn, cropped to fill [box] from its middle (as a disc crops), kept only where letters are (SrcIn). */
+private fun DrawScope.drawCoverInto(image: ImageBitmap, box: Rect) {
+    val (cx, cy, sw, sh) = coverCrop(image, box)
+    val sx = cx.roundToInt()
+    val sy = cy.roundToInt()
     drawImage(
         image,
         srcOffset = IntOffset(sx, sy),

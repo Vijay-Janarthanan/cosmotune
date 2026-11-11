@@ -203,16 +203,17 @@ object TitleArt {
 
     /**
      * What a cover gives the title: its mean [brightness] (0..1), the colour at its darkest tenth ([dark]) and its brightest
-     * tenth ([light]), which bound how far its colours stray from the middle, and its leading hue ([hue], degrees, with its
-     * [saturation]).
+     * tenth ([light]), which bound how far its colours stray from the middle, its leading hue ([hue], degrees, with its
+     * [saturation]), and its middle tone ([mid], the median by brightness), which is what most of a letter shows.
      */
-    data class CoverStats(val brightness: Float, val dark: Int, val light: Int, val hue: Float, val saturation: Float)
+    data class CoverStats(val brightness: Float, val dark: Int, val light: Int, val hue: Float, val saturation: Float, val mid: Int? = null)
 
     /**
-     * The stats of a cover from its pixels (ARGB, any size; transparent pixels are skipped). The hue is the strongest of 24
-     * buckets, each colourful pixel voting by how saturated and how bright it is, so a small red sign on a grey cover still leads.
+     * The stats of a cover from its pixels (ARGB, any size; transparent pixels are skipped), [dark] and [light] at the [low] and
+     * [high] fractions by brightness. The hue is the strongest of 24 buckets, each colourful pixel voting by how saturated and how
+     * bright it is, so a small red sign on a grey cover still leads.
      */
-    fun coverStats(pixels: IntArray): CoverStats? {
+    fun coverStats(pixels: IntArray, low: Float = 0.1f, high: Float = 0.9f): CoverStats? {
         val opaque = pixels.filter { (it ushr 24) >= 0x80 }
         if (opaque.isEmpty()) return null
         val lumas = FloatArray(opaque.size)
@@ -233,13 +234,14 @@ object TitleArt {
             }
         }
         val order = lumas.indices.sortedBy { lumas[it] }
-        val dark = opaque[order[(order.size * 0.1f).toInt().coerceIn(0, order.size - 1)]]
-        val light = opaque[order[(order.size * 0.9f).toInt().coerceIn(0, order.size - 1)]]
+        val dark = opaque[order[(order.size * low).toInt().coerceIn(0, order.size - 1)]]
+        val light = opaque[order[(order.size * high).toInt().coerceIn(0, order.size - 1)]]
+        val mid = opaque[order[order.size / 2]]
         val top = votes.indices.maxByOrNull { votes[it] } ?: 0
         val count = counts[top]
         val hue = if (votes[top] > 0.0) top * 15f + 7.5f else 0f
         val saturation = if (votes[top] > 0.0 && count > 0) (satSum[top] / count).toFloat() else 0f
-        return CoverStats((sum / opaque.size).toFloat(), dark, light, hue, saturation)
+        return CoverStats((sum / opaque.size).toFloat(), dark, light, hue, saturation, mid)
     }
 
     /** Gamma-encoded luma, 0..1 (Rec. 709 weights): how bright a colour looks, for "is this cover dark". */
@@ -255,17 +257,38 @@ object TitleArt {
     /**
      * How much of [ink] to wash over the cover inside the letters of Cover Cut so they read on [ground]: the least that brings
      * the cover's worst colour ([CoverStats.dark] when the ink is the lighter, [CoverStats.light] when it is the darker) to
-     * [target] contrast, 0 when the cover reads as it is, 1 when only the ink itself does.
+     * [target] contrast and its middle tone ([CoverStats.mid]) to [MID_TARGET] at least, 0 when the cover reads as it is, 1 when
+     * only the ink itself does. The middle tone is what most of a letter shows: a mostly dark cover held to the floor alone
+     * reads dim on a dark card even where its darkest tenth passes.
      */
     fun wash(stats: CoverStats, ink: Int, ground: Int, target: Double): Float {
         val worst = if (luma(ink) >= luma(ground)) stats.dark else stats.light
-        if (Contrast.ratio(worst, ground) >= target) return 0f
+        // A little over each target: the cover is resampled into the letters, which moves a colour by a few levels.
+        val forWorst = washFor(worst, ink, ground, target + MARGIN)
+        val forMid = stats.mid?.let { washFor(it, ink, ground, max(target, MID_TARGET) + MARGIN) } ?: 0f
+        return max(forWorst, forMid)
+    }
+
+    /** The contrast the middle tone of a Cover Cut letter is held to. */
+    const val MID_TARGET = 4.5
+
+    private const val MARGIN = 0.2
+
+    /**
+     * The share of the drawn part of a cover that Cover Cut's extremes are read at: its darkest and brightest 4 %, so a sun or a
+     * spotlight behind the letters is held to the contrast too, not only the cover's broad tones.
+     */
+    const val REGION_LOW = 0.04f
+    const val REGION_HIGH = 0.96f
+
+    private fun washFor(colour: Int, ink: Int, ground: Int, target: Double): Float {
+        if (Contrast.ratio(colour, ground) >= target) return 0f
         if (Contrast.ratio(ink, ground) < target) return 1f
         var low = 0f
         var high = 1f
         repeat(14) {
             val mid = (low + high) / 2f
-            if (Contrast.ratio(over(worst, ink, mid), ground) >= target) high = mid else low = mid
+            if (Contrast.ratio(over(colour, ink, mid), ground) >= target) high = mid else low = mid
         }
         return high
     }
