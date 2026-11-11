@@ -1881,7 +1881,7 @@ fun SettingsScreen(
         com.cosmotune.ui.settings.TmdbAttribution(Modifier.padding(top = 24.dp))
         Text(
             text = buildAnnotatedString {
-                append("Made with love by Vijay\n")
+                append("Made with ♥ by Vijay\n")
                 append("Cosmotune $version  ")
                 val linkStyles = TextLinkStyles(
                     style = SpanStyle(

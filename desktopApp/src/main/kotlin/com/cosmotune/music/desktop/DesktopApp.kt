@@ -7999,7 +7999,7 @@ private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
     )
     Text(
         text = buildAnnotatedString {
-            append("Made with love by Vijay\n")
+            append("Made with ♥ by Vijay\n")
             append("Cosmotune $version  ")
             withLink(LinkAnnotation.Url(com.cosmotune.CosmoConfig.PROJECT_URL, linkStyles)) {
                 append("Source")
