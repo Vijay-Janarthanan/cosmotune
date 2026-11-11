@@ -126,6 +126,12 @@ fun TvNowPlayingScreen(
     val knownLength = durationMs > 0
     val hasLyrics = knownLength && !lyrics.isNullOrEmpty()
     val showLyrics = hasLyrics && !lyricsHidden
+    // The lyric style (the same choice the phone and the desktop keep), stepped through with the card's Style button.
+    val styleChoice = com.cosmotune.ui.nowplaying.rememberLyricStyleChoice(song.videoId, lyrics.orEmpty(), com.cosmotune.lyrics.styles.LyricSurface.TV)
+    val nextLyricStyle: () -> Unit = {
+        val offered = styleChoice.offered
+        styleChoice.choose(offered[(offered.indexOf(styleChoice.style) + 1) % offered.size])
+    }
 
     var controlsVisible by remember { mutableStateOf(true) }
     var upNextOpen by remember { mutableStateOf(false) }
@@ -282,6 +288,7 @@ fun TvNowPlayingScreen(
             controlsVisible = controlsVisible,
             onSeek = { mediaController?.seekTo(it) },
             modifier = Modifier.graphicsLayer { alpha = dim },
+            lyricStyle = styleChoice.style,
         )
 
         AnimatedVisibility(
@@ -315,6 +322,8 @@ fun TvNowPlayingScreen(
                 shuffle = shuffle,
                 repeatMode = playerState.repeatMode,
                 onSleepTimer = { sheet = PlayerSheet.Sleep },
+                lyricStyle = if (hasLyrics) styleChoice.style else null,
+                onNextLyricStyle = nextLyricStyle,
                 upNext = {
                     TvUpNext(
                         queue = playerState.queue,
@@ -350,6 +359,20 @@ fun TvNowPlayingScreen(
             tick = flashTick,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+
+        // Ambient: two minutes without a press while a song with lyrics plays and nothing is open, and the screen becomes the
+        // line as a Poster. Any press (it updates lastInput) brings Now Playing back.
+        var ambient by remember { mutableStateOf(false) }
+        LaunchedEffect(lastInput, isPlaying, showLyrics, controlsVisible, upNextOpen, sheet) {
+            ambient = false
+            if (isPlaying && showLyrics && !controlsVisible && !upNextOpen && sheet == null) {
+                delay(TV_AMBIENT_IDLE_MS)
+                ambient = true
+            }
+        }
+        androidx.compose.animation.AnimatedVisibility(visible = ambient, enter = fadeIn(tween(900)), exit = fadeOut(tween(320))) {
+            TvLyricsAmbient(song, isPlaying, position, lyrics.orEmpty(), onSeek = { mediaController?.seekTo(it) })
+        }
     }
 
     when (sheet) {
