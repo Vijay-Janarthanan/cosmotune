@@ -418,7 +418,8 @@ private fun DrawScope.drawCoverInto(image: ImageBitmap, box: Rect) {
 
 /**
  * Lays out a block: the largest size that fits the width (no word broken), [maxLines] lines and [capHeight], measured in the
- * widest of the breath's instances so the block never grows as it breathes. A title that does not fit at [minPx] is cut short.
+ * widest of the breath's instances so the block never grows as it breathes. A word too wide at [minPx] takes the size down to 60 %
+ * of it; a title that still does not fit is cut short.
  */
 private fun planBlock(
     measurer: TextMeasurer,
@@ -452,25 +453,31 @@ private fun planBlock(
     }
     val firstWord = widestWord(firstText, true)
     val restWord = if (restText.isNotEmpty()) widestWord(restText, false) else 0f
+    // And the line breaker's own word: a line that ends inside a word (not at a space or after a hyphen) means the size is too big.
+    fun brokeWord(layout: TextLayoutResult, text: String): Boolean = (0 until layout.lineCount - 1).any { line ->
+        val end = layout.getLineEnd(line)
+        end in 1 until text.length && !text[end - 1].isWhitespace() && text[end - 1] != '-' && !text[end].isWhitespace()
+    }
     fun pad(size: Float) = size * PAD * 2
     fun gap(size: Float) = size * 0.04f
 
     // The stack's other words come down in size before they would break or overflow, rather than shrinking the first word too;
     // they are never larger than the first.
     val restMax = if (restText.isEmpty()) maxPx else TitleArt.fitSize(minPx, maxPx) { size ->
-        restWord * size / reference <= width && !measure(restText, false, restWidest, size, restLines).hasVisualOverflow
+        restWord * size / reference <= width && measure(restText, false, restWidest, size, restLines).let { !it.hasVisualOverflow && !brokeWord(it, restText) }
     }
 
     fun fits(size: Float): Boolean {
         if (firstWord * size / reference > width) return false
         val a = measure(firstText, true, widest, size, firstLines)
-        if (a.hasVisualOverflow) return false
+        if (a.hasVisualOverflow || brokeWord(a, firstText)) return false
         var h = a.size.height + pad(size)
         if (restText.isNotEmpty()) h += measure(restText, false, restWidest, min(size, restMax), restLines).size.height + gap(size)
         return h <= capHeight
     }
 
-    val size = TitleArt.fitSize(minPx, maxPx, ::fits)
+    // A word too long for the width even at the floor goes under it, down to 60 % of it, rather than be broken.
+    val size = TitleArt.fitSize(minPx, maxPx, ::fits).let { if (fits(it)) it else TitleArt.fitSize(minPx * 0.6f, minPx, ::fits) }
     val restPx = min(size, restMax)
     // Every step of a breath keeps the line breaks of its widest step: narrower, the lines still fit, and the title never reflows.
     fun steps(text: String, first: Boolean, count: Int, wideAt: Int, px: Float, lines: Int): List<TextLayoutResult> {
