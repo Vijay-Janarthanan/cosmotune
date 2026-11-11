@@ -1,6 +1,5 @@
 package com.cosmotune.lyrics
 
-import com.cosmotune.music.data.lyrics.BiniLyrics
 import com.cosmotune.music.data.lyrics.LrcLib
 import com.cosmotune.music.data.lyrics.LrcRed
 import kotlinx.serialization.json.Json
@@ -40,21 +39,6 @@ class RecordingMatchTest {
         assertFalse(accepts("Song", "Song", null))
         assertFalse(RecordingMatch.accepts("Song", "Deva", 240_000, "Song", "Other Artist", 240_000))
         assertTrue(RecordingMatch.accepts("Song", "Deva & Singer", 240_000, "Song", "Deva", 240_000))
-    }
-
-    @Test fun biniValidatesEveryHitBeforeSharingItsIsrc() {
-        val wrong = BiniLyrics.Hit("Other Song", "Deva", duration = 240, isrc = "WRONG")
-        val right = BiniLyrics.Hit("Aadiyile Sedhi", "Deva", duration = 241, isrc = "RIGHT")
-        assertEquals(right, BiniLyrics.bestHit(listOf(wrong, right), "Aadiyile Sedhi", "Deva", 240_000))
-        assertNull(BiniLyrics.bestHit(listOf(wrong), "Aadiyile Sedhi", "Deva", 240_000))
-        assertNull(BiniLyrics.bestHit(listOf(right.copy(duration = 260)), "Aadiyile Sedhi", "Deva", 240_000))
-    }
-
-    @Test fun explicitRecordingIdCannotBeReplacedByTheFirstResult() {
-        val wrong = BiniLyrics.Hit(isrc = "WRONG")
-        val right = BiniLyrics.Hit(isrc = "INABC1234567")
-        assertEquals(right, BiniLyrics.bestHit(listOf(wrong, right), "Song", "Artist", 240_000, " inabc1234567 "))
-        assertNull(BiniLyrics.bestHit(listOf(wrong), "Song", "Artist", 240_000, "INABC1234567"))
     }
 
     @Test fun lrcLibRequiresIdentityAndACloseDurationForSearchAndExactResults() {

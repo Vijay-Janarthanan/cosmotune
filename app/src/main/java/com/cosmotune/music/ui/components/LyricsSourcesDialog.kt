@@ -85,8 +85,6 @@ fun LyricsSourcesDialog(
     val selected by AppSettings.lyricsSources.collectAsStateWithLifecycle()
     val savedOrder by AppSettings.lyricsSourceOrder.collectAsStateWithLifecycle()
     val prioritizeSyllableSync by AppSettings.prioritizeSyllableSync.collectAsStateWithLifecycle()
-    val paxSenixApiKey by AppSettings.paxSenixApiKey.collectAsStateWithLifecycle()
-    var showPaxSenixKeyDialog by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(ALERT_CORNER)
 
     // Orbit's dialog card: the scrim that closes it and the card on the floating ground; its words and buttons are Orbit's.
@@ -135,15 +133,6 @@ fun LyricsSourcesDialog(
             )
 
             AlertRule()
-            com.cosmotune.ui.sheets.CosmoDialogQuietButton(
-                label = stringResource(
-                    if (paxSenixApiKey.isBlank()) R.string.paxsenix_api_key_missing
-                    else R.string.paxsenix_api_key_configured,
-                ),
-                onClick = { showPaxSenixKeyDialog = true },
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 10.dp, bottom = 10.dp),
-            )
-            AlertRule()
             SyllableSyncToggle(
                 checked = prioritizeSyllableSync,
                 onToggle = { AppSettings.setPrioritizeSyllableSync(!prioritizeSyllableSync) },
@@ -158,30 +147,6 @@ fun LyricsSourcesDialog(
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
             )
         }
-    }
-
-    if (showPaxSenixKeyDialog) {
-        var input by remember(paxSenixApiKey) { mutableStateOf(paxSenixApiKey) }
-        com.cosmotune.ui.sheets.CosmoAlertDialog(
-            onDismissRequest = { showPaxSenixKeyDialog = false },
-            title = stringResource(R.string.paxsenix_api_key),
-            content = {
-                // Orbit's field: the chip's pill, the key hidden as it is typed.
-                com.cosmotune.ui.orbit.OrbitFormField(
-                    value = input,
-                    onValueChange = { input = it },
-                    placeholder = stringResource(R.string.paxsenix_api_key),
-                    secret = true,
-                )
-            },
-            confirmLabel = stringResource(R.string.save),
-            onConfirm = {
-                    AppSettings.setPaxSenixApiKey(input)
-                    showPaxSenixKeyDialog = false
-                },
-            dismissLabel = stringResource(R.string.cancel),
-            onDismiss = { showPaxSenixKeyDialog = false },
-        )
     }
 }
 

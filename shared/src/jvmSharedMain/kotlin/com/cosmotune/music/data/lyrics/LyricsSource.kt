@@ -3,11 +3,9 @@ package com.cosmotune.music.data.lyrics
 /**
  * The databases [LyricsRepository] can ask, in the order it asks them.
  *
- * Exposed in Settings because the trade-offs are real and personal: one of
- * these is geoblocked in some countries, another runs on volunteer mirrors
- * that come and go, and all of them are third-party services being reached on
- * the user's connection. Anyone who would rather not talk to a given one
- * should be able to say so.
+ * Exposed in Settings because every one of them is a third-party service
+ * reached on the user's connection, and anyone who would rather not talk to a
+ * given one should be able to say so.
  */
 enum class LyricsSource(
     val label: String,
@@ -28,26 +26,14 @@ enum class LyricsSource(
     // name rather than position, so this can be rearranged without disturbing
     // an order somebody has already chosen for themselves.
     //
-    // The three Apple hosts lead, because they carry the same catalogue and
-    // that catalogue is the one with the voices in it. [BINI_LYRICS] goes
-    // first of the three: it is the only one that will answer to a recording
-    // rather than to a name, and it is where the ISRC the others use comes
-    // from. [LYRICS_PLUS] has the finest timing of the lot and the least
-    // reliable hosting — behind them rather than in front, so a track does not
-    // wait on a mirror that is down to be told what three other hosts already
-    // had.
-    //
-    // [LRC_RED] is ahead of all of them: it is where [BINI_LYRICS] gets its
-    // documents now, so asking it directly is the same Apple timing without
-    // the middleman, and it is the one a dead mirror can't take down with it.
+    // Measured in November 2026 (docs/lyrics-sources-2026-11.md): every source
+    // here answers, and each one has songs nobody else on the list times as
+    // well. Word-timed sources lead; [YOUTUBE_MUSIC] is the line-timed answer
+    // for the very song playing, and [LRCLIB] the one that still finds a
+    // music-video upload or a local file by its name.
     LRC_RED(
         label = "lrc.red",
-        detail = "Apple timings by recording, syllable by syllable",
-        wordSynced = true,
-    ),
-    BINI_LYRICS(
-        label = "BiniLyrics",
-        detail = "The same Apple timings, matched on the recording itself",
+        detail = "Apple Music timings, syllable by syllable",
         wordSynced = true,
     ),
     BETTER_LYRICS(
@@ -60,81 +46,15 @@ enum class LyricsSource(
         detail = "QQ Music karaoke timings through BetterLyrics",
         wordSynced = true,
     ),
-    PAXSENIX(
-        label = "PaxSenix",
-        detail = "Apple Music timings through the original keyless provider",
-        wordSynced = true,
-    ),
-    PAXSENIX_SPOTIFY(
-        label = "PaxSenix: Spotify",
-        detail = "Spotify lyrics with PaxSenix fallback; API key required",
-        wordSynced = false,
-    ),
-    PAXSENIX_MUSIXMATCH(
-        label = "PaxSenix: Musixmatch",
-        detail = "Musixmatch timings with PaxSenix fallback; API key required",
-        wordSynced = true,
-    ),
-    LYRICS_PLUS(
-        label = "LyricsPlus",
-        detail = "Syllable by syllable, on community mirrors",
-        wordSynced = true,
-    ),
-    SIMP_MUSIC(
-        label = "SimpMusic",
-        detail = "Matched on the video, so never the wrong edit",
-        wordSynced = true,
-        hidden = true,
-    ),
-    UNISON(
-        label = "Unison",
-        detail = "Contributed by listeners, so it has what nobody licensed",
-        wordSynced = true,
-    ),
-    YOUTUBE_TRANSCRIPT(
-        label = "YouTube captions",
-        detail = "Timed captions matched to the exact playing video",
-        wordSynced = false,
-    ),
     YOUTUBE_MUSIC(
         label = "YouTube Music",
-        detail = "Plain lyrics from the playing video's Lyrics tab",
-        wordSynced = false,
-    ),
-    MEGALOBIZ(
-        label = "Megalobiz",
-        detail = "Community-made, whole-line LRC",
-        wordSynced = false,
-        hidden = true,
-    ),
-    KUGOU(
-        label = "KuGou",
-        detail = "Whole lines, strong outside the English catalogue",
+        detail = "The playing song's own lyrics, timed line by line where YouTube has it",
         wordSynced = false,
     ),
     LRCLIB(
         label = "LRCLIB",
-        detail = "Whole lines only, and always up",
+        detail = "Whole lines, from a free community library",
         wordSynced = false,
-    ),
-    MUSIXMATCH(
-        label = "Musixmatch",
-        detail = "Whole lines, from the biggest lyrics database there is",
-        wordSynced = false,
-    ),
-    GENIUS(
-        label = "Genius",
-        detail = "Plain text fallback, massive web catalogue",
-        wordSynced = false,
-    ),
-
-    // Last on purpose: speech recognition mishears sung words, so the video's
-    // own caption track is asked only once everything above has missed (see
-    // [LyricsRepository]'s lazy start). A source added later belongs above it.
-    YOUTUBE_CAPTION_TRACK(
-        label = "YouTube caption track",
-        detail = "Last resort: the video's own captions, auto-generated or uploaded",
-        wordSynced = true,
     ),
     ;
 
@@ -158,6 +78,22 @@ enum class LyricsSource(
                 result.add(before?.let { result.indexOf(it) + 1 } ?: 0, source)
             }
             return result
+        }
+
+        /**
+         * The sources a saved choice switches on, read by name so that a name
+         * this build no longer has falls out quietly. [chosen] is what was
+         * ticked; [seen] is every source that was on the list when it was
+         * ticked, so a source added since is switched on rather than taken as
+         * turned off.
+         *
+         * A choice can end up naming only sources that have since been
+         * removed. Nobody can untick the last source by hand, so that is never
+         * a choice of "no lyrics": it starts over with every source instead.
+         */
+        fun enabled(chosen: Collection<String>, seen: Collection<String>): Set<LyricsSource> {
+            val picked = offered.filter { it.name in chosen || it.name !in seen }.toSet()
+            return picked.ifEmpty { offered.toSet() }
         }
     }
 }

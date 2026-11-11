@@ -1152,7 +1152,7 @@ fun SettingsScreen(
             val syncedLyricsTitle = stringResource(R.string.synced_lyrics)
             // Same reasoning as Animated cover art above: the lyrics source and
             // translation rows are only here while this is on.
-            row(syncedLyricsTitle, "lyrics", "translation", "lrclib", "musixmatch", summary = stringResource(R.string.synced_lyrics_subtitle)) {
+            row(syncedLyricsTitle, "lyrics", "translation", "lrclib", "youtube music", summary = stringResource(R.string.synced_lyrics_subtitle)) {
                 SettingsRow(
                     icon = Icons.AutoMirrored.Rounded.Notes,
                     title = syncedLyricsTitle,
@@ -1194,7 +1194,7 @@ fun SettingsScreen(
                     )
                 }
                 val lyricsSourcesTitle = stringResource(R.string.lyrics_sources)
-                row(lyricsSourcesTitle, "lyrics", "lrclib", "musixmatch") {
+                row(lyricsSourcesTitle, "lyrics", "lrclib", "youtube music") {
                     SettingsRow(
                         icon = Icons.Rounded.Language,
                         title = lyricsSourcesTitle,

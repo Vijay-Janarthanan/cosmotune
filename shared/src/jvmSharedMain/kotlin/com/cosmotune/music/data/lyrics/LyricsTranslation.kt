@@ -297,7 +297,7 @@ object LyricsTranslation {
     private fun flatten(lines: List<LyricLine>): List<TextSlot> = buildList {
         lines.forEachIndexed { index, line ->
             if (line.text.isNotBlank()) {
-                val header = Genius.isSectionHeader(line.text)
+                val header = isGeniusSectionHeader(line.text)
                 add(
                     TextSlot(
                         lineIndex = index,

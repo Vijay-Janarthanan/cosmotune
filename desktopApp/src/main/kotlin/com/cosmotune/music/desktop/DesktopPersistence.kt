@@ -44,7 +44,10 @@ class DesktopPersistence {
         if (stored == UNSET) return known.toSet()
         val ticked = stored.split(',').map(String::trim).filter(String::isNotBlank).toSet()
         val offered = readNames(DesktopLyricsClient.KEY_LYRICS_SOURCES_SEEN).toSet()
-        return ticked + known.filterNot { it in offered }
+        val enabled = ticked + known.filterNot { it in offered }
+        // A saved choice can name only sources a later build removed. Nobody can untick the last
+        // source by hand, so that is not a choice of "no lyrics": it starts over with every source.
+        return enabled.takeIf { names -> names.any { lyricsSourceNamed(it) != null } } ?: known.toSet()
     }
 
     fun saveLyricsEnabledSources(names: Set<String>) {

@@ -13,11 +13,27 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.longOrNull
 
-/** YouTube Music plain lyrics, with catalogue identity verified for music-video uploads. */
+/**
+ * YouTube Music's own lyrics, with catalogue identity verified for music-video uploads.
+ *
+ * The same Lyrics tab answers differently depending on who asks. The web
+ * player gets the words as one block of plain text; the Android app gets them
+ * as timed lines (`timedLyricsModel`, cue ranges in milliseconds), wherever
+ * YouTube's lyrics partner has timed the song. So the tab is asked for as the
+ * Android app first, and as the web player only when that has no timing.
+ */
 object YouTubeMusicLyrics {
+    private const val ANDROID_MUSIC_VERSION = "7.27.52"
+    private const val ANDROID_MUSIC_AGENT =
+        "com.google.android.apps.youtube.music/$ANDROID_MUSIC_VERSION (Linux; U; Android 14) gzip"
+    private const val BROWSE_URL = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false"
+
     suspend fun lyrics(videoId: String): List<LyricLine>? = withContext(Dispatchers.IO) {
         if (!YOUTUBE_ID.matches(videoId)) return@withContext null
         val next = runCatching { Innertube.next(videoId) }.getOrNull() ?: return@withContext null
@@ -40,10 +56,72 @@ object YouTubeMusicLyrics {
         val endpoint = lyricsEndpoint(lyricContext) ?: return@withContext null
         val browseId = (endpoint["browseId"] as? JsonPrimitive)?.contentOrNull
             ?: return@withContext null
+        timedPage(browseId)?.let { return@withContext it }
         val params = (endpoint["params"] as? JsonPrimitive)?.contentOrNull
         val page = runCatching { Innertube.browse(browseId, params) }.getOrNull() ?: return@withContext null
         parsePage(page)
     }
+
+    /**
+     * The Lyrics tab as the Android app sees it: timed lines, or null when the
+     * song has no timing there (or the request failed). Anonymous on purpose:
+     * a lyrics page is the same for everyone, and the listener's web session
+     * cookie means nothing to the Android client.
+     */
+    private fun timedPage(browseId: String): List<LyricLine>? {
+        val body = buildJsonObject {
+            putJsonObject("context") {
+                putJsonObject("client") {
+                    put("clientName", "ANDROID_MUSIC")
+                    put("clientVersion", ANDROID_MUSIC_VERSION)
+                    put("androidSdkVersion", 34)
+                    put("hl", Innertube.currentLanguage)
+                    put("gl", Innertube.currentRegion)
+                }
+            }
+            put("browseId", browseId)
+        }.toString()
+        val answer = lyricsPostJson(
+            BROWSE_URL,
+            body,
+            mapOf(
+                "User-Agent" to ANDROID_MUSIC_AGENT,
+                "X-Goog-Api-Format-Version" to "1",
+                "Accept" to "application/json",
+            ),
+        ) ?: return null
+        val page = runCatching { lyricsJson.parseToJsonElement(answer) }.getOrNull() ?: return null
+        return parseTimedPage(page)
+    }
+
+    /**
+     * Timed lines from an Android lyrics page: each `timedLyricsData` entry is
+     * one line with its cue range. Blank and note-only cues are left out:
+     * each line's end is known, so [withInstrumentalGaps] marks the real
+     * breaks where the singing stops, as it does for every source with ends.
+     * Null unless at least two lines carry a real timestamp: a page of zeroes
+     * is plain text dressed as timing.
+     */
+    internal fun parseTimedPage(page: JsonElement): List<LyricLine>? {
+        val data = page.objectsNamed("timedLyricsModel").firstNotNullOfOrNull { model ->
+            (model["lyricsData"] as? JsonObject)?.get("timedLyricsData") as? JsonArray
+        } ?: return null
+        val lines = data.mapNotNull { entry ->
+            val cue = (entry as? JsonObject) ?: return@mapNotNull null
+            val text = (cue["lyricLine"] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
+            if (text.isEmpty() || text.all { it == '♪' || it.isWhitespace() }) return@mapNotNull null
+            val range = cue["cueRange"] as? JsonObject ?: return@mapNotNull null
+            val start = range["startTimeMilliseconds"].millis() ?: return@mapNotNull null
+            val end = range["endTimeMilliseconds"].millis()?.takeIf { it > start }
+            LyricLine(start, text, sungUntilMs = end)
+        }.sortedBy { it.timeMs }
+        if (lines.size < 2 || lines.count { it.timeMs > 0 } < 2) return null
+        return lines.withInstrumentalGaps()
+    }
+
+    /** Innertube writes these as strings ("12345"); read a number either way. */
+    private fun JsonElement?.millis(): Long? =
+        (this as? JsonPrimitive)?.let { it.longOrNull ?: it.contentOrNull?.toLongOrNull() }?.takeIf { it >= 0 }
 
     internal fun lyricsEndpoint(next: JsonElement): JsonObject? =
         next.objectsNamed("tabRenderer").filter { tab ->
@@ -67,22 +145,6 @@ object YouTubeMusicLyrics {
         val text = shelf["description"]?.youtubeStrings()?.joinToString("").orEmpty().trim()
         return text.lineSequence().map(String::trim).filter(String::isNotEmpty)
             .map { LyricLine(0L, it) }.toList().takeIf { it.isNotEmpty() }
-    }
-}
-
-/** Timed YouTube transcript/captions for the exact playing video. */
-object YouTubeTranscriptLyrics {
-    suspend fun lyrics(videoId: String): List<LyricLine>? = withContext(Dispatchers.IO) {
-        if (!YOUTUBE_ID.matches(videoId)) return@withContext null
-        val response = runCatching { Innertube.transcript(videoId) }.getOrNull()
-            ?: return@withContext null
-        response.objectsNamed("transcriptCueRenderer").mapNotNull { cue ->
-            val start = (cue["startOffsetMs"] as? JsonPrimitive)?.longOrNull
-                ?: return@mapNotNull null
-            val text = cue["cue"]?.youtubeStrings()?.joinToString("").orEmpty()
-                .trim(' ', '\n', '♪')
-            text.takeIf { it.isNotEmpty() }?.let { LyricLine(start, it) }
-        }.sortedBy { it.timeMs }.toList().takeIf { it.isNotEmpty() }
     }
 }
 

@@ -10,10 +10,10 @@ class DesktopLyricsSourceOrderTest {
 
     @Test
     fun theChainIsTheStoredOrderNarrowedToWhatIsTicked() {
-        val order = listOf("BiniLyrics", "LRCLIB", "Genius")
+        val order = listOf("lrc.red", "LRCLIB", "YouTube Music")
         assertEquals(
-            listOf("BiniLyrics", "Genius"),
-            DesktopLyricsClient.enabledSources(order, setOf("Genius", "BiniLyrics")),
+            listOf("lrc.red", "YouTube Music"),
+            DesktopLyricsClient.enabledSources(order, setOf("YouTube Music", "lrc.red")),
         )
     }
 
@@ -28,9 +28,10 @@ class DesktopLyricsSourceOrderTest {
         val names = DesktopLyricsClient.sources.map { it.name }
         assertEquals(LyricsSource.offered.map { it.label }, names)
         assertTrue(names.all { lyricsSourceNamed(it) != null })
-        // The unsynced fallback comes after every lyrics provider, and the video's own caption track (auto-made text,
-        // the last resort) after that.
-        assertEquals(listOf("Genius", "YouTube caption track"), names.takeLast(2))
+        // Word-timed providers first; the name-matched line-synced library, which still finds uploads and local
+        // files, last.
+        assertEquals("lrc.red", names.first())
+        assertEquals("LRCLIB", names.last())
     }
 
     @Test
