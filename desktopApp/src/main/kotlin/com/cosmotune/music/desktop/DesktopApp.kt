@@ -3513,9 +3513,12 @@ fun CosmotuneDesktopApp() {
     }
     DisposableEffect(phoneRemote) { onDispose { phoneRemote.close() } }
 
+    // System, Light or Dark (Settings > Appearance > Theme, or the account popover's quick switch); see [rememberDesktopDark].
+    val desktopDark = rememberDesktopDark()
     com.cosmotune.ui.theme.CosmoLookTheme(
-        dark = true,
+        dark = desktopDark,
         legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) },
+        themeChoice = DesktopThemeChoice,
     ) {
         val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current
         cosmoShell?.FollowCover(selectedSong, liveQueue.songs.getOrNull(liveQueue.index + 1))
@@ -3546,7 +3549,8 @@ fun CosmotuneDesktopApp() {
         LaunchedEffect(podioTab, podioSaved, mangaTab) { overlays.roomView = false }
         CompositionLocalProvider(
             com.cosmotune.ui.room.LocalRoomLauncher provides roomLauncher,
-            LocalContentColor provides Color.White,
+            // White on the classic look's dark; the light theme keeps the look's own ink.
+            LocalContentColor provides (if (desktopDark) Color.White else LocalContentColor.current),
             LocalDesktopSongContextMenu provides rememberDesktopSongAction(::openMenu),
             LocalNowPlaying provides selectedSong,
             com.cosmotune.desktop.LocalCosmoPlaying provides playback.isPlaying,
@@ -3626,8 +3630,8 @@ fun CosmotuneDesktopApp() {
                 sourceSummary = listOfNotNull(playback.streamSourceId?.let { "Playing source: $it" }, playback.streamFormat?.summary).joinToString(" · "),
             )
             DesktopFrame(
-                // The phone's page is black, not the near-black of its cards.
-                containerColor = DesktopBackground,
+                // The phone's page is black, not the near-black of its cards; the light theme's own ground in light.
+                containerColor = if (desktopDark) DesktopBackground else MaterialTheme.colorScheme.background,
                 // The joined room stands in for the page in every mode (Video's page with it, so Video's picture is drawn once, in the
                 // room); closing it brings the page back as it was.
                 page = if (overlays.roomView && roomJoined) {
@@ -7190,6 +7194,8 @@ private fun DesktopSettingsScreen(
             }
             DesktopSettingsSection.APPEARANCE -> {
                 SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
+                    // Theme (System, Light, Dark) and Pure black first, as on the phone.
+                    DesktopThemeRows { title, subtitle -> settingsRowVisible(title, subtitle) }
                     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
                     SettingsToggle(
                         DesktopStrings["reduce_dynamic_blur", "Reduce dynamic blur"],

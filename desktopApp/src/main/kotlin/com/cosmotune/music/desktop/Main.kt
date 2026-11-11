@@ -215,10 +215,8 @@ private fun desktopMain() = application {
             // window takes to repaint: a white band along its edges.
             // Not over a transparent window, whose clear background is what the material shows
             // through; DWM moves that window, so there is no band to hide.
-            if (!DesktopWindowBackdrop.available) {
-                composeWindow.background = java.awt.Color.BLACK
-                composeWindow.contentPane.background = java.awt.Color.BLACK
-            } else {
+            // Over an opaque window the floor is the theme's own (the effect below keeps it on the theme).
+            if (DesktopWindowBackdrop.available) {
                 composeWindow.background = java.awt.Color(0, 0, 0, 0)
                 composeWindow.contentPane.background = java.awt.Color(0, 0, 0, 0)
                 (composeWindow.contentPane as? javax.swing.JComponent)?.isOpaque = false
@@ -244,6 +242,15 @@ private fun desktopMain() = application {
                 DesktopWindowBackdrop.apply()
             } else if (DesktopPlatform.isMac && DesktopMacFrame.install(composeWindow)) {
                 DesktopWindowBackdrop.apply()
+            }
+        }
+        // The floor follows the theme (black in dark, the light ground in light), so a resize shows no band of the other theme.
+        val windowDark = rememberDesktopDark()
+        LaunchedEffect(composeWindow, windowDark) {
+            if (!DesktopWindowBackdrop.available) {
+                val floor = if (windowDark) java.awt.Color.BLACK else java.awt.Color(0xF7, 0xEF, 0xE9)
+                composeWindow.background = floor
+                composeWindow.contentPane.background = floor
             }
         }
         val actions = remember {

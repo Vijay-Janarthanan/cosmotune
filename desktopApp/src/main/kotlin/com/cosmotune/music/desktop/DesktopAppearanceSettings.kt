@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import com.cosmotune.ui.theme.ThemeChoice
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -65,6 +66,19 @@ internal object DesktopAppearanceSettings {
         DesktopCanvasClient.forgetAll()
     }
 
+    private val theme = DesktopThemeSetting(
+        read = { DesktopPersistence().string(KEY_THEME_MODE, "").ifBlank { null } },
+        write = { DesktopPersistence().saveString(KEY_THEME_MODE, it) },
+    )
+
+    /**
+     * The theme: follow the system (the default), or always light, or always dark. The phone's Settings > Appearance > Theme; every
+     * desktop window reads it through [rememberDesktopDark], and the account popover's quick switch writes it.
+     */
+    val themeMode: StateFlow<ThemeChoice> = theme.choice
+
+    fun setThemeMode(value: ThemeChoice) = theme.set(value)
+
     private fun write(key: String, value: Boolean, into: MutableStateFlow<Boolean>) {
         DesktopPersistence().saveBoolean(key, value)
         into.value = value
@@ -76,4 +90,21 @@ internal object DesktopAppearanceSettings {
     internal const val KEY_AMBIENT_BACKDROP = "ambient_backdrop"
     internal const val KEY_OPENCANVAS_ENABLED = "opencanvas_enabled"
     internal const val KEY_OPENCANVAS_RESOLUTION = "opencanvas_resolution"
+    internal const val KEY_THEME_MODE = "theme_mode"
+}
+
+/**
+ * The theme choice as it is kept: the choice's name under [DesktopAppearanceSettings.KEY_THEME_MODE], read back by
+ * [ThemeChoice.fromStored] (nothing stored, or a name that is no choice, is System). Its own class so a test can keep it in a map
+ * instead of the desktop's real preferences.
+ */
+internal class DesktopThemeSetting(read: () -> String?, private val write: (String) -> Unit) {
+    private val _choice = MutableStateFlow(ThemeChoice.fromStored(read()))
+    val choice: StateFlow<ThemeChoice> = _choice
+
+    fun set(value: ThemeChoice) {
+        if (value == _choice.value) return
+        write(value.name)
+        _choice.value = value
+    }
 }

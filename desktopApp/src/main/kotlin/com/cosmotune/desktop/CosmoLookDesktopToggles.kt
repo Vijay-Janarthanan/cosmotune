@@ -21,8 +21,6 @@ import com.cosmotune.ui.settings.CosmoSettingsRow
 import com.cosmotune.ui.settings.CosmoSettingsSegmented
 import com.cosmotune.ui.settings.rememberCosmoLookSettings
 import com.cosmotune.music.sharedui.resources.Res
-import com.cosmotune.music.sharedui.resources.cosmo_amoled
-import com.cosmotune.music.sharedui.resources.cosmo_amoled_summary
 import com.cosmotune.music.sharedui.resources.cosmo_cover_colours
 import com.cosmotune.music.sharedui.resources.cosmo_cover_colours_summary
 import com.cosmotune.music.sharedui.resources.cosmo_intensity
@@ -38,7 +36,7 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * The look switches, drawn by the settings page's own private row ([row] is its SettingsToggle), the colour intensity (a row with
  * its segmented control stacked under it, while the look is on; it follows "Colours follow the cover"), and the entry to the look
- * preview.
+ * preview. Pure black stands under Theme at the top of the page instead ([com.cosmotune.music.desktop.DesktopThemeRows]).
  */
 @Composable
 internal fun CosmoLookDesktopToggles(row: @Composable (String, String, Boolean, (Boolean) -> Unit) -> Unit) {
@@ -46,11 +44,9 @@ internal fun CosmoLookDesktopToggles(row: @Composable (String, String, Boolean, 
     val newLook by settings.newLook.collectAsState()
     val coverColours by settings.coverColours.collectAsState()
     val intensity by settings.intensity.collectAsState()
-    val amoled by settings.amoled.collectAsState()
     row(stringResource(Res.string.cosmo_new_look), stringResource(Res.string.cosmo_new_look_summary), newLook, settings::setNewLook)
     if (newLook) {
         row(stringResource(Res.string.cosmo_cover_colours), stringResource(Res.string.cosmo_cover_colours_summary), coverColours, settings::setCoverColours)
-        row(stringResource(Res.string.cosmo_amoled), stringResource(Res.string.cosmo_amoled_summary), amoled, settings::setAmoled)
         CosmoSettingsRow(
             icon = CosmoIcons.Equaliser,
             title = stringResource(Res.string.cosmo_intensity),
