@@ -93,7 +93,7 @@ object AndroidCloud {
             sessionStore = EncryptedSessionStore(app),
             source = LibrarySource(SnapshotJournal(File(folder, "journal.json"))),
             marks = FileSyncMarks(File(folder, "marks.json")),
-            kinds = listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND),
+            kinds = listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND),
             scope = scope,
         )
     }
@@ -122,6 +122,16 @@ object AndroidCloud {
     fun install(context: Context) {
         if (this::app.isInitialized) return
         app = context.applicationContext
+        scope.launch {
+            var previous: Map<String, JsonObject>? = null
+            com.cosmotune.music.watch.AndroidWatch.store(app).state.collect { state ->
+                val current = com.cosmotune.watch.SyncWatchLibrary.changeSignal(state) +
+                    com.cosmotune.watch.SyncWatchPlugins.snapshot(state)
+                if (previous != null && previous != current) autoSync.changed()
+                previous = current
+            }
+        }
+        scope.launch { com.cosmotune.watch.WatchSyncSignals.changes.collect { autoSync.changed() } }
         SyncLikes.sourceTrack = SourceLibraryStore::ownsTrack
         scope.launch {
             _enabled.value = flags.getBoolean(KEY_ENABLED, false)
@@ -283,6 +293,7 @@ object AndroidCloud {
             SyncArtists.KIND -> artistSnapshot()
             // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
             com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
+            com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.music.watch.AndroidWatch.store(app).state.value)
             else -> emptyMap()
         }
 
@@ -299,6 +310,8 @@ object AndroidCloud {
                 SyncArtists.KIND -> ListeningStore(listeningFile).update { SyncArtists.apply(it, upserts, deletes) }
                 com.cosmotune.watch.SyncWatchPlugins.KIND ->
                     com.cosmotune.music.watch.AndroidWatch.store(app).update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
+                com.cosmotune.watch.SyncWatchLibrary.KIND ->
+                    com.cosmotune.music.watch.AndroidWatch.store(app).update { com.cosmotune.watch.SyncWatchLibrary.apply(it, upserts, deletes) }
             }
         }
     }

@@ -61,6 +61,21 @@ import kotlin.test.assertTrue
  * desktop's stored settings.
  */
 class DesktopOrbitPanelsPreviewTest {
+    @Test fun watchSettingsRenderAtPhoneAndDesktopWidthsInBothThemes() = hosts {
+        val repository = com.cosmotune.watch.FakeWatchRepository(now = System::currentTimeMillis)
+        try {
+            com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.SETTINGS)
+            palettes.forEach { (name, palette) ->
+                listOf(Triple("phone", 412, 915), Triple("desktop", 1100, 800)).forEach { (surface, width, height) ->
+                    render("watch-settings-$surface-$name", palette, width, height) {
+                        com.cosmotune.ui.watch.ProvideWatch(repository = repository) {
+                            com.cosmotune.ui.watch.WatchApp(showNavigation = false, wideLayout = surface == "desktop")
+                        }
+                    }
+                }
+            }
+        } finally { com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.HOME) }
+    }
     private val out = File("../build/old-screens/desktopui").apply { mkdirs() }
 
     private val palettes = listOf(true, false).map { dark ->

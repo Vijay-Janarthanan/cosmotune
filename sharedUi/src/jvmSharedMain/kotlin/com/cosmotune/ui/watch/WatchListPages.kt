@@ -3,6 +3,9 @@ package com.cosmotune.ui.watch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +44,7 @@ import com.cosmotune.watch.LiveNowItem
 import com.cosmotune.watch.SearchResults
 import com.cosmotune.watch.model.TitleSummary
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Search (board: Search in the sidebar): Orbit's search pill, then films and series as posters and channels as live rows. */
 @Composable
@@ -50,6 +54,11 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
     var query by rememberSaveable { mutableStateOf(initialQuery) }
     var results by remember { mutableStateOf<SearchResults?>(null) }
     var searching by remember { mutableStateOf(false) }
+    var type by rememberSaveable { mutableStateOf<String?>(null) }
+    var genre by rememberSaveable { mutableStateOf<String?>(null) }
+    var year by rememberSaveable { mutableStateOf<Int?>(null) }
+    var genreMenu by remember { mutableStateOf(false) }
+    var yearMenu by remember { mutableStateOf(false) }
     var live by remember { mutableStateOf<List<LiveNowItem>>(emptyList()) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(query) {
@@ -74,7 +83,30 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
                 OrbitSearchPill(query, { query = it }, onSubmit = {}, placeholder = "What do you want to watch?", fonts = fonts, look = look, focusRequester = focus,
                     modifier = Modifier.padding(horizontal = side).padding(top = 20.dp))
             }
-            val r = results
+            item(key = "search:filters") {
+                Row(Modifier.padding(horizontal = side, vertical = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(null to "All", "FILM" to "Films", "SERIES" to "Series").forEach { (value, label) ->
+                        com.cosmotune.ui.orbit.OrbitSelectChip(label, type == value, fonts, look, onClick = { type = value }, haptic = false)
+                    }
+                    Box {
+                        com.cosmotune.ui.orbit.OrbitSelectChip(genre ?: "Genre", genre != null, fonts, look, onClick = { genreMenu = true }, haptic = false)
+                        com.cosmotune.ui.orbit.OrbitMenu(genreMenu, { genreMenu = false }, fonts = fonts, look = look, items =
+                            listOf(com.cosmotune.ui.orbit.OrbitMenuItem("All genres") { genre = null }) +
+                                (results?.let { it.films + it.series }.orEmpty().flatMap { it.genres }.distinct().sorted()).map { value ->
+                                    com.cosmotune.ui.orbit.OrbitMenuItem(value) { genre = value }
+                                })
+                    }
+                    Box {
+                        com.cosmotune.ui.orbit.OrbitSelectChip(year?.toString() ?: "Year", year != null, fonts, look, onClick = { yearMenu = true }, haptic = false)
+                        com.cosmotune.ui.orbit.OrbitMenu(yearMenu, { yearMenu = false }, fonts = fonts, look = look, items =
+                            listOf(com.cosmotune.ui.orbit.OrbitMenuItem("All years") { year = null }) +
+                                (results?.let { it.films + it.series }.orEmpty().mapNotNull { it.year }.distinct().sortedDescending()).map { value ->
+                                    com.cosmotune.ui.orbit.OrbitMenuItem(value.toString()) { year = value }
+                                })
+                    }
+                }
+            }
+            val r = results?.let { com.cosmotune.watch.WatchSearchFilter(type?.let(com.cosmotune.watch.model.TitleType::valueOf), genre, year).apply(it) }
             when {
                 query.isBlank() -> item(key = "search:hint") {
                     WatchMessage("Search", "Find anything to watch", "A title, a channel or a series. Search asks every plugin that is on, and the free ones are on from the start.",
@@ -92,7 +124,7 @@ internal fun WatchSearchPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
                 r != null -> {
                     if (r.films.isNotEmpty()) item(key = "search:films") { PosterShelf("Films", r.films, actions, fonts, look, side) }
                     if (r.series.isNotEmpty()) item(key = "search:series") { PosterShelf("Series", r.series, actions, fonts, look, side) }
-                    if (live.isNotEmpty()) item(key = "search:channels") {
+                    if (r.channels.isNotEmpty() && live.isNotEmpty()) item(key = "search:channels") {
                         Column {
                             Section("Channels", null, fonts, look, side)
                             Column(Modifier.padding(horizontal = side), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -128,13 +160,16 @@ internal fun WatchMyListPage(actions: WatchActions, fonts: OrbitFonts, look: Orb
     Box(Modifier.fillMaxSize()) {
         WatchWash(Color(0xFF1C4C49), look)
         LazyVerticalGrid(
-            GridCells.Adaptive(if (frame.wide) 150.dp else 104.dp), Modifier.fillMaxSize(),
+            GridCells.Adaptive((if (frame.wide) 150.dp else 104.dp) * com.cosmotune.ui.orbit.LocalWatchCardScale.current), Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = side, end = side, top = frame.padding.calculateTopPadding(), bottom = frame.padding.calculateBottomPadding() + 40.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             frame.header?.let { header -> item(key = "list:header", span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.padding(horizontal = 0.dp)) { header() } } }
             item(key = "list:heading", span = { GridItemSpan(maxLineSpan) }) {
                 OrbitPageHeading("My list", if (list.size == 1) "1 saved" else "${list.size} saved", fonts, look, Modifier.padding(start = 6.dp, top = if (frame.wide) 24.dp else 18.dp, bottom = 4.dp))
+            }
+            item(key = "list:playlists", span = { GridItemSpan(maxLineSpan) }) {
+                com.cosmotune.ui.orbit.WatchCardChip("My Watch playlists", look.ink, fonts, onClick = { WatchNav.open(WatchRoute.Playlists()) })
             }
             if (list.isEmpty()) item(key = "list:empty", span = { GridItemSpan(maxLineSpan) }) {
                 WatchMessage("My list", "Nothing kept yet", "Use My list on a film or a series to keep it here, on every device you sign in on.", fonts, look,
@@ -161,6 +196,10 @@ internal fun WatchDownloadsPage(actions: WatchActions, fonts: OrbitFonts, look: 
     val side = frame.side
     val downloads = actions.downloads
     val list = downloads?.items?.collectAsState()?.value.orEmpty()
+    val destination = downloads?.destination?.collectAsState()?.value
+    val folderScope = androidx.compose.runtime.rememberCoroutineScope()
+    var folderMenu by remember { mutableStateOf(false) }
+    var folderError by remember { mutableStateOf<String?>(null) }
     Box(Modifier.fillMaxSize()) {
         WatchWash(Color(0xFF4E3C12), look)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = frame.padding) {
@@ -168,6 +207,25 @@ internal fun WatchDownloadsPage(actions: WatchActions, fonts: OrbitFonts, look: 
             item(key = "dl:heading") {
                 val done = list.count { it.status == com.cosmotune.watch.WatchDownload.Status.DONE }
                 OrbitPageHeading("Downloads", if (list.isEmpty()) "On this device" else "On this device · $done kept", fonts, look, Modifier.padding(start = side + 6.dp, end = side, top = if (frame.wide) 24.dp else 18.dp))
+            }
+            if (downloads != null && destination != null) item(key = "dl:destination") {
+                Column(Modifier.padding(horizontal = side + 6.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.Text("Save new downloads to", style = fonts.body, color = look.dim)
+                    Box {
+                        com.cosmotune.ui.orbit.WatchCardChip(destination.name.ifBlank { destination.path }, look.ink, fonts,
+                            onClick = { folderMenu = true }, icon = com.cosmotune.ui.components.CosmoIcons.Download)
+                        com.cosmotune.ui.orbit.OrbitMenu(folderMenu, { folderMenu = false }, fonts = fonts, look = look,
+                            items = downloads.destinations.map { folder ->
+                                com.cosmotune.ui.orbit.OrbitMenuItem(folder.path) {
+                                    folderError = runCatching { downloads.selectDestination(folder) }.exceptionOrNull()?.message
+                                }
+                            } + if (downloads.canChooseFolder) listOf(com.cosmotune.ui.orbit.OrbitMenuItem("Choose another folder…") {
+                                folderScope.launch { folderError = runCatching { downloads.browseDestination() }.exceptionOrNull()?.message }
+                            }) else emptyList())
+                    }
+                    androidx.compose.material3.Text(folderError ?: "Existing downloads stay in their original folder.",
+                        style = fonts.body.copy(fontSize = 12.sp), color = look.dim)
+                }
             }
             if (downloads == null || list.isEmpty()) item(key = "dl:empty") {
                 WatchMessage("Downloads", "Nothing downloaded",

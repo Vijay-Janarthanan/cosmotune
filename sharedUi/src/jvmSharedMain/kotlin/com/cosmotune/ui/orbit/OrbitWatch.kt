@@ -66,6 +66,8 @@ internal val WATCH_LIVE_INK = Color(0xFFC0392B)
 internal val WATCH_ADD_FILL = Color(0xFF2E2758)
 internal val WATCH_ADD_INK = Color(0xFFECE8FF)
 
+val LocalWatchCardScale = androidx.compose.runtime.staticCompositionLocalOf { 1f }
+
 /** A picture that has not loaded (or has no address): the deep stand-in for [key], lit from one corner like a poster. */
 fun pictureStandIn(key: String): Brush {
     val base = STAND_INS[Math.floorMod(key.hashCode(), STAND_INS.size)]
@@ -228,7 +230,7 @@ fun WatchCard(
 ) {
     val interaction = remember { MutableInteractionSource() }
     Column(
-        modifier.then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth()).cosmoFocusRing(interaction, 22.dp)
+        modifier.then(if (width != null) Modifier.width(width * LocalWatchCardScale.current) else Modifier.fillMaxWidth()).cosmoFocusRing(interaction, 22.dp)
             .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick),
     ) {
         // The moon hangs 10 dp past the picture: the column leaves it room at the end and under it.

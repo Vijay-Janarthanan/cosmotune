@@ -104,11 +104,12 @@ fun ProvideWatch(
 
 /** Watch's pages, in the sidebar's order (board: Home, Films, Series, Live TV, Search, My list, Downloads; Plugins under Sources). */
 enum class WatchTab(val label: String) {
-    HOME("Home"), FILMS("Films"), SERIES("Series"), LIVE("Live TV"), SEARCH("Search"), MY_LIST("My list"), DOWNLOADS("Downloads"), PLUGINS("Plugins"),
+    HOME("Home"), FILMS("Films"), SERIES("Series"), LIVE("Live TV"), SEARCH("Search"), MY_LIST("My list"), DOWNLOADS("Downloads"), PLUGINS("Plugins"), SETTINGS("Settings"),
 }
 
 /** A page opened over a tab: a film or series page, or the player. */
 sealed interface WatchRoute {
+    data class Playlists(val id: String? = null) : WatchRoute
     data class Page(val summary: TitleSummary) : WatchRoute
     /** [attached]: the player already holds [target] (the room opened it), so the page shows it as it is. */
     data class Play(val target: PlayTarget, val summary: TitleSummary? = null, val stream: Stream? = null, val episode: Episode? = null,

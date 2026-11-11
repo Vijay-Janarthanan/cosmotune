@@ -48,7 +48,20 @@ data class WatchState(
     val deviceId: String = "",
     /** Sources removed here, with when, so a sync does not bring them back. */
     val removed: Map<String, Long> = emptyMap(),
+    val activeProfile: String = "default",
+    val profiles: Map<String, com.cosmotune.watch.model.WatchProfile> = mapOf("default" to com.cosmotune.watch.model.WatchProfile("default", "Everyone")),
 )
+
+/** Legacy progress belongs to Everyone. The active lists stay in their old fields for backward compatibility. */
+fun WatchState.allProfiles(): Map<String, com.cosmotune.watch.model.WatchProfile> = profiles +
+    (activeProfile to (profiles[activeProfile] ?: com.cosmotune.watch.model.WatchProfile(activeProfile, "Everyone"))
+        .copy(progress = progress, myList = myList))
+
+fun WatchState.selectProfile(id: String): WatchState {
+    val all = allProfiles()
+    val selected = all[id] ?: return this
+    return copy(activeProfile = id, profiles = all, progress = selected.progress, myList = selected.myList)
+}
 
 /**
  * Everything Watch keeps on the device, in one file sealed at rest (DPAPI on Windows, the Android Keystore on Android,

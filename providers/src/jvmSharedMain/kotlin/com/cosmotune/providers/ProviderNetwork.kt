@@ -19,7 +19,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class ProviderNetwork(private val permissions: ProviderPermissions, private val allowLocalNetwork: Boolean = false,
     baseClient: OkHttpClient = Http.client, private val allowPublicArtwork: Boolean = false,
     private val localArtworkOrigin: HttpUrl? = null, private val cookieJar: ProviderCookieJar = ProviderCookieJar(),
-    private val configuredOrigins: Set<HttpUrl> = emptySet()) {
+    private val configuredOrigins: Set<HttpUrl> = emptySet(), private val publicInternet: Boolean = false) {
     private val calls = ConcurrentHashMap.newKeySet<Call>()
     @Volatile private var cancelled = false
     val isCancelled: Boolean get() = cancelled
@@ -28,7 +28,7 @@ class ProviderNetwork(private val permissions: ProviderPermissions, private val 
         .cookieJar(okhttp3.CookieJar.NO_COOKIES)
         .dns { host -> baseClient.dns.lookup(host).also { validateAddresses(it, allowLocalNetwork && (!allowPublicArtwork || declared(host))) } }.build()
 
-    private fun declared(host: String): Boolean = permissions.network.any { domain ->
+    private fun declared(host: String): Boolean = publicInternet || permissions.network.any { domain ->
         val allowed = domain.lowercase(java.util.Locale.ROOT)
         if (allowed.startsWith("*.")) host.endsWith(allowed.drop(1)) && host != allowed.drop(2) else host == allowed
     }
@@ -53,7 +53,7 @@ class ProviderNetwork(private val permissions: ProviderPermissions, private val 
     fun cancel() { cancelled = true; calls.forEach { it.cancel() } }
     fun clearCookies() { cookieJar.clear() }
     internal fun fork(): ProviderNetwork = ProviderNetwork(permissions, allowLocalNetwork, client,
-        cookieJar = cookieJar, configuredOrigins = configuredOrigins)
+        cookieJar = cookieJar, configuredOrigins = configuredOrigins, publicInternet = publicInternet)
 
     internal fun <T> withResponse(raw: String, options: JsonObject, media: Boolean = false, followRedirects: Boolean = true,
         responseTimeoutSeconds: Long? = null,

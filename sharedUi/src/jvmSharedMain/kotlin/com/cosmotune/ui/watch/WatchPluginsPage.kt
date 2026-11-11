@@ -376,13 +376,15 @@ internal fun WatchField(label: String, value: String, onChange: (String) -> Unit
     }
 }
 
-private enum class SourceKind(val label: String) { ADDON("Add-on link"), JELLYFIN("Jellyfin"), EMBY("Emby"), PLEX("Plex"), M3U("M3U playlist"), XTREAM("Xtream"), FOLDER("Folder") }
+private enum class SourceKind(val label: String) { ADDON("Add-on link"), SCRIPT("Watch JavaScript"), REPOSITORY("Nuvio repository"), JELLYFIN("Jellyfin"), EMBY("Emby"), PLEX("Plex"), M3U("M3U playlist"), XTREAM("Xtream"), FOLDER("Folder") }
 
 /** "Add a plugin or source": the kind as chips, its fields, and for an add-on link the preview of its manifest before installing. */
 @Composable
 private fun AddSourceDialog(repository: WatchRepository, fonts: OrbitFonts, look: OrbitLook, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     var kind by remember { mutableStateOf(SourceKind.ADDON) }
+    var scripts by remember { mutableStateOf<List<com.cosmotune.watch.WatchScriptEntry>?>(null) }
+    var selectedScript by remember { mutableStateOf<com.cosmotune.watch.WatchScriptEntry?>(null) }
     var a by remember { mutableStateOf("") }
     var b by remember { mutableStateOf("") }
     var c by remember { mutableStateOf("") }
@@ -392,10 +394,22 @@ private fun AddSourceDialog(repository: WatchRepository, fonts: OrbitFonts, look
     var preview by remember { mutableStateOf<InstallPreview?>(null) }
     WatchDialog("Add a plugin or source", "Plugin link, server or playlist", onDone) {
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SourceKind.entries.forEach { k -> OrbitSelectChip(k.label, k == kind, fonts, look, onClick = { kind = k; a = ""; b = ""; c = ""; preview = null; message = null }, haptic = false) }
+            SourceKind.entries.forEach { k -> OrbitSelectChip(k.label, k == kind, fonts, look, onClick = { kind = k; a = ""; b = ""; c = ""; preview = null; scripts = null; selectedScript = null; message = null }, haptic = false) }
         }
         when (kind) {
             SourceKind.ADDON -> WatchField("Add-on link", a, { a = it; preview = null }, fonts, look, "https://…/manifest.json or stremio://…")
+            SourceKind.REPOSITORY -> {
+                WatchField("Nuvio manifest URL", a, { a = it; scripts = null; selectedScript = null }, fonts, look, "https://…/manifest.json")
+                scripts?.let { entries ->
+                    Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        entries.forEach { entry -> OrbitSelectChip(entry.name, entry.url == selectedScript?.url, fonts, look, onClick = { selectedScript = entry }, haptic = false) }
+                        if (entries.isEmpty()) Text("No available scripts in this repository", style = fonts.body, color = look.dim)
+                    }
+                }
+            }
+            SourceKind.SCRIPT -> {
+                WatchField("JavaScript source URL", a, { a = it }, fonts, look, "https://…/provider.js")
+            }
             SourceKind.JELLYFIN, SourceKind.EMBY, SourceKind.XTREAM -> {
                 WatchField("Server", a, { a = it }, fonts, look, "https://media.example.org")
                 WatchField("User", b, { b = it }, fonts, look)
@@ -405,11 +419,18 @@ private fun AddSourceDialog(repository: WatchRepository, fonts: OrbitFonts, look
             SourceKind.M3U -> { WatchField("Playlist link", a, { a = it }, fonts, look, "https://…/playlist.m3u"); WatchField("Guide link (XMLTV, optional)", b, { b = it }, fonts, look) }
             SourceKind.FOLDER -> WatchField("Folder", a, { a = it }, fonts, look, "A folder of films and series on this device")
         }
+        if (kind == SourceKind.SCRIPT || kind == SourceKind.REPOSITORY) {
+            WatchField("Restrict domains (optional)", b, { b = it }, fonts, look, "example.com, *.example.com")
+            WatchField("Script settings JSON (optional)", c, { c = it.take(16_384) }, fonts, look, "{}")
+            Text("Install scripts you trust. Blank domains allow public HTTPS access; local-network requests, device files and native code are blocked. Settings stay on this device. Browser-only APIs need a compatible script.", style = fonts.body, color = look.dim)
+        }
         if (kind != SourceKind.ADDON) WatchField("Name (optional)", name, { name = it }, fonts, look)
         preview?.let { InstallPreviewCard(it, fonts, look, Modifier.padding(bottom = 14.dp)) }
         message?.let { Text(it, style = fonts.body, color = look.dim, modifier = Modifier.padding(bottom = 12.dp)) }
-        val previewing = kind == SourceKind.ADDON && preview == null
+        val previewing = kind == SourceKind.ADDON && preview == null || kind == SourceKind.REPOSITORY && scripts == null
         val ready = when (kind) {
+            SourceKind.SCRIPT -> a.isNotBlank()
+            SourceKind.REPOSITORY -> selectedScript != null
             SourceKind.ADDON -> preview?.installable == true
             SourceKind.JELLYFIN, SourceKind.EMBY, SourceKind.XTREAM -> a.isNotBlank() && b.isNotBlank()
             SourceKind.PLEX -> a.isNotBlank() && b.isNotBlank()
@@ -425,12 +446,22 @@ private fun AddSourceDialog(repository: WatchRepository, fonts: OrbitFonts, look
             onConfirm = {
                 busy = true; message = null
                 if (previewing) {
-                    scope.launch { preview = runCatching { repository.previewInstallLink(a) }.getOrElse { e -> message = e.message ?: "Could not read that link."; null }; busy = false }
+                    scope.launch {
+                        if (kind == SourceKind.REPOSITORY) scripts = runCatching { repository.scriptRepository(a.trim()) }.getOrElse { message = "Could not read that repository"; null }
+                        else preview = runCatching { repository.previewInstallLink(a) }.getOrElse { e -> message = e.message ?: "Could not read that link."; null }
+                        busy = false
+                    }
                 } else {
                     scope.launch {
                         val result = runCatching {
                             when (kind) {
                                 SourceKind.ADDON -> repository.installFromLink(a)
+                                SourceKind.SCRIPT, SourceKind.REPOSITORY -> {
+                                    val settings = kotlinx.serialization.json.Json.parseToJsonElement(c.ifBlank { "{}" }) as? kotlinx.serialization.json.JsonObject ?: error("Use a JSON settings object")
+                                    val url = if (kind == SourceKind.REPOSITORY) requireNotNull(selectedScript).url else a.trim()
+                                    repository.addUserSource(UserSourceSpec.NuvioScript(url, b.split(',').map { it.trim() }.filter { it.isNotBlank() },
+                                        name.trim().ifBlank { selectedScript?.name.orEmpty() }, settings = settings))
+                                }
                                 SourceKind.JELLYFIN -> repository.addUserSource(UserSourceSpec.Jellyfin(a.trim(), b.trim(), c, name.trim()))
                                 SourceKind.EMBY -> repository.addUserSource(UserSourceSpec.Emby(a.trim(), b.trim(), c, name.trim()))
                                 SourceKind.PLEX -> repository.addUserSource(UserSourceSpec.Plex(a.trim(), b.trim(), name.trim()))
@@ -589,5 +620,116 @@ internal fun ImportPackDialog(repository: WatchRepository, fonts: OrbitFonts, lo
             dismissLabel = "Cancel",
             onDismiss = onDone,
         )
+    }
+}
+
+/** Shared Watch preferences, separate from installing and enabling content sources. */
+@Composable
+internal fun WatchSettingsPage(fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
+    val repository = watchRepository()
+    val scope = rememberCoroutineScope()
+    val side = frame.side
+    LazyColumn(Modifier.widthIn(max = 760.dp).fillMaxSize(), contentPadding = frame.padding) {
+        frame.header?.let { header -> item(key = "settings:header") { header() } }
+        item(key = "settings:heading") {
+            OrbitPageHeading("Watch settings", "Display, viewers and connected services", fonts, look,
+                Modifier.padding(horizontal = side).padding(top = 24.dp))
+        }
+            item(key = "settings:display") {
+                val preferences by repository.preferences.collectAsState()
+                Column(Modifier.padding(horizontal = side).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OrbitLabel("Poster size", fonts, look.dim)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        com.cosmotune.watch.WatchDensity.entries.forEach { density ->
+                            OrbitSelectChip(density.label, preferences.density == density, fonts, look, onClick = {
+                                scope.launch { repository.setPreferences(preferences.copy(density = density)) }
+                            }, haptic = false)
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OrbitSwitch(preferences.animeSkips, { enabled -> scope.launch { repository.setPreferences(preferences.copy(animeSkips = enabled)) } }, look, "Offer anime opening and ending skips")
+                        Text("Offer anime opening and ending skips", style = fonts.body, color = look.ink)
+                    }
+                }
+            }
+            item(key = "settings:profiles") {
+                val profiles by repository.profiles.collectAsState()
+                val active by repository.activeProfile.collectAsState()
+                var name by remember { mutableStateOf("") }
+                var lockedTarget by remember { mutableStateOf<com.cosmotune.watch.model.WatchProfile?>(null) }
+                var pin by remember { mutableStateOf("") }
+                var editingPin by remember { mutableStateOf(false) }
+                var removing by remember { mutableStateOf(false) }
+                var profileMessage by remember { mutableStateOf<String?>(null) }
+                Column(Modifier.padding(horizontal = side).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OrbitLabel("Watch profiles", fonts, look.dim)
+                    Text("Separate My list and Continue watching for each viewer.", style = fonts.body, color = look.dim)
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        profiles.forEach { profile ->
+                            OrbitSelectChip(profile.name, active == profile.id, fonts, look, onClick = {
+                                if (profile.locked && profile.id != active) { pin = ""; lockedTarget = profile; profileMessage = null }
+                                else scope.launch { repository.selectProfile(profile.id) }
+                            }, haptic = false)
+                        }
+                    }
+                    WatchField("New profile name", name, { name = it.take(40) }, fonts, look)
+                    WatchCardChip("Add profile", look.ink, fonts, enabled = name.isNotBlank() && profiles.size < 8, onClick = {
+                        scope.launch { repository.addProfile(name)?.let { repository.selectProfile(it); name = "" } }
+                    }, icon = CosmoIcons.Plus)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WatchCardChip("Profile PIN", look.ink, fonts, onClick = { pin = ""; editingPin = true; profileMessage = null })
+                        if (active != "default") WatchCardChip("Delete profile", look.ink, fonts, onClick = { removing = true; profileMessage = null })
+                    }
+                    profileMessage?.let { Text(it, style = fonts.body, color = look.dim) }
+                }
+                lockedTarget?.let { target ->
+                    com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = { lockedTarget = null }, title = "Unlock ${target.name}",
+                        confirmLabel = "Unlock", dismissLabel = "Cancel", onConfirm = {
+                            scope.launch { if (repository.selectProfile(target.id, pin)) { lockedTarget = null; profileMessage = null } else profileMessage = "The PIN did not match" }
+                        }) {
+                        WatchField("PIN", pin, { pin = it.filter(Char::isDigit).take(8) }, fonts, look, password = true)
+                        profileMessage?.let { Text(it, style = fonts.body, color = look.dim) }
+                    }
+                }
+                if (editingPin) com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = { editingPin = false }, title = "Profile PIN",
+                    message = "Use four to eight digits. Leave blank to remove the PIN. This lock stays on this device.",
+                    confirmLabel = "Save", dismissLabel = "Cancel", confirmEnabled = pin.isEmpty() || pin.length in 4..8,
+                    onConfirm = { scope.launch { repository.setProfilePin(pin.takeIf { it.isNotBlank() }); editingPin = false } }) {
+                    WatchField("New PIN", pin, { pin = it.filter(Char::isDigit).take(8) }, fonts, look, password = true)
+                }
+                if (removing) com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = { removing = false }, title = "Delete this Watch profile?",
+                    message = "Its saved titles and viewing progress will be removed. Everyone is kept.", confirmLabel = "Delete", dismissLabel = "Cancel",
+                    onConfirm = { scope.launch { runCatching { repository.removeProfile(active) }.onFailure { profileMessage = it.message }; removing = false } })
+            }
+            repository.tracking?.let { tracking -> item(key = "settings:tracking") {
+                Box(Modifier.padding(horizontal = side).padding(top = 24.dp)) { WatchTrackingCard(tracking, fonts, look) }
+            } }
+            item(key = "settings:services") {
+                val configured by repository.configuredServices.collectAsState()
+                var service by remember { mutableStateOf("omdb") }
+                var apiKey by remember(service) { mutableStateOf("") }
+                var message by remember { mutableStateOf<String?>(null) }
+                Column(Modifier.padding(horizontal = side).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OrbitLabel("Additional ratings and subtitles", fonts, look.dim)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("omdb" to "OMDb ratings", "subdl" to "SubDL subtitles").forEach { (id, label) ->
+                            OrbitSelectChip(label + if (id in configured) " · connected" else "", service == id, fonts, look, onClick = { service = id; message = null }, haptic = false)
+                        }
+                    }
+                    WatchField("API key", apiKey, { apiKey = it.take(200) }, fonts, look, password = true)
+                    Text("Keys stay in protected device storage. OMDb supplies attributed IMDb, Rotten Tomatoes and Metacritic ratings when available. SubDL adds individual subtitle files to the player’s subtitle search.", style = fonts.body, color = look.dim)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WatchCardChip("Save key", look.ink, fonts, enabled = apiKey.isNotBlank(), onClick = {
+                            scope.launch { runCatching { repository.setServiceKey(service, apiKey) }.onSuccess { apiKey = ""; message = "Saved" }.onFailure { message = "The key could not be saved" } }
+                        })
+                        if (service in configured) WatchCardChip("Remove key", look.ink, fonts, onClick = { scope.launch { repository.setServiceKey(service, "") } })
+                    }
+                    message?.let { Text(it, style = fonts.body, color = look.dim) }
+                }
+            }
+        item(key = "settings:debrid") {
+            Box(Modifier.padding(horizontal = side).padding(top = 24.dp, bottom = 24.dp)) { WatchDebridCard(repository, fonts, look) }
+        }
+        item(key = "settings:end") { Spacer(Modifier.height(40.dp)) }
     }
 }

@@ -62,7 +62,20 @@ object DesktopWatch {
      * too.
      */
     val downloads: com.cosmotune.watch.WatchDownloads by lazy {
-        com.cosmotune.watch.WatchDownloads(File(File(System.getProperty("user.home"), "Videos"), "Cosmotune"), Http.client)
+        com.cosmotune.watch.WatchDownloads(File(File(System.getProperty("user.home"), "Videos"), "Cosmotune"), Http.client, chooseFolder = {
+            kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+                javax.swing.SwingUtilities.invokeLater {
+                    if (continuation.isActive) {
+                        val picker = javax.swing.JFileChooser().apply {
+                            dialogTitle = "Choose Watch download folder"
+                            fileSelectionMode = javax.swing.JFileChooser.DIRECTORIES_ONLY
+                        }
+                        val selected = if (picker.showOpenDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) picker.selectedFile else null
+                        if (continuation.isActive) continuation.resumeWith(Result.success(selected))
+                    }
+                }
+            }
+        })
     }
 
     /** Whether [player] has been built in this process. */

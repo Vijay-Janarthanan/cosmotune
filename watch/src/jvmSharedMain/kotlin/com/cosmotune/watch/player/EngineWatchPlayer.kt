@@ -79,6 +79,10 @@ class EngineWatchPlayer(
     private var lastSavedAt = 0L
     private var countdownCancelled = false
     private var autoNextDone = false
+    private var lastCheckpoint: String? = null
+    private var skipLookupKey: String? = null
+    @Volatile private var remotePlayback = false
+    override fun setRemotePlayback(active: Boolean) { remotePlayback = active }
 
     init {
         scope.launch { engine.tracks.collect { tracks -> mutable.update { it.copy(audioTracks = audioOf(tracks), subtitles = subtitlesOf(tracks)) } } }
@@ -90,7 +94,9 @@ class EngineWatchPlayer(
 
     override fun open(target: PlayTarget, summary: TitleSummary?, stream: Stream?, startMs: Long?, hint: StreamHint?, fallback: Stream?) {
         this.fallback = fallback
-        saveNow()
+        remotePlayback = false
+        skipLookupKey = null
+        saveNow(stopping = true)
         job?.cancel(); ticker?.cancel(); releasePlayback()
         engine.unload()
         tried.clear(); external = emptyList(); added.clear(); countdownCancelled = false; autoNextDone = false
@@ -199,6 +205,7 @@ class EngineWatchPlayer(
                         lease.close()
                     } else {
                         playbackLease = lease
+                        lease.resolvedBy?.let { name -> mutable.update { it.copy(stream = stream.copy(source = stream.source.copy(pluginName = "${stream.source.pluginName} · $name"))) } }
                         load(stream, lease.url, startMs, current, target)
                         startTicker()
                     }
@@ -252,6 +259,7 @@ class EngineWatchPlayer(
     }
 
     private fun tick() {
+        if (remotePlayback) return
         val snap = engine.snapshot.value
         val s = state.value
         val status = when (snap.status) {
@@ -274,6 +282,14 @@ class EngineWatchPlayer(
         }
         val duration = if (snap.durationMs > 0) snap.durationMs else s.durationMs
         val position = engine.positionMs()
+        val skipKey = "${s.target?.key}:$duration"
+        if (!s.isLive && s.target is PlayTarget.EpisodeOf && duration > 0 && skipLookupKey != skipKey) {
+            skipLookupKey = skipKey
+            scope.launch {
+                val intervals = repository.skipIntervals(s.target, duration)
+                mutable.update { if (it.target?.key == s.target.key) it.copy(skipIntervals = intervals) else it }
+            }
+        }
         val remaining = duration - position
         val next = s.nextEpisode
         val countdown = if (next != null && !countdownCancelled && !s.isLive && duration > 0 && remaining in 0..countdownMs) remaining else null
@@ -281,7 +297,7 @@ class EngineWatchPlayer(
         mutable.update { it.copy(status = status, durationMs = duration, nextEpisodeInMs = countdown, lengthNote = note,
             failover = if (status == WatchPlayerStatus.PLAYING) null else it.failover) }
         if (!s.isLive && (status == WatchPlayerStatus.PLAYING) && now() - lastSavedAt >= saveEveryMs) saveNow()
-        if (status == WatchPlayerStatus.PAUSED && now() - lastSavedAt >= saveEveryMs) saveNow()
+        if (status == WatchPlayerStatus.PAUSED && (s.status != WatchPlayerStatus.PAUSED || now() - lastSavedAt >= saveEveryMs)) saveNow()
         if (status == WatchPlayerStatus.ENDED) {
             saveNow(ended = true)
             if (next != null && !countdownCancelled && !autoNextDone) { autoNextDone = true; playNextEpisode() } else ticker?.cancel()
@@ -360,7 +376,7 @@ class EngineWatchPlayer(
     }
 
     override fun stop() {
-        saveNow()
+        saveNow(stopping = true)
         job?.cancel(); ticker?.cancel(); releasePlayback()
         engine.unload()
         if (state.value.muted) engine.setMuted(false)
@@ -376,7 +392,8 @@ class EngineWatchPlayer(
     }
 
     /** Saves where this is (films and episodes; never a channel), with the release played so it reopens the same copy. */
-    private fun saveNow(ended: Boolean = false) {
+    private fun saveNow(ended: Boolean = false, stopping: Boolean = false) {
+        if (remotePlayback) return
         val s = state.value
         val target = s.target ?: return
         val stream = s.stream ?: return
@@ -387,7 +404,15 @@ class EngineWatchPlayer(
         if (position < 5_000 && !ended) return
         lastSavedAt = now()
         val progress = WatchProgress(target.key, position, duration, now(), s.summary, (target as? PlayTarget.EpisodeOf)?.episodeName, stream.hint().copy(durationMs = duration))
-        scope.launch { runCatching { repository.saveProgress(progress) } }
+        val action = if (ended || stopping) "stop" else if (engine.snapshot.value.playing) "start" else "pause"
+        val checkpoint = "${target.key}:$action:${position / 1000}"
+        val shouldFlush = action != "start" && checkpoint != lastCheckpoint
+        if (shouldFlush) lastCheckpoint = checkpoint
+        scope.launch {
+            runCatching { repository.saveProgress(progress) }
+            if (shouldFlush) com.cosmotune.watch.WatchSyncSignals.checkpoint()
+            runCatching { repository.tracking?.report(progress, action) }
+        }
     }
 
     private fun audioOf(tracks: List<EngineTrack>) = tracks.filter { it.type == TrackType.AUDIO }.map {

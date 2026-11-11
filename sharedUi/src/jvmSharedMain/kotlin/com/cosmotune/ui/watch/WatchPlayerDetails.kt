@@ -90,6 +90,11 @@ internal fun WatchTitleFacts(shown: TitleSummary, title: Title?, fonts: OrbitFon
         title?.status?.takeUnless { it == "Released" },
     ).joinToString(" · ")
     if (extra.isNotEmpty()) Text(extra, style = fonts.body, color = look.dim)
+    title?.ratings?.takeIf { it.isNotEmpty() }?.let { ratings ->
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ratings.forEach { rating -> com.cosmotune.ui.orbit.WatchBadge("${rating.source} ${rating.value}", fonts, look.ink) }
+        }
+    }
     val overview = shown.overview?.takeIf { it.isNotBlank() }
     if (overview != null) {
         Text(overview, style = fonts.body, color = look.ink)

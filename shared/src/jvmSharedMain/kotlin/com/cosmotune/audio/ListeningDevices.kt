@@ -78,12 +78,17 @@ class ListeningDeviceProfiles(private val read: () -> String, private val write:
 }
 
 @Serializable
-data class DeviceEqMeasurement(val sourceUrl: String, val measurement: String, val approximation: Boolean = true) {
+data class DeviceEqMeasurement(val sourceUrl: String, val measurement: String, val approximation: Boolean = true,
+    val format: String = "autoeq", val headphone: String? = null) {
     fun checked(model: ListeningDeviceModel): DeviceEqMeasurement {
-        require(model in setOf(ListeningDeviceModel.SONY_WH1000XM5, ListeningDeviceModel.SAMSUNG_BUDS4_PRO)) { "Choose the exact headphone model first" }
         require(measurement.isNotBlank() && measurement.length <= 160 && sourceUrl.length <= 1024)
         val uri = URI(sourceUrl)
         require(uri.scheme == "https" && uri.port == -1 && uri.userInfo == null && uri.fragment == null && uri.query == null)
+        if (format == "import") {
+            require(uri.host != null && !headphone.isNullOrBlank() && headphone.length <= 160 && approximation)
+            return this
+        }
+        require(format == "autoeq" && model in setOf(ListeningDeviceModel.SONY_WH1000XM5, ListeningDeviceModel.SAMSUNG_BUDS4_PRO)) { "Choose the exact headphone model first" }
         val path = URLDecoder.decode(uri.rawPath.orEmpty(), "UTF-8")
         require((uri.host == "github.com" && path.startsWith("/jaakkopasanen/AutoEq/blob/") ||
             uri.host == "raw.githubusercontent.com" && path.startsWith("/jaakkopasanen/AutoEq/")) &&

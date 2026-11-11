@@ -7768,6 +7768,9 @@ private fun DesktopSettingsScreen(
             }
             DesktopSettingsSection.ABOUT -> {
                 SettingsGroup(com.cosmotune.ui.settings.SettingsText.GROUP_ABOUT.text()) {
+                    var crashNoteOpen by remember { mutableStateOf(false) }
+                    SettingsRow(CosmotuneIcons.Library, "Last crash note", "View, copy or delete the local diagnostic note") { crashNoteOpen = true }
+                    if (crashNoteOpen) com.cosmotune.ui.settings.CrashNoteDialog { crashNoteOpen = false }
                     val uriHandler = LocalUriHandler.current
                     SettingsRow(
                         com.cosmotune.ui.settings.SettingsCategory.ABOUT.icon,

@@ -45,9 +45,9 @@ value class WatchKey(val value: String) {
 
 /** External ids. TMDB is the primary key; IMDb is what Stremio-protocol add-ons key on. */
 @Serializable
-data class ExternalIds(val tmdb: Int? = null, val imdb: String? = null, val tvdb: Int? = null) {
-    fun merge(other: ExternalIds) = ExternalIds(tmdb ?: other.tmdb, imdb ?: other.imdb, tvdb ?: other.tvdb)
-    val isEmpty: Boolean get() = tmdb == null && imdb == null && tvdb == null
+data class ExternalIds(val tmdb: Int? = null, val imdb: String? = null, val tvdb: Int? = null, val mal: Int? = null) {
+    fun merge(other: ExternalIds) = ExternalIds(tmdb ?: other.tmdb, imdb ?: other.imdb, tvdb ?: other.tvdb, mal ?: other.mal)
+    val isEmpty: Boolean get() = tmdb == null && imdb == null && tvdb == null && mal == null
 }
 
 enum class TitleType { FILM, SERIES }
@@ -78,6 +78,7 @@ data class TitleSummary(
 
 /** A trailer or clip; [youTubeKey] opens in Video mode. */
 @Serializable data class Trailer(val name: String, val youTubeKey: String, val official: Boolean = true)
+@Serializable data class WatchRating(val source: String, val value: String)
 
 /** TMDB "where to watch" (JustWatch data), or WatchHub's answer: a place the title streams, no playback. */
 @Serializable data class WatchProvider(val name: String, val logoUrl: String? = null, val type: String = "flatrate", val link: String? = null)
@@ -102,6 +103,7 @@ data class Title(
     val trailers: List<Trailer> = emptyList(),
     val moreLikeThis: List<TitleSummary> = emptyList(),
     val whereToWatch: List<WatchProvider> = emptyList(),
+    val ratings: List<WatchRating> = emptyList(),
 ) {
     val key: WatchKey get() = summary.key
     val type: TitleType get() = summary.type
@@ -274,10 +276,12 @@ data class WatchProgress(
     val summary: TitleSummary? = null,
     val episodeName: String? = null,
     val lastHint: StreamHint? = null,
+    /** A tracker can confirm a watch without supplying a runtime. Never invent a duration for it. */
+    val watched: Boolean = false,
 ) {
     /** Watched to the credits: 92% or within 3 minutes of the end. */
-    val completed: Boolean get() = durationMs > 0 && (positionMs >= durationMs * 92 / 100 || durationMs - positionMs < 180_000)
-    val fraction: Float get() = if (durationMs <= 0) 0f else (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+    val completed: Boolean get() = watched || durationMs > 0 && (positionMs >= durationMs * 92 / 100 || durationMs - positionMs < 180_000)
+    val fraction: Float get() = if (watched) 1f else if (durationMs <= 0) 0f else (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
     val remainingMs: Long get() = (durationMs - positionMs).coerceAtLeast(0)
 }
 

@@ -198,6 +198,7 @@ class DesktopPlaybackEngine(
          */
         var startUs: Long,
         val dsdTransport: DesktopDsdTransport? = null,
+        val alignment: com.cosmotune.audio.AcousticAlignment.Envelope = com.cosmotune.audio.AcousticAlignment.Envelope(),
     ) {
         val directDsd get() = dsdTransport != null
         var gain = 1f
@@ -337,7 +338,8 @@ class DesktopPlaybackEngine(
                     Track(song, ahead, stream, startAtMs * 1_000, dsdTransport = transport)
                 }
             }
-            val decoder = DesktopAudioDecoder()
+            val meter = com.cosmotune.audio.AcousticAlignment.Envelope()
+            val decoder = DesktopAudioDecoder { samples, count, from, rate, channels -> meter.add(samples, count, from, rate, channels) }
             decoder.open(
                 url = stream.url,
                 headers = stream.headers,
@@ -357,7 +359,7 @@ class DesktopPlaybackEngine(
                     measuredFormat = decoder.measuredFormat,
                     name = "Cosmotune-Decode ${song.title.take(24)}",
                 )
-                Track(song, ahead, stream, startAtMs * 1_000)
+                Track(song, ahead, stream, startAtMs * 1_000, alignment = meter)
             }.onFailure { decoder.close() }
         }
 
@@ -439,8 +441,20 @@ class DesktopPlaybackEngine(
     /** Re-opens the current track on a different stream, carrying the playhead over. */
     private fun swapStream(song: Song, stream: DesktopStream, positionMs: Long) {
         scope.launch {
-            openTrack(song, stream, positionMs).fold(
+            val reference = current?.takeIf { it.song.videoId == song.videoId && !it.directDsd }?.alignment
+            val preRoll = if (reference != null) (positionMs - 3500).coerceAtLeast(0) else positionMs
+            openTrack(song, stream, preRoll).fold(
                 onSuccess = { track ->
+                    val start = ((positionMs - 2600).coerceAtLeast(500) / 10) * 10
+                    var offset: Long? = null
+                    if (reference != null) {
+                        repeat(15) {
+                            val a = reference.read(start, 200)
+                            val b = track.alignment.read(start - 500, 300)
+                            if (offset == null && a != null && b != null) offset = com.cosmotune.audio.AcousticAlignment.offset(a, b)
+                            if (offset == null) delay(50)
+                        }
+                    }
                     val latest = _state.value
                     if (latest.song?.videoId != song.videoId) {
                         track.decoder.close()
@@ -449,9 +463,10 @@ class DesktopPlaybackEngine(
                     // Resolving and opening the better rendition can take a few seconds. Hand it
                     // over at the live playhead rather than jumping back to the position at which
                     // the upgrade was first offered.
-                    if (kotlin.math.abs(latest.positionMs - positionMs) >= UPGRADE_RESEEK_THRESHOLD_MS) {
-                        track.decoder.seek(latest.positionMs * 1_000)
-                        track.startUs = latest.positionMs * 1_000
+                    if (preRoll != positionMs || offset != null || kotlin.math.abs(latest.positionMs - positionMs) >= UPGRADE_RESEEK_THRESHOLD_MS) {
+                        val aligned = (latest.positionMs + (offset ?: 0)).coerceAtLeast(0) * 1000
+                        track.decoder.seek(aligned)
+                        track.startUs = aligned
                     }
                     commands += Command.ReplaceCurrent(track, playWhenReady = latest.isPlaying)
                 },

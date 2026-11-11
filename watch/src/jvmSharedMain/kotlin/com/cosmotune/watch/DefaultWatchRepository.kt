@@ -53,6 +53,8 @@ import com.cosmotune.watch.plugins.youtube.PrasarBharatiPlugin
 import com.cosmotune.watch.plugins.youtube.YouTubeLivePlugin
 import com.cosmotune.watch.store.StoredSource
 import com.cosmotune.watch.store.WatchState
+import com.cosmotune.watch.store.allProfiles
+import com.cosmotune.watch.store.selectProfile
 import com.cosmotune.watch.store.WatchStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +77,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
@@ -149,6 +153,12 @@ class DefaultWatchRepository(
     override suspend fun openPlayback(stream: Stream): WatchPlaybackLease {
         if (!stream.isTorrent) return super.openPlayback(stream)
         check(torrentsEnabled()) { com.cosmotune.watch.plugins.stremio.BundledTorrentPlayback.DISABLED }
+        preferences.value.debrid?.let { service ->
+            store.state.value.settings["watch.key.${service.key}"]?.takeIf { it.isNotBlank() }?.let { token ->
+                val url = com.cosmotune.watch.debrid.WatchDebridClient(config.client).resolve(service, token, stream)
+                return WatchPlaybackLease(url) {}.apply { resolvedBy = service.label }
+            }
+        }
         return torrentPlayback.open(stream)
     }
     private val guideCache = GuideCache(http, config.now)
@@ -214,12 +224,14 @@ class DefaultWatchRepository(
     }
 
     private fun kindOf(spec: UserSourceSpec) = when (spec) {
+        is UserSourceSpec.NuvioScript -> PluginKind.NUVIO_SCRIPT
         is UserSourceSpec.StremioAddon -> PluginKind.STREMIO_ADDON; is UserSourceSpec.Jellyfin -> PluginKind.JELLYFIN
         is UserSourceSpec.Emby -> PluginKind.EMBY; is UserSourceSpec.Plex -> PluginKind.PLEX_SERVER; is UserSourceSpec.M3u -> PluginKind.M3U
         is UserSourceSpec.Xtream -> PluginKind.XTREAM; is UserSourceSpec.LocalFolder -> PluginKind.LOCAL_FOLDER
     }
 
     private fun describe(spec: UserSourceSpec): String = when (spec) {
+        is UserSourceSpec.NuvioScript -> "Watch script · ${host(spec.scriptUrl)}"
         is UserSourceSpec.StremioAddon -> "Add-on · ${host(spec.manifestUrl)}"
         is UserSourceSpec.Jellyfin -> "Jellyfin · ${host(spec.server)}"
         is UserSourceSpec.Emby -> "Emby · ${host(spec.server)}"
@@ -235,6 +247,8 @@ class DefaultWatchRepository(
     private fun pluginFor(s: StoredSource): WatchPlugin? = userPlugins[s.id] ?: runCatching { build(s) }.getOrNull()?.also { userPlugins[s.id] = it }
 
     private fun build(s: StoredSource): WatchPlugin = when (val spec = s.spec) {
+        is UserSourceSpec.NuvioScript -> com.cosmotune.watch.plugins.nuvio.NuvioScriptPlugin(s.id, s.name ?: spec.label.ifBlank { "Watch script" },
+            { com.cosmotune.watch.plugins.nuvio.NuvioPackages.load(File(config.dataDir, "scripts/${s.id}.js"), spec.scriptUrl, spec.sha256) }, spec.domains, File(config.dataDir, "script-data/${s.id}"), spec.settings)
         is UserSourceSpec.StremioAddon -> {
             val name = s.name ?: spec.label.ifBlank { "Add-on" }
             StremioPlugin(s.id, name, badgeOf(name), StremioClient(http, spec.manifestUrl),
@@ -252,6 +266,7 @@ class DefaultWatchRepository(
     }
 
     private fun badgeOf(name: String) = name.filter { it.isLetterOrDigit() }.take(4).uppercase().ifBlank { "ADD" }
+    override suspend fun scriptRepository(url: String): List<WatchScriptEntry> = com.cosmotune.watch.plugins.nuvio.NuvioPackages.repository(url)
 
     /** Plugins that are switched on, in rank order: built-ins in page order, then the user's sources. */
     fun activePlugins(): List<WatchPlugin> {
@@ -301,6 +316,31 @@ class DefaultWatchRepository(
     override suspend fun addUserSource(spec: UserSourceSpec): AddSourceResult = try {
         val now = config.now()
         val stored: StoredSource = when (spec) {
+            is UserSourceSpec.NuvioScript -> {
+                val uri = java.net.URI(spec.scriptUrl.trim())
+                val id = "js-" + hash(uri.toString())
+                require(store.state.value.sources.none { it.id == id }) { "This script is already installed" }
+                require(uri.scheme == "https" && uri.host != null && uri.userInfo == null && uri.fragment == null) { "Use an HTTPS JavaScript source URL" }
+                val domains = spec.domains.map { it.trim().lowercase() }.filter { it.isNotBlank() }.distinct()
+                require(spec.settings.size <= 100 && spec.settings.toString().length <= 16_384 && spec.settings.values.all { it is kotlinx.serialization.json.JsonPrimitive })
+                val permissions = com.cosmotune.providers.ProviderPermissions(network = domains)
+                com.cosmotune.providers.ProviderManifest("watch-script", "1.0.0", type = listOf("metadata_provider"), permissions = permissions).validate()
+                val network = com.cosmotune.providers.ProviderNetwork(com.cosmotune.providers.ProviderPermissions(network = listOf(uri.host)))
+                val code = try {
+                    val response = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        network.request(uri.toString(), kotlinx.serialization.json.JsonObject(emptyMap()))
+                    }
+                    require(response["ok"]?.jsonPrimitive?.booleanOrNull == true) { "The script could not be downloaded" }
+                    response["body"]?.jsonPrimitive?.content.orEmpty()
+                } finally { network.cancel() }
+                require(code.toByteArray().size in 1..512_000 && "getStreams" in code) { "This source does not export a supported Watch getStreams script" }
+                val file = File(config.dataDir, "scripts/$id.js")
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    check(file.parentFile.isDirectory || file.parentFile.mkdirs())
+                    file.writeText(code)
+                }
+                StoredSource(id, spec.copy(scriptUrl = uri.toString(), domains = domains, sha256 = com.cosmotune.watch.plugins.nuvio.NuvioPackages.sha256(code)), addedAtMs = now, name = spec.label.ifBlank { "Watch script" })
+            }
             is UserSourceSpec.StremioAddon -> {
                 val url = InstallLinks.manifestUrl(spec.manifestUrl) ?: error("This is not an add-on link")
                 val manifest = StremioClient(http, url).manifest(ttlMs = 0)
@@ -421,7 +461,7 @@ class DefaultWatchRepository(
         // While the plugins' rows load, the free plugins are asked whether they can play the most popular films.
         val probed = async { if (type == TitleType.SERIES) emptyMap() else probeFree(popularFilms(metaRows.await())) }
         val free = pluginRows.await()
-        val rows = free + metaRows.await()
+        val rows = (free + metaRows.await()).distinctBy { it.id }.map { row -> row.copy(items = row.items.distinctBy { it.key }) }
         val cw = continueWatching.value.filter { type == null || it.summary.type == type }
         val featured = (featuredPopular(popularFilms(metaRows.await()), free, probed.await()) ?: bestFree(free, rows, ::playable))
             ?.let { (s, badge) -> Featured(s, listOfNotNull(badge), store.state.value.progress[s.key.value]) }
@@ -567,8 +607,12 @@ class DefaultWatchRepository(
             else -> activePlugins().firstOrNull { it.id == key.namespace }?.let { runCatching { it.title(key) }.getOrNull() }
                 ?: builtInPlugins.firstOrNull { it.id == key.namespace }?.let { runCatching { it.title(key) }.getOrNull() }
         } ?: return null
-        titles[key] = base; titles[base.key] = base
-        return base
+        val ratings = store.state.value.settings["watch.key.omdb"]?.let { apiKey ->
+            base.summary.ids.imdb?.let { imdb -> runCatching { com.cosmotune.watch.meta.OmdbRatings.fetch(http, imdb, apiKey) }.getOrNull() }
+        }.orEmpty()
+        val enriched = if (ratings.isEmpty()) base else base.copy(ratings = (base.ratings + ratings).distinctBy { it.source })
+        titles[key] = enriched; titles[base.key] = enriched
+        return enriched
     }
 
     override suspend fun episodes(series: WatchKey, season: Int): List<Episode> = when {
@@ -655,7 +699,10 @@ class DefaultWatchRepository(
 
     override suspend fun subtitles(target: PlayTarget, stream: Stream?, languages: List<String>): List<Subtitle> {
         val full = enrich(target)
-        val found = each(activePlugins().filter { Capability.SUBTITLES in it.capabilities }) { it.subtitles(full, stream) }.flatMap { it.second.orEmpty() }
+        val extra = store.state.value.settings["watch.key.subdl"]?.let { apiKey ->
+            runCatching { com.cosmotune.watch.plugins.subtitles.SubDl.search(http, full, languages, apiKey) }.getOrNull()
+        }.orEmpty()
+        val found = each(activePlugins().filter { Capability.SUBTITLES in it.capabilities }) { it.subtitles(full, stream) }.flatMap { it.second.orEmpty() } + extra
         val all = (stream?.subtitles.orEmpty() + found).distinctBy { it.url ?: it.id }
         if (languages.isEmpty()) return all
         return all.sortedBy { s -> languages.indexOfFirst { LanguageCodes.same(it, s.language) }.let { if (it < 0) languages.size else it } }
@@ -749,6 +796,109 @@ class DefaultWatchRepository(
     // ── My list and progress ─────────────────────────────────────────────
 
     private val myListState = MutableStateFlow(store.state.value.myList)
+    private val playlistsState = MutableStateFlow(store.state.value.allProfiles()[store.state.value.activeProfile]?.playlists.orEmpty())
+    override val playlists: StateFlow<List<com.cosmotune.watch.model.WatchPlaylist>> = playlistsState.asStateFlow()
+    private suspend fun editPlaylists(change: (List<com.cosmotune.watch.model.WatchPlaylist>) -> List<com.cosmotune.watch.model.WatchPlaylist>) {
+        update { state ->
+            val all = state.allProfiles()
+            val profile = all.getValue(state.activeProfile)
+            state.copy(profiles = all + (profile.id to profile.copy(playlists = change(profile.playlists))))
+        }
+    }
+    override suspend fun createPlaylist(name: String): String? {
+        val label = name.trim().take(100).takeIf { it.isNotBlank() } ?: return null
+        val id = java.util.UUID.randomUUID().toString()
+        editPlaylists { it + com.cosmotune.watch.model.WatchPlaylist(id, label, updatedAtMs = config.now()) }
+        return id
+    }
+    override suspend fun renamePlaylist(id: String, name: String) {
+        val label = name.trim().take(100).takeIf { it.isNotBlank() } ?: return
+        editPlaylists { list -> list.map { if (it.id == id) it.copy(name = label, updatedAtMs = config.now()) else it } }
+    }
+    override suspend fun deletePlaylist(id: String) { editPlaylists { list -> list.filterNot { it.id == id } } }
+    override suspend fun setPlaylistItem(id: String, title: TitleSummary, included: Boolean) {
+        editPlaylists { list -> list.map { playlist ->
+            if (playlist.id != id) playlist else playlist.copy(items = (playlist.items.filterNot { it.key == title.key } + if (included) listOf(title) else emptyList()), updatedAtMs = config.now())
+        } }
+    }
+    private val configuredServicesState = MutableStateFlow(store.state.value.settings.keys.filter { it.startsWith("watch.key.") }.map { it.removePrefix("watch.key.") }.toSet())
+    override val configuredServices: StateFlow<Set<String>> = configuredServicesState.asStateFlow()
+    override suspend fun setServiceKey(service: String, key: String) {
+        require(service in setOf("omdb", "subdl", "realdebrid", "alldebrid", "torbox"))
+        require(key.length <= 200 && key.all { it.isLetterOrDigit() || it in "_-" })
+        update { state -> state.copy(settings = if (key.isBlank()) state.settings - "watch.key.$service" else state.settings + ("watch.key.$service" to key)) }
+        titles.clear()
+    }
+    override val tracking: WatchTracking by lazy { com.cosmotune.watch.tracking.WatchTrackingService(config.client, store, scope, config.now) }
+    override suspend fun setAnimeMapping(series: WatchKey, season: Int, malId: Int?) {
+        require(series.kind == WatchKey.Kind.SERIES && season in 1..100 && (malId == null || malId in 1..1_000_000))
+        val key = "watch.mal.${series.value}.$season"
+        update { it.copy(settings = if (malId == null) it.settings - key else it.settings + (key to malId.toString())) }
+    }
+    override suspend fun skipIntervals(target: PlayTarget, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> {
+        if (!preferences.value.animeSkips || target !is PlayTarget.EpisodeOf) return emptyList()
+        val series = target.key.seriesKey ?: return emptyList()
+        val mal = store.state.value.settings["watch.mal.${series.value}.${target.season}"]?.toIntOrNull()
+            ?: target.seriesIds.mal?.takeIf { target.season == 1 } ?: return emptyList()
+        return runCatching { com.cosmotune.watch.meta.AniSkip.fetch(http, mal, target.episode, durationMs) }.getOrDefault(emptyList())
+    }
+    private val profilesState = MutableStateFlow(store.state.value.allProfiles().values.toList())
+    override val profiles: StateFlow<List<com.cosmotune.watch.model.WatchProfile>> = profilesState.asStateFlow()
+    private val activeProfileState = MutableStateFlow(store.state.value.activeProfile)
+    override val activeProfile: StateFlow<String> = activeProfileState.asStateFlow()
+    private var unlockedProfileId: String? = null
+    private val unlockedState = MutableStateFlow(store.state.value.settings["profile.pin.${store.state.value.activeProfile}"] == null)
+    override val profileUnlocked: StateFlow<Boolean> = unlockedState.asStateFlow()
+    override suspend fun addProfile(name: String): String? {
+        val label = name.trim().take(40).takeIf { it.isNotBlank() } ?: return null
+        val id = java.util.UUID.randomUUID().toString()
+        var added = false
+        update { state ->
+            if (state.profiles.size >= 8) state else {
+                added = true
+                state.copy(profiles = state.allProfiles() + (id to com.cosmotune.watch.model.WatchProfile(id, label)))
+            }
+        }
+        return id.takeIf { added }
+    }
+    override suspend fun selectProfile(id: String, pin: String?): Boolean {
+        val state = store.state.value
+        if (id == state.activeProfile && unlockedState.value) return true
+        if (id !in state.profiles || !kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                com.cosmotune.watch.store.ProfilePins.verify(pin, state.settings["profile.pin.$id"])
+            }) return false
+        unlockedProfileId = id
+        update { it.selectProfile(id) }
+        return true
+    }
+    override suspend fun setProfilePin(pin: String?) {
+        val id = store.state.value.activeProfile
+        require(unlockedState.value) { "Unlock this profile first" }
+        unlockedProfileId = id
+        val encoded = pin?.let { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { com.cosmotune.watch.store.ProfilePins.encode(it) } }
+        update { it.copy(settings = if (encoded == null) it.settings - "profile.pin.$id" else it.settings + ("profile.pin.$id" to encoded)) }
+    }
+    override suspend fun removeProfile(id: String) {
+        if (id == "default") return
+        update { state ->
+            val selected = if (state.activeProfile == id) state.selectProfile("default") else state
+            require(state.activeProfile != id || state.settings["profile.pin.default"] == null) { "Switch to Everyone before removing this profile" }
+            selected.copy(profiles = selected.allProfiles() - id, settings = selected.settings - "profile.pin.$id")
+        }
+    }
+    private val preferencesState = MutableStateFlow(preferencesOf(store.state.value))
+    override val preferences: StateFlow<WatchPreferences> = preferencesState.asStateFlow()
+    override suspend fun setPreferences(preferences: WatchPreferences) {
+        update { state ->
+            val all = state.allProfiles()
+            val profile = all.getValue(state.activeProfile)
+            state.copy(profiles = all + (profile.id to profile.copy(preferences = preferences)))
+        }
+    }
+    private fun preferencesOf(state: WatchState) = state.allProfiles()[state.activeProfile]?.preferences ?: if (state.activeProfile != "default") WatchPreferences() else WatchPreferences(
+        density = WatchDensity.entries.firstOrNull { it.name == state.settings["watch.density"] } ?: WatchDensity.BALANCED,
+        animeSkips = state.settings["watch.aniskip"]?.toBooleanStrictOrNull() ?: true,
+    )
     override val myList: StateFlow<List<MyListEntry>> = myListState.asStateFlow()
     private val favouritesState = MutableStateFlow(store.state.value.favourites.map(::WatchKey).toSet())
     override val favouriteChannels: StateFlow<Set<WatchKey>> = favouritesState.asStateFlow()
@@ -757,6 +907,12 @@ class DefaultWatchRepository(
 
     /** Brings the derived flows up to date with the store at once (and again when a sync changes the store underneath). */
     private fun refresh(state: WatchState = store.state.value) {
+        configuredServicesState.value = state.settings.keys.filter { it.startsWith("watch.key.") }.map { it.removePrefix("watch.key.") }.toSet()
+        profilesState.value = state.allProfiles().values.map { it.copy(progress = emptyMap(), myList = emptyList(), locked = state.settings["profile.pin.${it.id}"] != null) }
+        activeProfileState.value = state.activeProfile
+        playlistsState.value = state.allProfiles()[state.activeProfile]?.playlists.orEmpty()
+        unlockedState.value = state.settings["profile.pin.${state.activeProfile}"] == null || unlockedProfileId == state.activeProfile
+        preferencesState.value = preferencesOf(state)
         pluginsState.value = infos(state, status.value)
         myListState.value = state.myList
         favouritesState.value = state.favourites.map(::WatchKey).toSet()
@@ -788,7 +944,7 @@ class DefaultWatchRepository(
     override suspend fun progress(key: WatchKey): WatchProgress? = store.state.value.progress[key.value]
 
     override suspend fun saveProgress(progress: WatchProgress) {
-        if (progress.key.kind == WatchKey.Kind.CHANNEL) return
+        if (progress.key.kind == WatchKey.Kind.CHANNEL || progress.key.namespace == "trailer") return
         update { s -> s.copy(progress = s.progress + (progress.key.value to progress)) }
     }
 

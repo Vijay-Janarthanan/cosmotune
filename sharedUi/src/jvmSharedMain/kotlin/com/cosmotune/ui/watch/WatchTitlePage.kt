@@ -79,6 +79,8 @@ import com.cosmotune.watch.model.WatchProgress
  */
 @Composable
 internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts: OrbitFonts, look: OrbitLook, frame: WatchFrame) {
+    var animeMapping by remember { mutableStateOf(false) }
+    var playlistPicker by remember { mutableStateOf(false) }
     val repository = actions.repository
     var attempt by remember { mutableStateOf(0) }
     val title by produceState<Result<Title?>?>(null, summary.key, attempt) { value = runCatching { repository.title(summary.key) } }
@@ -120,6 +122,9 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
                     shown, page, series, fonts, look, fill, ink, frame.wide, inList, nextUp, resume?.takeIf { !it.completed && it.positionMs > 60_000 },
                     sources?.best, onPlay = play, onMyList = { actions.setInMyList(shown, it) }, watchTogether = actions.watchTogetherReady,
                     onWatchTogether = { actions.watchTogether(shown, page, sources?.best) },
+                    onTrailer = { actions.playTrailer(shown, it) },
+                    onAnimeMapping = { animeMapping = true },
+                    onPlaylist = { playlistPicker = true },
                     modifier = Modifier.padding(horizontal = side).padding(top = 18.dp),
                 )
             }
@@ -158,6 +163,18 @@ internal fun WatchTitlePage(summary: TitleSummary, actions: WatchActions, fonts:
             item(key = "title:end") { Spacer(Modifier.height(40.dp)) }
         }
     }
+    if (animeMapping) {
+        var season by remember { mutableStateOf("1") }
+        var malId by remember { mutableStateOf("") }
+        com.cosmotune.ui.sheets.CosmoAlertDialog(onDismissRequest = { animeMapping = false }, title = "Match anime season",
+            message = "Enter the MyAnimeList ID for this exact season. Episode numbering must match that entry. Skips are offered only when the video's duration also matches. Leave the ID blank to clear a match.",
+            confirmLabel = "Save match", dismissLabel = "Cancel", confirmEnabled = season.toIntOrNull()?.let { it in 1..100 } == true && (malId.isBlank() || malId.toIntOrNull()?.let { it in 1..1_000_000 } == true),
+            onConfirm = { actions.launch { actions.repository.setAnimeMapping(summary.key, season.toInt(), malId.toIntOrNull()); animeMapping = false } }) {
+            WatchField("Season", season, { season = it.filter(Char::isDigit).take(3) }, fonts, look)
+            WatchField("MyAnimeList ID", malId, { malId = it.filter(Char::isDigit).take(7) }, fonts, look)
+        }
+    }
+    if (playlistPicker) WatchPlaylistPicker(summary, actions, fonts, look) { playlistPicker = false }
 }
 
 /** "Film · 2021 · 1h 52m · Drama, Thriller · ★ 7.4 TMDB" or "Series · 3 seasons · 2019–2025 · ★ 8.1". */
@@ -195,6 +212,9 @@ private fun TitleCard(
     onMyList: (Boolean) -> Unit,
     watchTogether: Boolean,
     onWatchTogether: () -> Unit,
+    onTrailer: (com.cosmotune.watch.model.Trailer) -> Unit,
+    onAnimeMapping: () -> Unit,
+    onPlaylist: () -> Unit,
     modifier: Modifier,
 ) {
     var more by remember { mutableStateOf(false) }
@@ -227,7 +247,9 @@ private fun TitleCard(
                     OrbitMenu(
                         more, onDismiss = { more = false }, fonts = fonts, look = look, header = s.name,
                         items = buildList {
-                            page?.trailers?.firstOrNull()?.let { t -> add(OrbitMenuItem("Trailer", t.name, CosmoIcons.Video) { uri.openUri("https://www.youtube.com/watch?v=${t.youTubeKey}") }) }
+                            page?.trailers?.firstOrNull()?.let { t -> add(OrbitMenuItem("Trailer", t.name, CosmoIcons.Video) { onTrailer(t) }) }
+                            if (series) add(OrbitMenuItem("Anime opening and ending skips", "Match this season to MyAnimeList", CosmoIcons.Settings) { onAnimeMapping() })
+                            add(OrbitMenuItem("Add to Watch playlist", null, CosmoIcons.Plus) { onPlaylist() })
                             page?.whereToWatch?.forEach { w -> add(OrbitMenuItem("On ${w.name}", "Opens outside the app", CosmoIcons.Share, enabled = w.link != null) { w.link?.let(uri::openUri) }) }
                             add(OrbitMenuItem(if (inList) "Remove from My list" else "Add to My list", null, CosmoIcons.Plus) { onMyList(!inList) })
                         },

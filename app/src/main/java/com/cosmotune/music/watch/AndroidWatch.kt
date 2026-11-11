@@ -50,7 +50,9 @@ object AndroidWatch {
     fun downloads(context: Context): com.cosmotune.watch.WatchDownloads = downloadsRef ?: run {
         val app = context.applicationContext
         val dir = app.getExternalFilesDir(android.os.Environment.DIRECTORY_MOVIES)?.let { File(it, "Watch") } ?: File(File(app.filesDir, "watch"), "downloads")
-        com.cosmotune.watch.WatchDownloads(dir, Http.client)
+        com.cosmotune.watch.WatchDownloads(dir, Http.client, destinationOptions =
+            listOf(File(File(app.filesDir, "watch"), "downloads")) +
+                app.getExternalFilesDirs(android.os.Environment.DIRECTORY_MOVIES).filterNotNull().map { File(it, "Watch") })
     }.also { downloadsRef = it }
 
     /** Whether [player] has been built in this process. */

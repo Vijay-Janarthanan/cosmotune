@@ -4617,6 +4617,7 @@ class PlaybackService : MediaLibraryService() {
         }
 
         val upgradedUri = QualityUpgrade.upgradedUri(at.uri)
+        val originalCacheKey = AudioCache.cacheKeyOf(Uri.parse(at.uri))
         // Whether the rendition entry already holds *this* stream's bytes,
         // asked before [force] overwrites the record of what filled it. True
         // only for a shelved upgrade being re-offered, where throwing the entry
@@ -4676,6 +4677,8 @@ class PlaybackService : MediaLibraryService() {
         // `replaceMediaItem` — both run on the same single-threaded Main
         // dispatcher [scope] does — so that second check is the one this
         // logic actually depends on for correctness, not this one.
+        val paddingOffset = upgradeOffsetMs(Uri.parse(at.uri), originalCacheKey, Uri.parse(upgradedUri), at.position)
+        if (paddingOffset != null) TrackLog.d("Cosmotune", "upgrade encoder-padding alignment: ${paddingOffset}ms")
         var waitedForCrossfade = 0L
         while (withContext(Dispatchers.Main) { crossfade?.isTransitioning() } == true &&
             waitedForCrossfade < UPGRADE_CROSSFADE_WAIT_TIMEOUT_MS
@@ -4781,7 +4784,7 @@ class PlaybackService : MediaLibraryService() {
                 ?: "Upgrade"
             NerdStats.onSourceStream(mediaId, stream.format, upgradedSourceName)
             NerdStats.recordSource(mediaId, upgradedSourceName)
-            player.seekTo(player.currentMediaItemIndex, now.position)
+            player.seekTo(player.currentMediaItemIndex, (now.position + (paddingOffset ?: 0)).coerceAtLeast(0))
             player.prepare()
             QualityUpgrade.unshelve(mediaId)
             TrackLog.d("Cosmotune", "upgraded to ${stream.format.summary} at ${now.position}ms ($upgradedSourceName)")

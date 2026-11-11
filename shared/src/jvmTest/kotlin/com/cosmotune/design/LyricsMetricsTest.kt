@@ -6,6 +6,11 @@ import kotlin.test.assertTrue
 
 /** The lyrics view's numbers (`screens-v3.css:157-166`) and the decisions the Compose side makes from them. */
 class LyricsMetricsTest {
+    @Test fun wrappedLinesKeepEnoughRoomForTheLargestSungSize() {
+        assertTrue(LyricsMetrics.layoutHeightPx(108, 1.2f) >= 108 * 1.2f)
+        assertEquals(108, LyricsMetrics.layoutHeightPx(108, .86f))
+        assertEquals(0, LyricsMetrics.layoutHeightPx(0, 1.2f))
+    }
 
     // ---- which state a line is in ------------------------------------------------------------------------------------
 

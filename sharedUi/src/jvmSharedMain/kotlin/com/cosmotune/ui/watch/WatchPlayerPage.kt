@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
@@ -86,6 +87,7 @@ import com.cosmotune.watch.WatchPlayerStatus
 import com.cosmotune.watch.model.PlayTarget
 import com.cosmotune.watch.model.Stream
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** What the player screen does; the page binds these to [com.cosmotune.watch.WatchPlayer] and its engine. */
 internal class WatchPlayerControls(
@@ -103,6 +105,8 @@ internal class WatchPlayerControls(
     val watchTogether: () -> Unit = {},
     val retry: (() -> Unit)? = null,
     val toggleMute: () -> Unit = {},
+    val cast: (() -> Unit)? = null,
+    val remote: Boolean = false,
 )
 
 typealias WatchFullscreenHost = @Composable (() -> Unit, Boolean, @Composable () -> Unit) -> Unit
@@ -129,11 +133,19 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     }
     val state by player.state.collectAsState()
     val snapshot by player.engine.snapshot.collectAsState()
+    val casting = remember(player, route) { com.cosmotune.watch.WatchCasting(player, actions.repository) }
+    DisposableEffect(casting) { onDispose { casting.close() } }
+    var castOpen by remember { mutableStateOf(false) }
+    val castRenderer by casting.renderer.collectAsState()
+    val remoteState by (castRenderer?.state ?: remember { kotlinx.coroutines.flow.MutableStateFlow(com.cosmotune.music.data.cast.dlna.DlnaState()) }).collectAsState()
+    val castScope = rememberCoroutineScope()
+    if (castOpen) WatchCastSheet(casting, state.stream, fonts, look) { castOpen = false }
     val roomOwnsPlayback = playback.roomHolds(route.target.key)
-    val controls = remember(player, actions, route, roomOwnsPlayback) {
+    val controls = remember(player, actions, route, roomOwnsPlayback, castRenderer) {
         WatchPlayerControls(
-            playPause = { if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() },
-            seekTo = player.engine::seekTo,
+            playPause = { val target = castRenderer; if (target != null) castScope.launch { if (target.state.value.playing) target.pause() else target.play() }
+                else if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() },
+            seekTo = { position -> val target = castRenderer; if (target != null) castScope.launch { target.seek(position) } else player.engine.seekTo(position) },
             switchStream = player::switchStream,
             selectAudio = player::selectAudio,
             selectSubtitle = player::selectSubtitle,
@@ -149,6 +161,8 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
                 player.open(route.target, route.summary, selected ?: route.stream, startMs = start)
             }),
             toggleMute = player::toggleMute,
+            cast = if (roomOwnsPlayback) null else ({ castOpen = true }),
+            remote = castRenderer != null,
             watchTogether = {
                 val s = player.state.value
                 s.target?.let { t -> actions.watchTogether(t, s.summary ?: route.summary, s.stream, s.durationMs.takeIf { it > 0 } ?: player.engine.snapshot.value.durationMs) }
@@ -178,10 +192,10 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     } else null
     WatchPlayerScreen(
         state = state,
-        playing = snapshot.playing,
+        playing = if (castRenderer != null) remoteState.playing else snapshot.playing,
         aspect = aspect,
-        position = player.engine::positionMs,
-        durationMs = state.durationMs.takeIf { it > 0 } ?: snapshot.durationMs,
+        position = { castRenderer?.state?.value?.positionMs ?: player.engine.positionMs() },
+        durationMs = remoteState.durationMs.takeIf { castRenderer != null && it > 0 } ?: state.durationMs.takeIf { it > 0 } ?: snapshot.durationMs,
         surface = playback.surface,
         controls = controls,
         watchTogether = actions.watchTogetherReady,
@@ -407,7 +421,8 @@ private fun PlayerTopRow(state: WatchPlayerState, controls: WatchPlayerControls,
             else -> "Watch"
         }
         OrbitLabel(from, fonts, look.dim, Modifier.weight(1f))
-        PlayerSourcesButton(state, controls, fonts, look)
+        if (!controls.remote) PlayerSourcesButton(state, controls, fonts, look)
+        controls.cast?.let { cast -> WatchRoundButton(CosmoIcons.Devices, if (controls.remote) "Casting · receiver controls" else "Cast video", look, onClick = cast, on = controls.remote) }
         if (downloads != null && !state.isLive && state.target != null) Box {
             val list by downloads.items.collectAsState()
             val stream = state.stream
@@ -517,6 +532,8 @@ private fun FilmCard(
             // A channel's line is what is on it now when the guide knows; its own line otherwise.
             (if (state.isLive && programme != null) "On now · $programme" else state.subtitleLine)?.let { Text(it, style = fonts.body, color = ink.copy(alpha = 0.82f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, end = 80.dp)) }
             if (!state.isLive && durationMs > 0) {
+                val skip = state.skipIntervals.firstOrNull { position() in it.startMs until it.endMs }
+                if (skip != null) com.cosmotune.ui.orbit.WatchCardChip(skip.label, ink, fonts, onClick = { controls.seekTo(skip.endMs) }, modifier = Modifier.padding(top = 8.dp))
                 OrbitProgressLine({ (position().toFloat() / durationMs).coerceIn(0f, 1f) }, ink, Modifier.padding(top = 12.dp, end = 90.dp), onSeek = { controls.seekTo((it * durationMs).toLong()) })
             }
             FlowRow(Modifier.padding(top = if (slim) 8.dp else 12.dp, end = 68.dp),
@@ -534,15 +551,15 @@ private fun FilmCard(
                             channels.map { row -> OrbitMenuItem(row.channel.name, row.now?.title) { onChannel(row.channel) } })
                     }
                 }
-                WatchRoundButton(CosmoIcons.Volume, if (state.muted) "Unmute" else "Mute", look,
+                if (!controls.remote) WatchRoundButton(CosmoIcons.Volume, if (state.muted) "Unmute" else "Mute", look,
                     onClick = controls.toggleMute, ink = ink, on = state.muted)
-                Box {
+                if (!controls.remote) Box {
                     if (narrow) WatchRoundButton(CosmoIcons.Volume, "Audio", look, onClick = { audio = true }, ink = ink, enabled = state.audioTracks.size > 1)
                     else WatchCardChip("Audio", ink, fonts, onClick = { audio = true }, icon = CosmoIcons.Volume, enabled = state.audioTracks.size > 1)
                     OrbitMenu(audio, { audio = false }, fonts = fonts, look = look, header = "Audio",
                         items = state.audioTracks.map { t -> OrbitMenuItem(t.label, listOfNotNull(t.codec, t.channels?.let { "$it ch" }).joinToString(" · ").ifBlank { null }, selected = t.selected) { controls.selectAudio(t.trackId) } })
                 }
-                Box {
+                if (!controls.remote) Box {
                     if (narrow) WatchRoundButton(CosmoIcons.Lyrics, "Subtitles", look, onClick = { subtitles = true }, ink = ink)
                     else WatchCardChip("Subtitles", ink, fonts, onClick = { subtitles = true }, icon = CosmoIcons.Lyrics)
                     OrbitMenu(subtitles, { subtitles = false }, fonts = fonts, look = look, header = "Subtitles", width = 300.dp, items = buildList {

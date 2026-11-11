@@ -545,9 +545,10 @@ private fun LyricItem(index: Int, env: LyricEnv) {
                 val placeable = measurable.measure(
                     constraints.copy(minWidth = 0, maxWidth = LyricsMetrics.layoutWidthPx(constraints.maxWidth, lanePx, env.style.currentScale)),
                 )
-                layout(constraints.maxWidth, placeable.height) {
+                val reservedHeight = LyricsMetrics.layoutHeightPx(placeable.height, env.style.currentScale)
+                layout(constraints.maxWidth, reservedHeight) {
                     // Absolute, not relative to the app's layout direction: the side is the line's own.
-                    placeable.place(LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, fromRight), 0)
+                    placeable.place(LyricsMetrics.placeOffsetPx(constraints.maxWidth, placeable.width, fromRight), (reservedHeight - placeable.height) / 2)
                 }
             }
             // The wash is drawn a little outside the line, so that its words are not pressed against its edge.

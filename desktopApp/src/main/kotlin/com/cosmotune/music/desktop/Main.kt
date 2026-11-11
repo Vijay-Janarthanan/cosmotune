@@ -61,9 +61,11 @@ fun main(args: Array<String>) {
     ) ?: return
     // An exception nobody caught used to leave no line anywhere: a window that froze mid-song had nothing to read afterwards.
     Thread.setDefaultUncaughtExceptionHandler { thread, failure ->
+        com.cosmotune.diagnostics.CrashNotes.record(failure)
         DesktopTrackLog.log("uncaught on '${thread.name}': ${failure.javaClass.name}: ${failure.message}\n" +
             failure.stackTrace.take(30).joinToString("\n") { "    at $it" })
     }
+    com.cosmotune.diagnostics.CrashNotes.configure(com.cosmotune.desktop.DesktopWatch.dataDir.parentFile)
     val shutdown = Thread({ instance.close() }, "cosmotune-instance-cleanup")
     Runtime.getRuntime().addShutdownHook(shutdown)
     try {

@@ -12,6 +12,12 @@ Cosmotune is not affiliated with, endorsed by, or connected to BitChord, YouTube
 Third-party components keep their own licences. The desktop app's licence screen lists them, and for code that is part
 of this tree the licence text is in the `licenses/` folder or next to the code.
 
+Offline Korean romanisation rules and the 39-model measured-headphone catalogue are adapted from
+AETHER by GHOSTxASR and contributors, GPLv3, revision fd019594548e52be06f6339bb758ff5661f15f3d.
+The catalogue retains measurement-author attribution. See `licenses/AETHER-LICENSE.txt` and
+`docs/AETHER_EUTHOPIAR_INTEGRATION.md`. Desktop script transliteration uses Unicode ICU4J;
+Android uses its system ICU implementation.
+
 The Android TV and browser companion ports include code from the same GPLv3 upstream at
 https://github.com/kushagrasinghx/BitChord/tree/edc1e6f36febf71a118e649411d2fc21b70ead45.
 Original source hashes, file links and adaptations are recorded in `tv/UPSTREAM_IMPORT.json` and

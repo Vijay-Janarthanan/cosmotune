@@ -293,6 +293,7 @@ class FakeWatchRepository(
     override suspend fun addUserSource(spec: UserSourceSpec): AddSourceResult {
         wait()
         val (kind, badge) = when (spec) {
+            is UserSourceSpec.NuvioScript -> PluginKind.NUVIO_SCRIPT to "JS"
             is UserSourceSpec.StremioAddon -> PluginKind.STREMIO_ADDON to "ADD"
             is UserSourceSpec.Jellyfin -> PluginKind.JELLYFIN to "JF"
             is UserSourceSpec.Emby -> PluginKind.EMBY to "EMBY"

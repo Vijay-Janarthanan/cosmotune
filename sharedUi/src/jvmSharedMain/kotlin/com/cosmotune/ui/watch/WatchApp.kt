@@ -77,15 +77,19 @@ fun WatchApp(
     val fonts = orbitFonts()
     val look = orbitLook()
     val repository = watchRepository()
+    val preferences by repository.preferences.collectAsState()
+    val profileUnlocked by repository.profileUnlocked.collectAsState()
+    if (!profileUnlocked) { WatchProfileGate(repository, fonts, look); return }
     val scope = rememberCoroutineScope()
     val room = com.cosmotune.ui.room.LocalRoomLauncher.current
     val downloads = LocalWatchDownloads.current
     val actions = remember(repository, scope, room, downloads) { WatchActions(repository, scope, room, downloads) }
+    androidx.compose.runtime.CompositionLocalProvider(com.cosmotune.ui.orbit.LocalWatchCardScale provides preferences.density.scale) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val wide = wideLayout ?: (maxWidth >= 840.dp)
         val top = stack.lastOrNull()
         val header: (@Composable () -> Unit)? = when {
-            top != null -> ({ WatchBackHeader(if (top is WatchRoute.Page && top.summary.type == TitleType.SERIES) "Series" else "Film", fonts, look) })
+            top != null -> ({ WatchBackHeader(when { top is WatchRoute.Playlists -> "Watch playlists"; top is WatchRoute.Page && top.summary.type == TitleType.SERIES -> "Series"; else -> "Film" }, fonts, look) })
             showNavigation -> ({ WatchPhoneHeader(tab, fonts, look) })
             else -> null
         }
@@ -97,6 +101,7 @@ fun WatchApp(
             filterChips = filterChips,
         )
         when (top) {
+            is WatchRoute.Playlists -> WatchPlaylistsPage(top.id, actions, fonts, look, frame)
             is WatchRoute.Play -> WatchPlayerPage(top, actions, fonts, look, frame)
             is WatchRoute.Page -> WatchTitlePage(top.summary, actions, fonts, look, frame)
             null -> when (tab) {
@@ -108,6 +113,7 @@ fun WatchApp(
                 WatchTab.MY_LIST -> WatchMyListPage(actions, fonts, look, frame)
                 WatchTab.DOWNLOADS -> WatchDownloadsPage(actions, fonts, look, frame)
                 WatchTab.PLUGINS -> WatchPluginsPage(fonts, look, frame)
+                WatchTab.SETTINGS -> WatchSettingsPage(fonts, look, frame)
             }
         }
         // The phone's pages scroll under the status bar: its ground keeps the clock readable and the titles from running under it.
@@ -120,6 +126,8 @@ fun WatchApp(
             null -> Unit
         }
     }
+}
+
 }
 
 /** How a page is laid out: wide or stacked, the side gutter, the host's padding and the phone's header (null on the desktop). */
@@ -149,6 +157,16 @@ internal class WatchActions(
     val downloads: com.cosmotune.watch.WatchDownloads? = null,
 ) {
     fun open(summary: TitleSummary) = WatchNav.openTitle(summary)
+
+    fun playTrailer(summary: TitleSummary, trailer: com.cosmotune.watch.model.Trailer) {
+        if (!trailer.youTubeKey.matches(Regex("[A-Za-z0-9_-]{11}"))) return
+        val key = com.cosmotune.watch.model.WatchKey.item("trailer", trailer.youTubeKey)
+        val card = summary.copy(key = key, name = "${summary.name} · Trailer", badge = "TRAILER")
+        val target = PlayTarget.Item(key, "trailer", trailer.youTubeKey, card.name)
+        val stream = Stream(com.cosmotune.watch.model.StreamSource("trailer", "YouTube", "TRAILER"), trailer.name,
+            url = "https://www.youtube.com/watch?v=${trailer.youTubeKey}", protocol = com.cosmotune.watch.model.StreamProtocol.YOUTUBE)
+        WatchNav.open(WatchRoute.Play(target, card, stream))
+    }
 
     /** Play: a film at once (resumed), a series at its next episode. */
     fun play(summary: TitleSummary) {
@@ -226,7 +244,7 @@ private fun WatchPhoneHeader(tab: WatchTab, fonts: OrbitFonts, look: OrbitLook) 
         OrbitChipRow(16.dp, Modifier.padding(top = 12.dp)) {
             WatchTab.entries.forEach { t ->
                 OrbitSelectChip(t.label, t == tab, fonts, look, onClick = { WatchNav.go(t) }, haptic = false,
-                    icon = if (t == WatchTab.PLUGINS) CosmoIcons.Settings else null)
+                    icon = if (t == WatchTab.PLUGINS || t == WatchTab.SETTINGS) CosmoIcons.Settings else null)
             }
         }
     }

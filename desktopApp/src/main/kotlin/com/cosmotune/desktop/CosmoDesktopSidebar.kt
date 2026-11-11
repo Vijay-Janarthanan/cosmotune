@@ -283,6 +283,9 @@ private fun WatchSidebar() {
             OrbitNavRow(CosmoIcons.Settings, "Plugins", "${plugins.count { it.enabled }} on", lit == com.cosmotune.ui.watch.WatchTab.PLUGINS) {
                 com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.PLUGINS)
             }
+            OrbitNavRow(CosmoIcons.Settings, "Watch settings", null, lit == com.cosmotune.ui.watch.WatchTab.SETTINGS) {
+                com.cosmotune.ui.watch.WatchNav.go(com.cosmotune.ui.watch.WatchTab.SETTINGS)
+            }
             Spacer(Modifier.weight(1f))
             OrbitNavRoomCard(Modifier.padding(top = 8.dp))
         }

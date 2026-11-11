@@ -31,6 +31,7 @@ kotlin {
     }
     // OkHttp arrives through :shared's ktor-client-okhttp; NewPipe is compile-only there too (the apps ship it).
     jvmSharedMain.dependencies {
+        implementation(project(":providers"))
         compileOnly("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
     }
     sourceSets.jvmMain.dependencies {

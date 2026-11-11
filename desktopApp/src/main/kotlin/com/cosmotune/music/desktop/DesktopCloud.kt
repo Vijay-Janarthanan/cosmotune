@@ -127,6 +127,7 @@ internal object DesktopCloud {
                     SyncArtists.KIND -> artistSnapshot()
                     // Watch's add-ons: manifest URLs and switches only, never servers or sign-ins.
                     com.cosmotune.watch.SyncWatchPlugins.KIND -> com.cosmotune.watch.SyncWatchPlugins.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
+                    com.cosmotune.watch.SyncWatchLibrary.KIND -> com.cosmotune.watch.SyncWatchLibrary.snapshot(com.cosmotune.desktop.DesktopWatch.store.state.value)
                     else -> emptyMap()
                 }
             }
@@ -149,6 +150,8 @@ internal object DesktopCloud {
                         SyncArtists.KIND -> ListeningStore(desktopListeningFile()).update { SyncArtists.apply(it, upserts, deletes) }
                         com.cosmotune.watch.SyncWatchPlugins.KIND ->
                             com.cosmotune.desktop.DesktopWatch.store.update { com.cosmotune.watch.SyncWatchPlugins.apply(it, upserts, deletes) }
+                        com.cosmotune.watch.SyncWatchLibrary.KIND ->
+                            com.cosmotune.desktop.DesktopWatch.store.update { com.cosmotune.watch.SyncWatchLibrary.apply(it, upserts, deletes) }
                     }
                 }
             }
@@ -186,7 +189,7 @@ internal object DesktopCloud {
     private val account: CloudAccount by lazy {
         CloudAccount(
             CosmotuneFirebase.config, Http.client, sessionStore, source, marks,
-            listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND), scope,
+            listOf(SyncPlaylists.KIND, SyncLikes.KIND, SyncArtists.KIND, com.cosmotune.watch.SyncWatchPlugins.KIND, com.cosmotune.watch.SyncWatchLibrary.KIND), scope,
         )
     }
 
@@ -225,6 +228,16 @@ internal object DesktopCloud {
     fun start() {
         if (started) return
         started = true
+        scope.launch {
+            var previous: Map<String, JsonObject>? = null
+            com.cosmotune.desktop.DesktopWatch.store.state.collect { state ->
+                val current = com.cosmotune.watch.SyncWatchLibrary.changeSignal(state) +
+                    com.cosmotune.watch.SyncWatchPlugins.snapshot(state)
+                if (previous != null && previous != current) autoSync.changed()
+                previous = current
+            }
+        }
+        scope.launch { com.cosmotune.watch.WatchSyncSignals.changes.collect { autoSync.changed() } }
         scope.launch {
             enabledState.first { it }
             // A button's outcome ("Signed out...") gives way once a sync starts, so a later sync failure is not hidden behind it.

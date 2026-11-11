@@ -44,6 +44,7 @@ data class DlnaMedia(
     val album: String? = null,
     val artworkUrl: String? = null,
     val durationMs: Long = 0,
+    val video: Boolean = false,
 )
 
 /** A DLNA renderer driven with its own SOAP calls (AVTransport and RenderingControl), polled once a second. */
@@ -228,7 +229,7 @@ class DlnaRenderer(val device: DlnaDevice, private val pollMs: Long = 1_000) {
             append("<dc:creator>").append(escape(media.artist)).append("</dc:creator>")
             media.album?.let { append("<upnp:album>").append(escape(it)).append("</upnp:album>") }
             media.artworkUrl?.let { append("<upnp:albumArtURI>").append(escape(it)).append("</upnp:albumArtURI>") }
-            append("<upnp:class>object.item.audioItem.musicTrack</upnp:class>")
+            append("<upnp:class>").append(if (media.video || media.mimeType.startsWith("video/")) "object.item.videoItem.movie" else "object.item.audioItem.musicTrack").append("</upnp:class>")
             append("<res protocolInfo=\"http-get:*:").append(escape(media.mimeType)).append(":*\"")
             if (media.durationMs > 0) append(" duration=\"").append(clock(media.durationMs)).append(".000\"")
             append('>').append(escape(media.url)).append("</res>")

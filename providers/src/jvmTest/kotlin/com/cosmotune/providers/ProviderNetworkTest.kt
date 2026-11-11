@@ -12,6 +12,15 @@ import org.junit.Test
 import kotlin.test.*
 
 class ProviderNetworkTest {
+    @Test fun watchPublicHttpsGrantStillBlocksPlaintextAndPrivateAddresses() {
+        val network = ProviderNetwork(ProviderPermissions(), publicInternet = true)
+        assertEquals("example.com", network.address("https://example.com/video").host)
+        assertFailsWith<IllegalArgumentException> { network.address("http://example.com/video") }
+        assertFails { network.address("https://127.0.0.1/private") }
+        assertFails { network.address("https://192.168.1.2/private") }
+        network.cancel()
+        assertFailsWith<IllegalArgumentException> { ProviderManifest("test", "1.0.0", type = listOf("metadata_provider"), permissions = ProviderPermissions(network = listOf("*"))).validate() }
+    }
     private val permissions = ProviderPermissions(network = listOf("localhost", "example.com", "*.example.org", "127.0.0.1"))
     private fun tls(): Pair<HandshakeCertificates, OkHttpClient> {
         val certificate = HeldCertificate.Builder().addSubjectAlternativeName("localhost").build()

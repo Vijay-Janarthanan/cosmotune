@@ -237,7 +237,7 @@ object LyricsTranslation {
         // is still sent as `tl` because the web endpoint requires it, but it is
         // deliberately excluded from this cache key: changing "translate to"
         // cannot change how the source language is pronounced.
-        val cacheKey = cacheKey(trackId, "romanize", slots)
+        val cacheKey = cacheKey(trackId, "romanize-offline-v1", slots)
         val cached = memory.get(cacheKey) ?: readCache(cacheKey)?.also {
             memory.put(cacheKey, it)
         }
@@ -247,6 +247,14 @@ object LyricsTranslation {
                 sourceLanguage = cached.sourceLanguage,
                 fromCache = true,
             )
+        }
+
+        val local = withContext(Dispatchers.Default) { OfflineRomanization.romanize(slots.map { it.text }) }
+        if (local != null) {
+            val entry = CachedTranslation(sourceLanguage = local.language, targetLanguage = "Latn", texts = local.texts)
+            memory.put(cacheKey, entry)
+            writeCache(cacheKey, entry)
+            return RomanizationResult.Romanized(rebuild(lines, slots, local.texts), local.language, false)
         }
 
         val target = targetLanguageTag.trim().ifBlank { "en" }

@@ -171,9 +171,31 @@ data class DirectoryLink(val title: String, val description: String, val url: St
  * inside). Plugins that are off are never asked. A plugin that fails is left out of the answer, never fails the call.
  * See WATCH_INTERFACES.md at the module root.
  */
-class WatchPlaybackLease(val url: String, val close: () -> Unit)
+class WatchPlaybackLease(val url: String, val close: () -> Unit) {
+    var resolvedBy: String? = null
+}
 
 interface WatchRepository {
+    suspend fun scriptRepository(url: String): List<WatchScriptEntry> = emptyList()
+    val playlists: StateFlow<List<com.cosmotune.watch.model.WatchPlaylist>> get() = DEFAULT_WATCH_PLAYLISTS
+    suspend fun createPlaylist(name: String): String? = null
+    suspend fun renamePlaylist(id: String, name: String) {}
+    suspend fun deletePlaylist(id: String) {}
+    suspend fun setPlaylistItem(id: String, title: TitleSummary, included: Boolean) {}
+    suspend fun setAnimeMapping(series: WatchKey, season: Int, malId: Int?) {}
+    suspend fun skipIntervals(target: PlayTarget, durationMs: Long): List<com.cosmotune.watch.model.WatchSkip> = emptyList()
+    val configuredServices: StateFlow<Set<String>> get() = DEFAULT_WATCH_SERVICES
+    suspend fun setServiceKey(service: String, key: String) {}
+    val tracking: WatchTracking? get() = null
+    val profiles: StateFlow<List<com.cosmotune.watch.model.WatchProfile>> get() = DEFAULT_WATCH_PROFILES
+    val activeProfile: StateFlow<String> get() = DEFAULT_WATCH_PROFILE
+    val profileUnlocked: StateFlow<Boolean> get() = DEFAULT_WATCH_UNLOCKED
+    suspend fun addProfile(name: String): String? = null
+    suspend fun selectProfile(id: String, pin: String? = null): Boolean = false
+    suspend fun setProfilePin(pin: String?) {}
+    suspend fun removeProfile(id: String) {}
+    val preferences: StateFlow<WatchPreferences> get() = DEFAULT_WATCH_PREFERENCES
+    suspend fun setPreferences(preferences: WatchPreferences) {}
     /** Opens a playback-only address and owns any resources it needs until the player closes it. */
     suspend fun openPlayback(stream: Stream): WatchPlaybackLease = WatchPlaybackLease(stream.url) {}
 
@@ -271,3 +293,12 @@ interface WatchRepository {
     /** The next episode after [episode], across seasons; null at the end of the series. */
     suspend fun nextEpisode(episode: WatchKey): Episode?
 }
+
+private val DEFAULT_WATCH_PREFERENCES: StateFlow<WatchPreferences> = kotlinx.coroutines.flow.MutableStateFlow(WatchPreferences())
+private val DEFAULT_WATCH_PROFILES: StateFlow<List<com.cosmotune.watch.model.WatchProfile>> = kotlinx.coroutines.flow.MutableStateFlow(listOf(com.cosmotune.watch.model.WatchProfile("default", "Everyone")))
+private val DEFAULT_WATCH_PROFILE: StateFlow<String> = kotlinx.coroutines.flow.MutableStateFlow("default")
+private val DEFAULT_WATCH_SERVICES: StateFlow<Set<String>> = kotlinx.coroutines.flow.MutableStateFlow(emptySet())
+private val DEFAULT_WATCH_UNLOCKED: StateFlow<Boolean> = kotlinx.coroutines.flow.MutableStateFlow(true)
+private val DEFAULT_WATCH_PLAYLISTS: StateFlow<List<com.cosmotune.watch.model.WatchPlaylist>> = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+
+data class WatchScriptEntry(val id: String, val name: String, val url: String, val description: String = "")

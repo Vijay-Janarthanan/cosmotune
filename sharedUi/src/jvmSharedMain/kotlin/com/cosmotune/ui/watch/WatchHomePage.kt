@@ -92,8 +92,9 @@ internal fun WatchHomePage(fixed: HomeFilter?, actions: WatchActions, fonts: Orb
     val repository = actions.repository
     var chosen by rememberSaveable { mutableStateOf(HomeFilter.ALL) }
     val filter = fixed ?: chosen
+    val viewer by repository.activeProfile.collectAsState()
     // The rows of each tab stay for the process (and on the disk): coming back shows them at once while they refresh.
-    val entry = remember(repository, filter) { watchHomeEntry(repository, filter) }
+    val entry = remember(repository, filter, viewer) { watchHomeEntry(repository, filter, viewer) }
     val cached by entry.collectOnPage()
     val live by repository.continueWatching.collectAsState()
     val myList by repository.myList.collectAsState()
@@ -197,7 +198,9 @@ internal fun summaryLine(summary: TitleSummary, lead: String? = null): String = 
 
 /** The line under a poster: the year and the badge (or the first genre). */
 internal fun posterLine(summary: TitleSummary): String =
-    listOfNotNull(summary.year?.toString(), summary.badge ?: summary.genres.firstOrNull()).joinToString(" · ")
+    listOfNotNull(summary.year?.toString(), summary.rating?.takeIf { it.isFinite() && it in 0.0..10.0 }?.let {
+        when (summary.origin) { "cinemeta" -> "IMDb %.1f".format(it); "tmdb" -> "TMDB %.1f".format(it); else -> null }
+    }, summary.badge ?: summary.genres.firstOrNull()).joinToString(" · ")
 
 /**
  * The featured card (board section 1): the colour of its picture, the wide picture inside it at the end (above the text on the
@@ -299,7 +302,7 @@ internal fun LiveRow(item: LiveNowItem, fonts: OrbitFonts, look: OrbitLook, cloc
 @Composable
 private fun HomeRowShelf(row: HomeRow, fonts: OrbitFonts, look: OrbitLook, side: Dp, actions: WatchActions) {
     val more = remember(row.id) { mutableStateMapOf<Int, List<TitleSummary>>() }
-    val items = row.items + more.values.flatten()
+    val items = (row.items + more.values.flatten()).distinctBy { it.key }
     val state = rememberLazyListState()
     if (row.pageable) LaunchedEffect(state, row.id) {
         var asked = -1
@@ -314,9 +317,9 @@ private fun HomeRowShelf(row: HomeRow, fonts: OrbitFonts, look: OrbitLook, side:
     Column {
         Section(row.title, row.subtitle, fonts, look, side)
         LazyRow(state = state, contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            itemsIndexed(items, key = { i, it -> it.key.value + "#" + i }) { _, s ->
+            itemsIndexed(items, key = { i, it -> it.key.value + "#" + i }) { index, s ->
                 WatchCard(
-                    s.name, posterLine(s), if (row.wide) s.backdropUrl ?: s.posterUrl else s.posterUrl ?: s.backdropUrl, s.key.value, fonts, look,
+                    s.name, (if (row.id.contains(":regional10:") || row.id.contains(":today:")) "${index + 1} · " else "") + posterLine(s), if (row.wide) s.backdropUrl ?: s.posterUrl else s.posterUrl ?: s.backdropUrl, s.key.value, fonts, look,
                     onClick = { actions.open(s) }, width = if (row.wide) 250.dp else 142.dp, wide = row.wide, onPlay = { actions.play(s) },
                 )
             }
@@ -340,9 +343,9 @@ private fun HomeSkeleton(look: OrbitLook, frame: WatchFrame) {
  * Watch home's rows for [filter] (Home, Films, Series, Live TV), kept for the process and refreshed after [FEED_FRESH_MS]. An
  * answer with nothing in it (every plugin offline) does not replace rows that were shown: it is a failed refresh.
  */
-internal fun watchHomeEntry(repository: com.cosmotune.watch.WatchRepository, filter: HomeFilter): com.cosmotune.cache.CachedLoad<WatchHome> {
+internal fun watchHomeEntry(repository: com.cosmotune.watch.WatchRepository, filter: HomeFilter, viewer: String = "default"): com.cosmotune.cache.CachedLoad<WatchHome> {
     val pages = watchPages(repository)
-    val key = "watch:home:" + filter.name.lowercase()
+    val key = "watch:home:" + filter.name.lowercase() + ":" + viewer
     return pages.entry(key, com.cosmotune.cache.FEED_FRESH_MS, com.cosmotune.cache.CacheCodec.json(WatchHome.serializer())) {
         repository.home(filter).also { answer ->
             val shown = pages.peek<WatchHome>(key)?.state?.value?.data

@@ -72,9 +72,9 @@
       has: key => call('credentials.get',[String(key)]).found,
     };
   }
-  function request(url,method,body,headers,asFetch) {
+  function request(url,method,body,headers,asFetch,redirect) {
     body = body == null ? '' : typeof body === 'object' ? goJSON(body) : String(body);
-    const r = call('http.request',[String(url),{method,body,headers:headers || {},asFetch:!!asFetch}]);
+    const r = call('http.request',[String(url),{method,body,headers:headers || {},asFetch:!!asFetch,redirect:redirect || 'follow'}]);
     if (!asFetch) return r;
     r.text = () => r.body || '';
     r.json = () => { try { return parse(r.body); } catch {} };
@@ -89,7 +89,7 @@
       request:(url,opts={})=>request(url,opts.method || 'GET',opts.body,opts.headers),
       clearCookies:()=>call('http.clearCookies'),
     };
-    globalThis.fetch = (url,opts={})=>request(url,opts.method || 'GET',opts.body,opts.headers,true);
+    globalThis.fetch = (url,opts={})=>request(url,opts.method || 'GET',opts.body,opts.headers,true,opts.redirect);
     globalThis.auth = {};
     for (const name of ['openAuthUrl','getAuthCode','setAuthCode','getTokens','isAuthenticated','clearAuth','getPKCE','startOAuthWithPKCE','exchangeCodeWithPKCE']) auth[name]=(...args)=>call('auth.'+name,args);
     auth.generatePKCE = length => call('auth.generatePKCE',[Number.isFinite(Number(length)) ? Math.max(43,Math.min(128,Math.trunc(Number(length)))) : 64]);

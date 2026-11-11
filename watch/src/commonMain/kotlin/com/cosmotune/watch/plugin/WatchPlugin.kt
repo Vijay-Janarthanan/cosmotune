@@ -19,7 +19,7 @@ enum class Capability { CATALOG, SEARCH, META, STREAMS, SUBTITLES, LIVE, EPG, WH
 /** The protocol a plugin speaks; built-in plugins have their own kind, user sources the protocol's. */
 enum class PluginKind {
     IPTV_ORG, PLUTO_TV, SAMSUNG_TV_PLUS, PRASAR_BHARATI, YOUTUBE_LIVE, PLEX_FREE, INTERNET_ARCHIVE, YOUTUBE_FREE,
-    STREMIO_ADDON, JELLYFIN, EMBY, PLEX_SERVER, M3U, XTREAM, LOCAL_FOLDER, TMDB, CINEMETA,
+    STREMIO_ADDON, NUVIO_SCRIPT, JELLYFIN, EMBY, PLEX_SERVER, M3U, XTREAM, LOCAL_FOLDER, TMDB, CINEMETA,
 }
 
 /** A row the plugin offers for Home or the Films/Series/Live pages. [type] null means mixed. */
@@ -88,6 +88,7 @@ sealed interface UserSourceSpec {
 
     /** Any Stremio- or Nuvio-protocol add-on by its manifest URL (`https://.../manifest.json` or `stremio://...`). */
     @Serializable data class StremioAddon(val manifestUrl: String, override val label: String = "") : UserSourceSpec
+    @Serializable data class NuvioScript(val scriptUrl: String, val domains: List<String>, override val label: String = "", val sha256: String = "", val settings: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())) : UserSourceSpec
     @Serializable data class Jellyfin(val server: String, val user: String, val password: String, override val label: String = "") : UserSourceSpec
     @Serializable data class Emby(val server: String, val user: String, val password: String, override val label: String = "") : UserSourceSpec
     /** A Plex Media Server; [token] from plex.tv sign-in (PIN link) or pasted. */

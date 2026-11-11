@@ -71,7 +71,7 @@ internal data class DesktopPcmFormat(
 }
 
 /** Audio decoding, by way of FFmpeg. */
-internal class DesktopAudioDecoder : DesktopSampleSource {
+internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double, Int, Int) -> Unit)? = null) : DesktopSampleSource {
 
     private var format: AVFormatContext? = null
     private var codec: AVCodecContext? = null
@@ -350,6 +350,7 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
             )
         }
         sampleCount = count
+        onPcm?.invoke(samples, count, positionUs / 1000.0, outputFormat.sampleRate, outputFormat.channels)
         return samples
     }
 

@@ -92,7 +92,10 @@ class ProviderMetadataHost(private val install: ProviderInstall, private val sto
         return when (group) {
             "http" -> when (action) {
                 "clearCookies" -> { network.clearCookies(); JsonPrimitive(true) }
-                "request" -> try { network.request(text(0), args.getOrNull(1) as? JsonObject ?: JsonObject(emptyMap())) }
+                "request" -> try {
+                    val options = args.getOrNull(1) as? JsonObject ?: JsonObject(emptyMap())
+                    network.request(text(0), options, followRedirects = options["redirect"]?.jsonPrimitive?.contentOrNull !in setOf("manual", "error"))
+                }
                     catch (error: Exception) { buildJsonObject { put("ok", false); put("status", 0); put("statusCode", 0); put("error", safeError(error)) } }
                 else -> error("Unsupported provider HTTP API")
             }

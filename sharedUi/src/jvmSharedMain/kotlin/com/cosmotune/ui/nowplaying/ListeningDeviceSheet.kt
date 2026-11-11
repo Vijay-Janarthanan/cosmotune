@@ -42,9 +42,11 @@ fun ListeningDeviceSheet(facts: ListeningDeviceFacts, store: ListeningDeviceProf
     var modelsOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var importOpen by remember { mutableStateOf(false) }
-    var source by remember { mutableStateOf("") }
-    var measurement by remember { mutableStateOf("") }
-    var graphic by remember { mutableStateOf("") }
+    var catalogueOpen by remember { mutableStateOf(false) }
+    var headphone by remember(facts.routeKey) { mutableStateOf("") }
+    var source by remember(facts.routeKey) { mutableStateOf("") }
+    var measurement by remember(facts.routeKey) { mutableStateOf("") }
+    var graphic by remember(facts.routeKey) { mutableStateOf("") }
     var preview by remember(facts.routeKey, model) { mutableStateOf<Pair<ListeningEq, DeviceEqMeasurement>?>(null) }
     fun persist(value: ListeningDeviceProfile, apply: Boolean = false) {
         try { store.save(value); if (apply && facts.tuningAvailable) applyEq(value.appliedEq()); error = null }
@@ -121,15 +123,25 @@ fun ListeningDeviceSheet(facts: ListeningDeviceFacts, store: ListeningDeviceProf
                         OrbitSheetButton("View recorded measurement source", { onOpenGuide(provenance.sourceUrl) }) }
                     OrbitSheetButton("Forget this device profile", { try { store.remove(profile.routeKey); error = null } catch (_: Exception) { error = "The profile could not be removed." } })
                 }
-                if (model in setOf(ListeningDeviceModel.SONY_WH1000XM5, ListeningDeviceModel.SAMSUNG_BUDS4_PRO)) {
-                    OrbitSheetButton("Import a matching AutoEq GraphicEQ", { importOpen = !importOpen }, enabled = facts.routeKey != null)
+                if (facts.routeKey != null) {
+                    Box {
+                        OrbitSheetButton("Measured headphone catalogue · 39 models", { catalogueOpen = true })
+                        OrbitMenu(catalogueOpen, { catalogueOpen = false }, fonts = fonts, look = look,
+                            items = HeadphoneEq.presets.map { preset -> OrbitMenuItem(preset.label, preset.author) {
+                                model = ListeningDeviceModel.entries.firstOrNull { it.label.equals(preset.label, true) } ?: ListeningDeviceModel.CUSTOM
+                                headphone = preset.label; graphic = preset.text; measurement = preset.author
+                                source = HeadphoneEq.CATALOGUE_SOURCE; importOpen = true; preview = null
+                            } })
+                    }
+                    OrbitSheetButton("Import Wavelet / AutoEq / Equalizer APO", { importOpen = !importOpen }, enabled = facts.routeKey != null)
                     if (importOpen) {
-                        Text("Provide the exact model's measurement and source yourself. Imported points are approximated at this app's seven fixed bands and Q; narrow filters cannot be reproduced exactly. Compare at a comfortable volume. A source URL records provenance but does not verify that pasted values came from it.", style = small, color = look.dim)
-                        OrbitTextField(source, { source = it.take(1024); preview = null }, "AutoEq GraphicEQ.txt source URL", fonts, look, wide)
+                        Text("Paste a Wavelet GraphicEQ or Equalizer APO curve for the exact headphone model. Preview uses seven fixed bands; narrow parametric filters will differ. Nothing changes until you apply it.", style = small, color = look.dim)
+                        OrbitTextField(source, { source = it.take(1024); preview = null }, "Measurement source URL", fonts, look, wide)
                         OrbitTextField(measurement, { measurement = it.take(160); preview = null }, "Measurement source / rig / conditions", fonts, look, wide)
+                        OrbitTextField(headphone, { headphone = it.take(160); preview = null }, "Exact headphone model for this curve", fonts, look, wide)
                         OrbitTextField(graphic, { graphic = it.take(16_384); preview = null }, "GraphicEQ: frequency gain; …", fonts, look, wide, singleLine = false, minLines = 3, maxLines = 5)
                         OrbitSheetButton("Validate and preview approximation", {
-                            try { preview = importAutoEqGraphic(model, source, measurement, graphic, captureEq()); error = null }
+                            try { preview = HeadphoneEq.importCurve(graphic, headphone.ifBlank { model.label }, source, measurement, captureEq()); error = null }
                             catch (failure: Exception) { preview = null; error = failure.message ?: "The curve could not be validated." }
                         })
                         preview?.let { (eq, provenance) ->

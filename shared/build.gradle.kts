@@ -49,6 +49,10 @@ kotlin {
         }
         androidMain.get().dependsOn(jvmSharedMain)
         jvmMain.get().dependsOn(jvmSharedMain)
+        jvmMain.dependencies {
+            // Android supplies ICU in the OS. Only desktop needs the Java implementation.
+            implementation("com.ibm.icu:icu4j:76.1")
+        }
 
         commonMain.dependencies {
             // The Video contracts (com.cosmotune.video) expose Flow and StateFlow in common code; jvmSharedMain declares the same version.

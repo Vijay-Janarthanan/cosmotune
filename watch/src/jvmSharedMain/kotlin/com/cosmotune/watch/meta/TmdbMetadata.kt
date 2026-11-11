@@ -137,22 +137,31 @@ class TmdbMetadata(
     override suspend fun rows(type: TitleType?): List<HomeRow> = coroutineScope {
         val defs = buildList {
             if (type != TitleType.SERIES) {
+                add(RowDef("tmdb:today:film", "Top 10 · trending today", topTen = true))
                 add(RowDef("tmdb:trending:film", "Trending films"))
                 add(RowDef("tmdb:popular:film", "Popular films"))
-                regionalLanguages.forEach { add(RowDef("tmdb:lang:film:$it", "${LANGUAGES[it] ?: it} films")) }
+                regionalLanguages.forEach {
+                    add(RowDef("tmdb:regional10:film:$it", "Top 10 · ${LANGUAGES[it] ?: it}", topTen = true))
+                    add(RowDef("tmdb:lang:film:$it", "${LANGUAGES[it] ?: it} films"))
+                }
                 add(RowDef("tmdb:top:film", "Top rated films"))
                 listOf(18 to "Drama", 35 to "Comedy", 28 to "Action", 53 to "Thriller").forEach { (g, n) -> add(RowDef("tmdb:genre:film:$g", n)) }
             }
             if (type != TitleType.FILM) {
+                add(RowDef("tmdb:today:series", "Top 10 series · today", topTen = true))
                 add(RowDef("tmdb:trending:series", "Trending series"))
                 add(RowDef("tmdb:popular:series", "Popular series"))
                 add(RowDef("tmdb:top:series", "Top rated series"))
+                add(RowDef("tmdb:anime:series", "Anime"))
+                add(RowDef("tmdb:soap:series", "Daily soaps"))
+                add(RowDef("tmdb:scripted:series", "Scripted series"))
             }
         }
-        defs.map { d -> async { runCatching { HomeRow(d.id, d.title, rowPage(d.id, 0)) }.getOrNull() } }.awaitAll().filterNotNull().filter { it.items.isNotEmpty() }
+        defs.map { d -> async { runCatching { HomeRow(d.id, d.title, rowPage(d.id, 0).let { if (d.topTen) it.take(10) else it },
+            subtitle = if (d.id.contains(":regional10:")) "TMDB popularity · original language" else if (d.topTen) "TMDB daily trending" else null, pageable = !d.topTen) }.getOrNull() } }.awaitAll().filterNotNull().filter { it.items.isNotEmpty() }
     }
 
-    private data class RowDef(val id: String, val title: String)
+    private data class RowDef(val id: String, val title: String, val topTen: Boolean = false)
 
     override suspend fun rowPage(rowId: String, skip: Int): List<TitleSummary> {
         val parts = rowId.split(':')
@@ -161,11 +170,15 @@ class TmdbMetadata(
         val t = if (type == TitleType.FILM) "movie" else "tv"
         val page = (skip / 20 + 1).toString()
         val e = when (parts[1]) {
+            "today" -> get("/trending/$t/day", mapOf("page" to page), 3 * WatchHttp.HOUR)
             "trending" -> get("/trending/$t/week", mapOf("page" to page), 3 * WatchHttp.HOUR)
             "popular" -> get("/$t/popular", mapOf("page" to page, "region" to region), 6 * WatchHttp.HOUR)
             "top" -> get("/$t/top_rated", mapOf("page" to page), WatchHttp.DAY)
             "genre" -> get("/discover/$t", mapOf("page" to page, "with_genres" to parts.getOrElse(3) { "18" }, "sort_by" to "popularity.desc"), 6 * WatchHttp.HOUR)
-            "lang" -> get("/discover/$t", mapOf("page" to page, "with_original_language" to parts.getOrElse(3) { "ta" }, "sort_by" to "popularity.desc", "vote_count.gte" to "20"), 6 * WatchHttp.HOUR)
+            "lang", "regional10" -> get("/discover/$t", mapOf("page" to page, "with_original_language" to parts.getOrElse(3) { "ta" }, "sort_by" to "popularity.desc", "vote_count.gte" to "20"), 6 * WatchHttp.HOUR)
+            "anime" -> get("/discover/tv", mapOf("page" to page, "with_genres" to "16", "with_original_language" to "ja", "sort_by" to "popularity.desc"), 6 * WatchHttp.HOUR)
+            "soap" -> get("/discover/tv", mapOf("page" to page, "with_genres" to "10766", "sort_by" to "popularity.desc"), 6 * WatchHttp.HOUR)
+            "scripted" -> get("/discover/tv", mapOf("page" to page, "with_type" to "0", "without_genres" to "10766", "sort_by" to "popularity.desc"), 6 * WatchHttp.HOUR)
             else -> return emptyList()
         }
         return e.list("results").mapNotNull { summaryOf(it, type) }

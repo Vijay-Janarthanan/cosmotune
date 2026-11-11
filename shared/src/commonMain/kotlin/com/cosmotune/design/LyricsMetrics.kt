@@ -12,6 +12,9 @@ import kotlin.math.roundToInt
  * layer from its start edge, so the list never lays out again when the song moves from one line to the next.
  */
 object LyricsMetrics {
+    /** Reserve the largest line size once, including wrapped Indic text; singing must not move neighbouring rows. */
+    fun layoutHeightPx(naturalPx: Int, maximumScale: Float): Int =
+        kotlin.math.ceil(naturalPx.coerceAtLeast(0) * maximumScale.coerceAtLeast(1f).toDouble()).toInt()
     /** The gap between two lines (`.lyr2 { gap: 14px }`). */
     const val LINE_GAP_DP = 14f
 

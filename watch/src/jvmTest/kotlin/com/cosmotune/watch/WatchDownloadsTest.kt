@@ -11,6 +11,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -22,8 +23,41 @@ import okhttp3.mockwebserver.MockResponse
 import okio.Buffer
 
 class WatchDownloadsTest {
+    @Test fun insufficientSpaceFailsBeforeAnyMediaRequestAndCanRetry() = runBlocking {
+        val dir = Files.createTempDirectory("watch-space").toFile()
+        try {
+            val downloads = WatchDownloads(dir, OkHttpClient(), freeBytes = { 4L * 1024 * 1024 })
+            val stream = Stream(source, "1080p", url = "https://example.invalid/film.mp4", protocol = StreamProtocol.PROGRESSIVE, sizeBytes = 100_000_000)
+            val start = assertNotNull(downloads.start(film, null, stream))
+            val failed = withTimeout(5_000) { downloads.items.first { list -> list.any { it.id == start.id && it.status == WatchDownload.Status.FAILED } } }.first()
+            assertTrue(failed.error.orEmpty().contains("free space"))
+            assertEquals(0, failed.bytes)
+            assertFalse(downloads.fileOf(failed).exists())
+        } finally { dir.deleteRecursively() }
+    }
     private val source = StreamSource("ia", "Internet Archive", "IA")
     private val film = PlayTarget.Film(WatchKey.tmdbFilm(7), ExternalIds(tmdb = 7), "Night of the Living Dead", 1968)
+
+    @Test fun changingDestinationKeepsOldFilesAndPersistsTheApprovedFolder() = runBlocking {
+        val root = Files.createTempDirectory("watch-folders").toFile()
+        try {
+            TestServer().use { server ->
+                server.on("/film.mp4") { MockResponse().setBody("a fixture video") }
+                val original = root.resolve("original"); val other = root.resolve("other")
+                val downloads = WatchDownloads(original, OkHttpClient(), destinationOptions = listOf(other))
+                val stream = Stream(source, "720p", url = server.url("/film.mp4"), protocol = StreamProtocol.PROGRESSIVE)
+                val start = assertNotNull(downloads.start(film, null, stream))
+                val done = withTimeout(10_000) { downloads.items.first { it.any { item -> item.id == start.id && item.status == WatchDownload.Status.DONE } } }.first()
+                downloads.selectDestination(other)
+                assertEquals(original.canonicalFile, downloads.fileOf(done).parentFile)
+                val restored = WatchDownloads(original, OkHttpClient())
+                assertEquals(other.canonicalFile, restored.destination.value)
+                assertTrue(restored.fileOf(done).isFile)
+                assertFailsWith<IllegalArgumentException> { restored.fileOf(done.copy(fileName = "../private.txt")) }
+                assertFailsWith<IllegalArgumentException> { restored.selectDestination(root.resolve("unapproved")) }
+            }
+        } finally { root.deleteRecursively() }
+    }
 
     @Test fun onlyDirectFilesAreOffered() {
         val dir = Files.createTempDirectory("watch-dl").toFile()

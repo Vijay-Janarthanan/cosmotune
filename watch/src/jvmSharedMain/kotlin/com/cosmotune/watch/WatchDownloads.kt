@@ -48,6 +48,8 @@ data class WatchDownload(
     val status: Status = Status.DOWNLOADING,
     val error: String? = null,
     val addedAtMs: Long = 0,
+    /** Approved device-local destination. Null keeps downloads made before folder selection. */
+    val directoryPath: String? = null,
 ) {
     enum class Status { DOWNLOADING, DONE, FAILED }
 
@@ -67,6 +69,9 @@ class WatchDownloads(
     client: OkHttpClient,
     private val now: () -> Long = System::currentTimeMillis,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val freeBytes: (File) -> Long = { it.usableSpace },
+    destinationOptions: List<File> = emptyList(),
+    private val chooseFolder: (suspend () -> File?)? = null,
 ) {
     private val downloader = RangeDownloader(client)
     private val index = File(directory, "downloads.json")
@@ -74,12 +79,50 @@ class WatchDownloads(
     private val serializer = ListSerializer(WatchDownload.serializer())
     private val jobs = HashMap<String, Job>()
     private val streams = HashMap<String, Stream>()
+    @Serializable private data class Folders(val selected: String, val approved: Set<String>)
+    private val foldersFile = File(directory, "destinations.json")
+    private val initialFolders = runCatching {
+        json.decodeFromString(Folders.serializer(), foldersFile.readText().also { require(it.length < 64_000) })
+    }.getOrNull()
+    private val approved = (initialFolders?.approved.orEmpty() + directory.canonicalPath + destinationOptions.map { it.canonicalPath }).toMutableSet()
+    private val destinationState = MutableStateFlow(File(initialFolders?.selected?.takeIf { it in approved } ?: directory.canonicalPath))
+    val destination: StateFlow<File> = destinationState.asStateFlow()
+    val destinations: List<File> get() = synchronized(this) { approved.map(::File).sortedBy { it.path } }
+    val canChooseFolder: Boolean get() = chooseFolder != null
     private val state = MutableStateFlow(load())
 
     /** Newest first. */
     val items: StateFlow<List<WatchDownload>> = state.asStateFlow()
 
-    fun fileOf(d: WatchDownload): File = File(directory, d.fileName)
+    fun fileOf(d: WatchDownload): File {
+        require(safeFileName(d.fileName)) { "Invalid download filename." }
+        val root = d.directoryPath ?: directory.canonicalPath
+        require(synchronized(this) { root in approved }) { "Download folder is not approved on this device." }
+        return File(root, d.fileName)
+    }
+
+    /** Selection affects future downloads; existing files keep their original destination. */
+    @Synchronized fun selectDestination(folder: File) {
+        val path = folder.canonicalPath
+        require(path in approved) { "Choose a folder with the system picker first." }
+        check(folder.isDirectory || folder.mkdirs()) { "The download folder is unavailable." }
+        check(folder.canWrite()) { "The download folder is not writable." }
+        saveFolders(path)
+        destinationState.value = File(path)
+    }
+
+    suspend fun browseDestination() {
+        val folder = chooseFolder?.invoke() ?: return
+        synchronized(this) { approved += folder.canonicalPath }
+        selectDestination(folder)
+    }
+
+    private fun saveFolders(path: String) {
+        directory.mkdirs()
+        val tmp = File(directory, "destinations.json.tmp")
+        tmp.writeText(json.encodeToString(Folders.serializer(), Folders(path, approved.toSet())))
+        Files.move(tmp.toPath(), foldersFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
 
     /** Whether [stream] is a direct file that can be kept. */
     fun canDownload(stream: Stream): Boolean = whyNot(stream) == null
@@ -128,6 +171,7 @@ class WatchDownloads(
             film = target as? PlayTarget.Film, episode = target as? PlayTarget.EpisodeOf, item = target as? PlayTarget.Item,
             fileName = fileNameOf(title, target, id, container), container = container, totalBytes = stream.sizeBytes?.takeIf { it > 0 },
             durationMs = stream.durationMs, addedAtMs = now(),
+            directoryPath = destinationState.value.canonicalPath,
         )
         state.update { listOf(d) + it }
         save()
@@ -171,11 +215,14 @@ class WatchDownloads(
                 val part = partOf(start)
                 var last = 0L
                 try {
-                    directory.mkdirs()
+                    val folder = part.parentFile
+                    check(folder.isDirectory || folder.mkdirs()) { "The download folder is unavailable. Choose a writable folder and retry." }
+                    ensureSpace(folder, start.totalBytes, part.length())
                     val length = downloader.download(stream.url, stream.headers, part, start.totalBytes) { written, total ->
                         val t = now()
                         if (t - last >= 500) {
                             last = t
+                            ensureSpace(folder, total ?: start.totalBytes, written)
                             state.update { list -> list.map { if (it.id == id) it.copy(bytes = written, totalBytes = total ?: it.totalBytes) else it } }
                         }
                     }
@@ -188,6 +235,14 @@ class WatchDownloads(
                     synchronized(jobs) { if (jobs[id] === coroutineContext[Job]) jobs.remove(id) }
                 }
             }
+        }
+    }
+
+    private fun ensureSpace(folder: File, total: Long?, written: Long) {
+        val available = freeBytes(folder)
+        val remaining = total?.let { (it - written).coerceAtLeast(0) } ?: 0L
+        if (available < 50L * 1024 * 1024 || remaining > (available - 50L * 1024 * 1024).coerceAtLeast(0)) {
+            throw java.io.IOException("Not enough free space in the download folder. Free some storage and retry; the partial download is kept.")
         }
     }
 
@@ -220,11 +275,12 @@ class WatchDownloads(
         state.update(::replace)
     }
 
-    private fun partOf(d: WatchDownload) = File(directory, d.fileName + ".part")
+    private fun partOf(d: WatchDownload) = fileOf(d).let { File(it.parentFile, it.name + ".part") }
 
     private fun load(): List<WatchDownload> = runCatching {
         if (!index.isFile) return@runCatching emptyList()
-        json.decodeFromString(serializer, index.readText()).map {
+        json.decodeFromString(serializer, index.readText().also { require(it.length < 8 * 1024 * 1024) })
+            .filter { safeFileName(it.fileName) && (it.directoryPath == null || it.directoryPath in approved) }.map {
             if (it.status == WatchDownload.Status.DOWNLOADING) it.copy(status = WatchDownload.Status.FAILED, error = "Stopped when Cosmotune closed.") else it
         }
     }.getOrDefault(emptyList())
@@ -243,6 +299,7 @@ class WatchDownloads(
         }.isSuccess
 
     companion object {
+        private fun safeFileName(name: String) = name.isNotBlank() && name != "." && name != ".." && name.none { it == '/' || it == '\\' || it == ':' || it.code < 32 }
         /** The container of a direct file, from the plugin's guess or the address; null for anything that is not MP4, MKV or WebM. */
         fun containerOf(stream: Stream): Container? {
             val c = stream.container.takeIf { it != Container.UNKNOWN } ?: run {

@@ -1828,6 +1828,11 @@ fun SettingsScreen(
                 )
             }
             val sourceCodeTitle = SettingsText.SOURCE_CODE.text()
+            row("Last crash note", "diagnostics", "crash", "export", summary = "View, copy or delete the last local crash note") {
+                var open by remember { mutableStateOf(false) }
+                SettingsRow(icon = Icons.Rounded.Info, title = "Last crash note", subtitle = "View, copy or delete the local diagnostic note", onClick = { open = true })
+                if (open) com.cosmotune.ui.settings.CrashNoteDialog { open = false }
+            }
             row(sourceCodeTitle, "github", "open source", "licence", "license", summary = com.cosmotune.CosmoConfig.PROJECT_URL) {
                 SettingsRow(
                     icon = Icons.Rounded.Code,

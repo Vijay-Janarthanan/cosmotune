@@ -35,6 +35,7 @@ data class WatchPlayerState(
     val failover: String? = null,
     val error: String? = null,
     val isLive: Boolean = false,
+    val skipIntervals: List<com.cosmotune.watch.model.WatchSkip> = emptyList(),
     /** In a room: "Your copy is 4 min longer: a different cut, so positions may not line up". */
     val lengthNote: String? = null,
     val muted: Boolean = false,
@@ -58,6 +59,7 @@ interface WatchPlayer {
         fallback: Stream? = null)
     fun switchStream(stream: Stream)
     fun toggleMute() {}
+    fun setRemotePlayback(active: Boolean) {}
     fun selectAudio(trackId: String)
     /** Null turns subtitles off. A subtitle with a url is loaded on first selection. */
     fun selectSubtitle(id: String?)

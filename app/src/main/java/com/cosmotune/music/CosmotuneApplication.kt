@@ -45,6 +45,12 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        com.cosmotune.diagnostics.CrashNotes.configure(filesDir)
+        val uncaught = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, failure ->
+            runCatching { com.cosmotune.diagnostics.CrashNotes.record(failure) }
+            uncaught?.uncaughtException(thread, failure)
+        }
         if (android.os.Build.VERSION.SDK_INT >= 28 && Application.getProcessName().let { it.endsWith(":provider_auth") || it.endsWith(":mangaverification") }) return
         com.cosmotune.providers.ProviderMediaTools.installed = com.cosmotune.providers.AndroidProviderMediaTools
         // First, before any store is opened: copies what was kept under the names before the rename.
