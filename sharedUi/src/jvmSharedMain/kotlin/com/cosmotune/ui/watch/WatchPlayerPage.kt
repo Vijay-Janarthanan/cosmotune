@@ -58,6 +58,8 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -107,6 +109,8 @@ internal class WatchPlayerControls(
     val toggleMute: () -> Unit = {},
     val cast: (() -> Unit)? = null,
     val remote: Boolean = false,
+    /** Enters picture-in-picture now; null where there is none (no support, or the film plays on a cast receiver). */
+    val pictureInPicture: (() -> Unit)? = null,
 )
 
 typealias WatchFullscreenHost = @Composable (() -> Unit, Boolean, @Composable () -> Unit) -> Unit
@@ -141,7 +145,8 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     val castScope = rememberCoroutineScope()
     if (castOpen) WatchCastSheet(casting, state.stream, fonts, look) { castOpen = false }
     val roomOwnsPlayback = playback.roomHolds(route.target.key)
-    val controls = remember(player, actions, route, roomOwnsPlayback, castRenderer) {
+    val pip = com.cosmotune.ui.pip.rememberPip(com.cosmotune.ui.pip.PipOwner.WATCH)
+    val controls = remember(player, actions, route, roomOwnsPlayback, castRenderer, pip, pip.supported) {
         WatchPlayerControls(
             playPause = { val target = castRenderer; if (target != null) castScope.launch { if (target.state.value.playing) target.pause() else target.play() }
                 else if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() },
@@ -163,6 +168,7 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
             toggleMute = player::toggleMute,
             cast = if (roomOwnsPlayback) null else ({ castOpen = true }),
             remote = castRenderer != null,
+            pictureInPicture = if (pip.supported && castRenderer == null) ({ pip.enter(); Unit }) else null,
             watchTogether = {
                 val s = player.state.value
                 s.target?.let { t -> actions.watchTogether(t, s.summary ?: route.summary, s.stream, s.durationMs.takeIf { it > 0 } ?: player.engine.snapshot.value.durationMs) }
@@ -183,6 +189,15 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     val otherChannels by androidx.compose.runtime.produceState(emptyList<com.cosmotune.watch.LiveNowItem>(), channel) {
         if (channel != null) value = runCatching { actions.repository.liveNow(12) }.getOrDefault(emptyList()).filter { it.channel.key != channel.key }
     }
+    // Picture-in-picture: the next channel is the one after this in its own playlist.
+    val channelRing by androidx.compose.runtime.produceState(emptyList<com.cosmotune.watch.model.Channel>(), channel) {
+        if (channel != null) value = runCatching { actions.repository.channels(com.cosmotune.watch.ChannelFilter(pluginId = channel.pluginId)) }.getOrDefault(emptyList())
+    }
+    val nextChannel = channel?.let { c -> channelAfter(channelRing, c.key) ?: otherChannels.firstOrNull()?.channel }
+    val pipBinding = rememberWatchPip(
+        pip, player, state, playing = castRenderer == null && snapshot.playing, videoWidth = snapshot.videoWidth, videoHeight = snapshot.videoHeight,
+        local = castRenderer == null, nextChannel = nextChannel?.let { next -> { actions.playChannel(next) } }, surface = playback.surface,
+    )
     val summary = state.summary ?: route.summary
     val episodeTarget = (state.target ?: route.target) as? PlayTarget.EpisodeOf
     val details: (@Composable () -> Unit)? = if (channel == null && summary != null) {
@@ -207,6 +222,7 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
         channels = otherChannels,
         onChannel = { actions.playChannel(it) },
         details = details,
+        pip = pipBinding,
     )
 }
 
@@ -235,6 +251,8 @@ internal fun WatchPlayerScreen(
     channels: List<com.cosmotune.watch.LiveNowItem> = emptyList(),
     onChannel: (com.cosmotune.watch.model.Channel) -> Unit = {},
     details: (@Composable () -> Unit)? = null,
+    /** Picture-in-picture: the phone then shows the picture alone, the desktop a stand-in while its small window holds it. */
+    pip: com.cosmotune.ui.pip.PipBinding? = null,
 ) {
     val settings = LocalCosmoShell.current?.settings
     val keptView = settings?.videoView?.collectAsState()?.value
@@ -245,8 +263,15 @@ internal fun WatchPlayerScreen(
     val fullscreen = LocalWatchFullscreen.current
     val summary = state.summary
     val (fill, ink) = coverFill(summary?.backdropUrl ?: summary?.posterUrl, summary?.key?.value ?: "watch")
+    val pipHandle = pip?.handle
+    val inPip = pipHandle?.active == true
     val picture: @Composable (Modifier, Dp) -> Unit = { m, radius ->
-        WatchVideo(view, aspect, radius, surface, still = summary?.backdropUrl, key = summary?.key?.value ?: "watch", modifier = m, onDoubleTap = { cinema = !cinema })
+        val placed = if (pip != null && !inPip) m.onGloballyPositioned { pip.bounds(it.boundsInWindow()) } else m
+        if (inPip && pipHandle?.manual == true) {
+            WatchPipStandIn(summary?.backdropUrl ?: summary?.posterUrl, summary?.key?.value ?: "watch", radius, fonts, onReturn = { pipHandle.exit() }, modifier = placed)
+        } else {
+            WatchVideo(view, aspect, radius, surface, still = summary?.backdropUrl, key = summary?.key?.value ?: "watch", modifier = placed, onDoubleTap = { cinema = !cinema })
+        }
     }
     // The keyboard (the desktop's): Esc leaves Cinema, else closes the player; F goes in and out of Cinema.
     val keyHandler: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = handler@ { e ->
@@ -268,7 +293,12 @@ internal fun WatchPlayerScreen(
                 programme = programme, channels = channels, onChannel = onChannel, details = details)
         }
     }
-    if (cinema && fullscreen != null) fullscreen({ cinema = false }, aspect >= 1f, content) else content()
+    when {
+        // The phone's picture-in-picture window is the app itself: the picture alone, nothing over it.
+        inPip && pipHandle?.manual != true -> Box(Modifier.fillMaxSize().background(Color.Black)) { picture(Modifier.fillMaxSize(), 0.dp) }
+        cinema && fullscreen != null -> fullscreen({ cinema = false }, aspect >= 1f, content)
+        else -> content()
+    }
 }
 
 @Composable
@@ -572,6 +602,7 @@ private fun FilmCard(
                         }
                     })
                 }
+                controls.pictureInPicture?.let { WatchRoundButton(CosmoIcons.Pip, "Picture in picture", look, onClick = it, ink = ink) }
                 Box {
                     WatchRoundButton(CosmoIcons.Canvas, "Picture size", look, onClick = { screen = true }, ink = ink)
                     OrbitMenu(screen, { screen = false }, fonts = fonts, look = look, header = "Picture size", items = listOf(
