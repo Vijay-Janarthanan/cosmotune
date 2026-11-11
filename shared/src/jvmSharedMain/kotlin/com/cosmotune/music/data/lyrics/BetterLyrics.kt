@@ -54,6 +54,7 @@ object BetterLyrics {
             .build()
 
         val body = lyricsGet(url.toString()) ?: return@withContext null
-        ProviderLyrics.parse(body)
+        // Portato in particular can open with the upload's title sung as a lyric; take it off the start.
+        ProviderLyrics.parse(body)?.let { LyricTitleHeader.strip(it, title, artist) }
     }
 }
