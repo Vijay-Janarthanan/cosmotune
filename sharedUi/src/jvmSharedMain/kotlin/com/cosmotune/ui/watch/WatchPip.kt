@@ -43,6 +43,7 @@ import com.cosmotune.watch.model.WatchKey
 /**
  * Binds [player] to picture-in-picture for the player page, through its [handle] (`rememberPip(PipOwner.WATCH)`). [local]: the film plays on this device (a cast receiver's has no
  * picture here). [nextChannel]: the channel after this one, for a channel. [surface] draws the picture in the desktop's window.
+ * [reopen] brings the player page back for what plays (the mode and the page), for "Back to app" once the page has gone.
  */
 @Composable
 fun rememberWatchPip(
@@ -55,9 +56,10 @@ fun rememberWatchPip(
     local: Boolean,
     nextChannel: (() -> Unit)?,
     surface: @Composable (WatchSurfaceScale, Modifier) -> Unit,
+    reopen: () -> Unit = {},
 ): PipBinding {
     val binding = remember(handle) { PipBinding(handle) }
-    val wish = watchPipWish(player, state, playing, videoWidth, videoHeight, local, nextChannel, surface)
+    val wish = watchPipWish(player, state, playing, videoWidth, videoHeight, local, nextChannel, surface, reopen)
     SideEffect { binding.update(wish) }
     return binding
 }
@@ -72,6 +74,7 @@ internal fun watchPipWish(
     local: Boolean,
     nextChannel: (() -> Unit)?,
     surface: @Composable (WatchSurfaceScale, Modifier) -> Unit,
+    reopen: () -> Unit = {},
 ): PipWish {
     val next: (() -> Unit)? = when {
         state.isLive -> nextChannel
@@ -84,23 +87,57 @@ internal fun watchPipWish(
         player.engine.seekTo(if (duration > 0) to.coerceAtMost(duration) else to)
     }
     val title = listOfNotNull(state.summary?.name, state.subtitleLine).joinToString(" · ")
+    val aspectWidth = if (videoWidth > 0 && videoHeight > 0) videoWidth else 16
+    val aspectHeight = if (videoWidth > 0 && videoHeight > 0) videoHeight else 9
+    fun controls(next: (() -> Unit)?) = PipControls(
+        playPause = { if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() },
+        next = next,
+        seekBy = seekBy,
+        positionMs = { player.engine.positionMs() },
+        durationMs = { player.engine.snapshot.value.durationMs.takeIf { it > 0 } ?: player.state.value.durationMs },
+        isPlaying = { player.engine.snapshot.value.playing },
+    )
+    val picture: @Composable (Modifier) -> Unit = { m -> surface(WatchSurfaceScale.FIT, m) }
+    val stopped = { player.state.value.target == null }
     return PipWish(
         ready = watchPipReady(local, playing, state.status),
-        aspectWidth = if (videoWidth > 0 && videoHeight > 0) videoWidth else 16,
-        aspectHeight = if (videoWidth > 0 && videoHeight > 0) videoHeight else 9,
+        aspectWidth = aspectWidth,
+        aspectHeight = aspectHeight,
         playing = playing,
-        controls = PipControls(
-            playPause = { if (player.engine.snapshot.value.playing) player.engine.pause() else player.engine.play() },
-            next = next,
-            seekBy = seekBy,
-            positionMs = { player.engine.positionMs() },
-            durationMs = { player.engine.snapshot.value.durationMs.takeIf { it > 0 } ?: player.state.value.durationMs },
-        ),
+        controls = controls(next),
         title = title,
-        picture = { m -> surface(WatchSurfaceScale.FIT, m) },
+        picture = picture,
         // Closing picture-in-picture pauses the film; expanding it leaves it playing on the page it came from.
         onClosed = { player.engine.pause() },
+        ended = stopped,
+        // The film's session: when the page goes (the person browses elsewhere, or switches mode) while the small window plays
+        // it, it plays on there. The next episode still follows; the next channel needs the page, so it goes. Closing the window
+        // then stops the film (saving where it was, as leaving the page does), and "Back to app" brings the page back for it.
+        keep = {
+            PipWish(
+                ready = false, aspectWidth = aspectWidth, aspectHeight = aspectHeight, playing = player.engine.snapshot.value.playing,
+                controls = controls(if (state.isLive) null else next), title = title, picture = picture,
+                onClosed = { player.stop() },
+                onExpanded = { WatchPipReturns.add(player.state.value.target?.key?.value); reopen() },
+                ended = stopped,
+            )
+        },
     )
+}
+
+/**
+ * The films a kept picture-in-picture session brought back to their page ("Back to app"): that page shows what already plays (an
+ * attached route, which does not start it again), and still stops it when it is left, as the page it came from would have.
+ */
+internal object WatchPipReturns {
+    private val keys = mutableSetOf<String>()
+
+    fun add(key: String?) {
+        if (key != null) keys += key
+    }
+
+    /** Whether [key] came back from picture-in-picture; asking forgets it. */
+    fun take(key: String): Boolean = keys.remove(key)
 }
 
 /** Whether leaving the app takes Watch into picture-in-picture by itself: the film plays here and has not failed. */

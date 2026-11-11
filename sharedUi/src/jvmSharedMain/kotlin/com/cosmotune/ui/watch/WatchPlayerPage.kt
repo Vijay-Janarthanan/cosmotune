@@ -129,10 +129,14 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     val player = playback.player
     // An item the room opened here is already playing (the room follower drives it): shown as it is, and left going on the way out.
     LaunchedEffect(route) { if (!route.attached && !playback.roomHolds(route.target.key)) player.open(route.target, route.summary, route.stream) }
+    // The page's picture-in-picture: asked for here, before the page's own leaving, which reads it.
+    val pip = com.cosmotune.ui.pip.rememberPip(com.cosmotune.ui.pip.PipOwner.WATCH)
     DisposableEffect(player, route) {
         onDispose {
             val key = player.state.value.target?.key ?: route.target.key
-            if (!route.attached && !playback.roomHolds(key)) player.stop()
+            // In picture-in-picture the film plays on in the small window after the page has gone (its session is kept there).
+            val returned = WatchPipReturns.take(key.value)
+            if ((!route.attached || returned) && !playback.roomHolds(key) && !pip.active) player.stop()
         }
     }
     val state by player.state.collectAsState()
@@ -145,7 +149,6 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     val castScope = rememberCoroutineScope()
     if (castOpen) WatchCastSheet(casting, state.stream, fonts, look) { castOpen = false }
     val roomOwnsPlayback = playback.roomHolds(route.target.key)
-    val pip = com.cosmotune.ui.pip.rememberPip(com.cosmotune.ui.pip.PipOwner.WATCH)
     val controls = remember(player, actions, route, roomOwnsPlayback, castRenderer, pip, pip.supported) {
         WatchPlayerControls(
             playPause = { val target = castRenderer; if (target != null) castScope.launch { if (target.state.value.playing) target.pause() else target.play() }
@@ -189,6 +192,7 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     val otherChannels by androidx.compose.runtime.produceState(emptyList<com.cosmotune.watch.LiveNowItem>(), channel) {
         if (channel != null) value = runCatching { actions.repository.liveNow(12) }.getOrDefault(emptyList()).filter { it.channel.key != channel.key }
     }
+    val shellSettings = LocalCosmoShell.current?.settings
     // Picture-in-picture: the next channel is the one after this in its own playlist.
     val channelRing by androidx.compose.runtime.produceState(emptyList<com.cosmotune.watch.model.Channel>(), channel) {
         if (channel != null) value = runCatching { actions.repository.channels(com.cosmotune.watch.ChannelFilter(pluginId = channel.pluginId)) }.getOrDefault(emptyList())
@@ -197,6 +201,10 @@ internal fun WatchPlayerPage(route: WatchRoute.Play, actions: WatchActions, font
     val pipBinding = rememberWatchPip(
         pip, player, state, playing = castRenderer == null && snapshot.playing, videoWidth = snapshot.videoWidth, videoHeight = snapshot.videoHeight,
         local = castRenderer == null, nextChannel = nextChannel?.let { next -> { actions.playChannel(next) } }, surface = playback.surface,
+        reopen = {
+            shellSettings?.setMode(com.cosmotune.design.AppMode.WATCH)
+            player.state.value.target?.let { WatchNav.showPlaying(it, player.state.value.summary) }
+        },
     )
     val summary = state.summary ?: route.summary
     val episodeTarget = (state.target ?: route.target) as? PlayTarget.EpisodeOf

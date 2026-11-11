@@ -136,6 +136,43 @@ class PipContractTest {
         assertTrue("pictureInPicture = if (pip.supported && castRenderer == null)" in flat(watchPage), "not while the film plays on a cast receiver")
     }
 
+    // ---- the page goes, picture-in-picture stays -------------------------------------------------------------------------------
+
+    @Test fun aPlayerInPictureInPictureOutlivesItsPage() {
+        // Watch: leaving the player page (or the mode) while the film is in picture-in-picture does not stop it; its session
+        // (closing stops it, "Back to app" brings the page back for it) is kept in the window.
+        val page = flat(watchPage)
+        assertTrue("if ((!route.attached || returned) && !playback.roomHolds(key) && !pip.active) player.stop()" in page)
+        assertTrue(page.indexOf("val pip = com.cosmotune.ui.pip.rememberPip(") < page.indexOf("DisposableEffect(player, route)"), "asked for before the page's leaving reads it")
+        assertTrue("WatchNav.showPlaying(it, player.state.value.summary)" in page && "setMode(com.cosmotune.design.AppMode.WATCH)" in page)
+        val watch = flat(watchPip)
+        assertTrue("keep = { PipWish(" in watch && "onClosed = { player.stop() }" in watch && "ended = stopped," in watch)
+        // The song's video follows the song the root says plays, on the root's playhead, once Now Playing has gone.
+        val song = flat(nowPlayingPip)
+        assertTrue("keep = position?.let { playhead -> { MusicVideoSession(playhead).wish(" in song)
+        assertTrue("fun ended(): Boolean = NowPlayingFeed.song == null || noVideo" in song)
+        assertTrue("com.cosmotune.ui.nowplaying.NowPlayingFeed.song = song" in flat("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/theme/FollowCover.kt"))
+        assertTrue("position = position," in flat(nowPlaying))
+        // The board keeps it; the desktop's window closes only when nothing is left to draw, or the playback ended.
+        val board = flat(pipDir + "PipCoordinator.kt")
+        assertTrue("val kept = if (showing == owner) h.wish.keep?.invoke() else null" in board)
+        assertTrue("if (showing && !DesktopPipBoard.board.claims(owner)) DesktopPipBoard.host?.close(returnToApp = false)" in flat(desktop))
+        assertTrue("if (latest.ended()) {" in flat(videoWindow), "the window closes when the playback behind it stops")
+        assertTrue("board.dropDetached(was)" in flat(desktop) && "board.dropDetached(who)" in flat(android), "and the session goes with picture-in-picture")
+        // On the phone the window is the app: the host draws a kept session's picture over everything.
+        val host = SourceContract.code(SourceContract.functionBody(read("app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt"), "PhoneModeHost")).replace(Regex("\\s+"), " ")
+        assertTrue(host.endsWith("com.cosmotune.ui.pip.PipKeptPicture() }"), "the last thing the phone's host draws")
+        assertTrue("if (!pip.inPip || !pip.board.detached(owner)) return" in flat(android))
+    }
+
+    @Test fun videoHasThePreviousPlayAndNextButtonsThroughTheSharedPath() {
+        val phone = flat(videoAndroid)
+        assertTrue("controls = PipControls( playPause = playback::togglePlayPause, previous = playback::playPrevious, next = playback::playNext," in phone)
+        assertTrue("playback.state.map { it.playing }.distinctUntilChanged().collect { handle.resend() }" in phone, "the button follows play and pause")
+        val window = flat(videoWindow)
+        assertTrue("previous = playback::playPrevious, next = playback::playNext," in window)
+    }
+
     // ---- the manifests ---------------------------------------------------------------------------------------------------------
 
     @Test fun theTvActivitySupportsPictureInPictureAndThePhoneStillDoes() {

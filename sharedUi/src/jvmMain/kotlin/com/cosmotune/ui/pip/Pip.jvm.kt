@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import java.awt.GraphicsEnvironment
+import javax.swing.SwingUtilities
 
 /**
  * The desktop's picture-in-picture: one small always-on-top window for the app, which the host provides ([host]; the desktop app's
@@ -35,8 +36,10 @@ object DesktopPipBoard {
      */
     fun closed(returnToApp: Boolean) {
         val was = board.left() ?: return
-        val wish = board.wish(was) ?: return
-        runCatching { if (returnToApp) wish.onExpanded() else wish.onClosed() }
+        val wish = board.wish(was)
+        runCatching { if (returnToApp) wish?.onExpanded?.invoke() else wish?.onClosed?.invoke() }
+        // A session kept after its page left goes with the window ("Back to app" brought its page back, which speaks again).
+        board.dropDetached(was)
     }
 }
 
@@ -61,6 +64,21 @@ private class DesktopPipHandle(private val owner: PipOwner) : PipHandle {
         val board = DesktopPipBoard.board
         if (board.showing == owner) return true
         if (board.wish(owner)?.picture == null || !board.ask(owner)) return false
+        val other = board.showing
+        if (other != null && other != owner) {
+            // Another player's session, its page gone, is in the window: it gives way. The window is taken apart a moment
+            // after it closes, so this player's opens after that.
+            host.close(returnToApp = false)
+            SwingUtilities.invokeLater { SwingUtilities.invokeLater { open(host) } }
+            return true
+        }
+        return open(host)
+    }
+
+    private fun open(host: PipWindowHost): Boolean {
+        val board = DesktopPipBoard.board
+        if (board.wish(owner) == null) return false
+        board.ask(owner)
         val opened = host.open(owner) { board.wish(owner) }
         if (opened) board.entered() else board.cancelAsk()
         return opened
@@ -71,10 +89,17 @@ private class DesktopPipHandle(private val owner: PipOwner) : PipHandle {
         if (active) DesktopPipBoard.host?.close(returnToApp = true)
     }
 
-    /** The page left: its wish goes, and a window still showing it closes (there is nothing left to draw in it). */
+    /**
+     * The page left: its wish goes, unless the window is showing it and its player keeps a session there ([PipWish.keep]); a
+     * window left with nothing to draw closes.
+     */
     fun leave() {
         val showing = DesktopPipBoard.board.showing == owner
         DesktopPipBoard.board.withdraw(this, owner)
         if (showing && !DesktopPipBoard.board.claims(owner)) DesktopPipBoard.host?.close(returnToApp = false)
     }
 }
+
+/** The desktop: its small window draws the kept session itself. */
+@Composable
+actual fun PipKeptPicture() = Unit

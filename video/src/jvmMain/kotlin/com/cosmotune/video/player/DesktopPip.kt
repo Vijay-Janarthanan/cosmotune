@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -128,6 +129,10 @@ internal class PipView(
     val onKey: (KeyEvent, close: () -> Unit) -> Boolean = { _, _ -> false },
     /** The window's close button (not "Back to app"): Video pauses (Watch and the music video say in their wish). */
     val onClose: () -> Unit = {},
+    /** Whether it plays now, read live: a session kept after its page left has no page to tell the window. */
+    val isPlaying: () -> Boolean = { playing },
+    /** The playback behind it has stopped: the window closes. */
+    val ended: () -> Boolean = { false },
 )
 
 /** The player in the window, as a composable read of its [PipView]. */
@@ -150,12 +155,14 @@ internal fun videoPipSource(playback: VideoPlayback, surface: VideoSurfaceProvid
         playPause = playback::togglePlayPause,
         positionMs = playback::positionMs,
         seekBy = playback::seekBy,
-        previous = null,
-        next = null,
+        // Video's queue: the same previous and next as its player's.
+        previous = playback::playPrevious,
+        next = playback::playNext,
         picture = { m -> surface.Surface(m, VideoScale.FIT) },
         overlay = { SubtitleOverlay(cues, SUBTITLE_SP, options.captionsScale, options.captionsBackground, lift = { 0f }, liftDp = 0.dp) },
         onKey = { event, close -> onKey(event, playback, options, close) },
         onClose = { if (playback.state.value.playing) playback.togglePlayPause() },
+        isPlaying = { playback.state.value.playing },
     )
 }
 
@@ -176,6 +183,8 @@ internal fun wishPipSource(wish: () -> PipWish?) = PipSource {
         next = if (controls?.next == null) null else ({ wish()?.controls?.next?.invoke(); Unit }),
         picture = now?.picture ?: { _ -> },
         onKey = { event, _ -> wishKey(event, wish()?.controls) },
+        isPlaying = { wish()?.let { w -> w.controls?.isPlaying?.invoke() ?: w.playing } == true },
+        ended = { wish()?.ended?.invoke() ?: true },
     )
 }
 
@@ -218,6 +227,13 @@ internal object DesktopPip {
         settings: VideoSettingsRepository,
         provide: @Composable (@Composable () -> Unit) -> Unit,
     ) {
+        val other = owner
+        if (frame != null && other != null && other != PipOwner.VIDEO && DesktopPipBoard.board.detached(other)) {
+            // Another player's session, its page gone, is in the window: it gives way to Video's button.
+            close(returnToApp = false)
+            SwingUtilities.invokeLater { SwingUtilities.invokeLater { open(playback, surface, settings, provide) } }
+            return
+        }
         if (isOpen || frame != null || surface == null || GraphicsEnvironment.isHeadless()) return
         if (!DesktopPipBoard.board.ask(PipOwner.VIDEO)) return
         aspect = playback.state.value.aspect.takeIf { it > 0f } ?: aspect
@@ -371,6 +387,8 @@ private fun PipContent(window: ComposeWindow, source: PipSource) {
     val wake = remember { Channel<Unit>(Channel.CONFLATED) }
     var shown by remember { mutableStateOf(true) }
     var position by remember { mutableLongStateOf(0L) }
+    // Read live: a session kept after its page left tells the window nothing, so the window asks it.
+    var playing by remember { mutableStateOf(view.playing) }
     val close = { DesktopPip.close(returnToApp = false) }
     val back = { DesktopPip.close(returnToApp = true) }
     val lock = { timer.lock(); wake.trySend(Unit); Unit }
@@ -383,8 +401,19 @@ private fun PipContent(window: ComposeWindow, source: PipSource) {
     // The player was stopped (or its page left): there is nothing left to show.
     LaunchedEffect(view.gone) { if (view.gone) close() }
     LaunchedEffect(view.title) { window.title = view.title }
-    LaunchedEffect(view.playing) {
-        timer.playing(nowMs(), view.playing)
+    val latest by rememberUpdatedState(view)
+    LaunchedEffect(Unit) {
+        while (true) {
+            playing = latest.isPlaying()
+            if (latest.ended()) {
+                close()
+                break
+            }
+            delay(POSITION_MS)
+        }
+    }
+    LaunchedEffect(playing) {
+        timer.playing(nowMs(), playing)
         wake.trySend(Unit)
     }
     // The controls follow the timer: it says when they show and when it next needs to be asked.
@@ -422,8 +451,8 @@ private fun PipContent(window: ComposeWindow, source: PipSource) {
             toolkit.removeAWTEventListener(listener)
         }
     }
-    LaunchedEffect(shown, view.playing) {
-        while (shown || view.playing) {
+    LaunchedEffect(shown, playing) {
+        while (shown || playing) {
             position = view.positionMs()
             delay(POSITION_MS)
         }
@@ -487,8 +516,8 @@ private fun PipContent(window: ComposeWindow, source: PipSource) {
                 view.previous?.let { PipButton(CosmoIcons.Previous, stringResource(Res.string.video_previous), BUTTON, it) }
                 view.seekBy?.let { seek -> PipButton(SeekBackIcon, stringResource(Res.string.video_pip_back_10), BUTTON) { seek(-SEEK_MS) } }
                 PipButton(
-                    if (view.playing) CosmoIcons.Pause else CosmoIcons.Play,
-                    stringResource(if (view.playing) Res.string.video_pip_pause else Res.string.video_pip_play),
+                    if (playing) CosmoIcons.Pause else CosmoIcons.Play,
+                    stringResource(if (playing) Res.string.video_pip_pause else Res.string.video_pip_play),
                     BUTTON_BIG,
                     view.playPause,
                 )

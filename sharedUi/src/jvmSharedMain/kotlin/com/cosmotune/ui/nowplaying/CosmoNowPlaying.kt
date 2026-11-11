@@ -271,7 +271,7 @@ fun CosmoNowPlaying(
     // What picture-in-picture shows and does for the song's video: ready (leaving the app enters it) while the video shows and plays.
     val pipBinding = rememberMusicVideoPip(pip, musicVideoPipWish(
         song, canvas?.takeIf { musicVideo }, ready = wantVideo && rendered && isPlaying, isPlaying = isPlaying, aspect = videoAspect,
-        onPlayPause = onPlayPause, onPrevious = transport.onPrevious, onNext = transport.onNext,
+        onPlayPause = onPlayPause, onPrevious = transport.onPrevious, onNext = transport.onNext, position = position,
     ))
 
     // Now Playing is one of the zones the cover colours: its colours are the cover's palette, not the chrome's, in both themes.

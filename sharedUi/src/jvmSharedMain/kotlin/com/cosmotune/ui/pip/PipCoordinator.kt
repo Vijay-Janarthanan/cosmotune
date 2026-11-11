@@ -22,6 +22,8 @@ class PipControls(
     val seekBy: ((Long) -> Unit)? = null,
     val positionMs: () -> Long = { 0L },
     val durationMs: () -> Long = { 0L },
+    /** Whether the player plays now, read live (a kept session's [PipWish.playing] is from when its page left). */
+    val isPlaying: (() -> Boolean)? = null,
 )
 
 /**
@@ -34,6 +36,9 @@ class PipControls(
  * - [title] and [picture]: what the desktop's window shows (the phone's window is the app itself).
  * - [onClosed]: picture-in-picture was closed (not expanded): Watch pauses, the song's video leaves the music playing.
  * - [onExpanded]: it was expanded back to the app.
+ * - [ended]: the playback behind it has stopped: picture-in-picture closes.
+ * - [keep]: the player's session, which stays in picture-in-picture when the page that drew it leaves (the person browses
+ *   elsewhere, or switches mode, while the small window plays on); null where a page's leaving ends it.
  */
 class PipWish(
     val ready: Boolean,
@@ -46,6 +51,8 @@ class PipWish(
     val picture: (@Composable (Modifier) -> Unit)? = null,
     val onClosed: () -> Unit = {},
     val onExpanded: () -> Unit = {},
+    val ended: () -> Boolean = { false },
+    val keep: (() -> PipWish)? = null,
 ) {
     /** What the window's parameters are made of: a change here is sent to the system again, nothing else is. */
     internal val shape: List<Any?>
@@ -53,7 +60,7 @@ class PipWish(
 
     /** The same wish from [rect] (the picture's place in the window, which moves with the page). */
     fun withSourceRect(rect: Rect?): PipWish = if (rect == sourceRect) this else
-        PipWish(ready, aspectWidth, aspectHeight, rect, playing, controls, title, picture, onClosed, onExpanded)
+        PipWish(ready, aspectWidth, aspectHeight, rect, playing, controls, title, picture, onClosed, onExpanded, ended, keep)
 
     companion object {
         /** A picture's shape in whole numbers for [PipWish.aspectWidth] : [PipWish.aspectHeight] (1000 high); 16:9 when not known. */
@@ -72,6 +79,9 @@ class PipWish(
 @Stable
 class PipCoordinator {
     private class Held(val speaker: Any, val wish: PipWish, val since: Long)
+
+    /** The speaker of a kept session: no page speaks for it any more. */
+    private object DETACHED
 
     private val held = mutableStateMapOf<PipOwner, Held>()
     private var counter = 0L
@@ -92,17 +102,31 @@ class PipCoordinator {
         held[owner] = Held(speaker, wish, since)
     }
 
-    /** [speaker] leaves: [owner]'s wish goes with it, unless another of its callers has spoken since. */
+    /**
+     * [speaker] leaves: [owner]'s wish goes with it, unless another of its callers has spoken since. A player in picture-in-picture
+     * now whose wish has a session ([PipWish.keep]) stays there: the page went, the playback did not, and the session is kept
+     * ([detached]) until picture-in-picture is left, the playback ends or another player's button takes the window.
+     */
     fun withdraw(speaker: Any, owner: PipOwner) {
-        if (held[owner]?.speaker !== speaker) return
-        held.remove(owner)
+        val h = held[owner]
+        if (h?.speaker !== speaker) return
+        val kept = if (showing == owner) h.wish.keep?.invoke() else null
+        if (kept != null) held[owner] = Held(DETACHED, kept, h.since) else held.remove(owner)
         if (asked == owner) asked = null
+    }
+
+    /** Whether [owner]'s wish is a kept session, its page gone. */
+    fun detached(owner: PipOwner): Boolean = held[owner]?.speaker === DETACHED
+
+    /** Picture-in-picture is over for [owner]: a kept session goes (there is no page left to show it). */
+    fun dropDetached(owner: PipOwner) {
+        if (detached(owner)) held.remove(owner)
     }
 
     /** Whether [owner] has a wish standing. */
     fun claims(owner: PipOwner): Boolean = held.containsKey(owner)
 
-    fun claims(): List<PipClaim> = held.map { (owner, h) -> PipClaim(owner, h.wish.ready, h.since) }
+    fun claims(): List<PipClaim> = held.map { (owner, h) -> PipClaim(owner, h.wish.ready, h.since, detached = h.speaker === DETACHED) }
 
     /** The player that holds picture-in-picture now (see [PipDecision]); null for nobody. */
     fun owner(): PipOwner? = PipDecision.owner(claims(), showing, asked)
@@ -113,10 +137,10 @@ class PipCoordinator {
     /** The wish of the player that holds it now. */
     fun current(): PipWish? = owner()?.let(::wish)
 
-    /** [owner]'s button asks for picture-in-picture now: false when another player is in it. */
+    /** [owner]'s button asks for picture-in-picture now: false when another player is in it with its page still there. */
     fun ask(owner: PipOwner): Boolean {
         val other = showing
-        if (other != null && other != owner && claims(other)) return false
+        if (other != null && other != owner && claims(other) && !detached(other)) return false
         asked = owner
         return true
     }
@@ -193,3 +217,11 @@ object NoPip : PipHandle {
     override fun update(wish: PipWish) = Unit
     override fun enter(): Boolean = false
 }
+
+/**
+ * The phone's and the TV's picture-in-picture window is the app itself: while a player's session is in it after its page has gone
+ * (a link switched the mode, say), the host draws that session's picture over everything, so the window keeps showing the film or
+ * the song's video. The desktop's window draws its own; there this draws nothing.
+ */
+@Composable
+expect fun PipKeptPicture()

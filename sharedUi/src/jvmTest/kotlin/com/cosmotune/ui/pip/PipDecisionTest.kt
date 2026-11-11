@@ -138,4 +138,68 @@ class PipDecisionTest {
         assertEquals(2, sent.size, "a sub-pixel move sends nothing")
         assertEquals(androidx.compose.ui.geometry.Rect(0f, 63f, 1080f, 670f), sent.last().sourceRect)
     }
+
+    // ---- the page goes, picture-in-picture stays -------------------------------------------------------------------------------
+
+    @Test fun aPageThatLeavesWhileItsPlayerIsInTheWindowLeavesItsSessionThere() {
+        val board = PipCoordinator()
+        val page = Any()
+        var closed = 0
+        board.update(page, PipOwner.WATCH, PipWish(ready = true, keep = { PipWish(ready = false, onClosed = { closed++ }) }))
+        assertTrue(board.ask(PipOwner.WATCH))
+        board.entered()
+        board.withdraw(page, PipOwner.WATCH)
+        assertTrue(board.claims(PipOwner.WATCH), "the page went, the film plays on in the window")
+        assertTrue(board.detached(PipOwner.WATCH))
+        assertEquals(PipOwner.WATCH, board.owner(), "it still holds the window")
+        board.update(Any(), PipOwner.MUSIC_VIDEO, PipWish(ready = true))
+        assertEquals(PipOwner.WATCH, board.owner(), "a song's video starting elsewhere does not take it")
+        board.wish(PipOwner.WATCH)!!.onClosed()
+        assertEquals(1, closed, "the kept session's own close (stopping the film) is the one that runs")
+        assertEquals(PipOwner.WATCH, board.left())
+        board.dropDetached(PipOwner.WATCH)
+        assertFalse(board.claims(PipOwner.WATCH), "out of the window, nothing is left of it")
+    }
+
+    @Test fun aPageThatLeavesOutsideTheWindowOrWithoutASessionTakesItsWishWithIt() {
+        val board = PipCoordinator()
+        val page = Any()
+        board.update(page, PipOwner.WATCH, PipWish(ready = true, keep = { PipWish(ready = false) }))
+        board.withdraw(page, PipOwner.WATCH)
+        assertFalse(board.claims(PipOwner.WATCH), "not in the window: the page's leaving ends it")
+        val video = Any()
+        board.update(video, PipOwner.VIDEO, PipWish(ready = true))
+        board.ask(PipOwner.VIDEO)
+        board.entered()
+        board.withdraw(video, PipOwner.VIDEO)
+        assertFalse(board.claims(PipOwner.VIDEO), "no session to keep")
+    }
+
+    @Test fun aPageThatComesBackSpeaksForItsSessionAgain() {
+        val board = PipCoordinator()
+        val page = Any()
+        board.update(page, PipOwner.WATCH, PipWish(ready = true, keep = { PipWish(ready = false) }))
+        board.ask(PipOwner.WATCH)
+        board.entered()
+        board.withdraw(page, PipOwner.WATCH)
+        board.update(Any(), PipOwner.WATCH, PipWish(ready = true))
+        assertFalse(board.detached(PipOwner.WATCH), "the page is back")
+        board.dropDetached(PipOwner.WATCH)
+        assertTrue(board.claims(PipOwner.WATCH), "and its wish is not dropped with the session")
+    }
+
+    @Test fun anotherPlayersButtonTakesTheWindowFromASessionWhosePageHasGoneButNotFromAPage() {
+        val board = PipCoordinator()
+        val watch = Any()
+        board.update(watch, PipOwner.WATCH, PipWish(ready = true, keep = { PipWish(ready = false) }))
+        board.ask(PipOwner.WATCH)
+        board.entered()
+        board.update(Any(), PipOwner.VIDEO, PipWish(ready = false))
+        assertFalse(board.ask(PipOwner.VIDEO), "the film's page is still there")
+        board.withdraw(watch, PipOwner.WATCH)
+        assertTrue(board.ask(PipOwner.VIDEO), "only its session is left: Video's button may take the window")
+        assertEquals(PipOwner.VIDEO, board.owner())
+        assertEquals(PipOwner.VIDEO, PipDecision.owner(listOf(claim(PipOwner.WATCH, false, 1).copy(detached = true)), PipOwner.WATCH, asked = PipOwner.VIDEO))
+        assertEquals(PipOwner.WATCH, PipDecision.owner(listOf(claim(PipOwner.WATCH, false, 1).copy(detached = true)), PipOwner.WATCH), "nobody asking: it stays")
+    }
 }

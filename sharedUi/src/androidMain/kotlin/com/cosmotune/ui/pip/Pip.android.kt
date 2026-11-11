@@ -13,6 +13,8 @@ import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Rational
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
@@ -197,6 +199,9 @@ class ActivityPip private constructor(private val activity: ComponentActivity) {
         leaving = null
         leavingWish = null
         runCatching { if (closed) wish?.onClosed?.invoke() else wish?.onExpanded?.invoke() }
+        // A session kept after its page left has nothing to come back to once picture-in-picture is over.
+        board.dropDetached(who)
+        apply()
     }
 
     /** Sends the holder's parameters to the system when they changed. Refused shapes leave the window as it was rather than crash. */
@@ -275,4 +280,24 @@ class ActivityPip private constructor(private val activity: ComponentActivity) {
             }
         }
     }
+}
+
+/** The activity in picture-in-picture with a session whose page has gone: its picture, alone, over the whole app. */
+@Composable
+actual fun PipKeptPicture() {
+    val context = LocalContext.current
+    val activity = remember(context) { context.componentActivity() } ?: return
+    // A handle that never wishes anything: it only keeps the activity's listeners (and so `inPip`) running.
+    val handle = remember(activity) { ActivityPip.handle(activity, PipOwner.VIDEO) }
+    DisposableEffect(handle) {
+        handle.acquire()
+        onDispose { handle.release() }
+    }
+    val pip = remember(activity) { ActivityPip.of(activity) }
+    val owner = pip.board.showing ?: return
+    if (!pip.inPip || !pip.board.detached(owner)) return
+    val picture = pip.board.wish(owner)?.picture ?: return
+    androidx.compose.foundation.layout.Box(
+        androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black),
+    ) { picture(androidx.compose.ui.Modifier.fillMaxSize()) }
 }
