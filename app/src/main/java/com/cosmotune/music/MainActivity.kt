@@ -389,7 +389,8 @@ class MainActivity : AppCompatActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { CosmotuneTheme(darkTheme = darkTheme, content = it) }) {
+            // The theme choice is also offered by the profile drawer's quick switch (it stores the same AppSettings.themeMode).
+            com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { CosmotuneTheme(darkTheme = darkTheme, content = it) }, themeChoice = com.cosmotune.ui.PhoneThemeChoice) {
                 // The glass surfaces sample this layer, and a layer records only
                 // what is drawn into it â€” which, for Cosmotune, is a page that
                 // paints no background of its own. Everywhere a page is not

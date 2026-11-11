@@ -228,7 +228,8 @@ internal fun DesktopTrayFlyoutWindow() {
                 dialog.toFront()
                 dialog.requestFocus()
             }
-            DesktopTrayFlyoutContent(current.mode, now, DesktopMiniPlayer.actions, entries, card, onClose = DesktopTrayFlyout::close)
+            // The app's theme choice, as the main window draws it ([rememberDesktopDark]).
+            DesktopTrayFlyoutContent(current.mode, now, DesktopMiniPlayer.actions, entries, card, dark = rememberDesktopDark(), onClose = DesktopTrayFlyout::close)
         }
     }
 }
@@ -250,7 +251,7 @@ private fun menuHeight(entries: List<DesktopTrayMenu.Entry>, header: Boolean): I
  * The card, on its own so it can be drawn off screen. Orbit: the player is a flat card in the cover's own colour with the cover as
  * a disc whose orbit is the song's progress, round buttons in the card's ink and play in the card's bite (no blurred cover under
  * it); the menu is the Orbit popover's card (the float ground, radius 24) with its rows. The window stands outside the app's theme,
- * so it brings the colours of [dark] (the desktop's own are dark).
+ * so it brings the colours of [dark] (the app's theme choice, [rememberDesktopDark]).
  */
 @Composable
 internal fun DesktopTrayFlyoutContent(

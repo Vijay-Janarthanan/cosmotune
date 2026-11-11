@@ -491,4 +491,10 @@
     <string name="cosmo_mode_watch_summary">Films, series and live TV</string>
     <string name="cosmo_room_kind_watch">From Watch · found in your own plugins</string>
     <string name="cosmo_room_needs_update">Update Cosmotune to play this</string>
+    <string name="cosmo_theme">Theme</string>
+    <string name="cosmo_theme_system">System</string>
+    <string name="cosmo_theme_light">Light</string>
+    <string name="cosmo_theme_dark">Dark</string>
+    <string name="cosmo_theme_summary">Follow the system, or keep Cosmotune light or dark</string>
+    <string name="cosmo_theme_light_only_classic">The classic look is dark only; turn on the new look to choose</string>
 </resources>

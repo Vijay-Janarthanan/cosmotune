@@ -71,7 +71,7 @@ internal object DesktopMiniPlayer {
 }
 
 @Composable
-internal fun DesktopMiniPlayerContent(now: DesktopMiniPlayer.NowPlaying, actions: DesktopMiniPlayer.Actions) =
+internal fun DesktopMiniPlayerContent(now: DesktopMiniPlayer.NowPlaying, actions: DesktopMiniPlayer.Actions, dark: Boolean = true) =
     com.cosmotune.ui.player.MiniPlayerPanel(now.title, now.artist, now.playing, now.progress,
         liveProgress = DesktopMiniPlayer.position?.let { position ->
             val live = com.cosmotune.music.playback.rememberLivePlayhead(position, now.playing)
@@ -79,7 +79,7 @@ internal fun DesktopMiniPlayerContent(now: DesktopMiniPlayer.NowPlaying, actions
             progress
         },
         artwork = { modifier -> DesktopArtwork(now.artworkUrl, modifier) },
-        onPlayPause = actions.playPause, onNext = actions.next, onPrevious = actions.previous, onOpen = actions.openMain)
+        onPlayPause = actions.playPause, onNext = actions.next, onPrevious = actions.previous, onOpen = actions.openMain, dark = dark)
 
 /** The window itself; hosted beside the main window in the application scope. */
 @Composable
@@ -96,6 +96,7 @@ internal fun DesktopMiniPlayerWindow() {
         alwaysOnTop = true,
         resizable = false,
     ) {
-        DesktopMiniPlayerContent(now, DesktopMiniPlayer.actions)
+        // The app's theme choice, as the main window draws it ([rememberDesktopDark]).
+        DesktopMiniPlayerContent(now, DesktopMiniPlayer.actions, dark = rememberDesktopDark())
     }
 }

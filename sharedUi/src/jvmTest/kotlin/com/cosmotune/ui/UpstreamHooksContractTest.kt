@@ -31,8 +31,8 @@ class UpstreamHooksContractTest {
         val src = flat(mainActivity)
         assertEquals(
             1,
-            count(src, "com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { CosmotuneTheme(darkTheme = darkTheme, content = it) }) {"),
-            "the phone's theme call is the look theme with the old CosmotuneTheme as its legacy theme",
+            count(src, "com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { CosmotuneTheme(darkTheme = darkTheme, content = it) }, themeChoice = com.cosmotune.ui.PhoneThemeChoice) {"),
+            "the phone's theme call is the look theme with the old CosmotuneTheme as its legacy theme, and the theme choice for the drawer",
         )
     }
 
@@ -40,8 +40,8 @@ class UpstreamHooksContractTest {
         val src = flat(desktopApp)
         assertEquals(
             1,
-            count(src, "com.cosmotune.ui.theme.CosmoLookTheme( dark = true, legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) }, ) {"),
-            "the desktop's theme call is the look theme with the old MaterialTheme as its legacy theme (the desktop is dark only)",
+            count(src, "val desktopDark = rememberDesktopDark() com.cosmotune.ui.theme.CosmoLookTheme( dark = desktopDark, legacy = { MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography(), content = it) }, themeChoice = DesktopThemeChoice, ) {"),
+            "the desktop's theme call is the look theme with the old MaterialTheme as its legacy theme, dark or light as the theme choice says",
         )
     }
 

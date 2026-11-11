@@ -111,7 +111,8 @@ internal fun DesktopAccountButton(
 /**
  * The account switcher as an Orbit popover (the kit's float card, as [com.cosmotune.ui.orbit.OrbitMenu] draws it) under the toolbar's
  * account button: the account card at its head (Settings' own, compact: the active profile's picture as a disc, its name or "Sign
- * in", its handle), then every login this app holds with the channels under it as Orbit rows (the picture disc, the name, the handle;
+ * in", its handle), the quick theme switch (Light, Dark or the system's: the Settings choice itself, [com.cosmotune.ui.orbit.OrbitThemeRow]),
+ * then every login this app holds with the channels under it as Orbit rows (the picture disc, the name, the handle;
  * the one in use solid ink with a check in its own ink), then the actions that change the set (add an account, manage them, Settings) as
  * rows. "Manage accounts" turns the profile rows into "Sign out" rows. A click outside closes it.
  */
@@ -176,6 +177,9 @@ internal fun DesktopAccountSelector(
                 onClick = if (accounts.isEmpty()) onAddAccount else null,
                 compact = true,
             )
+            // The quick theme switch under the card: its label on the account labels' line (14 dp), the pill's end on the rows'
+            // end, 12 dp under the card. It stores the Settings choice, so the two always agree.
+            com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 12.dp), labelStart = 14.dp)
             Row(
                 Modifier.fillMaxWidth().padding(start = 14.dp, end = 12.dp, top = 14.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
