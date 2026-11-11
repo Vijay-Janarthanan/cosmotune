@@ -1033,11 +1033,8 @@
     </plurals>
     <string name="party_queue_full">คิวเต็มแล้ว (ปาร์ตี้มีได้สูงสุด %d เพลง)</string>
 
-    <string name="paxsenix_api_key">PaxSenix API key</string>
 
-    <string name="paxsenix_api_key_configured">PaxSenix API key — configured</string>
 
-    <string name="paxsenix_api_key_missing">PaxSenix API key — optional, not configured</string>
 
     <string name="addon_url_description">Paste the addon’s URL — either its root or its manifest.json. Cosmotune reads what it can search and stream, then asks it for tracks over plain HTTP.</string>
 

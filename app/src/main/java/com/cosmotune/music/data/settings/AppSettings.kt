@@ -542,9 +542,6 @@ object AppSettings {
      */
     val prioritizeSyllableSync = MutableStateFlow(false)
 
-    /** User-issued credential required by api.paxsenix.org. */
-    val paxSenixApiKey = MutableStateFlow("")
-
     /**
      * Disk budget for cached audio. [AudioCache][com.cosmotune.music.playback.AudioCache] evicts past it.
      * [UNLIMITED_CACHE_LIMIT_BYTES] means no ceiling of the app's own.
@@ -917,8 +914,9 @@ object AppSettings {
         lyricsSources.value = readLyricsSources()
         lyricsSourceOrder.value = readLyricsSourceOrder()
         prioritizeSyllableSync.value = prefs.getBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, false)
-        paxSenixApiKey.value = readSecret(KEY_PAXSENIX_API_KEY)
-        com.cosmotune.music.data.lyrics.PaxSenix.setApiKey(paxSenixApiKey.value)
+        // The PaxSenix sources are gone, and with them the only use of this key: a stored one is wiped
+        // rather than kept as a credential nothing reads.
+        if (readSecret(KEY_PAXSENIX_API_KEY).isNotEmpty()) writeSecret(KEY_PAXSENIX_API_KEY, "")
         audioCacheLimitBytes.value = clampCacheLimit(prefs.getLong(KEY_CACHE_LIMIT, DEFAULT_CACHE_LIMIT_BYTES))
         showCacheFolder.value = prefs.getBoolean(KEY_SHOW_CACHE_FOLDER, false)
         lastfmEnabled.value = prefs.getBoolean(KEY_LASTFM_ENABLED, false)
@@ -1389,30 +1387,19 @@ object AppSettings {
     private fun readLyricsSources(): Set<LyricsSource> {
         val stored = prefs.getString(KEY_LYRICS_SOURCES, null)
             ?: return LyricsSource.offered.toSet()
-        val chosen = stored.split(",").toSources()
-        val seen = prefs.getString(KEY_LYRICS_SOURCES_SEEN, null)
-            ?.split(",")?.toSources()
+        val seen = prefs.getString(KEY_LYRICS_SOURCES_SEEN, null)?.split(",")?.toSet()
             ?: LEGACY_SOURCES
-        return (chosen + LyricsSource.entries.filter { it !in seen }).filterNot { it.hidden }.toSet()
+        return LyricsSource.enabled(stored.split(","), seen)
     }
-
-    private fun List<String>.toSources(): Set<LyricsSource> =
-        mapNotNull { name -> LyricsSource.entries.firstOrNull { it.name == name } }.toSet()
 
     /**
      * The sources that existed before [KEY_LYRICS_SOURCES_SEEN] was written.
      * Fixed forever: it describes what an old build could have saved, so it
-     * does not grow when [LyricsSource] does.
+     * does not grow when [LyricsSource] does. Names rather than entries, since most of these
+     * sources have since been removed.
      */
     private val LEGACY_SOURCES = setOf(
-        LyricsSource.LYRICS_PLUS,
-        LyricsSource.PAXSENIX,
-        LyricsSource.BETTER_LYRICS,
-        LyricsSource.SIMP_MUSIC,
-        LyricsSource.KUGOU,
-        LyricsSource.LRCLIB,
-        LyricsSource.MUSIXMATCH,
-        LyricsSource.GENIUS,
+        "LYRICS_PLUS", "PAXSENIX", "BETTER_LYRICS", "SIMP_MUSIC", "KUGOU", "LRCLIB", "MUSIXMATCH", "GENIUS",
     )
 
     fun setLyricsSourceOrder(value: List<LyricsSource>) {
@@ -1438,13 +1425,6 @@ object AppSettings {
     fun setPrioritizeSyllableSync(value: Boolean) {
         prioritizeSyllableSync.value = value
         prefs.edit().putBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, value).apply()
-    }
-
-    fun setPaxSenixApiKey(value: String) {
-        val normalized = com.cosmotune.music.data.lyrics.normalizePaxSenixApiKey(value)
-        paxSenixApiKey.value = normalized
-        writeSecret(KEY_PAXSENIX_API_KEY, normalized)
-        com.cosmotune.music.data.lyrics.PaxSenix.setApiKey(normalized)
     }
 
     /**

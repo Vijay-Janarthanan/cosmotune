@@ -3,12 +3,12 @@ package com.cosmotune.music.data.lyrics
 /**
  * A YouTube title, as a lyrics database would have indexed it.
  *
- * Every source here but [SimpMusicLyrics] is asked for a name, and the name
+ * Every source here but [YouTubeMusicLyrics] is asked for a name, and the name
  * this app has is YouTube's, which is not the name anyone catalogued. "Dracula
  * (feat. JENNIE)" is filed by Apple, LRCLIB and everyone else as "Dracula", and
  * asked for verbatim it misses all of them — which is exactly how a track ends
  * up answered by whichever source happened to clean the title on its own
- * ([PaxSenix] was the only one that did) regardless of the order the user put
+ * (only one source ever did) regardless of the order the user put
  * their sources in.
  *
  * ### What is taken off, and what is deliberately left on

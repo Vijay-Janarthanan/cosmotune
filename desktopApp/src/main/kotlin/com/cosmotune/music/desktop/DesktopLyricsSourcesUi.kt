@@ -78,7 +78,7 @@ internal fun DesktopLyricsSourcesDialog(
                 DesktopStrings[
                     "d_sources_are_tried_in_this_order",
                     "Sources are tried in this order. Drag to reorder them. The first source " +
-                        "with lyrics wins unless syllable lyrics are prioritized.",
+                        "with timed lyrics wins unless syllable lyrics are prioritized.",
                 ],
                 style = MaterialTheme.typography.bodySmall,
                 color = DesktopSecondary,

@@ -11,7 +11,7 @@ import kotlin.test.*
 class LyricsCacheTest {
     private fun key() = DesktopLyricsClient.LookupKey(
         Song("cache-test-${java.util.UUID.randomUUID()}", "Song", "Artist", null),
-        180000, listOf(LyricsSource.LRC_RED, LyricsSource.BINI_LYRICS), false, true,
+        180000, listOf(LyricsSource.LRC_RED, LyricsSource.LRCLIB), false, true,
     )
 
     @Test fun successfulLookupIsReusedUntilRejected() = runBlocking {

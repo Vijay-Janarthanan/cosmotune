@@ -148,22 +148,6 @@ object YouTubeMusicLyrics {
     }
 }
 
-/** Timed YouTube transcript/captions for the exact playing video. */
-object YouTubeTranscriptLyrics {
-    suspend fun lyrics(videoId: String): List<LyricLine>? = withContext(Dispatchers.IO) {
-        if (!YOUTUBE_ID.matches(videoId)) return@withContext null
-        val response = runCatching { Innertube.transcript(videoId) }.getOrNull()
-            ?: return@withContext null
-        response.objectsNamed("transcriptCueRenderer").mapNotNull { cue ->
-            val start = (cue["startOffsetMs"] as? JsonPrimitive)?.longOrNull
-                ?: return@mapNotNull null
-            val text = cue["cue"]?.youtubeStrings()?.joinToString("").orEmpty()
-                .trim(' ', '\n', '♪')
-            text.takeIf { it.isNotEmpty() }?.let { LyricLine(start, it) }
-        }.sortedBy { it.timeMs }.toList().takeIf { it.isNotEmpty() }
-    }
-}
-
 private val YOUTUBE_ID = Regex("""[A-Za-z0-9_-]{11}""")
 
 private fun JsonElement.objectsNamed(name: String): Sequence<JsonObject> = sequence {

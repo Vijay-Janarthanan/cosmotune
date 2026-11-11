@@ -13,9 +13,8 @@ import kotlin.math.abs
  *
  * Every document lives at `https://lrc.red/s/{ISRC}.ttml`, so a track whose
  * recording is already known costs one request and cannot come back as the
- * wrong edit. That is the usual case: [BiniLyrics] answers its searches out
- * of this same catalogue — its `lyricsUrl` points here — and
- * [LyricsRepository] hands the ISRC it finds to every source that can use one.
+ * wrong edit — a downloaded or local file whose tags carry an ISRC, which
+ * [LyricsRepository] hands straight here.
  *
  * Without one, lrc.red's own search (`/search.json?q=`) is asked with the
  * title and artist, and the hits are matched here rather than trusted in
@@ -46,8 +45,7 @@ object LrcRed {
         isrc.trim().uppercase(Locale.ROOT).takeIf { ISRC.matches(it) }?.let { "${BASE}s/$it.ttml" }
 
     /**
-     * [get] is how the document is fetched; [LyricsRepository] passes one that
-     * shares the download with [BiniLyrics], which wants the very same file.
+     * [get] is how the document is fetched; a test can hand in its own.
      */
     suspend fun lyrics(
         title: String,
