@@ -116,15 +116,16 @@ class ThemeChoiceTest {
             val theme = if (dark) "dark" else "light"
             val ink = Color(palette(dark).target.textPrimary)
             for (choice in ThemeChoice.entries) {
-                val bitmap = render("switch-$theme-${choice.name.lowercase()}", dark, 320, 64, MemoryHost(choice)) {
+                val bitmap = render("switch-$theme-${choice.name.lowercase()}", dark, 320, 72, MemoryHost(choice)) {
                     OrbitThemeRow(Modifier.padding(12.dp).width(296.dp), labelStart = 12.dp)
                 }
-                // The switch ends at the row's end (12 dp in, 296 dp wide): 3 segments of 44 dp after 3 dp of track, 2 px a dp.
-                val trackStart = (12 + 296 - 138) * 2
-                val centreY = (12 + 20) * 2
+                // The switch ends at the row's end (12 dp in, 296 dp wide): 3 segments of 48 dp, each thumb 44 dp wide in the middle
+                // of its segment, the 48 dp row's middle 24 dp down; 2 px a dp.
+                val trackStart = (12 + 296 - 144) * 2
+                val centreY = (12 + 24) * 2
                 ORBIT_THEME_ORDER.forEachIndexed { at, option ->
-                    // Just inside the segment's top edge, clear of the glyph: the thumb's ink, or the chip fill.
-                    val x = trackStart + (3 + at * 44 + 6) * 2
+                    // Just inside the thumb's start, clear of the glyph: the thumb's ink, or the chip fill.
+                    val x = trackStart + (at * 48 + 2 + 6) * 2
                     val argb = bitmap.getColor(x, centreY)
                     val pixel = Color(argb)
                     val close = kotlin.math.abs(pixel.red - ink.red) + kotlin.math.abs(pixel.green - ink.green) + kotlin.math.abs(pixel.blue - ink.blue) < 0.08f
@@ -132,6 +133,39 @@ class ThemeChoiceTest {
                     else assertFalse(close, "$theme ${choice.name}: ${option.name} is not under the thumb")
                 }
             }
+        }
+    }
+
+    /** Each segment takes a tap anywhere in its 48 dp square, above and below the 40 dp pill too, not only on what is drawn. */
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test fun eachSegmentTakesATapAnywhereInItsFortyEightDpTarget() {
+        val host = MemoryHost(ThemeChoice.SYSTEM)
+        val palette = palette(true)
+        // 1 px a dp: the switch alone at the top left, 3 segments of 48 dp in a 48 dp row; the pill is drawn from 4 dp to 44 dp.
+        val scene = ImageComposeScene(200, 60, Density(1f)) {
+            val colors = remember { CosmoColors::class.java.getConstructor(CosmoPaletteState::class.java).newInstance(palette) }
+            val type = rememberCosmoType()
+            MaterialTheme {
+                CompositionLocalProvider(LocalCosmoColors provides colors, LocalCosmoType provides type, LocalReducedMotion provides true) {
+                    com.cosmotune.ui.orbit.OrbitThemeSwitch(host.collect(), host::choose)
+                }
+            }
+        }
+        fun tap(x: Float, y: Float) {
+            scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Press, androidx.compose.ui.geometry.Offset(x, y))
+            scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Release, androidx.compose.ui.geometry.Offset(x, y))
+            scene.render()
+        }
+        try {
+            scene.render()
+            tap(24f, 1.5f)
+            assertEquals(ThemeChoice.LIGHT, host.stored, "a tap above the pill, inside the sun's target, chooses Light")
+            tap(72f, 46.5f)
+            assertEquals(ThemeChoice.DARK, host.stored, "a tap below the pill, inside the moon's target, chooses Dark")
+            tap(141f, 24f)
+            assertEquals(ThemeChoice.SYSTEM, host.stored, "a tap at the pill's far end chooses the system's")
+        } finally {
+            scene.close()
         }
     }
 

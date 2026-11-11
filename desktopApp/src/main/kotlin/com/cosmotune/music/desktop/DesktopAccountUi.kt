@@ -178,10 +178,11 @@ internal fun DesktopAccountSelector(
                 compact = true,
             )
             // The quick theme switch under the card: its label on the account labels' line (14 dp), the pill's end on the rows'
-            // end, 12 dp under the card. It stores the Settings choice, so the two always agree.
-            com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 12.dp), labelStart = 14.dp)
+            // end, the pill 12 dp under the card and the accounts' label 14 dp under the pill (the switch's 48 dp touch targets
+            // stand 4 dp beyond the pill on each side). It stores the Settings choice, so the two always agree.
+            com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 8.dp), labelStart = 14.dp)
             Row(
-                Modifier.fillMaxWidth().padding(start = 14.dp, end = 12.dp, top = 14.dp, bottom = 6.dp),
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 OrbitLabel(if (accounts.isEmpty()) "Accounts" else "Switch account", fonts, look.dim, Modifier.weight(1f))

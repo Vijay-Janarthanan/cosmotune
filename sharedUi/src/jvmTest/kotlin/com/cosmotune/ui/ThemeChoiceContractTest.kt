@@ -87,13 +87,13 @@ class ThemeChoiceContractTest {
     @Test fun bothProfileMenusCarryTheQuickSwitchUnderTheirHead() {
         val drawer = flat(drawer)
         val head = drawer.indexOf("DrawerHead(name, subtitle, avatarUrl, onAccount)")
-        val row = drawer.indexOf("com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 12.dp), labelStart = 24.dp, end = 12.dp)")
+        val row = drawer.indexOf("com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 8.dp), labelStart = 24.dp, end = 12.dp)")
         assertTrue(row > head && head >= 0, "the drawer's switch right under the head")
         assertTrue(row < drawer.indexOf("ModeSwitch(onChosen = onDismiss"), "and above the modes")
         assertTrue(".then(fadeSurface)" in drawer, "the drawer's own window cross-fades too")
         val popover = flat(accountUi)
         val card = popover.indexOf("OrbitAccountCard(")
-        val switch = popover.indexOf("com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 12.dp), labelStart = 14.dp)")
+        val switch = popover.indexOf("com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 8.dp), labelStart = 14.dp)")
         assertTrue(switch > card && card >= 0, "the popover's switch under its account card")
         assertTrue(switch < popover.indexOf("\"Switch account\""), "and above the accounts")
     }

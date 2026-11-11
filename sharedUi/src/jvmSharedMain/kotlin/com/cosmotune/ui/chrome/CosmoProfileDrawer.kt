@@ -372,10 +372,11 @@ private fun DrawerLayer(
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     DrawerHead(name, subtitle, avatarUrl, onAccount)
                     // The quick theme switch, right under the head: its label on the Mode label's line (24 dp), the pill's end on
-                    // the head card's (12 dp), 12 dp under the card. It stores the Settings choice, so the two always agree.
+                    // the head card's (12 dp), the pill 12 dp under the card and the Mode label 14 dp under the pill (the switch's
+                    // 48 dp touch targets stand 4 dp beyond the pill on each side). It stores the Settings choice, so the two agree.
                     val themeShown = com.cosmotune.ui.theme.LocalThemeChoice.current != null
-                    com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 12.dp), labelStart = 24.dp, end = 12.dp)
-                    ModeSwitch(onChosen = onDismiss, onLater = { later = it }, top = if (themeShown) 14.dp else 20.dp)
+                    com.cosmotune.ui.orbit.OrbitThemeRow(Modifier.padding(top = 8.dp), labelStart = 24.dp, end = 12.dp)
+                    ModeSwitch(onChosen = onDismiss, onLater = { later = it }, top = if (themeShown) 10.dp else 20.dp)
                     Spacer(Modifier.height(14.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { for (entry in entries) EntryRow(entry) }
                     // In a room, the room's small card under the rows; a tap opens the room.

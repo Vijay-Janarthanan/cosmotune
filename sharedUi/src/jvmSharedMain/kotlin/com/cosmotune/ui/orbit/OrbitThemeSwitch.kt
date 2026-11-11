@@ -51,10 +51,14 @@ import org.jetbrains.compose.resources.stringResource
 /** The switch's options in the order they stand: the sun, the moon, then "A" for following the system. */
 val ORBIT_THEME_ORDER = listOf(ThemeChoice.LIGHT, ThemeChoice.DARK, ThemeChoice.SYSTEM)
 
-/** The track's height, its inner padding and one segment's width: a compact 40 dp pill of three 44 dp segments. */
+/**
+ * The pill's height, the thumb's inset from its top and bottom and the thumb's width: a compact 40 dp pill whose thumb is 44 x 34 dp.
+ * Each segment is a [TOUCH_TARGET] square, the pill drawn across their middle, so a tap a little above or below it still lands.
+ */
 private val TRACK_HEIGHT = 40.dp
 private val TRACK_PAD = 3.dp
 private val SEGMENT_WIDTH = 44.dp
+private val TOUCH_TARGET = 48.dp
 private val GLYPH = 18.dp
 
 /** Between the label and the switch: at least the 8 dp of the profile menus' rhythm. */
@@ -64,7 +68,8 @@ private val LABEL_GAP = 8.dp
  * The quick theme switch of the profile menus (the phone's drawer, the desktop's account popover): a compact Orbit pill of three
  * segments, the sun (Light), the moon (Dark) and "A" (follow the system), with the chosen one under a solid ink thumb that carries
  * its glyph in the ground's colour; the others are the dim ink on the chip fill. The thumb slides on the move spring (a short fade
- * under reduced motion). A selectable group, each segment a radio button named after its choice.
+ * under reduced motion). A selectable group, each segment a radio button named after its choice, with a 48 dp touch target: the
+ * switch stands 48 dp tall with the 40 dp pill drawn across its middle.
  */
 @Composable
 fun OrbitThemeSwitch(choice: ThemeChoice, onChoose: (ThemeChoice) -> Unit, modifier: Modifier = Modifier) {
@@ -77,21 +82,22 @@ fun OrbitThemeSwitch(choice: ThemeChoice, onChoose: (ThemeChoice) -> Unit, modif
     val names = ORBIT_THEME_ORDER.map { themeName(it) }
     Row(
         modifier
-            .heightIn(min = TRACK_HEIGHT)
+            .heightIn(min = TOUCH_TARGET)
             .drawBehind {
-                val radius = CornerRadius(size.height / 2f)
-                drawRoundRect(look.chip, cornerRadius = radius)
+                val track = TRACK_HEIGHT.toPx()
+                val top = (size.height - track) / 2f
+                drawRoundRect(look.chip, topLeft = Offset(0f, top), size = Size(size.width, track), cornerRadius = CornerRadius(track / 2f))
                 val pad = TRACK_PAD.toPx()
+                val slot = TOUCH_TARGET.toPx()
                 val width = SEGMENT_WIDTH.toPx()
-                val height = size.height - pad * 2
+                val height = track - pad * 2
                 drawRoundRect(
                     look.ink,
-                    topLeft = Offset(pad + thumb.value * width, pad),
+                    topLeft = Offset(thumb.value * slot + (slot - width) / 2f, top + pad),
                     size = Size(width, height),
                     cornerRadius = CornerRadius(height / 2f),
                 )
             }
-            .padding(TRACK_PAD)
             .selectableGroup(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -101,8 +107,7 @@ fun OrbitThemeSwitch(choice: ThemeChoice, onChoose: (ThemeChoice) -> Unit, modif
             val hovered by interaction.collectIsHoveredAsState()
             Box(
                 Modifier
-                    .size(SEGMENT_WIDTH, TRACK_HEIGHT - TRACK_PAD * 2)
-                    .cosmoFocusRing(interaction, (TRACK_HEIGHT - TRACK_PAD * 2) / 2)
+                    .size(TOUCH_TARGET)
                     .hoverable(interaction)
                     .selectable(selected, interaction, indication = null, role = Role.RadioButton) {
                         if (!selected) { haptics.play(Haptic.Select); onChoose(option) }
@@ -115,7 +120,13 @@ fun OrbitThemeSwitch(choice: ThemeChoice, onChoose: (ThemeChoice) -> Unit, modif
                     hovered -> look.ink
                     else -> look.dim
                 }
-                Icon(themeGlyph(option), contentDescription = null, tint = tint, modifier = Modifier.size(GLYPH))
+                // The focus ring goes round the thumb's place, not the larger touch target.
+                Box(
+                    Modifier.size(SEGMENT_WIDTH, TRACK_HEIGHT - TRACK_PAD * 2).cosmoFocusRing(interaction, (TRACK_HEIGHT - TRACK_PAD * 2) / 2),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(themeGlyph(option), contentDescription = null, tint = tint, modifier = Modifier.size(GLYPH))
+                }
             }
         }
     }
@@ -123,7 +134,8 @@ fun OrbitThemeSwitch(choice: ThemeChoice, onChoose: (ThemeChoice) -> Unit, modif
 
 /**
  * The theme row of a profile menu: "THEME" in Orbit's label face at [labelStart] from the menu's edge and the [OrbitThemeSwitch] at
- * [end], at least 8 dp apart, on one line as tall as the switch (so the menu's own gaps above and below it are the gaps seen). It reads and stores the app's own choice ([LocalThemeChoice]), the one Settings
+ * [end], at least 8 dp apart, on one line as tall as the switch's 48 dp touch targets (the pill itself is 40 dp, 4 dp in from the
+ * line's top and bottom, which the menus take off their own gaps). It reads and stores the app's own choice ([LocalThemeChoice]), the one Settings
  * changes, so the two always agree; nothing where the app installed no choice.
  */
 @Composable
@@ -133,7 +145,7 @@ fun OrbitThemeRow(modifier: Modifier = Modifier, labelStart: Dp = 0.dp, end: Dp 
     val fonts = orbitFonts()
     val look = orbitLook()
     Row(
-        modifier.fillMaxWidth().heightIn(min = TRACK_HEIGHT).padding(start = labelStart, end = end),
+        modifier.fillMaxWidth().heightIn(min = TOUCH_TARGET).padding(start = labelStart, end = end),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
