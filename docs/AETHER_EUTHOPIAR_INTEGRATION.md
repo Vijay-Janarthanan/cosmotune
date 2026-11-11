@@ -1,6 +1,6 @@
 # AETHER and Euthopiar integration
 
-Requested 11 November 2026, against the pinned revisions in [the source and release audit](UPSTREAM_REVIEW_AETHER_EUTHOPIAR_2026-11-11.md). No release version or public tag has been changed for this work, and nothing here has been released. This page replaces the progress list in [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md), which records how the work was handed over.
+Requested 11 November 2026, against the pinned revisions in [the source and release audit](UPSTREAM_REVIEW_AETHER_EUTHOPIAR_2026-11-11.md). It shipped in [Cosmotune 1.0.22](releases/1.0.22.md).
 
 ## Scope and attribution
 
