@@ -1,7 +1,6 @@
 package com.cosmotune.video.ui.watch
 
 import android.app.Activity
-import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
@@ -11,6 +10,7 @@ import android.os.Build
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -26,6 +26,8 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.cosmotune.ui.pip.ActivityPip
+import com.cosmotune.ui.pip.PipOwner
 import java.util.WeakHashMap
 
 /**
@@ -148,18 +150,19 @@ private fun dialogWindowOf(view: View): Window? {
 }
 
 /**
- * Android: `enterPictureInPictureMode` with empty parameters, which the system combines with the ones the page set last (the
- * video's shape and the player's bounds); null when the activity cannot (no activity, or a device without the feature).
+ * Android: Video asks the activity's one picture-in-picture for the window ([ActivityPip.enter] as [PipOwner.VIDEO]), which enters
+ * with the parameters the page set last (the video's shape and the player's bounds) unless another player is in it; null when the
+ * activity cannot (no activity, or a device without the feature).
  */
 @Composable
 internal actual fun rememberEnterPictureInPicture(): (() -> Unit)? {
     val context = LocalContext.current
     return remember(context) {
-        val activity = context.findActivity()
+        val activity = context.findActivity() as? ComponentActivity
         if (activity == null || !activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             null
         } else {
-            { runCatching { activity.enterPictureInPictureMode(PictureInPictureParams.Builder().build()) }; Unit }
+            { ActivityPip.of(activity).enter(PipOwner.VIDEO); Unit }
         }
     }
 }

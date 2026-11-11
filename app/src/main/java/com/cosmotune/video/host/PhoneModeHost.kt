@@ -190,6 +190,9 @@ fun PhoneModeHost(windowWidth: Dp, windowHeight: Dp, music: @Composable () -> Un
     }
     }
     }
+    // The picture-in-picture window is the app: a film or a song's video kept there after its page went (a link switched the
+    // mode) is drawn over everything, so the small window keeps showing it.
+    com.cosmotune.ui.pip.PipKeptPicture()
 }
 
 /**

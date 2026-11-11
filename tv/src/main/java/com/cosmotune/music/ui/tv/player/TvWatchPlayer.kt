@@ -78,7 +78,13 @@ import com.cosmotune.music.ui.tv.theme.TvType
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.orbit.OrbitRoundButton
 import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.ui.pip.PipOwner
+import com.cosmotune.ui.pip.rememberPip
 import com.cosmotune.ui.watch.LocalWatchRepository
+import com.cosmotune.ui.watch.channelAfter
+import com.cosmotune.ui.watch.rememberWatchPip
+import com.cosmotune.watch.ChannelFilter
+import com.cosmotune.watch.model.Channel
 import com.cosmotune.ui.watch.WatchBackend
 import com.cosmotune.ui.watch.WatchNav
 import com.cosmotune.ui.watch.WatchPlayback
@@ -159,6 +165,16 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
         player.open(route.target, route.summary, selected ?: route.stream, startMs = start)
     })
     val repository = LocalWatchRepository.current ?: WatchBackend.repository
+    // Picture-in-picture (Home on the remote, or the card's button): the picture alone in the system's small window, with play and
+    // pause and, for an episode the next one, for a channel the next in its playlist. Closing it pauses the film.
+    val pip = rememberPip(PipOwner.WATCH)
+    val liveChannel = (route.target as? PlayTarget.Live)?.channel
+    val playlist by produceState(emptyList<Channel>(), liveChannel) {
+        if (liveChannel != null) value = runCatching { repository.channels(ChannelFilter(pluginId = liveChannel.pluginId)) }.getOrDefault(emptyList())
+    }
+    val nextChannel = liveChannel?.let { channelAfter(playlist, it.key) }
+    rememberWatchPip(pip, player, state, playing, snapshot.videoWidth, snapshot.videoHeight, local = true,
+        nextChannel = nextChannel?.let { next -> { WatchNav.playChannel(next) } }, surface = playback.surface)
     val channels by produceState(emptyList<LiveNowItem>(), route.target.key, menu) {
         if (menu == TvWatchMenu.CHANNELS) {
             value = runCatching { repository.liveNow(20) }.getOrDefault(emptyList()).filter { it.channel.key != route.target.key }
@@ -203,6 +219,11 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
         }
     }
 
+    if (pip.active) {
+        // In picture-in-picture the window is the picture alone: no card, no notes, nothing over it.
+        Box(modifier.fillMaxSize().background(Color.Black)) { playback.surface(scale, Modifier.fillMaxSize()) }
+        return
+    }
     Box(
         modifier
             .fillMaxSize()
@@ -274,6 +295,7 @@ internal fun TvWatchPlayer(route: WatchRoute.Play, playback: WatchPlayback?, mod
                     onMenu = { menu = it },
                     onLive = retry,
                     onFullScreen = { cardUp = false },
+                    onPip = if (pip.supported) ({ pip.enter(); Unit }) else null,
                 )
             }
         }
@@ -425,6 +447,7 @@ private fun TvFilmCard(
     onMenu: (TvWatchMenu) -> Unit,
     onLive: (() -> Unit)?,
     onFullScreen: () -> Unit,
+    onPip: (() -> Unit)? = null,
 ) {
     val summary = state.summary ?: route.summary
     // A channel: what is on it now and what comes next, from the guide, asked again as each programme ends.
@@ -494,6 +517,7 @@ private fun TvFilmCard(
                     onLive?.let { TvButton("Jump to live", onClick = it) }
                 }
                 TvWatchRound(CosmoIcons.Expand, "Full screen", ink, onFullScreen)
+                onPip?.let { TvWatchRound(CosmoIcons.Pip, "Picture in picture", ink, it) }
                 TvButton(if (state.muted) "Unmute" else "Mute", onClick = player::toggleMute)
                 if (state.streams.isNotEmpty()) TvButton("Sources", onClick = { onMenu(TvWatchMenu.SOURCES) })
                 if (state.audioTracks.size > 1) TvButton("Audio", onClick = { onMenu(TvWatchMenu.AUDIO) })

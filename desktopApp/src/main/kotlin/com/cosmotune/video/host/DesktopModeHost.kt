@@ -201,10 +201,14 @@ fun DesktopVideoPage(contentPadding: PaddingValues) {
 /**
  * Music's way into Video on the desktop ("Watch the music video", spec section 9), for the root's provider list (hook table row 10):
  * null while the new look is off (no shell) or Video is not available, so Music draws no such tool. One identity per shell, so the
- * static local changes only when the look does.
+ * static local changes only when the look does. It also installs the desktop's picture-in-picture window for every mode
+ * ([com.cosmotune.video.player.InstallDesktopPip]), which belongs in the root for the same reason.
  */
 @Composable
 fun rememberDesktopModeLinks(): ModeLinks? {
+    // The one picture-in-picture window of the app (Video's), installed for Watch and Now Playing's music video too: they reach it
+    // through sharedUi's hook (`DesktopPipBoard.host`), so Music never names Video.
+    com.cosmotune.video.player.InstallDesktopPip()
     val shell = LocalCosmoShell.current
     val links = remember(shell) { shell?.let { desktopModeLinks(it.settings) } }
     return links?.takeIf { AppModes.available(AppMode.VIDEO) }

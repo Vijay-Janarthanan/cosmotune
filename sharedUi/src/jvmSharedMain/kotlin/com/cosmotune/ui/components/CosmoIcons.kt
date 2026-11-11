@@ -131,6 +131,8 @@ object CosmoIcons {
     val Bell by icon("bell") { stroke("M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2H5z"); stroke("M10 20.5a2 2 0 0 0 4 0") }
     val User by icon("user") { circle(12f, 8.5f, 3.75f); stroke("M4.75 20a7.25 7.25 0 0 1 14.5 0") }
     val List by icon("list") { stroke("M8.5 6.5H20"); stroke("M8.5 12H20"); stroke("M8.5 17.5H20"); stroke("M4 6.5h.5"); stroke("M4 12h.5"); stroke("M4 17.5h.5") }
+    /** Picture in picture: the screen with the small picture in its corner (Video's own glyph, for Watch and Now Playing). */
+    val Pip by icon("pip") { rect(3.5f, 5.5f, 17f, 13f, 2f); rect(12f, 11.5f, 6f, 4.5f, 1f) }
 
     val all: Map<String, ImageVector> by lazy {
         listOf(Canvas, CanvasOff, Home, HomeFill, Search, SearchFill, Library, LibraryFill, Grid, Play, Pause, Next, Previous, Shuffle, Repeat, RepeatOne,

@@ -211,7 +211,7 @@ class VideoModuleStructureTest {
         val phone = VideoSourceContract.code(read("video/src/androidMain/kotlin/com/cosmotune/video/player/Pip.android.kt")).replace(Regex("\\s+"), " ")
         assertTrue("override val supported: Boolean get() = false" in phone && "override val active: Boolean get() = false" in phone, "no activity: not supported")
         val desktop = VideoSourceContract.code(read("video/src/jvmMain/kotlin/com/cosmotune/video/player/Pip.jvm.kt")).replace(Regex("\\s+"), " ")
-        assertTrue("override val active: Boolean get() = DesktopPip.isOpen" in desktop && "override val manual: Boolean get() = true" in desktop)
+        assertTrue("override val active: Boolean get() = DesktopPip.isOpen && DesktopPip.owner == PipOwner.VIDEO" in desktop && "override val manual: Boolean get() = true" in desktop, "the window holds Video only when Video is in it")
         assertTrue("override fun enter() = DesktopPip.open(" in desktop && "override fun exit() = DesktopPip.close(returnToApp = false)" in desktop)
     }
 }

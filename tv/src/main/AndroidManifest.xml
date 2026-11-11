@@ -156,6 +156,8 @@
             android:icon="@mipmap/ic_launcher"
             android:label="@string/app_name"
             android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.Cosmotune.Tv" />
 

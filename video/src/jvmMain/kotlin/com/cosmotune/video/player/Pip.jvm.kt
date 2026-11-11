@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.Rect
+import com.cosmotune.ui.pip.PipOwner
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.video.graph.LocalVideoGraph
 import com.cosmotune.video.settings.VideoSettingsRepository
@@ -12,7 +13,8 @@ import java.awt.GraphicsEnvironment
 /**
  * The desktop's picture-in-picture is a window of its own ([DesktopPip]): small, borderless and always on top, opened by
  * [PictureInPictureState.enter] (the button, the P key) and closed by [PictureInPictureState.exit]. It is supported where there is a
- * screen and the engine draws a surface; `update` has nothing to tell it (nothing enters by itself when the app is left).
+ * screen and the engine draws a surface; `update` has nothing to tell it (nothing enters by itself when the app is left). The window
+ * is the one Watch and the song's music video open too ([com.cosmotune.ui.pip.DesktopPipBoard]): one player in it at a time.
  */
 @Composable
 actual fun rememberPictureInPicture(): PictureInPictureState {
@@ -33,7 +35,8 @@ private class DesktopPictureInPicture(
 ) : PictureInPictureState {
     override val supported: Boolean get() = surface != null && !GraphicsEnvironment.isHeadless()
 
-    override val active: Boolean get() = DesktopPip.isOpen
+    /** The window is open with Video in it (Watch and the song's music video use the same window). */
+    override val active: Boolean get() = DesktopPip.isOpen && DesktopPip.owner == PipOwner.VIDEO
 
     override val manual: Boolean get() = true
 

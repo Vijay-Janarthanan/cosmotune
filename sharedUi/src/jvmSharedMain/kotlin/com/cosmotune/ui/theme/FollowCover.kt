@@ -20,6 +20,8 @@ fun CosmoShellState.FollowCover(song: Song?, next: Song?) {
     val nextUrl = next?.thumbnailUrl
     val album = song?.let { it.albumId ?: it.albumName }
     SideEffect {
+        // The song a music video kept in picture-in-picture follows once Now Playing has gone.
+        com.cosmotune.ui.nowplaying.NowPlayingFeed.song = song
         coverUrl = url
         nextCoverUrl = nextUrl
         coverAlbum = album

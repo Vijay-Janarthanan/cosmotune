@@ -264,8 +264,10 @@ internal fun Modifier.fadedBy(reveal: State<Float>): Modifier = graphicsLayer { 
 internal val RECORD_RING_GAP = 26.dp
 
 /**
- * The screen button's menu (board section 4): Whole, Fill, Cinema, Mini (coming) and Off (the record). [view] is the kept view,
- * [cinema] whether Cinema is showing, [videoOn] whether the video is on at all.
+ * The screen button's menu (board section 4): Whole, Fill, Cinema, Picture in picture (the board's Mini) and Off (the record). [view]
+ * is the kept view, [cinema] whether Cinema is showing, [videoOn] whether the video is on at all. [pip] takes the video into
+ * picture-in-picture (the system's small window on the phone, the small always-on-top window on the desktop), [inPip] whether it is
+ * there now; with no [pip] (a device that has none) the item is shown, and not offered.
  */
 internal fun videoViewItems(
     view: VideoView,
@@ -274,12 +276,15 @@ internal fun videoViewItems(
     onView: (VideoView) -> Unit,
     onCinema: (Boolean) -> Unit,
     onVideoOn: (Boolean) -> Unit,
+    pip: (() -> Unit)? = null,
+    inPip: Boolean = false,
 ): List<OrbitMenuItem> = listOf(
-    OrbitMenuItem("Whole", "Nothing cut", selected = videoOn && !cinema && view == VideoView.WHOLE) { onVideoOn(true); onCinema(false); onView(VideoView.WHOLE) },
-    OrbitMenuItem("Fill", "Fills the frame, cuts the edges", selected = videoOn && !cinema && view == VideoView.FILL) { onVideoOn(true); onCinema(false); onView(VideoView.FILL) },
+    OrbitMenuItem("Whole", "Nothing cut", selected = videoOn && !cinema && !inPip && view == VideoView.WHOLE) { onVideoOn(true); onCinema(false); onView(VideoView.WHOLE) },
+    OrbitMenuItem("Fill", "Fills the frame, cuts the edges", selected = videoOn && !cinema && !inPip && view == VideoView.FILL) { onVideoOn(true); onCinema(false); onView(VideoView.FILL) },
     // The key hint only where there is a keyboard to press it on (the desktop); a phone has none.
-    OrbitMenuItem("Cinema", if (com.cosmotune.ui.components.platformSdkInt == null) "The whole window · F" else "The whole window", selected = videoOn && cinema) { onVideoOn(true); onCinema(true) },
-    OrbitMenuItem("Mini", "A small floating video · coming soon", enabled = false) {},
+    OrbitMenuItem("Cinema", if (com.cosmotune.ui.components.platformSdkInt == null) "The whole window · F" else "The whole window", selected = videoOn && cinema && !inPip) { onVideoOn(true); onCinema(true) },
+    if (pip != null) OrbitMenuItem("Picture in picture", "A small floating video, the music plays on", selected = inPip) { onVideoOn(true); onCinema(false); pip() }
+    else OrbitMenuItem("Picture in picture", "Not on this device", enabled = false) {},
     OrbitMenuItem("Off", "The record. Saves data and battery", selected = !videoOn) { onCinema(false); onVideoOn(false) },
 )
 

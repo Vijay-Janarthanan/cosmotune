@@ -136,7 +136,9 @@ class NowPlayingContractTest {
     @Test fun theRecordOrTheVideoTellsTheShellWhereTheCoverRests() {
         val screen = code(nowPlaying("CosmoNowPlaying.kt"))
         assertTrue(screen.contains("val coverPlaced: (Rect) -> Unit = { shell?.playerCoverBounds = it }"))
-        assertTrue(screen.contains("onPlaced = coverPlaced") && screen.contains("onFramePlaced = coverPlaced"))
+        assertTrue(screen.contains("onPlaced = coverPlaced"))
+        // the video's frame is also where picture-in-picture grows from (its source rectangle)
+        assertTrue(screen.contains("onFramePlaced = { coverPlaced(it); pipBinding.bounds(it) }"))
     }
 
     @Test fun aCoverLoopPlaysInsideTheRecordsDiscAndAMusicVideoIsShownAsItsViewSays() {
