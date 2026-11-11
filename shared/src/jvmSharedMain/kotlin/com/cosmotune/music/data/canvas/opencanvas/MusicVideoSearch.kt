@@ -1,5 +1,6 @@
 package com.opencanvas.core.stream
 
+import com.cosmotune.youtube.YoutubeAds
 import com.opencanvas.core.matcher.VideoCandidate
 import com.opencanvas.core.matcher.VideoMatcher
 import kotlinx.serialization.json.Json
@@ -372,7 +373,12 @@ internal class MusicVideoSearch(private val http: OkHttpClient, private val log:
         private fun collect(element: JsonElement, out: MutableList<VideoCandidate>) {
             when (element) {
                 is JsonObject -> element.forEach { (key, value) ->
-                    if (key == "videoRenderer" && value is JsonObject) toCandidate(value)?.let(out::add) else collect(value, out)
+                    if (YoutubeAds.isAdRenderer(key)) return@forEach
+                    if (key == "videoRenderer" && value is JsonObject) {
+                        if (!YoutubeAds.isAdItem(value)) toCandidate(value)?.let(out::add)
+                    } else {
+                        collect(value, out)
+                    }
                 }
                 is JsonArray -> element.forEach { collect(it, out) }
                 else -> Unit
