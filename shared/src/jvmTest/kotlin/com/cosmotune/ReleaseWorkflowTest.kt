@@ -131,7 +131,7 @@ class ReleaseWorkflowTest {
     /**
      * The apps show only a release's `## Highlights` (see [ReleaseHighlights] and docs/releases/README.md), so the current
      * release must have them, and every notes file that has them must keep the format: one to five items, each naming a known
-     * icon in its comment, a bold title of two to four words and one short plain sentence after the dash.
+     * icon in its comment, a bold title of two to four words and one plain sentence after the dash, short enough (48 characters) for one phone line.
      */
     @Test
     fun theReleaseNotesLeadWithHighlightsTheAppsCanShow() {
@@ -153,7 +153,7 @@ class ReleaseWorkflowTest {
                 val (icon, title, sentence) = match.destructured
                 assertTrue(HighlightIcon.of(icon) != null, "$name: `$icon` is not a HighlightIcon keyword")
                 assertTrue(title.trim().split(' ').filter(String::isNotBlank).size in 2..4, "$name: `$title` is not two to four words")
-                assertTrue(sentence.endsWith(".") && sentence.length <= 72, "$name: `$sentence` is not one short sentence")
+                assertTrue(sentence.endsWith(".") && sentence.length <= 48, "$name: `$sentence` is not one short sentence")
                 assertTrue("](" !in sentence && "`" !in sentence && "**" !in sentence, "$name: `$sentence` carries Markdown")
             }
             name

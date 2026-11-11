@@ -19,7 +19,7 @@ there is one). It is a list of at most five items, one line each:
   `watch`, `live`, `channels`, `timer`, `playback`, `lyrics`, `audio`, `playlist`, `sync`, `check`, `read`, `podcast`, `tv`,
   `wear`, `download`, `search`, `together`, `settings` and `new`.
 - **Title.** Two to four words in bold.
-- **Sentence.** One sentence after the dash, short enough for a phone line or two, written for a listener rather than a
+- **Sentence.** One sentence after the dash, at most 48 characters so it fits one phone line, written for a listener rather than a
   developer.
 
 Choose what a listener notices: a new mode, a new look, something that now works properly. Leave out internal fixes, tests,
