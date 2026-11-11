@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
@@ -56,11 +57,29 @@ internal class PosterScene(
     val words: Array<TextLayoutResult>,
     val x: FloatArray,
     val y: FloatArray,
+    /** When each of [words] is sung: a long word of a script without spaces is broken into rows, each lit as its share is sung. */
+    val startMs: LongArray,
 ) {
     companion object {
         fun build(measurer: TextMeasurer, stage: StageLine, fonts: LyricStageFonts, density: Density, width: Float, height: Float): PosterScene {
-            val n = stage.count
-            val text = Array(n) { stage.text.substring(stage.charStart[it], stage.charEnd[it]).uppercase(Locale.ROOT) }
+            // Words of Chinese, Japanese, Thai and the like have no spaces to break at: such a word is cut into balanced rows of a few
+            // letters, so the line is still a poster, not one small row.
+            val pieces = ArrayList<String>()
+            val starts = ArrayList<Long>()
+            for (w in 0 until stage.count) {
+                val word = stage.text.substring(stage.charStart[w], stage.charEnd[w]).uppercase(Locale.ROOT)
+                val parts = PosterLines.chunks(word)
+                val span = (stage.wordEndMs[w] - stage.startMs[w]).coerceAtLeast(0L)
+                var done = 0
+                for (part in parts) {
+                    pieces += part
+                    starts += stage.startMs[w] + span * done / word.length
+                    done += part.length
+                }
+            }
+            val n = pieces.size
+            val text = Array(n) { pieces[it] }
+            val startMs = LongArray(n) { starts[it] }
             // Fitted with the row height the line's scripts need (fallback glyphs are taller than Archivo's caps)...
             val factor = PosterLines.factor(stage.text)
             val ref = 100f
@@ -79,7 +98,7 @@ internal class PosterScene(
                 placed = place(measurer, text, widths, space, ref, fonts, density, size, fit.onePerRow, width, rowStart)
                 tries++
             }
-            return placed.first.let { (words, xs, ys) -> PosterScene(stage, words, xs, ys) }
+            return placed.first.let { (words, xs, ys) -> PosterScene(stage, words, xs, ys, startMs) }
         }
 
         /** The words at [size], packed into rows and each row set at the height its shaped glyphs need; and the total height. */
@@ -138,14 +157,17 @@ internal class PosterScene(
     }
 }
 
-/** Draws [scene] from [origin]: each word at [UNSUNG_ALPHA] of [ink] until it is sung, then whole, fading in over [WORD_LIGHT_MS]. */
-internal fun DrawScope.drawPoster(scene: PosterScene, positionMs: Long, ink: Color, origin: Offset, reduced: Boolean) {
-    val stage = scene.stage
+/**
+ * Draws [scene] from [origin]: each word at [UNSUNG_ALPHA] of [ink] until it is sung, then whole, fading in over [WORD_LIGHT_MS].
+ * The dim is an opaque colour between [card] and [ink], not a see-through [ink]: glyphs whose parts overlap (the Indian scripts'
+ * joined letters) would show their overlaps lighter, painted twice.
+ */
+internal fun DrawScope.drawPoster(scene: PosterScene, positionMs: Long, ink: Color, card: Color, origin: Offset, reduced: Boolean) {
     for (i in 0 until scene.words.size) {
-        val since = positionMs - stage.startMs[i]
+        val since = positionMs - scene.startMs[i]
         val lit = if (since < 0L) 0f else if (reduced) 1f else (since / WORD_LIGHT_MS).coerceIn(0f, 1f)
         val alpha = UNSUNG_ALPHA + (1f - UNSUNG_ALPHA) * lit
-        drawText(scene.words[i], ink.copy(alpha = ink.alpha * alpha), Offset(origin.x + scene.x[i], origin.y + scene.y[i]))
+        drawText(scene.words[i], lerp(card, ink.copy(alpha = 1f), ink.alpha * alpha), Offset(origin.x + scene.x[i], origin.y + scene.y[i]))
     }
 }
 
@@ -203,7 +225,7 @@ internal fun PosterStage(cursor: StageCursor, song: LyricStageSong?, onSeek: (Lo
                 )
                 .drawBehind {
                     drawText(labelLayout, ink.copy(alpha = 0.6f), Offset(pad, pad))
-                    if (scene != null) drawPoster(scene, clock.longValue, ink, Offset(pad, head + pad * 0.6f), reduced)
+                    if (scene != null) drawPoster(scene, clock.longValue, ink, fill, Offset(pad, head + pad * 0.6f), reduced)
                     nextLayout?.let { drawText(it, ink.copy(alpha = 0.6f), Offset(pad, size.height - pad - it.size.height - with(density) { 10.dp.toPx() })) }
                 },
         )

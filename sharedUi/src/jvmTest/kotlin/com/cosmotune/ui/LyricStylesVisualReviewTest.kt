@@ -233,6 +233,7 @@ class LyricStylesVisualReviewTest {
             "japanese" to "夜の小さな灯りが道を照らす",
             "korean" to "밤하늘의 작은 불빛이 길을 비춘다",
             "tamil" to "இரவில் ஒரு சிறிய விளக்கு எரிகிறது",
+            "thai" to "คืนนี้มีแสงไฟเล็กๆ ส่องทาง",
             "devanagari" to "रात में एक छोटा दीया जलता है",
         )
         for ((label, text) in samples) {
