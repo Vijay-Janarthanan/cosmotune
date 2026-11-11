@@ -1933,6 +1933,12 @@ fun CosmotuneDesktopApp() {
         val next = selectedSong
             ?.takeIf { DesktopSleepTimer.preparesNext(repeatOne = repeatMode == DesktopRepeatMode.ONE, afterTrack = sleepAfterTrack) }
             ?.let { liveQueue.followingFor(it.videoId, repeatAll = repeatMode == DesktopRepeatMode.ALL) }
+        // Album played through from its page: the engine keeps that join gapless rather than mixed.
+        val playingId = selectedSong?.videoId
+        playbackEngine.setAlbumPlayThrough(
+            playingId,
+            next?.videoId?.takeIf { playingId != null && liveQueue.albumPlaysThrough(playingId, next, shuffled = shuffle) },
+        )
         playbackEngine.prepareNext(next)
     }
     // Topped up on every track change, the way Android does it, rather than only once the queue has

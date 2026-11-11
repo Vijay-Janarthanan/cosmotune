@@ -552,7 +552,7 @@ private const val EXTRA_PLAYBACK_SOURCE_ID = "cosmotune.playbackSourceId"
  * service, has only what the item carries.
  */
 private const val EXTRA_ARTIST_ID = "cosmotune.artistId"
-private const val EXTRA_ALBUM_ID = "cosmotune.albumId"
+internal const val EXTRA_ALBUM_ID = "cosmotune.albumId"
 
 /** @see Song.setVideoId */
 private const val EXTRA_SET_VIDEO_ID = "cosmotune.setVideoId"

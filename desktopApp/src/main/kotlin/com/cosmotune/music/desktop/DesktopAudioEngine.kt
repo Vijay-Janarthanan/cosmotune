@@ -617,6 +617,18 @@ class DesktopPlaybackEngine(
         return true
     }
 
+    /**
+     * The pair (current id, next id) the app has verified as an album played through from its page,
+     * or null; see [isAlbumPlayThrough]. Keyed by both ids so a flag set for one pair can never
+     * carry over to another, whatever order prepareNext and track changes arrive in.
+     */
+    @Volatile private var albumPlayThrough: Pair<String, String>? = null
+
+    /** Marks the join from [currentId] into [nextId] as one to keep gapless, or clears it. */
+    fun setAlbumPlayThrough(currentId: String?, nextId: String?) {
+        albumPlayThrough = if (currentId != null && nextId != null) currentId to nextId else null
+    }
+
     /** Resolves and prepares the next queue item without starting it. */
     fun prepareNext(song: Song?) {
         // Past the midpoint of a blend the player already shows the incoming song, and the app
@@ -2068,6 +2080,10 @@ class DesktopPlaybackEngine(
         val manualSeconds = crossfadeSeconds
         val smart = automixEnabled && mixWatchdog.beatMatchAllowed
         if (!mixWatchdog.overlapAllowed || !automixEnabled && manualSeconds <= 0) return TransitionPlan()
+        val album = albumPlayThrough == (track.song.videoId to next.videoId)
+        // A plain crossfade over an album's joins is exactly what gapless protection is for: no
+        // overlap, the same hand-over as crossfade off. Automix gets the planner's own gapless plan.
+        if (album && !smart) return TransitionPlan()
         return planTransition(
             analysis = analyzer.analysisFor(track.song.videoId),
             nextAnalysis = analyzer.analysisFor(next.videoId),
@@ -2077,6 +2093,7 @@ class DesktopPlaybackEngine(
             duration = durationMs / 1_000.0,
             fadeSeconds = if (manualSeconds > 0) manualSeconds.toDouble() else AUTOMIX_FALLBACK_SECONDS.toDouble(),
             mode = if (smart) CrossfadeMode.SMART else CrossfadeMode.STANDARD,
+            albumSequential = album,
             advanced = smart,
             // A fixed phrase length only means anything under Automix; a manual
             // crossfade keeps its slider length.

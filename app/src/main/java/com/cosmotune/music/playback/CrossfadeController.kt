@@ -23,6 +23,7 @@ import com.cosmotune.music.playback.smart.TransitionStyle
 import com.cosmotune.music.playback.smart.TransitionTrackInfo
 import com.cosmotune.music.playback.smart.echoTailSeconds
 import com.cosmotune.music.playback.smart.planTransition
+import com.cosmotune.music.playback.smart.isAlbumPlayThrough
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -862,6 +863,9 @@ class CrossfadeController(
         }
 
         if (configuredFadeMs() <= 0L) return
+        // An album played through from its page keeps its joins: no fade at all, so Media3's own
+        // gapless transition plays the next track straight on. See [isAlbumPlayThrough].
+        if (albumPlaysThrough(player)) return
         val fade = fadeFor(duration)
         if (fade <= 0L) return
 
@@ -944,6 +948,7 @@ class CrossfadeController(
             duration = duration / 1000.0,
             fadeSeconds = fallbackSeconds,
             mode = CrossfadeMode.SMART,
+            albumSequential = albumPlaysThrough(player),
             advanced = advanced,
         )
         // One line per distinct verdict rather than one per 250ms tick, so the
@@ -1168,13 +1173,31 @@ class CrossfadeController(
         return if (seconds > 0) seconds * 1000L else 0L
     }
 
-    /** Cosmotune doesn't carry album metadata on [MediaMetadata] yet, so [TransitionTrackInfo.album] stays blank. */
+    /** The album rides on [MediaMetadata.albumTitle] and the album id in its extras; see [toSong]. */
     private fun MediaItem.toTransitionInfo(durationMs: Long) = TransitionTrackInfo(
         id = mediaId,
         durationMs = durationMs,
         title = mediaMetadata.title?.toString().orEmpty(),
         artist = mediaMetadata.artist?.toString().orEmpty(),
+        album = mediaMetadata.albumTitle?.toString().orEmpty(),
+        albumId = mediaMetadata.extras?.getString(EXTRA_ALBUM_ID).orEmpty(),
     )
+
+    /**
+     * Whether the item after the current one continues an album being played through from its
+     * page, unshuffled and without a repeat-all wrap: the one case kept gapless instead of mixed.
+     */
+    private fun albumPlaysThrough(player: ExoPlayer): Boolean {
+        val nextIndex = player.nextMediaItemIndex
+        if (nextIndex == C.INDEX_UNSET) return false
+        val current = player.currentMediaItem ?: return false
+        return isAlbumPlayThrough(
+            current = current.toSong(),
+            next = player.getMediaItemAt(nextIndex).toSong(),
+            shuffled = player.shuffleModeEnabled,
+            nextFollowsDirectly = nextIndex == player.currentMediaItemIndex + 1,
+        )
+    }
 
     /**
      * Loads the standby player with the queue, positioned on the incoming track

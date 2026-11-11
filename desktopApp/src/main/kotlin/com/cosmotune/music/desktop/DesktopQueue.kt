@@ -4,6 +4,7 @@ import com.cosmotune.music.data.model.QueueTier
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.playback.QueueTimeline
 import com.cosmotune.music.playback.QueueTimeline.asQueueEntry
+import com.cosmotune.music.playback.smart.isAlbumPlayThrough
 
 /**
  * The live queue: what is playing, what played before it, and what is next.
@@ -50,6 +51,19 @@ internal data class DesktopQueue(
         val at = if (current?.videoId == currentId) index else songs.indexOfFirst { it.videoId == currentId }
         if (at < 0) return null
         return songs.getOrNull(at + 1) ?: if (repeatAll) songs.firstOrNull() else null
+    }
+
+    /**
+     * Whether [next] is the following track of an album played through from its page, directly
+     * after [currentId] in this queue (never through a repeat-all wrap) and unshuffled. The phone's
+     * crossfade asks the same question of its player; see [isAlbumPlayThrough].
+     */
+    fun albumPlaysThrough(currentId: String, next: Song?, shuffled: Boolean): Boolean {
+        val at = if (current?.videoId == currentId) index else songs.indexOfFirst { it.videoId == currentId }
+        if (at < 0 || next == null) return false
+        val following = songs.getOrNull(at + 1) ?: return false
+        return following.videoId == next.videoId &&
+            isAlbumPlayThrough(songs[at], following, shuffled, nextFollowsDirectly = true)
     }
 
     /**

@@ -309,4 +309,19 @@ class DesktopQueueTest {
 
         assertEquals(queue.next().current?.videoId, following?.videoId)
     }
+    @Test
+    fun onlyTheNextTrackOfAnAlbumPlayedFromItsPageIsKeptGapless() {
+        fun album(vararg ids: String) = ids.map {
+            Song(it, it.uppercase(), "Artist", null, albumId = "MPREb_x", playbackSourceType = com.cosmotune.music.data.model.PlaybackSourceType.BROWSE,
+                playbackSourceId = "MPREb_x")
+        }
+        val queue = DesktopQueue(album("a", "b", "c"), index = 0)
+        assertTrue(queue.albumPlaysThrough("a", queue.songs[1], shuffled = false))
+        assertFalse(queue.albumPlaysThrough("a", queue.songs[1], shuffled = true))
+        assertFalse(queue.albumPlaysThrough("a", queue.songs[2], shuffled = false), "not the next track")
+        assertFalse(queue.albumPlaysThrough("c", queue.songs[0], shuffled = false), "repeat-all wrap")
+        // A hand-queued track between two album tracks is a mix.
+        val withQueued = DesktopQueue(listOf(album("a").single(), songs("q").single().copy(queueTier = QueueTier.USER_QUEUE)) + album("b"), index = 0)
+        assertFalse(withQueued.albumPlaysThrough("a", withQueued.songs[1], shuffled = false))
+    }
 }
