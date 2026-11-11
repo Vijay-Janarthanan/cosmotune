@@ -49,6 +49,10 @@ import com.cosmotune.ui.orbit.OrbitRing
 import com.cosmotune.ui.orbit.OrbitRoundButton
 import com.cosmotune.ui.orbit.clock
 import com.cosmotune.ui.orbit.coverFill
+import com.cosmotune.ui.orbit.AlbumTitleArt
+import com.cosmotune.ui.orbit.TitleArtAlbum
+import com.cosmotune.design.TitleArt
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 /**
@@ -178,7 +182,7 @@ internal fun NowPlayingSongCard(
                     Column(Modifier.weight(1f)) {
                         OrbitingLabel(t, fonts, ink)
                         Spacer(Modifier.height(14.dp))
-                        CardTitle(t, fonts, ink, 30, maxLines = 1)
+                        CardTitle(t, fonts, ink, fill, 30, maxLines = 1)
                         if (format) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 8.dp))
                     }
                     Spacer(Modifier.width(16.dp))
@@ -193,7 +197,7 @@ internal fun NowPlayingSongCard(
             Column(Modifier.fillMaxWidth().padding(start = 22.dp, top = 22.dp, end = 22.dp, bottom = 22.dp)) {
                 OrbitingLabel(t, fonts, ink)
                 Spacer(Modifier.height(12.dp))
-                CardTitle(t, fonts, ink, 26, maxLines = 2)
+                CardTitle(t, fonts, ink, fill, 26, maxLines = 2)
                 if (format) OrbitFormatLabel(fonts, ink, Modifier.padding(top = 6.dp))
                 if (showLine) {
                     Spacer(Modifier.height(16.dp))
@@ -216,9 +220,17 @@ internal fun NowPlayingSongCard(
     }
 }
 
+/**
+ * The card's heading: the song's title as the album's title art (the lyrics-titles board's placement table: Cover Cut, or Voiced
+ * type when the album has a voice), in the room the plain title had ([maxLines] lines of [sizeSp] + 2), then the artists.
+ */
 @Composable
-private fun CardTitle(t: NowPlayingTransport, fonts: OrbitFonts, ink: Color, sizeSp: Int, maxLines: Int) {
-    Text(t.song.title, style = fonts.heroTitle.copy(fontSize = sizeSp.sp, lineHeight = (sizeSp + 2).sp), color = ink, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+private fun CardTitle(t: NowPlayingTransport, fonts: OrbitFonts, ink: Color, fill: Color, sizeSp: Int, maxLines: Int) {
+    AlbumTitleArt(
+        TitleArtAlbum(t.song.title, t.coverUrl, artist = t.song.artist), ink = ink, ground = fill,
+        modifier = Modifier.fillMaxWidth().testTag("nowplaying:card:title"), place = TitleArt.Place.HEADING,
+        maxSize = (sizeSp + 8).sp, minSize = (sizeSp - 8).sp, maxLines = maxLines, maxHeight = ((sizeSp + 2) * maxLines).dp,
+    )
     Text(
         t.song.artist, style = fonts.body.copy(fontSize = 15.sp), color = ink.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis,
         modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = t.onOpenArtist),
@@ -271,7 +283,12 @@ internal fun NowPlayingSlimCard(t: NowPlayingTransport, fonts: OrbitFonts, look:
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 OrbitingLabel(t, fonts, ink)
-                Text(t.song.title, style = fonts.heroTitle.copy(fontSize = 22.sp, lineHeight = 24.sp), color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                // Small title art in the slim card (the board's placement table), in the one line the plain title had.
+                AlbumTitleArt(
+                    TitleArtAlbum(t.song.title, t.coverUrl, artist = t.song.artist), ink = ink, ground = fill,
+                    modifier = Modifier.padding(top = 6.dp).fillMaxWidth(), place = TitleArt.Place.SLIM,
+                    maxSize = 26.sp, minSize = 16.sp, maxLines = 1, maxHeight = 26.dp,
+                )
                 Text(t.song.artist, style = fonts.body.copy(fontSize = 13.sp), color = ink.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
             }
             Spacer(Modifier.width(12.dp))
