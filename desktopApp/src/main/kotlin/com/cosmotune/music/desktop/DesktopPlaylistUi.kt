@@ -110,7 +110,7 @@ internal fun DesktopPlaylistDialog(
                 Modifier.fillMaxWidth().height(96.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(22.dp))
+                CircularProgressIndicator(color = dialogInk(), modifier = Modifier.size(22.dp))
             }
             account.isEmpty() && localPlaylists.isEmpty() -> Text(
                 when {
@@ -179,7 +179,7 @@ private fun NewPlaylistForm(
     ) {
         onBack?.let {
             IconButton(onClick = it) {
-                Icon(Icons.Rounded.ArrowBack, DesktopStrings["back", "Back"], tint = Color.White)
+                Icon(Icons.Rounded.ArrowBack, DesktopStrings["back", "Back"], tint = dialogInk())
             }
         }
         Column(Modifier.weight(1f)) {
@@ -187,7 +187,7 @@ private fun NewPlaylistForm(
                 DesktopStrings["new_playlist", "New playlist"],
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = dialogInk(),
             )
             Text(
                 if (signedIn) "Saved to your YouTube Music account" else "Saved on this computer",
@@ -203,7 +203,7 @@ private fun NewPlaylistForm(
             .fillMaxWidth()
             .padding(horizontal = 22.dp, vertical = 16.dp)
             .clip(RoundedCornerShape(CosmoRadii.rMd))
-            .background(Color.White.copy(alpha = 0.08f))
+            .background(dialogInk().copy(alpha = 0.08f))
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -215,8 +215,8 @@ private fun NewPlaylistForm(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
-                cursorBrush = SolidColor(DesktopAccent),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = dialogInk()),
+                cursorBrush = SolidColor(dialogInk()),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { submit() }),
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
@@ -269,15 +269,15 @@ internal fun DesktopRenamePlaylistDialog(
                 .fillMaxWidth()
                 .padding(horizontal = 22.dp, vertical = 14.dp)
                 .clip(RoundedCornerShape(CosmoRadii.rMd))
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(dialogInk().copy(alpha = 0.08f))
                 .padding(horizontal = 12.dp, vertical = 12.dp),
         ) {
             BasicTextField(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
-                cursorBrush = SolidColor(DesktopAccent),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = dialogInk()),
+                cursorBrush = SolidColor(dialogInk()),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { submit() }),
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
@@ -352,7 +352,7 @@ internal fun DesktopReorderPlaylistDialog(
         Box(Modifier.fillMaxWidth().height(380.dp)) {
             when {
                 original == null && loadError == null -> CircularProgressIndicator(
-                    color = DesktopAccent,
+                    color = dialogInk(),
                     strokeWidth = 2.dp,
                     modifier = Modifier.size(24.dp).align(Alignment.Center),
                 )
@@ -364,14 +364,14 @@ internal fun DesktopReorderPlaylistDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(song.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(song.title, color = dialogInk(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(song.artist, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             IconButton(onClick = { order = DesktopReorder.move(order, index, index - 1) }, enabled = !busy && index > 0) {
-                                Icon(Icons.Rounded.KeyboardArrowUp, DesktopStrings["d_move_up", "Move up"], tint = Color.White.copy(alpha = if (index > 0) 0.85f else 0.3f))
+                                Icon(Icons.Rounded.KeyboardArrowUp, DesktopStrings["d_move_up", "Move up"], tint = dialogInk().copy(alpha = if (index > 0) 0.85f else 0.3f))
                             }
                             IconButton(onClick = { order = DesktopReorder.move(order, index, index + 1) }, enabled = !busy && index < order.lastIndex) {
-                                Icon(Icons.Rounded.KeyboardArrowDown, DesktopStrings["d_move_down", "Move down"], tint = Color.White.copy(alpha = if (index < order.lastIndex) 0.85f else 0.3f))
+                                Icon(Icons.Rounded.KeyboardArrowDown, DesktopStrings["d_move_down", "Move down"], tint = dialogInk().copy(alpha = if (index < order.lastIndex) 0.85f else 0.3f))
                             }
                         }
                     }
@@ -465,7 +465,7 @@ private fun DialogHeading(title: String, subtitle: String) {
         title,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
-        color = Color.White,
+        color = dialogInk(),
         modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp),
     )
     if (subtitle.isNotBlank()) {
@@ -493,7 +493,7 @@ private fun DialogError(message: String) {
     Text(
         message,
         style = MaterialTheme.typography.bodySmall,
-        color = DesktopAccent,
+        color = dialogInk(),
         modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 10.dp),
     )
 }
@@ -514,10 +514,10 @@ private fun DialogAction(
             .padding(horizontal = 22.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = dialogInk().copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(label, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, color = dialogInk(), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) {
                 Text(
                     subtitle,
@@ -547,7 +547,7 @@ private fun PrivacyPill(icon: ImageVector, label: String, selected: Boolean, onC
     Row(
         Modifier
             .clip(RoundedCornerShape(CosmoRadii.rLg))
-            .background(if (selected) DesktopAccent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f))
+            .background(if (selected) dialogInk().copy(alpha = 0.22f) else dialogInk().copy(alpha = 0.08f))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -555,14 +555,14 @@ private fun PrivacyPill(icon: ImageVector, label: String, selected: Boolean, onC
         Icon(
             icon,
             null,
-            tint = if (selected) DesktopAccent else DesktopSecondary,
+            tint = if (selected) dialogInk() else DesktopSecondary,
             modifier = Modifier.size(15.dp),
         )
         Spacer(Modifier.width(7.dp))
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = if (selected) Color.White else DesktopSecondary,
+            color = if (selected) dialogInk() else DesktopSecondary,
         )
     }
 }
@@ -573,3 +573,11 @@ private val PlaylistPrivacy.icon: ImageVector
         PlaylistPrivacy.UNLISTED -> Icons.Rounded.Link
         PlaylistPrivacy.PUBLIC -> Icons.Rounded.Public
     }
+
+/**
+ * The ink of these dialogs' own words, icons, fields and fills: the look's text colour (dark on the light theme's card), white on the
+ * classic look's dark glass as before.
+ */
+@Composable
+private fun dialogInk(): Color =
+    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) Color(com.cosmotune.ui.theme.LocalCosmoColors.current.palette.textPrimary) else Color.White

@@ -48,11 +48,13 @@ internal fun DesktopTitleBar() {
     // that only asks it never learns the answer changed.
     val enabled by DesktopTitleBarSetting.enabled.collectAsState()
     if (!DesktopPlatform.drawsOwnWindowFrame || !enabled) return
+    // The new look's light theme has no dark glass: the strip stands on the ambient ground, as the sidebar and the top bar do.
+    val lightLook = com.cosmotune.ui.theme.LocalCosmoShell.current != null && !com.cosmotune.ui.theme.LocalCosmoColors.current.dark
     DesktopTitleBarDragArea(
         Modifier
             .fillMaxWidth()
             .height(CAPTION_HEIGHT)
-            .desktopWindowGlass(),
+            .then(if (lightLook) Modifier else Modifier.desktopWindowGlass()),
     ) {
         Box(Modifier.fillMaxSize()) {
             DesktopWindowButtons(Modifier.align(Alignment.CenterStart))
@@ -118,7 +120,9 @@ internal fun DesktopWindowButtons(modifier: Modifier = Modifier) {
     val maximized by DesktopWindowMode.maximized.collectAsState()
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val isFocused = windowInfo.isWindowFocused
-    val inactiveFill = if (!isFocused && DesktopPlatform.isMac) Color.White.copy(alpha = 0.22f) else null
+    // An unfocused window's dots: a faint wash of the ground's opposite, so they still read on the light theme.
+    val onDark = com.cosmotune.ui.theme.LocalCosmoShell.current == null || com.cosmotune.ui.theme.LocalCosmoColors.current.dark
+    val inactiveFill = if (!isFocused && DesktopPlatform.isMac) (if (onDark) Color.White.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.16f)) else null
 
     Row(
         modifier = modifier.height(CAPTION_HEIGHT).padding(start = 2.dp),

@@ -42,7 +42,7 @@ import org.jetbrains.compose.resources.painterResource
 /**
  * The desktop's top bar in the new look (`V2.desktop`, `.d2-top`): 56 dp high and see-through, so the ambient ground shows
  * behind it; the old bar's transport, now-playing cell and volume are in the floating player bar. From the left: the logo
- * mark (28 x 18 dp, untinted: apricot on the dark desktop), the one way back (a 40 dp tonal button), then the profile button
+ * mark (28 x 18 dp, untinted: apricot on the dark theme, the brand's ink on the light one), the one way back (a 40 dp tonal button), then the profile button
  * at the right edge: the account's picture, which opens the profile drawer with its mode switch and its [entries]. The drawer's
  * head shows [accountName] (a blank one reads "Accounts"), and a tap on it calls [onOpenAccounts], the account switcher.
  *
@@ -87,6 +87,10 @@ internal fun CosmoDesktopTopBar(
                     painter = painterResource(Res.drawable.logo_mark),
                     contentDescription = "Cosmotune",
                     modifier = Modifier.size(width = 28.dp, height = 18.dp),
+                    // Apricot as drawn on the dark theme; on the light one the brand's ink, as the phone's mark is (apricot on the pale
+                    // ground was nearly invisible).
+                    colorFilter = if (com.cosmotune.ui.theme.LocalCosmoColors.current.dark) null
+                    else androidx.compose.ui.graphics.ColorFilter.tint(androidx.compose.ui.graphics.Color(com.cosmotune.CosmoBrand.INK)),
                 )
                 Spacer(Modifier.width(14.dp))
                 CosmoIconButton(
