@@ -379,6 +379,23 @@ class WiringStructureTest {
         assertIs<VideoRoute.Shorts>(f.navigator.top, "a card's tap on a Short opens the pager too")
     }
 
+    @Test fun playFromTheWatchPageReplacesItAndOpeningTheChannelPushes() {
+        // The watch page's related rows and Up next call play(item, related): the new video takes the page's place.
+        val f = Fixture()
+        val (a, b, c) = FakeVideoSource.videos
+        f.navigator.push(VideoRoute.Channel(FakeVideoSource.CHANNEL_1))
+        f.handler.play(a)
+        f.handler.play(b, listOf(b, c))
+        assertEquals(VideoRoute.Watch(b.id), f.navigator.top)
+        assertEquals(listOf("play(${a.id})", "play(${b.id})"), f.playback.calls, "the player plays the new video")
+        f.handler.handle(b, VideoAction.OpenChannel, VideoSheetContext.DEFAULT)
+        assertIs<VideoRoute.Channel>(f.navigator.top, "the channel opened from the watch page is pushed")
+        assertTrue(f.navigator.pop())
+        assertEquals(VideoRoute.Watch(b.id), f.navigator.top, "back from it comes to the watch page")
+        assertTrue(f.navigator.pop())
+        assertEquals(VideoRoute.Channel(FakeVideoSource.CHANNEL_1), f.navigator.top, "back from the watch page comes to where A was opened, not to A")
+    }
+
     @Test fun playHandsTheCardsItemToThePlaybackNotOnlyItsId() {
         // Y-34: a premiere tapped on a card shows "Upcoming" because the playback knows the item the card showed
         val f = Fixture()

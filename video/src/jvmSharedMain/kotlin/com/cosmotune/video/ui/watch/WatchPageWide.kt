@@ -101,8 +101,9 @@ internal fun wideSegments(hasChapters: Boolean, comments: Boolean): List<WideSeg
 
 /**
  * What a key does on the wide page (spec 6.6): the action of `PlayerKeyMap` for [name] (as `playerKeyName` names it), carried out on
- * [playback]; F opens the full window ([onFullWindow]), T toggles theatre mode ([onTheatre]); Escape is not the page's (no full
- * window here), and P opens picture-in-picture ([onPictureInPicture], null where there is none). True when the key was used.
+ * [playback]; F opens the full window ([onFullWindow]), T toggles theatre mode ([onTheatre]), and P opens picture-in-picture
+ * ([onPictureInPicture], null where there is none). Escape has no full window to leave here: it leaves the page ([onLeave], the
+ * page's Minimise, as Back does; null where there is nowhere to go). True when the key was used.
  */
 internal fun onWatchPageKey(
     name: String,
@@ -114,9 +115,10 @@ internal fun onWatchPageKey(
     onFullWindow: () -> Unit,
     onTheatre: () -> Unit,
     onPictureInPicture: (() -> Unit)? = null,
+    onLeave: (() -> Unit)? = null,
 ): Boolean {
-    val action = PlayerKeyMap.action(name, shift, ctrlOrCmd) ?: return false
-    return performPlayerKey(
+    val action = PlayerKeyMap.action(name, shift, ctrlOrCmd)
+    val done = action != null && performPlayerKey(
         action = action,
         playback = playback,
         state = playback.state.value,
@@ -127,6 +129,12 @@ internal fun onWatchPageKey(
         onExitFullWindow = null,
         onPictureInPicture = onPictureInPicture,
     )
+    if (done) return true
+    if (name == "Escape" && !shift && !ctrlOrCmd && onLeave != null) {
+        onLeave()
+        return true
+    }
+    return false
 }
 
 /**
@@ -234,6 +242,7 @@ internal fun WatchPageWide(
                     onFullWindow = openFullWindow,
                     onTheatre = toggleTheatre,
                     onPictureInPicture = enterPip,
+                    onLeave = if (navigator.canPop && !fullWindow) ({ navigator.pop(); Unit }) else null,
                 )
             },
     ) {

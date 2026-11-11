@@ -172,16 +172,44 @@ class ShellStructureTest {
 
     @Test fun everyEntryOfTheStacksHasItsOwnKey() {
         val navigator = VideoNavigator()
-        navigator.push(VideoRoute.Watch("fakevideo01"))
         navigator.push(VideoRoute.Channel(FakeVideoSource.CHANNEL_1))
-        navigator.push(VideoRoute.Watch("fakevideo01", 4_000))
+        navigator.push(VideoRoute.History)
+        navigator.push(VideoRoute.Channel(FakeVideoSource.CHANNEL_1))
         navigator.push(VideoRoute.Channel(FakeVideoSource.CHANNEL_2))
         navigator.push(VideoRoute.Watch("fakevideo01"))
         val keys = navigator.pageKeys()
-        assertEquals(3 + 5, keys.size, "three roots and five pages, no two alike")
+        assertEquals(3 + 5, keys.size, "three roots and five pages, no two alike, the same channel twice included")
         assertTrue(navigator.topPageKey() in keys)
         navigator.pop()
         assertTrue(navigator.topPageKey() in keys, "a page keeps its key while it stays in the stack")
+    }
+
+    @Test fun aPageKeepsItsKeyWhenTheWatchPageUnderItLeaves() {
+        // Feed, video A, its channel, a video of that channel: A leaves the stack (one player), and the channel keeps its key,
+        // so the nav host keeps its saved scroll for the way back.
+        val navigator = VideoNavigator()
+        navigator.push(VideoRoute.Watch("fakevideo01"))
+        navigator.push(VideoRoute.Channel(FakeVideoSource.CHANNEL_1))
+        val channelKey = navigator.topPageKey()
+        navigator.push(VideoRoute.Watch("fakevideo02"))
+        assertTrue(channelKey in navigator.pageKeys(), "the channel's entry is the same entry")
+        assertTrue(navigator.pop())
+        assertEquals(channelKey, navigator.topPageKey())
+    }
+
+    @Test fun aRelatedVideoTapReplacesTheWatchPageAndBackLeavesForTheOrigin() {
+        // The owner's steps: open A from search results, tap B and then C in Up next, press Back.
+        val navigator = VideoNavigator()
+        navigator.push(VideoRoute.Search("lofi"))
+        val searchKey = navigator.topPageKey()
+        navigator.push(VideoRoute.Watch(FakeVideoSource.videos[0].id))
+        navigator.push(VideoRoute.Watch(FakeVideoSource.videos[1].id))
+        navigator.push(VideoRoute.Watch(FakeVideoSource.videos[2].id))
+        assertEquals(VideoRoute.Watch(FakeVideoSource.videos[2].id), navigator.top)
+        assertEquals(3 + 2, navigator.pageKeys().size, "the roots, the search and one watch page")
+        assertTrue(navigator.pop())
+        assertEquals(VideoRoute.Search("lofi"), navigator.top, "back leaves the watch page for the search it came from")
+        assertEquals(searchKey, navigator.topPageKey(), "the same entry, with its scroll")
     }
 
     @Test fun theSaverKeepsTheWholeStackIncludingAShortsPage() {

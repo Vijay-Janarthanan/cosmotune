@@ -72,18 +72,20 @@ class VideoNavigator(private val stack: VideoBackStack = VideoBackStack()) {
     }
 
     /**
-     * Every page of every tab, each with a key that tells one entry of the stacks from another (its tab, its place and the route
-     * itself), for the nav host to keep a page's saved state apart from the next one's.
+     * Every page of every tab, each with a key that tells one entry of the stacks from another (its tab, the route itself and
+     * how many times the same route stands lower on that tab), for the nav host to keep a page's saved state apart from the
+     * next one's. The key holds no place in the stack: when a watch page leaves from lower down (one player, see
+     * [VideoBackStack]) the pages above it keep their keys, and with them their scroll.
      */
     fun pageKeys(): Set<String> {
         revision
-        return buildSet { for (each in VideoTab.entries) stack.routesOf(each).forEachIndexed { index, route -> add(pageKey(each, index, route)) } }
+        return buildSet { for (each in VideoTab.entries) addAll(keysOf(each)) }
     }
 
     /** The key of the page on show (see [pageKeys]). */
     fun topPageKey(): String {
         revision
-        return pageKey(stack.tab, stack.routesOf(stack.tab).lastIndex, stack.top)
+        return keysOf(stack.tab).last()
     }
 
     /** The stack as one line of text (see [VideoBackStack.encode]). */
@@ -92,7 +94,15 @@ class VideoNavigator(private val stack: VideoBackStack = VideoBackStack()) {
         return stack.encode()
     }
 
-    private fun pageKey(tab: VideoTab, index: Int, route: VideoRoute) = "${tab.name}/$index/${route.encode()}"
+    /** The keys of [tab]'s pages, from its root up: `<tab>/<route>#<how many of the same route stand below>`. */
+    private fun keysOf(tab: VideoTab): List<String> {
+        val seen = HashMap<VideoRoute, Int>()
+        return stack.routesOf(tab).map { route ->
+            val below = seen[route] ?: 0
+            seen[route] = below + 1
+            "${tab.name}/${route.encode()}#$below"
+        }
+    }
 
     companion object {
         /** Keeps a navigator across a configuration change: the stack as text, read back by [VideoBackStack.decode] (a fresh stack when it cannot be). */
