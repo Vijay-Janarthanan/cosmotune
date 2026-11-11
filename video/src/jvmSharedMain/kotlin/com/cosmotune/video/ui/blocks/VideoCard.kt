@@ -67,6 +67,7 @@ internal fun VideoCardBody(
     val meta = CardMetaLine(item, rememberNowMs(), downloaded = downloaded)
     val more = stringResource(Res.string.video_more)
     val hover = rememberCardHover()
+    PreResolveOnHover(hover, item)
     OrbitVideoCard(
         title = title,
         meta = meta,

@@ -59,6 +59,7 @@ fun VideoRow(
     val meta = CardMetaLine(item, rememberNowMs(), downloaded = downloaded)
     val more = stringResource(Res.string.video_more)
     val hover = rememberCardHover()
+    PreResolveOnHover(hover, item)
     VideoRowFrame(
         thumbnail = {
             Column {

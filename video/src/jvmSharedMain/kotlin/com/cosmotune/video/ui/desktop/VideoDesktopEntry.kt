@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import com.cosmotune.video.ui.blocks.LocalVideoPreResolve
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
@@ -72,7 +73,7 @@ fun VideoDesktopPage(contentPadding: PaddingValues, host: VideoHostLinks) {
     val navigator = DesktopVideoState.navigator
     // The sidebar is composed apart from this page: it learns the graph (for its channels) from here.
     SideEffect { DesktopVideoState.graph = graph }
-    CompositionLocalProvider(LocalVideoGraph provides graph, LocalVideoNavigator provides navigator) {
+    CompositionLocalProvider(LocalVideoGraph provides graph, LocalVideoNavigator provides navigator, LocalVideoPreResolve provides graph.preResolve) {
         VideoDesktopPageBody(contentPadding, host)
     }
 }

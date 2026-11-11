@@ -1573,6 +1573,74 @@ class VideoPlayerControllerTest {
     }
 
     @Test
+    fun detailsResolvedAheadAreKeptFiveMinutesWhenTheVideoIsNotPlayed() = runTest {
+        val r = rig()
+        open(r, "fakevideo01")
+        r.controller.prefetch("fakevideo02")              // a card under the pointer while another video plays
+        runCurrent()
+        advanceTimeBy(VideoPlayerController.PRE_RESOLVE_TTL_MS - 60_000L)
+        open(r, "fakevideo02")
+        assertEquals(1, r.source.calls.count { it == "details(fakevideo02)" }, "4 minutes: the click plays what was resolved")
+
+        r.controller.prefetch("fakevideo03")
+        runCurrent()
+        advanceTimeBy(VideoPlayerController.PRE_RESOLVE_TTL_MS + 1L)
+        open(r, "fakevideo03")
+        assertEquals(2, r.source.calls.count { it == "details(fakevideo03)" }, "past 5 minutes unplayed: resolved again")
+    }
+
+    @Test
+    fun detailsResolvedAheadAndThenPlayedAreKeptAsLongAsAnyPlayedVideos() = runTest {
+        val r = rig()
+        open(r, "fakevideo01")
+        r.controller.prefetch("fakevideo02")
+        runCurrent()
+        open(r, "fakevideo02")
+        advanceTimeBy(VideoPlayerController.PRE_RESOLVE_TTL_MS + 60_000L)
+        open(r, "fakevideo01")
+        open(r, "fakevideo02")
+        assertEquals(1, r.source.calls.count { it == "details(fakevideo02)" }, "6 minutes, but played: the 10 minute cache")
+    }
+
+    @Test
+    fun theVideoAfterThisOneIsResolvedAheadOnceNearItsEnd() = runTest {
+        val r = rig()
+        r.engine.durationOnLoadMs = 600_000
+        open(r, "fakevideo01")
+        playFor(r, 1_000)
+        assertEquals(listOf("details(fakevideo01)"), r.source.calls, "nothing ahead at the start")
+        r.engine.setPosition(600_000 - VideoPlayerController.UP_NEXT_AHEAD_MS)
+        playFor(r, 1_000)
+        assertEquals(listOf("details(fakevideo01)", "details(fakevideo02)"), r.source.calls, "autoplay's pick, once")
+        assertEquals("fakevideo01", r.state.item?.id, "still playing this one")
+        assertEquals(1, r.loads.size, "and the engine was not touched")
+        playFor(r, VideoPlayerController.UP_NEXT_AHEAD_MS)
+        runCurrent()
+        assertEquals("fakevideo02", r.state.item?.id)
+        assertEquals(1, r.source.calls.count { it == "details(fakevideo02)" }, "it starts from what was resolved")
+    }
+
+    @Test
+    fun theQueuesNextIsWhatIsResolvedAhead() = runTest {
+        val r = rig(VideoSettings(autoplay = false))
+        r.engine.durationOnLoadMs = 600_000
+        open(r, "fakevideo01", queue = listOf(item("fakevideo01"), item("fakevideo04")))
+        r.engine.setPosition(600_000 - VideoPlayerController.UP_NEXT_AHEAD_MS)
+        playFor(r, 1_000)
+        assertEquals(listOf("details(fakevideo01)", "details(fakevideo04)"), r.source.calls)
+    }
+
+    @Test
+    fun nothingIsResolvedAheadWithNothingNext() = runTest {
+        val r = rig(VideoSettings(autoplay = false))
+        r.engine.durationOnLoadMs = 600_000
+        open(r, "fakevideo01")
+        r.engine.setPosition(600_000 - VideoPlayerController.UP_NEXT_AHEAD_MS)
+        playFor(r, 1_000)
+        assertEquals(listOf("details(fakevideo01)"), r.source.calls)
+    }
+
+    @Test
     fun playingWhileThePrefetchIsStillInFlightSharesIt() = runTest {
         val r = rig()
         r.controller.prefetch("fakeshort02")

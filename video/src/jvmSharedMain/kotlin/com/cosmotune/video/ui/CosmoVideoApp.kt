@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import com.cosmotune.video.ui.blocks.LocalVideoPreResolve
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -87,7 +88,7 @@ import androidx.compose.runtime.setValue
 fun CosmoVideoApp(windowWidth: Dp, windowHeight: Dp, host: VideoHostLinks, modifier: Modifier = Modifier) {
     val graph = rememberVideoGraph(host)
     val navigator = rememberVideoNavigator()
-    CompositionLocalProvider(LocalVideoGraph provides graph, LocalVideoNavigator provides navigator) {
+    CompositionLocalProvider(LocalVideoGraph provides graph, LocalVideoNavigator provides navigator, LocalVideoPreResolve provides graph.preResolve) {
         VideoPhoneShell(windowWidth, host, modifier)
     }
 }
