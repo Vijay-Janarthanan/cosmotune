@@ -5,7 +5,8 @@ package com.cosmotune.design
  *  - [WHOLE]: the video at its own shape, never cut, with a soft glow of its colours in the space around it (the default);
  *  - [FILL]: cut to fill the frame it is given;
  *  - [CINEMA]: the whole window (on the phone, the phone on its side); the song card floats at the foot and hides;
- *  - [MINI]: a small floating video over the app (not built yet: the menu shows it as coming).
+ *  - [MINI]: a small floating video over the other apps: picture-in-picture (the screen menu's "Picture in picture"; the
+ *    system's small window on the phone, the small always-on-top window on the desktop).
  * Only [WHOLE] and [FILL] are kept between visits.
  */
 enum class VideoView {

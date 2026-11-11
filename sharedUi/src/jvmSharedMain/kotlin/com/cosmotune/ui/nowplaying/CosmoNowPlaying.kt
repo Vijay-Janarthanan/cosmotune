@@ -79,6 +79,8 @@ import com.cosmotune.music.ui.player.rememberRemoteArtworkUrl
 import com.cosmotune.music.ui.theme.StatusBarIcons
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.modes.LocalModeLinks
+import com.cosmotune.ui.pip.PipOwner
+import com.cosmotune.ui.pip.rememberPip
 import com.cosmotune.ui.modes.musicVideoLink
 import com.cosmotune.ui.orbit.OrbitMenu
 import com.cosmotune.ui.sleep.SleepTimerMenu
@@ -243,7 +245,10 @@ fun CosmoNowPlaying(
     // loop. The music video is shown as the view says; the loop plays silently inside the record's disc.
     val musicVideo = canvas != null && canvas.syncMap != null
     val coverLoop = canvas != null && canvas.syncMap == null
-    val wantVideo = musicVideo && !videoHidden && settled
+    // Picture-in-picture for the music video (NowPlayingPip.kt). While the desktop's small window holds it, the page shows the record.
+    val pip = rememberPip(PipOwner.MUSIC_VIDEO)
+    val videoAway = pip.active && pip.manual
+    val wantVideo = musicVideo && !videoHidden && settled && !videoAway
     val wantLoop = coverLoop && !videoHidden && settled
     // How the video is shown (Whole or Fill, kept in the look settings), whether Cinema is up, and the clip's own shape.
     val keptView = shell?.settings?.videoView?.collectAsStateWithLifecycle()?.value ?: VideoView.WHOLE
@@ -263,6 +268,11 @@ fun CosmoNowPlaying(
     val videoShown = (wantVideo || wantLoop) && rendered
     // 0 = the record, 1 = the video all the way in. A State, read only in layer and draw lambdas.
     val reveal = animateFloatAsState(if (videoShown) 1f else 0f, CosmoMotion.slow(reduced), label = "reveal")
+    // What picture-in-picture shows and does for the song's video: ready (leaving the app enters it) while the video shows and plays.
+    val pipBinding = rememberMusicVideoPip(pip, musicVideoPipWish(
+        song, canvas?.takeIf { musicVideo }, ready = wantVideo && rendered && isPlaying, isPlaying = isPlaying, aspect = videoAspect,
+        onPlayPause = onPlayPause, onPrevious = transport.onPrevious, onNext = transport.onNext,
+    ))
 
     // Now Playing is one of the zones the cover colours: its colours are the cover's palette, not the chrome's, in both themes.
     val colors = shell?.coverColors ?: LocalCosmoColors.current
@@ -274,10 +284,13 @@ fun CosmoNowPlaying(
     // ---- the Orbit pieces: the look of the colours above, the screen button's menu, the more menu ------------------------
     val orbitType = orbitFonts()
     val orbitInk = orbitLook(colors)
+    val enterPip: (() -> Unit)? = if (pip.supported && musicVideo) ({ if (videoAway) pip.exit() else { videoHidden = false; pip.enter() } }) else null
+    val leavePip: () -> Unit = { if (videoAway) pip.exit() }
     val videoMenu: @Composable () -> Unit = {
         OrbitMenu(
             open = videoMenuOpen, onDismiss = { videoMenuOpen = false }, fonts = orbitType, look = orbitInk, header = "Show the video",
-            items = videoViewItems(keptView, cinemaShown, !videoHidden, setView, { if (it) cinema = true else leaveCinema() }, { videoHidden = !it }),
+            items = videoViewItems(keptView, cinemaShown, !videoHidden, { leavePip(); setView(it) }, { leavePip(); if (it) cinema = true else leaveCinema() },
+                { leavePip(); videoHidden = !it }, pip = enterPip, inPip = pip.active),
         )
     }
     val screenButton: CardButton? = if (!musicVideo) null else CardButton(
@@ -382,7 +395,7 @@ fun CosmoNowPlaying(
                     canvas = canvas, isPlaying = isPlaying, view = keptView, aspect = videoAspect, onAspect = { videoAspect = it },
                     reveal = reveal, onRenderedChanged = { rendered = it }, coverUrl = remoteArt, radius = radius,
                     modifier = Modifier.fillMaxSize(), onDoubleTap = { cinema = true }, onPinch = if (phone) setView else null,
-                    onFramePlaced = coverPlaced,
+                    onFramePlaced = { coverPlaced(it); pipBinding.bounds(it) },
                 )
             }
         }
@@ -483,6 +496,11 @@ fun CosmoNowPlaying(
         )
     }
 
+    // The phone's picture-in-picture window is the app itself: the song's video alone, nothing else of the page.
+    if (pip.active && !pip.manual && musicVideo && canvas != null) {
+        NowPlayingPipPicture(canvas, isPlaying, videoAspect, { videoAspect = it }, { rendered = it }, remoteArt, modifier)
+        return
+    }
     CompositionLocalProvider(LocalCosmoColors provides colors, LocalOpenAudioDetails provides { sheets.details = true }) {
         Box(modifier.fillMaxSize()) {
             when (layout) {

@@ -44,7 +44,10 @@ class NowPlayingVideoContractTest {
         assertTrue(screen.contains("shell?.settings?.videoView"))
         assertTrue(screen.contains("shell?.settings?.setVideoView(it)"))
         val items = video.substring(video.indexOf("fun videoViewItems("))
-        for (name in listOf("\"Whole\"", "\"Fill\"", "\"Cinema\"", "\"Mini\"", "\"Off\"")) assertTrue(items.contains(name), "$name is in the menu")
-        assertTrue(items.contains("enabled = false"), "Mini is shown as coming, not offered")
+        for (name in listOf("\"Whole\"", "\"Fill\"", "\"Cinema\"", "\"Picture in picture\"", "\"Off\"")) assertTrue(items.contains(name), "$name is in the menu")
+        assertFalse(items.contains("coming soon"), "the board's Mini is built now: picture-in-picture")
+        // offered where the device has it, and shown (not offered) where it has none
+        assertTrue(items.contains("if (pip != null) OrbitMenuItem(\"Picture in picture\"") && items.contains("\"Not on this device\", enabled = false"))
+        assertTrue(screen.contains("pip = enterPip, inPip = pip.active"), "Now Playing hands the menu its picture-in-picture")
     }
 }
