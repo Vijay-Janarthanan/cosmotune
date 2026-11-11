@@ -107,25 +107,44 @@ object TitleArt {
     )
 
     /**
+     * Indian film music and the languages it is filed under (Apple's genres, JioSaavn's languages). A soundtrack holds both mass
+     * numbers and melodies, and its cover says which it leans to: a vivid or dark, punchy cover sets it condensed and heavy, a
+     * soft, light one in the italic serif.
+     */
+    private val INDIAN_FILM = listOf(
+        "tamil", "telugu", "hindi", "malayalam", "kannada", "punjabi", "marathi", "bengali", "bhojpuri", "gujarati",
+        "bollywood", "kollywood", "tollywood", "mollywood", "sandalwood", "indian", "filmi",
+    )
+
+    /** At or above this saturation a cover reads as vivid (a mass number's poster rather than a melody's). */
+    const val VIVID_COVER = 0.45f
+
+    /**
      * Genres whose face the cover decides: a dark, moody cover sets them in the italic serif, a bright one wide. R&B and soul,
-     * indie and alternative, film and regional music (Tamil, Bollywood) and the like.
+     * indie and alternative, film music, anime and the like.
      */
     private val COVER_DECIDES = listOf(
         "r&b", "rnb", "soul", "indie", "alternative", "country", "latin", "reggae", "world", "gospel", "funk", "disco",
-        "soundtrack", "film", "tamil", "indian", "bollywood", "kollywood", "anime", "new age", "christian", "worship",
+        "soundtrack", "film", "anime", "new age", "christian", "worship",
     )
 
     /** At or under this mean brightness (0 black, 1 white) a cover reads as dark. */
     const val DARK_COVER = 0.42f
 
     /**
-     * The face of an album: from its [genre] where the genre names one, else from the cover's [brightness] where the genre is
-     * one the cover decides, else none (an album with no known genre has no voice). The same album always gets the same face.
+     * The face of an album: from its [genre] where the genre names one; for Indian film music, from how vivid or dark the cover
+     * is ([saturation], [brightness]); for the other in-between genres from the cover's [brightness]; else none (an album with no
+     * known genre has no voice). The same album always gets the same face.
      */
-    fun voice(genre: String?, brightness: Float?): Voice? {
+    fun voice(genre: String?, brightness: Float?, saturation: Float? = null): Voice? {
         val name = genre?.trim()?.lowercase().orEmpty()
         if (name.isEmpty()) return null
         GENRE_VOICES.firstOrNull { (part, _) -> name.contains(part) }?.let { return it.second }
+        if (INDIAN_FILM.any { name.contains(it) }) {
+            val light = brightness ?: return null
+            val vivid = (saturation ?: 0f) >= VIVID_COVER
+            return if (vivid || light <= DARK_COVER) Voice.CONDENSED else Voice.SERIF
+        }
         if (COVER_DECIDES.any { name.contains(it) }) {
             val light = brightness ?: return null
             return if (light <= DARK_COVER) Voice.SERIF else Voice.WIDE

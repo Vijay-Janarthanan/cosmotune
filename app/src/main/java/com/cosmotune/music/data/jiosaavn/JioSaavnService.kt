@@ -93,7 +93,9 @@ data class RawSongItem(
     val image: String = "",
     /** JioSaavn sends this as the string `"1"` or `"0"`. */
     @SerialName("explicit_content") val explicitContent: String = "",
-    @SerialName("more_info") val moreInfo: RawMoreInfo = RawMoreInfo()
+    @SerialName("more_info") val moreInfo: RawMoreInfo = RawMoreInfo(),
+    /** The language JioSaavn files the track under ("tamil", "hindi"): the title art's voice reads it as a genre. */
+    val language: String = "",
 ) {
     val isExplicit: Boolean
         get() = explicitContent == "1" || explicitContent.equals("true", ignoreCase = true)

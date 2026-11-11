@@ -94,8 +94,22 @@ class TitleArtTest {
     @Test fun theCoverDecidesTheInBetweenGenres() {
         assertEquals(Voice.SERIF, TitleArt.voice("R&B/Soul", 0.2f), "a dark cover: the serif")
         assertEquals(Voice.WIDE, TitleArt.voice("R&B/Soul", 0.7f), "a bright cover: wide")
-        assertEquals(Voice.SERIF, TitleArt.voice("Tamil", TitleArt.DARK_COVER))
         assertNull(TitleArt.voice("Soundtrack", null), "not until the cover is known")
+    }
+
+    @Test fun indianFilmMusicIsMassOrMelodyByItsCover() {
+        // A vivid poster, or a dark and punchy one: a mass number, condensed and heavy.
+        assertEquals(Voice.CONDENSED, TitleArt.voice("Soundtrack / Tamil", 0.6f, saturation = 0.7f))
+        assertEquals(Voice.CONDENSED, TitleArt.voice("Telugu", 0.3f, saturation = 0.2f))
+        // A soft, light cover: a melody album, in the serif.
+        assertEquals(Voice.SERIF, TitleArt.voice("Tamil", 0.7f, saturation = 0.2f))
+        assertEquals(Voice.SERIF, TitleArt.voice("Bollywood", 0.65f, saturation = 0.3f))
+        // JioSaavn files by language.
+        assertEquals(Voice.SERIF, TitleArt.voice("Hindi", 0.8f, saturation = 0.1f))
+        // A genre that names its face still does.
+        assertEquals(Voice.CONDENSED, TitleArt.voice("Tamil / Hip-Hop", 0.8f, saturation = 0.1f))
+        assertEquals(Voice.SERIF, TitleArt.voice("Indian Classical", 0.2f, saturation = 0.9f))
+        assertNull(TitleArt.voice("Tamil", null), "not until the cover is known")
     }
 
     @Test fun noGenreNoVoice() {

@@ -227,7 +227,7 @@ internal fun NowPlayingSongCard(
 @Composable
 private fun CardTitle(t: NowPlayingTransport, fonts: OrbitFonts, ink: Color, fill: Color, sizeSp: Int, maxLines: Int) {
     AlbumTitleArt(
-        TitleArtAlbum(t.song.title, t.coverUrl, artist = t.song.artist), ink = ink, ground = fill,
+        TitleArtAlbum(t.song.title, t.coverUrl, artist = t.song.artist, album = t.song.albumName), ink = ink, ground = fill,
         modifier = Modifier.fillMaxWidth().testTag("nowplaying:card:title"), place = TitleArt.Place.HEADING,
         maxSize = (sizeSp + 8).sp, minSize = (sizeSp - 8).sp, maxLines = maxLines, maxHeight = ((sizeSp + 2) * maxLines).dp,
     )
@@ -285,7 +285,7 @@ internal fun NowPlayingSlimCard(t: NowPlayingTransport, fonts: OrbitFonts, look:
                 OrbitingLabel(t, fonts, ink)
                 // Small title art in the slim card (the board's placement table), in the one line the plain title had.
                 AlbumTitleArt(
-                    TitleArtAlbum(t.song.title, t.coverUrl, artist = t.song.artist), ink = ink, ground = fill,
+                    TitleArtAlbum(t.song.title, t.coverUrl, artist = t.song.artist, album = t.song.albumName), ink = ink, ground = fill,
                     modifier = Modifier.padding(top = 6.dp).fillMaxWidth(), place = TitleArt.Place.SLIM,
                     maxSize = 26.sp, minSize = 16.sp, maxLines = 1, maxHeight = 26.dp,
                 )

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -67,6 +68,7 @@ import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import com.cosmotune.design.TitleArt
+import com.cosmotune.music.data.canvas.AlbumGenres
 import com.cosmotune.music.data.model.artworkAt
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.archivo_variable
@@ -104,9 +106,23 @@ import kotlin.time.TimeSource
  * A (the album's own logotype) does not exist in Apple's catalogue data; see `TitleArt`'s note.
  */
 
-/** What title art is drawn from: the [title], the [cover]'s URL, who made it (the arc reads it) and the [genre] when known. */
+/**
+ * What title art is drawn from: the [title], the [cover]'s URL, who made it (the arc reads it) and the [genre] when the caller
+ * knows it. With no [genre] the catalogues' answer is looked up ([AlbumGenres], filled by the Apple and JioSaavn lookups), by
+ * [title] and then by [album], the release's name where the title is a song's (the song card heads with the song).
+ */
 @Immutable
-class TitleArtAlbum(val title: String, val cover: String?, val artist: String? = null, val genre: String? = null)
+class TitleArtAlbum(val title: String, val cover: String?, val artist: String? = null, val genre: String? = null, val album: String? = null)
+
+/** [album]'s genre: its own, else what the catalogues have said about its title or its release, followed as answers come in. */
+@Composable
+internal fun rememberTitleArtGenre(album: TitleArtAlbum): String? {
+    if (album.genre != null) return album.genre
+    val version by AlbumGenres.version.collectAsState()
+    return remember(version, album.title, album.album, album.artist) {
+        AlbumGenres.genreFor(album.title, album.artist) ?: album.album?.let { AlbumGenres.genreFor(it, album.artist) }
+    }
+}
 
 /** A cover ready for title art: the [image] the letters are cut from and its [stats]. */
 class TitleArtCover(val image: ImageBitmap, val stats: TitleArt.CoverStats)
@@ -207,7 +223,7 @@ internal fun AlbumTitleArt(
     breathStep: Int? = null,
 ) {
     val stats = cover?.stats
-    val voice = TitleArt.voice(album.genre, stats?.brightness)
+    val voice = TitleArt.voice(rememberTitleArtGenre(album), stats?.brightness, stats?.saturation)
     val chosen = style ?: TitleArt.choose(album.title, place, voice)
     val breathes = TitleArt.breathes(place, chosen, voice, playing, LocalReducedMotion.current)
     val semantics = Modifier.semantics {

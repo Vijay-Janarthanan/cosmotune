@@ -1,6 +1,7 @@
 package com.cosmotune.music.data.sources
 
 import com.cosmotune.music.data.TrackLog
+import com.cosmotune.music.data.canvas.AlbumGenres
 import com.cosmotune.music.data.jiosaavn.JioSaavnService
 import com.cosmotune.music.data.jiosaavn.prioritizeExplicit
 import com.cosmotune.music.data.model.Song
@@ -36,6 +37,12 @@ class JioSaavnSource(
         return results.take(limit).map { raw ->
             val primaryArtists = raw.moreInfo.artistMap.primaryArtists.joinToString(", ") { it.name }
             val artistName = primaryArtists.ifBlank { "Unknown Artist" }
+            // JioSaavn files by language, which is what the title art's voice reads for Indian film music.
+            raw.language.trim().takeIf { it.isNotEmpty() }?.let { language ->
+                val genre = listOf(language.replaceFirstChar { it.titlecase() })
+                AlbumGenres.record(raw.title, primaryArtists, genre)
+                AlbumGenres.record(raw.moreInfo.album, primaryArtists, genre)
+            }
             
             // Generate higher quality thumbnail link (e.g. 500x500)
             val thumbnail = raw.image

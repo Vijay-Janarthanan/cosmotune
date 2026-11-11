@@ -286,7 +286,7 @@ private fun OrbitGreeting(fonts: OrbitFonts, look: OrbitLook, modifier: Modifier
 
 // ---- hero -----------------------------------------------------------------------------------------------------------------------
 
-private class Hero(val title: String, val subtitle: String, val cover: String?, val label: String, val isCurrent: Boolean, val playing: Boolean, val item: ShelfItem?, val shelfTitle: String)
+private class Hero(val title: String, val subtitle: String, val cover: String?, val label: String, val isCurrent: Boolean, val playing: Boolean, val item: ShelfItem?, val shelfTitle: String, val album: String? = null)
 
 @Composable
 private fun rememberHero(shelves: List<HomeShelf>, current: Song?, playing: Boolean): Hero {
@@ -294,7 +294,7 @@ private fun rememberHero(shelves: List<HomeShelf>, current: Song?, playing: Bool
     val from = localizeShelfTitle(shelf?.title.orEmpty()).uppercase()
     return remember(shelf, current, playing, from) {
         if (current != null) {
-            Hero(current.title, current.artist, current.thumbnailUrl, if (playing) "NOW ORBITING" else "PAUSED", true, playing, null, "")
+            Hero(current.title, current.artist, current.thumbnailUrl, if (playing) "NOW ORBITING" else "PAUSED", true, playing, null, "", album = current.albumName)
         } else {
             val item = shelf?.items?.firstOrNull()
             Hero(item?.title.orEmpty(), item?.subtitle.orEmpty(), item?.thumbnailUrl, "START HERE · $from", false, false, item, shelf?.title.orEmpty())
@@ -333,7 +333,7 @@ private fun OrbitHero(
                 }
                 // The hero's title as title art (Cover Cut, or Voiced type), in the plain title's two lines of 27 sp.
                 AlbumTitleArt(
-                    TitleArtAlbum(hero.title, hero.cover, artist = hero.subtitle), ink = ink, ground = fill, modifier = Modifier.fillMaxWidth(),
+                    TitleArtAlbum(hero.title, hero.cover, artist = hero.subtitle, album = hero.album), ink = ink, ground = fill, modifier = Modifier.fillMaxWidth(),
                     place = TitleArt.Place.FEATURE, maxSize = 34.sp, minSize = 20.sp, maxLines = 2, maxHeight = 54.dp,
                 )
                 Text(hero.subtitle, style = fonts.body.copy(fontSize = 15.sp), color = ink.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))

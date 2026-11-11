@@ -1,5 +1,6 @@
 package com.cosmotune.music.desktop
 
+import com.cosmotune.music.data.canvas.AlbumGenres
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -152,11 +153,22 @@ internal object DesktopAppleMusicCanvas {
             score(song, title, artist, album)?.let { it to song }
         }.sortedByDescending { it.first }
 
+        var noted = false
         for ((value, song) in ranked) {
             if (value < MIN_SCORE) break
             val attributes = song["attributes"]?.jsonObject ?: continue
             val songName = attributes.text("name")
             val songArtist = attributes.text("artistName")
+            val genres = genreNames(attributes)
+            // The genre rides on every hit, motion artwork or not: the best match's is noted for the title art's voice, under
+            // Apple's names and the ones asked with (YouTube often spells them differently).
+            if (!noted) {
+                AlbumGenres.record(songName, songArtist, genres)
+                AlbumGenres.record(attributes.text("albumName"), songArtist, genres)
+                AlbumGenres.record(title, artist, genres)
+                AlbumGenres.record(album, artist, genres)
+                noted = true
+            }
             // Some searches carry the motion artwork inline, saving the album round trip.
             attributes["editorialVideo"]?.jsonObject?.let { video ->
                 motionUrls(video)?.let { (primary, alternate) ->
@@ -166,6 +178,7 @@ internal object DesktopAppleMusicCanvas {
                         songName,
                         songArtist,
                         attributes.text("albumName"),
+                        genres = genres,
                     )
                     if (artwork.matches(title, artist, album)) return artwork
                 }
@@ -196,14 +209,22 @@ internal object DesktopAppleMusicCanvas {
             score(record, album, artist, album, albumIsSelf = true)?.let { it to record }
         }.sortedByDescending { it.first }
 
+        var noted = false
         for ((value, record) in ranked) {
             if (value < MIN_SCORE) break
             val attributes = record["attributes"]?.jsonObject ?: continue
             val name = attributes.text("name")
             if (name != null && isCompilation(name)) continue
+            val genres = genreNames(attributes)
+            // The best matching edition's genre, motion artwork or not, for the title art's voice.
+            if (!noted) {
+                AlbumGenres.record(name, attributes.text("artistName"), genres)
+                AlbumGenres.record(album, artist, genres)
+                noted = true
+            }
             val video = attributes["editorialVideo"]?.jsonObject ?: continue
             val (primary, alternate) = motionUrls(video) ?: continue
-            return DesktopCanvasArtwork(primary, alternate, name, attributes.text("artistName"), name)
+            return DesktopCanvasArtwork(primary, alternate, name, attributes.text("artistName"), name, genres = genres)
         }
         return null
     }
@@ -221,6 +242,8 @@ internal object DesktopAppleMusicCanvas {
         val attributes = album["attributes"]?.jsonObject ?: return null
         val albumName = attributes.text("name").orEmpty()
         if (isCompilation(albumName)) return null
+        val genres = genreNames(attributes)
+        AlbumGenres.record(albumName, attributes.text("artistName"), genres)
         val video = attributes["editorialVideo"]?.jsonObject ?: return null
         val (primary, alternate) = motionUrls(video) ?: return null
         return DesktopCanvasArtwork(
@@ -229,8 +252,15 @@ internal object DesktopAppleMusicCanvas {
             title = songTitle,
             artist = songArtist ?: attributes.text("artistName"),
             album = albumName,
+            genres = genres,
         )
     }
+
+    /** A hit's `genreNames` (Apple files every song and album under a few, "Music" among them). */
+    private fun genreNames(attributes: JsonObject): List<String> =
+        (attributes["genreNames"] as? kotlinx.serialization.json.JsonArray)
+            ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+            .orEmpty()
 
     private fun albumId(song: JsonObject): String? {
         song["relationships"]?.jsonObject
