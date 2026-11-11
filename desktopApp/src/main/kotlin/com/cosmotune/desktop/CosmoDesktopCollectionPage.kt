@@ -330,6 +330,11 @@ private fun CollectionCard(
         playing = playing,
         onPlay = onPlay.takeIf { songs.isNotEmpty() },
         motion = motion,
+        titleArt = if (collection.type == BrowseType.ALBUM) {
+            com.cosmotune.ui.orbit.TitleArtAlbum(collection.title, collection.thumbnailUrl ?: songs.firstOrNull()?.thumbnailUrl, artist = credit)
+        } else {
+            null
+        },
         modifier = Modifier.fillMaxWidth(),
     ) { colors ->
         if (songs.isNotEmpty()) {

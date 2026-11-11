@@ -79,6 +79,7 @@ object AppleMusicCanvas {
             score to song
         }.sortedByDescending { it.first }
 
+        var noted = false
         for ((score, song) in ranked) {
             if (score < MIN_SCORE) {
                 Log.d(TAG, "no hit scored above $MIN_SCORE for '$title' (best was $score)")
@@ -88,12 +89,22 @@ object AppleMusicCanvas {
             val songName = attributes["name"]?.jsonPrimitive?.contentOrNull
             val songArtist = attributes["artistName"]?.jsonPrimitive?.contentOrNull
             val albumName = attributes["albumName"]?.jsonPrimitive?.contentOrNull
+            val genres = genreNames(attributes)
+            // The genre rides on every hit, motion artwork or not: the best match's is noted for the title art's voice.
+            // Under Apple's names and the ones asked with, which YouTube often spells differently.
+            if (!noted) {
+                AlbumGenres.record(songName, songArtist, genres)
+                AlbumGenres.record(albumName, songArtist, genres)
+                AlbumGenres.record(title, artist, genres)
+                AlbumGenres.record(album, artist, genres)
+                noted = true
+            }
 
             // Some searches already carry the motion artwork inline, which
             // saves the album round trip entirely.
             attributes["editorialVideo"]?.jsonObject?.let { video ->
                 motionUrls(video)?.let { (primary, alternate) ->
-                    val artwork = CanvasArtwork(primary, alternate, songName, songArtist, albumName)
+                    val artwork = CanvasArtwork(primary, alternate, songName, songArtist, albumName, genres = genres)
                     if (artwork.matches(title, artist, album)) {
                         Log.d(TAG, "inline motion artwork for '$songName'")
                         return artwork
@@ -141,11 +152,19 @@ object AppleMusicCanvas {
             score to record
         }.sortedByDescending { it.first }
 
+        var noted = false
         for ((score, record) in ranked) {
             if (score < MIN_SCORE) break
             val attributes = record["attributes"]?.jsonObject ?: continue
             val name = attributes["name"]?.jsonPrimitive?.contentOrNull
             if (name != null && isCompilation(name)) continue
+            val genres = genreNames(attributes)
+            // The best matching edition's genre, motion artwork or not, for the title art's voice.
+            if (!noted) {
+                AlbumGenres.record(name, attributes["artistName"]?.jsonPrimitive?.contentOrNull, genres)
+                AlbumGenres.record(album, artist, genres)
+                noted = true
+            }
             val video = attributes["editorialVideo"]?.jsonObject ?: continue
             val (primary, alternate) = motionUrls(video) ?: continue
 
@@ -156,6 +175,7 @@ object AppleMusicCanvas {
                 title = name,
                 artist = attributes["artistName"]?.jsonPrimitive?.contentOrNull,
                 album = name,
+                genres = genres,
             )
         }
         return null
@@ -288,6 +308,8 @@ object AppleMusicCanvas {
         val attributes = album["attributes"]?.jsonObject ?: return null
         val albumName = attributes["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
         if (isCompilation(albumName)) return null
+        val genres = genreNames(attributes)
+        AlbumGenres.record(albumName, attributes["artistName"]?.jsonPrimitive?.contentOrNull, genres)
 
         val video = attributes["editorialVideo"]?.jsonObject ?: return null
         val (primary, alternate) = motionUrls(video) ?: return null
@@ -299,8 +321,15 @@ object AppleMusicCanvas {
             title = songTitle,
             artist = songArtist ?: attributes["artistName"]?.jsonPrimitive?.contentOrNull,
             album = albumName,
+            genres = genres,
         )
     }
+
+    /** A hit's `genreNames` (Apple files every song and album under a few, "Music" among them). */
+    private fun genreNames(attributes: JsonObject): List<String> =
+        (attributes["genreNames"] as? kotlinx.serialization.json.JsonArray)
+            ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull }
+            .orEmpty()
 
     /**
      * The square rendition first — it fills a square sleeve without cropping.

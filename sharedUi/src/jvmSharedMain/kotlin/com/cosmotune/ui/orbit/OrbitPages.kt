@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cosmotune.design.BlockMetrics
+import com.cosmotune.design.TitleArt
 import com.cosmotune.music.data.canvas.CanvasArtwork
 import com.cosmotune.music.data.model.ShelfItem
 import com.cosmotune.music.data.model.Song
@@ -105,7 +106,8 @@ fun OrbitCardChip(text: String, colors: OrbitCardColors, onClick: () -> Unit, mo
  * [label] ("ALBUM · 12 SONGS · 48 MIN"), the [title], who made it ([credit]; a tap is [onCredit]), [below] (the quality the
  * catalogue reports) and the round [buttons]; Play stands in the bite. From 600 dp the disc stands at the start and the words beside
  * it; narrower, the disc is on top. When [motion] is given the album's animated cover loops silently inside the disc, under the
- * same rules as the player's.
+ * same rules as the player's. With [titleArt] (an album, a single or an EP; not a playlist) the title is the album's title art
+ * over the card's colour, in the room the plain title had (up to three lines), breathing while the album plays.
  */
 @Composable
 fun OrbitReleaseCard(
@@ -118,6 +120,7 @@ fun OrbitReleaseCard(
     onPlay: (() -> Unit)?,
     modifier: Modifier = Modifier,
     motion: CanvasArtwork? = null,
+    titleArt: TitleArtAlbum? = null,
     below: @Composable ColumnScope.(OrbitCardColors) -> Unit = {},
     buttons: @Composable RowScope.(OrbitCardColors) -> Unit,
 ) {
@@ -134,11 +137,21 @@ fun OrbitReleaseCard(
         }) {
             val words: @Composable ColumnScope.() -> Unit = {
                 Text(label.uppercase(), style = fonts.label, color = ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    title, style = if (wide) fonts.greeting.copy(fontSize = 40.sp, lineHeight = 42.sp) else fonts.heroTitle.copy(fontSize = 28.sp, lineHeight = 30.sp),
-                    color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 12.dp).semantics { heading() },
-                )
+                if (titleArt != null) {
+                    // The plain title's room: three lines of 42 sp (wide) or 30 sp, never smaller than it was.
+                    AlbumTitleArt(
+                        titleArt, ink = ink, ground = fill, modifier = Modifier.padding(top = 12.dp).fillMaxWidth(),
+                        place = TitleArt.Place.HERO, playing = playing,
+                        maxSize = if (wide) 64.sp else 52.sp, minSize = if (wide) 32.sp else 24.sp, maxLines = 3,
+                        maxHeight = if (wide) 126.dp else 90.dp, heading = true,
+                    )
+                } else {
+                    Text(
+                        title, style = if (wide) fonts.greeting.copy(fontSize = 40.sp, lineHeight = 42.sp) else fonts.heroTitle.copy(fontSize = 28.sp, lineHeight = 30.sp),
+                        color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 12.dp).semantics { heading() },
+                    )
+                }
                 if (!credit.isNullOrBlank()) {
                     Text(
                         credit, style = fonts.body.copy(fontSize = 15.sp, fontWeight = FontWeight(600)), color = ink.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis,

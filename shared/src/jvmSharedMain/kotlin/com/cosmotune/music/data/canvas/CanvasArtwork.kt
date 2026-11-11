@@ -46,6 +46,8 @@ data class CanvasArtwork(
     val videoId: String? = null,
     /** Optional precomputed framing, evaluated at the video's presentation timestamp. */
     val trajectory: com.opencanvas.core.models.CropTrajectory? = null,
+    /** The release's genres as the provider files them (Apple's `genreNames`), for the title art's voice; empty when not said. */
+    val genres: List<String> = emptyList(),
 ) {
     /**
      * Whether this clip really belongs to the track we asked about.

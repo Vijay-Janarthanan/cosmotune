@@ -66,6 +66,7 @@ import com.cosmotune.ui.orbit.OrbitPageSection
 import com.cosmotune.ui.orbit.OrbitReleaseCard
 import com.cosmotune.ui.orbit.OrbitPageButton
 import com.cosmotune.ui.orbit.OrbitTrackRow
+import com.cosmotune.ui.orbit.TitleArtAlbum
 import com.cosmotune.ui.orbit.orbitPageSide
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -205,6 +206,8 @@ fun CosmoReleasePage(
                     playing = showsPause,
                     onPlay = play.takeIf { songs.isNotEmpty() },
                     motion = albumCanvas,
+                    // Title art for a release; a playlist keeps its plain title (it has no album's look to wear).
+                    titleArt = if (page.type == BrowseType.PLAYLIST) null else TitleArtAlbum(page.title, page.thumbnailUrl, artist = credit),
                     modifier = Modifier.padding(horizontal = side).fillMaxWidth().testTag("music:release:card"),
                     below = { if (quality != null) QualityPill(quality, modifier = Modifier.padding(top = 8.dp)) },
                 ) { colors ->

@@ -338,7 +338,7 @@ private fun StoryPage(page: ReplayStoryPage, summary: ReplaySummary, ring: () ->
                 OrbitStoryOrbit(storyCovers(summary), colors, ring, minutesLine(summary))
             ReplayStoryPage.SONGS -> Leaderboard(summary.songRows(STORY_ROWS), colors, ring)
             ReplayStoryPage.ARTISTS -> Leaderboard(summary.artistRows(STORY_ROWS), colors, ring)
-            ReplayStoryPage.ALBUMS -> Leaderboard(summary.albumRows(STORY_ROWS), colors, ring)
+            ReplayStoryPage.ALBUMS -> Leaderboard(summary.albumRows(STORY_ROWS), colors, ring, titleArt = true)
             ReplayStoryPage.GENRES -> {
                 val rows = summary.genreRows(STORY_ROWS)
                 val lead = rows.firstOrNull() ?: return@OrbitStoryCard
@@ -395,7 +395,7 @@ private fun StoryPage(page: ReplayStoryPage, summary: ReplaySummary, ring: () ->
  * is the evidence.
  */
 @Composable
-private fun ColumnScope.Leaderboard(rows: List<ReplayRow>, colors: OrbitStoryColors, ring: () -> Float?) {
+private fun ColumnScope.Leaderboard(rows: List<ReplayRow>, colors: OrbitStoryColors, ring: () -> Float?, titleArt: Boolean = false) {
     val context = LocalContext.current
     val lead = rows.firstOrNull() ?: return
     OrbitStoryLeader(
@@ -405,6 +405,8 @@ private fun ColumnScope.Leaderboard(rows: List<ReplayRow>, colors: OrbitStoryCol
         rest = rows.drop(1).map { it.orbit(context).copy(subtitle = formatListening(context, it.ms), plays = 0) },
         colors = colors,
         ring = ring,
+        // The albums' card shows its number one as the album's title art (the lyrics-titles board's placement table).
+        titleArt = titleArt,
     )
 }
 

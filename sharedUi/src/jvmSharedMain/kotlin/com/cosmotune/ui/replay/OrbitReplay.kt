@@ -48,7 +48,10 @@ import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.ic_logo
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.listening.ListeningActivityPanel
+import com.cosmotune.ui.orbit.AlbumTitleArt
 import com.cosmotune.ui.orbit.Disc
+import com.cosmotune.ui.orbit.TitleArtAlbum
+import com.cosmotune.design.TitleArt
 import com.cosmotune.ui.orbit.OrbitBiteCard
 import com.cosmotune.ui.orbit.OrbitChip
 import com.cosmotune.ui.orbit.OrbitChipRow
@@ -488,16 +491,24 @@ private val MOON_ANGLES = listOf(-38.0, 152.0, 62.0, -140.0, 108.0)
 
 /**
  * A number one with its runners-up: the [lead] as a disc in its orbit beside its title, who and [leadLine], then [rest] as the
- * kit's ranked rows in the card's ink (inert: a tap turns the page).
+ * kit's ranked rows in the card's ink (inert: a tap turns the page). With [titleArt] (the albums' card) the lead's title is the
+ * album's title art, in the plain title's three lines.
  */
 @Composable
-fun ColumnScope.OrbitStoryLeader(lead: OrbitReplayRow, leadLine: String, rest: List<OrbitReplayRow>, colors: OrbitStoryColors, ring: () -> Float?) {
+fun ColumnScope.OrbitStoryLeader(lead: OrbitReplayRow, leadLine: String, rest: List<OrbitReplayRow>, colors: OrbitStoryColors, ring: () -> Float?, titleArt: Boolean = false) {
     val fonts = orbitFonts()
     Row(verticalAlignment = Alignment.CenterVertically) {
         OrbitStoryDisc(lead.cover, 124.dp, colors.ink, ring)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(lead.title, style = fonts.section.copy(fontSize = 22.sp, lineHeight = 25.sp), color = colors.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            if (titleArt) {
+                AlbumTitleArt(
+                    TitleArtAlbum(lead.title, lead.cover, artist = lead.subtitle), ink = colors.ink, ground = colors.fill, modifier = Modifier.fillMaxWidth(),
+                    place = TitleArt.Place.FEATURE, maxSize = 30.sp, minSize = 18.sp, maxLines = 3, maxHeight = 75.dp,
+                )
+            } else {
+                Text(lead.title, style = fonts.section.copy(fontSize = 22.sp, lineHeight = 25.sp), color = colors.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
             if (lead.subtitle.isNotBlank()) Text(lead.subtitle, style = fonts.body, color = colors.dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
             OrbitLabel(leadLine, fonts, colors.dim, Modifier.padding(top = 8.dp))
         }

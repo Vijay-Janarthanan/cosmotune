@@ -73,6 +73,14 @@ variable fonts under the SIL Open Font License, version 1.1, bundled unmodified,
 The licence texts are in `licenses/Archivo-OFL.txt` and `licenses/HankenGrotesk-OFL.txt`. The fonts stay under the OFL; they are
 not sold on their own, and the combined program, Cosmotune, is distributed under the GPLv3.
 
+## Instrument Serif
+
+The title art's italic serif voice (for acoustic, jazz and classical albums) is set in **Instrument Serif Italic** (copyright 2022
+The Instrument Serif Project Authors, https://github.com/Instrument/instrument-serif), under the SIL Open Font License, version
+1.1, bundled unmodified, exactly as published in the Google Fonts repository (https://github.com/google/fonts, `ofl/instrumentserif`).
+It is `sharedUi/src/commonMain/composeResources/font/instrument_serif_italic.ttf`; the licence text is in
+`licenses/InstrumentSerif-OFL.txt`. Like Archivo and Hanken Grotesk, it stays under the OFL and is not sold on its own.
+
 ## Revamped interface: Prism, YTXTube and Lokal
 
 The revamped interface (2026) adapts ideas from three other open-source players. No code was copied verbatim; where a

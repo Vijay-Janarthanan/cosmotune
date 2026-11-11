@@ -299,6 +299,7 @@ internal fun DesktopCanvasArtwork.toShared(): CanvasArtwork = CanvasArtwork(
     videoId = videoId,
     headers = headers,
     trajectory = trajectory,
+    genres = genres,
 )
 
 /** A frame this much ahead of the song waits for it; this much behind is dropped. */

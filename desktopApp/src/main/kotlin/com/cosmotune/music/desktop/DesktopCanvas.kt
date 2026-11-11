@@ -68,6 +68,8 @@ data class DesktopCanvasArtwork(
     /** The music video's YouTube id, when OpenCanvas found one (Video mode's "Watch the music video"). */
     val videoId: String? = null,
     val trajectory: com.opencanvas.core.models.CropTrajectory? = null,
+    /** The release's genres as the provider files them (Apple's `genreNames`), for the title art's voice. */
+    val genres: List<String> = emptyList(),
 ) {
     /**
      * Whether this clip really belongs to the track we asked about.

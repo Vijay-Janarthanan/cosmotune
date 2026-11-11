@@ -108,7 +108,9 @@ import com.cosmotune.music.ui.tv.theme.TvThemeColors
 import com.cosmotune.music.ui.tv.theme.TvType
 import com.cosmotune.music.ui.tv.theme.tvOrbitLook
 import com.cosmotune.ui.components.CosmoIcons
+import com.cosmotune.ui.orbit.ArcTitle
 import com.cosmotune.ui.orbit.OrbitBiteCard
+import com.cosmotune.ui.orbit.arcText
 import com.cosmotune.ui.orbit.OrbitPlayButton
 import com.cosmotune.ui.orbit.OrbitRing
 import com.cosmotune.ui.orbit.OrbitRoundButton
@@ -220,11 +222,22 @@ internal fun TvNowPlayingStage(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            val disc = ring - 30.dp
+            // The Arc title (lyrics-titles board): the album and the artist run round the disc like a record's label, in the band
+            // between the disc and the orbit's track; the disc steps in to make room, the ring keeps its size.
+            val disc = ring * 0.74f
+            val track = ring / 2 - 8.dp
+            val band = track - disc / 2
             Box(modifier = Modifier.size(disc).clip(CircleShape)) {
                 TvArtwork(url = song.thumbnailUrl, px = 720, shape = CircleShape, modifier = Modifier.fillMaxSize())
                 canvas?.let { CanvasArtworkPlayer(canvas = it, isPlaying = isPlaying, modifier = Modifier.fillMaxSize()) }
             }
+            ArcTitle(
+                text = arcText(song.albumName?.takeIf { it.isNotBlank() } ?: song.title, song.artist),
+                radius = disc / 2 + band / 2,
+                size = with(LocalDensity.current) { (band * 0.46f).toSp() },
+                ink = TvGlass.Ink.copy(alpha = 0.9f),
+                modifier = Modifier.size(ring),
+            )
             OrbitRing(
                 ring,
                 TvGlass.Ink,
