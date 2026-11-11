@@ -22,7 +22,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.toArgb
 import com.cosmotune.theme.CoverField
+import com.cosmotune.theme.CoverWash
 
 /** A radial glow squashed to an ellipse ([rx] x [ry]) at ([cx], [cy]); [stops] are (fraction of rx, colour). */
 fun DrawScope.drawEllipseGlow(stops: Array<Pair<Float, Color>>, cx: Float, cy: Float, rx: Float, ry: Float) {
@@ -114,28 +116,15 @@ fun Modifier.cosmoTopGround(shown: () -> Float, fade: Dp = 14.dp): Modifier {
     }
 }
 
-/** WCAG relative luminance of an opaque colour. */
-internal fun relativeLuminance(c: Color): Float {
-    fun lin(v: Float) = if (v <= 0.03928f) v / 12.92f else Math.pow(((v + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
-    return 0.2126f * lin(c.red) + 0.7152f * lin(c.green) + 0.0722f * lin(c.blue)
-}
-
 /**
- * [ground] moved toward black (for light [ink]) or white (for dark ink) just enough that [ink] keeps [ratio]:1 on it, hue kept as
- * far as the move allows; unchanged when it already does. The luminance cap of the artwork backdrop.
+ * [ground] moved in OKLCH lightness, away from [ink], just far enough that [ink] keeps [ratio]:1 on it ([CoverWash.readable]): the
+ * hue and the chroma are kept (only where sRGB has no such colour is the chroma lowered), so a deep colour never goes muddy the way
+ * a mix toward black does. Unchanged when it already reads. The luminance cap of the artwork backdrop.
  */
 fun readableBehind(ground: Color, ink: Color, ratio: Float = 4.5f): Color {
-    val inkL = relativeLuminance(ink)
-    fun contrast(c: Color): Float { val l = relativeLuminance(c); return (maxOf(l, inkL) + 0.05f) / (minOf(l, inkL) + 0.05f) }
-    if (contrast(ground) >= ratio) return ground
-    val toward = if (inkL > 0.18f) Color.Black else Color.White
-    var lo = 0f
-    var hi = 1f
-    repeat(20) {
-        val mid = (lo + hi) / 2f
-        if (contrast(androidx.compose.ui.graphics.lerp(ground, toward, mid).copy(alpha = 1f)) >= ratio) hi = mid else lo = mid
-    }
-    return androidx.compose.ui.graphics.lerp(ground, toward, hi).copy(alpha = ground.alpha)
+    val argb = ground.toArgb()
+    val moved = CoverWash.readable(argb, ink.copy(alpha = 1f).toArgb(), ratio.toDouble())
+    return if (moved == argb) ground else Color(moved)
 }
 
 @Composable
