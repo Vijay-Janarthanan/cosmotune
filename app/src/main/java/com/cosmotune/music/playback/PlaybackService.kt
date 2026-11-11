@@ -4677,7 +4677,13 @@ class PlaybackService : MediaLibraryService() {
         // `replaceMediaItem` — both run on the same single-threaded Main
         // dispatcher [scope] does — so that second check is the one this
         // logic actually depends on for correctness, not this one.
-        val paddingOffset = upgradeOffsetMs(Uri.parse(at.uri), originalCacheKey, Uri.parse(upgradedUri), at.position)
+        // Off by default: see [com.cosmotune.audio.AcousticAlignment.applyToUpgrades]. When off
+        // nothing is decoded and the seek below is the same position it always was.
+        val paddingOffset = if (com.cosmotune.audio.AcousticAlignment.applyToUpgrades) {
+            upgradeOffsetMs(Uri.parse(at.uri), originalCacheKey, Uri.parse(upgradedUri), at.position)
+        } else {
+            null
+        }
         if (paddingOffset != null) TrackLog.d("Cosmotune", "upgrade encoder-padding alignment: ${paddingOffset}ms")
         var waitedForCrossfade = 0L
         while (withContext(Dispatchers.Main) { crossfade?.isTransitioning() } == true &&

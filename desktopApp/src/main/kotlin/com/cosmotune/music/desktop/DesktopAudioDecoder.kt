@@ -71,6 +71,12 @@ internal data class DesktopPcmFormat(
 }
 
 /** Audio decoding, by way of FFmpeg. */
+/**
+ * [onPcm], when given, sees every block [readSamples] returns, on the thread that decodes it:
+ * samples, the count in use, the song position of the block's first frame in milliseconds (after
+ * any seek trim; NaN when the stream carries no timestamp), the rate and the channel count. It
+ * must be quick and must not keep the array, which is reused.
+ */
 internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double, Int, Int) -> Unit)? = null) : DesktopSampleSource {
 
     private var format: AVFormatContext? = null
@@ -105,6 +111,9 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
     /** Where the last decoded frame sat, for position reporting after a seek. */
     var positionUs: Long = 0L
         private set
+
+    /** Song position of the first frame [read] last returned, after trimming; null without a timestamp. */
+    private var blockStartUs: Long? = null
 
     /** The stream's first timestamp: song position 0, which an HLS or MPEG-TS stream puts well past 0. */
     private var streamStartUs = 0L
@@ -350,7 +359,7 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
             )
         }
         sampleCount = count
-        onPcm?.invoke(samples, count, positionUs / 1000.0, outputFormat.sampleRate, outputFormat.channels)
+        onPcm?.invoke(samples, count, blockStartUs?.div(1000.0) ?: Double.NaN, outputFormat.sampleRate, outputFormat.channels)
         return samples
     }
 
@@ -406,6 +415,9 @@ internal class DesktopAudioDecoder(private val onPcm: ((FloatArray, Int, Double,
             }
         }
         if (skip >= produced) return ByteArray(0)
+        // Where the first frame handed on sits: the frame's own stamp moved past what the trim
+        // dropped, not the stamp of a frame that partly fell before the seek target.
+        blockStartUs = frameUs?.plus(skip * 1_000_000L / target.sampleRate)
 
         val bytes = (produced - skip) * target.frameBytes
         if (scratch.size < bytes) scratch = ByteArray(bytes)

@@ -94,6 +94,34 @@ class DesktopAudioDecoderTest {
     }
 
     @Test
+    fun `the PCM callback stamps each block with the song time of its first frame after a seek trim`() {
+        // Silence with one click at 2.345 s: the meter has to put it in the 2.340 s bin, which it
+        // only does if the trimmed block is stamped with the seek target rather than with the
+        // demuxer's landing point before it.
+        val rate = 44_100
+        val clickAt = (2.345 * rate).toInt()
+        val file = wav(seconds = 4.0, rate = rate) { frame -> if (frame in clickAt until clickAt + 44) 30_000 else 0 }
+        val meter = com.cosmotune.audio.AcousticAlignment.Envelope()
+        val starts = mutableListOf<Double>()
+        val decoder = DesktopAudioDecoder { samples, count, startMs, sampleRate, channels ->
+            starts += startMs
+            meter.add(samples, count, startMs, sampleRate, channels)
+        }
+        decoder.open(file.absolutePath, requested = DesktopPcmFormat(rate, 2, bytesPerSample = 4, isFloat = true)).getOrThrow()
+        try {
+            assertTrue(decoder.seek(2_003_000))
+            repeat(40) { decoder.readSamples() }
+            assertTrue(abs(starts.first() - 2_003.0) < 1.0, "first block stamped ${starts.first()} ms")
+            val bins = assertNotNull(meter.read(2_300, 10))
+            val loudest = bins.indices.maxBy { bins[it] }
+            assertEquals(4, loudest, "click landed in bin ${2_300 + loudest * 10} ms")
+            assertTrue(bins[3] < 1e-4f && bins[5] < 1e-4f)
+        } finally {
+            decoder.close()
+        }
+    }
+
+    @Test
     fun `float output is four bytes a sample and stays in range`() {
         val file = tone(seconds = 0.5, rate = 44_100, hz = 440.0)
         val decoder = DesktopAudioDecoder()
@@ -151,6 +179,23 @@ class DesktopAudioDecoderTest {
     private fun sampleAt(pcm: ByteArray, index: Int): Int {
         val at = index * 2
         return ((pcm[at].toInt() and 0xFF) or (pcm[at + 1].toInt() shl 8)).toShort().toInt()
+    }
+
+    /** A stereo WAV whose frame values come from [value]. */
+    private fun wav(seconds: Double, rate: Int, value: (Int) -> Int): File {
+        val frames = (rate * seconds).toInt()
+        val bytes = ByteArray(frames * 4)
+        for (frame in 0 until frames) {
+            val sample = value(frame).toShort().toInt()
+            val at = frame * 4
+            bytes[at] = sample.toByte(); bytes[at + 1] = (sample shr 8).toByte()
+            bytes[at + 2] = bytes[at]; bytes[at + 3] = bytes[at + 1]
+        }
+        val file = File.createTempFile("cosmotune-click", ".wav").also { scratch += it }
+        AudioInputStream(ByteArrayInputStream(bytes), AudioFormat(rate.toFloat(), 16, 2, true, false), frames.toLong()).use {
+            AudioSystem.write(it, AudioFileFormat.Type.WAVE, file)
+        }
+        return file
     }
 
     /** A stereo sine, written as a WAV that FFmpeg will read back exactly. */

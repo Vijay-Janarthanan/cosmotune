@@ -198,7 +198,8 @@ class DesktopPlaybackEngine(
          */
         var startUs: Long,
         val dsdTransport: DesktopDsdTransport? = null,
-        val alignment: com.cosmotune.audio.AcousticAlignment.Envelope = com.cosmotune.audio.AcousticAlignment.Envelope(),
+        /** This copy's loudness by song time, for a handover; null unless alignment is on. */
+        val alignment: com.cosmotune.audio.AcousticAlignment.Envelope? = null,
     ) {
         val directDsd get() = dsdTransport != null
         var gain = 1f
@@ -338,8 +339,10 @@ class DesktopPlaybackEngine(
                     Track(song, ahead, stream, startAtMs * 1_000, dsdTransport = transport)
                 }
             }
-            val meter = com.cosmotune.audio.AcousticAlignment.Envelope()
-            val decoder = DesktopAudioDecoder { samples, count, from, rate, channels -> meter.add(samples, count, from, rate, channels) }
+            // Metered only while handover alignment is on; otherwise the decoder runs exactly as
+            // it did, with no callback on its thread.
+            val meter = com.cosmotune.audio.AcousticAlignment.Envelope().takeIf { com.cosmotune.audio.AcousticAlignment.applyToUpgrades }
+            val decoder = DesktopAudioDecoder(meter?.let { m -> { samples, count, from, rate, channels -> m.add(samples, count, from, rate, channels) } })
             decoder.open(
                 url = stream.url,
                 headers = stream.headers,
@@ -441,34 +444,36 @@ class DesktopPlaybackEngine(
     /** Re-opens the current track on a different stream, carrying the playhead over. */
     private fun swapStream(song: Song, stream: DesktopStream, positionMs: Long) {
         scope.launch {
+            // Both envelopes exist only while [AcousticAlignment.applyToUpgrades] is on, so with it
+            // off there is no pre-roll, no wait and no offset: the handover is the plain one.
+            // [current] belongs to the audio thread; it is volatile and only its immutable song and
+            // meter are read here.
             val reference = current?.takeIf { it.song.videoId == song.videoId && !it.directDsd }?.alignment
-            val preRoll = if (reference != null) (positionMs - 3500).coerceAtLeast(0) else positionMs
+            val preRoll = if (reference != null) (positionMs - UPGRADE_ALIGN_PREROLL_MS).coerceAtLeast(0) else positionMs
             openTrack(song, stream, preRoll).fold(
                 onSuccess = { track ->
-                    val start = ((positionMs - 2600).coerceAtLeast(500) / 10) * 10
-                    var offset: Long? = null
-                    if (reference != null) {
-                        repeat(15) {
-                            val a = reference.read(start, 200)
-                            val b = track.alignment.read(start - 500, 300)
-                            if (offset == null && a != null && b != null) offset = com.cosmotune.audio.AcousticAlignment.offset(a, b)
-                            if (offset == null) delay(50)
+                    // Until [commands] owns it, the opened copy is this coroutine's to close: a
+                    // song change or a cancelled engine scope during the wait must not leak its
+                    // decoder thread and native context.
+                    var handedOver = false
+                    try {
+                        val copy = track.alignment
+                        val offset = if (reference != null && copy != null) awaitUpgradeOffset(reference, copy, positionMs) else null
+                        val latest = _state.value
+                        if (latest.song?.videoId != song.videoId) return@fold
+                        // Resolving and opening the better rendition can take a few seconds. Hand it
+                        // over at the live playhead rather than jumping back to the position at which
+                        // the upgrade was first offered.
+                        if (preRoll != positionMs || offset != null || kotlin.math.abs(latest.positionMs - positionMs) >= UPGRADE_RESEEK_THRESHOLD_MS) {
+                            val aligned = (latest.positionMs + (offset ?: 0)).coerceAtLeast(0) * 1000
+                            track.decoder.seek(aligned)
+                            track.startUs = aligned
                         }
+                        commands += Command.ReplaceCurrent(track, playWhenReady = latest.isPlaying)
+                        handedOver = true
+                    } finally {
+                        if (!handedOver) track.decoder.close()
                     }
-                    val latest = _state.value
-                    if (latest.song?.videoId != song.videoId) {
-                        track.decoder.close()
-                        return@fold
-                    }
-                    // Resolving and opening the better rendition can take a few seconds. Hand it
-                    // over at the live playhead rather than jumping back to the position at which
-                    // the upgrade was first offered.
-                    if (preRoll != positionMs || offset != null || kotlin.math.abs(latest.positionMs - positionMs) >= UPGRADE_RESEEK_THRESHOLD_MS) {
-                        val aligned = (latest.positionMs + (offset ?: 0)).coerceAtLeast(0) * 1000
-                        track.decoder.seek(aligned)
-                        track.startUs = aligned
-                    }
-                    commands += Command.ReplaceCurrent(track, playWhenReady = latest.isPlaying)
                 },
                 onFailure = { failure ->
                     DesktopTrackLog.log(
@@ -481,6 +486,23 @@ class DesktopPlaybackEngine(
                 },
             )
         }
+    }
+
+    /**
+     * Waits briefly for the new copy's read-ahead to decode past the comparison window, then
+     * compares it with what the old copy already played. Null when it never gets there or the
+     * comparison is not confident.
+     */
+    private suspend fun awaitUpgradeOffset(
+        reference: com.cosmotune.audio.AcousticAlignment.Envelope,
+        copy: com.cosmotune.audio.AcousticAlignment.Envelope,
+        positionMs: Long,
+    ): Long? {
+        repeat(15) {
+            com.cosmotune.audio.AcousticAlignment.alignedOffset(reference, copy, positionMs)?.let { return it }
+            delay(50)
+        }
+        return null
     }
 
     /** Re-opens the current track, keeping the playhead. */
@@ -783,7 +805,9 @@ class DesktopPlaybackEngine(
 
     // ---- the audio thread -----------------------------------------------
 
-    private var current: Track? = null
+    // Volatile because an upgrade's alignment reads it from the engine scope; everything else
+    // touches it on the audio thread only.
+    @Volatile private var current: Track? = null
     private var upcoming: Track? = null
     private var speedProcessor: DesktopAudioSpeed? = null
     /** One widener per side of a mix, because widening is a property of a track. */
@@ -2187,6 +2211,8 @@ class DesktopPlaybackEngine(
 
         /** Avoid a decoder seek for sub-tick drift while an upgraded rendition is opening. */
         private const val UPGRADE_RESEEK_THRESHOLD_MS = 250L
+        /** How far before the playhead an aligned upgrade opens, so its comparison window is decoded. */
+        private const val UPGRADE_ALIGN_PREROLL_MS = 3_500L
 
         /** Enough of a measurement on the incoming track to cue into it. */
         val MEASURED_ENOUGH_TO_ENTER_ON = setOf(

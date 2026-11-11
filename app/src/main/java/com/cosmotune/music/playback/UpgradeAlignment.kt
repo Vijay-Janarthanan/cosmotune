@@ -6,26 +6,45 @@ import com.cosmotune.audio.AcousticAlignment
 import com.cosmotune.music.playback.smart.AudioDecoder
 import kotlinx.coroutines.*
 
-/** Only cached bytes: checking padding must never download another copy of the song. */
+/**
+ * How far the upgraded copy's media clock sits from the original's at the same sound, measured
+ * from cached bytes only: checking padding must never download another copy of the song.
+ *
+ * [originalKey] is the original rendition's cache key, captured before the upgrade was forced,
+ * because by now [AudioCache.cacheKeyOf] on the original URI already answers with the upgrade.
+ * Both reads are pinned to their own key, so neither can fall through to the network.
+ *
+ * Bounded at two seconds; the decode polls the coroutine, so the timeout or a cancelled swap
+ * stops it rather than leaving it to run on. Null on any doubt, which callers treat as "seek to
+ * the same position as before". Only called when [AcousticAlignment.applyToUpgrades] is on.
+ */
 @UnstableApi
 internal suspend fun upgradeOffsetMs(original: Uri, originalKey: String, upgraded: Uri, positionMs: Long): Long? =
     withTimeoutOrNull(2000) {
         withContext(Dispatchers.IO) {
-            val job = currentCoroutineContext()[Job]!!
+            val job = coroutineContext.job
             val old = AudioCache.renditionsOf(original).firstOrNull { it.key == originalKey } ?: return@withContext null
             val newKey = AudioCache.cacheKeyOf(upgraded)
+            if (newKey == originalKey) return@withContext null
             val new = AudioCache.renditionsOf(upgraded).firstOrNull { it.key == newKey } ?: return@withContext null
-            val start = ((positionMs - 2600).coerceAtLeast(500) / 10) * 10
-            fun read(uri: Uri, rendition: AudioCache.Rendition, from: Long, length: Long): FloatArray? =
+            val start = AcousticAlignment.comparisonStartMs(positionMs)
+            fun meter(uri: Uri, rendition: AudioCache.Rendition, fromMs: Long, lengthMs: Long): AcousticAlignment.Envelope? =
                 runCatching {
                     AudioCache.renditionDataSource(uri, rendition).use { source ->
-                        val (pcm, actualStart) = AudioDecoder.decodeRegion(source, from / 1000.0, (from + length) / 1000.0, abort = { !job.isActive }) ?: return@use null
-                        AcousticAlignment.Envelope().apply { add(pcm.samples, pcm.samples.size, actualStart * 1000, pcm.sampleRate.toInt()) }
-                            .read(from, (length / 10).toInt())
+                        // Mono, at the stream's own rate; the second value is the real start in
+                        // seconds, at or before the one asked for (the extractor lands on a sync
+                        // sample), so bins sit on the song's own clock.
+                        val (pcm, actualStartSeconds) = AudioDecoder.decodeRegion(source, fromMs / 1000.0, (fromMs + lengthMs) / 1000.0,
+                            abort = { !job.isActive }) ?: return@use null
+                        AcousticAlignment.Envelope().apply {
+                            add(pcm.samples, pcm.samples.size, actualStartSeconds * 1000, pcm.sampleRate.toInt(), channels = 1)
+                        }
                     }
                 }.getOrNull()
-            val reference = read(original, old, start, 2000) ?: return@withContext null
-            val copy = read(upgraded, new, start - 500, 3000) ?: return@withContext null
-            AcousticAlignment.offset(reference, copy)
+            val reference = meter(original, old, start, AcousticAlignment.WINDOW_MS) ?: return@withContext null
+            ensureActive()
+            val copy = meter(upgraded, new, start - AcousticAlignment.MARGIN_MS, AcousticAlignment.WINDOW_MS + 2 * AcousticAlignment.MARGIN_MS)
+                ?: return@withContext null
+            AcousticAlignment.alignedOffset(reference, copy, positionMs)
         }
     }
