@@ -55,6 +55,9 @@ internal class CanvasRequest(
 ) {
     /** Requests with the same key share one session (and so one measurement). */
     val key: String = "$artist|$title|$mode|${resolution.label}|${album.orEmpty()}".lowercase() + "|" + (song?.cacheId ?: "") + "|" + (videoId ?: "")
+
+    /** The song whatever its track id, so a map measured for another upload or service of it is found. */
+    val identity: com.opencanvas.core.stream.SongIdentity? = com.opencanvas.core.stream.SongIdentity.of(title, artist, durationSec)
 }
 
 /** The long-lived parts a session works with, built from an [OpenCanvasConfig]. */
@@ -96,7 +99,23 @@ internal class CanvasSession(
     private val request: CanvasRequest,
     private val env: Environment,
     private val scope: CoroutineScope,
+    foreground: Boolean = true,
 ) {
+    /** True for the playing song; a queued song's lookup (a prefetch) yields to it until [promote]d. */
+    private val priority = MutableStateFlow(foreground)
+
+    /** The song this session is for has started playing: its searches no longer wait for anyone. */
+    fun promote() {
+        priority.value = true
+    }
+
+    /**
+     * Set when a search went unanswered (a timeout, a dropped connection, a captcha). A session that then ends without
+     * a map has not learnt that the song has no video, so it is not kept as the answer: the next request starts over.
+     */
+    @Volatile private var searchUnanswered = false
+    @Volatile private var searchStartedAt = 0L
+
     private class SyncView(
         val stage: SyncStage = SyncStage.NONE,
         val offsetMs: Long = 0L,
@@ -138,6 +157,8 @@ internal class CanvasSession(
         val current = state.value
         return job.isCancelled ||
             (current.done && current.track == null) ||
+            // A network failure is not "no video": only a search that was answered is believed for a while.
+            (current.done && searchUnanswered && current.track?.syncStage != SyncStage.MEASURED) ||
             (current.done && current.track?.videoStreamUrl?.let { url ->
                 isMediaStreamExpired(url, nowMs) ||
                     (url.startsWith("https://") || url.startsWith("http://")) &&
@@ -209,6 +230,32 @@ internal class CanvasSession(
         var chosenVideoId = request.videoId ?: env.store.verifiedVideoFor(id)
         var known: SyncOffset? = chosenVideoId?.let { env.store[id, it] }
         val started = System.currentTimeMillis()
+        val identity = request.identity
+        var chosenCandidate: VideoCandidate? = null
+        // The same song under another track id (another upload, a lossless copy from another service): the video verified
+        // for it is used at once. Of the same length, its map holds as it is; of another length the one video is lined up
+        // again before anything is searched for.
+        var realigning = false
+        if (chosenVideoId == null && identity != null) {
+            env.store.songVideo(identity)?.takeIf { it.trackVideoId != id }?.let { other ->
+                val map = env.store[other.trackVideoId, other.videoId] ?: return@let
+                chosenVideoId = other.videoId
+                chosenCandidate = VideoCandidate(other.videoId, other.videoTitle.ifBlank { request.title }, other.channelTitle,
+                    0L, other.officialArtist, other.verifiedChannel)
+                if (identity.sameLength(other.durationSec)) {
+                    known = map
+                    env.store.put(id, other.videoId, map, verifiedSelection = true, video = chosen(chosenCandidate!!))
+                    env.store.putSong(identity, other.copy(trackVideoId = id, durationSec = identity.durationSec))
+                    log("map of ${other.videoId} reused from ${other.trackVideoId}: the same song")
+                } else {
+                    realigning = true
+                    log("lining ${other.videoId} up again: the same song as ${other.trackVideoId}, ${other.durationSec}s there, ${identity.durationSec}s here")
+                }
+            }
+        } else if (chosenVideoId != null && known != null && request.videoId == null && identity != null && env.store.songVideo(identity) == null) {
+            // A map verified before song entries existed: remembered for the song as well, so its other copies find it.
+            env.store.putSong(identity, SyncStore.SongVideo(id, chosenVideoId!!, identity.durationSec))
+        }
 
         // Everything that does not depend on the answer to another stage starts now.
         // A published timing map establishes sync, not publisher identity. Automatic discovery
@@ -227,10 +274,14 @@ internal class CanvasSession(
                 log("community map hit after ${System.currentTimeMillis() - started} ms")
             }
         }
-        var ranked: List<VideoCandidate> = chosenVideoId?.let { listOf(candidate(it)) } ?: emptyList()
+        var ranked: List<VideoCandidate> = chosenVideoId?.let { listOf(chosenCandidate ?: candidate(it)) } ?: emptyList()
         if (ranked.isEmpty()) {
             ranked = search?.await().orEmpty()
-            if (ranked.isEmpty()) return@coroutineScope
+            if (ranked.isEmpty()) {
+                log(if (searchUnanswered) "no candidate video: the search got no answer, so this is not remembered as a song without one"
+                    else "no candidate video for the song")
+                return@coroutineScope
+            }
         }
         val first = ranked.first()
         useVideo(first)
@@ -246,7 +297,7 @@ internal class CanvasSession(
             log("map from cache after ${System.currentTimeMillis() - started} ms")
             return@coroutineScope
         }
-        verify(id, ranked, songSource!!, started, (song as? SongAudio.YouTube)?.videoId)
+        verify(id, ranked, songSource!!, started, (song as? SongAudio.YouTube)?.videoId, realigning)
     }
 
     /**
@@ -258,37 +309,55 @@ internal class CanvasSession(
      * the first usable map opens a short grace period in which better-ranked candidates may still
      * overtake it, then the rest are dropped.
      */
-    private suspend fun verify(id: String, ranked: List<VideoCandidate>, songSource: Deferred<AudioStream?>, started: Long, songVideoId: String?) = coroutineScope {
+    private suspend fun verify(id: String, ranked: List<VideoCandidate>, songSource: Deferred<AudioStream?>, started: Long, songVideoId: String?,
+        realigning: Boolean = false) = coroutineScope {
         val track = songSource.await()
         // Three candidates at a time: the usual case is decided by the first batch, and a song whose
         // official video sits further down the results still gets found.
         var winner: Pair<VideoCandidate, AlignResult>? = null
-        var attemptedCount = ranked.size
-        for ((batchIndex, batch) in ranked.chunked(BATCH_SIZE).withIndex()) {
-            winner = bestOf(batch, batchIndex * BATCH_SIZE, track, songVideoId)
-            if (winner != null) break
+        var attemptedCount = 0
+        val tried = HashSet<String>()
+        suspend fun measureInBatches(candidates: List<VideoCandidate>) {
+            val fresh = candidates.filter { tried.add(it.videoId) }
+            val rankBase = attemptedCount
+            attemptedCount += fresh.size
+            for ((batchIndex, batch) in fresh.chunked(BATCH_SIZE).withIndex()) {
+                // A queued song's measuring waits while the playing song is searching: both read from youtube.com.
+                env.search.traffic.awaitQuiet(priority)
+                winner = bestOf(batch, rankBase + batchIndex * BATCH_SIZE, track, songVideoId)
+                if (winner != null) break
+            }
+        }
+        measureInBatches(ranked)
+        // The video known for this song under another track id did not line up with this copy: searched for as usual.
+        if (winner == null && realigning) {
+            log("the video known for the song does not line up with this copy; searching")
+            measureInBatches(candidates())
         }
         // A highly ranked remaster can have a different soundtrack (for example a 5.1 remix).
         // Exhaust the other bounded queries before treating that first publisher hit as a miss.
         if (winner == null && request.videoId == null) {
-            val tried = ranked.mapTo(HashSet()) { it.videoId }
-            val alternatives = env.search.find(request.title, request.artist, request.durationSec,
-                limit = 10, album = request.album, exhaustive = true, excludedVideoIds = tried)
-            attemptedCount += alternatives.size
-            for ((batchIndex, batch) in alternatives.chunked(BATCH_SIZE).withIndex()) {
-                winner = bestOf(batch, ranked.size + batchIndex * BATCH_SIZE, track, songVideoId)
-                if (winner != null) break
-            }
+            val spent = if (searchStartedAt == 0L) 0L else System.currentTimeMillis() - searchStartedAt
+            val alternatives = searchOutcome(env.search.findOutcome(request.title, request.artist, request.durationSec,
+                limit = 10, album = request.album, exhaustive = true, excludedVideoIds = HashSet(tried), foreground = priority,
+                budgetMs = maxOf(SEARCH_BUDGET_MS - spent, EXPANDED_MIN_BUDGET_MS)))
+            measureInBatches(alternatives)
         }
-        if (winner == null) {
-            log("no map: none of $attemptedCount candidate video(s) lines up with the song")
+        val found = winner
+        if (found == null) {
+            log("no map: none of $attemptedCount candidate video(s) lines up with the song" +
+                if (searchUnanswered) " (a search went unanswered, so this is not remembered as a song without a video)" else "")
             sync = SyncView(SyncStage.NONE)
             publish()
             return@coroutineScope
         }
-        val (candidate, result) = winner
+        val (candidate, result) = found
         env.store.put(id, candidate.videoId, SyncOffset(result.offsetMs, result.confidence, result.segments, result.coverage),
-            verifiedSelection = request.videoId == null)
+            verifiedSelection = request.videoId == null, video = if (request.videoId == null) chosen(candidate) else null)
+        if (request.videoId == null) request.identity?.let { identity ->
+            env.store.putSong(identity, SyncStore.SongVideo(id, candidate.videoId, identity.durationSec, candidate.title,
+                candidate.channelTitle, candidate.isOfficialMusicVideo, candidate.isVerifiedChannel))
+        }
         sync = SyncView(SyncStage.MEASURED, result.offsetMs, result.confidence, result.segments)
         log("map of ${result.segments.size} segment(s) for ${candidate.videoId} in ${System.currentTimeMillis() - started} ms (confidence ${"%.2f".format(result.confidence)})")
         if (candidate.videoId != videoId) {
@@ -330,14 +399,20 @@ internal class CanvasSession(
                         (!VideoMatcher.advertisesVideo(candidate.title) ||
                             !candidate.isVerifiedChannel && !candidate.isOfficialMusicVideo && !candidate.linkedVerifiedPublisher) &&
                         !VideoMatcher.isCreditedArtistChannel(candidate, request.artist)))
+            // Lining up is not enough: a reaction plays the song inside it. An automatic choice must also look like the song's
+            // video (no talk-over words, no long stretches of something else, about the song's length).
+            val songSec = request.durationSec.takeIf { it > 0L } ?: ((track?.durationMs ?: 0L) / 1_000L)
+            val wrong = if (request.videoId == null && result != null && !still && result.error == null && result.segments.isNotEmpty())
+                VideoMatcher.alignedButWrong(candidate, request.title, request.artist, songSec, result.segments, result.coverage, request.album) else null
             log("candidate ${candidate.videoId} \"${candidate.title.take(48)}\" by ${candidate.channelTitle} (${candidate.durationSec}s): " +
                 when {
                     result == null -> "not readable"
                     still -> "a still picture (${measured.videoKbps.toInt()} kbit/s, motion ${"%.2f".format(measured.videoMotion)}), not a music video"
                     result.error != null -> result.error
+                    wrong != null -> "confidence ${"%.2f".format(result.confidence)}, but $wrong"
                     else -> "confidence ${"%.2f".format(result.confidence)}, ${result.segments.size} segment(s)"
                 })
-            if (result != null && !still && result.error == null && result.confidence >= YouTubeStreamResolver.MIN_SYNC_CONFIDENCE && result.segments.isNotEmpty()) {
+            if (result != null && !still && wrong == null && result.error == null && result.confidence >= YouTubeStreamResolver.MIN_SYNC_CONFIDENCE && result.segments.isNotEmpty()) {
                 // The ranking is the main evidence, the match quality settles close calls: a version of the
                 // video that is the same recording as the song lines up cleanly, a different cut needs an
                 // edit-heavy map; a lower rank costs a little.
@@ -401,9 +476,22 @@ internal class CanvasSession(
         is SongAudio.Stream -> song.stream
     }
 
+    /** What [candidate] is, kept beside its map so the map can be re-checked when it is read again. */
+    private fun chosen(candidate: VideoCandidate) = SyncStore.ChosenVideo(candidate.title, candidate.channelTitle,
+        VideoMatcher.hasPublisherEvidence(candidate, request.title, request.artist, request.album))
+
     private fun candidate(videoId: String) = VideoCandidate(videoId, request.title, "", 0L, true)
 
-    private suspend fun candidates(): List<VideoCandidate> = env.search.find(request.title, request.artist, request.durationSec, album = request.album)
+    private suspend fun candidates(): List<VideoCandidate> {
+        if (searchStartedAt == 0L) searchStartedAt = System.currentTimeMillis()
+        return searchOutcome(env.search.findOutcome(request.title, request.artist, request.durationSec, album = request.album,
+            foreground = priority, budgetMs = SEARCH_BUDGET_MS))
+    }
+
+    private fun searchOutcome(outcome: com.opencanvas.core.stream.VideoSearchOutcome): List<VideoCandidate> {
+        if (!outcome.complete) searchUnanswered = true
+        return outcome.candidates
+    }
 
     /** Makes [candidate] the video this session is about; its stream arrives through [resolveVideo]. */
     @Synchronized
@@ -494,6 +582,10 @@ internal class CanvasSession(
         const val OTHER_CANDIDATES_GRACE_MS = 600L
         const val BATCH_SIZE = 3
         const val BATCH_TIMEOUT_MS = 12_000L
+        /** All of the playing song's searches together, first and expanded. */
+        const val SEARCH_BUDGET_MS = 15_000L
+        /** The expanded search gets at least this, enough for one query and its retry, however long the first took. */
+        const val EXPANDED_MIN_BUDGET_MS = 8_000L
         /** Below this the picture is a still image (measured on art-track uploads: 7-27 kbit/s); music videos start well above (slow ones near 80). */
         const val STILL_PICTURE_KBPS = 40.0
         const val STILL_PICTURE_MOTION = 0.12

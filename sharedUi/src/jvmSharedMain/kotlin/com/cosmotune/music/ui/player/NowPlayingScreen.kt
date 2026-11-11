@@ -815,7 +815,7 @@ fun NowPlayingScreen(
         val upNext = queue.getOrNull(queueIndex + 1)?.takeIf { it.videoId != song.videoId } ?: return@LaunchedEffect
         // Behind the current track's own lookup, which the hosts serialise anyway.
         delay(NEXT_CANVAS_PREFETCH_DELAY_MS)
-        PlayerPlatform.host.canvasFor(upNext)
+        PlayerPlatform.host.prefetchCanvas(upNext)
     }
     var canvasAspect by remember(canvas) { mutableFloatStateOf(0f) }
     // Whether the clip actually has a frame on screen right now, and one of

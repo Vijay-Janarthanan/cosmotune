@@ -103,7 +103,7 @@ object CanvasRepository {
      * lookup as streaming ones; network guards live in the caller
      * ([NowPlayingScreen], which checks [AppSettings.canvasOverCellular]).
      */
-    suspend fun canvasFor(song: Song, provisional: ((CanvasArtwork) -> Unit)? = null): CanvasArtwork? {
+    suspend fun canvasFor(song: Song, provisional: ((CanvasArtwork) -> Unit)? = null, background: Boolean = false): CanvasArtwork? {
         if (song.videoId.startsWith("podio:")) return null
         // Only skip when there is no catalogue identity to search on.
         if (song.videoId.isBlank() && (song.localUri != null || song.localPath != null)) return null
@@ -135,20 +135,23 @@ object CanvasRepository {
             // The music video is looked up from the moment the question is asked, not when the label
             // sources get their turn: it is the last resort, so its answer should already be there when
             // they come up empty, and a lookup queued behind another one must not hold it back.
+            // [background] is the queue's next song: its search waits while the playing song's runs.
             val musicVideo = if (openCanvasActive) async(Dispatchers.IO) {
-                OpenCanvasProvider.search(song.title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes, durationSec = seconds)
+                OpenCanvasProvider.search(song.title, artist, album, trackVideoId = song.videoId, resolutionLabel = openCanvasRes,
+                    durationSec = seconds, background = background)
             } else null
+            // A music video that lines up with the song beats a label's short loop, so it is asked first; the label
+            // sources are only the fallback for songs without one. It is awaited before taking the lock, not under it:
+            // a queued song's search that is waiting for the playing song's must not hold the playing song's lookup back.
+            val video = musicVideo?.let { pending ->
+                runCatching { pending.await() }
+                    .onFailure { Log.d(TAG, "music video lookup failed: ${it.message}") }
+                    .getOrNull()
+                    ?.takeIf { it.matches(title, artist, album) }
+            }
 
             val answer = resolve(key, withAlbum, missLifetimeMs = if (openCanvasActive) MISS_RETRY_MS else ENTRY_TTL_MS, acceptCached = acceptCached) {
                 Log.d(TAG, "lookup start '$title' (album=${album != null})")
-                // A music video that lines up with the song beats a label's short loop, so it is asked
-                // first; the label sources are only the fallback for songs without one.
-                val video = musicVideo?.let { pending ->
-                    runCatching { pending.await() }
-                        .onFailure { Log.d(TAG, "music video lookup failed: ${it.message}") }
-                        .getOrNull()
-                        ?.takeIf { it.matches(title, artist, album) }
-                }
                 video ?: if (spotifyFirst) {
                     firstHit(
                         { SpotifyCanvas.search(title, artist, album) },

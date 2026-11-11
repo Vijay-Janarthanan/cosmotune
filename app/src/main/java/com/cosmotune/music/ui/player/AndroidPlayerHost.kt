@@ -93,6 +93,11 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     override suspend fun canvasFor(song: Song, provisional: (CanvasArtwork) -> Unit): CanvasArtwork? =
         CanvasRepository.canvasFor(song, provisional)
 
+    // The queue's next song: its music-video search yields to the playing song's.
+    override suspend fun prefetchCanvas(song: Song) {
+        CanvasRepository.canvasFor(song, background = true)
+    }
+
     @Composable
     override fun CanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) = AndroidCanvasVideo(spec, modifier)
 

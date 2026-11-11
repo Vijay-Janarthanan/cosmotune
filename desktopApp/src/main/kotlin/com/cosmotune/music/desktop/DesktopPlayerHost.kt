@@ -61,6 +61,11 @@ internal object DesktopPlayerHost : PlayerHost {
     override suspend fun canvasFor(song: Song, provisional: (CanvasArtwork) -> Unit): CanvasArtwork? =
         withContext(Dispatchers.IO) { DesktopCanvasClient.lookup(song) { early -> provisional(early.toShared()) } }?.toShared()
 
+    // The queue's next song: its music-video search yields to the playing song's.
+    override suspend fun prefetchCanvas(song: Song) {
+        withContext(Dispatchers.IO) { DesktopCanvasClient.lookup(song, background = true) }
+    }
+
     @Composable
     override fun CanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) = DesktopCanvasVideo(spec, modifier)
 

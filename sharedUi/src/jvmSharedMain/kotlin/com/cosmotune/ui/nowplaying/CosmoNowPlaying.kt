@@ -196,7 +196,7 @@ fun CosmoNowPlaying(
         val upNext = queue.getOrNull(queueIndex + 1)?.takeIf { it.videoId != song.videoId } ?: return@LaunchedEffect
         // Behind the current song's own lookup, which the hosts serialise anyway.
         delay(NEXT_CANVAS_PREFETCH_DELAY_MS)
-        PlayerPlatform.host.canvasFor(upNext)
+        PlayerPlatform.host.prefetchCanvas(upNext)
     }
     val scrub = rememberPlayerScrub(song.videoId, position, durationMs)
     val controlsLocked = rememberControlsLocked()
