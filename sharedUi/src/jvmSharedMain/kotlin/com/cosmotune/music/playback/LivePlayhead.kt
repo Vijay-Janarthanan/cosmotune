@@ -29,6 +29,11 @@ class LivePlayhead(private val position: PlaybackPosition) {
     var running by mutableStateOf(false)
         internal set
 
+    /** How fast the song runs: 1 normally, a podcast's speed. Set by [rememberLivePlayhead]. */
+    @Volatile
+    var rate: Float = 1f
+        internal set
+
     private var shownMs = -1L
     private var shownSeeks = 0
     private var shownFrom = 0L
@@ -44,7 +49,7 @@ class LivePlayhead(private val position: PlaybackPosition) {
         val reported = position.positionMs
         val sampled = position.sampledAtNanos
         val seeks = position.seeks
-        val target = PlayheadMath.at(reported, sampled, now, running && position.advancing)
+        val target = PlayheadMath.at(reported, sampled, now, running && position.advancing, rate = rate)
         val snap = !running || seeks != shownSeeks || shownMs < 0L || reported != shownFrom && abs(target - shownMs) > PlayheadMath.SNAP_MS
         val next = if (snap) target else maxOf(shownMs, target)
         shownMs = next
@@ -73,9 +78,9 @@ object PlayheadMath {
      * [reportedMs] carried forward to [nowNanos] when [advancing]. A reading with no stamp, or one stamped after [nowNanos],
      * is returned as it is.
      */
-    fun at(reportedMs: Long, sampledAtNanos: Long, nowNanos: Long, advancing: Boolean, durationMs: Long = 0L): Long {
+    fun at(reportedMs: Long, sampledAtNanos: Long, nowNanos: Long, advancing: Boolean, durationMs: Long = 0L, rate: Float = 1f): Long {
         if (!advancing || sampledAtNanos <= 0L || nowNanos <= sampledAtNanos) return reportedMs
-        val carried = ((nowNanos - sampledAtNanos) / 1_000_000L).coerceIn(0L, MAX_CARRY_MS)
+        val carried = (((nowNanos - sampledAtNanos) / 1_000_000L) * rate).toLong().coerceIn(0L, MAX_CARRY_MS)
         val moved = reportedMs + carried
         return if (durationMs > 0L) moved.coerceAtMost(maxOf(durationMs, reportedMs)) else moved
     }
@@ -87,12 +92,13 @@ object PlayheadMath {
  * (no frames are delivered) it costs nothing.
  */
 @Composable
-fun rememberLivePlayhead(position: PlaybackPosition, playing: Boolean): LivePlayhead {
+fun rememberLivePlayhead(position: PlaybackPosition, playing: Boolean, rate: Float = 1f): LivePlayhead {
     val live = remember(position) { LivePlayhead(position) }
     val reduced = LocalReducedMotion.current
     val run = playing && position.advancing
-    LaunchedEffect(live, run, reduced) {
+    LaunchedEffect(live, run, reduced, rate) {
         live.running = run
+        live.rate = rate
         if (!run) return@LaunchedEffect
         if (reduced) {
             while (true) {
@@ -111,6 +117,23 @@ fun rememberLivePlayhead(position: PlaybackPosition, playing: Boolean): LivePlay
         }
     }
     return live
+}
+
+/**
+ * A [LivePlayhead] for a position that arrives as a plain value (Podio's player state, the room's shared playhead) with no
+ * timestamp: each new [positionMs] is stamped when it is first seen, and the playhead runs on from it at [rate] until the next.
+ * [resetKey] (the episode or track) starts a fresh playhead, so a new one does not glide from the old one's place.
+ */
+@Composable
+fun rememberLivePlayheadOf(positionMs: Long, playing: Boolean, rate: Float = 1f, resetKey: Any? = null): LivePlayhead {
+    val position = remember(resetKey) { PlaybackPosition().also { it.report(positionMs) } }
+    val reported = remember(position) { longArrayOf(positionMs) }
+    if (reported[0] != positionMs) {
+        // Stamped as it is seen. The playhead reads these only while drawing, so this write is not seen by composition.
+        reported[0] = positionMs
+        position.report(positionMs)
+    }
+    return rememberLivePlayhead(position, playing, rate)
 }
 
 private const val SAME_CLOCK_NANOS = 250_000_000L

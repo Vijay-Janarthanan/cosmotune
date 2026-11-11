@@ -1,5 +1,6 @@
 package com.cosmotune.podio.ui
 
+import com.cosmotune.music.playback.LivePlayhead
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,9 +51,11 @@ internal class PodioEnv(
     val wide: Boolean,
     /** Play or pause what is loaded. */
     val onToggle: () -> Unit,
+    /** The playhead run on between readings, so the playing row's orbit glides; without one the orbit follows the readings. */
+    val head: LivePlayhead? = null,
 ) {
-    /** How far through what is playing, 0..1, or null for a live stream or nothing known. */
-    fun playedFraction(): Float? = playback.durationMs.takeIf { it > 0 }?.let { (playback.positionMs.toFloat() / it).coerceIn(0f, 1f) }
+    /** How far through what is playing, 0..1, or null for a live stream or nothing known. Read while drawing. */
+    fun playedFraction(): Float? = playback.durationMs.takeIf { it > 0 }?.let { head?.fraction(it) ?: (playback.positionMs.toFloat() / it).coerceIn(0f, 1f) }
 }
 
 /** Whether Podio's pages lead with the mode pill: on the phone yes; the rail and the desktop sidebar have their own. */

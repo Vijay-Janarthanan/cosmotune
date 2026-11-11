@@ -1,5 +1,6 @@
 package com.cosmotune.ui.room
 
+import com.cosmotune.music.playback.rememberLivePlayheadOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -213,6 +214,8 @@ private fun NowPlayingCard(
     val (fill, ink) = coverFill(track.thumbnailUrl, track.videoId)
     val durationMs = track.durationMs
     val live = track.isLive
+    // The shared playhead arrives about once a second; run on from each arrival so the orbit and the line glide.
+    val head = rememberLivePlayheadOf(positionMs, isPlaying, resetKey = track.videoId)
     val content: @Composable BoxScope.() -> Unit = {
         BoxWithConstraints(Modifier.fillMaxWidth().heightIn(min = if (!canControl) 184.dp else if (wide) 230.dp else 232.dp)) {
             val roomy = maxWidth >= 520.dp
@@ -225,7 +228,7 @@ private fun NowPlayingCard(
                     Disc(track.thumbnailUrl, disc)
                     OrbitRing(
                         disc + 12.dp, ink,
-                        progress = { if (live || durationMs == null || durationMs <= 0L) null else roomPositionFraction(positionMs, durationMs) },
+                        progress = { if (live || durationMs == null || durationMs <= 0L) null else head.fraction(durationMs) },
                         spinning = isPlaying, stroke = 2.dp, moon = 4.dp,
                     )
                 }
@@ -276,7 +279,7 @@ private fun NowPlayingCard(
                 val fraction = roomPositionFraction(positionMs, durationMs)
                 val seekable = canControl && durationMs != null && durationMs > 0L
                 OrbitProgressLine(
-                    progress = { roomPositionFraction(positionMs, durationMs) },
+                    progress = { head.fraction(durationMs ?: 0L) },
                     ink = ink,
                     modifier = lineModifier.testTag(RoomTags.SEEK).then(if (seekable) Modifier else Modifier.semantics { progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f) }),
                     onSeek = if (seekable) { at -> actions.seekTo(roomSeekTarget(at, durationMs!!)) } else null,
