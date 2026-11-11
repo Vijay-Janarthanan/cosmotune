@@ -126,6 +126,19 @@ class VideoSessionRecoveryTest {
         assertNull(store.verifiedVideoFor("MUIzn5TAkXE"), "the reaction is not the song's video any more")
         assertNull(store["MUIzn5TAkXE", "VzQCnPnTDbM"])
         assertEquals("wc8XNJ2x1Xs", store.verifiedVideoFor("kynWdUG1NvY"), "a real music video's map stays")
+        // A publisher's video song with a 20 s dialogue break inside the song keeps its map; the same from anyone else does not.
+        val dialogue = SyncOffset(5_000, 0.8, listOf(SyncSegment(0, 100_000, 5_000), SyncSegment(100_000, 205_000, 25_000)), 0.92)
+        store.put("TRACKSUNTV1", "SUNTVDIALOG", dialogue, verifiedSelection = true,
+            video = SyncStore.ChosenVideo("One Name - Video Song | Jailer 2", "Sun TV", publisher = true))
+        store.put("TRACKOTHER1", "OTHERDIALOG", dialogue, verifiedSelection = true,
+            video = SyncStore.ChosenVideo("One Name - Video Song | Jailer 2", "Kollywood Clips 24", publisher = false))
+        store.put("TRACKREACT1", "REACTDIALOG", dialogue, verifiedSelection = true,
+            video = SyncStore.ChosenVideo("One Name - Video Song | Jailer 2", "Producer Reacts", publisher = true))
+        val reloaded = SyncStore(maps)
+        assertEquals("SUNTVDIALOG", reloaded.verifiedVideoFor("TRACKSUNTV1"))
+        assertNotNull(reloaded["TRACKSUNTV1", "SUNTVDIALOG"])
+        assertNull(reloaded.verifiedVideoFor("TRACKOTHER1"))
+        assertNull(reloaded.verifiedVideoFor("TRACKREACT1"))
         // A song entry naming a reaction channel is ignored the same way.
         val song = SongIdentity.of("One Name", "Anirudh Ravichander & Super Subu", 205)!!
         store.putSong(song, SyncStore.SongVideo("MUIzn5TAkXE", "OTHERVIDEO1", 205, "One Name - Jailer 2", "Producer Reacts"))

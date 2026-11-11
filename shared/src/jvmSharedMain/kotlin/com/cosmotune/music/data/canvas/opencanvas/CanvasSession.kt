@@ -244,7 +244,7 @@ internal class CanvasSession(
                     0L, other.officialArtist, other.verifiedChannel)
                 if (identity.sameLength(other.durationSec)) {
                     known = map
-                    env.store.put(id, other.videoId, map, verifiedSelection = true)
+                    env.store.put(id, other.videoId, map, verifiedSelection = true, video = chosen(chosenCandidate!!))
                     env.store.putSong(identity, other.copy(trackVideoId = id, durationSec = identity.durationSec))
                     log("map of ${other.videoId} reused from ${other.trackVideoId}: the same song")
                 } else {
@@ -353,7 +353,7 @@ internal class CanvasSession(
         }
         val (candidate, result) = found
         env.store.put(id, candidate.videoId, SyncOffset(result.offsetMs, result.confidence, result.segments, result.coverage),
-            verifiedSelection = request.videoId == null)
+            verifiedSelection = request.videoId == null, video = if (request.videoId == null) chosen(candidate) else null)
         if (request.videoId == null) request.identity?.let { identity ->
             env.store.putSong(identity, SyncStore.SongVideo(id, candidate.videoId, identity.durationSec, candidate.title,
                 candidate.channelTitle, candidate.isOfficialMusicVideo, candidate.isVerifiedChannel))
@@ -403,7 +403,7 @@ internal class CanvasSession(
             // video (no talk-over words, no long stretches of something else, about the song's length).
             val songSec = request.durationSec.takeIf { it > 0L } ?: ((track?.durationMs ?: 0L) / 1_000L)
             val wrong = if (request.videoId == null && result != null && !still && result.error == null && result.segments.isNotEmpty())
-                VideoMatcher.alignedButWrong(candidate, request.title, request.artist, songSec, result.segments, result.coverage) else null
+                VideoMatcher.alignedButWrong(candidate, request.title, request.artist, songSec, result.segments, result.coverage, request.album) else null
             log("candidate ${candidate.videoId} \"${candidate.title.take(48)}\" by ${candidate.channelTitle} (${candidate.durationSec}s): " +
                 when {
                     result == null -> "not readable"
@@ -475,6 +475,10 @@ internal class CanvasSession(
         is SongAudio.YouTube -> env.syncSource(song.videoId)
         is SongAudio.Stream -> song.stream
     }
+
+    /** What [candidate] is, kept beside its map so the map can be re-checked when it is read again. */
+    private fun chosen(candidate: VideoCandidate) = SyncStore.ChosenVideo(candidate.title, candidate.channelTitle,
+        VideoMatcher.hasPublisherEvidence(candidate, request.title, request.artist, request.album))
 
     private fun candidate(videoId: String) = VideoCandidate(videoId, request.title, "", 0L, true)
 

@@ -49,8 +49,11 @@ internal class SyncStore(
         return offset
     }
 
-    /** Stores [offset] for the pair in memory and, when a directory is set, on disk. */
-    fun put(trackVideoId: String, videoId: String, offset: SyncOffset, verifiedSelection: Boolean = false) {
+    /**
+     * Stores [offset] for the pair in memory and, when a directory is set, on disk. [video] is what the video was when it
+     * was chosen (its title, channel and whether a publisher stands behind it), kept so the map can be re-checked on load.
+     */
+    fun put(trackVideoId: String, videoId: String, offset: SyncOffset, verifiedSelection: Boolean = false, video: ChosenVideo? = null) {
         synchronized(entries) {
             entries[key(trackVideoId, videoId)] = offset
             if (verifiedSelection) verified.add(key(trackVideoId, videoId)) else verified.remove(key(trackVideoId, videoId))
@@ -59,7 +62,12 @@ internal class SyncStore(
         val temporary = File(file.parentFile, "${file.name}.tmp")
         try {
             file.parentFile?.mkdirs()
-            val encoded = encode(trackVideoId, videoId, offset)
+            var encoded = encode(trackVideoId, videoId, offset)
+            if (video != null) encoded = encoded.dropLast(1) + "," + buildJsonObject {
+                put("videoTitle", video.title)
+                put("channelTitle", video.channel)
+                put("publisher", video.publisher)
+            }.toString().drop(1)
             temporary.writeText(if (verifiedSelection) encoded.dropLast(1) + ",\"selectionPolicy\":3}" else encoded)
             if (!temporary.renameTo(file)) {
                 file.delete()
@@ -178,16 +186,30 @@ internal class SyncStore(
     private fun fileFor(trackVideoId: String, videoId: String): File? =
         directory?.takeIf { safe(trackVideoId) && safe(videoId) }?.resolve("${trackVideoId}_$videoId.json")
 
+    /** What a stored map's video was when it was chosen. */
+    internal data class ChosenVideo(val title: String, val channel: String, val publisher: Boolean)
+
     /**
-     * The map in [file], re-checked against today's rules: one that stops the song for long stretches between its parts
-     * was measured on a reaction or similar upload (the song plays inside it, someone talks between) and is ignored, so
-     * the song is searched for again instead of showing that picture.
+     * The map in [file], re-checked against today's rules. A video recorded as a reaction or similar upload is ignored.
+     * So is a map that stops the song for long stretches between its parts, unless it was recorded as a publisher's own
+     * upload (a film's "Video Song" carries dialogue inside the song): without that record (maps from before it was
+     * kept) or from anyone else, it was most likely measured on a reaction, and the song is searched for again.
      */
     private fun readFile(file: File): SyncOffset? =
         try {
-            if (file.isFile) YouTubeStreamResolver.parseSyncResponse(file.readText())
-                ?.takeIf { com.opencanvas.core.matcher.VideoMatcher.longestTalkGapMs(it.segments) <= com.opencanvas.core.matcher.VideoMatcher.TALK_GAP_MS }
-            else null
+            if (!file.isFile) null else {
+                val text = file.readText()
+                YouTubeStreamResolver.parseSyncResponse(text)?.takeIf { offset ->
+                    val root = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull()
+                    val title = root?.get("videoTitle")?.jsonPrimitive?.content.orEmpty()
+                    val channel = root?.get("channelTitle")?.jsonPrimitive?.content.orEmpty()
+                    val publisher = root?.get("publisher")?.jsonPrimitive?.content == "true"
+                    val reaction = com.opencanvas.core.matcher.VideoMatcher.talkOverUpload(
+                        com.opencanvas.core.matcher.VideoCandidate("", title, channel, 0L)) != null
+                    !reaction && (publisher ||
+                        com.opencanvas.core.matcher.VideoMatcher.longestTalkGapMs(offset.segments) <= com.opencanvas.core.matcher.VideoMatcher.TALK_GAP_MS)
+                }
+            }
         } catch (_: IOException) {
             null
         }

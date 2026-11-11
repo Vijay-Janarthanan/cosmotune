@@ -86,16 +86,44 @@ class FilmSongVideoEligibilityTest {
         assertNull(VideoMatcher.talkOverUpload(RecordedVideoSearch.candidate("Hangova DC video song", "wc8XNJ2x1Xs"), "Hangova", artist))
     }
 
-    @Test fun aMatchFarLongerThanTheSongOrStoppedForTalkIsNotShown() {
-        val upload = VideoCandidate("LONGUPLOAD1", "One Name - Video Song | Jailer 2", "Sun TV", 321, false, true)
+    @Test fun aMatchFarLongerThanTheSongOrStoppedForTalkIsNotShownFromAnUnknownChannel() {
+        // The same shapes from a channel nobody vouches for: someone's upload of the video with talk in the middle.
+        val upload = VideoCandidate("LONGUPLOAD1", "One Name - Video Song | Jailer 2", "Kollywood Clips 24", 321, false, false)
         val partial = listOf(SyncSegment(0, 162_500, 50_454), SyncSegment(162_500, 204_160, 64_791))
-        // The reported reaction: +57 % long, the song stopped for 14 s between its two parts.
-        assertNotNull(VideoMatcher.alignedButWrong(upload, "One Name", "Anirudh Ravichander", 205, partial, 0.93))
+        // The reported reaction's map: +57 % long, the song stopped for 14 s between its two parts.
+        assertNotNull(VideoMatcher.alignedButWrong(upload, "One Name", "Anirudh Ravichander", 205, partial, 0.93, "Jailer 2"))
         assertEquals(14_337, VideoMatcher.longestTalkGapMs(partial))
         // Length alone: +57 % with an ordinary match is suspect, with all of the song matched and no talk it is believed.
         val whole = listOf(SyncSegment(0, 205_000, 60_000))
-        assertNotNull(VideoMatcher.alignedButWrong(upload, "One Name", "Anirudh Ravichander", 205, whole, 0.90))
-        assertNull(VideoMatcher.alignedButWrong(upload, "One Name", "Anirudh Ravichander", 205, whole, 0.99))
+        assertNotNull(VideoMatcher.alignedButWrong(upload, "One Name", "Anirudh Ravichander", 205, whole, 0.90, "Jailer 2"))
+        assertNull(VideoMatcher.alignedButWrong(upload, "One Name", "Anirudh Ravichander", 205, whole, 0.99, "Jailer 2"))
+        // The reaction itself is refused whatever its map looks like.
+        assertNotNull(VideoMatcher.alignedButWrong(upload.copy(channelTitle = "Producer Reacts", isVerifiedChannel = true),
+            "One Name", "Anirudh Ravichander", 205, whole, 0.99, "Jailer 2"))
+    }
+
+    @Test fun anOfficialVideoSongWithDialogueInsideOrAroundTheSongIsShown() {
+        val sunTvSong = VideoCandidate("SUNTVDIALOG", "One Name - Video Song | Jailer 2 | Superstar Rajinikanth | Anirudh", "Sun TV", 250, false, true)
+        // A 20 s dialogue break in the middle of the song: the video jumps ahead 20 s between the two parts.
+        val dialogue = listOf(SyncSegment(0, 100_000, 5_000), SyncSegment(100_000, 205_000, 25_000))
+        assertEquals(20_000, VideoMatcher.longestTalkGapMs(dialogue))
+        assertNull(VideoMatcher.alignedButWrong(sunTvSong, "One Name", "Anirudh Ravichander", 205, dialogue, 0.92, "Jailer 2"),
+            "Sun TV's own video song, most of the song matched in order")
+        // The same shape from an unknown channel is refused.
+        assertNotNull(VideoMatcher.alignedButWrong(sunTvSong.copy(channelTitle = "Kollywood Clips 24", isVerifiedChannel = false),
+            "One Name", "Anirudh Ravichander", 205, dialogue, 0.92, "Jailer 2"))
+        // Even the publisher's needs most of the song, in order.
+        assertNotNull(VideoMatcher.alignedButWrong(sunTvSong, "One Name", "Anirudh Ravichander", 205, dialogue, 0.55, "Jailer 2"))
+        val scrambled = listOf(SyncSegment(0, 100_000, 90_000), SyncSegment(100_000, 205_000, 5_000))
+        assertNotNull(VideoMatcher.alignedButWrong(sunTvSong, "One Name", "Anirudh Ravichander", 205, scrambled, 0.92, "Jailer 2"))
+        // A long official upload with a film-scene intro and outro: 330 s for a 205 s song, the song matched whole.
+        val intro = sunTvSong.copy(durationSec = 330)
+        assertNull(VideoMatcher.alignedButWrong(intro, "One Name", "Anirudh Ravichander", 205, listOf(SyncSegment(0, 205_000, 75_000)), 0.90, "Jailer 2"))
+        assertNotNull(VideoMatcher.alignedButWrong(intro.copy(channelTitle = "Kollywood Clips 24", isVerifiedChannel = false),
+            "One Name", "Anirudh Ravichander", 205, listOf(SyncSegment(0, 205_000, 75_000)), 0.90, "Jailer 2"))
+    }
+
+    @Test fun hangovasRealMapStillPasses() {
         // Hangova's real map: 243 s video for a 248 s song, an edit that cuts the song shorter, never a hole.
         val hangova = listOf(SyncSegment(0, 107_500, 12_632), SyncSegment(107_500, 247_860, -889))
         val sunTv = RecordedVideoSearch.candidate("Hangova DC video song", "wc8XNJ2x1Xs")

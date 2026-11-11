@@ -180,16 +180,35 @@ object VideoMatcher {
     /** Coverage at which a much longer upload is still believed (a long cinematic intro with the whole song in it). */
     const val LONG_UPLOAD_COVERAGE = 0.97
 
+    /** Coverage at which a publisher's upload is believed with film scenes or dialogue before, inside or after the song. */
+    const val PUBLISHER_COVERAGE = 0.80
+
+    /** A publisher's edit may replay a little of the video; more than this backwards is a scramble, not the song in order. */
+    const val MAX_BACKWARD_JUMP_MS = 30_000L
+
+    /** Whether the map plays the song through the video in order: no overlapping parts, no long jump back. */
+    fun inOrder(segments: List<com.opencanvas.core.sync.SyncSegment>): Boolean = segments.sortedBy { it.songStartMs }.zipWithNext { a, b ->
+        b.songStartMs >= a.songEndMs - 1_000L && b.offsetMs - a.offsetMs >= -MAX_BACKWARD_JUMP_MS
+    }.all { it }
+
     /**
-     * Why a measured match must still not be shown, or null when it may: the candidate is a reaction or similar upload,
-     * the video holds long stretches of something else between parts of the song, or it is far longer or shorter than
-     * the song without matching nearly all of it. No video is better than a wrong one.
+     * Why a measured match must still not be shown, or null when it may. No video is better than a wrong one.
+     *
+     * A reaction or similar upload never is. For anyone else's upload, long stretches of something else between parts of
+     * the song (talk over it) or a length far from the song's (without matching nearly all of it) rule it out. A
+     * publisher's own upload of the song (label, studio or TV channel, the song named) is different: Indian film "Video
+     * Song" uploads carry film scenes and dialogue before, inside and after the song, so with [PUBLISHER_COVERAGE] of the
+     * song matched, in order, both are allowed.
      */
     fun alignedButWrong(candidate: VideoCandidate, songTitle: String, artist: String, songDurationSec: Long,
-        segments: List<com.opencanvas.core.sync.SyncSegment>, coverage: Double): String? {
+        segments: List<com.opencanvas.core.sync.SyncSegment>, coverage: Double, album: String? = null): String? {
         talkOverUpload(candidate, songTitle, artist)?.let { return "a reaction, review or cover upload (\"$it\"), never the music video" }
         val gap = longestTalkGapMs(segments)
-        if (gap > TALK_GAP_MS) return "the video stops the song for ${gap / 1000}s between its parts (talk over it), not a music video"
+        if (hasPublisherEvidence(candidate, songTitle, artist, album)) {
+            if (!inOrder(segments)) return "the publisher's video plays the song out of order: another cut"
+            if (coverage >= PUBLISHER_COVERAGE) return null
+            if (gap > TALK_GAP_MS) return "the publisher's video matches only ${(coverage * 100).toInt()}% of the song around a ${gap / 1000}s break"
+        } else if (gap > TALK_GAP_MS) return "the video stops the song for ${gap / 1000}s between its parts (talk over it), not a music video"
         if (songDurationSec > 0L && candidate.durationSec > 0L) {
             val ratio = candidate.durationSec.toDouble() / songDurationSec
             if ((ratio > 1 + LENGTH_TOLERANCE || ratio < 1 - LENGTH_TOLERANCE) && !(coverage >= LONG_UPLOAD_COVERAGE && gap <= TALK_GAP_MS / 2))
