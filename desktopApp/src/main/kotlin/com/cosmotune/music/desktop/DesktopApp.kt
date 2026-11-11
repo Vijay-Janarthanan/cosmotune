@@ -540,20 +540,43 @@ fun CosmotuneDesktopApp() {
     var personalPlayingStash by remember { mutableStateOf(false) }
     val persistence = remember { DesktopPersistence() }
     var availableUpdate by remember { mutableStateOf<DesktopUpdateChecker.UpdateInfo?>(null) }
-    LaunchedEffect(Unit) { availableUpdate = DesktopUpdateChecker.check() }
+    var whatsNewWelcome by remember { mutableStateOf<DesktopUpdateChecker.WelcomeInfo?>(null) }
+    LaunchedEffect(Unit) {
+        availableUpdate = DesktopUpdateChecker.check()
+        // An offered update comes first; the welcome of this build waits for a launch with nothing newer out.
+        if (availableUpdate == null) whatsNewWelcome = DesktopUpdateChecker.checkWelcome(persistence)
+    }
+    // The update in Orbit: the release's Highlights (never its whole notes, which the quiet link opens), the version line with
+    // the installer's size, and Update now (the installer in the browser) beside Later.
     availableUpdate?.let { update ->
-        com.cosmotune.ui.sheets.CosmoAlertDialog(
-            onDismissRequest = { availableUpdate = null },
-            title = DesktopStrings["d_update_available", "Update available"],
-            message = "Cosmotune ${update.version} is out — you have ${DesktopUpdateChecker.currentVersion}." +
-                        (update.notes?.takeIf { it.isNotBlank() }?.let { "\n\n${it.take(600)}" } ?: ""),
-            confirmLabel = DesktopStrings["d_download", "Download"],
-            onConfirm = {
+        com.cosmotune.ui.whatsnew.WhatsNewDialog(
+            whatsNew = com.cosmotune.ui.whatsnew.WhatsNew(
+                version = update.version,
+                highlights = update.highlights,
+                primary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_update_now", "Update now"]) {
                     DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
                     availableUpdate = null
                 },
-            dismissLabel = DesktopStrings["d_later", "Later"],
+                secondary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_later", "Later"]) { availableUpdate = null },
+                onFullNotes = { DesktopExternalLinks.open(update.releaseUrl) },
+                meta = com.cosmotune.ui.whatsnew.whatsNewMeta(DesktopUpdateChecker.currentVersion, update.version, update.downloadSize),
+            ),
             onDismiss = { availableUpdate = null },
+        )
+    }
+    whatsNewWelcome?.let { welcome ->
+        val close = {
+            DesktopUpdateChecker.welcomeSeen(persistence)
+            whatsNewWelcome = null
+        }
+        com.cosmotune.ui.whatsnew.WhatsNewDialog(
+            whatsNew = com.cosmotune.ui.whatsnew.WhatsNew(
+                version = welcome.version,
+                highlights = welcome.highlights,
+                primary = com.cosmotune.ui.whatsnew.WhatsNewAction(DesktopStrings["d_got_it", "Got it"], close),
+                onFullNotes = { DesktopExternalLinks.open(welcome.releaseUrl) },
+            ),
+            onDismiss = close,
         )
     }
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
