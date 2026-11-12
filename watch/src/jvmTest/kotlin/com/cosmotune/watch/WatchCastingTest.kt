@@ -90,6 +90,8 @@ class WatchCastingTest {
             casting.disconnect()
             assertNull(casting.renderer.value)
             assertEquals(false, player.remote.last())
+            // The progress is saved, and the lease closed, off the caller's thread: wait for them as the next test does.
+            withTimeout(5_000) { while (repository.saved.isEmpty() || repository.leasesClosed == 0) delay(10) }
             assertEquals(42_000L, repository.saved.last().positionMs)
             assertTrue(player.engine.calls.contains(FakeVideoPlayerEngine.Call.SeekTo(42_000)))
             assertEquals("Stop", tv.commands().last())
