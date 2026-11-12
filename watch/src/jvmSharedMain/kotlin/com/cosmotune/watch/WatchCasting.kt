@@ -33,9 +33,19 @@ class WatchCasting(
     private val lock = Mutex()
     @Volatile private var session: Session? = null
 
-    private class Session(val renderer: DlnaRenderer, val lease: WatchPlaybackLease, val key: WatchKey?, val streamUrl: String) {
+    private inner class Session(val renderer: DlnaRenderer, val lease: WatchPlaybackLease, val opened: WatchPlayerState, val streamUrl: String) {
+        val key: WatchKey? get() = opened.target?.key
         var follow: Job? = null
         @Volatile var progress: WatchProgress? = null
+
+        /** Where [remote] has got to in this title, or null when there is nothing worth saving. */
+        fun progressOf(remote: DlnaState): WatchProgress? {
+            val key = opened.target?.key ?: return null
+            val duration = remote.durationMs.takeIf { it > 0 } ?: opened.durationMs
+            if (opened.isLive || duration <= 0 || remote.positionMs <= 0) return null
+            return WatchProgress(key, remote.positionMs, duration, now(), opened.summary,
+                (opened.target as? PlayTarget.EpisodeOf)?.episodeName)
+        }
     }
 
     fun whyNot(stream: Stream?): String? = when {
@@ -71,12 +81,12 @@ class WatchCasting(
             withContext(NonCancellable) { runCatching { target.close(true) } }
             throw error
         }
-        val started = Session(target, opened, state.target?.key, stream.url)
+        val started = Session(target, opened, state, stream.url)
         claimRemote()
         player.engine.pause()
         session = started
         mutable.value = target
-        started.follow = scope.launch { follow(started, state) }
+        started.follow = scope.launch { follow(started) }
     }
 
     /** Stops the receiver, saves where it got to and hands playback back to this device. */
@@ -87,7 +97,7 @@ class WatchCasting(
         scope.launch { try { disconnect() } finally { scope.cancel() } }
     }
 
-    private suspend fun follow(active: Session, opened: WatchPlayerState): Unit = coroutineScope {
+    private suspend fun follow(active: Session): Unit = coroutineScope {
         // The local player moving to anything else ends the session.
         launch {
             player.state.first { it.target?.key != active.key || it.stream?.url != active.streamUrl }
@@ -95,11 +105,7 @@ class WatchCasting(
         }
         var savedAt = 0L
         active.renderer.state.collect { remote ->
-            val key = opened.target?.key
-            val duration = remote.durationMs.takeIf { it > 0 } ?: opened.durationMs
-            if (key != null && !opened.isLive && duration > 0 && remote.positionMs > 0) {
-                val progress = WatchProgress(key, remote.positionMs, duration, now(), opened.summary,
-                    (opened.target as? PlayTarget.EpisodeOf)?.episodeName)
+            active.progressOf(remote)?.let { progress ->
                 active.progress = progress
                 if (now() - savedAt > 10_000) {
                     savedAt = now()
@@ -124,6 +130,8 @@ class WatchCasting(
         mutable.value = null
         withContext(NonCancellable) {
             ending.follow?.cancelAndJoin()
+            // The watcher can be cancelled before it sees the receiver's last report, so read that here.
+            ending.progressOf(ending.renderer.state.value)?.let { ending.progress = it }
             // A newer cast on the same TV has already replaced this one's video there; stopping it
             // now would stop the newer cast's playback, not this one's.
             val successor = synchronized(owners) { owners[player]?.takeIf { it !== this@WatchCasting } }
