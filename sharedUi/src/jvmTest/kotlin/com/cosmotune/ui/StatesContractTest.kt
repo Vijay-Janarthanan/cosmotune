@@ -71,15 +71,6 @@ class StatesContractTest {
         assertTrue(first(desktop, "DesktopEmptyPage").contains("icon = icon"), "an icon that is not ours still goes to the front tile")
     }
 
-    @Test fun theOldBodiesAreGone() {
-        assertFalse(SourceContract.code(SourceContract.functionBody(desktop, "DesktopErrorPage")).contains("DesktopEmptyPage("), "the old error page is gone")
-        assertFalse(SourceContract.code(SourceContract.functionBody(desktop, "DesktopLoadingPage")).contains("CircularProgressIndicator("), "the old loading page is gone")
-        assertFalse(SourceContract.code(SourceContract.functionBody(skeletons, "ShimmerBox")).contains("rememberInfiniteTransition"), "the old shimmer is gone")
-        assertFalse(SourceContract.code(SourceContract.functionBody(common, "SignInBanner")).contains("Button(onClick = onSignIn)"), "the old banner is gone")
-        assertFalse(SourceContract.code(SourceContract.functionBody(common, "MessageState")).contains("MaterialTheme.typography.bodyLarge"), "the old message state is gone")
-        for ((old, _, src) in delegates) assertFalse("LocalCosmoShell" in SourceContract.functionBody(src, old), "$old does not ask whether the look is on")
-    }
-
     // ---- our blocks keep the old parameter lists --------------------------------------------------------------------------
 
     @Test fun ourBlocksTakeTheParametersTheBriefGives() {

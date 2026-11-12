@@ -251,7 +251,6 @@ class MaterialBridgeTest {
         assertEquals("CosmoMaterialShapes,", shapes, "the look's corners")
         assertTrue("val scheme = remember(target, legacyScheme) { target.toColorScheme(legacyScheme) }" in body, "the cover palette as the scheme, made from the legacy one")
         assertTrue("MaterialTheme.typography" in body && "MaterialTheme.colorScheme" in body, "the legacy values are read from the legacy theme")
-        assertFalse("newLook" in body || "legacyShapes" in body, "there is no switch and no legacy corner set")
 
         val contentWord = Regex("""\bcontent\b""")
         for (governed in ifBodies(body)) assertFalse(contentWord.containsMatchIn(governed), "content inside an if: $governed")

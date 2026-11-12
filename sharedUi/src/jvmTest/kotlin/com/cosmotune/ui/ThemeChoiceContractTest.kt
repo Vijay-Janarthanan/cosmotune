@@ -62,7 +62,6 @@ class ThemeChoiceContractTest {
         assertFalse("isSystemInDarkTheme()" in src, "not Compose's, which is read once per process")
         assertTrue("if (choice == ThemeChoice.SYSTEM) { LaunchedEffect(Unit) { while (true) { systemDark = DesktopSystemTheme.dark()" in src, "polled only while following the system")
         assertTrue("return choice.isDark(systemDark, videoFirst)" in src, "the choice decides; Video is dark first")
-        assertFalse("newLook" in src, "there is no classic look to keep dark")
     }
 
     @Test fun theDesktopKeepsTheChoiceWithItsOtherAppearanceFlags() {

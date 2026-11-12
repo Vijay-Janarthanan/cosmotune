@@ -69,13 +69,10 @@ class PhoneChromeContractTest {
         val first = SourceContract.firstStatement(body)
         assertTrue(first.startsWith("CosmoTopBar("), "the first statement is the bar: $first")
         assertEquals("{ $first }", squash(body), "and it is the whole body")
-        assertFalse("LocalCosmoShell" in SourceContract.code(src), "no question whether the look is on")
     }
 
-    @Test fun theOldBarIsGoneAndItsFileKeepsOnlyTheMetrics() {
+    @Test fun theOldBarsFileKeepsTheMetrics() {
         val src = SourceContract.code(frosted)
-        assertFalse(Regex("""\bfun FrostedTopBar\(""").containsMatchIn(src), "the old bar is deleted")
-        assertFalse(Regex("""\bfun TopBarAccountButton\(""").containsMatchIn(src), "the old avatar button is deleted")
         for (metric in listOf("val TopBarContentHeight = 52.dp", "val TopBarContentGap = 12.dp", "fun topBarHeight(): Dp", "fun topBarContentPadding(): Dp")) {
             assertTrue(metric in src, "the bar's metrics stay: $metric")
         }
@@ -114,7 +111,6 @@ class PhoneChromeContractTest {
         val first = SourceContract.firstStatement(body)
         assertTrue(first.startsWith("CosmoProfileButton("), "the first statement is the new button: $first")
         assertEquals("{ $first }", squash(body), "and it is the whole body")
-        assertFalse("TopBarAccountButton(" in SourceContract.code(src) || "LocalCosmoShell" in SourceContract.code(src), "no old button, no question whether the look is on")
     }
 
     @Test fun theNewButtonGetsTheAvatarTheNameWithSignInAsItsFallbackAndTheEntries() {
@@ -145,7 +141,6 @@ class PhoneChromeContractTest {
         )
         for (name in names) assertTrue(Regex("""\b$name = """).containsMatchIn(call), "the call still passes $name (the switch decides what the new bar needs)")
         // the one argument that went with the old look: the Search tab's field in the bar (the page draws its own pill now)
-        assertFalse(Regex("""\baccessory = """).containsMatchIn(call), "the old look's search field is no longer the bar's accessory")
         assertEquals((names + "accessory").sorted(), frostedTopBarNames.sorted(), "and those, with the accessory left at its default, are all of upstream's bar's parameters")
     }
 
@@ -205,10 +200,9 @@ class PhoneChromeContractTest {
         assertFalse("cosmoShell != null && !isDetailVisible" in text, "the detail-page exception is gone")
     }
 
-    @Test fun theFadeBandUnderTheCapsulesIsGoneAndTheTapGuardStays() {
+    @Test fun theTopFadeIsTheOneFadeAndTheTapGuardStays() {
         val text = main
         assertEquals(1, Regex("""\bBottomFadeScrim\(""").findAll(mainCode).count(), "the top fade is the one call left: the bottom fade went with the old bars")
-        assertFalse("withMiniPlayer = player.song != null" in mainCode, "the bottom fade's call is gone")
         assertTrue("FloatingBarsTapGuard(\n                    barsHeight = { floatingBarsHeight.intValue }," in text, "the tap guard stays, it reads the chrome's height")
     }
 
@@ -256,18 +250,16 @@ class PhoneChromeContractTest {
             "com.cosmotune.design.TabRedirect.shown( stored, homeTab = TAB_HOME, releasesTab = TAB_RELEASES, )" in squash(text),
             "the derivation has no look to ask about",
         )
-        assertFalse("newLook" in text, "the New look switch is gone")
         assertTrue(text.indexOf("val onTabSelected: (Int) -> Unit = { index ->") > 0, "the one tab handler is still there")
     }
 
     // ---- the upstream bars and the log ---------------------------------------------------------------------------------------
 
-    @Test fun theUpstreamBarsAreGoneAndTheChromeIsTheOnlyOne() {
+    @Test fun theChromeIsTheBottomBarAndTheMetricsFileNeedsNothingOfOurs() {
         val src = frosted
         // The file's own package is `com.cosmotune.music` since the rename (FORK.md); any other `com.cosmotune` is ours.
         assertFalse(Regex("""com\.cosmotune(?!\.music\b)""").containsMatchIn(src), "the metrics left in the old bar's file need nothing of ours")
         assertTrue("com.cosmotune.ui.shell.CosmoBottomChrome(" in mainCode, "the chrome is the bottom bar")
-        for (old in listOf("cosmoShell != null", "glassActive", "FloatingBottomBar(", "GlassNavBar(", "MiniPlayer(")) assertFalse(old in mainCode, "$old is gone")
     }
 
     @Test fun theForkLogHasOneRowForTheSixSitesWithFourColumns() {

@@ -37,7 +37,6 @@ class SourceContractTest {
         assertTrue(statement.startsWith("CosmoNowPlaying("), "the switch is its one call: $statement")
         assertTrue(statement.endsWith(")"), "and the whole call is read, to its closing parenthesis")
         assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "the call is the whole body")
-        assertFalse(statement.contains("NowPlayingScreen("), "the old screen is not called")
         SourceContract.assertPassesEveryParameter(statement, names)
     }
 

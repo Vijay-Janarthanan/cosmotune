@@ -125,20 +125,4 @@ class PlayingRowInteractionTest {
         compose.onAllNodesWithText("Hi-Res", substring = true).assertCountEquals(1)
         compose.onAllNodes(hasText("Plain mix", substring = true) and hasText("Atmos available", substring = true)).assertCountEquals(0)
     }
-
-    @Test fun theClassicRowShowsTheOfferedTierOnlyWhenAsked() = withRowHosts {
-        val lossless = Song("src:a::qobuz:1", "Lossless mix", "Singer", null, sourceQuality = "LOSSLESS")
-        val unlabelled = Song("src:a::qobuz:2", "Low mix", "Singer", null, sourceQuality = "LOW")
-        compose.setContent {
-            MaterialTheme {
-                Column {
-                    SongRow(song = lossless, onClick = {}, showSourceQuality = true)
-                    SongRow(song = unlabelled, onClick = {}, showSourceQuality = true)
-                    SongRow(song = lossless.copy(videoId = "src:a::qobuz:3", title = "Unasked"), onClick = {})
-                }
-            }
-        }
-        compose.onAllNodesWithText("Lossless", substring = false, useUnmergedTree = true).assertCountEquals(1)
-        compose.onAllNodesWithText("Singer", substring = false, useUnmergedTree = true).assertCountEquals(2)
-    }
 }

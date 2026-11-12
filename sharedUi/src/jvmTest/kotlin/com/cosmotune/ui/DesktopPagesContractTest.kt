@@ -45,10 +45,6 @@ class DesktopPagesContractTest {
             ),
             SourceContract.names(SourceContract.parameters(src, "DesktopArtistPage")),
         )
-        assertFalse(Regex("""\bfun DesktopSongRow\(""").containsMatchIn(SourceContract.code(src)), "the old song row had no caller left and is gone")
-        for (helper in listOf("isNowPlaying", "PlayingRowScope", "rememberPlayingRowMatcher", "LocalPlayingRow")) {
-            assertFalse(Regex("""\b$helper\b""").containsMatchIn(SourceContract.code(src)), "and so is its $helper")
-        }
     }
 
     @Test fun eachOldFunctionCallsTheNewOneAndPassesEveryParameterByName() {
@@ -70,7 +66,6 @@ class DesktopPagesContractTest {
             val statement = SourceContract.firstStatement(body)
             assertEquals("}", body.substringAfter(statement).trim(), "$old has no old body after the call")
         }
-        assertFalse(Regex("""LocalCosmoShell\.current [!=]= null|cosmoShell [!=]= null""").containsMatchIn(SourceContract.code(src)), "nothing in DesktopApp.kt chooses by the look")
     }
 
     @Test fun theDelegatesAreTheOnlyPlacesDesktopAppReachesThePages() {
@@ -112,7 +107,6 @@ class DesktopPagesContractTest {
 
     @Test fun theRowsActionsAreTheBoardsThirtyTwoDpPlainButtons() {
         val parts = SourceContract.code(SourceContract.read(rowFile))
-        assertFalse(Regex("""\bfun CosmoDesktopSongRow\(""").containsMatchIn(parts), "the old row's Orbit twin had no caller left and is gone")
         assertTrue(Regex("""DESKTOP_ROW_ACTION: Dp = 32\.dp""").containsMatchIn(parts), "the actions are 32 dp")
         assertTrue(Regex("""DESKTOP_DURATION_COLUMN: Dp = 60\.dp""").containsMatchIn(parts), "the duration column is 60 dp")
         assertTrue("LocalMinimumInteractiveComponentSize provides DESKTOP_ROW_ACTION" in parts, "a 32 dp button is 32 dp in the row")

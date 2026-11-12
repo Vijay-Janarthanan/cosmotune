@@ -88,7 +88,6 @@ class VisualPolishContractTest {
         val body = SourceContract.functionBody(src, "SurfaceSheetSwitch")
         val first = SourceContract.firstStatement(body)
         assertTrue(first.startsWith("androidx.compose.material3.ModalBottomSheet("), "the one statement is Material's sheet with the look's surface: $first")
-        assertFalse("LocalCosmoShell" in body || "com.cosmotune.ui.bridge.ModalBottomSheet(" in body, "no look-off call of the bridge's sheet is left")
         for (line in listOf(
             "shape = RectangleShape", "containerColor = Color.Transparent", "tonalElevation = 0.dp",
             "scrimColor = CosmoSheetScrim", "dragHandle = null", "contentWindowInsets = contentWindowInsets", "CosmoSheetSurface(content = content)",

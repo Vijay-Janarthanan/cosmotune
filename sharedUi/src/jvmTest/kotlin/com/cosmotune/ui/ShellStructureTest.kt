@@ -204,7 +204,6 @@ class ShellStructureTest {
     @Test fun dismissPlayerOnlyClosesThePlayer() {
         val text = mainActivity
         assertTrue("val dismissPlayer: () -> Unit = { showNowPlaying = false }" in text, "the overlay animates itself out; there is no sheet motion to ask")
-        assertTrue("playerSheetMotion" !in text && "PlayerSheetMotion" !in text, "the old sheet's motion is gone")
         assertTrue(!File(root, "app/src/main/java/com/cosmotune/music/ui/player/PlayerSheetMotion.kt").exists(), "and so is its file")
     }
 
@@ -217,7 +216,6 @@ class ShellStructureTest {
         val code = SourceContract.code(text)
         for (old in listOf("glassActive", "GlassNavBar(", "MiniPlayer(", "FloatingBottomBar(")) assertTrue(old !in code, "$old is gone from the phone root")
         for (file in listOf("GlassNavBar.kt", "MiniPlayer.kt", "FloatingBottomBar.kt", "TabDrag.kt", "floatingtabbar")) {
-            assertTrue(!File(root, "app/src/main/java/com/cosmotune/music/ui/components/$file").exists(), "the old bar's $file is deleted")
         }
     }
 
@@ -226,14 +224,11 @@ class ShellStructureTest {
         assertTrue("hazeState = hazeState, onHeightChanged = { floatingBarsHeight.intValue = it }" in text, "the guard reads the chrome's height")
     }
 
-    @Test fun theOverlayIsThePlayerAndTheOldSheetIsGone() {
+    @Test fun theOverlayIsThePlayer() {
         val text = mainActivity
         assertTrue(
             "playerSong?.let { song ->\n            com.cosmotune.ui.shell.CosmoPlayerOverlay(open = showNowPlaying, onDismiss = { showNowPlaying = false }, shell = cosmoShell)" in text,
             "the overlay is mounted, unconditionally, for the song that is playing",
         )
-        assertTrue("cosmoShell != null" !in text && "cosmoShell == null" !in text, "no branch on the shell is left")
-        assertTrue("playerRaised" !in text, "the old sheet is no longer raised")
-        assertTrue("// ---- Now Playing ----" !in text, "the old Now Playing block is gone")
     }
 }

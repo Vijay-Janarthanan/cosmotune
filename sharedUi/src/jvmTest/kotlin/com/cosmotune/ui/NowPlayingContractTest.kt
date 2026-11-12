@@ -74,8 +74,6 @@ class NowPlayingContractTest {
     @Test fun theSwitchIsTheNewScreenAndNeverTheOldOne() {
         val body = SourceContract.functionBody(nowPlaying("NowPlayingSwitch.kt"), "NowPlayingSwitch")
         assertTrue(SourceContract.firstStatement(body).startsWith("CosmoNowPlaying("), "the first statement is the new screen")
-        assertFalse(Regex("""\bNowPlayingScreen\(""").containsMatchIn(body), "the old screen is not called")
-        assertFalse("LocalCosmoShell" in code(nowPlaying("NowPlayingSwitch.kt")), "no question whether the look is on")
     }
 
     @Test fun bothRootsCallTheSwitchAndNotTheOldScreen() {

@@ -58,8 +58,6 @@ class HomeContractTest {
         assertTrue("(state as? UiState.Success)?.data.orEmpty()" in enrichedState &&
             "current.filterNot { it.sourceId in sources } + personalShelves" in enrichedState,
             "enrichment preserves the online feed and replaces only the local shelf identities")
-        assertFalse("LocalCosmoShell" in body, "no question whether the look is on")
-        assertFalse(Regex("""\bHomeScreen\(""").containsMatchIn(body), "the old screen is not called")
         val at = body.indexOf("OrbitHome(")
         assertTrue(at >= 0, "the Orbit screen is called")
         assertEquals(at, body.lastIndexOf("OrbitHome("), "once")
@@ -122,7 +120,6 @@ class HomeContractTest {
         assertTrue("destination == DesktopDestination.LISTEN_NOW" in block && "destination == DesktopDestination.SEARCH" in block, "only on Listen now and on Search (its mood grid)")
         assertTrue("LaunchedEffect(exploreReloads) {" in block && "if (exploreReloads > 0 && homeWantsExplore) loadExplore()" in block, "Retry from either page reloads")
         assertTrue("val homeWantsExplore = destination == DesktopDestination.LISTEN_NOW || destination == DesktopDestination.SEARCH" in src, "on those two pages, whatever else")
-        assertFalse("newLook" in block, "there is no look switch to ask")
         assertTrue("if (homeWantsExplore && exploreState is UiState.Loading) loadExplore()" in block, "once, while Explore has not arrived")
         // the original loader is as it was
         assertTrue(

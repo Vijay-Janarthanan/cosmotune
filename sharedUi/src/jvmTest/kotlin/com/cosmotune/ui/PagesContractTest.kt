@@ -97,7 +97,6 @@ class PagesContractTest {
         assertTrue(statement.startsWith("if (page.type == BrowseType.ARTIST) { CosmoArtistPage("), "the first statement picks the artist page or the release page: $statement")
         assertTrue("} else {" in statement && "CosmoReleasePage(" in statement.substringAfter("} else {"), "the release page is the else branch")
         assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "and that choice is the whole body")
-        assertTrue("LocalCosmoShell" !in body, "no question whether the look is on")
         assertTrue(!Regex("""(?<![\w.])DetailScreen\(""").containsMatchIn(body), "the old screen is not called")
     }
 

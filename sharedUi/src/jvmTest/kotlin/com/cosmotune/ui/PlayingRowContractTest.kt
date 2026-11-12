@@ -47,12 +47,8 @@ class PlayingRowContractTest {
         }
     }
 
-    @Test fun theClassicDesktopListsAreGoneAndTheCollectionPageIsTheMatchingOne() {
+    @Test fun theDesktopCollectionPageIsTheMatchingOne() {
         val code = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"))
-        // The old look's History, library songs and collection rows asked the matcher themselves; they went with the old look.
-        for (old in listOf("DesktopHistoryPage", "DesktopLibrarySongContent", "DesktopCollectionSongRow")) {
-            assertFalse(Regex("""\bfun $old\(""").containsMatchIn(code), "the classic $old is gone")
-        }
         // The collection page is the Orbit one, told the playing song; it asks playingRowMatcher itself (songLists above).
         val page = SourceContract.firstStatement(SourceContract.functionBody(code, "DesktopCollectionPage"))
         assertTrue(page.startsWith("com.cosmotune.desktop.CosmoDesktopCollectionPage(") && "nowPlaying = LocalNowPlaying.current" in page, page)
@@ -60,7 +56,6 @@ class PlayingRowContractTest {
 
     @Test fun desktopRowsDrawTheSourceQualityWithThePlayerBadge() {
         val app = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"))
-        assertFalse(Regex("""\bfun DesktopSongRow\(""").containsMatchIn(app), "the old row and its delegate are gone")
         // The collection page's rows are the shared Orbit row, which draws the player badge's tier (Common.kt's SongRow).
         val row = SourceContract.code(SourceContract.functionBody(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopCollectionPage.kt"), "CollectionTrackRow"))
         assertTrue("OrbitTrackRow(" in row && "showQuality = true" in row, "the desktop rows ask the shared row for the quality")

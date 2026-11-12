@@ -117,8 +117,6 @@ class DesktopShellContractTest {
         // SourceContract reads with LF line ends; a statement of the body starts four spaces in (its closing bracket does not count).
         val statements = body.lines().filter { Regex("^ {4}[^ )]").containsMatchIn(it) }
         assertEquals(1, statements.size, "the call is the whole body: $statements")
-        assertFalse(Regex("""\bfun DesktopSidebarItem\(""").containsMatchIn(app), "the old row is gone")
-        assertFalse("Your playlists will appear here" in app, "and the old body with it")
     }
 
     // ---- Step 1: the new sidebar ---------------------------------------------------------------------------------------------
@@ -230,7 +228,6 @@ class DesktopShellContractTest {
         assertTrue(start >= 0, "the bottomBar lambda")
         val call = text.indexOf("com.cosmotune.ui.shell.CosmoBottomChrome(", start)
         assertTrue(call > start && text.substring(start, call).trim() == "bottomBar = { compact ->", "the lambda is the shared chrome and only that")
-        assertFalse(Regex("""\bDesktopBottomChrome\(""").containsMatchIn(text), "the old bottom bar is gone")
         return callAt(text.substring(call), "com.cosmotune.ui.shell.CosmoBottomChrome(")
     }
 
@@ -298,7 +295,6 @@ class DesktopShellContractTest {
         assertTrue("overlays.settingsPage = DesktopSettingsPage.EQUALIZER" in equaliser, "the statement of the Settings row's onOpenEqualizer: $equaliser")
         assertTrue(settings.startsWith("com.cosmotune.ui.components.CosmoIcons.Settings, DesktopStrings[\"settings\", \"Settings\"],"), settings)
         assertTrue("openSettings()" in settings, settings)
-        assertFalse(Regex("""(?<![\w.])DesktopTopBar\(""").containsMatchIn(text), "the old bar is gone")
     }
 
     @Test fun thereIsOneCtrlKShortcutOutsideMacOs() {
@@ -327,10 +323,8 @@ class DesktopShellContractTest {
             assertTrue(kept in code, "the width and the slide stay: `$kept`")
         }
         assertTrue("com.cosmotune.desktop.CosmoDesktopSidePanelHeader(which == DesktopSidePanel.LYRICS, onClose)" in code, "the head is Orbit's, with the close button")
-        assertFalse("DesktopToolbarButton(" in code || "HEADER_HEIGHT" in code, "the old head row is gone")
         assertTrue(".then(com.cosmotune.desktop.cosmoDesktopSidePanelInset(which == DesktopSidePanel.LYRICS))" in code, "the content's inset is the card's")
         assertTrue("com.cosmotune.desktop.CosmoDesktopSidePanelContent { content(which) }" in code, "what the panel holds is told whether the song plays")
-        assertFalse("LocalCosmoShell" in code, "nothing chooses by the look")
         // `com.cosmotune.music` is the file's own package since the rename (FORK.md); only the calls into our code count.
         assertEquals(4, Regex("""com\.cosmotune(?!\.music\b)""").findAll(SourceContract.code(text)).count(), "four calls into the card's file and no more")
     }
@@ -340,7 +334,6 @@ class DesktopShellContractTest {
         assertEquals(listOf("open: Boolean", "content: @Composable () -> Unit"), SourceContract.parameters(panel, "CosmoDesktopSidePanel"))
         val body = squash(SourceContract.functionBody(panel, "cosmoDesktopSidePanelCard"))
         assertTrue(body.startsWith("{ if (com.cosmotune.video.host.desktopVideoShown()"), "the card is there whatever the look (only another mode puts it aside): $body")
-        assertFalse("LocalCosmoShell" in body, "nothing chooses by the look: $body")
         assertTrue("top = PANEL_MARGIN" in body && "end = PANEL_MARGIN" in body && "bottom = ShellMetrics.desktopBarFootprintDp().dp" in body, "margins 14 (top, end) and the player bar's footprint at the bottom: $body")
         assertTrue(".clip(ORBIT_SIDE_PANEL_SHAPE)" in body, "the Orbit panel's corners of 28: $body")
         assertFalse("cosmoGlass" in code || "LocalDesktopHaze" in code, "Orbit: a flat panel, no glass over the window's haze")

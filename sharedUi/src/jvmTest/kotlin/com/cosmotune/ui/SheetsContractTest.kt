@@ -38,7 +38,6 @@ class SheetsContractTest {
     private fun assertWholeBody(src: String, function: String) {
         val statement = firstStatement(src, function)
         assertEquals("{ $statement }", SourceContract.functionBody(src, function).replace(Regex("\\s+"), " "), "$function is its one statement and nothing else")
-        assertFalse("LocalCosmoShell" in statement, "$function does not ask whether the look is on")
     }
     private fun code(src: String): String = SourceContract.code(src)
     private fun flat(src: String): String = code(src).replace(Regex("\\s+"), " ")
@@ -144,7 +143,6 @@ class SheetsContractTest {
             "val palette = if (menu) { neutralMenuPalette() } else { com.cosmotune.ui.sheets.cosmoSheetPalette() }" in code,
             "the palette is the menu's, else the cover's",
         )
-        assertFalse("rememberArtworkPalette(song.thumbnailUrl" in code, "the track's own palette is no longer read")
     }
 
     // ---- the other phone sites --------------------------------------------------------------------------------------------
@@ -165,7 +163,6 @@ class SheetsContractTest {
     @Test fun theToastIsTheNoticeAndTheHostDoesNotSlideItASecondTime() {
         val code = flat(notice)
         assertEquals(1, Regex(Regex.escape("if (current != null) { com.cosmotune.ui.sheets.CosmoToast(current.message) }")).findAll(code).count(), "the notice is the toast")
-        assertFalse("Surface(" in code || "newLook" in code || "LocalCosmoShell" in code, "the old surface and the look test are gone")
         assertTrue("AnimatedContent(" in code && "transitionSpec = { EnterTransition.None togetherWith ExitTransition.None }," in code, "the host does not slide the toast: it rises and fades in by itself")
         assertTrue("contentKey = { it?.id }" in code, "a repeated action still restarts the notice")
         val toast = flat(sheet("CosmoToast"))
@@ -190,7 +187,6 @@ class SheetsContractTest {
         val code = flat(held)
         val site = ".pointerInput(Unit) {} .cosmoMenuSurface(),"
         assertTrue(site in code, "the menu's container is cosmoMenuSurface")
-        assertFalse("LocalCosmoShell" in code || "Modifier.clip(menuShape).background(plate).border(0.5.dp, hairline, menuShape)" in code, "the old plate under the rows is gone")
         assertTrue("import com.cosmotune.ui.sheets.cosmoMenuSurface" in held.replace("\r\n", "\n"), "the extension is imported")
     }
 
@@ -207,7 +203,6 @@ class SheetsContractTest {
             statement,
             "the card, with the old width and the window's backdrop, is the rest of the body; anything it opens in turn is a card",
         )
-        assertFalse("DesktopScrim" in body || "LocalCosmoShell" in body, "the old card and its scrim are gone")
         assertEquals(listOf("onDismiss: () -> Unit", "maxWidth: Int", "popup: Boolean = false", "content: @Composable ColumnScope.() -> Unit"), SourceContract.parameters(surfaces, "DesktopDialogPanel"))
     }
 

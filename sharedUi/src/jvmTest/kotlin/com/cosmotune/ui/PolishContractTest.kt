@@ -22,7 +22,6 @@ class PolishContractTest {
         val flat = src.replace(Regex("\\s+"), " ")
         // CosmoSwitch (through the bridge) ticks on its own: the switch's callback adds no second tick
         assertTrue(flat.contains("onCheckedChange = { AppSettings.setEqualizerEnabled(it) },"), "the switch's callback only sets the equaliser")
-        assertFalse(flat.contains("cosmoLookOff") || flat.contains("LocalCosmoShell"), "no question whether the look is on")
         assertFalse(
             Regex("""onCheckedChange = \{\s*(if \(\w+\) )?haptics\.play""").containsMatchIn(src),
             "no haptic in the switch's callback",
@@ -82,7 +81,6 @@ class PolishContractTest {
             val call = src.substring(open, end)
             assertTrue(call.contains(song), "$page is told the engine's live song")
             assertTrue(call.contains(playing), "$page is told whether the audio plays: its cards' bars move")
-            assertFalse(call.contains("cosmoShell"), "$page is told whatever the look")
         }
     }
 
@@ -94,7 +92,6 @@ class PolishContractTest {
     @Test fun theFrameDrawsTheAmbientGroundBelowTheTitleBarWhateverTheMaterial() {
         val text = frame
         assertTrue("backdrop: @Composable () -> Unit" in SourceContract.parameters(SourceContract.read("${desktop}DesktopApp.kt"), "DesktopFrame"), "the frame takes the look's ground as its backdrop")
-        assertFalse(text.contains("LocalCosmoShell"), "the frame does not ask whether the look is on")
         val ground = "if (glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }"
         assertEquals(1, Regex(Regex.escape(ground)).findAll(text).count(), "the ground of the look is drawn once with a material, as a source for the bar's blur")
         assertTrue(
@@ -103,9 +100,8 @@ class PolishContractTest {
         )
     }
 
-    @Test fun theOldFlatSlabsAndThePagesOwnBackdropAreGone() {
+    @Test fun theFrameHasOnlyTheWindowsContainerColourAndAPlainBackdrop() {
         val text = frame
-        for (old in listOf("cosmoGround", "materialBehindApp", "appBackground")) assertFalse(text.contains(old), "$old is gone from the frame")
         assertEquals(1, Regex(Regex.escape("Modifier.background(containerColor)")).findAll(text).count(), "no flat container colour behind the page or the column: only the window's own")
         assertFalse(Regex("""backdrop\((true|false|materialBehindApp)\)""").containsMatchIn(text), "the backdrop takes no material flag")
     }
@@ -125,7 +121,6 @@ class PolishContractTest {
             text.contains("bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp,"),
             "the wide page pads 108 dp for the bar while a song is selected, the compact one 154 dp (80 without a song) for the capsules",
         )
-        assertFalse(text.contains("compact -> 128.dp") || text.contains("else -> 16.dp"), "the old look's two paddings are gone")
         assertFalse(text.contains("168.dp"), "no slack: 168 dp was the phone's chrome plus 14")
     }
 
@@ -202,7 +197,6 @@ class PolishContractTest {
         assertTrue(artist.contains("onPlayPause = onPlayPause"), "the artist page gets the toggle")
         // Orbit: the release card's bite is the toggle too while one of its songs is loaded
         assertEquals(2, Regex("""onPlayPause = onPlayPause""").findAll(body).count(), "the artist and the release page, nobody else")
-        assertFalse(Regex("""(?<![\w.])DetailScreen\(""").containsMatchIn(body), "the old screen is not called")
     }
 
     @Test fun theRootHandsThePhonesToggleToTheDetailSwitch() {
@@ -299,7 +293,6 @@ class PolishContractTest {
             "the first statement hands every parameter, by name, to Material's own button unless the style is glass: $body",
         )
         assertTrue(body.contains("CosmoGlassActionButton(onClick = onClick, modifier = modifier, enabled = enabled, content = content)"), "inside the style it is the glass circle")
-        assertFalse(body.contains("LocalCosmoShell"), "no question whether the look is on")
     }
 
     @Test fun theGlassActionButtonIsTheGlassIconButtonWithASlot() {

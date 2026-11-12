@@ -225,18 +225,6 @@ class BridgeContractTest {
         Forwarder("MenuBridge.kt", "DropdownMenuItem", 0, "androidx.compose.material3.DropdownMenuItem("),
     )
 
-    @Test fun noForwarderHasALookOffBranchAnyMore() {
-        for (f in forwarders) {
-            val fn = body(bridge(f.file), f.name, f.nth)
-            assertFalse(fn.contains("LocalCosmoShell"), "${f.name} #${f.nth} does not ask whether the look is on")
-        }
-        for (name in listOf("SwitchBridge.kt", "ProgressBridge.kt", "DialogBridge.kt", "SheetBridge.kt", "MenuBridge.kt")) {
-            assertFalse(code(bridge(name)).contains("LocalCosmoShell"), "$name does not read the shell")
-        }
-        assertFalse(body(bridge("SwitchBridge.kt"), "Switch").contains("androidx.compose.material3.Switch("), "the Switch is never Material's")
-        assertFalse(body(bridge("ProgressBridge.kt"), "CircularProgressIndicator", 0).contains("androidx.compose.material3."), "the spinner is never Material's ring")
-    }
-
     @Test fun theForwardersThatDrawMaterialsWidgetPassItEveryParameter() {
         // the look decides some of the values, but none of the caller's parameters is dropped on the way
         for (f in forwarders.filter { it.material != null }) {

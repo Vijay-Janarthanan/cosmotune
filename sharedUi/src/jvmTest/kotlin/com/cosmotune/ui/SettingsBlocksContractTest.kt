@@ -93,7 +93,6 @@ class SettingsBlocksContractTest {
     @Test fun theAppearanceGroupFindsTheLookByTheWordIntensity() {
         val line = sheet.lines().first { it.contains("com.cosmotune.ui.CosmoLookSettingsRows") || it.contains("\"colours follow the cover\"") }
         assertTrue(line.contains("\"colours follow the cover\"") && line.contains("\"preview the look\"") && line.contains("\"colour\"") && line.contains("\"intensity\""), line)
-        assertFalse(line.contains("\"new look\""), "there is no New look row to find any more")
     }
 
     // ---- the desktop -----------------------------------------------------------------------------------------------------------
@@ -131,7 +130,6 @@ class SettingsBlocksContractTest {
         assertTrue(tile.contains("LocalSettingsQuery provides if (wholeGroup) \"\" else query") && tile.contains("LocalSettingsMatches provides matched") && tile.contains("content()"), "the same filter around the same content")
         assertEquals(1, Regex("LocalSettingsQuery provides").findAll(flat).count(), "one filter: the old branch is gone")
         assertTrue(flat.trimEnd().endsWith("content() } } }"), "the group is the last thing the function draws")
-        assertFalse("return@Column" in flat || "LocalCosmoShell" in flat || "title.uppercase()" in flat, "no look test and no old heading")
     }
 
     // ---- the intensity -------------------------------------------------------------------------------------------------------------

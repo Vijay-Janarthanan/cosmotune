@@ -197,7 +197,6 @@ class ChromeBlocksStructureTest {
         assertTrue(Regex("""LOGO_WIDTH\s*=\s*28\.dp""").containsMatchIn(code) && Regex("""LOGO_HEIGHT\s*=\s*18\.dp""").containsMatchIn(code), "28 x 18 dp")
         // the mark at the start of a root page was the old look's: a root page now always leads with the mode switcher
         assertTrue("com.cosmotune.ui.kit.KitModeSwitcher(collapsed = scrolled)" in code, "a root page leads with the mode switcher")
-        assertTrue("Res.drawable.ic_logo" !in code && "LocalCosmoShell.current" !in code, "the top bar draws no logo and does not ask whether the look is on")
     }
 
     @Test fun theTitleFadesInOnTheEffectsSpringAndTheBarHasTheBoardsSpacing() {

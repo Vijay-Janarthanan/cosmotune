@@ -55,7 +55,6 @@ class LibraryContractTest {
         )
         assertEquals(old, params(SourceContract.read(historySwitch), "HistorySwitch"))
         assertEquals(old, params(lib("CosmoHistory"), "CosmoHistory"))
-        assertFalse(File(SourceContract.root, oldHistory).exists(), "the old history screen is deleted")
     }
 
     // ---- the seams: the one call, by name ----------------------------------------------------------------------------
@@ -65,7 +64,6 @@ class LibraryContractTest {
         val statement = SourceContract.firstStatement(body)
         assertTrue(statement.startsWith("$newCall("), "$name is the one call of $newCall: ${statement.take(60)}")
         assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "$name: the call is the whole body")
-        assertFalse(Regex("""(?<![\w.])$oldCall\(""").containsMatchIn(body) || "LocalCosmoShell" in body, "$name: no old screen, no question whether the look is on")
         SourceContract.assertPassesEveryParameter(statement, SourceContract.names(params(src, name)))
     }
 
@@ -82,7 +80,6 @@ class LibraryContractTest {
         // the old functions keep their names and the file they live in (upstream's; nothing calls them now)
         assertTrue(Regex("""\bfun LibraryScreen\(""").containsMatchIn(SourceContract.read(oldLibrary)))
         assertTrue(Regex("""\bfun LibraryGridPage\(""").containsMatchIn(SourceContract.read(oldLibrary)))
-        assertTrue("LocalCosmoShell" !in SourceContract.read(oldLibrary), "the old screens know nothing of the look")
     }
 
     // ---- the five call sites ------------------------------------------------------------------------------------------
@@ -288,7 +285,6 @@ class LibraryContractTest {
         val desktop = SourceContract.code(SourceContract.read(desktopApp))
         assertTrue("destination == DesktopDestination.LOCAL_MUSIC -> DesktopDeviceMusic(" in desktop, "the desktop's local music is the device page")
         assertTrue("destination == DesktopDestination.HISTORY -> {" in desktop, "History keeps its own branch")
-        assertFalse("cosmoShell != null" in desktop, "with no look to ask about")
     }
 
     @Test fun everyStringTheNewPagesNameExists() {

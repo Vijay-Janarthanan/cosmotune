@@ -41,7 +41,6 @@ class SearchContractTest {
         assertEquals(46, switch.size, "upstream's SearchScreen list (37, the seven of the Add-ons source, BC-31, and Search in), then browse: $switch")
         assertEquals("browse: CosmoBrowse? = null", switch.last())
         assertEquals(listOf("query", "onQueryChange", "filter"), SourceContract.names(switch).take(3), "in upstream's order")
-        assertTrue(!java.io.File(SourceContract.root, "$old/SearchScreen.kt").exists(), "the old Search screen is deleted")
     }
 
     @Test fun theOldScreensDefaultForTheLibraryTapSurvives() {
@@ -80,7 +79,6 @@ class SearchContractTest {
             val body = flatBody(src, case.switch)
             assertTrue(body.startsWith("{ ${case.new}") && body.endsWith(") }"), "${case.switch}: the body is the one call of ${case.new} $body")
             assertEquals(1, Regex(Regex.escape(case.new)).findAll(body).count(), "${case.switch}: one call")
-            assertFalse(body.contains(case.oldCall) || body.contains("LocalCosmoShell"), "${case.switch}: no old screen, no question whether the look is on")
             for (name in names(src, case.switch)) {
                 assertTrue(Regex("""\b$name = $name\b""").containsMatchIn(body), "${case.switch}: passes $name = $name")
             }

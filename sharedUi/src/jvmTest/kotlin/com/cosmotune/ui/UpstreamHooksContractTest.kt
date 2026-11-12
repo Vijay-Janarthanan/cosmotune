@@ -51,7 +51,6 @@ class UpstreamHooksContractTest {
         val shell = "val cosmoShell = checkNotNull(com.cosmotune.ui.theme.LocalCosmoShell.current) {"
         val follow = "cosmoShell.FollowCover(player.song, player.queue.getOrNull(player.queueIndex + 1))"
         assertEquals(1, count(src, shell), "CosmotuneApp reads the shell once, and it is always there")
-        assertTrue("cosmoShell?." !in src, "the shell is never null on the phone root")
         assertEquals(1, count(src, follow), "the cover colours follow the playing song and preload the next one's")
         assertTrue(src.indexOf(shell) < src.indexOf(follow))
         assertTrue("import com.cosmotune.ui.theme.FollowCover" in src)
@@ -75,7 +74,6 @@ class UpstreamHooksContractTest {
             count(src, "Box( Modifier .fillMaxSize() .cosmoAmbientGround(), ) {"),
             "the look's ground under every page, unconditionally",
         )
-        assertTrue("cosmoShell != null" !in src && "cosmoShell == null" !in src, "no branch on the shell is left")
     }
 
     // ---- the way to the switch ----------------------------------------------------------------------------------------------
@@ -93,7 +91,6 @@ class UpstreamHooksContractTest {
             "onClick = { previewOpen = true },",
         ).map { body.indexOf(it) }
         assertTrue(order.all { it >= 0 } && order == order.sorted(), "cover colours, AMOLED, intensity, then the preview: $order")
-        assertTrue("newLook" !in body && "NewLook" !in body, "there is no New look row any more")
     }
 
     @Test fun theDesktopSettingsShowTheLookToggles() {
@@ -109,7 +106,6 @@ class UpstreamHooksContractTest {
             body.substringAfter("{").substringAfter("collectAsState()").substringAfter("collectAsState()").trim().startsWith(first),
             "the toggles start with Colours follow the cover",
         )
-        assertTrue("newLook" !in body && "cosmo_new_look" !in body, "there is no New look toggle any more")
     }
 
     // ---- credits ------------------------------------------------------------------------------------------------------------

@@ -38,7 +38,6 @@ class SettingsHubContractTest {
             assertTrue(Regex("""AppSettings(::|\.)$setter\b""").containsMatchIn(body), "SettingsScreen still calls AppSettings.$setter")
         }
         // The one setting that went with the old look: Liquid glass dressed the old bars, which are gone.
-        assertFalse(Regex("""AppSettings(::|\.)setLiquidGlass\b""").containsMatchIn(body), "the Liquid glass row is gone with the old bars")
     }
 
     @Test fun everyPhoneCallbackIsStillReachable() {

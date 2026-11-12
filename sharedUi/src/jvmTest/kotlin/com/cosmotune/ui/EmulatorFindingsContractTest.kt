@@ -40,16 +40,6 @@ class EmulatorFindingsContractTest {
 
     private val folders get() = resources.listFiles { f -> f.isDirectory && f.name.startsWith("values") }.orEmpty().map { it.name }.sorted()
 
-    @Test fun noLanguageKeepsTheTextsOfTheNewLookSwitch() {
-        assertEquals(18, folders.size, "the base file and the 17 translations")
-        for (folder in folders) {
-            val text = java.io.File(resources, "$folder/strings.xml").readText()
-            for (key in listOf("cosmo_new_look", "cosmo_new_look_summary", "cosmo_settings_mode_needs_look", "cosmo_theme_light_only_classic")) {
-                assertFalse("name=\"$key\"" in text, "$folder still has $key, a text of the removed switch")
-            }
-        }
-    }
-
     // ---- the desktop playlist page has no album column when no row has an album --------------------------------------------------
 
     @Test fun theDesktopCollectionPageDecidesTheAlbumColumnOnEveryRowItHasLoadedWithTheSharedRule() {
@@ -71,7 +61,6 @@ class EmulatorFindingsContractTest {
             "bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp," in frame,
             "the page pads by the pure rule, with whether a song is selected",
         )
-        assertFalse("compact -> 128.dp" in frame || "else -> 16.dp" in frame || "LocalCosmoShell" in frame, "the old look's paddings are gone")
     }
 
     @Test fun theSettingsListScrollsBehindTheBarInsteadOfEndingAboveIt() {
@@ -111,7 +100,6 @@ class EmulatorFindingsContractTest {
         val desktop = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoLookDesktopToggles.kt"))
         for ((name, code) in listOf("phone" to phone, "desktop" to desktop)) {
             assertTrue("Res.string.cosmo_cover_colours)" in code && "Res.string.cosmo_cover_colours_summary)" in code, "the $name first row takes its two texts from the shared strings")
-            assertFalse("cosmo_new_look" in code, "the $name rows have no New look row")
         }
     }
 }

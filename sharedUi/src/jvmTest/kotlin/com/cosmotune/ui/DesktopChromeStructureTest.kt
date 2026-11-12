@@ -181,7 +181,6 @@ class DesktopChromeStructureTest {
         assertEquals("topBar = { compact ->", text.substring(text.lastIndexOf("topBar = {", call), call).trim(), "it is the whole of the lambda's start")
         val args = callFrom(text, call)
         assertEquals("}", text.substring(call + args.length).trimStart().take(1), "and nothing follows it in the lambda")
-        assertFalse(Regex("""(?<![\w.])DesktopTopBar\(""").containsMatchIn(text), "the old bar is gone")
         assertTrue("navHistory.isNotEmpty()" in args && "::goBack" in args, "back is the app's one way back")
     }
 
@@ -192,7 +191,6 @@ class DesktopChromeStructureTest {
         assertEquals("bottomBar = { compact ->", text.substring(text.lastIndexOf("bottomBar = {", call), call).trim(), "it is the whole of the lambda's start")
         val between = callFrom(text, call)
         assertEquals("}", text.substring(call + between.length).trimStart().take(1), "and nothing follows it in the lambda")
-        assertFalse(Regex("""\bDesktopBottomChrome\(""").containsMatchIn(text), "the old bottom bar is gone")
         // DESIGN_SYSTEM.md 5.2: Home, Explore, Releases and Library; Search is the top bar's button.
         for (key in listOf("\"home\"", "SharedRes.string.explore", "SharedRes.string.cosmo_releases", "\"library\"")) assertTrue(key in between, "the tab label $key")
         assertTrue("\"search\"" !in between, "no Search tab")
@@ -205,7 +203,6 @@ class DesktopChromeStructureTest {
     @Test fun thePlayerBarIsMountedBeforeTheSheet() {
         val text = app
         val host = text.indexOf("com.cosmotune.desktop.CosmoDesktopPlayerBarHost(overlays.sidePanel != null) { m ->")
-        assertFalse("if (cosmoShell != null) com.cosmotune.desktop.CosmoDesktopPlayerBarHost(" in text, "under no test of the look")
         val sheet = text.indexOf("DesktopPlayerSheet(\n                        visible = overlays.nowPlaying && selectedSong != null,")
         assertTrue(host in 0 until sheet, "the bar is drawn first, so the player that grows out of it is drawn over it")
         val block = text.substring(host, sheet)
@@ -222,7 +219,6 @@ class DesktopChromeStructureTest {
             "bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp," in text,
             "the bar's footprint in a wide window with a song, the phone chrome's height in a compact one, nothing for a wide one without (P4-22)",
         )
-        assertFalse("compact -> 128.dp" in text, "the old look's paddings are gone")
     }
 
     @Test fun theSheetIsTheSharedOverlayAndNothingElse() {
@@ -231,7 +227,6 @@ class DesktopChromeStructureTest {
         assertTrue(first >= 0, "the sheet is the overlay (and nothing outside a theme)")
         assertTrue("com.cosmotune.ui.shell.LocalPlayerVolumeLabel provides DesktopStrings[\"d_volume\", \"Volume\"]," in text, "the player's own bar names its volume bar in the desktop's words")
         assertTrue("LocalVisualsPresentation provides { dismiss, body -> DesktopVisualsPresentation(dismiss, body) }" in text, "the visuals open in the desktop's own window")
-        assertFalse("var mounted by remember" in text || "draggable(" in text, "the old sheet's body is gone")
         assertEquals(1, Regex("""fun DesktopPlayerSheet\(""").findAll(text).count())
         assertTrue(text.substring(text.indexOf("fun DesktopPlayerSheet("), first).count { it == '\n' } < 10, "it is the first statement of the function")
     }

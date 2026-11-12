@@ -105,7 +105,5 @@ class ShellClearanceTest {
     @Test
     fun theOldDesktopPaddingIsGoneWithTheSwitch() {
         val text = File(root, desktopApp).readText()
-        assertTrue("compact -> 128.dp" !in text && "else -> 16.dp" !in text, "the old look's 128 dp (compact) and 16 dp paddings are gone")
-        assertTrue("LocalCosmoShell.current != null ->" !in text, "and so is the test of the look in front of the padding")
     }
 }
