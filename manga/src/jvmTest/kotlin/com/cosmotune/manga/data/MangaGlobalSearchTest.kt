@@ -12,12 +12,18 @@ class MangaGlobalSearchTest {
     @Test fun failedAndDisabledSourcesCannotHideResultsOrExceedThreeActiveRequests() = runBlocking<Unit> {
         val configs = sources(8).mapIndexed { index, config -> config.copy(enabled = index != 7) }
         val active = AtomicInteger(); val peak = AtomicInteger()
+        // Progress is conflated, so a slow collector may only see the latest count: hold the later sources until a
+        // partial result has reached it.
+        val partialSeen = CompletableDeferred<Unit>()
         val seen = mangaGlobalSearch(configs, " Tamil ") { config, query ->
             assertEquals("Tamil", query)
             val count = active.incrementAndGet(); peak.updateAndGet { maxOf(it, count) }
-            try { delay(15); if (config.id == "source:2") error("Unavailable"); page(config) }
-            finally { active.decrementAndGet() }
-        }.toList()
+            try {
+                delay(15)
+                if (config.id.substringAfter(':').toInt() >= 3) partialSeen.await()
+                if (config.id == "source:2") error("Unavailable"); page(config)
+            } finally { active.decrementAndGet() }
+        }.onEach { if (it.completed in 1..6) partialSeen.complete(Unit) }.toList()
         val result = seen.last()
         assertEquals(7, result.completed); assertEquals(7, result.total); assertEquals(6, result.books.size)
         assertEquals(setOf("source:2"), result.errors.keys); assertTrue(peak.get() <= 3); assertTrue(seen.any { it.completed in 1..6 })

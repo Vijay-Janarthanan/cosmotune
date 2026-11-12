@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
  */
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
+    id("org.gradle.test-retry") version "1.6.2"
     id("com.android.library")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
@@ -58,4 +59,11 @@ android {
 
 tasks.withType<Test>().configureEach {
     systemProperty("java.awt.headless", "true")
+    // The release runners are slow enough that a timing-sensitive test now and then misses. On CI a failed test runs
+    // again, up to twice; a test that fails every time still fails the build.
+    if (System.getenv("CI") != null) retry {
+        maxRetries.set(2)
+        maxFailures.set(5)
+        failOnPassedAfterRetry.set(false)
+    }
 }

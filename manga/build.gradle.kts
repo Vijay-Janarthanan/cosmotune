@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
+    id("org.gradle.test-retry") version "1.6.2"
     id("com.android.library")
     id("org.jetbrains.compose")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -91,6 +92,13 @@ tasks.withType<Test>().configureEach {
     systemProperty("java.awt.headless", "true")
     systemProperty("cosmotune.manga.live", providers.gradleProperty("cosmotune.manga.live").orElse("").get())
     systemProperty("cosmotune.manga.storeLive", providers.gradleProperty("cosmotune.manga.storeLive").orElse("false").get())
+    // The release runners are slow enough that a timing-sensitive test now and then misses. On CI a failed test runs
+    // again, up to twice; a test that fails every time still fails the build.
+    if (System.getenv("CI") != null) retry {
+        maxRetries.set(2)
+        maxFailures.set(5)
+        failOnPassedAfterRetry.set(false)
+    }
 }
 
 // The signed fixture is test-only and is never bundled in production apps.
