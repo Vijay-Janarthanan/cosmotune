@@ -137,7 +137,7 @@ class InnerTubeVideoAccount internal constructor(
     // ---- Reading ------------------------------------------------------------------------------------------------------
 
     override suspend fun home(continuation: PageToken?): Result<Page<VideoItem>> =
-        videoPage("home", "FEwhat_to_watch", continuation)
+        videoPage("home", "FEwhat_to_watch", continuation) { it.homeItems }
 
     override suspend fun subscriptionsFeed(continuation: PageToken?): Result<Page<VideoItem>> =
         videoPage("subs", "FEsubscriptions", continuation)
@@ -308,7 +308,12 @@ class InnerTubeVideoAccount internal constructor(
         return parsed
     }
 
-    private suspend fun videoPage(key: String, browseId: String, continuation: PageToken?): Result<Page<VideoItem>> = attempt {
+    private suspend fun videoPage(
+        key: String,
+        browseId: String,
+        continuation: PageToken?,
+        items: (YoutubeFeedParser.ParsedFeed) -> List<VideoItem> = { it.videos },
+    ): Result<Page<VideoItem>> = attempt {
         requireSession()
         if (continuation == null) cached<Page<VideoItem>>(key)?.let { return@attempt it }
         var token = continuation?.value
@@ -321,7 +326,7 @@ class InnerTubeVideoAccount internal constructor(
             hops += 1
         }
         val next = parsed.continuation?.takeIf { it != token && it != continuation?.value }?.let(::PageToken)
-        Page(parsed.videos, next).also { if (continuation == null) store(key, it) }
+        Page(items(parsed), next).also { if (continuation == null) store(key, it) }
     }
 
     /** Every page of a short list (channels, playlists), at most [LIST_PAGES] of them. */

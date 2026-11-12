@@ -47,6 +47,7 @@ import com.cosmotune.video.resources.video_subscribed
 import com.cosmotune.video.resources.video_views
 import com.cosmotune.video.resources.video_watch_later
 import com.cosmotune.video.ui.blocks.ChannelAvatar
+import com.cosmotune.video.ui.blocks.badgeText
 import com.cosmotune.video.ui.blocks.ThumbnailFrame
 import com.cosmotune.video.ui.watch.VideoRoomChip
 import org.jetbrains.compose.resources.stringResource
@@ -115,11 +116,11 @@ internal fun HomeUpNextCard(
             if (wide) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 230.dp).padding(start = 26.dp, top = 24.dp, bottom = 24.dp, end = 112.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f).padding(end = 24.dp), content = words)
-                    ThumbnailFrame(item.thumbnailUrl, Modifier.width(340.dp).aspectRatio(16f / 9f), RoundedCornerShape(24.dp))
+                    ThumbnailFrame(item.thumbnailUrl, Modifier.width(340.dp).aspectRatio(16f / 9f), RoundedCornerShape(24.dp), badge = badgeText(item), badgeLive = item.isLive)
                 }
             } else {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    ThumbnailFrame(item.thumbnailUrl, Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(22.dp))
+                    ThumbnailFrame(item.thumbnailUrl, Modifier.fillMaxWidth().aspectRatio(16f / 9f), RoundedCornerShape(22.dp), badge = badgeText(item), badgeLive = item.isLive)
                     Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 10.dp), content = words)
                 }
             }

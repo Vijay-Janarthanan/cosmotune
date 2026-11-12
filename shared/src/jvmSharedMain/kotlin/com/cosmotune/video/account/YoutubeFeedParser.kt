@@ -3,6 +3,7 @@ package com.cosmotune.video.account
 import com.cosmotune.music.data.DebugLog as Log
 import com.cosmotune.video.model.ChannelItem
 import com.cosmotune.video.model.PlaylistItem
+import com.cosmotune.video.model.PlaylistRef
 import com.cosmotune.video.model.VideoItem
 import com.cosmotune.youtube.YoutubeAds
 import kotlinx.serialization.json.JsonArray
@@ -41,6 +42,8 @@ internal object YoutubeFeedParser {
         val unreadable: Int,
         val videoIdsSeen: Int,
         val loggedOut: Boolean,
+        /** Home's cards in the order the site gave them: the [videos] with a card for each suggested mix or playlist in its place. */
+        val homeItems: List<VideoItem> = videos,
     ) {
         /** Whether anything at all was read. */
         val isEmpty: Boolean get() = videos.isEmpty() && playlists.isEmpty() && channels.isEmpty()
@@ -102,6 +105,7 @@ internal object YoutubeFeedParser {
         for (root in roots) root?.let { walk.visit(it, 0) }
         // The site's own promo cards that came without any ad flag ("Try YouTube Premium free") are told by what they say.
         walk.videos.removeAll { YoutubeAds.isPromoListing(it.title, it.channelName) }
+        val homeItems = interleave(walk.videos, walk.mixCards).distinctBy { it.id }
         val ids = walk.videos.mapTo(HashSet()) { it.id }
         val seen = walk.looseVideoIds.count { it !in ids }
         if (walk.unreadable > 0 || (walk.videos.isEmpty() && seen > 0)) {
@@ -116,8 +120,25 @@ internal object YoutubeFeedParser {
             unreadable = walk.unreadable,
             videoIdsSeen = seen,
             loggedOut = isLoggedOut(response),
+            homeItems = homeItems,
         )
     }
+
+    /** [videos] with each mix card ([MixCard.before] = how many of the videos stood ahead of it when it was read) back in its place. */
+    private fun interleave(videos: List<VideoItem>, cards: List<MixCard>): List<VideoItem> {
+        if (cards.isEmpty()) return videos
+        val out = ArrayList<VideoItem>(videos.size + cards.size)
+        var next = 0
+        for ((index, video) in videos.withIndex()) {
+            while (next < cards.size && cards[next].before <= index) out += cards[next++].item
+            out += video
+        }
+        while (next < cards.size) out += cards[next++].item
+        return out
+    }
+
+    /** A suggested mix or playlist card, and how many videos stood before it in the answer. */
+    private class MixCard(val before: Int, val item: VideoItem)
 
     /** The subscribed channels the guide lists (the signed-in answer of `guide`): a fallback for the channels page. */
     fun parseGuideChannels(response: JsonObject): List<ChannelItem> {
@@ -185,6 +206,7 @@ internal object YoutubeFeedParser {
     private class Walk {
         val videos = ArrayList<VideoItem>()
         val playlists = ArrayList<PlaylistItem>()
+        val mixCards = ArrayList<MixCard>()
         val channels = ArrayList<ChannelItem>()
         val looseVideoIds = LinkedHashSet<String>()
         val unreadableShapes = LinkedHashSet<String>()
@@ -271,7 +293,10 @@ internal object YoutubeFeedParser {
             val id = node.str("contentId")
             when {
                 type.contains("SHORT") || type.endsWith("_VIDEO") -> item("lockup:$type") { videoLockup(node, id, type.contains("SHORT"))?.let(videos::add) }
-                type.endsWith("_PLAYLIST") || type.endsWith("_MIX") -> item("lockup:$type") { playlistLockup(node, id)?.let(playlists::add) }
+                type.endsWith("_PLAYLIST") || type.endsWith("_MIX") -> item("lockup:$type") {
+                    playlistLockup(node, id)?.let(playlists::add)
+                    mixCard(node, id)?.let { mixCards.add(MixCard(videos.size, it)) }
+                }
                 type.endsWith("_CHANNEL") -> item("lockup:$type") { channelLockup(node, id)?.let(channels::add) }
                 // Podcasts, albums, courses, products: nothing Video mode lists.
                 else -> Unit
@@ -378,6 +403,25 @@ internal object YoutubeFeedParser {
             ownerName = owner?.text,
             ownerId = owner?.browseId,
             videoCount = count,
+        )
+    }
+
+    /**
+     * Home's card for a suggested mix or playlist: a [VideoItem] whose [VideoItem.playlist] says what it is, titled as the site titles
+     * it, the line under the title (the byline: "Names and more · Playlist") in [VideoItem.channelName], the picture of its first video.
+     */
+    private fun mixCard(node: JsonObject, rawId: String?): VideoItem? {
+        val id = rawId?.removePrefix("VL")?.takeIf { it.isNotBlank() } ?: return null
+        val meta = node.obj("metadata").obj("lockupMetadataViewModel") ?: return null
+        val title = meta.obj("title").str("content") ?: return null
+        val first = node.obj("rendererContext").obj("commandContext").obj("onTap").obj("innertubeCommand").obj("watchEndpoint").str("videoId")
+        val byline = rows(meta).firstOrNull()?.joinToString(" · ") { it.text }?.takeIf { it.isNotBlank() }
+        val mix = id.startsWith("RD") || badges(node).any { it.str("text").equals("Mix", ignoreCase = true) }
+        return VideoItem(
+            id = "list:$id", title = title, channelId = null, channelName = byline, channelAvatarUrl = null,
+            thumbnailUrl = bestUrl(firstSources(node["contentImage"])) ?: first?.let(::thumbnailFallback),
+            durationSec = null, viewCount = null, uploadedAtMs = null, uploadedText = null,
+            playlist = PlaylistRef(id, if (mix) "Mix" else "Playlist", first),
         )
     }
 

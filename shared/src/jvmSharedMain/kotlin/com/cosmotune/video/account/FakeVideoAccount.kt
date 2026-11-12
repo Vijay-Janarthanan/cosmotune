@@ -5,6 +5,7 @@ import com.cosmotune.video.model.Comment
 import com.cosmotune.video.model.Page
 import com.cosmotune.video.model.PageToken
 import com.cosmotune.video.model.PlaylistItem
+import com.cosmotune.video.model.PlaylistRef
 import com.cosmotune.video.model.VideoItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,7 +61,7 @@ class FakeVideoAccount(signedIn: Boolean = true) : VideoAccount {
 
     override fun invalidate() = Unit
 
-    override suspend fun home(continuation: PageToken?): Result<Page<VideoItem>> = guard { paged(VIDEOS.shuffledStable(), continuation) }
+    override suspend fun home(continuation: PageToken?): Result<Page<VideoItem>> = guard { paged(VIDEOS.shuffledStable().withMixAt(MIX_AT), continuation) }
 
     override suspend fun subscriptionsFeed(continuation: PageToken?): Result<Page<VideoItem>> = guard {
         paged(VIDEOS.filter { it.channelId in subscribed.value }, continuation)
@@ -136,6 +137,18 @@ class FakeVideoAccount(signedIn: Boolean = true) : VideoAccount {
         return Page(items, next)
     }
 
+    /** The site's suggested mix, standing among the videos at [at] (Home keeps it where the site put it). */
+    private fun List<VideoItem>.withMixAt(at: Int): List<VideoItem> {
+        val first = firstOrNull() ?: return this
+        val mix = VideoItem(
+            id = "list:RD${first.id}", title = "Mix - Quiet Evenings | Lantern Hour", channelId = null,
+            channelName = "Maple Choir, The Rowers and more · Playlist", channelAvatarUrl = null, thumbnailUrl = first.thumbnailUrl,
+            durationSec = null, viewCount = null, uploadedAtMs = null, uploadedText = null,
+            playlist = PlaylistRef("RD${first.id}", "Mix", first.id),
+        )
+        return take(at) + mix + drop(at)
+    }
+
     private fun List<VideoItem>.shuffledStable(): List<VideoItem> = sortedBy { it.id.hashCode() }
 
     private fun signedInState(active: AccountChoice) = AccountState.SignedIn(active.displayName, active.handle, active.avatarUrl, choices, active)
@@ -143,6 +156,7 @@ class FakeVideoAccount(signedIn: Boolean = true) : VideoAccount {
     companion object {
         /** Items per fake page. */
         const val PAGE_SIZE = 8
+        private const val MIX_AT = 3
 
         /** The sample channels. */
         val CHANNELS: List<ChannelItem> = listOf(

@@ -25,7 +25,11 @@ data class VideoItem(
     val isUpcoming: Boolean = false,
     val isShort: Boolean = false,
     val snippet: String? = null,
+    val playlist: PlaylistRef? = null,
 ) {
+    /** Whether this card stands for a mix or a playlist the site suggests (it is not a video: [id] is not a video id). */
+    val isPlaylistCard: Boolean get() = playlist != null
+
     /**
      * The watched bar's fraction (spec 5.0: "shown from 10 s watched"): [positionMs] over [durationMs] clamped to 0..1, or
      * null when there is no bar to draw (less than [VideoMetrics.WATCHED_MIN_MS] watched, or no known duration). A
@@ -44,6 +48,16 @@ data class VideoItem(
         durationSec != null && durationSec > 0 -> durationSec * 1000
         else -> null
     }
+}
+
+/**
+ * What a suggested mix or playlist is, when a feed card stands for one ([VideoItem.playlist]): its list id (`RD...` for a mix),
+ * the label on its picture ("Mix", "Playlist") and the video that starts it ([firstVideoId], null when the site named none).
+ */
+@kotlinx.serialization.Serializable
+data class PlaylistRef(val id: String, val label: String, val firstVideoId: String? = null) {
+    /** Whether this is one of the site's auto-generated mixes (`RD` lists): it plays from [firstVideoId]; any other opens its page. */
+    val isMix: Boolean get() = id.startsWith("RD")
 }
 
 /** A channel as search results, rows and the channel header show it (spec 5.3, 5.5). [handle] is the "@name" form. */
