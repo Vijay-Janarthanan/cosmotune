@@ -417,7 +417,7 @@ private fun WatchPagePhone(
             WatchVideoFrame(
                 playback, surface, PlayerLayout.PAGE, ground,
                 Modifier.padding(horizontal = FRAME_SIDE).fillMaxWidth().height(playerHeight),
-                onCinema = onEnterFullscreen, onBounds = onBounds, onCollapse = onCollapse,
+                onCinema = onEnterFullscreen, onBounds = onBounds, onCollapse = onCollapse, poster = info?.item?.thumbnailUrl,
             )
             LazyColumn(
                 Modifier.fillMaxWidth().weight(1f),

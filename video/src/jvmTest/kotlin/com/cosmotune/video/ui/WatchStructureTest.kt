@@ -425,6 +425,24 @@ class WatchStructureTest {
         assertTrue("OrbitBiteCard(" in card && "OrbitPlayButton(playing, onPlay" in card && "ink = ink" in card, "the colour card with play in the bite and the seek line in its ink")
     }
 
+    @Test fun theWatchVideoShowsItsPosterAndHoverControls() {
+        val frame = flat(file("WatchFrame"))
+        assertTrue("poster = poster" in frame && "hoverControls = true" in frame, "the watch frame asks for the poster and the hover controls")
+        assertTrue("poster = info?.item?.thumbnailUrl" in flat(file("WatchPage")), "the phone page gives the list's thumbnail")
+        assertTrue("poster = poster" in flat(file("WatchPageWide")), "the wide page gives the list's thumbnail")
+        val box = flat(read("video/src/jvmSharedMain/kotlin/com/cosmotune/video/ui/player/VideoPlayerBox.kt"))
+        assertTrue("ThumbnailFrame(poster," in box && "failed || state.status == PlayerStatus.LOADING" in box, "the poster stands until a frame, and behind the error")
+        assertTrue("HOVER_STEP_SECONDS = 10" in box && "CentreControls(" in box && "HOVER_HIDE_MS" in box, "back 10, play, forward 10, fading when the pointer is still")
+        assertTrue("PointerEventPass.Initial" in box, "the pointer is watched, never taken")
+    }
+
+    @Test fun theWideCardGivesTheTitleItsWholeWidth() {
+        val card = flat(file("WatchCard"))
+        assertTrue("WIDE_TITLE_LINES = 6" in card && "WatchCardTitle(title, fonts, ink, 22, WIDE_TITLE_LINES" in card, "the desktop title wraps")
+        val wide = flat(file("WatchPageWide"))
+        assertTrue("item(key = \"video\")" in wide && "item(key = \"card\")" in wide, "the video and card scroll with the description")
+    }
+
     @Test fun theWatchedBarsComeFromTheHistory() {
         val other = FakeVideoSource.videos[1]
         val history = listOf(

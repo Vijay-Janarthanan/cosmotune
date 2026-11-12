@@ -69,6 +69,7 @@ internal fun WatchVideoFrame(
     onBounds: (Rect) -> Unit,
     onCollapse: (() -> Unit)? = null,
     title: String? = null,
+    poster: String? = null,
 ) {
     Box(modifier.clip(FRAME_SHAPE).background(ground).testTag("video:watch:frame")) {
         VideoPlayerBox(
@@ -83,6 +84,8 @@ internal fun WatchVideoFrame(
             controls = false,
             scale = if (WatchSession.fill) VideoScale.FILL else VideoScale.FIT,
             ground = ground,
+            poster = poster,
+            hoverControls = true,
         )
     }
 }
