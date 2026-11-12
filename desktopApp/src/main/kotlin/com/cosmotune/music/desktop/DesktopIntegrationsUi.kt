@@ -1,9 +1,7 @@
 package com.cosmotune.music.desktop
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,20 +10,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import com.cosmotune.ui.bridge.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,17 +23,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -273,42 +258,21 @@ internal fun DesktopListenBrainzTokenDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * The side inset of everything in these dialogs: 24 dp in Orbit, the heading's and the buttons' (`DesktopDialogButtons`), so a field,
- * a note or a link starts on the heading's edge; 22 dp in the old look.
+ * The side inset of everything in these dialogs: 24 dp, the heading's and the buttons' (`DesktopDialogButtons`), so a field, a note
+ * or a link starts on the heading's edge.
  */
 @Composable
-private fun dialogSide(): Dp = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 24.dp else 22.dp
+private fun dialogSide(): Dp = 24.dp
 
 @Composable
 private fun DialogHeading(title: String, message: String, isError: Boolean = false) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        com.cosmotune.ui.sheets.CosmoDialogHeading(
-            overline = null,
-            title = title,
-            message = message,
-            modifier = Modifier.padding(start = panelInset(dialogSide()), end = panelInset(dialogSide()), top = 24.dp, bottom = 10.dp),
-            messageIsError = isError,
-        )
-        return
-    }
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = panelInset(dialogSide()), vertical = 18.dp),
-        horizontalAlignment = if (LocalDesktopPanelIsPage.current) Alignment.Start else Alignment.CenterHorizontally,
-    ) {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = inkColor,
-        )
-        Text(
-            message,
-            modifier = Modifier.padding(top = 5.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = if (isError) DesktopDestructive else dimColor,
-            textAlign = if (LocalDesktopPanelIsPage.current) TextAlign.Start else TextAlign.Center,
-        )
-    }
+    com.cosmotune.ui.sheets.CosmoDialogHeading(
+        overline = null,
+        title = title,
+        message = message,
+        modifier = Modifier.padding(start = panelInset(dialogSide()), end = panelInset(dialogSide()), top = 24.dp, bottom = 10.dp),
+        messageIsError = isError,
+    )
 }
 
 /** Imports a public playlist from a pasted or opened link and reports entries the service or matcher could not supply. */
@@ -461,73 +425,29 @@ private fun DialogField(
     imeAction: ImeAction = ImeAction.Done,
     onSubmit: () -> Unit = {},
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        // The Orbit field (the chip's pill) with the round clear button at its end once something is typed.
-        val look = orbitLook()
-        OrbitTextField(
-            value = value,
-            onValueChange = onValueChange,
-            placeholder = placeholder,
-            fonts = orbitFonts(),
-            look = look,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(dialogSide())).then(modifier),
-            secret = isPassword,
-            enabled = enabled,
-            onSubmit = onSubmit,
-            imeAction = imeAction,
-            trailing = if (value.isNotEmpty() && enabled) {
-                { OrbitRoundButton(CosmoIcons.Close, DesktopStrings["clear", "Clear"], look.ink, { onValueChange("") }, size = 32.dp) }
-            } else null,
-        )
-        return
-    }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = panelInset(dialogSide()))
-            .clip(RoundedCornerShape(CosmoRadii.rMd))
-            .background(inkColor.copy(alpha = if (enabled) 0.08f else 0.04f))
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) {
-                Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = dimColor)
-            }
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                enabled = enabled,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = inkColor),
-                cursorBrush = SolidColor(DesktopAccent),
-                visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
-                keyboardOptions = KeyboardOptions(imeAction = imeAction),
-                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-                modifier = modifier.fillMaxWidth(),
-            )
-        }
-        if (value.isNotEmpty() && enabled) {
-            Box(
-                Modifier.size(26.dp).clip(CircleShape).clickable { onValueChange("") },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Rounded.Close, DesktopStrings["clear", "Clear"], tint = dimColor, modifier = Modifier.size(16.dp))
-            }
-        }
-    }
+    // The Orbit field (the chip's pill) with the round clear button at its end once something is typed.
+    val look = orbitLook()
+    OrbitTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = placeholder,
+        fonts = orbitFonts(),
+        look = look,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(dialogSide())).then(modifier),
+        secret = isPassword,
+        enabled = enabled,
+        onSubmit = onSubmit,
+        imeAction = imeAction,
+        trailing = if (value.isNotEmpty() && enabled) {
+            { OrbitRoundButton(CosmoIcons.Close, DesktopStrings["clear", "Clear"], look.ink, { onValueChange("") }, size = 32.dp) }
+        } else null,
+    )
 }
 
-/** A way out to the service's own page under a field ("Open Spotify"): the quiet Orbit pill with the look, a text button without. */
+/** A way out to the service's own page under a field ("Open Spotify"): the quiet Orbit pill. */
 @Composable
 private fun DialogLink(label: String, onClick: () -> Unit) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        OrbitPillButton(label, onClick, orbitFonts(), orbitLook(), Modifier.padding(top = 10.dp), height = 36.dp)
-    } else {
-        TextButton(onClick = onClick) {
-            Text(label, color = dimColor, style = MaterialTheme.typography.bodySmall)
-        }
-    }
+    OrbitPillButton(label, onClick, orbitFonts(), orbitLook(), Modifier.padding(top = 10.dp), height = 36.dp)
 }
 
 @Composable
@@ -538,31 +458,8 @@ private fun DialogActions(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        return DesktopDialogButtons(confirm, onConfirm, DesktopStrings["cancel", "Cancel"], onDismiss, confirmEnabled = confirmEnabled, busy = busy)
-    }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 12.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (busy) {
-            CircularProgressIndicator(
-                color = DesktopAccent,
-                strokeWidth = 2.dp,
-                modifier = Modifier.size(16.dp).padding(end = 0.dp),
-            )
-            Spacer(Modifier.size(12.dp))
-        }
-        TextButton(onClick = onDismiss, enabled = !busy) {
-            Text(DesktopStrings["cancel", "Cancel"], color = dimColor)
-        }
-        TextButton(onClick = onConfirm, enabled = confirmEnabled) {
-            Text(confirm, color = if (confirmEnabled) DesktopAccent else dimColor)
-        }
-    }
+    DesktopDialogButtons(confirm, onConfirm, DesktopStrings["cancel", "Cancel"], onDismiss, confirmEnabled = confirmEnabled, busy = busy)
 }
-
 
 /**
  * Discord's user token.

@@ -1,9 +1,6 @@
 package com.cosmotune.music.desktop
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -19,13 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.ui.components.CosmoIcons
@@ -47,9 +40,6 @@ import com.cosmotune.ui.replay.orbitReplayChart
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.roundToInt
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 // ── The page ────────────────────────────────────────────────────────────────
 
@@ -199,29 +189,6 @@ private fun Habits(summary: DesktopReplaySummary) {
 }
 
 // ── The mesh behind all of it ───────────────────────────────────────────────
-
-/** The artwork's own colours, averaged into a mesh and held still. */
-@Composable
-internal fun DesktopMesh(url: String?) {
-    val mesh by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
-        value = withContext(Dispatchers.IO) {
-            DesktopArtworkCache.load(url, MESH_SOURCE_PX)
-                ?.let { DesktopArtworkMesh.of(it, seed = url.hashCode()) }
-        }
-    }
-    val texture = mesh
-    if (texture == null) {
-        Box(Modifier.fillMaxSize().background(DesktopBackground))
-        return
-    }
-    Canvas(Modifier.fillMaxSize()) {
-        drawImage(
-            image = texture,
-            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-            filterQuality = FilterQuality.Low,
-        )
-    }
-}
 
 // ── Rows and cards, derived from a summary ──────────────────────────────────
 

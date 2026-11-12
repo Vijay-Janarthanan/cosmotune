@@ -3,7 +3,6 @@ package com.cosmotune.music.desktop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.border
@@ -27,12 +25,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.cosmotune.ui.theme.CosmoRadii
 
 // The look every modal card in the app shares.
-
-/** The card fill. */
-internal val DesktopCardFill = Color(0xFA1A1A1D)
 
 /** A block inside a card — a settings group — lifted just off the fill. */
 internal val DesktopCardInsetFill = Color(0x14FFFFFF)
@@ -42,13 +36,6 @@ internal val DesktopCardEdge = Color(0x1FFFFFFF)
 
 /** What a row reads at while the pointer is on it. */
 internal val DesktopRowHover = Color(0x1AFFFFFF)
-
-/** The scrim a modal card sits on. */
-internal val DesktopScrim = Color(0x8C000000)
-
-/** Card, hairline and all. */
-internal fun Modifier.desktopCard(shape: Shape): Modifier =
-    clip(shape).background(DesktopCardFill).border(0.5.dp, DesktopCardEdge, shape)
 
 /** A block of rows inside a card. */
 internal fun Modifier.desktopCardInset(shape: Shape): Modifier =
@@ -177,53 +164,10 @@ internal fun DesktopDialogPanel(
         )
         return
     }
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = maxWidth.dp, hazeState = LocalDesktopHaze.current) {
-            // A prompt opened from a page is a card, and so is anything it opens in turn.
-            CompositionLocalProvider(LocalDesktopPanelIsPage provides false) {
-                content()
-            }
-        }
-        return
-    }
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(DesktopScrim)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                ),
-        )
-        val shape = RoundedCornerShape(CosmoRadii.rLg)
-        Box(
-            Modifier
-                .widthIn(max = maxWidth.dp)
-                .fillMaxWidth()
-                .desktopCard(shape),
-        ) {
-            // Behind the content rather than around it, so it swallows clicks on the panel's own
-            // background without eating the rows' own.
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {},
-                    ),
-            )
-            Column(
-                Modifier.padding(bottom = 4.dp),
-                verticalArrangement = Arrangement.Top,
-            ) {
-                // A prompt opened from a page is a card, and so is anything it opens in turn.
-                CompositionLocalProvider(LocalDesktopPanelIsPage provides false) {
-                    content()
-                }
-            }
+    com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = maxWidth.dp, hazeState = LocalDesktopHaze.current) {
+        // A prompt opened from a page is a card, and so is anything it opens in turn.
+        CompositionLocalProvider(LocalDesktopPanelIsPage provides false) {
+            content()
         }
     }
 }

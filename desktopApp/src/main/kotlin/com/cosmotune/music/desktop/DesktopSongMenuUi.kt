@@ -1,7 +1,6 @@
 package com.cosmotune.music.desktop
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -40,8 +39,6 @@ import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.ThumbDownOffAlt
-import com.cosmotune.ui.bridge.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,7 +53,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -208,11 +204,10 @@ internal fun DesktopSongMenu(
     // playlist, fetch again, or share a link for.
     val isOffline = song.localUri != null
     // Orbit: the menu leads with the song's disc and its main actions as chips; the rows below leave those out.
-    val orbit = com.cosmotune.ui.theme.LocalCosmoShell.current != null
     val likeable = signedIn && !isOffline || com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)
 
     DesktopMenuSurface(onDismiss = onDismiss) {
-        if (orbit && !pickingSleepTimer) {
+        if (!pickingSleepTimer) {
             com.cosmotune.ui.sheets.CosmoSheetHeader(title = song.title, subtitle = song.artist, imageUrl = song.thumbnailUrl, modifier = Modifier.padding(top = 8.dp), explicit = song.isExplicit == true)
             com.cosmotune.ui.sheets.CosmoSheetChips(
                 listOfNotNull(
@@ -274,12 +269,6 @@ internal fun DesktopSongMenu(
 
         com.cosmotune.ui.home.MusicFeedbackActions(song, onSubmitted = onDismiss)
         if (likeable) {
-            if (!orbit) DesktopMenuRow(
-                icon = if (liked) CosmotuneIcons.HeartFilled else CosmotuneIcons.Heart,
-                label = if (liked) "Remove from liked" else "Like",
-                tint = if (liked) DesktopAccent else null,
-                onClick = onToggleLike,
-            )
             DesktopMenuRow(
                 icon = if (disliked) Icons.Rounded.ThumbDown else Icons.Rounded.ThumbDownOffAlt,
                 label = if (disliked) "Undo dislike" else "Dislike",
@@ -316,10 +305,6 @@ internal fun DesktopSongMenu(
             )
         }
         DesktopMenuRow(Icons.Rounded.Radio, DesktopStrings["start_radio", "Start radio"], onClick = onStartRadio)
-        if (!orbit) {
-            DesktopMenuRow(Icons.AutoMirrored.Rounded.PlaylistPlay, DesktopStrings["play_next", "Play next"], onClick = onPlayNext)
-            DesktopMenuRow(Icons.AutoMirrored.Rounded.QueueMusic, DesktopStrings["add_to_queue", "Add to queue"], onClick = onAddToQueue)
-        }
 
         val albumId = song.albumId
         val artistId = song.artistId
@@ -371,11 +356,10 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () ->
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
     ) {
-        val shape = RoundedCornerShape(CosmoRadii.rMd)
         Column(
             Modifier
                 .widthIn(min = 232.dp, max = 340.dp)
-                .then(if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) Modifier.cosmoMenuSurface() else Modifier.clip(shape).desktopCard(shape).padding(vertical = 6.dp))
+                .then(Modifier.cosmoMenuSurface())
                 // A menu with every optional row on it is taller than a small window; capped and
                 // scrolled rather than run off the screen.
                 .heightIn(max = 460.dp)
@@ -439,19 +423,14 @@ private fun DesktopMenuHeader(title: String, onBack: () -> Unit) {
             title,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
-            color = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) Color(com.cosmotune.ui.theme.LocalCosmoColors.current.palette.textPrimary) else Color.White,
+            color = Color(com.cosmotune.ui.theme.LocalCosmoColors.current.palette.textPrimary),
         )
     }
 }
 
 @Composable
 private fun DesktopMenuDivider() {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetGap(menu = true)
-    HorizontalDivider(
-        Modifier.padding(vertical = 5.dp),
-        thickness = 0.5.dp,
-        color = DesktopCardEdge,
-    )
+    com.cosmotune.ui.sheets.CosmoSheetGap(menu = true)
 }
 
 /** One menu row. */
@@ -467,7 +446,7 @@ private fun DesktopMenuRow(
     onClick: () -> Unit,
 ) {
     // Orbit: the shared menu row, its state said at its end (the choice in force, a download under way).
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoActionRow(
+    com.cosmotune.ui.sheets.CosmoActionRow(
         icon = icon,
         label = label,
         value = when {
@@ -480,47 +459,6 @@ private fun DesktopMenuRow(
         menu = true,
         onClick = onClick,
     )
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 5.dp)
-            .clip(RoundedCornerShape(CosmoRadii.rSm))
-            .background(if (hovered && enabled) DesktopRowHover else Color.Transparent)
-            .hoverable(interaction, enabled = enabled)
-            .clickable(enabled = enabled, onClick = onClick)
-            .heightIn(min = 32.dp)
-            .padding(horizontal = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (busy) {
-            CircularProgressIndicator(Modifier.size(15.dp), color = DesktopAccent, strokeWidth = 2.dp)
-        } else {
-            Icon(
-                icon,
-                null,
-                tint = tint ?: if (enabled) Color.White.copy(alpha = 0.82f) else DesktopSecondary,
-                modifier = Modifier.size(16.dp),
-            )
-        }
-        Spacer(Modifier.width(11.dp))
-        Text(
-            label,
-            Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            color = tint ?: if (enabled) Color.White else DesktopSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (value.isNotBlank()) {
-            Text(value, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
-        }
-        if (selected) {
-            Spacer(Modifier.width(8.dp))
-            Icon(CosmotuneIcons.Check, null, tint = DesktopAccent, modifier = Modifier.size(15.dp))
-        }
-    }
 }
 
 /** The "…" the menu hangs off, sized and tinted to sit beside the player's heart. */

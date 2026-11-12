@@ -2,7 +2,6 @@ package com.cosmotune.music.desktop
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,7 +33,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -412,78 +409,24 @@ internal object DesktopReorder {
  */
 @Composable
 private fun DesktopDialogFrame(onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = 480.dp, hazeState = LocalDesktopHaze.current) { content() }
-        return
-    }
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                ),
-        )
-        val shape = RoundedCornerShape(CosmoRadii.rLg)
-        Box(
-            Modifier
-                .widthIn(max = 480.dp)
-                .fillMaxWidth()
-                .clip(shape)
-                .desktopBarGlass(shape),
-        ) {
-            // Swallows clicks that land on the panel's own background so they do not reach the
-            // scrim behind it and dismiss what was just clicked.
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {},
-                    ),
-            )
-            Column(Modifier.padding(bottom = 8.dp)) { content() }
-        }
-    }
+    com.cosmotune.ui.sheets.CosmoDialogCard(onDismiss = onDismiss, maxWidth = 480.dp, hazeState = LocalDesktopHaze.current) { content() }
 }
 
 /**
- * The side inset of everything in these dialogs: 24 dp in Orbit, the heading's and the buttons' (`CosmoDialogBody`), so a field, a
- * row or a note starts on the heading's edge; 22 dp in the old look.
+ * The side inset of everything in these dialogs: 24 dp, the heading's and the buttons' (`CosmoDialogBody`), so a field, a row or a
+ * note starts on the heading's edge.
  */
 @Composable
-private fun dialogSide(): Dp = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) 24.dp else 22.dp
+private fun dialogSide(): Dp = 24.dp
 
 @Composable
 private fun DialogHeading(title: String, subtitle: String) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        com.cosmotune.ui.sheets.CosmoDialogHeading(
-            overline = null,
-            title = title,
-            message = subtitle.takeIf { it.isNotBlank() },
-            modifier = Modifier.padding(start = dialogSide(), end = dialogSide(), top = 24.dp, bottom = 6.dp),
-        )
-        return
-    }
-    Text(
-        title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = dialogInk(),
-        modifier = Modifier.padding(start = dialogSide(), end = dialogSide(), top = 20.dp),
+    com.cosmotune.ui.sheets.CosmoDialogHeading(
+        overline = null,
+        title = title,
+        message = subtitle.takeIf { it.isNotBlank() },
+        modifier = Modifier.padding(start = dialogSide(), end = dialogSide(), top = 24.dp, bottom = 6.dp),
     )
-    if (subtitle.isNotBlank()) {
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = DesktopSecondary,
-            modifier = Modifier.padding(start = dialogSide(), end = dialogSide(), top = 6.dp),
-        )
-    }
 }
 
 @Composable
@@ -583,9 +526,8 @@ private val PlaylistPrivacy.icon: ImageVector
     }
 
 /**
- * The ink of these dialogs' own words, icons, fields and fills: the look's text colour (dark on the light theme's card), white on the
- * classic look's dark glass as before.
+ * The ink of these dialogs' own words, icons, fields and fills: the look's text colour (dark on the light theme's card).
  */
 @Composable
 private fun dialogInk(): Color =
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) Color(com.cosmotune.ui.theme.LocalCosmoColors.current.palette.textPrimary) else Color.White
+    Color(com.cosmotune.ui.theme.LocalCosmoColors.current.palette.textPrimary)

@@ -1,6 +1,5 @@
 package com.cosmotune.music.desktop
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.hoverable
@@ -34,7 +33,6 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.WindowScope
 import java.awt.MouseInfo
@@ -48,8 +46,8 @@ internal fun DesktopTitleBar() {
     // that only asks it never learns the answer changed.
     val enabled by DesktopTitleBarSetting.enabled.collectAsState()
     if (!DesktopPlatform.drawsOwnWindowFrame || !enabled) return
-    // The new look's light theme has no dark glass: the strip stands on the ambient ground, as the sidebar and the top bar do.
-    val lightLook = com.cosmotune.ui.theme.LocalCosmoShell.current != null && !com.cosmotune.ui.theme.LocalCosmoColors.current.dark
+    // The light theme has no dark glass: the strip stands on the ambient ground, as the sidebar and the top bar do.
+    val lightLook = !com.cosmotune.ui.theme.LocalCosmoColors.current.dark
     DesktopTitleBarDragArea(
         Modifier
             .fillMaxWidth()
@@ -121,7 +119,7 @@ internal fun DesktopWindowButtons(modifier: Modifier = Modifier) {
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val isFocused = windowInfo.isWindowFocused
     // An unfocused window's dots: a faint wash of the ground's opposite, so they still read on the light theme.
-    val onDark = com.cosmotune.ui.theme.LocalCosmoShell.current == null || com.cosmotune.ui.theme.LocalCosmoColors.current.dark
+    val onDark = com.cosmotune.ui.theme.LocalCosmoColors.current.dark
     val inactiveFill = if (!isFocused && DesktopPlatform.isMac) (if (onDark) Color.White.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.16f)) else null
 
     Row(
