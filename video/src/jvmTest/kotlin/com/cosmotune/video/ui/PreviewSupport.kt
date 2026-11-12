@@ -87,6 +87,8 @@ internal object PreviewKit {
         frames: Int = 60,
         providers: Array<androidx.compose.runtime.ProvidedValue<*>> = emptyArray(),
         outDir: String = "build/ui-preview",
+        /** A mouse pointer moved here (in px) during the last 30 frames, as a hover. */
+        hover: androidx.compose.ui.geometry.Offset? = null,
         content: @Composable () -> Unit,
     ) {
         RenderThread.begin()
@@ -108,6 +110,10 @@ internal object PreviewKit {
         // frames over a while: the resources (strings, fonts) load on other threads
         repeat(frames) {
             RenderThread.drain()
+            if (hover != null && it == frames - 30) {
+                scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Enter, hover)
+                scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Move, hover)
+            }
             image = scene.render(it * 50_000_000L)
             Thread.sleep(25)
         }

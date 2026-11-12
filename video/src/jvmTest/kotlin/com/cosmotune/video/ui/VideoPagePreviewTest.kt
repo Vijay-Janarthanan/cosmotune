@@ -249,6 +249,23 @@ class VideoPagePreviewTest {
         render("one-watch-wide-dark", 1280, 800, dark = true, signedIn = true) { WatchPage(VideoRoute.Watch(FakeVideoSource.videos[0].id), PaddingValues(top = 8.dp), wide = true) }
     }
 
+    /** The wide watch page in both themes: the poster while the video loads, the hover controls on a paused video, a long title and the description. */
+    @Test fun theWideWatchPageShowsPosterHoverAndDescription() {
+        val long = FakeVideoSource.videos[0].copy(title = "A very long title that goes on for two or three lines on the watch page so that nothing of it is cut with an ellipsis, as the owner asked")
+        for (dark in listOf(true, false)) {
+            val theme = if (dark) "dark" else "light"
+            for ((state, status) in listOf("loading" to PlayerStatus.LOADING, "hover" to PlayerStatus.READY)) {
+                val playback = FakeVideoPlayback(initial = PlaybackUiState.Idle.copy(item = long, status = status, playing = false, durationMs = 600_000)).apply { position = 11_000 }
+                val graph = graph(signedIn = true, playback)
+                PreviewKit.render(
+                    "one-watch-wide-$state-$theme", 1280, 900, dark,
+                    providers = arrayOf(LocalVideoGraph provides graph, LocalVideoNavigator provides VideoNavigator(), LocalVideoNowMs provides FakeVideoSource.NOW_MS),
+                    hover = if (state == "hover") androidx.compose.ui.geometry.Offset(380f, 250f) else null,
+                ) { WatchPage(VideoRoute.Watch(long.id), PaddingValues(top = 8.dp), wide = true) }
+            }
+        }
+    }
+
     @Test fun theSheetsUnderThePlayerDraw() {
         for (dark in listOf(true, false)) {
             val theme = if (dark) "dark" else "light"

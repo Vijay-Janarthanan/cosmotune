@@ -98,6 +98,9 @@ import org.jetbrains.compose.resources.stringResource
  * and "Skipped · Undo" are chips on the card, never on the video.
  */
 
+/** The most lines the desktop card's title takes before it is cut. */
+private const val WIDE_TITLE_LINES = 6
+
 /** What the screen button offers and what it does: the page's view, Cinema, theatre (wide), picture-in-picture where there is one. */
 internal class WatchScreen(
     val fill: Boolean,
@@ -173,14 +176,10 @@ internal fun WatchTransportCard(
     OrbitBiteCard(fill, modifier.fillMaxWidth().testTag("video:watch:card"), bite = { OrbitPlayButton(playing, onPlay, look, Modifier.testTag("video:watch:play")) }) {
         if (wide) {
             Column(Modifier.fillMaxWidth().padding(start = 24.dp, top = 20.dp, end = 24.dp, bottom = 12.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) {
-                        WatchCardLabel(state, playhead.second.longValue, fonts, ink)
-                        WatchCardTitle(title, fonts, ink, 22, 2, onTitle, Modifier.padding(top = 8.dp))
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Box(Modifier.padding(end = 70.dp)) { buttons() }
-                }
+                // The mono line and the whole title take the card's width (the title wraps, as long as it is); the buttons stand under them.
+                WatchCardLabel(state, playhead.second.longValue, fonts, ink)
+                WatchCardTitle(title, fonts, ink, 22, WIDE_TITLE_LINES, onTitle, Modifier.padding(top = 8.dp))
+                Box(Modifier.padding(top = 12.dp, end = 70.dp)) { buttons() }
                 WatchSegmentChips(playback, state, playhead, ink, fill, fonts, Modifier.padding(top = 10.dp))
                 line(Modifier.padding(top = 6.dp, end = 70.dp))
             }

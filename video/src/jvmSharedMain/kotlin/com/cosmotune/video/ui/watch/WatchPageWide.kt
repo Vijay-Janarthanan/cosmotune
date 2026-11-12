@@ -197,7 +197,7 @@ internal fun WatchPageWide(
     val streamable = info != null && !info.item.isLive && !info.item.isUpcoming
 
     val video: @Composable (Modifier) -> Unit = { m ->
-        WidePlayer(playback, surface, fullWindow, title, ground, openFullWindow, onBounds, m.height(playerHeight), pipOpen) { pip.exit() }
+        WidePlayer(playback, surface, fullWindow, title, ground, info?.item?.thumbnailUrl, openFullWindow, onBounds, m.height(playerHeight), pipOpen) { pip.exit() }
     }
     val card: @Composable (Modifier) -> Unit = { m ->
         WatchTransportCard(
@@ -261,11 +261,15 @@ internal fun WatchPageWide(
             }
             Row(Modifier.fillMaxWidth().weight(1f)) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    if (!theatre) {
-                        video(Modifier.fillMaxWidth())
-                        card(Modifier.padding(top = 14.dp))
+                    // The video, the card and the page under them scroll as one, so a long title and the description are always reachable.
+                    LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(bottom = bottom)) {
+                        if (!theatre) {
+                            item(key = "video") { video(Modifier.fillMaxWidth()) }
+                            item(key = "card") { card(Modifier.padding(top = 14.dp)) }
+                        }
+                        item(key = "gap") { Spacer(Modifier.height(8.dp)) }
+                        about()
                     }
-                    LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(top = 8.dp, bottom = bottom), content = about)
                 }
                 Spacer(Modifier.width(gap))
                 WideSideColumn(view, shownSegment, callbacks, Modifier.width(side).fillMaxHeight().padding(bottom = bottom))
@@ -292,6 +296,7 @@ private fun WidePlayer(
     fullWindow: Boolean,
     title: String?,
     ground: Color,
+    poster: String?,
     onFullWindow: () -> Unit,
     onBounds: (Rect) -> Unit,
     modifier: Modifier,
@@ -303,7 +308,7 @@ private fun WidePlayer(
             if (pipOpen) PipPlaceholder(playback, onReturn = onReturnFromPip)
         }
     } else {
-        WatchVideoFrame(playback, surface, PlayerLayout.WINDOW, ground, modifier, onCinema = onFullWindow, onBounds = onBounds, title = title)
+        WatchVideoFrame(playback, surface, PlayerLayout.WINDOW, ground, modifier, onCinema = onFullWindow, onBounds = onBounds, title = title, poster = poster)
     }
 }
 

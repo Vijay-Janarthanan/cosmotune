@@ -63,14 +63,19 @@ internal fun DescriptionInline(description: Description, onSeek: (Long) -> Unit,
     val style = fonts.body.copy(fontSize = 14.sp, lineHeight = 21.sp)
     val text = rememberDescriptionText(description, onSeek)
     var expanded by rememberSaveable(description.text) { mutableStateOf(false) }
+    var cut by remember(description.text) { mutableStateOf(false) }
     val toggle = stringResource(if (expanded) Res.string.video_guide_show_less else Res.string.video_show_more)
     Column(
         modifier.fillMaxWidth().padding(horizontal = sidePadding, vertical = 8.dp).clip(RoundedCornerShape(28.dp)).background(look.chip)
             .padding(20.dp).animateContentSize(),
     ) {
         OrbitLabel(stringResource(Res.string.video_watch_description), fonts, look.dim, Modifier.padding(bottom = 10.dp))
-        Text(text, style = style, color = look.ink.copy(alpha = 0.86f), maxLines = if (expanded) Int.MAX_VALUE else COLLAPSED_LINES, overflow = TextOverflow.Ellipsis)
         Text(
+            text, style = style, color = look.ink.copy(alpha = 0.86f), maxLines = if (expanded) Int.MAX_VALUE else COLLAPSED_LINES, overflow = TextOverflow.Ellipsis,
+            onTextLayout = { if (!expanded) cut = it.hasVisualOverflow },
+        )
+        // "more" only when the text is cut; "Show less" whenever it is open.
+        if (cut || expanded) Text(
             toggle,
             style = fonts.chip.copy(fontSize = 13.sp),
             color = look.ink,

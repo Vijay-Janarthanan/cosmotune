@@ -40,6 +40,13 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
+import com.cosmotune.video.ui.blocks.ThumbnailFrame
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.components.CosmoLoadingBlob
 import com.cosmotune.ui.theme.LocalCosmoColors
@@ -116,6 +123,10 @@ fun VideoPlayerBox(
     /** With [controls] false: what a full-screen pinch asks for (fill or fit), the page's Whole or Fill; null ignores the pinch. */
     onPinch: ((VideoScale) -> Unit)? = null,
     immediateTap: Boolean = false,
+    /** With [controls] false: the video's picture, shown until the first frame and behind the error. */
+    poster: String? = null,
+    /** With [controls] false: play, back and forward over the video on a pointer move (a tap on touch), fading when still. */
+    hoverControls: Boolean = false,
 ) {
     val state by playback.state.collectAsState()
     val settings by LocalVideoGraph.current.settings.settings.collectAsState()
@@ -138,7 +149,7 @@ fun VideoPlayerBox(
             return@Box
         }
         if (!controls) {
-            PagePlayerLayer(playback, state, settings, layout, onCollapse, onToggleFullscreen, captionSp, onTap, onPinch, immediateTap)
+            PagePlayerLayer(playback, state, settings, layout, onCollapse, onToggleFullscreen, captionSp, onTap, onPinch, immediateTap, poster, hoverControls)
             return@Box
         }
         PlayerChrome(playback, state, settings, layout, desktopFullWindow, title, onCollapse, onToggleFullscreen, onEnterPip, captionSp) {
@@ -164,6 +175,8 @@ private fun BoxScope.PagePlayerLayer(
     onTap: (() -> Unit)? = null,
     onPinch: ((VideoScale) -> Unit)? = null,
     immediateTap: Boolean,
+    poster: String? = null,
+    hoverControls: Boolean = false,
 ) {
     val feedback = remember { GestureFeedback() }
     val platform = rememberPlayerPlatform(playback)
@@ -173,34 +186,96 @@ private fun BoxScope.PagePlayerLayer(
     val buffering = state.status == PlayerStatus.BUFFERING || state.status == PlayerStatus.LOADING
     val failed = state.error != null || state.status == PlayerStatus.ERROR
     val metrics = ChromeMetrics.of(layout, false)
+    val hover = remember { HoverControls() }
+    val playing = state.playing && state.status == PlayerStatus.READY
+    LaunchedEffect(hover.stamp, hover.shown, playing) {
+        if (hover.shown && playing) {
+            delay(HOVER_HIDE_MS)
+            hover.shown = false
+        }
+    }
+    val reduced = LocalReducedMotion.current
+    val fade by animateFloatAsState(
+        targetValue = if (hoverControls && hover.shown && !failed) 1f else 0f,
+        animationSpec = if (reduced) snap() else tween(VideoMetrics.FADE_MS),
+        label = "hover",
+    )
+    // The poster is the picture until a frame is there (loading, or nothing yet) and behind the error.
+    val posterShown = poster != null && (failed || state.status == PlayerStatus.LOADING || state.status == PlayerStatus.IDLE)
     CompositionLocalProvider(LocalCosmoColors provides rememberDarkChromeColors()) {
-        val cues by playback.engine.cues.collectAsState()
-        SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp)
-        Box(
-            Modifier.matchParentSize().playerGestures(
-                playback = playback,
-                layout = layout,
-                platform = platform,
-                feedback = feedback,
-                stepSeconds = settings.doubleTapSeconds,
-                live = state.live,
-                onTap = { if (onTap != null) onTap() else playback.togglePlayPause() },
-                onInput = {},
-                onCollapse = onCollapse,
-                onToggleFullscreen = onToggleFullscreen,
-                onScale = { onPinch?.invoke(it) },
-                immediateTap = immediateTap,
-                windowTapPlays = onTap == null,
-            ),
-        )
-        Box(Modifier.matchParentSize()) {
-            GestureOverlays(feedback, metrics, state, layout)
-            if (buffering && !failed) CosmoLoadingBlob(Modifier.align(Alignment.Center))
-            if (failed) {
-                Box(Modifier.matchParentSize().background(Color(LocalCosmoColors.current.palette.scrim).copy(alpha = VideoMetrics.SCRIM_BOTTOM_ALPHA)))
-                PlayerErrorState(state, onRetry = { state.item?.let { playback.play(it.id) } }, modifier = Modifier.align(Alignment.Center))
+        Box(Modifier.matchParentSize().then(if (hoverControls) Modifier.hoverReveal(hover, layout) else Modifier)) {
+            if (posterShown) ThumbnailFrame(poster, Modifier.matchParentSize().testTag("video:watch:poster"), RectangleShape)
+            val cues by playback.engine.cues.collectAsState()
+            SubtitleOverlay(cues, captionSp, settings.captionsScale, settings.captionsBackground, lift = { 0f }, liftDp = 0.dp)
+            Box(
+                Modifier.matchParentSize().playerGestures(
+                    playback = playback,
+                    layout = layout,
+                    platform = platform,
+                    feedback = feedback,
+                    stepSeconds = settings.doubleTapSeconds,
+                    live = state.live,
+                    onTap = {
+                        when {
+                            onTap != null -> onTap()
+                            hoverControls && layout != PlayerLayout.WINDOW -> { hover.shown = !hover.shown; hover.stamp++ }
+                            else -> playback.togglePlayPause()
+                        }
+                    },
+                    onInput = {},
+                    onCollapse = onCollapse,
+                    onToggleFullscreen = onToggleFullscreen,
+                    onScale = { onPinch?.invoke(it) },
+                    immediateTap = immediateTap,
+                    windowTapPlays = onTap == null,
+                ),
+            )
+            Box(Modifier.matchParentSize()) {
+                GestureOverlays(feedback, metrics, state, layout)
+                if (buffering && !failed && fade < 0.05f) CosmoLoadingBlob(Modifier.align(Alignment.Center))
+                if (failed) {
+                    Box(Modifier.matchParentSize().background(Color(LocalCosmoColors.current.palette.scrim).copy(alpha = VideoMetrics.SCRIM_BOTTOM_ALPHA)))
+                    PlayerErrorState(state, onRetry = { state.item?.let { playback.play(it.id) } }, modifier = Modifier.align(Alignment.Center))
+                }
+                if (fade > 0.01f) {
+                    Box(Modifier.matchParentSize().graphicsLayer { alpha = fade }.background(Color.Black.copy(alpha = HOVER_SCRIM_ALPHA)))
+                    CentreControls(
+                        playback, state, layout, metrics, HOVER_STEP_SECONDS, buffering, playhead, onInput = { hover.stamp++ },
+                        modifier = Modifier.align(Alignment.Center).graphicsLayer { alpha = fade },
+                    )
+                }
+                if (statsShown) PlayerStats(playback, state, playhead, metrics, Modifier.align(Alignment.TopStart))
             }
-            if (statsShown) PlayerStats(playback, state, playhead, metrics, Modifier.align(Alignment.TopStart))
+        }
+    }
+}
+
+/** How long the watch page's hover controls stay after the pointer stops, and the dim they sit on. */
+private const val HOVER_HIDE_MS = 2500L
+private const val HOVER_SCRIM_ALPHA = 0.28f
+private const val HOVER_STEP_SECONDS = 10
+
+/** Whether the hover controls show; [stamp] restarts the wait to hide them. */
+@Stable
+internal class HoverControls {
+    var shown by mutableStateOf(false)
+    var stamp by mutableLongStateOf(0L)
+}
+
+/**
+ * Watches the pointer without taking it: a mouse over the video shows the controls and leaving hides them; on a touch screen a press
+ * shows them in the window layout (a tap in the page layout toggles them, see the gesture's `onTap`).
+ */
+private fun Modifier.hoverReveal(hover: HoverControls, layout: PlayerLayout): Modifier = pointerInput(hover, layout) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            val mouse = event.changes.firstOrNull()?.type == PointerType.Mouse
+            when (event.type) {
+                PointerEventType.Move, PointerEventType.Enter -> if (mouse) { hover.shown = true; hover.stamp++ }
+                PointerEventType.Press -> if (mouse || layout == PlayerLayout.WINDOW) { hover.shown = true; hover.stamp++ }
+                PointerEventType.Exit -> if (mouse) hover.shown = false
+            }
         }
     }
 }
