@@ -9,6 +9,7 @@ import com.cosmotune.video.account.InnerTubeVideoAccount
 import androidx.compose.runtime.*
 import com.cosmotune.video.account.AccountFailure
 import com.cosmotune.video.account.VideoAccount
+import com.cosmotune.video.feed.StableList
 import com.cosmotune.video.model.PageToken
 import com.cosmotune.video.model.VideoItem
 import kotlinx.coroutines.*
@@ -59,7 +60,9 @@ internal class AccountHomeFeed(private val account: VideoAccount, private val sc
                 if (!force && first.isFresh) return@launch
                 val page = account.home(null).getOrThrow()
                 ensureActive(); if (version != generation) return@launch
-                items = page.items.distinctBy { it.id }.take(MAX_ITEMS)
+                // A refresh the viewer asked for replaces the cards; one that Home started by itself only adds, so nothing moves under a finger.
+                val fetched = page.items.distinctBy { it.id }
+                items = (if (force || items.isEmpty()) fetched else StableList.append(items, fetched)).take(MAX_ITEMS)
                 first.set(SavedAccountPage(items.take(60), page.next?.value))
                 consumed.clear(); emptyPages = 0; next = page.next
             } catch (cancelled: CancellationException) { throw cancelled }

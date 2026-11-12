@@ -89,6 +89,8 @@ fun VideoResultCard(
                 url = item.thumbnailUrl,
                 modifier = with(hover) { Modifier.fillMaxWidth().aspectRatio(16f / 9f).lifted() },
                 shape = RoundedCornerShape(20.dp),
+                badge = badgeText(item),
+                badgeLive = item.isLive,
             )
             if (watchedFraction != null) WatchProgressLine(watchedFraction, look, Modifier.padding(top = 8.dp))
         }

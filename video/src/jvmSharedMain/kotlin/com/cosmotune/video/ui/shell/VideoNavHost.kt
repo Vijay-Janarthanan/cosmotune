@@ -45,8 +45,9 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
     // A page that has left every stack takes its saved state with it.
     val keys = navigator.pageKeys()
     val kept = remember { HashSet<String>() }
+    val keptPages = remember { KeptPages() }
     LaunchedEffect(keys) {
-        for (gone in kept - keys) holder.removeState(gone)
+        for (gone in kept - keys) { holder.removeState(gone); keptPages.drop(gone) }
         kept.clear()
         kept.addAll(keys)
     }
@@ -63,7 +64,9 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
         },
         label = "video-route",
     ) { shown ->
+        val keep = remember(shown.key) { { slot: String, create: () -> Any -> keptPages.get(shown.key, slot, create) } }
         holder.SaveableStateProvider(shown.key) {
+          androidx.compose.runtime.CompositionLocalProvider(LocalKeptPage provides keep) {
             val r = shown.route
             when (r) {
                 is VideoRoute.Home -> com.cosmotune.video.ui.home.VideoHome(contentPadding, wide)
@@ -104,6 +107,7 @@ fun VideoNavHost(navigator: VideoNavigator, contentPadding: PaddingValues, wide:
 
                 is VideoRoute.Import -> com.cosmotune.video.ui.library.ImportPage(contentPadding, wide)   // Y-22
             }
+          }
         }
     }
 

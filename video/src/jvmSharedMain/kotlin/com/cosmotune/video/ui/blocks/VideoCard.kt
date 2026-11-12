@@ -65,9 +65,10 @@ internal fun VideoCardBody(
     val fonts = orbitFonts()
     val look = orbitLook()
     val meta = CardMetaLine(item, rememberNowMs(), downloaded = downloaded)
+    val badge = badgeText(item)
     val more = stringResource(Res.string.video_more)
     val hover = rememberCardHover()
-    PreResolveOnHover(hover, item)
+    if (!item.isPlaylistCard) PreResolveOnHover(hover, item)
     OrbitVideoCard(
         title = title,
         meta = meta,
@@ -80,13 +81,16 @@ internal fun VideoCardBody(
         width = width,
         progress = watchedFraction,
         modifier = with(hover) { modifier.track() }.semantics { customActions = listOf(CustomAccessibilityAction(more) { onMore(); true }) },
-        picture = { m -> ThumbnailFrame(item.thumbnailUrl, with(hover) { m.lifted() }, RectangleShape) },
-        avatar = if (!avatar) null else ({
+        picture = { m -> ThumbnailFrame(item.thumbnailUrl, with(hover) { m.lifted() }, RectangleShape, badge = badge, badgeLive = item.isLive && item.playlist == null, badgeEnd = CARD_BADGE_END) },
+        avatar = if (!avatar || item.isPlaylistCard) null else ({
             val tap = if (onAvatarClick != null) Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onAvatarClick) else Modifier
             ChannelAvatar(item.channelAvatarUrl, CARD_AVATAR, tap, name = item.channelName)
         }),
     )
 }
+
+/** The badge stands clear of the play moon that hangs off the picture's corner. */
+private val CARD_BADGE_END = 40.dp
 
 /** The room after a card of a list. */
 private val CARD_AFTER = 20.dp

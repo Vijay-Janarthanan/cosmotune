@@ -103,7 +103,7 @@ class HomeStructureTest {
         assertTrue("source.related(id)" in code("HomeKiosk"), "the feed's related videos are the related lists of the videos watched (with the source's second way to them)")
         assertTrue("watchedFraction(entry.positionMs, entry.durationMs)" in screen && "watched = continueWatched" in screen, "Continue watching has the watched bars")
         // Orbit board B: the colour card, Continue watching, From your subscriptions and the Shorts stand over the feed
-        assertTrue("val hero = if (all) stream.firstOrNull() else null" in screen && "HomeUpNextCard(" in screen, "\"Up next for you\" is the feed's first video")
+        assertTrue("val hero = if (all) stream.firstOrNull { !it.isPlaylistCard } else null" in screen && "HomeUpNextCard(" in screen, "\"Up next for you\" is the feed's first video")
         assertTrue("Res.string.video_home_from_subscriptions" in screen && "Res.string.video_home_more_for_you" in screen)
         assertTrue("stream.filter { it.id !in shown }" in screen, "the feed under them leaves the card's and the row's videos out")
         assertTrue("hasContinue = all && continueItems.isNotEmpty()" in screen, "Continue watching only while some video is part-watched")

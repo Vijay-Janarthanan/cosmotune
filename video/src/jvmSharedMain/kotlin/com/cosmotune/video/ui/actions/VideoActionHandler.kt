@@ -98,6 +98,18 @@ class VideoActionHandler internal constructor(
 
     /** A card's tap: a Short opens the pager at it with the other Shorts of [list], a video its watch page (and it plays). */
     fun play(item: VideoItem, list: List<VideoItem> = emptyList()) {
+        val suggested = item.playlist
+        if (suggested != null) {
+            // A suggested mix starts playing from its first video; any other suggested playlist opens its page.
+            val first = suggested.firstVideoId
+            if (suggested.isMix && first != null) {
+                navigator.push(VideoRoute.Watch(first))
+                graph.playback.play(first)
+            } else {
+                navigator.push(VideoRoute.Playlist(suggested.id))
+            }
+            return
+        }
         if (item.isShort) {
             navigator.openShort(item, ShortsOrigin.Related(item.id), list)
         } else {

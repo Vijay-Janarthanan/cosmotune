@@ -77,7 +77,7 @@ internal fun rememberBranding(item: VideoItem, wanted: Boolean, checkPicture: Bo
     val provider = LocalVideoGraph.current.branding
     val context = LocalPlatformContext.current
     var state by remember(item.id, provider) { mutableStateOf(BrandingLookups.state(item.id)) }
-    if (wanted) {
+    if (wanted && !item.isPlaylistCard) {
         LaunchedEffect(item.id, provider, checkPicture) {
             val now = BrandingLookups.state(item.id)
             if (!now.complete(checkPicture)) {

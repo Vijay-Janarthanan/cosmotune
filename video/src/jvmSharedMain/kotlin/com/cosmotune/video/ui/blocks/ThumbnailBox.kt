@@ -46,10 +46,13 @@ import coil3.compose.AsyncImage
 import com.cosmotune.theme.CoverField
 import com.cosmotune.ui.components.CosmoIcons
 import com.cosmotune.ui.states.CosmoShimmer
+import com.cosmotune.ui.orbit.liveRed
+import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.theme.LocalCosmoColors
 import com.cosmotune.ui.theme.LocalCosmoType
 import com.cosmotune.ui.theme.tabular
 import com.cosmotune.video.design.VideoMetrics
+import com.cosmotune.video.model.VideoItem
 import com.cosmotune.video.design.VideoText
 import com.cosmotune.video.resources.Res
 import com.cosmotune.video.resources.video_badge_live
@@ -107,7 +110,7 @@ private enum class ImagePhase { LOADING, SHOWN, FAILED }
  * public [ThumbnailBox] and the cards, rows and the sheets' headers are all this.
  */
 @Composable
-internal fun ThumbnailFrame(url: String?, modifier: Modifier, shape: Shape) {
+internal fun ThumbnailFrame(url: String?, modifier: Modifier, shape: Shape, badge: String? = null, badgeLive: Boolean = false, badgeEnd: Dp = BADGE_INSET) {
     val colors = LocalCosmoColors.current
     val stand = LocalThumbnailStandIn.current
     var phase by remember(url) { mutableStateOf(ImagePhase.LOADING) }
@@ -130,7 +133,52 @@ internal fun ThumbnailFrame(url: String?, modifier: Modifier, shape: Shape) {
             )
             if (phase == ImagePhase.LOADING) CosmoShimmer(Modifier.fillMaxSize(), RectangleShape)
         }
+        if (!badge.isNullOrBlank()) ThumbnailBadge(badge, badgeLive, Modifier.align(Alignment.BottomEnd).padding(end = badgeEnd, bottom = BADGE_INSET))
     }
+}
+
+/** The room between a picture's corner and its badge. */
+internal val BADGE_INSET = 8.dp
+
+/**
+ * The label in the bottom-right corner of a picture, as the site has it: the video's length ("12:04", "1:02:33"), "LIVE" for a live
+ * stream (red), "Mix" or "Playlist" for a suggested list. A small dark rounded label with white text, the same in the light and dark looks.
+ */
+@Composable
+internal fun ThumbnailBadge(text: String, live: Boolean, modifier: Modifier = Modifier) {
+    val type = LocalCosmoType.current
+    val look = orbitLook()
+    val style = remember(type) { type.label.copy(fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp).tabular() }
+    Text(
+        text = text,
+        style = style,
+        color = if (live && look.dark) Color.Black else Color.White,
+        maxLines = 1,
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (live) liveRed(look) else Color.Black.copy(alpha = BADGE_ALPHA))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+private const val BADGE_ALPHA = 0.78f
+
+/**
+ * What the badge on [item]'s picture says: "LIVE" for a live stream, "Mix" or "Playlist" for a suggested list, else its length. Null for a
+ * premiere that has not started, a Short, and a video whose length is not known.
+ */
+@Composable
+internal fun badgeText(item: VideoItem): String? {
+    val live = stringResource(Res.string.video_badge_live)
+    return remember(item.id, item.durationSec, item.isLive, item.isUpcoming, item.playlist?.label, live) { badgeTextOf(item, live) }
+}
+
+/** [badgeText] without the composition: the words for "LIVE" are passed in. */
+internal fun badgeTextOf(item: VideoItem, liveWord: String): String? = when {
+    item.playlist != null -> item.playlist?.label
+    item.isLive -> liveWord
+    item.isUpcoming || item.isShort -> null
+    else -> item.durationSec?.takeIf { it > 0 }?.let { VideoText.duration(it) }
 }
 
 /**

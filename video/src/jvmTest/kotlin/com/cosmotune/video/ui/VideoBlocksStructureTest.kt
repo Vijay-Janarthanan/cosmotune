@@ -190,12 +190,13 @@ class VideoBlocksStructureTest {
     }
 
     @Test fun nothingIsDrawnOnAPicture() {
-        // Orbit rule 9: the length, Live, the watched line, the downloaded mark and a playlist's count are said beside the picture
+        // Orbit rule 9 as the owner amended it: the one label on a picture is its length (or Live, Mix, Playlist) in the corner; the
+        // watched line, the downloaded mark and a playlist's count are still said beside the picture
         val src = code("ThumbnailBox")
         for (gone in listOf("TimeBadge", "CountStrip", "WatchedBar", "HoverPlay", "VideoDownloadedBadge", "COUNT_STRIP")) assertFalse(gone in src, "no $gone on the picture")
-        assertTrue("internal fun ThumbnailFrame(url: String?, modifier: Modifier, shape: Shape)" in src)
+        assertTrue("internal fun ThumbnailFrame(url: String?, modifier: Modifier, shape: Shape, badge: String? = null" in src)
         assertTrue("playlistMeta" !in code("PlaylistRow") && "pluralStringResource(Res.plurals.video_count_videos, quantity, quantity)" in code("PlaylistRow"), "the count is in the row's words")
-        assertTrue("val length = item.durationSec" in code("MetaLine"), "the length is in the card's meta line")
+        assertTrue("val length = item.durationSec" !in code("MetaLine"), "the length is on the picture, not repeated in the card's meta line")
     }
 
     // ---- Rules of the whole directory ---------------------------------------------------------------------------------------

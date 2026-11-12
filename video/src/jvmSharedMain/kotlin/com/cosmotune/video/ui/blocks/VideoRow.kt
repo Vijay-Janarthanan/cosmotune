@@ -63,7 +63,7 @@ fun VideoRow(
     VideoRowFrame(
         thumbnail = {
             Column {
-                ThumbnailFrame(item.thumbnailUrl, with(hover) { Modifier.rowThumbnailSize(desktop).lifted() }, RowPictureShape)
+                ThumbnailFrame(item.thumbnailUrl, with(hover) { Modifier.rowThumbnailSize(desktop).lifted() }, RowPictureShape, badge = badgeText(item), badgeLive = item.isLive)
                 if (watchedFraction != null) WatchProgressLine(watchedFraction, orbitLook(), Modifier.width(rowThumbnailWidth(desktop)).padding(top = 6.dp))
             }
         },

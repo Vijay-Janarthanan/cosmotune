@@ -21,6 +21,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.cosmotune.video.feed.StableFeed
+import com.cosmotune.video.ui.shell.rememberKept
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -155,7 +157,10 @@ fun SubscriptionsPage(contentPadding: PaddingValues, wide: Boolean) {
     // Signed in, the account's own subscriptions feed is merged in (each video once, newest first): its channels show even before
     // they are followed on this device. Signed out, or when it cannot be read, the feed is this device's alone, as before.
     val onAccount = rememberAccountVideos(AccountList.SUBSCRIPTIONS)
-    val items = remember(feedState.items, onAccount.items) { AccountLists.mergeFeed(onAccount.items, feedState.items, System.currentTimeMillis()) }
+    // The two feeds are merged by date and each grows: what is shown is kept (with the page, for the way back from a video) and new
+    // uploads slip in by date without the shown ones changing places.
+    val feedKeep = rememberKept("subscriptions-feed") { StableFeed(newestFirst = true) }
+    val items = remember(feedState.items, onAccount.items) { feedKeep.update("feed", AccountLists.mergeFeed(onAccount.items, feedState.items, System.currentTimeMillis())) }
     var filter by rememberSaveable { mutableStateOf(FeedFilter.ALL) }
     val watchedNow = remember(history) { history.associateBy { it.item.id } }
     val clockNow = LocalVideoNowMs.current

@@ -74,11 +74,12 @@ fun MetaLine(item: VideoItem, nowMs: Long, showChannel: Boolean = true): String 
 @Composable
 fun CardMetaLine(item: VideoItem, nowMs: Long, showChannel: Boolean = true, downloaded: Boolean = false): String {
     val channel = if (showChannel) item.channelName?.takeIf { it.isNotBlank() } else null
-    val length = item.durationSec?.takeIf { it > 0 && !item.isLive && !item.isUpcoming }?.let { VideoText.duration(it) }
+    // A mix or playlist card says its byline ("Names and more · Playlist") and nothing else.
+    if (item.playlist != null) return item.channelName.orEmpty()
     val rest = MetaLine(item, nowMs, showChannel = false)
     val mark = if (downloaded) stringResource(Res.string.video_dl_done_cd) else null
-    return remember(channel, length, rest, mark) {
-        listOfNotNull(channel, length, rest.takeIf { it.isNotEmpty() && (item.isLive || item.isUpcoming || channel == null) } ?: ageOnly(rest), mark).joinToString(SEPARATOR)
+    return remember(channel, rest, mark) {
+        listOfNotNull(channel, rest.takeIf { it.isNotEmpty() && (item.isLive || item.isUpcoming || channel == null) } ?: ageOnly(rest), mark).joinToString(SEPARATOR)
     }
 }
 
