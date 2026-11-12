@@ -54,6 +54,8 @@ class BooksInteractionTest {
     @Test fun continueAndFinishedShelvesUpdateTheSavedLibrary() {
         val repository = library()
         compose.onNode(hasText("Library") and isSelectable()).performClick()
+        // The shelves come from the library as it loads: wait for this one before scrolling to it.
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("books:shelf:Reading").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("books:shelf:Reading").performScrollTo().performClick()
         compose.onNodeWithText("The illustrated atlas", substring = false).assertExists()
         compose.onNodeWithText("Field notes", substring = false).assertDoesNotExist()
@@ -73,6 +75,8 @@ class BooksInteractionTest {
     @Test fun commercialSavedBookHasSourceDetailsWithoutAnInventedDownload() {
         val repository = library()
         compose.onNode(hasText("Library") and isSelectable()).performClick()
+        // The shelves come from the library as it loads: wait for this one before scrolling to it.
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("books:shelf:Saved").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("books:shelf:Saved").performScrollTo().performClick()
         compose.onNodeWithText("Harry Potter and the Philosopher's Stone", substring = false).performScrollTo().performClick()
         compose.onNodeWithTag("books:details").assertExists()
