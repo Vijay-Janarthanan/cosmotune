@@ -72,6 +72,9 @@ class FakeVideoPlayerEngine(override val capabilities: EngineCapabilities = DEFA
     /** The duration a (not live) load reports; set it before [load]. */
     var durationOnLoadMs: Long = 600_000
 
+    /** The status a load reports: READY (the file opened at once), or LOADING for a start that has not got going yet. */
+    var statusOnLoad: PlayerStatus = PlayerStatus.READY
+
     /** The last volume set. */
     var volume: Float = 1f
         private set
@@ -97,7 +100,7 @@ class FakeVideoPlayerEngine(override val capabilities: EngineCapabilities = DEFA
         position = request.startMs.coerceAtLeast(0)
         snapshotFlow.update {
             it.copy(
-                status = PlayerStatus.READY, playing = false, durationMs = if (request.live) 0 else durationOnLoadMs,
+                status = statusOnLoad, playing = false, durationMs = if (request.live) 0 else durationOnLoadMs,
                 bufferedMs = 0, error = null, droppedFrames = 0,
             )
         }

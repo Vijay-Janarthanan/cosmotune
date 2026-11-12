@@ -462,6 +462,86 @@ class VideoPlayerControllerTest {
         assertNull(r.state.error)
         assertTrue(r.state.playing)
         assertEquals(2, r.source.calls.count { it == "details(fakevideo01)" }, "a retry starts from fresh details, not the cache")
+        assertEquals(3, r.source.calls.count { it == "streams(fakevideo01)" }, "and a fresh set: the last one is what failed")
+    }
+
+    @Test
+    fun tryAgainOnThePageAsksForAFreshSetNotTheOneThatFailed() = runTest {
+        val r = rig()
+        open(r)
+        playFor(r, 5_000)
+        repeat(3) {
+            r.engine.fail(PlayerErrorKind.SOURCE_EXPIRED)
+            runCurrent()
+            advanceTimeBy(1_000)
+        }
+        assertEquals(VideoUiError.STOPPED, r.state.error)
+        val asked = r.source.calls.count { it == "streams(fakevideo01)" }
+        r.controller.play("fakevideo01")            // the error's "Try again" plays the video again
+        runCurrent()
+        assertEquals(asked + 1, r.source.calls.count { it == "streams(fakevideo01)" }, "the cached details' set is the one that failed")
+        assertNull(r.state.error)
+        assertTrue(r.state.playing)
+    }
+
+    @Test
+    fun aStartThatNeverGetsReadyTriesOtherSetsBeforeItShowsTheError() = runTest {
+        val r = rig()
+        r.engine.statusOnLoad = PlayerStatus.LOADING
+        open(r)
+        repeat(VideoPlayerController.STARTUP_ROUTES) {
+            r.engine.fail(PlayerErrorKind.SOURCE_EXPIRED)
+            runCurrent()
+            assertNull(r.state.error, "set ${it + 1} was refused: the source is asked for another")
+        }
+        assertEquals(VideoPlayerController.STARTUP_ROUTES, r.source.calls.count { it.startsWith("streams(") })
+        assertEquals(VideoPlayerController.STARTUP_ROUTES + 1, r.loads.size)
+        r.engine.fail(PlayerErrorKind.SOURCE_EXPIRED)
+        runCurrent()
+        assertEquals(VideoUiError.STOPPED, r.state.error, "every set failed: now the error")
+    }
+
+    @Test
+    fun aStartThatFailsWithAnUnknownErrorTriesAnotherSetToo() = runTest {
+        val r = rig()
+        r.engine.statusOnLoad = PlayerStatus.LOADING
+        open(r)
+        r.engine.fail(PlayerErrorKind.OTHER)
+        runCurrent()
+        assertNull(r.state.error)
+        assertEquals(1, r.source.calls.count { it.startsWith("streams(") })
+    }
+
+    @Test
+    fun aStartThatRecoveredStillHasTheWholeExpiryBudget() = runTest {
+        val r = rig()
+        r.engine.statusOnLoad = PlayerStatus.LOADING
+        open(r)
+        repeat(2) {
+            r.engine.fail(PlayerErrorKind.SOURCE_EXPIRED)
+            runCurrent()
+        }
+        r.engine.setSnapshot { it.copy(status = PlayerStatus.READY, playing = true, error = null) }
+        runCurrent()
+        repeat(2) {
+            r.engine.fail(PlayerErrorKind.SOURCE_EXPIRED)
+            runCurrent()
+            assertNull(r.state.error, "an expiry while playing")
+        }
+        r.engine.fail(PlayerErrorKind.SOURCE_EXPIRED)
+        runCurrent()
+        assertEquals(VideoUiError.STOPPED, r.state.error)
+    }
+
+    @Test
+    fun aDecoderFailureAtTheStartIsNotRetriedWithAnotherSet() = runTest {
+        val r = rig()
+        r.engine.statusOnLoad = PlayerStatus.LOADING
+        open(r)
+        r.engine.fail(PlayerErrorKind.DECODER)
+        runCurrent()
+        assertEquals(VideoUiError.STOPPED, r.state.error)
+        assertEquals(0, r.source.calls.count { it.startsWith("streams(") })
     }
 
     @Test

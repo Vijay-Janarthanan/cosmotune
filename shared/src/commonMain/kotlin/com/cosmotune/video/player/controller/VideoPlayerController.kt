@@ -54,8 +54,8 @@ import kotlin.jvm.Synchronized
  * The player controller (plan task Y-10; spec 6.1): what the watch page, the chrome, the mini capsule and the Shorts pager
  * drive. It opens a video (details cached for 10 minutes, the stream choice, the resume position, the request to [engine]),
  * refreshes the streams when the engine reports an expired address (at most twice in five minutes, then "This video stopped
- * loading"), writes history every 10 s of playing and on pause, stop and leaving, keeps the queue and autoplay, applies the
- * SponsorBlock policy at a 250 ms tick, goes audio-only or pauses when the UI leaves, plays Shorts (loop, no resume, no
+ * loading"; a start that never got ready asks for another set up to [STARTUP_ROUTES] times first), writes history every 10 s
+ * of playing and on pause, stop and leaving, keeps the queue and autoplay, applies the SponsorBlock policy at a 250 ms tick, goes audio-only or pauses when the UI leaves, plays Shorts (loop, no resume, no
  * autoplay, the mute kept) and plays downloaded files without a source call. It is pure coroutines: no platform class, no
  * network of its own; [source], [engine], [library], [settings], [segments], [chooser] and [decider] are interfaces.
  *
@@ -113,7 +113,17 @@ class VideoPlayerController(
         var speed: Float,
         var loop: Boolean,
         val budget: RefreshBudget,
+        /**
+         * What a start that never got going may ask the source for: another set, from another route, each time ([STARTUP_ROUTES]);
+         * apart from [budget], which is for addresses that expire while a video plays.
+         */
+        val startBudget: RefreshBudget,
+        /** Fresh streams before the first load: the set in hand is the one the engine just failed with ("Try again"). */
+        val freshStreams: Boolean = false,
     ) {
+        /** Whether the engine got this video ready once: a failure after that is an expiry, before it a route that does not play. */
+        var started = false
+
         /** What the UI can show before the details arrive: a queue item, a cached item, or the downloaded item. */
         var knownItem: VideoItem? = null
         var item: VideoItem? = null
@@ -228,7 +238,9 @@ class VideoPlayerController(
                 else -> queueState
             }
         }
-        begin(videoId, startMs, short, local = null, known = known)
+        // "Try again" on the page plays the same video again: the set in hand is the one the engine failed with.
+        val failed = current != null && current.videoId == videoId && current.local == null && current.error != null && current.errorFromEngine
+        begin(videoId, startMs, short, local = null, known = known, freshStreams = failed)
     }
 
     @Synchronized
@@ -264,10 +276,13 @@ class VideoPlayerController(
      * known to be ahead goes straight to its upcoming state, with no fetch (spec 5.13).
      */
     @Synchronized
-    private fun begin(videoId: String, explicitStartMs: Long?, short: Boolean, local: LocalBundle?, known: VideoItem?) {
+    private fun begin(videoId: String, explicitStartMs: Long?, short: Boolean, local: LocalBundle?, known: VideoItem?, freshStreams: Boolean = false) {
         val s = settings.settings.value
         val previous = load
-        val l = Load(videoId, short, local, s.defaultSpeed, loop = short, budget = RefreshBudget(clock = clock))
+        val l = Load(
+            videoId, short, local, s.defaultSpeed, loop = short, budget = RefreshBudget(clock = clock),
+            startBudget = RefreshBudget(max = STARTUP_ROUTES, clock = clock), freshStreams = freshStreams,
+        )
         l.knownItem = known ?: knownItem(videoId, previous)
         stopWork()
         if (engineLoaded) {
@@ -337,9 +352,9 @@ class VideoPlayerController(
         StartupTrace.mark(l.videoId, "details ready")
         keepPlayed(l.videoId)
         var streams = details.streams
-        if (streams.isExpired(clock())) {
-            StartupTrace.mark(l.videoId, "cached streams expired, asking again")
-            // The cached set is about to stop working: a fresh one before the first request fails (spec 6.1).
+        if (l.freshStreams || streams.isExpired(clock())) {
+            StartupTrace.mark(l.videoId, if (l.freshStreams) "the last set failed, asking again" else "cached streams expired, asking again")
+            // The cached set is about to stop working, or is the one that just failed: a fresh one before the first request fails (spec 6.1).
             streams = try {
                 source.streams(l.videoId)
             } catch (e: CancellationException) {
@@ -664,6 +679,7 @@ class VideoPlayerController(
         val wasPlaying = previous?.playing == true
         if (snap.playing && !wasPlaying) playStarted(l) else if (!snap.playing && wasPlaying) playStopped()
 
+        if (snap.status == PlayerStatus.READY) l.started = true
         if (snap.status == PlayerStatus.ERROR) {
             val error = snap.error
             if (previous?.status != PlayerStatus.ERROR || previous.error != error) onEngineError(l, error?.kind ?: PlayerErrorKind.OTHER)
@@ -707,9 +723,18 @@ class VideoPlayerController(
         tickerJob = null
     }
 
-    /** An error of the engine. An expired address is mended with fresh streams while the budget lasts (spec 6.1). */
+    /**
+     * An error of the engine. An expired address is mended with fresh streams while the budget lasts (spec 6.1). A start that never got
+     * ready (a refused or unreadable set) asks the source for another set, which it gives from another route, while [Load.startBudget]
+     * lasts: the error shows only when they all failed.
+     */
     private fun onEngineError(l: Load, kind: PlayerErrorKind) {
-        if (kind == PlayerErrorKind.SOURCE_EXPIRED && l.local == null && l.budget.tryUse()) {
+        val refetch = l.local == null && when {
+            l.started -> kind == PlayerErrorKind.SOURCE_EXPIRED && l.budget.tryUse()
+            else -> (kind == PlayerErrorKind.SOURCE_EXPIRED || kind == PlayerErrorKind.OTHER) && l.startBudget.tryUse()
+        }
+        if (refetch) {
+            if (!l.started) StartupTrace.mark(l.videoId, "start failed", "${kind.name.lowercase()}: asking for another set")
             val position = engine.positionMs()
             engineLoaded = false
             tickerJob?.cancel()
@@ -1096,7 +1121,7 @@ class VideoPlayerController(
         }
     }
 
-    /** "Try again": the same video from where it stopped, with fresh details (the cached streams may be what failed). */
+    /** "Try again": the same video from where it stopped, with fresh details and, after an engine failure, fresh streams. */
     private fun retry(l: Load) {
         val position = if (engineLoaded) engine.positionMs().takeIf { it > 0 } else null
         val item = l.item ?: l.knownItem
@@ -1105,7 +1130,7 @@ class VideoPlayerController(
             begin(l.videoId, position, short = false, local = files, known = item)
         } else {
             cache.remove(l.videoId)
-            begin(l.videoId, position, l.short, local = null, known = item)
+            begin(l.videoId, position, l.short, local = null, known = item, freshStreams = l.errorFromEngine)
         }
     }
 
@@ -1391,5 +1416,11 @@ class VideoPlayerController(
 
         /** A live stream that ends again within a minute of being loaded again has really ended (spec 5.13: once, then stop). */
         const val LIVE_RELOAD_WINDOW_MS = 60_000L
+
+        /**
+         * How many other sets a start that never got ready may ask for (within five minutes) before "This video stopped loading":
+         * enough for the signed path's other clients and the anonymous source each to have a go, in the order the source gives them.
+         */
+        const val STARTUP_ROUTES = 4
     }
 }
