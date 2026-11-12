@@ -155,7 +155,7 @@ internal fun ThumbnailBadge(text: String, live: Boolean, modifier: Modifier = Mo
         color = if (live && look.dark) Color.Black else Color.White,
         maxLines = 1,
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(if (live) liveRed(look) else Color.Black.copy(alpha = BADGE_ALPHA))
             .padding(horizontal = 6.dp, vertical = 2.dp),
     )
