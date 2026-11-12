@@ -221,8 +221,6 @@ import com.cosmotune.music.data.model.UiState
 import com.cosmotune.music.data.model.UserPlaylist
 import com.cosmotune.music.data.model.durationMillis
 import com.cosmotune.music.data.model.isMatchPending
-import com.cosmotune.music.data.model.isSameTrackAs
-import com.cosmotune.music.data.model.playingRowMatcher
 import com.cosmotune.music.data.model.isUnresolvedSpotify
 import com.cosmotune.music.data.spotify.SPOTIFY_PAGE_PREFIX
 import com.cosmotune.music.data.spotify.SpotifyLibrary
@@ -7080,30 +7078,6 @@ private fun DesktopCollectionPage(
 /** The track playing, for rows that want to say so. */
 private val LocalNowPlaying = compositionLocalOf<Song?> { null }
 
-/** Whether this row is the track being played, for the now-playing highlight. */
-@Composable
-private fun Song.isNowPlaying(): Boolean = LocalPlayingRow.current?.invoke(this) ?: isSameTrackAs(LocalNowPlaying.current)
-
-/**
- * The answer of the list being drawn to "is this row the one playing?", from [PlayingRowScope]; null outside a list, where a row
- * falls back to the name rule. A local rather than a parameter, so the rows' parameter lists (pinned by the new look's delegates)
- * stay as they are.
- */
-private val LocalPlayingRow = compositionLocalOf<((Song) -> Boolean)?> { null }
-
-/** Which of [rows] is the track being played: the one that was played, not every namesake (see [playingRowMatcher]). */
-@Composable
-private fun rememberPlayingRowMatcher(rows: List<Song>): (Song) -> Boolean {
-    val current = LocalNowPlaying.current
-    return remember(rows, current) { playingRowMatcher(rows, current) }
-}
-
-/** Draws [content], a list of [rows], with only the row that was played lit (see [LocalPlayingRow]). */
-@Composable
-private fun PlayingRowScope(rows: List<Song>, content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalPlayingRow provides rememberPlayingRowMatcher(rows), content = content)
-}
-
 /** The frosted pane the floating bars are made of. */
 @Composable
 internal fun Modifier.desktopBarGlass(shape: Shape): Modifier =
@@ -7356,23 +7330,6 @@ internal fun BoxScope.DesktopShelfArrow(
             Icon(icon, description, tint = Color.White, modifier = Modifier.size(22.dp))
         }
     }
-}
-
-@Composable
-private fun DesktopSongRow(
-    song: Song,
-    liked: Boolean,
-    onClick: (Song) -> Unit,
-    onToggleLike: ((Song) -> Unit)?,
-    onDownload: ((Song) -> Unit)? = null,
-    onAddToPlaylist: ((Song) -> Unit)? = null,
-    downloaded: Boolean = false,
-    downloadInProgress: Boolean = false,
-    number: Int? = null,
-    /** The row's own "…", when the page has a menu to give it. */
-    menu: (@Composable (Song) -> Unit)? = null,
-) {
-    com.cosmotune.desktop.CosmoDesktopSongRow(song = song, liked = liked, onClick = onClick, onToggleLike = onToggleLike, onDownload = onDownload, onAddToPlaylist = onAddToPlaylist, downloaded = downloaded, downloadInProgress = downloadInProgress, number = number, menu = menu, isCurrent = song.isNowPlaying())
 }
 
 /** A page's box, inset from the shell's chrome. */

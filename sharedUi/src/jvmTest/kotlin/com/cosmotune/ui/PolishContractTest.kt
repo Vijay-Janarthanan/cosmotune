@@ -43,7 +43,6 @@ class PolishContractTest {
             "the local is declared in our file, false by default",
         )
         for ((file, function) in listOf(
-            "CosmoDesktopSongRow.kt" to "CosmoDesktopSongRow",
             "CosmoDesktopCollectionPage.kt" to "CosmoDesktopCollectionPage",
             "CosmoDesktopArtistPage.kt" to "CosmoDesktopArtistPage",
         )) {

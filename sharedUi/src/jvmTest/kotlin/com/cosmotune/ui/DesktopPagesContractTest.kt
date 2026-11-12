@@ -1,6 +1,5 @@
 package com.cosmotune.ui
 
-import com.cosmotune.design.BlockMetrics
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -25,7 +24,6 @@ class DesktopPagesContractTest {
     private val pairs = listOf(
         Pair3("DesktopCollectionPage", "CosmoDesktopCollectionPage", collectionFile),
         Pair3("DesktopArtistPage", "CosmoDesktopArtistPage", artistFile),
-        Pair3("DesktopSongRow", "CosmoDesktopSongRow", rowFile),
     )
 
     // ---- the delegates ----
@@ -47,12 +45,10 @@ class DesktopPagesContractTest {
             ),
             SourceContract.names(SourceContract.parameters(src, "DesktopArtistPage")),
         )
-        assertEquals(
-            listOf(
-                "song", "liked", "onClick", "onToggleLike", "onDownload", "onAddToPlaylist", "downloaded", "downloadInProgress", "number", "menu",
-            ),
-            SourceContract.names(SourceContract.parameters(src, "DesktopSongRow")),
-        )
+        assertFalse(Regex("""\bfun DesktopSongRow\(""").containsMatchIn(SourceContract.code(src)), "the old song row had no caller left and is gone")
+        for (helper in listOf("isNowPlaying", "PlayingRowScope", "rememberPlayingRowMatcher", "LocalPlayingRow")) {
+            assertFalse(Regex("""\b$helper\b""").containsMatchIn(SourceContract.code(src)), "and so is its $helper")
+        }
     }
 
     @Test fun eachOldFunctionCallsTheNewOneAndPassesEveryParameterByName() {
@@ -100,7 +96,6 @@ class DesktopPagesContractTest {
         val extra = mapOf(
             "DesktopCollectionPage" to "nowPlaying = LocalNowPlaying.current",
             "DesktopArtistPage" to "nowPlaying = LocalNowPlaying.current",
-            "DesktopSongRow" to "isCurrent = song.isNowPlaying()",
         )
         for ((old, argument) in extra) {
             val statement = SourceContract.firstStatement(SourceContract.functionBody(src, old))
@@ -111,27 +106,17 @@ class DesktopPagesContractTest {
             listOf("nowPlaying", "isPlaying"),
             SourceContract.names(SourceContract.parameters(SourceContract.read(collectionFile), "CosmoDesktopCollectionPage")).takeLast(2),
         )
-        assertEquals(
-            listOf("isCurrent", "isPlaying"),
-            SourceContract.names(SourceContract.parameters(SourceContract.read(rowFile), "CosmoDesktopSongRow")).takeLast(2),
-        )
     }
 
     // ---- the numbers of the boards ----
 
-    @Test fun theSongRowsAreTheBoardsFiftyFourDpWithRadiusEighteen() {
-        assertEquals(54f, BlockMetrics.DESKTOP_ROW_DP)
-        val row = SourceContract.code(SourceContract.read(rowFile))
-        assertTrue("BlockMetrics.DESKTOP_ROW_DP.dp" in row, "the row's height is the metric")
-        assertTrue(Regex("""DESKTOP_ROW_RADIUS: Dp = 18\.dp""").containsMatchIn(row), "radius 18")
-        assertTrue(Regex("""DESKTOP_ROW_PADDING: Dp = 16\.dp""").containsMatchIn(row), "padding 0 16")
-        assertTrue(Regex("""DESKTOP_ROW_ACTION: Dp = 32\.dp""").containsMatchIn(row), "the actions are 32 dp")
-        assertTrue(Regex("""DESKTOP_NUMBER_COLUMN: Dp = 36\.dp""").containsMatchIn(row) && Regex("""DESKTOP_DURATION_COLUMN: Dp = 60\.dp""").containsMatchIn(row), "columns of 36 and 60 dp")
-        assertTrue("CoverFrame(size = 40.dp, radius = 10.dp" in row, "a 40 dp cover with radius 10")
-        assertTrue("HOVER_LAYER = 0.08f" in row, "the hover layer is 8 %")
-        assertTrue("PLAYING_WASH = 0.6f" in row, "the playing row is the container at 60 %")
-        assertTrue("LocalMinimumInteractiveComponentSize provides DESKTOP_ROW_ACTION" in row, "a 32 dp button is 32 dp in the row")
-        assertTrue(Regex("""style = CosmoIconButtonStyle\.PLAIN""").findAll(row).count() >= 4, "like, download, add and remove are PLAIN")
+    @Test fun theRowsActionsAreTheBoardsThirtyTwoDpPlainButtons() {
+        val parts = SourceContract.code(SourceContract.read(rowFile))
+        assertFalse(Regex("""\bfun CosmoDesktopSongRow\(""").containsMatchIn(parts), "the old row's Orbit twin had no caller left and is gone")
+        assertTrue(Regex("""DESKTOP_ROW_ACTION: Dp = 32\.dp""").containsMatchIn(parts), "the actions are 32 dp")
+        assertTrue(Regex("""DESKTOP_DURATION_COLUMN: Dp = 60\.dp""").containsMatchIn(parts), "the duration column is 60 dp")
+        assertTrue("LocalMinimumInteractiveComponentSize provides DESKTOP_ROW_ACTION" in parts, "a 32 dp button is 32 dp in the row")
+        assertTrue(Regex("""style = CosmoIconButtonStyle\.PLAIN""").findAll(parts).count() >= 4, "like, download, add and remove are PLAIN")
     }
 
     @Test fun theCollectionPageIsTheOrbitCardAndHomesRows() {
@@ -283,9 +268,11 @@ class DesktopPagesContractTest {
                 assertTrue("contentDescription =" in code.substring(call.range.last, end), "$file: the CosmoIconButton at line $line has a contentDescription")
             }
         }
-        val row = SourceContract.code(SourceContract.read(rowFile))
-        assertTrue("role = Role.Button" in row && "cosmoFocusRing(" in row, "a row is a button with a focus ring")
-        assertTrue("collectIsHoveredAsState()" in row && ".hoverable(" in row, "a row answers the pointer")
+        // The rows are the shared OrbitTrackRow (its own click and focus); the desktop adds the hover that reveals the actions.
+        val parts = SourceContract.code(SourceContract.read(rowFile))
+        assertTrue("collectIsHoveredAsState()" in parts, "the row's chrome follows the pointer")
+        val row = SourceContract.code(SourceContract.functionBody(SourceContract.read(collectionFile), "CollectionTrackRow"))
+        assertTrue("OrbitTrackRow(" in row && ".hoverable(chrome.interaction)" in row, "a row answers the pointer")
     }
 
     @Test fun theStringsAreExistingKeysOrDesktopFallbacks() {

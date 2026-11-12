@@ -59,12 +59,15 @@ class PlayingRowContractTest {
     }
 
     @Test fun desktopRowsDrawTheSourceQualityWithThePlayerBadge() {
-        val classic = SourceContract.functionBody(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"), "DesktopSongRow")
-        assertTrue(SourceContract.firstStatement(classic).startsWith("com.cosmotune.desktop.CosmoDesktopSongRow("), "the classic row is the Orbit row, which draws the badge")
-        assertFalse("setOf(\"LOSSLESS\"" in classic, "no second, text-only list of tiers")
-        val cosmo = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopSongRow.kt"))
-        assertTrue("song.sourceQualityBadge() ?: return" in cosmo && "SourceQualityBadge(" in cosmo)
-        assertFalse("SHOWN_QUALITIES" in cosmo)
+        val app = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"))
+        assertFalse(Regex("""\bfun DesktopSongRow\(""").containsMatchIn(app), "the old row and its delegate are gone")
+        // The collection page's rows are the shared Orbit row, which draws the player badge's tier (Common.kt's SongRow).
+        val row = SourceContract.code(SourceContract.functionBody(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopCollectionPage.kt"), "CollectionTrackRow"))
+        assertTrue("OrbitTrackRow(" in row && "showQuality = true" in row, "the desktop rows ask the shared row for the quality")
+        val common = SourceContract.code(SourceContract.read("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/Common.kt"))
+        assertTrue("if (showSourceQuality) song.sourceQualityBadge() else null" in common)
+        val parts = SourceContract.code(SourceContract.read("desktopApp/src/main/kotlin/com/cosmotune/desktop/CosmoDesktopSongRow.kt"))
+        assertFalse("SHOWN_QUALITIES" in parts || "setOf(\"LOSSLESS\"" in parts, "no second, text-only list of tiers")
     }
 
     @Test fun thePhoneRowsCarryTheQualityFlagToTheLooksRow() {
