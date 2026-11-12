@@ -46,9 +46,10 @@ class MusicAuditContractTest {
 
     @Test fun theRoomLandingDoesNotScrollInsideTheScrollingOrbitSheet() {
         val rooms = SourceContract.functionBody(SourceContract.read("app/src/main/java/com/cosmotune/music/ui/screens/RoomsScreen.kt"), "RoomEntrySheets")
-        assertTrue("if (com.cosmotune.ui.theme.LocalCosmoShell.current == null) Modifier.verticalScroll(rememberScrollState()) else Modifier" in rooms,
-            "Home's Start a room crashed: the landing's own scroll inside CosmoSheetSurface's")
-        assertTrue("Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding()" !in rooms)
+        // Home's Start a room crashed: the landing's own scroll inside CosmoSheetSurface's. The landing has no scroll of its own at all now.
+        assertTrue("verticalScroll(" !in rooms, "the landing does not scroll inside the scrolling sheet")
+        assertTrue("com.cosmotune.ui.sheets.SurfaceSheetSwitch(" in rooms, "it stands in the Orbit sheet, which scrolls it")
+        assertTrue("modifier = Modifier\n                    .navigationBarsPadding()" in rooms, "the landing's modifier starts at the navigation bar's padding")
     }
 
     @Test fun thePlaylistReorderListHasAHeightOfItsOwn() {

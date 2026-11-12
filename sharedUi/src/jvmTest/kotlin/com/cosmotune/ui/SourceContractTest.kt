@@ -29,18 +29,16 @@ class SourceContractTest {
         assertEquals("modifier", SourceContract.names(switch).last())
     }
 
-    @Test fun bothBranchesOfTheSwitchPassEveryParameterByName() {
+    @Test fun theSwitchsOneCallPassesEveryParameterByName() {
         val src = SourceContract.read(switchPath)
         val names = SourceContract.names(SourceContract.parameters(src, "NowPlayingSwitch"))
-        val statement = SourceContract.firstStatement(SourceContract.functionBody(src, "NowPlayingSwitch"))
-        assertTrue(statement.startsWith("if (LocalCosmoShell.current != null) {"), "the switch is its one statement: $statement")
-        assertTrue(statement.endsWith("}"), "and the whole if/else is read, to its closing brace")
-        val newBranch = statement.substringBefore("} else {")
-        val oldBranch = statement.substringAfter("} else {")
-        assertTrue(newBranch.contains("CosmoNowPlaying("))
-        assertTrue(oldBranch.contains("NowPlayingScreen("))
-        SourceContract.assertPassesEveryParameter(newBranch, names)
-        SourceContract.assertPassesEveryParameter(oldBranch, names)
+        val body = SourceContract.functionBody(src, "NowPlayingSwitch")
+        val statement = SourceContract.firstStatement(body)
+        assertTrue(statement.startsWith("CosmoNowPlaying("), "the switch is its one call: $statement")
+        assertTrue(statement.endsWith(")"), "and the whole call is read, to its closing parenthesis")
+        assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "the call is the whole body")
+        assertFalse(statement.contains("NowPlayingScreen("), "the old screen is not called")
+        SourceContract.assertPassesEveryParameter(statement, names)
     }
 
     // ---- on samples -----------------------------------------------------------------------------------------------------

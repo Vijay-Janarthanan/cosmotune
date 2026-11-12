@@ -83,37 +83,42 @@ calls it is at the top of `CoverPalette.kt`.
 - The library's version follows the Kotlin version: 4.1.1 is built on Kotlin 2.3, and 5.x needs the Kotlin 2.4 standard
   library. The `FORK.md` row for `shared/build.gradle.kts` says what to do when Kotlin is raised.
 
-## The new interface (part one)
+## The interface
 
 - Our Compose code is in `sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/ui/` (one source set for Android and the desktop), our
   pure logic in `shared/.../com/cosmotune/`. A package inside `sharedUi` can use the player's `internal` pieces; a separate module could not.
-- The switch is `CosmoLookSettings` (`NEW_LOOK_DEFAULT` in `CosmoConfig`, `true` since part two of the new look: a fresh install shows it, a stored choice is kept; SharedPreferences `cosmotune_look` on the phone, the Preferences
-  node `com.cosmotune.desktop/look` on the desktop). `CosmoLookTheme` replaces the theme call in `MainActivity` and `DesktopApp` and gives
-  the old screens the cover palette as a Material scheme (`ColorSchemeBridge`). With the switch off it is the old theme.
-- `LocalCosmoShell` is null while the switch is off and the shell state while it is on: the few places in the old roots that draw new
-  chrome check it. When upstream changes `NowPlayingScreen`'s parameters, update `NowPlayingSwitch` (see the next section).
+- The Orbit look is the only look. The old upstream look and its Settings switch ("New look", `CosmoLookSettings.newLook`,
+  `CosmoConfig.NEW_LOOK_DEFAULT`) were removed after 1.0.23; a `new_look` value an older install stored is never read. The look's
+  other settings are `CosmoLookSettings` (SharedPreferences `cosmotune_look` on the phone, the Preferences node
+  `com.cosmotune.desktop/look` on the desktop). `CosmoLookTheme` replaces the theme call in `MainActivity` and `DesktopApp`; it still
+  takes the platform's Material theme as `legacy`, because the look's Material scheme and type are copies of it (`ColorSchemeBridge`,
+  `MaterialBridge`), so every field the look does not set keeps the platform's value.
+- `LocalCosmoShell` is the shell state under every `CosmoLookTheme`. It is null only outside one (the TV's root, which provides
+  `LocalCosmoColors` itself; a window or dialog opened outside the theme uses `EnsureCosmoLook`), so a `?.` read of it is a "no theme"
+  fallback, never a second look.
 - `FORK.md` has the rows for the upstream files involved: `MainActivity.kt`, `SettingsSheet.kt`, `DesktopApp.kt` and the `cosmo_*` strings.
   `CosmoStringsTest` fails when a locale lacks a `cosmo_*` key; `CoverFieldTest` fails when `CoverColors` gains a colour with no index.
 
-## The new look: where it hooks into upstream
+## The look: where it hooks into upstream
 
-The new look reaches upstream files in four ways only, and with the switch off every one of them is the old code:
+The look reaches upstream files in four ways. Each used to choose between the old code and the new; now each calls only the new:
 
-- **Switch**: a call `X(` became the fully qualified `com.cosmotune.<pkg>.XSwitch(` with the same arguments. `XSwitch` has `X`'s exact
-  parameter list (names, types, defaults, order), then any parameter of its own at the end; with the look off it calls `X` with every
-  argument by name.
-- **Delegate**: the first statement of an upstream function is `if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return
-  com.cosmotune.<pkg>.CosmoX(a = a, ...)`, every argument by name; the rest of the function is untouched.
+- **Switch**: a call `X(` became the fully qualified `com.cosmotune.<pkg>.XSwitch(` with the same arguments. `XSwitch` keeps `X`'s
+  parameter list (names, types, defaults, order), then any parameter of its own at the end, so upstream's call site still merges;
+  its body is the one call to the new screen. Parameters only the old screen read are accepted and ignored.
+- **Delegate**: the body of an upstream function is the one call `com.cosmotune.<pkg>.CosmoX(a = a, ...)`, every argument by name
+  (on the desktop's settings rows it follows the search's `if (!settingsRowVisible(title, subtitle)) return`).
 - **Import swap**: `import androidx.compose.material3.X` became `import com.cosmotune.ui.bridge.X`. The forwarder has Material's own
-  signature (material3 1.3.x) and starts `if (LocalCosmoShell.current == null) { androidx.compose.material3.X(a = a, ...); return }`.
-- **Theme**: the root's theme call is wrapped by `CosmoLookTheme`, plus the inline `if (cosmoShell != null)` branches listed last.
+  signature (material3 1.3.x) and draws the look's version; `IconButton` is Material's own outside `CosmoTopBar`'s glass actions, and
+  `ModalBottomSheet` is Material's own for a caller that asks for a transparent container.
+- **Theme**: the root's theme call is wrapped by `CosmoLookTheme`.
 
 Every site has a row in `FORK.md` (find it by the file name; the row quotes the text that finds the site) and is pinned by a contract
 test in `sharedUi/src/jvmTest` that reads the source: `NowPlayingContractTest`, `HomeContractTest`, `SearchContractTest`,
 `LibraryContractTest`, `PagesContractTest`, `PhoneChromeContractTest`, `SheetsContractTest`, `SettingsBlocksContractTest`,
 `BlocksStructureTest`, `StatesContractTest`, `DesktopChromeStructureTest`, `DesktopShellContractTest`, `DesktopPagesContractTest`,
 `BridgeContractTest`, `PolishContractTest`, `VisualPolishContractTest` and `UpstreamHooksContractTest` (the theme calls, the palette
-that follows the song, the phone's ground, the way to the switch in Settings, the desktop's licence entries). `app/...` below is
+that follows the song, the phone's ground, the way to the look's settings, the desktop's licence entries). `app/...` below is
 `app/src/main/java/com/cosmotune/music`, `desktop/...` is `desktopApp/src/main/kotlin/com/cosmotune/music/desktop` and `components/...`
 is `sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components`.
 
@@ -122,34 +127,35 @@ is `sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components`.
 | Android compiler compatibility | Root D8/R8 override now targets 9.1.29 for Kotlin 2.4 metadata from the Android decoder dependency | Preserve the prior player debug VerifyError fix and current metadata support; do not suppress compiler incompatibility warnings | Rebuild release APKs and rerun Android runtime/native regression after toolchain changes; official Android Kotlin/R8 table linked in the root build |
 | Manifest download transport | Native HLS/DASH download and export paths | Shared bounded transport/parsers, streaming desktop seek index, isolated Android package generations | Preserve cancellation joins, cross-origin header stripping, byte/segment limits, saved paths and completed originals; run parser/assembly/HTTP/generation tests |
 | Theme | `app/.../MainActivity.kt`: the `CosmotuneTheme(darkTheme = darkTheme)` call | `com.cosmotune.ui.theme.CosmoLookTheme(dark = darkTheme, legacy = { CosmotuneTheme(darkTheme = darkTheme, content = it) })` | wrap upstream's call again as `legacy`; its block stays the content |
-| Theme | `desktop/.../DesktopApp.kt`: `MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography())` in `CosmotuneDesktopApp` | `CosmoLookTheme(dark = true, legacy = { MaterialTheme(..., content = it) })` (the desktop is dark only) | the same |
-| Theme | first lines inside it: `MainActivity.kt` `CosmotuneApp` and the desktop's theme content | `val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current`, then `cosmoShell?.FollowCover(song, nextSong)` | keep both lines first; without `FollowCover` the colours stop following the song |
+| Theme | `desktop/.../DesktopApp.kt`: `MaterialTheme(colorScheme = desktopColorScheme(), typography = desktopTypography())` in `CosmotuneDesktopApp` | `CosmoLookTheme(dark = desktopDark, legacy = { MaterialTheme(..., content = it) })` | the same |
+| Theme | first lines inside it: `MainActivity.kt` `CosmotuneApp` and the desktop's theme content | phone: `val cosmoShell = checkNotNull(com.cosmotune.ui.theme.LocalCosmoShell.current) { ... }`, then `cosmoShell.FollowCover(song, nextSong)`; desktop: `val cosmoShell = com.cosmotune.ui.theme.LocalCosmoShell.current`, then `cosmoShell?.FollowCover(...)` | keep both lines first; without `FollowCover` the colours stop following the song |
 | Switch | `NowPlayingScreen(` and its import, both roots | `NowPlayingSwitch` (`sharedUi/.../ui/nowplaying/`) | rename the call and the import |
-| Switch | `HomeScreen(` (phone `TAB_HOME ->`, desktop `LISTEN_NOW ->`) | `com.cosmotune.ui.home.HomeSwitch(` + `browse = CosmoBrowse(exploreState, ...)`; the desktop also passes `currentSong`/`isPlaying` only with the look on | rename, add the `browse` line after `title = ...` |
+| Switch | `HomeScreen(` (phone `TAB_HOME ->`, desktop `LISTEN_NOW ->`) | `com.cosmotune.ui.home.HomeSwitch(` + `browse = CosmoBrowse(exploreState, ...)` | rename, add the `browse` line after `title = ...` |
 | Switch | `MoodGenrePlaylistsScreen(`, `ExploreScreen(`, `SearchScreen(`, both roots | `com.cosmotune.ui.search.MoodGenreSwitch(`, `ExploreSwitch(`, `SearchSwitch(` (+ `browse`) | rename; Search gets the `browse` line |
 | Switch | `LibraryScreen(`, `LibraryGridPage(`, both roots; `HistoryScreen(` (phone, `key == "history"`) | `com.cosmotune.ui.library.LibrarySwitch(`, `LibraryGridSwitch(`, `HistorySwitch(` | rename |
 | Switch | `DetailScreen(` (phone, the `else if (page != null)` branch) | `com.cosmotune.ui.pages.DetailSwitch(` + `onPlayPause = togglePlayPause,` (its last, own parameter) | rename, add the last argument |
 | Switch | `FrostedTopBar(`, `TopBarAccountButton(` (phone) | `com.cosmotune.ui.chrome.TopBarSwitch(`, `ProfileButtonSwitch(` (+ `entries`, the drawer) | rename |
 | Switch | the `ModalBottomSheet(` around `PlaylistPickerSheet(` and the one inside `browseActions?.takeIf { browseMenuOrigin == null }` (phone) | `com.cosmotune.ui.sheets.SurfaceSheetSwitch(` (the song sheet's glass); the song sheet's own host gains `scrimColor = cosmoSheetScrim()` | rename; add the scrim argument |
-| Delegate | `app/.../ui/components/SongActionsSheet.kt`: `GroupSeparator`, `TintedSheet`, `ActionRow`, `SheetTrackHeader`, `SheetHeading`; `BrowseActionsSheet.kt`: `BrowseSheetHeader`; `PlaylistPickerSheet.kt`: `PlaylistRow` | `CosmoSheetGap`, `CosmoSheetSurface`, `CosmoActionRow`, `CosmoSheetHeader` (+ `explicit`), `CosmoSheetHeading`, `CosmoPickRow` (`sharedUi/.../ui/sheets/`) | put the first statement back |
+| Delegate | `app/.../ui/components/SongActionsSheet.kt`: `GroupSeparator`, `TintedSheet`, `ActionRow`, `SheetTrackHeader`, `SheetHeading`; `BrowseActionsSheet.kt`: `BrowseSheetHeader`; `PlaylistPickerSheet.kt`: `PlaylistRow` | `CosmoSheetGap`, `CosmoSheetSurface`, `CosmoActionRow`, `CosmoSheetHeader` (+ `explicit`), `CosmoSheetHeading`, `CosmoPickRow` (`sharedUi/.../ui/sheets/`) | take upstream's signature, keep our one-call body |
 | Delegate | `app/.../ui/screens/SettingsSheet.kt`: `AccountCard`, `SettingsGroup`, `RowDivider`, `SettingsRow`, `SettingsSubRow`, `Badge`, `Chevron`, `SliderRow`, `DestructiveRow`, `SegmentedControl` | `CosmoProfileCard`, `CosmoSettingsGroup`, `CosmoRowDivider`, `CosmoSettingsRow`, `CosmoSettingsSubRow`, `CosmoBadge`, `CosmoChevron`, `CosmoSliderRow`, `CosmoDestructiveRow`, `CosmoSettingsSegmented` (`sharedUi/.../ui/settings/`) | the same |
 | Delegate | `components/.../Common.kt`: `SongRow`, `SignInBanner`, `MessageState`; `SearchField.kt`: `SearchField`; `Skeletons.kt`: `ShimmerBox` | `CosmoSongRow`, `CosmoSignInBanner`, `CosmoEmptyState`, `CosmoSearchField`, `CosmoShimmer` | the same |
 | Delegate | `desktop/.../DesktopApp.kt`: `DesktopSidebar`, `DesktopArtistPage`, `DesktopCollectionPage`, `DesktopSongRow`, `DesktopLoadingPage`, `DesktopErrorPage`, `DesktopEmptyPage` | `CosmoDesktopSidebar`, `CosmoDesktopArtistPage`, `CosmoDesktopCollectionPage`, `CosmoDesktopSongRow` (`desktopApp/.../com/cosmotune/desktop/`), `CosmoLoadingState`, `CosmoEmptyState` | the same |
-| Delegate | `desktop/.../DesktopApp.kt`: `SettingsNavigationRow`, `SettingsToggle`, `SettingsRow` | `CosmoSettingsRow` | the second statement, after the settings search's `if (!settingsRowVisible(title, subtitle)) return`, so the search still filters |
+| Delegate | `desktop/.../DesktopApp.kt`: `SettingsNavigationRow`, `SettingsToggle`, `SettingsRow` | `CosmoSettingsRow` | after the settings search's `if (!settingsRowVisible(title, subtitle)) return`, so the search still filters |
 | Import swap | `Switch` (11 files), `CircularProgressIndicator` (17), `AlertDialog` (4), `ModalBottomSheet` (4), `DropdownMenu` and `DropdownMenuItem` (4): 29 files listed in the `FORK.md` row that starts with `` `Switch` (11 files) `` | `sharedUi/.../com/cosmotune/ui/bridge/` | re-point the import line |
 | Import swap | `IconButton` in `app/.../MainActivity.kt` (the top bar's page actions) and `app/.../ui/components/DownloadManagerSheet.kt` (`TopBarDownloadButton`) | `com.cosmotune.ui.bridge.IconButton`: a glass circle inside `CosmoTopBar`'s actions, Material's button anywhere else | re-point the import line |
-| Tabs | phone `MainActivity.kt` | three tabs, Home, Search (Explore lives inside it), Library: `selectedIndex = when (selectedTab) { TAB_HOME -> 0; TAB_SEARCH, TAB_EXPLORE -> 1; else -> 2 }`, `onTabSelected` maps 0, 1, 2 to `TAB_HOME`, `TAB_SEARCH`, `TAB_LIBRARY`. The upstream tab and mini player bars are the `else` of `if (cosmoShell != null) CosmoBottomChrome(...)`. The desktop's compact window does the same with `DesktopDestination` (`SEARCH, EXPLORE -> 1`); its sidebar lights Search for both | put the branch back in front of `if (glassActive) Column(` |
-| Redirect | phone `MainActivity.kt`: `rememberSaveable { mutableIntStateOf(0) }` of the tab | the saved tab is `selectedTabState`; `var selectedTab by ShownTab(selectedTabState) { stored -> TabRedirect.shown(stored, newLook = cosmoShell != null, moodPageOpen = selectedMoodGenre != null, ...) }`: with the look on, Explore without a mood page is shown as Search; every read is the shown tab, every write sets the saved one | rename the saved state and re-add the `ShownTab` line under `selectedMoodGenre` |
-| Branch | the other `cosmoShell` / `LocalCosmoShell` tests in upstream code | phone: `dismissPlayer`, the Now Playing overlay (`if (playerRaised && cosmoShell == null)`), the root's ambient ground, the top fade's `pageColor`, the bottom fade (off), the Settings entry `row("new look", ...) { CosmoLookSettingsRows() }`; `QueueActionNotice.kt` (the toast), `HeldContextMenu.kt` (`cosmoMenuSurface`), `SongActionsSheet.kt` (the sheet palette), `EqualizerScreen.kt` (one haptic). Desktop: the frame's top bar, bottom bar and overlay lambdas, the backdrop, Ctrl K, `DesktopFrame` (ground and page padding), `CosmoLookDesktopToggles` in Settings, the settings groups, the providers `LocalCosmoPlaying` and `LocalCosmoPlayPause`, the Explore loader of Home and Search; `DesktopPlayerSheet.kt` (the player is the shared overlay that grows out of the bar), `DesktopPlaylistUi.kt` and `DesktopSurfaces.kt` (dialogs as `CosmoDialogCard`), `DesktopSidePanel.kt` (the glass card, no rule beside the page, no queue header of its own), `DesktopSongMenuUi.kt` (`cosmoMenuSurface`), `DesktopLicenses.kt` (three credits) | each `FORK.md` row quotes the old line and the new one |
+| Tabs | phone `MainActivity.kt` | the dock is `CosmoBottomChrome(...)` with Home, Explore, Releases and Library (`MUSIC_DOCK`); Search is the top bar's button. Upstream's tab bar, mini player and Now Playing sheet are gone from the root. The desktop's compact window does the same with `DesktopDestination` | take upstream's other changes around the bars; the bars themselves stay out |
+| Redirect | phone `MainActivity.kt`: `rememberSaveable { mutableIntStateOf(0) }` of the tab | the saved tab is `selectedTabState`; `var selectedTab by ShownTab(selectedTabState) { stored -> TabRedirect.shown(stored, homeTab = TAB_HOME, releasesTab = TAB_RELEASES) }`: a saved number that is no tab is Home; every read is the shown tab, every write sets the saved one | rename the saved state and re-add the `ShownTab` line under `selectedMoodGenre` |
 
-**When upstream changes a parameter.** A switch must keep the old screen's list: add the new parameter to `XSwitch` with the same name,
-type and default at the same place (before the switch's own trailing parameters: `browse`, `entries`, `onPlayPause`), pass it by name to
-the old call, then decide whether the new screen needs it. A delegate's call compiles without the new argument, so the contract test that
-checks "every parameter passed" fails instead: add the parameter to the `Cosmo` function and pass it. An import swap fails to compile
-when upstream uses a parameter or an overload the forwarder lacks: add it with Material's name and default and pass it by name in both
-branches (`BridgeContractTest` compares the lists); a file that starts to import one of the swapped widgets gets the same one-line swap.
-A merge conflict on a hook line: take upstream's line, then re-apply the hook from its `FORK.md` row. Run
-`./gradlew :shared:jvmTest :sharedUi:jvmTest :desktopApp:compileKotlin :app:assembleDevDebug` after any merge that touches these files.
+**When upstream changes a parameter.** A switch keeps the old screen's list so upstream's call site keeps compiling: add the new
+parameter to `XSwitch` with the same name, type and default at the same place (before the switch's own trailing parameters: `browse`,
+`entries`, `onPlayPause`), then decide whether the new screen needs it. A delegate's call compiles without the new argument, so the
+contract test that checks "every parameter passed" fails instead: add the parameter to the `Cosmo` function and pass it. An import swap
+fails to compile when upstream uses a parameter or an overload the forwarder lacks: add it with Material's name and default
+(`BridgeContractTest` compares the lists); a file that starts to import one of the swapped widgets gets the same one-line swap. A
+merge conflict on a hook line: take upstream's line, then re-apply the hook from its `FORK.md` row. Upstream's changes to a screen or
+bar that was removed with the old look (the `FORK.md` row "Removed with the old look") are not taken; port what they fix to the Orbit
+screen if it applies. Run `./gradlew :shared:jvmTest :sharedUi:jvmTest :desktopApp:compileKotlin :app:assembleDevDebug` after any
+merge that touches these files.
 
 ## Video mode
 
@@ -164,9 +170,9 @@ on it. Comments in the code cite sections of its design document ("spec 6.1"); t
   (`NewPipeImportGuardTest` checks it).
 - `app/src/main/java/com/cosmotune/video/host/PhoneModeHost.kt` and
   `desktopApp/src/main/kotlin/com/cosmotune/video/host/DesktopModeHost.kt`: the hosts that draw Video in place of Music's root.
-- The mode is only reachable while `AppModes.available(AppMode.VIDEO)` is true, the new look is on and the stored mode is Video.
+- The mode is only reachable while `AppModes.available(AppMode.VIDEO)` is true and the stored mode is Video.
   It is true since the first Cosmotune release; the one-line change in `AppModes.available` takes Video out of the drawer again.
-  With the look off, or with the mode on Music, every hook below is a no-op.
+  With the mode on Music, every hook below is a no-op.
 
 ### Hooks into upstream files
 

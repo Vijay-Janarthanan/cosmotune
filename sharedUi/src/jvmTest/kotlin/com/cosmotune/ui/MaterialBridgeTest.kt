@@ -31,7 +31,7 @@ import kotlin.test.fail
 /**
  * The Material bridge: the type table of P4-1 row by row at 360 and 840 dp, on two legacy scales (Material's own defaults, as
  * the desktop starts from, and a copy of the phone's SF Pro scale), the five corners, the ripple, and what the theme file must
- * look like so that flipping the switch keeps the app's state.
+ * look like now that there is no switch: the look's scheme, type, corners, content colour and ripple, unconditionally.
  */
 class MaterialBridgeTest {
     private val archivo = FontFamily.Serif
@@ -242,15 +242,16 @@ class MaterialBridgeTest {
 
     private val themeBody get() = functionBody(read(themePath), "fun CosmoLookTheme(")
 
-    @Test fun typographyAndShapesDependOnTheSwitchAndTheContentIsNeverInsideAnIf() {
+    @Test fun theSchemeTypographyAndShapesAreTheLooksAndTheContentIsNeverInsideAnIf() {
         val body = themeBody
         val materialTheme = balanced(body, body.indexOf("MaterialTheme("), '(', ')')
         val typography = materialTheme.substringAfter("typography =").substringBefore("shapes =").trim()
         val shapes = materialTheme.substringAfter("shapes =").trim()
-        assertTrue(typography.startsWith("if (newLook)"), "typography depends on newLook: $typography")
-        assertTrue("legacyTypography" in typography.substringAfter("else"), "the old branch is the legacy typography")
-        assertTrue(shapes.startsWith("if (newLook) CosmoMaterialShapes else legacyShapes"), "shapes depend on newLook: $shapes")
-        assertTrue("MaterialTheme.typography" in body && "MaterialTheme.shapes" in body, "the legacy values are read from the legacy theme")
+        assertEquals("remember(type, legacyTypography) { type.toMaterialTypography(legacyTypography) },", typography, "the look's typography, made from the legacy one")
+        assertEquals("CosmoMaterialShapes,", shapes, "the look's corners")
+        assertTrue("val scheme = remember(target, legacyScheme) { target.toColorScheme(legacyScheme) }" in body, "the cover palette as the scheme, made from the legacy one")
+        assertTrue("MaterialTheme.typography" in body && "MaterialTheme.colorScheme" in body, "the legacy values are read from the legacy theme")
+        assertFalse("newLook" in body || "legacyShapes" in body, "there is no switch and no legacy corner set")
 
         val contentWord = Regex("""\bcontent\b""")
         for (governed in ifBodies(body)) assertFalse(contentWord.containsMatchIn(governed), "content inside an if: $governed")
@@ -258,13 +259,14 @@ class MaterialBridgeTest {
         assertEquals(1, Regex("""\blegacy\s*\{""").findAll(body).count())
     }
 
-    @Test fun theTypeIsMadeOnceAboveTheThemeAndTheContentColourAndRippleAreProvidedWhicheverWayTheSwitchIs() {
+    @Test fun theTypeIsMadeOnceAboveTheThemeAndTheShellTheContentColourAndRippleAreTheLooks() {
         val body = themeBody
         assertTrue(body.indexOf("val type = rememberCosmoType()") in 0 until body.indexOf("MaterialTheme("), "the type is hoisted above MaterialTheme(")
         assertEquals(1, Regex("""\brememberCosmoType\(""").findAll(body).count())
         assertEquals(1, Regex("""LocalCosmoType provides type\b""").findAll(body).count(), "one provider of the type")
         val provider = balanced(body, body.indexOf("CompositionLocalProvider("), '(', ')')
-        assertTrue("LocalContentColor provides (if (newLook) Color(target.textPrimary) else LocalContentColor.current)" in provider)
-        assertTrue("LocalRippleConfiguration provides (if (newLook) CosmoRipple else LocalRippleConfiguration.current)" in provider)
+        assertTrue("LocalCosmoShell provides shell," in provider, "the shell is always provided")
+        assertTrue("LocalContentColor provides Color(target.textPrimary)," in provider)
+        assertTrue("LocalRippleConfiguration provides CosmoRipple," in provider)
     }
 }

@@ -6,10 +6,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * What no screenshot harness can check about the settings in the new look, read from the source: the phone's ten building blocks
- * and the desktop's three rows hand over to ours as their first statement (so with the look off the old code runs untouched), by
- * name, with every parameter; our blocks keep the old parameter lists; the colour intensity reaches the palette; and the blocks read
- * the live palette only while drawing.
+ * What no screenshot harness can check about the settings in the look, read from the source: the phone's ten building blocks are
+ * each the one call of ours (their old bodies are gone) and the desktop's three rows the call right after their visibility check,
+ * by name, with every parameter; our blocks keep the old parameter lists; the colour intensity reaches the palette; and the blocks
+ * read the live palette only while drawing.
  */
 class SettingsBlocksContractTest {
     private val sheetPath = "app/src/main/java/com/cosmotune/music/ui/screens/SettingsSheet.kt"
@@ -24,7 +24,7 @@ class SettingsBlocksContractTest {
     private val desktop = SourceContract.read(desktopPath)
     private val blocks = SourceContract.read(blocksPath)
 
-    private val guard = "if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings."
+    private val ours = "com.cosmotune.ui.settings."
 
     /** The phone's functions in `SettingsSheet.kt` and the block each one hands over to. */
     private val phone = listOf(
@@ -44,12 +44,12 @@ class SettingsBlocksContractTest {
 
     // ---- the phone ----------------------------------------------------------------------------------------------------------
 
-    @Test fun eachOfTheTenPhoneFunctionsHandsOverToItsBlockAsItsFirstStatement() {
+    @Test fun eachOfTheTenPhoneFunctionsIsTheOneCallOfItsBlock() {
         for ((old, new) in phone) {
             val statement = firstOfPhone(old)
-            assertTrue(statement.startsWith("$guard$new("), "$old: the first statement is the delegate to $new, not: $statement")
+            assertTrue(statement.startsWith("$ours$new("), "$old: the first statement is the delegate to $new, not: $statement")
             val body = SourceContract.functionBody(sheet, old)
-            assertTrue(SourceContract.code(body).length > statement.length + 20, "$old: the old body follows the delegate, untouched")
+            assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "$old: the delegate is the whole body, the old one is gone")
         }
     }
 
@@ -88,13 +88,12 @@ class SettingsBlocksContractTest {
         assertTrue(statement.contains("account?.thumbnailUrl"), "the avatar")
         assertTrue(statement.contains("signedIn && onClick != null -> onClick") && statement.contains("!signedIn -> onSignIn") && statement.contains("else -> null"), "signed in with a click opens it, signed out signs in")
         assertTrue(statement.contains("grouped = grouped"))
-        val oldCard = SourceContract.code(SourceContract.functionBody(sheet, "AccountCard"))
-        assertTrue(oldCard.contains("Chevron()") && oldCard.contains("MaterialTheme.colorScheme.surfaceVariant"), "the old card is still there for the look off")
     }
 
     @Test fun theAppearanceGroupFindsTheLookByTheWordIntensity() {
-        val line = sheet.lines().first { it.contains("\"new look\"") }
+        val line = sheet.lines().first { it.contains("com.cosmotune.ui.CosmoLookSettingsRows") || it.contains("\"colours follow the cover\"") }
         assertTrue(line.contains("\"colours follow the cover\"") && line.contains("\"preview the look\"") && line.contains("\"colour\"") && line.contains("\"intensity\""), line)
+        assertFalse(line.contains("\"new look\""), "there is no New look row to find any more")
     }
 
     // ---- the desktop -----------------------------------------------------------------------------------------------------------
@@ -107,10 +106,10 @@ class SettingsBlocksContractTest {
             assertEquals(visibility, SourceContract.firstStatement(body), "$name starts by asking whether the row is visible")
             val rest = body.substringAfter(visibility)
             val statement = SourceContract.firstStatement(rest)
-            assertTrue(statement.startsWith("${guard}CosmoSettingsRow("), "$name: the statement after the visibility check is the delegate, not: $statement")
+            assertTrue(statement.startsWith("${ours}CosmoSettingsRow("), "$name: the statement after the visibility check is the delegate, not: $statement")
             val names = SourceContract.names(SourceContract.parameters(desktop, name))
             for (parameter in names) assertTrue(Regex("""\b${Regex.escape(parameter)}\b""").containsMatchIn(statement), "$name: the delegate uses `$parameter`")
-            assertTrue(SourceContract.code(rest).length > statement.length + 20, "$name: the old body follows")
+            assertEquals("$statement }", rest.replace(Regex("\\s+"), " ").trim(), "$name: the delegate is the rest of the body, the old row is gone")
         }
     }
 
@@ -128,11 +127,11 @@ class SettingsBlocksContractTest {
         val body = SourceContract.code(SourceContract.functionBody(desktop, "SettingsGroup"))
         val flat = body.replace(Regex("\\s+"), " ")
         assertTrue(flat.contains("com.cosmotune.ui.settings.CosmoSettingsGroup(header = title.takeIf { visible }, topSpacing = 0.dp)"), "the group's name only while it is visible, no extra room above")
-        val tile = flat.substringAfter("CosmoSettingsGroup(").substringBefore("return@Column")
+        val tile = flat.substringAfter("CosmoSettingsGroup(")
         assertTrue(tile.contains("LocalSettingsQuery provides if (wholeGroup) \"\" else query") && tile.contains("LocalSettingsMatches provides matched") && tile.contains("content()"), "the same filter around the same content")
-        assertEquals(2, Regex("LocalSettingsQuery provides").findAll(flat).count(), "the old branch is still there")
-        assertTrue(flat.contains("if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) { "), "only while the look is on")
-        assertTrue(flat.contains("title.uppercase()"), "the old heading is the look-off branch")
+        assertEquals(1, Regex("LocalSettingsQuery provides").findAll(flat).count(), "one filter: the old branch is gone")
+        assertTrue(flat.trimEnd().endsWith("content() } } }"), "the group is the last thing the function draws")
+        assertFalse("return@Column" in flat || "LocalCosmoShell" in flat || "title.uppercase()" in flat, "no look test and no old heading")
     }
 
     // ---- the intensity -------------------------------------------------------------------------------------------------------------
@@ -165,8 +164,8 @@ class SettingsBlocksContractTest {
     @Test fun thePhoneAndDesktopHaveTheirIntensityRow() {
         val phoneRows = SourceContract.code(SourceContract.read(phoneRowsPath))
         assertTrue(phoneRows.contains("cosmo_intensity_summary") && phoneRows.contains("CosmoSettingsSegmented(") && phoneRows.contains("compact = true"))
-        assertTrue(phoneRows.contains("val intensityLive = newLook && coverColours") && phoneRows.contains("enabled = intensityLive"), "live only while the look is on and the colours follow the cover")
-        assertTrue(phoneRows.contains("CosmoSwitch(") && phoneRows.contains("Switch(") && phoneRows.contains("lookOn"), "the look's switch while the look is on, Material's while it is off")
+        assertTrue(phoneRows.contains("val intensityLive = coverColours") && phoneRows.contains("enabled = intensityLive"), "live only while the colours follow the cover")
+        assertTrue(phoneRows.contains("CosmoSwitch(") && !phoneRows.contains("lookOn") && !phoneRows.contains("newLook"), "the look's own switch, always")
         val desktopRows = SourceContract.code(SourceContract.read(desktopTogglesPath))
         assertTrue(desktopRows.contains("CosmoSettingsSegmented(") && desktopRows.contains("settings::setIntensity") && desktopRows.contains("enabled = coverColours"))
         assertTrue(desktopRows.contains("CosmoButton(") && desktopRows.contains("CosmoButtonKind.TONAL") && desktopRows.contains("CosmoButtonSize.SMALL"), "the preview button is the tonal small B button")

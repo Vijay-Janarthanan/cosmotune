@@ -7,8 +7,8 @@ import kotlin.test.assertTrue
 
 /**
  * The behaviour fixes of the polish task (P4-20), pinned by reading the source: what cannot be seen without a window. One section
- * per item; each pins the literal text of the upstream site it changed (so a merge that undoes the fix shows up here) and the
- * look-off rule (with the look off the old line runs as before).
+ * per item; each pins the literal text of the upstream site it changed (so a merge that undoes the fix shows up here). The old
+ * look and its switch are gone, so no site keeps a look-off line any more.
  */
 class PolishContractTest {
     private val app = "app/src/main/java/com/cosmotune/music/"
@@ -17,24 +17,17 @@ class PolishContractTest {
 
     // ---- 1. the equaliser toggle ticks once -----------------------------------------------------------------------------------
 
-    @Test fun theEqualizerScreensOwnToggleHapticPlaysOnlyWithTheLookOff() {
+    @Test fun theEqualizerScreensSwitchLeavesItsTickToCosmoSwitch() {
         val src = SourceContract.code(SourceContract.read("${app}ui/screens/EqualizerScreen.kt"))
         val flat = src.replace(Regex("\\s+"), " ")
-        // read in composition (a callback cannot read a composition local), then the switch's callback asks it: CosmoSwitch
-        // (through the bridge) already ticks with the look on
-        assertTrue(
-            flat.contains("val cosmoLookOff = com.cosmotune.ui.theme.LocalCosmoShell.current == null"),
-            "the screen reads whether the look is off in composition",
-        )
-        assertTrue(
-            flat.contains("onCheckedChange = { if (cosmoLookOff) haptics.play(if (it) Haptic.ToggleOn else Haptic.ToggleOff)"),
-            "the switch's callback plays its haptic only with the look off",
-        )
+        // CosmoSwitch (through the bridge) ticks on its own: the switch's callback adds no second tick
+        assertTrue(flat.contains("onCheckedChange = { AppSettings.setEqualizerEnabled(it) },"), "the switch's callback only sets the equaliser")
+        assertFalse(flat.contains("cosmoLookOff") || flat.contains("LocalCosmoShell"), "no question whether the look is on")
         assertFalse(
-            Regex("""onCheckedChange = \{\s*haptics\.play""").containsMatchIn(src),
-            "no unconditional haptic in the switch's callback",
+            Regex("""onCheckedChange = \{\s*(if \(\w+\) )?haptics\.play""").containsMatchIn(src),
+            "no haptic in the switch's callback",
         )
-        // the row's own tap (not the switch) still ticks once in both looks
+        // the row's own tap (not the switch) still ticks once
         assertTrue(
             Regex("""onClick = \{\s*haptics\.play\(if \(!enabled\) Haptic\.ToggleOn else Haptic\.ToggleOff\)""").containsMatchIn(src),
             "the row's tap keeps its haptic",
@@ -74,9 +67,8 @@ class PolishContractTest {
 
     @Test fun theDesktopHomeHearsWhichSongIsPlayingAsTheDesktopSearchDoes() {
         val src = SourceContract.code(SourceContract.read("${desktop}DesktopApp.kt"))
-        // (the old Home would draw its own indicator from the same two values, and never had them on the desktop: only the new look gets them)
         for ((page, song, playing) in listOf(
-            Triple("com.cosmotune.ui.home.HomeSwitch", "currentSong = playback.song.takeIf { cosmoShell != null }", "isPlaying = cosmoShell != null && playback.isPlaying"),
+            Triple("com.cosmotune.ui.home.HomeSwitch", "currentSong = playback.song", "isPlaying = playback.isPlaying"),
             Triple("com.cosmotune.ui.search.SearchSwitch", "currentSong = playback.song", "isPlaying = playback.isPlaying"),
         )) {
             val at = src.indexOf("$page(")
@@ -91,6 +83,7 @@ class PolishContractTest {
             val call = src.substring(open, end)
             assertTrue(call.contains(song), "$page is told the engine's live song")
             assertTrue(call.contains(playing), "$page is told whether the audio plays: its cards' bars move")
+            assertFalse(call.contains("cosmoShell"), "$page is told whatever the look")
         }
     }
 
@@ -99,13 +92,11 @@ class PolishContractTest {
     private val frame: String
         get() = SourceContract.functionBody(SourceContract.read("${desktop}DesktopApp.kt"), "DesktopFrame").replace(Regex("\\s+"), " ")
 
-    @Test fun theNewLooksFrameDrawsTheAmbientGroundBelowTheTitleBarWhateverTheMaterial() {
+    @Test fun theFrameDrawsTheAmbientGroundBelowTheTitleBarWhateverTheMaterial() {
         val text = frame
-        assertTrue(
-            text.contains("val cosmoGround = com.cosmotune.ui.theme.LocalCosmoShell.current != null"),
-            "the frame asks the look once, in composition",
-        )
-        val ground = "if (glass && cosmoGround) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }"
+        assertTrue("backdrop: @Composable () -> Unit" in SourceContract.parameters(SourceContract.read("${desktop}DesktopApp.kt"), "DesktopFrame"), "the frame takes the look's ground as its backdrop")
+        assertFalse(text.contains("LocalCosmoShell"), "the frame does not ask whether the look is on")
+        val ground = "if (glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }"
         assertEquals(1, Regex(Regex.escape(ground)).findAll(text).count(), "the ground of the look is drawn once with a material, as a source for the bar's blur")
         assertTrue(
             text.indexOf("DesktopTitleBar()") < text.indexOf(ground) && text.indexOf(ground) < text.indexOf("BoxWithConstraints("),
@@ -113,23 +104,18 @@ class PolishContractTest {
         )
     }
 
-    @Test fun theFlatSlabsAndThePagesOwnBackdropAreOnlyForTheOldLook() {
+    @Test fun theOldFlatSlabsAndThePagesOwnBackdropAreGone() {
         val text = frame
-        assertFalse(text.contains("if (glass && !materialBehindApp) {"), "no flat container colour behind the page or the column of the new look")
-        assertEquals(
-            2,
-            Regex(Regex.escape("if (glass && !materialBehindApp && !cosmoGround) { Modifier.background(containerColor) } else { Modifier }")).findAll(text).count(),
-            "the page's and the column's flat colour only without the new look",
-        )
-        assertTrue(text.contains("if (glass && !cosmoGround) backdrop(materialBehindApp)"), "the page's own backdrop is the old look's: the ground is already behind it")
-        assertFalse(Regex("""if \(glass\) backdrop\(materialBehindApp\)""").containsMatchIn(text), "no unconditional page backdrop is left")
+        for (old in listOf("cosmoGround", "materialBehindApp", "appBackground")) assertFalse(text.contains(old), "$old is gone from the frame")
+        assertEquals(1, Regex(Regex.escape("Modifier.background(containerColor)")).findAll(text).count(), "no flat container colour behind the page or the column: only the window's own")
+        assertFalse(Regex("""backdrop\((true|false|materialBehindApp)\)""").containsMatchIn(text), "the backdrop takes no material flag")
     }
 
-    @Test fun withTheLookOffTheFrameIsTheOldOne() {
+    @Test fun withoutAMaterialTheGroundIsTheWindowsOwn() {
         val text = frame
-        assertTrue(text.contains("if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }"), "the old window ground is untouched")
-        assertTrue(text.contains(".then(if (glass) Modifier else Modifier.background(containerColor))"), "the old window colour is untouched")
-        assertTrue(text.contains("val materialBehindApp = glass && appBackground"), "the old material rule is untouched")
+        assertTrue(text.contains("if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop() }"), "without a material the ground lies under the title bar too")
+        assertTrue(text.contains(".then(if (glass) Modifier else Modifier.background(containerColor))"), "the window colour without a material is untouched")
+        assertTrue(text.indexOf("if (!glass) Box(") < text.indexOf("DesktopTitleBar()"), "and it is drawn before the title bar")
     }
 
     // ---- 4. the bottom bands ---------------------------------------------------------------------------------------------------
@@ -137,12 +123,10 @@ class PolishContractTest {
     @Test fun thePagePadsForExactlyTheFloatingChrome() {
         val text = frame
         assertTrue(
-            text.contains(
-                "com.cosmotune.ui.theme.LocalCosmoShell.current != null -> " +
-                    "com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp compact -> 128.dp else -> 16.dp",
-            ),
-            "the wide page pads 108 dp for the bar while a song is selected, the compact one 154 dp (80 without a song) for the capsules; the old two follow",
+            text.contains("bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp,"),
+            "the wide page pads 108 dp for the bar while a song is selected, the compact one 154 dp (80 without a song) for the capsules",
         )
+        assertFalse(text.contains("compact -> 128.dp") || text.contains("else -> 16.dp"), "the old look's two paddings are gone")
         assertFalse(text.contains("168.dp"), "no slack: 168 dp was the phone's chrome plus 14")
     }
 
@@ -165,11 +149,7 @@ class PolishContractTest {
         val src = SourceContract.read("${desktop}DesktopApp.kt")
         val statement = SourceContract.firstStatement(SourceContract.functionBody(src, "DesktopErrorPage"))
         assertTrue("icon = Icons.Rounded.Tune" in statement, "the new state draws the old page's icon, not the default play triangle: $statement")
-        // the old branch's icon is the same one, so the two looks agree
-        assertTrue(
-            SourceContract.code(SourceContract.functionBody(src, "DesktopErrorPage")).contains("DesktopEmptyPage(Icons.Rounded.Tune, "),
-            "the old page still draws Tune",
-        )
+        assertTrue(statement.startsWith("com.cosmotune.ui.states.CosmoEmptyState("), "the state is the page's one call: $statement")
     }
 
     // ---- 6. holding the liked tile opens its menu -------------------------------------------------------------------------------
@@ -212,7 +192,7 @@ class PolishContractTest {
         assertTrue(code.contains("ArtistPlay.Tap.TOGGLE -> onPlayPause?.invoke()") && code.contains("ArtistPlay.Tap.PLAY_LIST -> if (songs.isNotEmpty()) onSongClick(songs, 0)"), "a toggle toggles, otherwise the list plays from the top")
     }
 
-    @Test fun theDetailSwitchPassesTheRootsToggleToTheArtistPageOnlyAndKeepsTheOldCallAsItWas() {
+    @Test fun theDetailSwitchPassesTheRootsToggleToTheNewPagesOnly() {
         val switch = SourceContract.read("app/src/main/java/com/cosmotune/ui/pages/DetailSwitch.kt")
         val old = SourceContract.parameters(SourceContract.read("${app}ui/screens/DetailScreen.kt"), "DetailScreen")
         val own = SourceContract.parameters(switch, "DetailSwitch")
@@ -223,7 +203,7 @@ class PolishContractTest {
         assertTrue(artist.contains("onPlayPause = onPlayPause"), "the artist page gets the toggle")
         // Orbit: the release card's bite is the toggle too while one of its songs is loaded
         assertEquals(2, Regex("""onPlayPause = onPlayPause""").findAll(body).count(), "the artist and the release page, nobody else")
-        assertFalse(body.substringAfter("} else { DetailScreen(").contains("onPlayPause"), "the old screen's call does not know it")
+        assertFalse(Regex("""(?<![\w.])DetailScreen\(""").containsMatchIn(body), "the old screen is not called")
     }
 
     @Test fun theRootHandsThePhonesToggleToTheDetailSwitch() {
@@ -272,10 +252,10 @@ class PolishContractTest {
         assertFalse(flat.contains("androidx.compose.runtime.SideEffect { selectedTab = TAB_SEARCH }"), "no correction after the frame is composed")
         assertTrue(flat.contains("val selectedTabState = rememberSaveable { mutableIntStateOf(0) }"), "the saved tab is held under its own name")
         assertFalse(flat.contains("var selectedTab by rememberSaveable"), "and is not the variable the page reads")
-        val derived = "var selectedTab by com.cosmotune.ui.chrome.ShownTab(selectedTabState) { stored -> com.cosmotune.design.TabRedirect.shown( stored, newLook = cosmoShell != null, homeTab = TAB_HOME, releasesTab = TAB_RELEASES, ) }"
+        val derived = "var selectedTab by com.cosmotune.ui.chrome.ShownTab(selectedTabState) { stored -> com.cosmotune.design.TabRedirect.shown( stored, homeTab = TAB_HOME, releasesTab = TAB_RELEASES, ) }"
         val at = flat.replace("( ", "(").replace(", )", ")").indexOf(derived.replace("( ", "(").replace(", )", ")"))
         assertTrue(at >= 0, "the tab the page reads is derived from the saved one")
-                assertTrue(flat.indexOf("var selectedTab by com.cosmotune.ui.chrome.ShownTab(") < flat.indexOf("val currentListState = when (selectedTab)"), "and before the first read")
+        assertTrue(flat.indexOf("var selectedTab by com.cosmotune.ui.chrome.ShownTab(") < flat.indexOf("val currentListState = when (selectedTab)"), "and before the first read")
         // no read or write of the name before it is declared (a local cannot be used above its declaration, so the build says so too)
         assertEquals(0, Regex("""\bselectedTab\b""").findAll(flat.substring(0, flat.indexOf("var selectedTab by com.cosmotune.ui.chrome.ShownTab("))).count(), "nothing uses the name above it")
     }
@@ -300,7 +280,7 @@ class PolishContractTest {
         val style = flat(SourceContract.code(SourceContract.read("${shared}chrome/CosmoActionStyle.kt")))
         assertTrue(style.contains("enum class CosmoActionStyle { GLASS }"), "one style")
         assertTrue(style.contains("val LocalCosmoActionStyle = compositionLocalOf<CosmoActionStyle?> { null }"), "null (no style) where nobody provides it")
-        // the switch only chooses between the two bars: the wrap is the new bar's own
+        // the switch is only the bar's call: the wrap is the bar's own
         assertFalse(SourceContract.read("app/src/main/java/com/cosmotune/ui/chrome/TopBarSwitch.kt").contains("LocalCosmoActionStyle"), "the switch does not know the style")
     }
 
@@ -316,10 +296,11 @@ class PolishContractTest {
         )
         val body = flat(SourceContract.code(SourceContract.functionBody(src, "IconButton")))
         assertTrue(
-            body.startsWith("{ if (LocalCosmoShell.current == null || LocalCosmoActionStyle.current != CosmoActionStyle.GLASS) { androidx.compose.material3.IconButton( onClick = onClick, modifier = modifier, enabled = enabled, colors = colors, interactionSource = interactionSource, content = content, ) return }"),
-            "the first statement hands every parameter, by name, to Material's own button unless the look is on and the style is glass: $body",
+            body.startsWith("{ if (LocalCosmoActionStyle.current != CosmoActionStyle.GLASS) { androidx.compose.material3.IconButton( onClick = onClick, modifier = modifier, enabled = enabled, colors = colors, interactionSource = interactionSource, content = content, ) return }"),
+            "the first statement hands every parameter, by name, to Material's own button unless the style is glass: $body",
         )
         assertTrue(body.contains("CosmoGlassActionButton(onClick = onClick, modifier = modifier, enabled = enabled, content = content)"), "inside the style it is the glass circle")
+        assertFalse(body.contains("LocalCosmoShell"), "no question whether the look is on")
     }
 
     @Test fun theGlassActionButtonIsTheGlassIconButtonWithASlot() {

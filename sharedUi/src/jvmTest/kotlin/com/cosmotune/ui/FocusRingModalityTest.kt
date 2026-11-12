@@ -60,7 +60,7 @@ class FocusRingModalityTest {
 
     @Test fun theAppRootAndEveryWindowOfItsOwnKeepTheAnswerUpToDate() {
         val theme = SourceContract.code(SourceContract.functionBody(SourceContract.read("$ui/theme/CosmoLookTheme.kt"), "CosmoLookTheme")).replace(Regex("\\s+"), " ")
-        assertTrue("FocusModalityRoot(enabled = newLook) { CompositionLocalProvider(" in theme, "the app's content, with the switch on")
+        assertTrue("FocusModalityRoot(enabled = true) { CompositionLocalProvider(" in theme, "the app's content, always")
         assertTrue("content = content, ) }" in theme, "and the content itself is passed once, as before")
         val root = code("$ui/components/FocusRing.kt")
         assertTrue("fun FocusModalityRoot(enabled: Boolean, content: @Composable () -> Unit) { Box(if (enabled) Modifier.trackFocusModality() else Modifier, propagateMinConstraints = true) { content() } }" in root, "a box that changes no constraint")

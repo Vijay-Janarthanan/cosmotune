@@ -40,10 +40,10 @@ class HomeContractTest {
         assertEquals("playbackTime", SourceContract.names(SourceContract.parameters(file("HomeSwitch.kt"), "HomeSwitch")).last())
     }
 
-    @Test fun bothBranchesOfTheSwitchPassEveryParameterByNameAndTheOldOneDoesNotPassBrowse() {
+    @Test fun theSwitchEndsInTheOneOrbitCallAndPassesItEveryParameterByName() {
         val src = file("HomeSwitch.kt")
         // Optional switch-owned inputs enrich the shared feed; they are not screen callbacks.
-        // State is deliberately transformed once and the same result must reach both branches.
+        // State is deliberately transformed once and the result is what the screen gets.
         val names = SourceContract.names(SourceContract.parameters(src, "HomeSwitch")) - setOf(
             "state", "playlistSongs", "saveGeneratedPlaylist", "discoveryHistory", "discoveryLikedIds", "followedArtists", "quickLinks",
         )
@@ -58,23 +58,19 @@ class HomeContractTest {
         assertTrue("(state as? UiState.Success)?.data.orEmpty()" in enrichedState &&
             "current.filterNot { it.sourceId in sources } + personalShelves" in enrichedState,
             "enrichment preserves the online feed and replaces only the local shelf identities")
-        val statement = SourceContract.firstStatement(body.substring(body.indexOf("if (LocalCosmoShell.current != null)")))
-        assertTrue(statement.startsWith("if (LocalCosmoShell.current != null) {"), "the switch is its one statement: $statement")
-        assertTrue(statement.endsWith("}"), "and the whole if/else is read, to its closing brace")
-        val newBranch = statement.substringBefore("} else {")
-        val oldBranch = statement.substringAfter("} else {")
-        assertTrue(newBranch.contains("OrbitHome("), "look on: the Orbit screen")
-        assertTrue(oldBranch.contains("HomeScreen("), "look off: the old screen")
-        // Orbit names its own page and has no lead hero switch; the old screen has no use for browse or the hero's player hooks.
-        SourceContract.assertPassesEveryParameter(newBranch, names - setOf("title", "leadHero"))
-        SourceContract.assertPassesEveryParameter(oldBranch, names - setOf("browse", "onPlayPause", "playbackTime"))
-        assertTrue("state = shownState" in newBranch && "state = shownState" in oldBranch,
-            "both screens receive the same meaningfully enriched feed, including the legacy look")
-        assertTrue(newBranch.contains("discoveryControls = controls"))
-        assertTrue(oldBranch.contains("discoveryControls = controls"))
-        assertFalse(Regex("""\bbrowse\b""").containsMatchIn(oldBranch), "the old screen has no browse")
-        assertTrue("quickLinks = quickLinks" in newBranch, "the new screen draws the host's links")
-        assertFalse("quickLinks" in oldBranch, "the old screen has none")
+        assertFalse("LocalCosmoShell" in body, "no question whether the look is on")
+        assertFalse(Regex("""\bHomeScreen\(""").containsMatchIn(body), "the old screen is not called")
+        val at = body.indexOf("OrbitHome(")
+        assertTrue(at >= 0, "the Orbit screen is called")
+        assertEquals(at, body.lastIndexOf("OrbitHome("), "once")
+        val statement = SourceContract.firstStatement(body.substring(at))
+        assertTrue(statement.endsWith(")"), "the whole call is read, to its closing parenthesis: $statement")
+        assertEquals("$statement }", body.substring(at).replace(Regex("\\s+"), " "), "and it is the last statement")
+        // Orbit names its own page and has no lead hero switch.
+        SourceContract.assertPassesEveryParameter(statement, names - setOf("title", "leadHero"))
+        assertTrue("state = shownState" in statement, "the screen receives the enriched feed")
+        assertTrue(statement.contains("discoveryControls = controls"))
+        assertTrue("quickLinks = quickLinks" in statement, "the screen draws the host's links")
     }
 
     // ---- the call sites -----------------------------------------------------------------------------------------------------------
@@ -118,14 +114,15 @@ class HomeContractTest {
         assertTrue(call.indexOf(browse) < call.indexOf("leadHero = false,"), "well before leadHero, which sits two lines from the mood page's site")
     }
 
-    @Test fun theDesktopLoadsExploreWhileOnListenNowWithTheNewLookOnlyAndOnlyWhenItIsStillLoading() {
+    @Test fun theDesktopLoadsExploreWhileOnListenNowOrSearchAndOnlyWhenItIsStillLoading() {
         val src = SourceContract.code(SourceContract.read(desktopRoot))
         val at = src.indexOf("val homeWantsExplore =")
         assertTrue(at >= 0, "the extra loader exists")
         val block = src.substring(at, src.indexOf("LaunchedEffect(exploreState)", at))
         assertTrue("destination == DesktopDestination.LISTEN_NOW" in block && "destination == DesktopDestination.SEARCH" in block, "only on Listen now and on Search (its mood grid)")
         assertTrue("LaunchedEffect(exploreReloads) {" in block && "if (exploreReloads > 0 && homeWantsExplore) loadExplore()" in block, "Retry from either page reloads")
-        assertTrue("rememberCosmoLookSettings().newLook" in block, "only while the new look is on: with it off the app loads what it loaded before")
+        assertTrue("val homeWantsExplore = destination == DesktopDestination.LISTEN_NOW || destination == DesktopDestination.SEARCH" in src, "on those two pages, whatever else")
+        assertFalse("newLook" in block, "there is no look switch to ask")
         assertTrue("if (homeWantsExplore && exploreState is UiState.Loading) loadExplore()" in block, "once, while Explore has not arrived")
         // the original loader is as it was
         assertTrue(

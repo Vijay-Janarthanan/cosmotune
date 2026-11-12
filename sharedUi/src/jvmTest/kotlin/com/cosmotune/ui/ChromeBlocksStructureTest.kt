@@ -190,10 +190,14 @@ class ChromeBlocksStructureTest {
             Regex("""fun brandMarkColor\(dark: Boolean\): Color = Color\(if \(dark\) CosmoBrand\.APRICOT else CosmoBrand\.INK\)""").containsMatchIn(code),
             "apricot on dark, ink on light",
         )
-        assertTrue("brandMarkColor(LocalCosmoColors.current.dark)" in code, "the top bar asks it with the theme it is in")
-        assertTrue("brandMarkColor(colors.dark)" in SourceContract.code(drawer), "so does the drawer's foot")
-        assertTrue("Res.drawable.ic_logo" in code, "the mark is ic_logo")
+        val drawerCode = SourceContract.code(drawer)
+        assertTrue("brandMarkColor(colors.dark)" in drawerCode, "the drawer's foot asks it with the theme it is in")
+        assertTrue("Res.drawable.ic_logo" in drawerCode, "the mark is ic_logo")
+        assertTrue("TopBarMetrics.LOGO_WIDTH, TopBarMetrics.LOGO_HEIGHT" in drawerCode, "at the bar's logo size")
         assertTrue(Regex("""LOGO_WIDTH\s*=\s*28\.dp""").containsMatchIn(code) && Regex("""LOGO_HEIGHT\s*=\s*18\.dp""").containsMatchIn(code), "28 x 18 dp")
+        // the mark at the start of a root page was the old look's: a root page now always leads with the mode switcher
+        assertTrue("com.cosmotune.ui.kit.KitModeSwitcher(collapsed = scrolled)" in code, "a root page leads with the mode switcher")
+        assertTrue("Res.drawable.ic_logo" !in code && "LocalCosmoShell.current" !in code, "the top bar draws no logo and does not ask whether the look is on")
     }
 
     @Test fun theTitleFadesInOnTheEffectsSpringAndTheBarHasTheBoardsSpacing() {

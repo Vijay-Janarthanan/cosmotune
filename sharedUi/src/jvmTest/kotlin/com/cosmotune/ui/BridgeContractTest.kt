@@ -9,8 +9,8 @@ import kotlin.test.assertTrue
 /**
  * The widget bridge (`com.cosmotune.ui.bridge`: Switch, CircularProgressIndicator, AlertDialog, ModalBottomSheet, DropdownMenu,
  * DropdownMenuItem), pinned by reading the source (there is no Compose UI test harness here and none is to be added): the 29
- * upstream files take each widget by the import swap and nothing else, every forwarder has Material's parameter list and passes
- * every parameter by name when the look is off, and the new look's numbers are the spec's.
+ * upstream files take each widget by the import swap and nothing else, every forwarder has Material's parameter list, draws the
+ * look's widget whatever the caller (there is no look-off branch any more), and the look's numbers are the spec's.
  */
 class BridgeContractTest {
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }
@@ -74,17 +74,19 @@ class BridgeContractTest {
         error("fun $name( is not closed")
     }
 
-    /** What a forwarder does with the look off: from its first `if (LocalCosmoShell.current == null` to the `return` that ends it. */
-    private fun lookOff(fn: String): String {
-        val from = fn.indexOf("if (LocalCosmoShell.current == null")
-        assertTrue(from >= 0, "the forwarder opens with the look-off test")
+    /** The sheet's pass-through for a caller that paints itself: from its `if (containerColor == Color.Transparent)` to the `return`. */
+    private fun passThrough(fn: String): String {
+        val from = fn.indexOf("if (containerColor == Color.Transparent)")
+        assertTrue(from >= 0, "the sheet opens with the transparent test")
         val until = fn.indexOf("return", from)
-        assertTrue(until > from, "the look-off branch returns")
+        assertTrue(until > from, "the pass-through returns")
         return fn.substring(from, until)
     }
 
-    /** What a forwarder does with the look on: everything after the look-off branch. */
-    private fun lookOn(fn: String): String = fn.substring(fn.indexOf("return", fn.indexOf("if (LocalCosmoShell.current == null")) + "return".length)
+    /** What a forwarder draws: its whole body, or for the sheet everything after its pass-through. */
+    private fun lookOn(fn: String): String =
+        if (fn.contains("if (containerColor == Color.Transparent)")) fn.substring(fn.indexOf("return", fn.indexOf("if (containerColor == Color.Transparent)")) + "return".length)
+        else fn
 
     private fun assertPassesEveryParameterByName(branch: String, params: List<String>, what: String) {
         for (name in names(params)) {
@@ -100,18 +102,18 @@ class BridgeContractTest {
     private val swapped: Map<String, List<String>> = mapOf(
         "Switch" to listOf("AccountAndScrobblingScreen", "DiscordScreen", "EqualizerScreen", "ListenTogetherScreen", "SettingsSheet", "SourcesScreen")
             .map { "${app}ui/screens/$it.kt" } +
-            listOf("DesktopApp", "DesktopEqualizerUi", "DesktopIntegrationsDialog", "DesktopListenTogetherUi").map { "$desktop$it.kt" },
+            listOf("DesktopApp", "DesktopListenTogetherUi").map { "$desktop$it.kt" },
         "CircularProgressIndicator" to listOf("sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/components/Common.kt") +
             listOf("AccountChannelDialog", "CastDialog", "DownloadManagerSheet", "SongActionsSheet")
                 .map { "${app}ui/components/$it.kt" } +
             listOf("ListenTogetherScreen").map { "${app}ui/screens/$it.kt" } +
             listOf("ReplayScreen", "ReplayShareSheet").map { "${app}ui/replay/$it.kt" } +
-            listOf("DesktopAccountUi", "DesktopApp", "DesktopIntegrationsUi", "DesktopListenTogetherUi", "DesktopPlaylistUi", "DesktopSongMenuUi")
+            listOf("DesktopAccountUi", "DesktopListenTogetherUi", "DesktopPlaylistUi")
                 .map { "$desktop$it.kt" },
-        "AlertDialog" to listOf("${app}ui/screens/ListenTogetherScreen.kt", "${app}ui/screens/SettingsSheet.kt", "${app}ui/components/LyricsSourcesDialog.kt", "${desktop}DesktopApp.kt"),
+        "AlertDialog" to listOf("${app}ui/screens/ListenTogetherScreen.kt", "${app}ui/screens/SettingsSheet.kt", "${app}ui/components/LyricsSourcesDialog.kt"),
         "ModalBottomSheet" to listOf("${app}MainActivity.kt") + listOf("ListenTogetherScreen", "SettingsSheet").map { "${app}ui/screens/$it.kt" },
-        "DropdownMenu" to listOf("${app}MainActivity.kt", "${app}ui/screens/LocalMusicScreen.kt", "${desktop}DesktopApp.kt", "${desktop}DesktopSharedPages.kt"),
-        "DropdownMenuItem" to listOf("${app}MainActivity.kt", "${app}ui/screens/LocalMusicScreen.kt", "${desktop}DesktopApp.kt", "${desktop}DesktopSharedPages.kt"),
+        "DropdownMenu" to listOf("${app}MainActivity.kt", "${app}ui/screens/LocalMusicScreen.kt", "${desktop}DesktopApp.kt"),
+        "DropdownMenuItem" to listOf("${app}MainActivity.kt", "${app}ui/screens/LocalMusicScreen.kt", "${desktop}DesktopApp.kt"),
     )
 
     @Test fun everyListedFileTakesTheWidgetFromTheBridgeAndNotFromMaterial() {
@@ -132,9 +134,9 @@ class BridgeContractTest {
         }
     }
 
-    @Test fun theSwapsTouchTwentyFiveFilesAndThirtyNineImports() {
-        assertEquals(25, swapped.values.flatten().toSet().size)
-        assertEquals(39, swapped.values.sumOf { it.size })
+    @Test fun theSwapsTouchTwentyFilesAndThirtyOneImports() {
+        assertEquals(20, swapped.values.flatten().toSet().size)
+        assertEquals(31, swapped.values.sumOf { it.size })
     }
 
     @Test fun theCallsInThoseFilesAreNotQualifiedAndNotRenamed() {
@@ -148,7 +150,6 @@ class BridgeContractTest {
 
     @Test fun theFilesLeftOutOnPurposeStillTakeMaterialsOwn() {
         val left = listOf(
-            "${app}ui/components/MiniPlayer.kt", "${app}ui/components/GlassNavBar.kt", "${app}ui/components/FrostedTopBar.kt",
             "${app}ui/player/AndroidLyricsShareSheet.kt",
             "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/player/PlayerControls.kt",
             "sharedUi/src/jvmSharedMain/kotlin/com/cosmotune/music/ui/player/PlayerLyrics.kt",
@@ -210,13 +211,13 @@ class BridgeContractTest {
         assertTrue("tonalElevation: Dp = AlertDialogDefaults.TonalElevation" in dialog)
     }
 
-    // ---- the look-off branch --------------------------------------------------------------------------------------------------
+    // ---- one path ---------------------------------------------------------------------------------------------------------
 
-    private data class Forwarder(val file: String, val name: String, val nth: Int, val material: String)
+    private data class Forwarder(val file: String, val name: String, val nth: Int, val material: String?)
 
     private val forwarders = listOf(
-        Forwarder("SwitchBridge.kt", "Switch", 0, "androidx.compose.material3.Switch("),
-        Forwarder("ProgressBridge.kt", "CircularProgressIndicator", 0, "androidx.compose.material3.CircularProgressIndicator("),
+        Forwarder("SwitchBridge.kt", "Switch", 0, null),
+        Forwarder("ProgressBridge.kt", "CircularProgressIndicator", 0, null),
         Forwarder("ProgressBridge.kt", "CircularProgressIndicator", 1, "androidx.compose.material3.CircularProgressIndicator("),
         Forwarder("DialogBridge.kt", "AlertDialog", 0, "androidx.compose.material3.AlertDialog("),
         Forwarder("SheetBridge.kt", "ModalBottomSheet", 0, "androidx.compose.material3.ModalBottomSheet("),
@@ -224,25 +225,25 @@ class BridgeContractTest {
         Forwarder("MenuBridge.kt", "DropdownMenuItem", 0, "androidx.compose.material3.DropdownMenuItem("),
     )
 
-    @Test fun withTheLookOffEveryForwarderCallsMaterialsOwnWithEveryParameterByName() {
+    @Test fun noForwarderHasALookOffBranchAnyMore() {
         for (f in forwarders) {
-            val src = bridge(f.file)
-            val fn = body(src, f.name, f.nth)
-            val off = lookOff(fn)
-            assertTrue(fn.trimStart().startsWith("if (LocalCosmoShell.current == null"), "${f.name} #${f.nth} starts with the look-off test")
-            assertTrue(off.contains(f.material), "${f.name} #${f.nth} calls ${f.material}")
-            assertPassesEveryParameterByName(off, parameters(src, f.name, f.nth), "${f.name} #${f.nth}")
+            val fn = body(bridge(f.file), f.name, f.nth)
+            assertFalse(fn.contains("LocalCosmoShell"), "${f.name} #${f.nth} does not ask whether the look is on")
         }
+        for (name in listOf("SwitchBridge.kt", "ProgressBridge.kt", "DialogBridge.kt", "SheetBridge.kt", "MenuBridge.kt")) {
+            assertFalse(code(bridge(name)).contains("LocalCosmoShell"), "$name does not read the shell")
+        }
+        assertFalse(body(bridge("SwitchBridge.kt"), "Switch").contains("androidx.compose.material3.Switch("), "the Switch is never Material's")
+        assertFalse(body(bridge("ProgressBridge.kt"), "CircularProgressIndicator", 0).contains("androidx.compose.material3."), "the spinner is never Material's ring")
     }
 
-    @Test fun theLookOffBranchPassesTheCallersValuesAsTheyAre() {
-        // every argument of the Material call is `name = name`: nothing is computed on the way when the look is off
-        for (f in forwarders) {
-            val off = lookOff(body(bridge(f.file), f.name, f.nth))
-            val arguments = off.substringAfter(f.material).substringBeforeLast(")")
-            for (line in arguments.lines().map { it.trim().trimEnd(',') }.filter { it.isNotEmpty() }) {
-                val (key, value) = line.split(" = ").also { assertEquals(2, it.size, "${f.name}: $line is `name = value`") }
-                assertEquals(key, value, "${f.name} #${f.nth}: $line")
+    @Test fun theForwardersThatDrawMaterialsWidgetPassItEveryParameter() {
+        // the look decides some of the values, but none of the caller's parameters is dropped on the way
+        for (f in forwarders.filter { it.material != null }) {
+            val src = bridge(f.file)
+            val call = lookOn(body(src, f.name, f.nth)).substringAfter(f.material!!)
+            for (name in names(parameters(src, f.name, f.nth))) {
+                assertTrue(Regex("""\b$name = """).containsMatchIn(call), "${f.name} #${f.nth} passes $name")
             }
         }
     }
@@ -250,10 +251,19 @@ class BridgeContractTest {
     @Test fun theSheetPassesThroughWhenTheCallerPaintsItselfTransparent() {
         val src = bridge("SheetBridge.kt")
         val fn = body(src, "ModalBottomSheet")
-        assertTrue(fn.trimStart().startsWith("if (LocalCosmoShell.current == null || containerColor == Color.Transparent)"), "the transparent container takes the look-off branch")
+        assertTrue(fn.trimStart().startsWith("if (containerColor == Color.Transparent) {"), "the transparent container is the one pass-through")
+        val through = passThrough(fn)
+        assertTrue(through.contains("androidx.compose.material3.ModalBottomSheet("))
+        assertPassesEveryParameterByName(through, parameters(src, "ModalBottomSheet"), "the pass-through")
+        // every argument of the Material call is `name = name`: nothing is computed on the way
+        val arguments = through.substringAfter("androidx.compose.material3.ModalBottomSheet(").substringBeforeLast(")")
+        for (line in arguments.lines().map { it.trim().trimEnd(',') }.filter { it.isNotEmpty() }) {
+            val (key, value) = line.split(" = ").also { assertEquals(2, it.size, "$line is `name = value`") }
+            assertEquals(key, value, line)
+        }
     }
 
-    // ---- the new look ---------------------------------------------------------------------------------------------------------
+    // ---- the look -------------------------------------------------------------------------------------------------------------
 
     @Test fun theSwitchIsTheBSwitchAndADisplayOnlySwitchLeavesTheClickToItsRow() {
         val on = lookOn(body(bridge("SwitchBridge.kt"), "Switch"))

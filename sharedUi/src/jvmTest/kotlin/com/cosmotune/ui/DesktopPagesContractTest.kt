@@ -3,12 +3,13 @@ package com.cosmotune.ui
 import com.cosmotune.design.BlockMetrics
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
  * What no render can say about the desktop's collection page, artist page and song row (task P4-16), read from the sources: the
- * three delegates in `DesktopApp.kt` (the first statement of each old function, every parameter passed by name), the signatures the
- * new functions take, the numbers of the boards, the draw-phase rule for the live palette, and what the old pages did that the new
+ * three upstream functions in `DesktopApp.kt` (each is only the call of its new one, every parameter passed by name), the signatures
+ * the new functions take, the numbers of the boards, the draw-phase rule for the live palette, and what the old pages did that the new
  * ones keep.
  */
 class DesktopPagesContractTest {
@@ -54,31 +55,26 @@ class DesktopPagesContractTest {
         )
     }
 
-    @Test fun theDelegateIsTheFirstStatementOfEachOldFunctionAndPassesEveryParameterByName() {
+    @Test fun eachOldFunctionCallsTheNewOneAndPassesEveryParameterByName() {
         val src = SourceContract.read(app)
         for ((old, new, _) in pairs) {
             val statement = SourceContract.firstStatement(SourceContract.functionBody(src, old))
             assertTrue(
-                statement.startsWith("if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.desktop.$new("),
-                "the first statement of $old is the delegate, but it is: $statement",
+                statement.startsWith("com.cosmotune.desktop.$new("),
+                "the first statement of $old is the call of $new, but it is: $statement",
             )
             SourceContract.assertPassesEveryParameter(statement, SourceContract.names(SourceContract.parameters(src, old)))
         }
     }
 
-    @Test fun theOldBodyFollowsTheDelegateUnchanged() {
+    @Test fun theCallIsTheWholeBodyOfEachOldFunction() {
         val src = SourceContract.read(app)
-        val after = mapOf(
-            "DesktopCollectionPage" to "val songs = collection.songs",
-            "DesktopArtistPage" to "DesktopPageScaffold(contentPadding) {",
-            "DesktopSongRow" to "Row(",
-        )
-        for ((old, next) in after) {
+        for ((old, _, _) in pairs) {
             val body = SourceContract.functionBody(src, old)
             val statement = SourceContract.firstStatement(body)
-            val rest = body.substringAfter(statement.take(40)).substringAfter(")\n", "")
-            assertTrue(next in rest, "$old still has its old body ($next) after the delegate")
+            assertEquals("}", body.substringAfter(statement).trim(), "$old has no old body after the call")
         }
+        assertFalse(Regex("""LocalCosmoShell\.current [!=]= null|cosmoShell [!=]= null""").containsMatchIn(SourceContract.code(src)), "nothing in DesktopApp.kt chooses by the look")
     }
 
     @Test fun theDelegatesAreTheOnlyPlacesDesktopAppReachesThePages() {

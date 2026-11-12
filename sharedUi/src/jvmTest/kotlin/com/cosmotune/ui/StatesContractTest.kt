@@ -6,10 +6,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * What no screenshot harness can check about the loading, empty and error states of the new look, read from the source: the three
- * shared functions (`ShimmerBox`, `MessageState`, `SignInBanner`) and the desktop's three pages hand over to ours as their first
- * statement, by name and with every parameter, so with the look off the old code runs untouched; our blocks keep the signatures the
- * brief gives; the shimmer reads its colours only while drawing and stands completely still under reduced motion; and the numbers of
+ * What no screenshot harness can check about the loading, empty and error states of the look, read from the source: the three
+ * shared functions (`ShimmerBox`, `MessageState`, `SignInBanner`) and the desktop's three pages are each the one call of ours, by
+ * name and with every parameter (their old bodies are gone); our blocks keep the signatures the brief gives; the shimmer reads its colours only while drawing and stands completely still under reduced motion; and the numbers of
  * `.skel`, `.empty3` and the banner are the design's.
  */
 class StatesContractTest {
@@ -25,7 +24,7 @@ class StatesContractTest {
     private val common = SourceContract.read(commonPath)
     private val desktop = SourceContract.read(desktopPath)
 
-    private val guard = "if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states."
+    private val ours = "com.cosmotune.ui.states."
 
     private fun first(src: String, name: String): String = SourceContract.firstStatement(SourceContract.functionBody(src, name))
 
@@ -41,12 +40,12 @@ class StatesContractTest {
         Triple("DesktopEmptyPage", "CosmoEmptyState", desktop),
     )
 
-    @Test fun eachOldFunctionHandsOverAsItsFirstStatementAndKeepsItsOldBody() {
+    @Test fun eachOldFunctionIsTheOneCallOfOurs() {
         for ((old, new, src) in delegates) {
             val statement = first(src, old)
-            assertTrue(statement.startsWith("$guard$new("), "$old: the first statement is the delegate to $new, not: $statement")
+            assertTrue(statement.startsWith("$ours$new("), "$old: the first statement is the delegate to $new, not: $statement")
             val body = SourceContract.functionBody(src, old)
-            assertTrue(SourceContract.code(body).length > statement.length + 20, "$old: the old body follows the delegate, untouched")
+            assertEquals("{ $statement }", body.replace(Regex("\\s+"), " "), "$old: the delegate is the whole body, the old one is gone")
         }
     }
 
@@ -72,14 +71,13 @@ class StatesContractTest {
         assertTrue(first(desktop, "DesktopEmptyPage").contains("icon = icon"), "an icon that is not ours still goes to the front tile")
     }
 
-    @Test fun theOldTextsAreKeptWithTheLookOff() {
-        val error = SourceContract.code(SourceContract.functionBody(desktop, "DesktopErrorPage"))
-        assertTrue(error.contains("DesktopEmptyPage(Icons.Rounded.Tune, \"Something went wrong\", message, onRetry, \"Try again\")"), "the old error page is still there")
-        val loading = SourceContract.code(SourceContract.functionBody(desktop, "DesktopLoadingPage"))
-        assertTrue(loading.contains("CircularProgressIndicator(color = DesktopAccent)"), "the old loading page is still there")
-        assertTrue(SourceContract.code(SourceContract.functionBody(skeletons, "ShimmerBox")).contains("rememberInfiniteTransition"), "the old shimmer is still there")
-        assertTrue(SourceContract.code(SourceContract.functionBody(common, "SignInBanner")).contains("Button(onClick = onSignIn)"), "the old banner is still there")
-        assertTrue(SourceContract.code(SourceContract.functionBody(common, "MessageState")).contains("MaterialTheme.typography.bodyLarge"), "the old message state is still there")
+    @Test fun theOldBodiesAreGone() {
+        assertFalse(SourceContract.code(SourceContract.functionBody(desktop, "DesktopErrorPage")).contains("DesktopEmptyPage("), "the old error page is gone")
+        assertFalse(SourceContract.code(SourceContract.functionBody(desktop, "DesktopLoadingPage")).contains("CircularProgressIndicator("), "the old loading page is gone")
+        assertFalse(SourceContract.code(SourceContract.functionBody(skeletons, "ShimmerBox")).contains("rememberInfiniteTransition"), "the old shimmer is gone")
+        assertFalse(SourceContract.code(SourceContract.functionBody(common, "SignInBanner")).contains("Button(onClick = onSignIn)"), "the old banner is gone")
+        assertFalse(SourceContract.code(SourceContract.functionBody(common, "MessageState")).contains("MaterialTheme.typography.bodyLarge"), "the old message state is gone")
+        for ((old, _, src) in delegates) assertFalse("LocalCosmoShell" in SourceContract.functionBody(src, old), "$old does not ask whether the look is on")
     }
 
     // ---- our blocks keep the old parameter lists --------------------------------------------------------------------------
