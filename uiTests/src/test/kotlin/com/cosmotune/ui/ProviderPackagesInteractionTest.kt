@@ -6,6 +6,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.cosmotune.music.data.model.Song
 import com.cosmotune.music.ui.player.PlayerHost
+import com.cosmotune.music.ui.player.PlayerSettingsSource
 import com.cosmotune.music.ui.player.PlayerPlatform
 import com.cosmotune.music.ui.AppUi
 import com.cosmotune.music.ui.AppUiHost
@@ -71,6 +72,13 @@ class ProviderPackagesInteractionTest {
         val host = java.lang.reflect.Proxy.newProxyInstance(PlayerHost::class.java.classLoader, arrayOf(PlayerHost::class.java)) { _, method, args ->
             when (method.name) {
                 "rememberRemoteArtworkUrl" -> (args?.getOrNull(0) as? Song)?.thumbnailUrl
+                // The theme a dialog gives itself (EnsureCosmoLook) reads "Reduce animation"; nothing else of the settings.
+                "getSettings" -> java.lang.reflect.Proxy.newProxyInstance(PlayerSettingsSource::class.java.classLoader, arrayOf(PlayerSettingsSource::class.java)) { _, setting, _ ->
+                    when (setting.name) {
+                        "getReduceAnimation" -> MutableStateFlow(false)
+                        else -> error("Provider row unexpectedly requested the setting ${setting.name}")
+                    }
+                }
                 else -> error("Provider row unexpectedly requested ${method.name}")
             }
         } as PlayerHost
