@@ -60,6 +60,18 @@ internal object PlayerJson {
     const val REFUSED = """{"playabilityStatus":{"status":"LOGIN_REQUIRED","reason":"Sign in"}}"""
     const val NO_STREAMS = """{"playabilityStatus":{"status":"OK"},"streamingData":{"serverAbrStreamingUrl":"https://x.googlevideo.com/sabr"}}"""
 
+    /**
+     * An answer whose only playable stream is the muxed 360p one (the WEB client's, whose adaptive formats are server-driven and
+     * carry no address): it plays, but it has no ladder.
+     */
+    val MUXED_ONLY = """
+        {"playabilityStatus":{"status":"OK"},
+         "videoDetails":{"title":"Private film","author":"Me","channelId":"UCme","lengthSeconds":"125"},
+         "streamingData":{"expiresInSeconds":"21540",
+           "formats":[{"itag":18,"url":"https://r1.googlevideo.com/videoplayback?expire=1800000000&itag=18","mimeType":"video/mp4; codecs=\"avc1.42001E, mp4a.40.2\"","width":640,"height":360,"fps":30,"bitrate":500000,"qualityLabel":"360p"}],
+           "adaptiveFormats":[{"itag":137,"mimeType":"video/mp4; codecs=\"avc1.640028\"","width":1920,"height":1080,"fps":30,"bitrate":4000000}]}}
+    """.trimIndent()
+
     /** An answer whose client gives plain links, with an OTF format and a DRM format that must be left out. */
     val PLAYABLE = """
         {"playabilityStatus":{"status":"OK"},

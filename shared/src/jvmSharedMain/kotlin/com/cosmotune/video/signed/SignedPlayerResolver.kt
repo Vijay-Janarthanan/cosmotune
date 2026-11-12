@@ -24,6 +24,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicReference
 
 /** Solves the ciphered links of the TV and web clients. An interface so a test needs no player script. */
 internal interface SignedCipher {
@@ -98,6 +99,7 @@ internal class SignedPlayerResolver(
     private val clock: () -> Long = System::currentTimeMillis,
     private val hedgeMs: Long = HEDGE_MS,
     private val deadlineMs: Long = DEADLINE_MS,
+    private val partialGraceMs: Long = PARTIAL_GRACE_MS,
 ) {
     /** What this session learned about the clients. */
     val ranking = ClientRanking(clock)
@@ -113,7 +115,8 @@ internal class SignedPlayerResolver(
         val asked = clients.filter { it !in skip }
         val reasons = ConcurrentHashMap<SignedPlayerClient, String>()
         val failedBefore = CopyOnWriteArrayList<SignedPlayerClient>()
-        val winner = if (asked.isEmpty()) null else withTimeoutOrNull(deadlineMs) { race(videoId, ranking.waves(asked), reasons, failedBefore) }
+        val partial = AtomicReference<SignedPlayback?>(null)
+        val winner = if (asked.isEmpty()) null else withTimeoutOrNull(deadlineMs) { race(videoId, ranking.waves(asked), reasons, failedBefore, partial) } ?: partial.get()
         if (winner != null) {
             ranking.answered(winner.client, failedBefore)
             return winner
@@ -126,9 +129,10 @@ internal class SignedPlayerResolver(
         waves: ClientRanking.Waves,
         reasons: MutableMap<SignedPlayerClient, String>,
         failedBefore: MutableList<SignedPlayerClient>,
+        partial: AtomicReference<SignedPlayback?>,
     ): SignedPlayback? = coroutineScope {
-        // Every attempt's end comes through here, and so does the hedge's moment (null): nothing is waited on but this one channel.
-        val answers = Channel<Attempt?>(Channel.UNLIMITED)
+        // Every attempt's end comes through here, and so do the hedge's and the grace's moments: nothing is waited on but this one channel.
+        val answers = Channel<Any>(Channel.UNLIMITED)
         var running = 0
         fun start(clients: List<SignedPlayerClient>) {
             for (client in clients) {
@@ -142,34 +146,55 @@ internal class SignedPlayerResolver(
         var restStarted = waves.rest.isEmpty()
         if (!restStarted) launch {
             delay(hedgeMs)
-            answers.send(null)
+            answers.send(HEDGE)
         }
         var winner: SignedPlayback? = null
-        while (winner == null) {
+        var graceOver = false
+        while (winner == null && !graceOver) {
             if (running == 0) {
                 when {
                     !restStarted -> { start(waves.rest); restStarted = true }
-                    late.isNotEmpty() -> start(listOf(late.removeFirst()))
+                    // With a muxed answer in hand, the benched and last-resort clients are not worth their cost.
+                    late.isNotEmpty() && partial.get() == null -> start(listOf(late.removeFirst()))
                     else -> break
                 }
                 continue
             }
             val got = answers.receive()
-            if (got == null) {
+            if (got === HEDGE) {
                 // The first client kept the rest waiting long enough: they go now.
                 if (!restStarted) { start(waves.rest); restStarted = true }
                 continue
             }
+            if (got === GRACE) {
+                graceOver = true
+                continue
+            }
+            got as Attempt
             running--
-            if (got.playback != null) {
-                winner = got.playback
-            } else {
-                reasons[got.client] = got.reason
-                failedBefore += got.client
+            val playback = got.playback
+            when {
+                playback == null -> {
+                    reasons[got.client] = got.reason
+                    failedBefore += got.client
+                }
+                hasLadder(playback.streams) -> winner = playback
+                else -> {
+                    // Only the muxed stream (360p at best, one rung): kept, while the others get a moment to give the whole ladder.
+                    reasons[got.client] = "only a muxed stream"
+                    if (partial.compareAndSet(null, playback)) {
+                        StartupTrace.mark(videoId, "signed ${got.client.name}", "only a muxed stream: the others get ${partialGraceMs}ms")
+                        if (!restStarted) { start(waves.rest); restStarted = true }
+                        launch {
+                            delay(partialGraceMs)
+                            answers.send(GRACE)
+                        }
+                    }
+                }
             }
         }
         coroutineContext.cancelChildren()
-        winner
+        winner ?: partial.get()
     }
 
     /** One client asked, timed and logged; what it throws (but a cancellation) is its reason. */
@@ -298,6 +323,22 @@ internal class SignedPlayerResolver(
          * still gets its signed answer.
          */
         const val DEADLINE_MS = 20_000L
+
+        /**
+         * How long the other clients may still take once one answered with only a muxed stream. A TV client's answer, links solved,
+         * takes about 1.5 s; a muxed answer (the WEB client's: its adaptive formats have no address) is used only when none came.
+         */
+        const val PARTIAL_GRACE_MS = 2_500L
+
+        /** The race's moments that are no client's answer: the hedge's and the grace's. */
+        private val HEDGE = Any()
+        private val GRACE = Any()
+
+        /**
+         * Whether [streams] give the whole quality ladder: video-only streams (or a live stream's HLS address). A set with only muxed
+         * streams has one rung, 360p at best.
+         */
+        fun hasLadder(streams: StreamSet): Boolean = streams.videoOnly.isNotEmpty() || streams.hlsUrl != null
 
         /** The video [prepare] warms the path with: the site's first upload, which will always be there. */
         const val PREPARE_VIDEO_ID = "jNQXAC9IVRw"

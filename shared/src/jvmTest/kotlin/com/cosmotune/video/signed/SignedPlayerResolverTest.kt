@@ -99,6 +99,39 @@ class SignedPlayerResolverTest {
         assertEquals(clients.map { "${it.name}: no answer within ${SignedPlayerResolver.DEADLINE_MS}ms" }, failure.reasons)
     }
 
+    @Test fun anAnswerWithOnlyTheMuxedStreamWaitsForOneWithTheWholeLadder() = runTest {
+        val http = FakeSignedHttp()
+        http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.REFUSED)
+        http.answer(SignedPlayerClient.WEB_EMBEDDED, PlayerJson.MUXED_ONLY)
+        http.answer(SignedPlayerClient.TV_OLD, PlayerJson.PLAYABLE)
+        http.takes(SignedPlayerClient.TV_OLD, 1_500)
+        val playback = SignedFixtures.resolver(SignedFixtures.session(), http).resolve("vid", clients)
+        assertEquals(SignedPlayerClient.TV_OLD, playback.client, "the 360p alone would leave the quality menu with one rung")
+        assertTrue(playback.streams.videoOnly.isNotEmpty())
+        assertEquals(1_500L, testScheduler.currentTime)
+    }
+
+    @Test fun whenOnlyAMuxedAnswerCameItIsWhatPlays() = runTest {
+        val http = FakeSignedHttp()
+        http.answer(SignedPlayerClient.WEB, PlayerJson.MUXED_ONLY)
+        val playback = SignedFixtures.resolver(SignedFixtures.session(), http).resolve("vid", clients)
+        assertEquals(SignedPlayerClient.WEB, playback.client)
+        assertEquals(listOf(18), playback.streams.muxed.map { it.itag })
+        assertTrue(playback.streams.videoOnly.isEmpty())
+    }
+
+    @Test fun aMuxedAnswerInHandWaitsOnlyAMomentForTheOthers() = runTest {
+        val http = FakeSignedHttp()
+        http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.MUXED_ONLY)
+        for (client in clients.drop(1)) {
+            http.answer(client, PlayerJson.PLAYABLE)
+            http.takes(client, 60_000)
+        }
+        val playback = SignedFixtures.resolver(SignedFixtures.session(), http).resolve("vid", clients)
+        assertEquals(SignedPlayerClient.TV_SAMSUNG, playback.client)
+        assertEquals(SignedPlayerResolver.PARTIAL_GRACE_MS, testScheduler.currentTime, "not the whole deadline")
+    }
+
     @Test fun aLastResortIsNeverRacedOnlyAskedAfterTheOthersFailed() = runTest {
         val http = FakeSignedHttp()
         http.answer(SignedPlayerClient.IOS, PlayerJson.PLAYABLE)

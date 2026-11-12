@@ -25,6 +25,9 @@ import kotlin.test.assertTrue
 class SignedVideoSourceTest {
     private val video = "fakevideo01"
 
+    /** The fake anonymous source's media user agent: its set, not a signed client's. */
+    private val ANONYMOUS_AGENT = "Mozilla/5.0 (fake)"
+
     private class Web : YoutubeWeb {
         val calls = mutableListOf<Pair<String, JsonObject>>()
         val answers = ArrayDeque<Any>()
@@ -138,12 +141,42 @@ class SignedVideoSourceTest {
 
     // ---- A set that was refused ---------------------------------------------------------------------------------------
 
-    @Test fun aSetAskedForAgainSoonWasRefusedAndItsClientSitsOut() = runTest {
+    @Test fun aSignedSetAskedForAgainSoonWasRefusedAndTheAnonymousSourceAnswersFirst() = runTest {
+        val h = Harness()
+        h.http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.PLAYABLE)
+        h.http.answer(SignedPlayerClient.TV_OLD, PlayerJson.PLAYABLE)
+        assertEquals(SignedPlayerClient.TV_SAMSUNG.userAgent, h.source.streams(video).requestHeaders["User-Agent"])
+        h.http.sent.clear()
+        assertEquals(ANONYMOUS_AGENT, h.source.streams(video).requestHeaders["User-Agent"], "not the next TV client, refused alike")
+        assertTrue(h.http.sent.isEmpty(), "the anonymous source was enough")
+        assertEquals(0L, testScheduler.currentTime, "and it gave no head start")
+    }
+
+    @Test fun anAnonymousSetThatWasRefusedSendsTheNextAskToTheSignedClientsNotRefused() = runTest {
+        val h = Harness()
+        h.http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.PLAYABLE)
+        h.http.answer(SignedPlayerClient.TV_OLD, PlayerJson.PLAYABLE)
+        h.source.streams(video)
+        h.source.streams(video)
+        val anonymousAsks = h.anonymous.calls.count { it.startsWith("streams") }
+        assertEquals(SignedPlayerClient.TV_OLD.userAgent, h.source.streams(video).requestHeaders["User-Agent"])
+        assertEquals(anonymousAsks, h.anonymous.calls.count { it.startsWith("streams") }, "the anonymous source sat out")
+    }
+
+    @Test fun afterARefusedSignedSetAVideoTheAnonymousSourceCannotPlayGoesToTheOtherSignedClients() = runTest {
         val h = Harness()
         h.http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.PLAYABLE)
         h.http.answer(SignedPlayerClient.WEB_EMBEDDED, PlayerJson.PLAYABLE)
-        assertEquals(SignedPlayerClient.TV_SAMSUNG.userAgent, h.source.streams(video).requestHeaders["User-Agent"])
-        assertEquals(SignedPlayerClient.WEB_EMBEDDED.userAgent, h.source.streams(video).requestHeaders["User-Agent"])
+        h.source.streams("nosuchvideo")
+        assertEquals(SignedPlayerClient.WEB_EMBEDDED.userAgent, h.source.streams("nosuchvideo").requestHeaders["User-Agent"])
+    }
+
+    @Test fun detailsAskedForAgainCarryTheSetGivenLastNotTheRefusedOne() = runTest {
+        val h = Harness()
+        h.http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.PLAYABLE)
+        h.source.details(video)
+        h.source.streams(video) // the details' set was refused
+        assertEquals(ANONYMOUS_AGENT, h.source.details(video).streams.requestHeaders["User-Agent"])
     }
 
     @Test fun aSetAskedForLongAfterIsAnExpiryAndNoClientSitsOut() = runTest {
@@ -154,13 +187,35 @@ class SignedVideoSourceTest {
         assertEquals(SignedPlayerClient.TV_SAMSUNG.userAgent, h.source.streams(video).requestHeaders["User-Agent"])
     }
 
-    @Test fun whenEverySignedClientHasBeenRefusedTheAnonymousSourceAnswers() = runTest {
+    @Test fun whenEveryRouteHasBeenRefusedTheAnonymousSourceAnswers() = runTest {
         val h = Harness()
         for (client in SignedPlayerClient.SIGNED) h.http.answer(client, PlayerJson.PLAYABLE)
-        repeat(SignedPlayerClient.SIGNED.size) { h.source.streams(video) }
-        assertTrue(h.anonymous.calls.none { it.startsWith("streams") })
-        h.source.streams(video)
-        assertTrue(h.anonymous.calls.any { it.startsWith("streams") })
+        val given = (0..SignedPlayerClient.SIGNED.size).map { h.source.streams(video).requestHeaders["User-Agent"] }
+        assertEquals(
+            listOf(SignedPlayerClient.TV_SAMSUNG.userAgent, ANONYMOUS_AGENT) + SignedPlayerClient.SIGNED.drop(1).map { it.userAgent },
+            given,
+            "the first signed client, the anonymous source, then the other signed clients",
+        )
+        assertEquals(ANONYMOUS_AGENT, h.source.streams(video).requestHeaders["User-Agent"], "everything sat out: the anonymous source")
+    }
+
+    // ---- The whole ladder ---------------------------------------------------------------------------------------------
+
+    @Test fun aSignedAnswerWithOnlyTheMuxedStreamLosesToTheAnonymousLadder() = runTest {
+        val h = Harness()
+        h.http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.MUXED_ONLY)
+        val details = h.source.details(video)
+        assertEquals(FakeVideoSource.sampleItem(video)!!.title, details.item.title, "the anonymous page, which has the ladder")
+        assertTrue(details.streams.videoOnly.isNotEmpty())
+        assertTrue(testScheduler.currentTime < SignedVideoSource.ANONYMOUS_AFTER_MS, "asked at once, not after the head start")
+    }
+
+    @Test fun aSignedAnswerWithOnlyTheMuxedStreamPlaysWhatTheAnonymousSourceCannot() = runTest {
+        val h = Harness()
+        h.http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.MUXED_ONLY)
+        val details = h.source.details("nosuchvideo")
+        assertEquals("Private film", details.item.title)
+        assertEquals(listOf(18), details.streams.muxed.map { it.itag })
     }
 
     @Test fun anotherAccountStartsClean() = runTest {
@@ -168,7 +223,7 @@ class SignedVideoSourceTest {
         h.http.answer(SignedPlayerClient.TV_SAMSUNG, PlayerJson.PLAYABLE)
         h.http.answer(SignedPlayerClient.WEB_EMBEDDED, PlayerJson.PLAYABLE)
         val first = h.source.details(video)
-        assertEquals(SignedPlayerClient.WEB_EMBEDDED.userAgent, h.source.streams(video).requestHeaders["User-Agent"], "asked again: the first was refused")
+        assertEquals(ANONYMOUS_AGENT, h.source.streams(video).requestHeaders["User-Agent"], "asked again: the first was refused")
         h.identity = 2L
         assertEquals(SignedPlayerClient.TV_SAMSUNG.userAgent, h.source.streams(video).requestHeaders["User-Agent"], "what the last account was refused is gone")
         h.identity = 3L
