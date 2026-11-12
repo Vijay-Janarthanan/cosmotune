@@ -19,7 +19,6 @@ internal enum class DesktopBackdrop(
  *
  * The window itself is created transparent whenever the material is possible at all — transparency
  * is fixed when the window is made — so switching between the three here is live, with no restart.
- * Compose decides whether the material also reaches the app background via [appBackground].
  */
 internal object DesktopWindowBackdrop {
 
@@ -42,13 +41,6 @@ internal object DesktopWindowBackdrop {
     /** What Settings shows and writes. */
     val selected: StateFlow<DesktopBackdrop> = _selected
 
-    private val _appBackground = MutableStateFlow(
-        DesktopPersistence().boolean(KEY_APP_BACKGROUND, true),
-    )
-
-    /** Whether the selected material replaces the app's solid gray page background too. */
-    val appBackground: StateFlow<Boolean> = _appBackground
-
     private val _active = MutableStateFlow(DesktopBackdrop.OFF)
 
     /**
@@ -62,11 +54,6 @@ internal object DesktopWindowBackdrop {
         DesktopPersistence().saveString(KEY, value.name)
         _selected.value = value
         apply()
-    }
-
-    fun setAppBackground(value: Boolean) {
-        DesktopPersistence().saveBoolean(KEY_APP_BACKGROUND, value)
-        _appBackground.value = value
     }
 
     /** Asks the native frame for the selected material; called once in place, and on every change. */
@@ -83,6 +70,4 @@ internal object DesktopWindowBackdrop {
             DesktopTrackLog.log("window backdrop: system declined ${wanted.label}")
         }
     }
-
-    internal const val KEY_APP_BACKGROUND = "window_backdrop_app_background"
 }
