@@ -64,6 +64,8 @@ class MangaSeriesInteractionTest {
         waitText("Multi source", substring = true)
         compose.onNode(hasText("Multi source", substring = true) and hasClickAction()).performClick()
         waitText("Series in default")
+        // The language choice appears once the source has said which languages it has, which can come after its series.
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("manga:catalogue:language").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("manga:catalogue:language").assertTextContains("Source default", substring = true).performClick()
         waitText("(ta)", substring = true)
         compose.onNodeWithText("(ta)", substring = true).performClick()

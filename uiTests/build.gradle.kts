@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.compose")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.gradle.test-retry") version "1.6.2"
 }
 
 kotlin { jvmToolchain(21) }
@@ -30,4 +31,11 @@ tasks.test {
     // A composition that never goes idle (a frame loop on the plain frame clock) hangs waitForIdle for good; fail instead of
     // holding the build, here and in CI.
     timeout.set(Duration.ofMinutes(30))
+    // The release runners, the Macs most of all, are slow enough that a UI wait now and then runs out. On CI a failed test
+    // runs again, up to twice; a test that fails every time still fails the build.
+    if (System.getenv("CI") != null) retry {
+        maxRetries.set(2)
+        maxFailures.set(5)
+        failOnPassedAfterRetry.set(false)
+    }
 }

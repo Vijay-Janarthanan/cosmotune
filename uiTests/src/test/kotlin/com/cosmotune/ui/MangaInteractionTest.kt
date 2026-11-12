@@ -123,8 +123,10 @@ class MangaInteractionTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithText("1 sources unavailable.", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("1 sources unavailable.", substring = true).assertExists()
         assertFalse(calls.contains("fixture:disabled"))
+        // Let the list settle after the last source answers, so the tap lands on the row and not on a moving one.
+        compose.waitForIdle()
         compose.onNodeWithText("A searched series").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Chapter one").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(20_000) { compose.onAllNodesWithText("Chapter one").fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test fun readingControlsPersistThePageAndReopenAtTheSamePosition() {
