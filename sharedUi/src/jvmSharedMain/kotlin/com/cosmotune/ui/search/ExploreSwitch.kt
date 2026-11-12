@@ -6,18 +6,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.music.data.model.MoodGenre
 import com.cosmotune.music.data.model.MoodGenreSection
 import com.cosmotune.music.data.model.UiState
-import com.cosmotune.music.ui.screens.ExploreScreen
 
 /**
- * The one entry point of the Explore page: with the new look on it is the browse page (moods and genres, Music's second tab),
- * with it off the old [ExploreScreen].
- *
- * The parameter list is [ExploreScreen]'s, name for name and in the same order, and both branches pass every argument by name,
- * so a parameter that upstream adds to [ExploreScreen] stops the old branch compiling and gets decided on here.
+ * The one entry point of the Explore page: the browse page ([CosmoBrowsePage]: moods and genres, Music's second tab). The parameter
+ * list is upstream's `ExploreScreen`'s, name for name and in the same order, so upstream's call sites still merge.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,15 +28,8 @@ fun ExploreSwitch(
     modifier: Modifier = Modifier,
     showTitle: Boolean = true,
 ) {
-    if (LocalCosmoShell.current != null) {
-        CosmoBrowsePage(
-            state = state, listState = listState, onCategoryClick = onCategoryClick, onRetry = onRetry, refreshing = refreshing,
-            onRefresh = onRefresh, pullState = pullState, contentPadding = contentPadding, modifier = modifier, showTitle = showTitle,
-        )
-    } else {
-        ExploreScreen(
-            state = state, listState = listState, onCategoryClick = onCategoryClick, onRetry = onRetry, refreshing = refreshing,
-            onRefresh = onRefresh, pullState = pullState, contentPadding = contentPadding, modifier = modifier, showTitle = showTitle,
-        )
-    }
+    CosmoBrowsePage(
+        state = state, listState = listState, onCategoryClick = onCategoryClick, onRetry = onRetry, refreshing = refreshing,
+        onRefresh = onRefresh, pullState = pullState, contentPadding = contentPadding, modifier = modifier, showTitle = showTitle,
+    )
 }

@@ -141,7 +141,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
-import com.cosmotune.music.ui.components.isGlassSupported
 import com.cosmotune.music.ui.components.languageDisplayNameRes
 import com.cosmotune.music.ui.components.MessageState
 import com.cosmotune.music.ui.components.SearchField
@@ -252,8 +251,6 @@ fun SettingsScreen(
     val nerdStats by AppSettings.showNerdStats.collectAsStateWithLifecycle()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
-    val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val signatureEnabled by AppSettings.signatureApiEnabled.collectAsStateWithLifecycle()
@@ -503,8 +500,8 @@ fun SettingsScreen(
         } else {
             SettingsPageHeader(
                 title = selectedCategory.title(),
-                // In the new look the top bar's back is the one back button: it goes back like the system's (to the settings home).
-                onBack = if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) null else { { selectedCategory = SettingsCategory.ALL } },
+                // The top bar's back is the one back button: it goes back like the system's (to the settings home).
+                onBack = null,
                 modifier = Modifier.padding(bottom = 4.dp),
             )
         }
@@ -1409,7 +1406,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
-            row("new look", "colours follow the cover", "preview the look", "cosmotune", "colour", "color", "intensity") {
+            row("colours follow the cover", "preview the look", "cosmotune", "colour", "color", "intensity") {
                 com.cosmotune.ui.CosmoLookSettingsRows()
             }
         }
@@ -1571,33 +1568,6 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setReduceDynamicBlur(!reduceDynamicBlur) },
-                )
-            }
-            val liquidGlassTitle = stringResource(R.string.liquid_glass)
-            row(liquidGlassTitle, "glass", "blur", summary = stringResource(R.string.liquid_glass_subtitle)) {
-                SettingsRow(
-                    icon = Icons.Rounded.AutoAwesome,
-                    title = liquidGlassTitle,
-                    subtitle = stringResource(
-                        if (liquidGlassSupported) {
-                            R.string.liquid_glass_subtitle
-                        } else {
-                            R.string.liquid_glass_unavailable
-                        },
-                    ),
-                    enabled = liquidGlassSupported,
-                    trailing = {
-                        Switch(
-                            checked = liquidGlass,
-                            onCheckedChange = AppSettings::setLiquidGlass,
-                            enabled = liquidGlassSupported,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
-                        )
-                    },
-                    onClick = { AppSettings.setLiquidGlass(!liquidGlass) },
                 )
             }
         }
@@ -2296,7 +2266,7 @@ internal fun AccountCard(
     /** Where the library sync stands, under the account on the settings home (Orbit's account card). */
     syncLine: String? = null,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoProfileCard(
+    com.cosmotune.ui.settings.CosmoProfileCard(
         name = account?.name ?: stringResource(if (signedIn) R.string.signed_in else R.string.not_signed_in),
         subtitle = listOfNotNull(
             account?.email?.takeIf { it.isNotBlank() }
@@ -2312,78 +2282,6 @@ internal fun AccountCard(
         },
         grouped = grouped,
     )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (grouped) {
-                    Modifier
-                } else {
-                    Modifier
-                        .padding(horizontal = GROUP_INSET)
-                        .clip(GroupShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                },
-            )
-            .then(
-                when {
-                    signedIn && onClick != null -> Modifier.clickable(onClick = onClick)
-                    !signedIn -> Modifier.clickable(onClick = onSignIn)
-                    else -> Modifier
-                },
-            )
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (account?.thumbnailUrl != null) {
-            AsyncImage(
-                model = account.thumbnailUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(52.dp).clip(CircleShape).thumbnailBorder(CircleShape),
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.outline),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Rounded.Person,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = account?.name
-                    ?: stringResource(if (signedIn) R.string.signed_in else R.string.not_signed_in),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = account?.email?.takeIf { it.isNotBlank() }
-                    ?: stringResource(
-                        if (signedIn) R.string.youtube_music_account else R.string.tap_to_sign_in_google,
-                    ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (!signedIn) {
-            Spacer(Modifier.width(8.dp))
-            Chevron()
-        }
-    }
 }
 
 /** The quality options for one connection, with what each costs in data: an Orbit picker's title and rows, best first. */
@@ -2594,16 +2492,16 @@ private fun SearchableSettingsGroup(
 
 /**
  * The way from Music's settings into another mode, whose own settings live in
- * it. Only while the new look is on (the modes need it) and the mode works.
+ * it. Only while the mode works.
  */
 @Composable
 private fun ModeLinkRow(mode: AppMode, icon: ImageVector, title: String, summary: String) {
     val shell = com.cosmotune.ui.theme.LocalCosmoShell.current
-    val available = shell != null && AppModes.available(mode)
+    val available = AppModes.available(mode)
     SettingsRow(
         icon = icon,
         title = title,
-        subtitle = if (available) summary else SettingsText.MODE_NEEDS_LOOK.text(),
+        subtitle = summary,
         enabled = available,
         onClick = { shell?.settings?.setMode(mode) },
     )
@@ -2621,53 +2519,12 @@ internal fun SettingsGroup(
     topSpacing: Dp = 26.dp,
     content: @Composable () -> Unit,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsGroup(header = header, footer = footer, topSpacing = topSpacing, content = content)
-    if (header != null) {
-        Text(
-            text = header.uppercase(Locale.ROOT),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(
-                start = GROUP_INSET + 4.dp,
-                end = GROUP_INSET,
-                top = 26.dp,
-                bottom = 8.dp,
-            ),
-        )
-    } else {
-        Spacer(Modifier.height(topSpacing))
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = GROUP_INSET)
-            .clip(GroupShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        content()
-    }
-    if (footer != null) {
-        Text(
-            text = footer,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(
-                start = GROUP_INSET + 4.dp,
-                end = GROUP_INSET + 4.dp,
-                top = 8.dp,
-            ),
-        )
-    }
+    com.cosmotune.ui.settings.CosmoSettingsGroup(header = header, footer = footer, topSpacing = topSpacing, content = content)
 }
 
 @Composable
 internal fun RowDivider() {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoRowDivider()
-    HorizontalDivider(
-        modifier = Modifier.padding(start = TEXT_INSET),
-        thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outline,
-    )
+    com.cosmotune.ui.settings.CosmoRowDivider()
 }
 
 /**
@@ -2692,73 +2549,7 @@ internal fun SettingsRow(
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsRow(icon = icon, title = title, subtitle = subtitle, subtitleContent = subtitleContent, value = value, badge = badge, enabled = enabled, iconPainter = iconPainter, onClick = onClick, trailing = trailing)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .alpha(if (enabled) 1f else 0.45f)
-            .heightIn(min = 52.dp)
-            .padding(horizontal = ROW_INSET, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (iconPainter != null) {
-            Icon(
-                painter = iconPainter,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(ICON_SIZE),
-            )
-        } else if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(ICON_SIZE),
-            )
-        }
-        Spacer(Modifier.width(ICON_GAP))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (badge != null) {
-                    Spacer(Modifier.width(8.dp))
-                    Badge(badge)
-                }
-            }
-            if (subtitleContent != null) {
-                subtitleContent()
-            } else if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 5,
-                )
-            }
-        }
-        Spacer(Modifier.width(12.dp))
-        if (trailing != null) {
-            trailing()
-        } else if (value != null || onClick != null) {
-            if (value != null) {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-                Spacer(Modifier.width(4.dp))
-            }
-            Chevron()
-        }
-    }
+    com.cosmotune.ui.settings.CosmoSettingsRow(icon = icon, title = title, subtitle = subtitle, subtitleContent = subtitleContent, value = value, badge = badge, enabled = enabled, iconPainter = iconPainter, onClick = onClick, trailing = trailing)
 }
 
 /**
@@ -2774,72 +2565,18 @@ internal fun SettingsSubRow(
     badge: String? = null,
     subtitle: String? = null,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsSubRow(title = title, checked = checked, onCheckedChange = onCheckedChange, badge = badge, subtitle = subtitle)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(start = ROW_INSET, end = ROW_INSET, top = 0.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (badge != null) {
-                    Spacer(Modifier.width(8.dp))
-                    Badge(badge)
-                }
-            }
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 5,
-                )
-            }
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                checkedBorderColor = MaterialTheme.colorScheme.primary,
-            ),
-        )
-    }
+    com.cosmotune.ui.settings.CosmoSettingsSubRow(title = title, checked = checked, onCheckedChange = onCheckedChange, badge = badge, subtitle = subtitle)
 }
 
 /** Marks the connection whose ceiling is actually in force right now. */
 @Composable
 internal fun Badge(text: String) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoBadge(text = text)
-    Text(
-        text = text.uppercase(Locale.ROOT),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .clip(RoundedCornerShape(CosmoRadii.rXs))
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    )
+    com.cosmotune.ui.settings.CosmoBadge(text = text)
 }
 
 @Composable
 internal fun Chevron() {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoChevron()
-    Icon(
-        Icons.Rounded.ChevronRight,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-        modifier = Modifier.size(20.dp),
-    )
+    com.cosmotune.ui.settings.CosmoChevron()
 }
 
 /** A continuous setting: label and current value on one line, track beneath. */
@@ -2855,61 +2592,7 @@ internal fun SliderRow(
     steps: Int,
     subtitle: String? = null,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSliderRow(icon = icon, title = title, value = value, sliderValue = sliderValue, onSliderValue = onSliderValue, valueRange = valueRange, steps = steps, subtitle = subtitle)
-    val colors = SliderDefaults.colors(
-        thumbColor = MaterialTheme.colorScheme.primary,
-        activeTrackColor = MaterialTheme.colorScheme.primary,
-        inactiveTrackColor = MaterialTheme.colorScheme.outline,
-    )
-    Column(Modifier.padding(start = ROW_INSET, end = ROW_INSET, top = 12.dp, bottom = 4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(ICON_SIZE),
-            )
-            Spacer(Modifier.width(ICON_GAP))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                if (subtitle != null) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Slider(
-            value = sliderValue,
-            onValueChange = onSliderValue,
-            valueRange = valueRange,
-            steps = steps,
-            colors = colors,
-            // Bare track: the step ticks and the end-stop dot are noise when the
-            // value is already spelled out on the line above.
-            track = { state ->
-                SliderDefaults.Track(
-                    sliderState = state,
-                    colors = colors,
-                    drawStopIndicator = null,
-                    drawTick = { _, _ -> },
-                )
-            },
-            modifier = Modifier.padding(start = ICON_SIZE + ICON_GAP),
-        )
-    }
+    com.cosmotune.ui.settings.CosmoSliderRow(icon = icon, title = title, value = value, sliderValue = sliderValue, onSliderValue = onSliderValue, valueRange = valueRange, steps = steps, subtitle = subtitle)
 }
 
 /** Sign out: centered, accent-coloured, no glyph — the shape of a real one. */
@@ -2919,20 +2602,7 @@ internal fun DestructiveRow(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoDestructiveRow(label = label, enabled = enabled, onClick = onClick)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 15.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
-    }
+    com.cosmotune.ui.settings.CosmoDestructiveRow(label = label, enabled = enabled, onClick = onClick)
 }
 
 /** Sliding pill selector, for the handful of settings with two or three states. */
@@ -2944,61 +2614,5 @@ internal fun SegmentedControl(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.settings.CosmoSettingsSegmented(options = options, selectedIndex = selectedIndex, onSelect = onSelect, modifier = modifier, enabled = enabled)
-    val haptics = LocalHapticFeedback.current
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(CosmoRadii.rSm))
-            .background(MaterialTheme.colorScheme.outline)
-            // Enough of a margin for the track to read as a track. At 2dp the
-            // selected pill sat all but flush against the container's own edge,
-            // so the two rounded rectangles merged into one shape and the
-            // control stopped looking like something with a position in it.
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        options.forEachIndexed { index, label ->
-            val chosen = index == selectedIndex
-            val pill by animateColorAsState(
-                targetValue = if (chosen) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    Color.Transparent
-                },
-                animationSpec = tween(160),
-                label = "segmentPill",
-            )
-            val labelColor by animateColorAsState(
-                targetValue = if (chosen) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                animationSpec = tween(160),
-                label = "segmentLabel",
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(CosmoRadii.rSm))
-                    .background(pill)
-                    .clickable(enabled = enabled) {
-                        if (!chosen) {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onSelect(index)
-                        }
-                    }
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = labelColor,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
+    com.cosmotune.ui.settings.CosmoSettingsSegmented(options = options, selectedIndex = selectedIndex, onSelect = onSelect, modifier = modifier, enabled = enabled)
 }

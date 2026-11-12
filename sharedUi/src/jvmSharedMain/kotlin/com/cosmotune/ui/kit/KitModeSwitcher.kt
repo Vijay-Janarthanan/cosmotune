@@ -172,7 +172,7 @@ fun KitModeSheetContent(
 
 /**
  * The phone's switcher in one piece: the [KitModePill] of the stored mode, which opens [KitModeSheet] and stores the mode chosen
- * (`CosmoLookSettings.setMode`, so every host switches with it). Draws nothing without the new look.
+ * (`CosmoLookSettings.setMode`, so every host switches with it). Draws nothing without the look's shell (no theme above).
  */
 @Composable
 fun KitModeSwitcher(modifier: Modifier = Modifier, collapsed: Boolean = false, status: (AppMode) -> String? = { null }, onManage: (() -> Unit)? = null) {

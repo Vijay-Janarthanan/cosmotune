@@ -251,7 +251,7 @@ fun PodioApp(storage: File, playback: PodioPlayback, onPlay: (PodioItem, Long) -
             CompositionLocalProvider(LocalPodioModeSwitcher provides true) { content() }
             if (dockShown) Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
                 banner(Modifier)
-                // The shared dock (design system 4.16): Podio's mini player above four tabs. Without the new look's shell (a test,
+                // The shared dock (design system 4.16): Podio's mini player above four tabs. Without a shell (no theme above: a test,
                 // a preview) it is drawn as Music's, since the dock draws only for the stored mode.
                 CosmoBottomChrome(
                     tabs = DOCK_TABS, selectedIndex = DOCK_SECTIONS.indexOf(section).coerceAtLeast(0), onTabSelected = { chooseSection(DOCK_SECTIONS[it]) },

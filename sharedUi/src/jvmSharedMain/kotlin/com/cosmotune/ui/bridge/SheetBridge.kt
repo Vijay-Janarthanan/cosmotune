@@ -27,7 +27,6 @@ import com.cosmotune.ui.orbit.orbitLook
 import com.cosmotune.ui.orbit.orbitSheetGround
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoShell
 import com.cosmotune.music.sharedui.resources.Res
 import com.cosmotune.music.sharedui.resources.cosmo_sheet_handle
 import org.jetbrains.compose.resources.stringResource
@@ -46,8 +45,8 @@ private val GRAB_TOP = 10.dp
 private val GRAB_BOTTOM = 14.dp
 
 /**
- * Material's `ModalBottomSheet` with the same names, order and defaults (material3 1.3.x). With the new look off it is Material's
- * own. With it on, a sheet that paints itself (the caller passed `containerColor = Color.Transparent`: the song and browse
+ * Material's `ModalBottomSheet` with the same names, order and defaults (material3 1.3.x). A sheet that
+ * paints itself (the caller passed `containerColor = Color.Transparent`: the song and browse
  * sheets, the player) is Material's untouched. Any other sheet is detached: 8 dp in from the sides and the bottom
  * ([CosmoRadii.sheetInset], `.sheet2 { left/right/bottom: var(--sheet-inset) }`), a 36 dp superellipse on the Orbit sheets' opaque
  * ground ([orbitSheetGround]), a 40 % black scrim, no tonal elevation and the
@@ -70,7 +69,7 @@ fun ModalBottomSheet(
     properties: ModalBottomSheetProperties = ModalBottomSheetDefaults.properties,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (LocalCosmoShell.current == null || containerColor == Color.Transparent) {
+    if (containerColor == Color.Transparent) {
         androidx.compose.material3.ModalBottomSheet(
             onDismissRequest = onDismissRequest,
             modifier = modifier,

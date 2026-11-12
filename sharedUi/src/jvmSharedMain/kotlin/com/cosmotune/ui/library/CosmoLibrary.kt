@@ -111,8 +111,7 @@ import org.jetbrains.compose.resources.stringResource
  * The Library page in Orbit (Canvas repo, design/cosmotune/pages-orbit/board.html, section 4): the heading "Library." with a mono
  * count, Liked songs as the colour card with Play in its bite next to a quiet Downloaded card, chips that choose what is shown
  * (Playlists, Albums, Artists, Songs, Downloaded) and how it is sorted, and under them the chosen chip's page: playlists and
- * albums as records with the play moon on their edge, artists as portraits, songs as Home's rows. LibrarySwitch calls it while
- * the new look is on.
+ * albums as records with the play moon on their edge, artists as portraits, songs as Home's rows. LibrarySwitch calls it.
  */
 
 /** The chips of the page, in the board's order. Playlists, Albums, Artists and Downloaded are the feed's [LibrarySegment]s. */

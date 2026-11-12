@@ -126,8 +126,8 @@ fun Modifier.trackFocusModality(): Modifier {
 }
 
 /**
- * The root of the app's content: [content] in a box that tracks [LocalFocusModality] while [enabled] (the new look is on; the old
- * look has no rings and gets a plain box). The box passes its constraints on as they are, so the layout is the same with or without it.
+ * The root of the app's content: [content] in a box that tracks [LocalFocusModality] while [enabled] (always, under `CosmoLookTheme`;
+ * false gives a plain box). The box passes its constraints on as they are, so the layout is the same with or without it.
  */
 @Composable
 fun FocusModalityRoot(enabled: Boolean, content: @Composable () -> Unit) {

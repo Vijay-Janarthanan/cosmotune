@@ -119,8 +119,7 @@ fun EqualizerScreen(
     }
 
     val haptics = rememberHaptics()
-    // The new look's switch (CosmoSwitch, through the bridge) ticks on its own: this screen ticks for it only with the look off.
-    val cosmoLookOff = com.cosmotune.ui.theme.LocalCosmoShell.current == null
+    // The switch (CosmoSwitch, through the bridge) ticks on its own: this screen adds no tick of its own.
     var pickingPreset by remember { mutableStateOf(false) }
 
     Column(
@@ -140,7 +139,6 @@ fun EqualizerScreen(
                     Switch(
                         checked = enabled,
                         onCheckedChange = {
-                            if (cosmoLookOff) haptics.play(if (it) Haptic.ToggleOn else Haptic.ToggleOff)
                             AppSettings.setEqualizerEnabled(it)
                         },
                         colors = SwitchDefaults.colors(

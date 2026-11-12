@@ -220,7 +220,7 @@ fun <T : Any> HeldContextMenu(
                 Modifier
                     // Taps between rows land on the menu, not the scrim under it.
                     .pointerInput(Unit) {}
-                    .then(if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) Modifier.cosmoMenuSurface() else Modifier.clip(menuShape).background(plate).border(0.5.dp, hairline, menuShape)),
+                    .cosmoMenuSurface(),
             ) {
                 actions(menuItem)
             }

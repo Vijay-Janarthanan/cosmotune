@@ -36,9 +36,9 @@ import org.jetbrains.compose.resources.stringResource
 // player lays out in its right-hand pane, so a line lights, a row drags and a
 // translation arrives exactly as they do in there.
 //
-// With the new look on they are Orbit Now Playing's own instead: the lyrics in the wide heading face with the source line and the
+// They are Orbit Now Playing's own: the lyrics in the wide heading face with the source line and the
 // two toggles under them (CosmoLyricsPanel), and the queue as Up next, the kit's song rows with their drag handles
-// (NowPlayingUpNext). The old pieces are the look-off branch, unchanged.
+// (NowPlayingUpNext).
 
 /**
  * The lyric sheet with its provider line and its romanization and translation
@@ -82,9 +82,8 @@ fun LyricsSidePanel(
     val haze = remember { HazeState() }
     var showLyricsProviders by remember { mutableStateOf(false) }
 
-    val orbit = LocalCosmoShell.current != null
     Box(modifier) {
-        if (orbit) Box(Modifier.fillMaxSize().hazeSource(haze)) {
+        Box(Modifier.fillMaxSize().hazeSource(haze)) {
             CosmoLyricsPanel(
                 lyrics = lyrics,
                 lyricsUnavailable = lyricsUnavailable,
@@ -102,57 +101,6 @@ fun LyricsSidePanel(
                 // The side panel is Orbit Read, compact (the lyrics board's "Where they go").
                 offerStyles = false,
             )
-        } else Box(Modifier.fillMaxSize().hazeSource(haze)) {
-            LandscapeLyricsPane(
-                hasLyrics = lyricsTranslation.displayedLyrics.isNotEmpty(),
-                placeholder = if (lyricsUnavailable) {
-                    stringResource(Res.string.lyrics_not_available)
-                } else {
-                    lyricsLoadingText
-                },
-                status = lyricsTranslation.status,
-                onStatusClick = { showLyricsProviders = true },
-                romanizationToggle = {
-                    RomanizationToggleButton(
-                        state = lyricsTranslation.romanizationState,
-                        showingRomanization = lyricsTranslation.showingRomanization,
-                        enabled = !lyrics.isNullOrEmpty(),
-                        onClick = lyricsTranslation.toggleRomanization,
-                    )
-                },
-                translationToggle = {
-                    TranslationToggleButton(
-                        state = lyricsTranslation.translationState,
-                        showingTranslation = lyricsTranslation.showingTranslation,
-                        enabled = !lyrics.isNullOrEmpty(),
-                        onClick = lyricsTranslation.toggleTranslation,
-                    )
-                },
-            ) { panelModifier ->
-                LyricsTranslationMotion(
-                    trigger = lyricsTranslation.transition,
-                    reduceMotion = lyricsTranslation.reduceMotion,
-                    modifier = panelModifier,
-                ) { particleProgress ->
-                    // Controls always open, as in the landscape player: there
-                    // is no transport hidden behind these lines for a tap to
-                    // bring back.
-                    LyricsPanel(
-                        lines = lyrics.orEmpty(),
-                        subLines = lyricsTranslation.subLines,
-                        trackKey = song.videoId,
-                        playhead = lyricsPlayhead,
-                        looking = !lyricsUnavailable,
-                        isPlaying = isPlaying && position.advancing,
-                        onSeekToLine = seekToLyric,
-                        controlsOpen = true,
-                        onRevealControls = {},
-                        onHideControls = {},
-                        translationProgress = particleProgress,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
         }
         if (showLyricsProviders) {
             LyricsProviderSheet(
@@ -179,7 +127,7 @@ val LocalSidePanelPlaying = compositionLocalOf { false }
 private val SIDE_LYRICS_STYLE = LyricsStyle(TypeScale.TITLE_S, 1.12f, 0.9f)
 
 /**
- * The live queue — the player's own, rows, drag and all — without the player. With the new look it is Up next: the playing row in
+ * The live queue — the player's own, rows, drag and all — without the player. It is Up next: the playing row in
  * peach with its orbit ([isPlaying] circles its moon, [progress] moves it when given), the groups with Clear, and the AutoPlay
  * group's button when [onToggleAutoplay] is given.
  */
@@ -197,36 +145,22 @@ fun QueueSidePanel(
     progress: (() -> Float)? = null,
     onToggleAutoplay: (() -> Unit)? = null,
 ) {
-    if (LocalCosmoShell.current != null) {
-        NowPlayingUpNext(
-            queue = queue,
-            queueIndex = queueIndex,
-            autoplayEnabled = autoplayEnabled,
-            controlsLocked = rememberControlsLocked(),
-            isPlaying = isPlaying,
-            progress = progress,
-            onJumpTo = onJumpTo,
-            onRemove = onRemove,
-            onMove = onMove,
-            onClear = onClear,
-            onToggleAutoplay = onToggleAutoplay,
-            onDragActiveChange = {},
-            fonts = orbitFonts(),
-            look = orbitLook(),
-            modifier = modifier,
-            header = false,
-        )
-        return
-    }
-    InlineQueue(
+    NowPlayingUpNext(
         queue = queue,
-        currentIndex = queueIndex,
+        queueIndex = queueIndex,
         autoplayEnabled = autoplayEnabled,
         controlsLocked = rememberControlsLocked(),
+        isPlaying = isPlaying,
+        progress = progress,
         onJumpTo = onJumpTo,
         onRemove = onRemove,
         onMove = onMove,
         onClear = onClear,
+        onToggleAutoplay = onToggleAutoplay,
+        onDragActiveChange = {},
+        fonts = orbitFonts(),
+        look = orbitLook(),
         modifier = modifier,
+        header = false,
     )
 }

@@ -329,56 +329,12 @@ fun BrowseActionsSheet(
 /** Which release the sheet is about: the same row the shelf card was. */
 @Composable
 private fun BrowseSheetHeader(target: BrowseTarget) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetHeader(
+    com.cosmotune.ui.sheets.CosmoSheetHeader(
         title = target.title,
         subtitle = target.subtitle.ifBlank { target.type.localizedNoun().replaceFirstChar { it.uppercase(Locale.getDefault()) } },
         imageUrl = target.thumbnailUrl,
         circle = target.type == BrowseType.ARTIST,
     )
-    val shape = if (target.type == BrowseType.ARTIST) CircleShape else RoundedCornerShape(CosmoRadii.rSm)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = target.thumbnailUrl.artworkAt(ROW_ART_PX),
-            contentDescription = null,
-            modifier = Modifier
-                .size(52.dp)
-                .clip(shape)
-                .thumbnailBorder(shape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = target.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                // A card frequently has no subtitle at all, and the kind of
-                // thing it is beats a blank line under the title. A card of
-                // unknown kind has neither, and gets the track count instead —
-                // which by then is the one thing actually known about it.
-                text = target.subtitle.ifBlank {
-                    target.type.localizedNoun().replaceFirstChar { it.uppercase(Locale.getDefault()) }.ifBlank {
-                        target.songs.size.takeIf { it > 0 }
-                            ?.let { pluralStringResource(R.plurals.song_count_plural, it, it) }
-                            .orEmpty()
-                    }
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
 }
 
 /**

@@ -23,7 +23,6 @@ import com.cosmotune.design.GlassPolicy
 import com.cosmotune.ui.components.SuperellipseShape
 import com.cosmotune.ui.theme.CosmoRadii
 import com.cosmotune.ui.theme.LocalCosmoColors
-import com.cosmotune.ui.theme.LocalCosmoShell
 
 /** `.menu3 { border-radius: 22px }`. */
 private val MENU_SHAPE = SuperellipseShape(CosmoRadii.lg)
@@ -34,9 +33,9 @@ private val ITEM_INSET = 6.dp
 
 /**
  * Material's `DropdownMenu` (the overload with `shape`, `containerColor`, `tonalElevation`, `shadowElevation` and `border`,
- * material3 1.3.x) with the same names, order and defaults. With the new look off it is Material's own. With it on the menu is
+ * material3 1.3.x) with the same names, order and defaults. The menu is
  * a 22 dp superellipse of solid tinted glass (`surfaceHigh` at [GlassPolicy.SOLID_ALPHA]) lifted by
- * [GlassPolicy.SHADOW_ELEVATION_DP], with no tonal elevation and no border; those five parameters are the look's then.
+ * [GlassPolicy.SHADOW_ELEVATION_DP], with no tonal elevation and no border; those five parameters are the look's.
  */
 @Composable
 fun DropdownMenu(
@@ -53,23 +52,6 @@ fun DropdownMenu(
     border: BorderStroke? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (LocalCosmoShell.current == null) {
-        androidx.compose.material3.DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = onDismissRequest,
-            modifier = modifier,
-            offset = offset,
-            scrollState = scrollState,
-            properties = properties,
-            shape = shape,
-            containerColor = containerColor,
-            tonalElevation = tonalElevation,
-            shadowElevation = shadowElevation,
-            border = border,
-            content = content,
-        )
-        return
-    }
     androidx.compose.material3.DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
@@ -87,7 +69,7 @@ fun DropdownMenu(
 }
 
 /**
- * Material's `DropdownMenuItem` with the same names, order and defaults. With the new look on the item is inset 6 dp from the
+ * Material's `DropdownMenuItem` with the same names, order and defaults. The item is inset 6 dp from the
  * menu's sides and rounded by 14 dp, so its highlight is a rounded bar inside the menu; it keeps Material's 48 dp minimum
  * height, which is the touch rule.
  */
@@ -103,20 +85,6 @@ fun DropdownMenuItem(
     contentPadding: PaddingValues = MenuDefaults.DropdownMenuItemContentPadding,
     interactionSource: MutableInteractionSource? = null,
 ) {
-    if (LocalCosmoShell.current == null) {
-        androidx.compose.material3.DropdownMenuItem(
-            text = text,
-            onClick = onClick,
-            modifier = modifier,
-            leadingIcon = leadingIcon,
-            trailingIcon = trailingIcon,
-            enabled = enabled,
-            colors = colors,
-            contentPadding = contentPadding,
-            interactionSource = interactionSource,
-        )
-        return
-    }
     androidx.compose.material3.DropdownMenuItem(
         text = text,
         onClick = onClick,

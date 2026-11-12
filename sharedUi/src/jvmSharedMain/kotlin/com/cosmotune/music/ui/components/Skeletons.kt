@@ -60,34 +60,7 @@ private val SubtitleWidths = listOf(0.34f, 0.44f, 0.27f, 0.38f, 0.31f)
  */
 @Composable
 fun ShimmerBox(modifier: Modifier = Modifier, shape: Shape = BlockShape) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoShimmer(modifier = modifier, shape = shape)
-    val base = MaterialTheme.colorScheme.surfaceVariant
-    val highlight = MaterialTheme.colorScheme.onSurfaceVariant
-        .copy(alpha = 0.16f)
-        .compositeOver(base)
-    val sweep = rememberInfiniteTransition(label = "skeleton").animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(SHIMMER_PERIOD_MS, easing = LinearEasing)),
-        label = "sweep",
-    )
-    Box(
-        modifier
-            .clip(shape)
-            .drawWithCache {
-                // The band travels from fully off one edge to fully off the
-                // other, which leaves a beat of flat grey between passes rather
-                // than a highlight permanently parked somewhere on the block.
-                val band = size.width * 0.5f
-                val startX = -band + sweep.value * (size.width + band * 2)
-                val brush = Brush.horizontalGradient(
-                    colors = listOf(base, highlight, base),
-                    startX = startX,
-                    endX = startX + band,
-                )
-                onDrawBehind { drawRect(brush) }
-            },
-    )
+    com.cosmotune.ui.states.CosmoShimmer(modifier = modifier, shape = shape)
 }
 
 /** A placeholder for one line of text, sized as a fraction of its parent. */

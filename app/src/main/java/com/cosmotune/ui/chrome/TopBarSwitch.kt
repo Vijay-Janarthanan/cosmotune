@@ -2,22 +2,16 @@ package com.cosmotune.ui.chrome
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.cosmotune.ui.theme.LocalCosmoShell
-import com.cosmotune.music.ui.components.FrostedTopBar
 import com.cosmotune.music.ui.components.topBarHeight
 import dev.chrisbanes.haze.HazeState
 
 /**
- * The phone's one top bar: [CosmoTopBar] while the new look is on (the shell exists), the old [FrostedTopBar] while it is off.
+ * The phone's one top bar: [CosmoTopBar].
  *
- * The parameter list is [FrostedTopBar]'s, name for name and in the same order, and the old branch passes every argument by
- * name. That is the seam: when upstream adds a parameter to the old bar the old branch stops compiling, and this file is where
- * the new parameter has to be decided on. With the new look off nothing here runs but the old call.
- *
- * [transparentBackdrop], [artworkPageChrome] and [backButtonHazeState] describe the material of the old bar (its backdrop, its
- * glass and the haze it samples); the new bar draws nothing of its own and its buttons are glass circles, so they are not passed
- * on. [CosmoTopBar] takes the bar's [topBarHeight] (the status bar inset and the bar's own height), so every page's top padding
- * stays what it was.
+ * The parameter list is upstream's `FrostedTopBar`'s, name for name and in the same order, so upstream's call site still merges.
+ * [transparentBackdrop], [artworkPageChrome] and [backButtonHazeState] described the material of the old bar; the bar draws nothing
+ * of its own and its buttons are glass circles, so they are accepted and ignored. [CosmoTopBar] takes the bar's [topBarHeight] (the
+ * status bar inset and the bar's own height), so every page's top padding stays what it was.
  */
 @Composable
 fun TopBarSwitch(
@@ -44,33 +38,16 @@ fun TopBarSwitch(
     accessory: (@Composable () -> Unit)? = null,
     actions: @Composable () -> Unit = {},
 ) {
-    if (LocalCosmoShell.current != null) {
-        CosmoTopBar(
-            title = title,
-            scrolled = scrolled,
-            height = topBarHeight(),
-            modifier = modifier,
-            trailingTitle = trailingTitle,
-            onBack = onBack,
-            refreshing = refreshing,
-            pullFraction = pullFraction,
-            accessory = accessory,
-            actions = actions,
-        )
-    } else {
-        FrostedTopBar(
-            title = title,
-            scrolled = scrolled,
-            modifier = modifier,
-            transparentBackdrop = transparentBackdrop,
-            artworkPageChrome = artworkPageChrome,
-            backButtonHazeState = backButtonHazeState,
-            trailingTitle = trailingTitle,
-            onBack = onBack,
-            refreshing = refreshing,
-            pullFraction = pullFraction,
-            accessory = accessory,
-            actions = actions,
-        )
-    }
+    CosmoTopBar(
+        title = title,
+        scrolled = scrolled,
+        height = topBarHeight(),
+        modifier = modifier,
+        trailingTitle = trailingTitle,
+        onBack = onBack,
+        refreshing = refreshing,
+        pullFraction = pullFraction,
+        accessory = accessory,
+        actions = actions,
+    )
 }

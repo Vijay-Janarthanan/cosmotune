@@ -213,11 +213,9 @@ fun SongActionsSheet(
     // that tint is not guaranteed to read against the theme's surface.
     val palette = if (menu) {
         neutralMenuPalette()
-    } else if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) {
-        // The new look: the cover of the song that is playing, not this track's own colours.
-        com.cosmotune.ui.sheets.cosmoSheetPalette()
     } else {
-        rememberArtworkPalette(song.thumbnailUrl, artPx = ROW_ART_PX)
+        // The cover of the song that is playing, not this track's own colours.
+        com.cosmotune.ui.sheets.cosmoSheetPalette()
     }
     val liked = likeStatus == LikeStatus.LIKE
     val disliked = likeStatus == LikeStatus.DISLIKE
@@ -225,7 +223,7 @@ fun SongActionsSheet(
     // rate, save, queue into a playlist, fetch again, or share a link for.
     val isOffline = song.localUri != null
     // Orbit: the sheet leads with its main actions as chips (Play next, Queue, the heart), and the rows below leave them out.
-    val orbitChips = !menu && com.cosmotune.ui.theme.LocalCosmoShell.current != null
+    val orbitChips = !menu
     val likeable = signedIn && !isOffline || com.cosmotune.providers.SourceLibraryStore.ownsTrack(song.videoId)
 
     val rows: @Composable ColumnScope.() -> Unit = {
@@ -469,21 +467,7 @@ private fun neutralMenuPalette(): ArtworkPalette {
  */
 @Composable
 private fun GroupSeparator(palette: ArtworkPalette) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetGap(menu = LocalActionRowStyle.current == ActionRowStyle.Menu)
-    if (LocalActionRowStyle.current == ActionRowStyle.Menu) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .background(palette.divider),
-        )
-    } else {
-        HorizontalDivider(
-            modifier = Modifier.padding(vertical = 6.dp),
-            thickness = 0.5.dp,
-            color = palette.divider,
-        )
-    }
+    com.cosmotune.ui.sheets.CosmoSheetGap(menu = LocalActionRowStyle.current == ActionRowStyle.Menu)
 }
 
 /**
@@ -508,49 +492,7 @@ private fun TintedSheet(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetSurface(modifier = modifier, content = content)
-    val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
-    Box(
-        modifier
-            .fillMaxWidth()
-            .clip(SHEET_SHAPE),
-    ) {
-        ArtworkBackdrop(
-            palette = palette,
-            imageUrl = imageUrl,
-            modifier = Modifier.matchParentSize(),
-            // A sheet is a fraction of the height of a page, so the wash has
-            // to resolve over a much shorter run to read the same way.
-            washFraction = 0.75f,
-            artPx = ROW_ART_PX,
-        )
-        Column(Modifier.fillMaxWidth().heightIn(max = maxHeight)) {
-            // Drawn rather than taken from BottomSheetDefaults, whose handle
-            // carries 22dp of padding on each side — half a row's worth of
-            // nothing between the grip and the track it is about. Kept outside
-            // the scrolling rows below so it stays put as a grab target rather
-            // than travelling with the list.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 4.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    Modifier
-                        .size(width = 34.dp, height = 4.dp)
-                        .clip(CircleShape)
-                        .background(palette.onBackground.copy(alpha = 0.35f)),
-                )
-            }
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                content = content,
-            )
-        }
-    }
+    com.cosmotune.ui.sheets.CosmoSheetSurface(modifier = modifier, content = content)
 }
 
 private val SHEET_SHAPE = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
@@ -848,61 +790,7 @@ internal fun ActionRow(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoActionRow(icon = icon, label = label, value = value, tint = tint, enabled = enabled, menu = LocalActionRowStyle.current == ActionRowStyle.Menu, onClick = onClick)
-    val menu = LocalActionRowStyle.current == ActionRowStyle.Menu
-    // The popup sits on a surface rather than the page background, so its
-    // text follows the surface's colour — the two differ in light mode.
-    val foreground = if (menu) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onBackground
-    val alpha = if (enabled) 1f else 0.4f
-    val iconView: @Composable () -> Unit = {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = (tint ?: foreground).copy(alpha = alpha),
-            modifier = Modifier.size(if (menu) 20.dp else 22.dp),
-        )
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .then(
-                if (menu) {
-                    Modifier.heightIn(min = 46.dp).padding(horizontal = 18.dp, vertical = 11.dp)
-                } else {
-                    Modifier.padding(horizontal = 22.dp, vertical = 15.dp)
-                },
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // A context menu reads label-first with the glyph at the far edge;
-        // the sheet keeps the glyph leading, like every other list in the app.
-        if (!menu) {
-            iconView()
-            Spacer(Modifier.width(18.dp))
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = foreground.copy(alpha = alpha),
-            maxLines = if (menu) 2 else Int.MAX_VALUE,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        if (value != null) {
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyLarge,
-                color = accent.copy(alpha = alpha),
-                maxLines = 1,
-            )
-        }
-        if (menu) {
-            Spacer(Modifier.width(14.dp))
-            iconView()
-        }
-    }
+    com.cosmotune.ui.sheets.CosmoActionRow(icon = icon, label = label, value = value, tint = tint, enabled = enabled, menu = LocalActionRowStyle.current == ActionRowStyle.Menu, onClick = onClick)
 }
 
 /**
@@ -962,48 +850,11 @@ internal fun SheetTrackHeader(
     modifier: Modifier = Modifier,
     subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetHeader(title = song.title, subtitle = song.artist, imageUrl = song.thumbnailUrl, modifier = modifier, explicit = song.isExplicit == true)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = song.artworkAt(ROW_ART_PX),
-            contentDescription = null,
-            modifier = Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(CosmoRadii.rSm))
-                .thumbnailBorder(RoundedCornerShape(CosmoRadii.rSm))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            ExplicitSongTitle(
-                song = song,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodyMedium,
-                color = subtitleColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+    com.cosmotune.ui.sheets.CosmoSheetHeader(title = song.title, subtitle = song.artist, imageUrl = song.thumbnailUrl, modifier = modifier, explicit = song.isExplicit == true)
 }
 
 /** The heading over a sheet's second half — "Add to playlist". */
 @Composable
 internal fun SheetHeading(text: String) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.sheets.CosmoSheetHeading(text = text)
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 4.dp),
-    )
+    com.cosmotune.ui.sheets.CosmoSheetHeading(text = text)
 }

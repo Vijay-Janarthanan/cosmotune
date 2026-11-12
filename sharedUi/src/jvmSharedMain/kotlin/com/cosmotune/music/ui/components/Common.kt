@@ -326,95 +326,7 @@ fun SongRow(
      */
     showSourceQuality: Boolean = false,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.blocks.CosmoSongRow(song = song, onClick = onClick, modifier = modifier, onLongPress = onLongPress, onMore = onMore, onSwipeToQueue = onSwipeToQueue, trackNumber = trackNumber, downloadedTint = downloadedTint, isCurrent = isCurrent, isPlaying = isPlaying, selected = selected, showSourceQuality = showSourceQuality)
-    val haptics = rememberHaptics()
-    val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
-    var boxWidth by remember { mutableFloatStateOf(0f) }
-
-    val currentOnSwipeToQueue by rememberUpdatedState(onSwipeToQueue)
-
-    val swipeState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled && currentOnSwipeToQueue != null) {
-                val offset = try { swipeStateHolder.value?.requireOffset() ?: 0f } catch (e: Exception) { 0f }
-                // Only queue if the physical drag reached half the box width, ignoring short accidental flings.
-                if (abs(offset) >= boxWidth * 0.45f) {
-                    haptics.play(Haptic.Select)
-                    currentOnSwipeToQueue?.invoke()
-                }
-            }
-            false // never actually dismiss; snap back
-        },
-        positionalThreshold = { distance -> distance * 0.5f },
-    )
-    swipeStateHolder.value = swipeState
-
-    if (onSwipeToQueue == null) {
-        SongRowContent(
-            song = song,
-            onClick = onClick,
-            onLongPress = onLongPress,
-            onMore = onMore ?: onLongPress,
-            modifier = modifier,
-            trackNumber = trackNumber,
-            subtitleColor = subtitleColor,
-            downloadedTint = downloadedTint,
-            isCurrent = isCurrent,
-            isPlaying = isPlaying,
-            activeTint = activeTint,
-            searchPlayingStyle = searchPlayingStyle,
-            selected = selected,
-            showSourceQuality = showSourceQuality,
-        )
-        return
-    }
-
-    // The row reveals "Queue" from the first pixel of the drag, but it only
-    // *commits* past 45% of the width — so without this the label is a promise
-    // the finger can't check. One light tick at the crossing is the whole point:
-    // let go now and it queues.
-    LaunchedEffect(swipeState, boxWidth) {
-        if (boxWidth <= 0f) return@LaunchedEffect
-        val armAt = boxWidth * 0.45f
-        var armed = false
-        snapshotFlow { try { swipeState.requireOffset() } catch (e: Exception) { 0f } }
-            .collect { offset ->
-                val travelled = abs(offset)
-                when {
-                    !armed && travelled >= armAt -> {
-                        armed = true
-                        haptics.play(Haptic.Tick)
-                    }
-                    // Silent, and with hysteresis: dragging back under the line
-                    // re-arms, but so does the spring-back after a successful
-                    // queue, and that must not buzz the same gesture twice.
-                    armed && travelled < armAt * 0.8f -> armed = false
-                }
-            }
-    }
-
-    SwipeToDismissBox(
-        state = swipeState,
-        modifier = modifier.onSizeChanged { boxWidth = it.width.toFloat() },
-        backgroundContent = { QueueSwipeBackground(swipeState) },
-    ) {
-        SongRowContent(
-            song = song,
-            onClick = onClick,
-            onLongPress = onLongPress,
-            onMore = onMore ?: onLongPress,
-            modifier = Modifier.background(rowBackground),
-            trackNumber = trackNumber,
-            subtitleColor = subtitleColor,
-            downloadedTint = downloadedTint,
-            isCurrent = isCurrent,
-            isPlaying = isPlaying,
-            activeTint = activeTint,
-            searchPlayingStyle = searchPlayingStyle,
-            selected = selected,
-            showSourceQuality = showSourceQuality,
-        )
-    }
+    com.cosmotune.ui.blocks.CosmoSongRow(song = song, onClick = onClick, modifier = modifier, onLongPress = onLongPress, onMore = onMore, onSwipeToQueue = onSwipeToQueue, trackNumber = trackNumber, downloadedTint = downloadedTint, isCurrent = isCurrent, isPlaying = isPlaying, selected = selected, showSourceQuality = showSourceQuality)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -774,34 +686,7 @@ fun PullToRefresh(
 /** Slim dismissible-looking prompt shown atop Home while signed out. */
 @Composable
 fun SignInBanner(onSignIn: () -> Unit, modifier: Modifier = Modifier) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoSignInBanner(onSignIn = onSignIn, modifier = modifier)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = PAGE_GUTTER, vertical = 8.dp)
-            .clip(RoundedCornerShape(CosmoRadii.rLg))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onSignIn)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = stringResource(Res.string.sign_in_youtube_music),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(Res.string.personalized_recommendations),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Button(onClick = onSignIn) { Text(stringResource(Res.string.sign_in)) }
-    }
+    com.cosmotune.ui.states.CosmoSignInBanner(onSignIn = onSignIn, modifier = modifier)
 }
 
 @Composable
@@ -811,24 +696,7 @@ fun MessageState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
-    if (com.cosmotune.ui.theme.LocalCosmoShell.current != null) return com.cosmotune.ui.states.CosmoEmptyState(message = message, modifier = modifier, actionLabel = actionLabel, onAction = onAction)
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = PAGE_GUTTER + 6.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        if (actionLabel != null && onAction != null) {
-            Button(onClick = onAction) { Text(actionLabel) }
-        }
-    }
+    com.cosmotune.ui.states.CosmoEmptyState(message = message, modifier = modifier, actionLabel = actionLabel, onAction = onAction)
 }
 
 /**
