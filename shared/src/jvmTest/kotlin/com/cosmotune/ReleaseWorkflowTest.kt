@@ -54,7 +54,12 @@ class ReleaseWorkflowTest {
     fun everyReadmeDownloadLinkIsAFileTheReleasePublishes() {
         val links = Regex("""releases/latest/download/([^)\s"]+)""").findAll(read("README.md"))
             .map { it.groupValues[1] }.toSet()
-        assertTrue(links.size >= 20, "expected the phone, watch, TV, desktop and browser links, found $links")
+        assertTrue(links.size >= 16, "expected the phone, watch, TV, desktop and browser links, found $links")
+        // One download per desktop platform: the installer, the disk images, the AppImage (the msi and the macOS zip are update files).
+        assertEquals(
+            setOf("Cosmotune-windows-x64-setup.exe", "Cosmotune-macos-arm64.dmg", "Cosmotune-macos-x64.dmg", "Cosmotune-linux-x86_64.AppImage"),
+            links.filter { Regex("-(windows|macos|linux)-").containsMatchIn(it) }.toSet(),
+        )
         val published = published()
         assertEquals(emptySet(), links - published, "README links the Release workflow does not publish")
         for (name in listOf("CosmotuneWear.apk", "CosmotuneTV-android-universal.apk", "Cosmotune-helper-chrome.zip",

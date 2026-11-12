@@ -145,7 +145,7 @@ internal object DesktopUpdateChecker {
     private fun installerUrl(release: JsonObject): String? {
         val suffixes = when {
             DesktopPlatform.isWindows -> listOf("-windows-x64-setup.exe")
-            DesktopPlatform.isLinux -> listOf(".AppImage", "-linux-amd64.deb")
+            DesktopPlatform.isLinux -> listOf(".AppImage")
             else -> return null
         }
         val assets = release["assets"]?.jsonArray?.mapNotNull { it as? JsonObject }.orEmpty()

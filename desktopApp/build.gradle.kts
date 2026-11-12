@@ -689,11 +689,10 @@ compose.desktop {
         nativeDistributions {
             targetFormats(
                 // No .pkg: it installs a bundle owned by the system, which the one-click update cannot replace (1.0.23).
+                // No .deb or .rpm: Linux ships one AppImage, wrapped around createDistributable by packaging/appimage.sh.
                 TargetFormat.Dmg,
                 TargetFormat.Exe,
                 TargetFormat.Msi,
-                TargetFormat.Deb,
-                TargetFormat.Rpm,
             )
             packageName = "Cosmotune"
             packageVersion = nativePackageVersion

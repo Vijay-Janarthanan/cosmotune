@@ -22,6 +22,12 @@ Selected upstream native changes are being integrated from `edc1e6f36febf71a118e
 | Settings credentials and Spotify sign-in (`app/.../data/settings/AppSettings.kt`, `SecretMove.kt`, `auth/AuthStore.kt`, `auth/SpotifyLoginScreen.kt`, `MainActivity.kt`) | The `SECRETS` keys are read and written through the encrypted `AuthStore.secret` slots and moved out of the plain settings on start; upstream keeps them in the backed-up settings file. Spotify sign-in is upstream's root overlay | Keep `readSecret`/`writeSecret` for every `SECRETS` key when upstream adds or changes one; never write a credential with `prefs.putString` | `SpotifyAccountTest`; real-account checks remain |
 | Existing fork fixes | Keep local ranker, converted beat model, Android model cache hashing, OpenCanvas import, native dependency filtering, branding/privacy guards | Do not replace these assets/settings merely because upstream differs | Packaged model/OpenCanvas verification; target-runtime inference tests |
 
+## Fewer desktop release files (after 1.0.23, unreleased)
+
+| File | What we changed | Why | How to re-apply |
+| :-- | :-- | :-- | :-- |
+| `.github/workflows/release.yml`, `desktopApp/build.gradle.kts` (`targetFormats`), `desktopApp/.../DesktopUpdateChecker.kt` (`installerUrl`), `README.md`, `DESKTOP.md`, `docs/DESKTOP_RELEASES.md` | the Linux job builds only the AppImage (no `packageDeb` or `packageRpm`, no `rpm` or `fakeroot` tools; `TargetFormat.Deb` and `TargetFormat.Rpm` are gone); the Windows job no longer makes `-windows-x64-portable.zip`; the update check on Linux looks for `.AppImage` only; the download tables list the setup.exe, the dmg and the AppImage. The `-windows-x64.msi` and `-macos-<arch>.zip` are still built and attached: they are what Update now installs (`DesktopInstall.assetSuffix`). `DesktopInstall.WindowsPortable` stays, so a portable copy made earlier still updates through the download page; the local `windowsPortable` Gradle task stays as a developer tool | one file per platform for people to download: the exe on Windows, the dmg on macOS, the AppImage on Linux (it runs on every distribution) | take upstream's other changes to these files; keep its deb, rpm and portable-zip steps out |
+
 ## Removed with the old look (after 1.0.23, unreleased)
 
 The old look (upstream's BitChord UI) and the Settings switch that chose between it and the Orbit look are gone: the Orbit look is the only one. These rows say what went; the rows of the Earlier ledger below say what each remaining hook is now.
