@@ -38,7 +38,12 @@ internal object DesktopUpdateChecker {
         val highlights: List<ReleaseHighlight> = ReleaseHighlights.of(notes),
         /** The installer's size in bytes, when the release says. */
         val downloadSize: Long? = null,
+        /** Every file of the release, for the one-click package (`DesktopUpdater.packageOf`). */
+        val assets: List<ReleaseAsset> = emptyList(),
     )
+
+    /** One uploaded file of a release: its [name], its download [url] and its [size] in bytes. */
+    data class ReleaseAsset(val name: String, val url: String, val size: Long?)
 
     /** The running build's own release, for the "what's new" card on the first launch after an update. */
     data class WelcomeInfo(val version: String, val releaseUrl: String, val highlights: List<ReleaseHighlight>)
@@ -75,6 +80,7 @@ internal object DesktopUpdateChecker {
             downloadUrl = installer,
             notes = release["body"]?.jsonPrimitive?.contentOrNull,
             downloadSize = installer?.let { assetSize(release, it) },
+            assets = assetsOf(release),
         )
     }.getOrNull()
 
@@ -114,6 +120,16 @@ internal object DesktopUpdateChecker {
 
     /** The welcome card was closed: this version is not welcomed again. */
     fun welcomeSeen(persistence: DesktopPersistence) = persistence.saveString(KEY_SEEN_VERSION, currentVersion)
+
+    /** The release's uploaded files. */
+    private fun assetsOf(release: JsonObject): List<ReleaseAsset> =
+        release["assets"]?.jsonArray?.mapNotNull { it as? JsonObject }.orEmpty()
+            .filter { it["state"]?.jsonPrimitive?.contentOrNull == "uploaded" }
+            .mapNotNull { asset ->
+                val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val url = asset["browser_download_url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                ReleaseAsset(name, url, asset["size"]?.jsonPrimitive?.longOrNull)
+            }
 
     /** The size in bytes the release gives for the asset downloaded from [url]. */
     private fun assetSize(release: JsonObject, url: String): Long? =
