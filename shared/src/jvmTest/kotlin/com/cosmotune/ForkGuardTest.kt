@@ -19,7 +19,7 @@ class ForkGuardTest {
     private val self = "shared/src/jvmTest/kotlin/com/cosmotune/ForkGuardTest.kt"
 
     /** Folders that never hold our own sources, wherever they are. */
-    private val skippedDirs = setOf(".git", ".gradle", "build", "node_modules", ".idea", ".kotlin", ".cxx")
+    private val skippedDirs = setOf(".git", ".gradle", "build", "node_modules", ".idea", ".kotlin", ".cxx", ".claude", ".superpowers")
 
     /** Skipped folders, plus the notes folder `docs` at the top of the repository only. */
     private fun skip(dir: File): Boolean =
