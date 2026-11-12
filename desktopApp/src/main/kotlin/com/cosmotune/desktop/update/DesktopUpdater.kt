@@ -5,6 +5,7 @@ import com.cosmotune.update.UpdateCheckSchedule
 import com.cosmotune.update.UpdateTrigger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,7 +87,8 @@ internal class DesktopUpdater(
             return
         }
         _step.value = UpdateStep.Downloading(-1f)
-        job = scope.launch {
+        // ATOMIC: a cancel that lands before the task runs still runs it to its first suspension, so its clean-up below sets Idle.
+        job = scope.launch(start = CoroutineStart.ATOMIC) {
             updatesDir.mkdirs()
             val part = File(updatesDir, asset.name + ".part")
             val whole = File(updatesDir, asset.name)

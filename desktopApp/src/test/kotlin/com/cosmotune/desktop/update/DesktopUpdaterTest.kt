@@ -84,6 +84,21 @@ class DesktopUpdaterTest {
         assertTrue(fake.handed.isEmpty())
     }
 
+    @Test fun cancelBeforeTheDownloadStartsStillEndsIdle() = runBlocking<Unit> {
+        // A cancel that lands before the download task has run must still leave the card idle, not stuck on "Downloading".
+        val queued = java.util.concurrent.LinkedBlockingQueue<Runnable>()
+        val held = object : kotlinx.coroutines.CoroutineDispatcher() {
+            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: Runnable) { queued.add(block) }
+        }
+        val u = updater(Fake())
+        u.refresh(UpdateTrigger.LAUNCH)
+        u.startUpdate(CoroutineScope(SupervisorJob() + held))
+        u.cancel()
+        while (true) queued.poll()?.run() ?: break
+        withTimeout(5_000) { while (u.step.value !is UpdateStep.Idle) { queued.poll()?.run(); yield() } }
+        assertTrue(dir.listFiles().orEmpty().isEmpty())
+    }
+
     @Test fun checkFailureKeepsNoOffer() = runBlocking<Unit> {
         val u = updater(Fake(), check = { error("offline") })
         u.refresh(UpdateTrigger.LAUNCH)
