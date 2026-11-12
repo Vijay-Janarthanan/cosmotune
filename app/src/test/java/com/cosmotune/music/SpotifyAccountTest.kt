@@ -69,8 +69,10 @@ class SpotifyAccountTest {
     @Test fun signInIsARootOverlayAndDisconnectSignsTheWebViewOut() {
         val host = read("app/src/main/java/com/cosmotune/music/MainActivity.kt")
         assertTrue("onOpenLogin = { showSpotifyLogin = true }, onOpenTokenSetup = { showSpotifyCanvasAuth = true }," in host)
-        assertTrue("if (showSpotifyLogin) { BackHandler { showSpotifyLogin = false }" in host)
-        assertTrue("SpotifyLoginScreen( modifier = Modifier.navigationBarsPadding(), onConnected = { token -> AppSettings.setSpotifySpdcToken(token) showSpotifyLogin = false }," in host)
+        // The sign-in itself is drawn by the root's dialogs, out of MainActivity.kt for the size of its root composable.
+        val dialogs = read("app/src/main/java/com/cosmotune/music/ui/PhoneRootDialogs.kt")
+        assertTrue("if (showSpotifyLogin) { BackHandler { showSpotifyLogin = false }" in dialogs)
+        assertTrue("SpotifyLoginScreen( modifier = Modifier.navigationBarsPadding(), onConnected = { token -> AppSettings.setSpotifySpdcToken(token) showSpotifyLogin = false }," in dialogs)
         val page = read("app/src/main/java/com/cosmotune/music/ui/screens/SpotifyLibraryScreen.kt")
         assertFalse("the page itself hosts no WebView any more", "WebView" in page)
         assertTrue("onClick = onOpenLogin" in page && "onClick = onOpenTokenSetup" in page)
