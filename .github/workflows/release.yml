@@ -58,6 +58,7 @@ jobs:
         run: |
           echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+          echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> local.properties
 
       - name: Packaging tools
         run: |
@@ -160,6 +161,7 @@ jobs:
         run: |
           echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+          echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> local.properties
 
       - name: Tests
         run: .\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :video:jvmTest :watch:jvmTest :manga:jvmTest :providers:jvmTest :remote:jvmTest :desktopApp:test :uiTests:test --continue "-Pcosmotune.version=${{ steps.version.outputs.value }}"
@@ -261,6 +263,7 @@ jobs:
         run: |
           echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+          echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> local.properties
 
       - run: chmod +x gradlew
 
@@ -360,6 +363,7 @@ jobs:
         run: |
           echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+          echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> local.properties
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > cosmotune-release.jks
           {
             echo "storeFile=cosmotune-release.jks"
@@ -420,6 +424,7 @@ jobs:
         run: |
           echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+          echo "TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}" >> local.properties
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > cosmotune-release.jks
           {
             echo "storeFile=cosmotune-release.jks"
