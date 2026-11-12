@@ -5,11 +5,13 @@ import com.cosmotune.update.UpdateCheckSchedule
 import com.cosmotune.update.UpdateTrigger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /** Where a one-click update is: nothing running, downloading ([fraction] 0..1, negative while the size is unknown), handing over, or failed. */
@@ -89,9 +91,19 @@ internal class DesktopUpdater(
             val part = File(updatesDir, asset.name + ".part")
             val whole = File(updatesDir, asset.name)
             try {
-                fetch(asset.url, part) { _step.value = UpdateStep.Downloading(it) }
-                whole.delete()
-                check(part.renameTo(whole)) { "Could not keep the download" }
+                // Off the window's thread: the download writes the whole package to disk. Progress moves in whole percents.
+                withContext(Dispatchers.IO) {
+                    var shown = -2
+                    fetch(asset.url, part) { fraction ->
+                        val percent = if (fraction < 0f) -1 else (fraction * 100).toInt()
+                        if (percent != shown) {
+                            shown = percent
+                            _step.value = UpdateStep.Downloading(fraction)
+                        }
+                    }
+                    whole.delete()
+                    check(part.renameTo(whole)) { "Could not keep the download" }
+                }
                 _step.value = UpdateStep.Installing
                 handOver(whole, info)
             } catch (cancel: CancellationException) {

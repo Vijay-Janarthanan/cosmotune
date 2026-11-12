@@ -48,13 +48,20 @@ internal object WindowsUpdateScript {
 
     /** Writes [script] next to the download and starts it on its own, so it outlives this process. */
     fun launch(script: String, workDir: File) {
-        workDir.mkdirs()
-        val file = File(workDir, "cosmotune-update.ps1")
-        file.writeText(script)
+        val file = write(script, workDir)
         ProcessBuilder(
             "cmd", "/c", "start", "\"\"", "/min",
             "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", file.path,
         ).directory(workDir).start()
+    }
+
+    /**
+     * The script file as Windows PowerShell 5.1 will read it: UTF-8 with its byte-order mark, which it needs to read the file as
+     * UTF-8 rather than the ANSI code page, so a folder named "José" or in Tamil reaches msiexec and the relaunch intact.
+     */
+    fun write(script: String, workDir: File): File {
+        workDir.mkdirs()
+        return File(workDir, "cosmotune-update.ps1").apply { writeText("\uFEFF" + script, Charsets.UTF_8) }
     }
 
     /** A PowerShell literal: single quotes, an apostrophe doubled. */

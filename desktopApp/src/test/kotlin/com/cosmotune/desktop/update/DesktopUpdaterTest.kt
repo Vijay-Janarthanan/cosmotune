@@ -6,6 +6,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
@@ -115,6 +116,29 @@ class DesktopUpdaterTest {
         u.startUpdate(scope())
         assertEquals(listOf("https://example.invalid/setup.exe"), fake.opened)
         assertEquals(0, fake.fetches)
+    }
+
+    @Test fun downloadRunsOffTheWindowsThread() = runBlocking<Unit> {
+        // The app starts the update from the window's coroutine scope (the AWT event thread); the download must not block it.
+        val ui = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "window-thread") }
+        var fetchedOn = ""
+        val u = DesktopUpdater(
+            check = { info },
+            install = windows,
+            osArch = "amd64",
+            fetch = { _, into, _ ->
+                fetchedOn = Thread.currentThread().name
+                into.writeText("whole")
+            },
+            updatesDir = dir,
+            openPage = {},
+            handOver = { _, _ -> },
+        )
+        u.refresh(UpdateTrigger.LAUNCH)
+        u.startUpdate(CoroutineScope(SupervisorJob() + ui.asCoroutineDispatcher()))
+        withTimeout(5_000) { while (u.step.value !is UpdateStep.Installing) yield() }
+        ui.shutdown()
+        assertTrue(fetchedOn.isNotEmpty() && !fetchedOn.startsWith("window-thread"), "fetched on $fetchedOn")
     }
 
     @Test fun failedDownloadSaysWhyAndLeavesNothing() = runBlocking<Unit> {

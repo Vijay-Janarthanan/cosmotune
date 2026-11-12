@@ -41,7 +41,7 @@ class WindowsUpdateScriptTest {
 
     private fun runScript(installerExit: Int): Triple<File, File, File> {
         assumeTrue(System.getProperty("os.name").startsWith("Windows"))
-        val dir = File(tmp, "O'Neil apps").apply { mkdirs() }
+        val dir = File(tmp, "O'Neil apps José").apply { mkdirs() }
         val installed = File(tmp, "installed.txt")
         val relaunched = File(tmp, "relaunched.txt")
         val fakeInstaller = File(tmp, "fake installer.cmd").apply {
@@ -54,7 +54,7 @@ class WindowsUpdateScriptTest {
             ended.pid(), File(tmp, "Cosmotune-9.9.9-windows-x64.msi"),
             DesktopInstall.WindowsInstalled(dir, fakeApp, writable = true), result, File(tmp, "install.log"), installer = fakeInstaller.path,
         )
-        val script = File(tmp, "update.ps1").apply { writeText(text) }
+        val script = WindowsUpdateScript.write(text, tmp)
         val run = ProcessBuilder("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script.path).inheritIO().start()
         assertTrue(run.waitFor(60, TimeUnit.SECONDS), "the script finished")
         val deadline = System.currentTimeMillis() + 30_000
