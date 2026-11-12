@@ -5147,57 +5147,8 @@ private fun CosmotuneApp(
             )
         }
 
-        // ---- Update available (once per launch) ----
-        if (showUpdateDialog) {
-            updateNotice?.let { update ->
-                UpdateAvailableDialog(
-                    update = update,
-                    hazeState = hazeState,
-                    // A download in progress keeps running behind the closed
-                    // sheet â€” only the sheet itself goes away. The top bar's
-                    // update icon reopens it onto whatever state it reached.
-                    onDismiss = { showUpdateDialog = false },
-                    onDownload = {
-                        if (update.apkUrl != null) {
-                            scope.launch { AppUpdateChecker.downloadApk(context) }
-                        } else {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl)))
-                            showUpdateDialog = false
-                        }
-                    },
-                    onCancelDownload = {
-                        AppUpdateChecker.cancelDownload()
-                    },
-                    onInstall = {
-                        val ready = AppUpdateChecker.download.value as? AppUpdateChecker.DownloadState.Ready
-                        ready?.let { AppUpdateChecker.installApk(context, it.file) }
-                    },
-                    onOpenReleasePage = {
-                        AppUpdateChecker.resetDownload()
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl)))
-                        showUpdateDialog = false
-                    },
-                    onOpenFullNotes = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl)))
-                    },
-                )
-            }
-        }
-
-        // ---- What's new (the first launch after an update; an offered update comes first) ----
-        val whatsNewWelcome by AppUpdateChecker.welcome.collectAsStateWithLifecycle()
-        if (!showUpdateDialog) {
-            whatsNewWelcome?.let { welcome ->
-                BackHandler { AppUpdateChecker.welcomeSeen(context) }
-                com.cosmotune.music.ui.components.WhatsNewWelcomeSheet(
-                    welcome = welcome,
-                    onDismiss = { AppUpdateChecker.welcomeSeen(context) },
-                    onOpenFullNotes = {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(welcome.releaseUrl)))
-                    },
-                )
-            }
-        }
+        // ---- Update available, then What's new (the first launch after an update): PhoneUpdateSheets ----
+        com.cosmotune.music.ui.PhoneUpdateSheets(showUpdateDialog, { showUpdateDialog = it }, updateNotice, hazeState)
 
         if (showLyricsSources) {
             BackHandler { showLyricsSources = false }

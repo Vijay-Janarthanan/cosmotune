@@ -1,7 +1,9 @@
 package com.cosmotune.music.data
 
 import android.content.Context
+import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -20,7 +22,10 @@ import kotlinx.serialization.json.longOrNull
 import com.cosmotune.ReleaseHighlight
 import com.cosmotune.ReleaseHighlights
 import okhttp3.Request
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import java.io.File
+import kotlin.concurrent.thread
 
 /**
  * Cosmotune ships as a sideloaded APK off GitHub Releases rather than through
@@ -92,6 +97,7 @@ object AppUpdateChecker {
     private var downloadCancelled = false
 
     suspend fun check() = withContext(Dispatchers.IO) {
+        lastAttemptMs = System.currentTimeMillis()
         runCatching {
             val request = Request.Builder().url(LATEST_RELEASE_URL).build()
             val body = Http.client.newCall(request).execute().use { response ->
@@ -265,6 +271,11 @@ object AppUpdateChecker {
      * without it the installer intent silently does nothing on most ROMs, so
      * the user is sent to that one switch first and taps Install again after.
      */
+    /**
+     * Hands the downloaded APK to Android through a [PackageInstaller] session. From Android 12 the session asks for no user action,
+     * so once Cosmotune has installed itself this way, later updates go in without the "Install?" screen; the first one (and any
+     * the system still wants confirmed) shows it through [UpdateInstallReceiver]. A failure comes back as [DownloadState.Failed].
+     */
     fun installApk(context: Context, file: File) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !context.packageManager.canRequestPackageInstalls()
@@ -276,17 +287,78 @@ object AppUpdateChecker {
             )
             return
         }
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        context.startActivity(
-            Intent(Intent.ACTION_INSTALL_PACKAGE)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-                .putExtra(Intent.EXTRA_RETURN_RESULT, true)
-                .addFlags(
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_ACTIVITY_NEW_TASK,
-                ),
-        )
+        val app = context.applicationContext
+        // The copy into the session is the APK's whole size: off the UI thread.
+        thread(name = "cosmotune-update-install") {
+            runCatching {
+                val installer = app.packageManager.packageInstaller
+                val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+                    setAppPackageName(app.packageName)
+                    if (sessionRequiresNoUserAction(Build.VERSION.SDK_INT)) {
+                        setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                    }
+                }
+                val id = installer.createSession(params)
+                installer.openSession(id).use { session ->
+                    session.openWrite("cosmotune.apk", 0, file.length()).use { out ->
+                        file.inputStream().use { it.copyTo(out) }
+                        session.fsync(out)
+                    }
+                    val status = PendingIntent.getBroadcast(
+                        app, id,
+                        Intent(app, UpdateInstallReceiver::class.java).setPackage(app.packageName),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                    )
+                    session.commit(status.intentSender)
+                }
+            }.onFailure { reportInstallFailure(it.message ?: "The update was not installed.") }
+        }
+    }
+
+    /** Android 12 (API 31) is the first that lets an app update itself without the confirmation screen. */
+    internal fun sessionRequiresNoUserAction(apiLevel: Int): Boolean = apiLevel >= 31
+
+    /** The words for a finished session's [status], or null when it worked or is waiting for the person. */
+    internal fun installStatusFailure(status: Int, message: String?): String? = when (status) {
+        PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_PENDING_USER_ACTION -> null
+        else -> message?.takeIf { it.isNotBlank() } ?: "The update was not installed."
+    }
+
+    /** The install did not go through: the card shows why, with Try again. */
+    fun reportInstallFailure(message: String) {
+        _download.value = DownloadState.Failed(message)
+    }
+
+    /** When the last check was tried; a failed one counts (see [com.cosmotune.update.UpdateCheckSchedule]). */
+    @Volatile
+    internal var lastAttemptMs: Long? = null
+
+    internal fun isCheckDue(nowMs: Long, trigger: com.cosmotune.update.UpdateTrigger): Boolean =
+        com.cosmotune.update.UpdateCheckSchedule.shouldCheck(nowMs, lastAttemptMs, trigger)
+
+    /**
+     * Looks again whenever one of the app's screens comes back to the front, when the schedule says so (at most once an hour).
+     * Registered once from the Application, so the activities themselves stay untouched.
+     */
+    fun watchForeground(app: android.app.Application) {
+        app.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: android.app.Activity) {
+                (activity as? androidx.lifecycle.LifecycleOwner)?.lifecycleScope?.launch {
+                    checkIfDue(com.cosmotune.update.UpdateTrigger.RETURNED)
+                }
+            }
+            override fun onActivityCreated(activity: android.app.Activity, state: android.os.Bundle?) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = Unit
+            override fun onActivityPaused(activity: android.app.Activity) = Unit
+            override fun onActivityStopped(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, state: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
+    }
+
+    /** The app came back to the front: look again when the schedule says so. */
+    suspend fun checkIfDue(trigger: com.cosmotune.update.UpdateTrigger) {
+        if (isCheckDue(System.currentTimeMillis(), trigger)) check()
     }
 
     /**

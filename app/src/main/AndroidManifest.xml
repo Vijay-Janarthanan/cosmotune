@@ -417,6 +417,17 @@
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
             android:value="com.cosmotune.music.playback.cast.CastOptionsProvider" />
+        <!-- One-click updates: a PackageInstaller session's result, and "Cosmotune updated, tap to open" after the update. -->
+        <receiver
+            android:name="com.cosmotune.music.data.UpdateInstallReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="com.cosmotune.music.data.UpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

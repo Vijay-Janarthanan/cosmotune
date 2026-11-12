@@ -46,6 +46,8 @@ class CosmotuneApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         com.cosmotune.diagnostics.CrashNotes.configure(filesDir)
+        // Phone and TV look for a newer release when one of their screens comes back to the front, not only at launch.
+        com.cosmotune.music.data.AppUpdateChecker.watchForeground(this)
         val uncaught = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, failure ->
             runCatching { com.cosmotune.diagnostics.CrashNotes.record(failure) }
