@@ -63,7 +63,8 @@ If the app will not start, a missing library may need installing first with Home
 One-click updates (1.0.23): `desktopApp/.../desktop/update/`. The app downloads `-windows-x64.msi` or
 `-macos-<arch>.zip` into the state folder's `updates`, quits, and a script (`WindowsUpdateScript`,
 `MacUpdateScript`) installs it and opens Cosmotune again, leaving `update-result.txt` for the next launch.
-A portable copy, Linux and a Mac app run from its disk image get the download page instead.
+A copy with a `portable` file beside Cosmotune.exe (no release ships one now), Linux and a Mac app run from its
+disk image get the download page instead.
 
 ## 4. How the app finds an update
 

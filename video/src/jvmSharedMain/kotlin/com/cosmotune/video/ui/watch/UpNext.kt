@@ -1,5 +1,6 @@
 package com.cosmotune.video.ui.watch
 
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -144,14 +145,19 @@ internal fun UpNextHeader(autoplay: Boolean, onAutoplay: (Boolean) -> Unit, modi
     val look = orbitLook()
     val label = stringResource(Res.string.video_autoplay)
     val title = stringResource(Res.string.video_up_next)
-    Row(
-        modifier.fillMaxWidth().padding(start = CosmoSpacing.margin + 6.dp, end = CosmoSpacing.margin, top = HEADER_TOP, bottom = HEADER_BOTTOM),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, style = fonts.section, color = look.ink, maxLines = 1, modifier = Modifier.weight(1f).semantics { heading() })
-        OrbitLabel(label, fonts, look.dim, Modifier.clearAndSetSemantics { })
-        Spacer(Modifier.width(SWITCH_GAP + 2.dp))
-        OrbitSwitch(checked = autoplay, onChange = onAutoplay, look = look, label = label)
+    // Playing from a suggested mix: its name under the heading, so it is clear what Up next follows.
+    val mix by com.cosmotune.video.ui.actions.MixSession.title.collectAsState()
+    Column(modifier.fillMaxWidth().padding(start = CosmoSpacing.margin + 6.dp, end = CosmoSpacing.margin, top = HEADER_TOP, bottom = HEADER_BOTTOM)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = fonts.section, color = look.ink, maxLines = 1, modifier = Modifier.weight(1f).semantics { heading() })
+            OrbitLabel(label, fonts, look.dim, Modifier.clearAndSetSemantics { })
+            Spacer(Modifier.width(SWITCH_GAP + 2.dp))
+            OrbitSwitch(checked = autoplay, onChange = onAutoplay, look = look, label = label)
+        }
+        mix?.let { name ->
+            Spacer(Modifier.height(4.dp))
+            Text(name, style = fonts.body, color = look.dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
     }
 }
 

@@ -109,7 +109,7 @@ class VideoActionHandler internal constructor(
                 navigator.push(VideoRoute.Watch(first))
                 graph.playback.play(first)
                 // Then the mix's videos, in its order, as the queue: Up next, Next and autoplay follow the mix.
-                mixScope.launch { playMix(graph.account, suggested, graph.playback) }
+                mixScope.launch { playMix(graph.account, suggested, graph.playback, item.title) }
             } else {
                 navigator.push(VideoRoute.Playlist(suggested.id))
             }

@@ -276,7 +276,7 @@ class LegalTextsTest {
 
     @Test fun theRemovalListNamesEveryFileOutsideTheVideoFoldersThatMentionsThePackage() {
         val removal = section(maintaining, "Video mode") // the whole part; the removal steps are inside it
-        val skippedDirs = setOf("build", ".git", ".gradle", ".idea", ".kotlin", "node_modules", ".superpowers")
+        val skippedDirs = setOf("build", ".git", ".gradle", ".idea", ".kotlin", "node_modules", ".superpowers", ".claude")
         val found = root.walkTopDown()
             .onEnter { it.name !in skippedDirs }
             .filter { it.isFile && it.extension in setOf("kt", "kts", "xml") }
