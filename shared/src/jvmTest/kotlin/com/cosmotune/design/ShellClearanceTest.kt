@@ -8,8 +8,8 @@ import kotlin.test.fail
 /**
  * Review Focus 3: the old pages pad their lists for the old bars, and the new floating chrome must fit inside that
  * padding, or the last rows could never be scrolled into view. The phone half reads `MainActivity`'s padding; the desktop
- * half (task P3-11, then P4-20) reads `DesktopFrame`'s, which has a line of its own for the new shell: exactly the floating
- * chrome's footprint, no slack. The padding is read from the source file, so a change to it fails this test.
+ * half (task P3-11, then P4-20) reads `DesktopFrame`'s, which is one line: exactly the floating chrome's footprint, no slack
+ * (the old look's two paddings went with it). The padding is read from the source file, so a change to it fails this test.
  */
 class ShellClearanceTest {
 
@@ -53,23 +53,22 @@ class ShellClearanceTest {
     private val desktopApp = "desktopApp/src/main/kotlin/com/cosmotune/music/desktop/DesktopApp.kt"
 
     /**
-     * What `DesktopFrame` pads the page's bottom with while the new shell is on: the line `LocalCosmoShell.current != null -> X`,
-     * where X is the player bar's footprint in a wide window and the phone chrome's height (the capsules, the compact window's bar)
-     * in a compact one. The page pads for exactly what floats over it, no more: the bar is 80 dp and two 14 dp margins (108), not
+     * What `DesktopFrame` pads the page's bottom with: the line `bottom = X,`, where X is the player bar's footprint in a wide window
+     * and the phone chrome's height (the capsules, the compact window's bar) in a compact one. The page pads for exactly what floats over it, no more: the bar is 80 dp and two 14 dp margins (108), not
      * the 168 dp that the phone's chrome plus slack had been (the last row scrolled 60 dp further than the bar needed).
      */
     private val desktopShellPadding =
-        Regex("""LocalCosmoShell\.current != null ->\s*com\.cosmotune\.design\.ShellMetrics\.desktopPageBottomDp\(compact, songShown = LocalNowPlaying\.current != null\)\.dp""")
+        Regex("""bottom = com\.cosmotune\.design\.ShellMetrics\.desktopPageBottomDp\(compact, songShown = LocalNowPlaying\.current != null\)\.dp,""")
 
-    /** The padding under the page, in dp, while the new shell is on, worked out from the source line the way the line is written. */
+    /** The padding under the page, in dp, worked out from the source line the way the line is written. */
     private fun desktopPaddingWithShell(compact: Boolean, songShown: Boolean = true): Float {
         val file = File(root, desktopApp)
         if (!file.isFile) fail("$desktopApp is not where this test expects it; update ShellClearanceTest")
         if (!desktopShellPadding.containsMatchIn(file.readText()))
             fail(
-                "Could not find `LocalCosmoShell.current != null -> ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp` " +
-                    "in $desktopApp (the bottom padding of DesktopFrame's content while the new " +
-                    "shell is on). The line moved, changed or is missing: re-check that the last row can be scrolled clear of the floating " +
+                "Could not find `bottom = com.cosmotune.design.ShellMetrics.desktopPageBottomDp(compact, songShown = LocalNowPlaying.current != null).dp,` " +
+                    "in $desktopApp (the bottom padding of DesktopFrame's content). " +
+                    "The line moved, changed or is missing: re-check that the last row can be scrolled clear of the floating " +
                     "chrome and is not padded for more than it, then update this test.",
             )
         return ShellMetrics.desktopPageBottomDp(compact, songShown)
@@ -82,7 +81,7 @@ class ShellClearanceTest {
     }
 
     @Test
-    fun theDesktopPageLeavesRoomForTheFloatingChromeWhileTheNewShellIsOn() {
+    fun theDesktopPageLeavesRoomForTheFloatingChrome() {
         // The wide window floats the bar, the compact one the phone's capsules: each has its own padding, so each is what it needs.
         assertTrue(desktopPaddingWithShell(compact = false) >= ShellMetrics.desktopBarFootprintDp(), "the bar's footprint fits under the wide page")
         assertTrue(
@@ -104,8 +103,9 @@ class ShellClearanceTest {
     }
 
     @Test
-    fun theOldDesktopPaddingIsStillThereForTheSwitchOffPath() {
+    fun theOldDesktopPaddingIsGoneWithTheSwitch() {
         val text = File(root, desktopApp).readText()
-        assertTrue("compact -> 128.dp" in text && "else -> 16.dp" in text, "with the new look off the desktop pads 128 dp (compact) or 16 dp, as before")
+        assertTrue("compact -> 128.dp" !in text && "else -> 16.dp" !in text, "the old look's 128 dp (compact) and 16 dp paddings are gone")
+        assertTrue("LocalCosmoShell.current != null ->" !in text, "and so is the test of the look in front of the padding")
     }
 }

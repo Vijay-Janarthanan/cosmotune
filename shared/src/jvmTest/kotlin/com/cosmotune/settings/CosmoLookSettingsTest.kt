@@ -1,6 +1,5 @@
 package com.cosmotune.settings
 
-import com.cosmotune.CosmoConfig
 import com.cosmotune.design.AppMode
 import com.cosmotune.design.VideoView
 import kotlin.test.Test
@@ -23,22 +22,21 @@ class CosmoLookSettingsTest {
         override fun putBoolean(key: String, value: Boolean) { map[key] = value }
     }
 
-    @Test fun anEmptyStoreStartsWithTheNewLookOn() {
-        assertTrue(CosmoConfig.NEW_LOOK_DEFAULT, "the new look is the default since part two of it was finished")
-        assertEquals(true, CosmoLookSettings(MapStore()).newLook.value, "a fresh install shows the new look")
-    }
-
     @Test fun startsFromTheDefaultsAndRemembersChanges() {
         val store = MapStore()
         val settings = CosmoLookSettings(store)
-        assertEquals(CosmoConfig.NEW_LOOK_DEFAULT, settings.newLook.value)
         assertTrue(settings.coverColours.value, "colours follow the cover unless switched off")
-        // an explicit choice is kept, also the one that goes against the default
-        settings.setNewLook(false)
         settings.setCoverColours(false)
-        val again = CosmoLookSettings(store)
-        assertEquals(false, again.newLook.value)
-        assertEquals(false, again.coverColours.value)
+        assertEquals(false, CosmoLookSettings(store).coverColours.value)
+    }
+
+    @Test fun theOldLookSwitchAnOlderBuildStoredIsIgnored() {
+        // An install that had turned the old look back on kept `new_look = false`: the look is the same, and nothing else moves.
+        val store = MapStore().apply { map["new_look"] = false }
+        val settings = CosmoLookSettings(store)
+        assertTrue(settings.coverColours.value)
+        assertEquals(AppMode.MUSIC, settings.mode.value)
+        assertEquals(false, store.map["new_look"], "and nothing writes it back")
     }
 
     @Test fun theVideoViewStartsWholeAndKeepsWholeOrFillOnly() {
@@ -134,7 +132,7 @@ class CosmoLookSettingsTest {
         assertEquals(1, settings.intensity.value)
         settings.setIntensity(2)
         assertEquals(2, settings.intensity.value, "the flow still follows, even where nothing is kept")
-        settings.setNewLook(true)
-        assertEquals(true, CosmoLookSettings(store).newLook.value)
+        settings.setCoverColours(false)
+        assertEquals(false, CosmoLookSettings(store).coverColours.value)
     }
 }

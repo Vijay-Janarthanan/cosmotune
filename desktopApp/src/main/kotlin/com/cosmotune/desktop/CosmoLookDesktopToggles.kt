@@ -29,43 +29,37 @@ import com.cosmotune.music.sharedui.resources.cosmo_intensity_calm
 import com.cosmotune.music.sharedui.resources.cosmo_intensity_rich
 import com.cosmotune.music.sharedui.resources.cosmo_intensity_summary
 import com.cosmotune.music.sharedui.resources.cosmo_look_preview
-import com.cosmotune.music.sharedui.resources.cosmo_new_look
-import com.cosmotune.music.sharedui.resources.cosmo_new_look_summary
 import org.jetbrains.compose.resources.stringResource
 
 /**
  * The look switches, drawn by the settings page's own private row ([row] is its SettingsToggle), the colour intensity (a row with
- * its segmented control stacked under it, while the look is on; it follows "Colours follow the cover"), and the entry to the look
+ * its segmented control stacked under it; it follows "Colours follow the cover"), and the entry to the look
  * preview. Pure black stands under Theme at the top of the page instead ([com.cosmotune.music.desktop.DesktopThemeRows]).
  */
 @Composable
 internal fun CosmoLookDesktopToggles(row: @Composable (String, String, Boolean, (Boolean) -> Unit) -> Unit) {
     val settings = rememberCosmoLookSettings()
-    val newLook by settings.newLook.collectAsState()
     val coverColours by settings.coverColours.collectAsState()
     val intensity by settings.intensity.collectAsState()
-    row(stringResource(Res.string.cosmo_new_look), stringResource(Res.string.cosmo_new_look_summary), newLook, settings::setNewLook)
-    if (newLook) {
-        row(stringResource(Res.string.cosmo_cover_colours), stringResource(Res.string.cosmo_cover_colours_summary), coverColours, settings::setCoverColours)
-        CosmoSettingsRow(
-            icon = CosmoIcons.Equaliser,
-            title = stringResource(Res.string.cosmo_intensity),
-            subtitle = stringResource(Res.string.cosmo_intensity_summary),
-            enabled = coverColours,
-        )
-        CosmoSettingsSegmented(
-            options = listOf(
-                stringResource(Res.string.cosmo_intensity_calm),
-                stringResource(Res.string.cosmo_intensity_balanced),
-                stringResource(Res.string.cosmo_intensity_rich),
-            ),
-            selectedIndex = intensity,
-            onSelect = settings::setIntensity,
-            modifier = Modifier.padding(start = CosmoSettingsInsets.textStart, end = CosmoSettingsInsets.side, bottom = 12.dp),
-            enabled = coverColours,
-            compact = true,
-        )
-    }
+    row(stringResource(Res.string.cosmo_cover_colours), stringResource(Res.string.cosmo_cover_colours_summary), coverColours, settings::setCoverColours)
+    CosmoSettingsRow(
+        icon = CosmoIcons.Equaliser,
+        title = stringResource(Res.string.cosmo_intensity),
+        subtitle = stringResource(Res.string.cosmo_intensity_summary),
+        enabled = coverColours,
+    )
+    CosmoSettingsSegmented(
+        options = listOf(
+            stringResource(Res.string.cosmo_intensity_calm),
+            stringResource(Res.string.cosmo_intensity_balanced),
+            stringResource(Res.string.cosmo_intensity_rich),
+        ),
+        selectedIndex = intensity,
+        onSelect = settings::setIntensity,
+        modifier = Modifier.padding(start = CosmoSettingsInsets.textStart, end = CosmoSettingsInsets.side, bottom = 12.dp),
+        enabled = coverColours,
+        compact = true,
+    )
     var previewOpen by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         CosmoButton(

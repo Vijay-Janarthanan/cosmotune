@@ -202,8 +202,6 @@
     <string name="search_library_empty">搜尋本地音樂資料夾中的歌曲。</string>
     <string name="search_library_hint">歌曲、藝人和專輯</string>
     <string name="search_library_no_results">本地音樂中沒有與「%1$s」匹配的內容。</string>
-    <string name="cosmo_new_look">新外觀</string>
-    <string name="cosmo_new_look_summary">重新設計的介面。關閉即可回到經典版面。</string>
     <string name="cosmo_cover_colours">Colours follow the cover</string>
     <string name="cosmo_cover_colours_summary">The whole app takes its colour from the song that is playing</string>
     <string name="cosmo_look_preview">Preview the look</string>
@@ -358,7 +356,6 @@
     <string name="cosmo_settings_open_read_summary">Books and manga keep their own sources and reader settings</string>
     <string name="cosmo_settings_open_podio">Open Podio</string>
     <string name="cosmo_settings_open_podio_summary">Podcasts and radio; Podio’s Settings tab leads back here</string>
-    <string name="cosmo_settings_mode_needs_look">Turn on the new look in Appearance to use this mode</string>
     <string name="cosmo_settings_section_account">Account</string>
     <string name="cosmo_settings_section_listening">Listening</string>
     <string name="cosmo_settings_section_yours">Make it yours</string>
@@ -497,5 +494,4 @@
     <string name="cosmo_theme_light">Light</string>
     <string name="cosmo_theme_dark">Dark</string>
     <string name="cosmo_theme_summary">Follow the system, or keep Cosmotune light or dark</string>
-    <string name="cosmo_theme_light_only_classic">The classic look is dark only; turn on the new look to choose</string>
 </resources>
