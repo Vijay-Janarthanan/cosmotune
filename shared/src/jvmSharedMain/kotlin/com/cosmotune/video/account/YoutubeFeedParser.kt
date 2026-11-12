@@ -100,6 +100,40 @@ internal object YoutubeFeedParser {
         return if (currentId == null) feed else feed.copy(videos = feed.videos.filter { it.id != currentId })
     }
 
+    /**
+     * The videos of a mix (or any list the watch page plays from): the `playlistPanelVideoRenderer`s of the answer's playlist panel,
+     * in the order the site gives them, each once. A panel entry that is unavailable or has no id is left out.
+     */
+    fun parseMix(response: JsonObject): List<VideoItem> {
+        val out = LinkedHashMap<String, VideoItem>()
+        fun visit(node: JsonElement?) {
+            when (node) {
+                is JsonArray -> node.forEach(::visit)
+                is JsonObject -> for ((key, value) in node) {
+                    if (key == "playlistPanelVideoRenderer" && value is JsonObject) panelVideo(value)?.let { out.putIfAbsent(it.id, it) } else visit(value)
+                }
+                else -> Unit
+            }
+        }
+        visit(response.obj("contents"))
+        return out.values.toList()
+    }
+
+    private fun panelVideo(node: JsonObject): VideoItem? {
+        val id = node.str("videoId") ?: return null
+        val title = text(node["title"]) ?: return null
+        val byline = node["longBylineText"] ?: node["shortBylineText"]
+        val channel = (byline as? JsonObject)?.arr("runs")?.firstNotNullOfOrNull { (it as? JsonObject)?.str("text") } ?: text(byline)
+        val channelId = (byline as? JsonObject)?.arr("runs")?.firstNotNullOfOrNull {
+            (it as? JsonObject).obj("navigationEndpoint").obj("browseEndpoint").str("browseId")
+        }
+        return VideoItem(
+            id = id, title = title, channelId = channelId, channelName = channel, channelAvatarUrl = null,
+            thumbnailUrl = bestUrl(node.obj("thumbnail").arr("thumbnails")) ?: thumbnailFallback(id),
+            durationSec = parseDuration(text(node["lengthText"])), viewCount = null, uploadedAtMs = null, uploadedText = null,
+        )
+    }
+
     private fun parseNodes(response: JsonObject, roots: List<JsonElement?>): ParsedFeed {
         val walk = Walk()
         for (root in roots) root?.let { walk.visit(it, 0) }

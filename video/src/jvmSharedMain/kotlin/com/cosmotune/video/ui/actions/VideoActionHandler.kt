@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +55,8 @@ class VideoActionHandler internal constructor(
     private val state: VideoActionsState,
     private val sharer: ShareVideo,
 ) {
+    private val mixScope by lazy { kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate) }
+
     /**
      * Does [action] for [item], whose sheet was opened in [context]. [details] is the watch page's, when there is one (its item is
      * the fuller one). [playlistId] is the playlist a row of your playlist belongs to (Remove from this playlist); [list] is the
@@ -105,6 +108,8 @@ class VideoActionHandler internal constructor(
             if (suggested.isMix && first != null) {
                 navigator.push(VideoRoute.Watch(first))
                 graph.playback.play(first)
+                // Then the mix's videos, in its order, as the queue: Up next, Next and autoplay follow the mix.
+                mixScope.launch { playMix(graph.account, suggested, graph.playback) }
             } else {
                 navigator.push(VideoRoute.Playlist(suggested.id))
             }

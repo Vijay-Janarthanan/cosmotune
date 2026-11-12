@@ -56,6 +56,13 @@ interface VideoAccount {
     /** The videos of the playlist [id] ("PL...", [WATCH_LATER], [LIKED]); a leading "VL" is accepted. */
     suspend fun playlist(id: String, continuation: PageToken? = null): Result<Page<VideoItem>>
 
+    /**
+     * The videos of the mix (or playlist) [playlistId] in the order it plays, from [videoId] on; a mix goes on past what one answer
+     * holds, so asking again from its last video gives the next stretch.
+     */
+    suspend fun mix(playlistId: String, videoId: String?): Result<List<VideoItem>> =
+        Result.failure(AccountFailure.Changed("Mixes are not available here"))
+
     /** Watch Later. */
     suspend fun watchLater(continuation: PageToken? = null): Result<Page<VideoItem>> = playlist(WATCH_LATER, continuation)
 

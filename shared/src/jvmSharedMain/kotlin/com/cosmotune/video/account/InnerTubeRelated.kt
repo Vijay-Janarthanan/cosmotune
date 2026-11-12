@@ -32,6 +32,21 @@ internal class InnerTubeRelated(private val web: YoutubeWeb = InnertubeWeb) {
         return feed.videos
     }
 
+    /**
+     * The videos of the mix or playlist [playlistId] as the watch page plays it, starting from [videoId]: the site's `next` asked with
+     * both. Throws [AccountFailure]; an answer with no videos is an empty list.
+     */
+    suspend fun fetchMix(playlistId: String, videoId: String?): List<VideoItem> {
+        val response = web.post("next") {
+            if (videoId != null) put("videoId", videoId)
+            put("playlistId", playlistId)
+            put("contentCheckOk", true)
+            put("racyCheckOk", true)
+        }
+        YoutubeFeedParser.errorOf(response)?.let { throw it }
+        return YoutubeFeedParser.parseMix(response)
+    }
+
     private companion object {
         const val TAG = "VideoAccount"
     }

@@ -139,6 +139,10 @@ class InnerTubeVideoAccount internal constructor(
     override suspend fun home(continuation: PageToken?): Result<Page<VideoItem>> =
         videoPage("home", "FEwhat_to_watch", continuation) { it.homeItems }
 
+    private val related by lazy { InnerTubeRelated(web) }
+
+    override suspend fun mix(playlistId: String, videoId: String?): Result<List<VideoItem>> = attempt { related.fetchMix(playlistId, videoId) }
+
     override suspend fun subscriptionsFeed(continuation: PageToken?): Result<Page<VideoItem>> =
         videoPage("subs", "FEsubscriptions", continuation)
 

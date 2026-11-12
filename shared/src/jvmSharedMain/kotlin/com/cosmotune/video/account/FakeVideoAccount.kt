@@ -80,6 +80,12 @@ class FakeVideoAccount(signedIn: Boolean = true) : VideoAccount {
         paged(playlistVideos[id.removePrefix("VL")] ?: throw AccountFailure.Changed("No such playlist"), continuation)
     }
 
+    /** A mix of the fake: the sample videos from [videoId] on, then round again (a mix has no end). */
+    override suspend fun mix(playlistId: String, videoId: String?): Result<List<VideoItem>> = guard {
+        val at = VIDEOS.indexOfFirst { it.id == videoId }.coerceAtLeast(0)
+        VIDEOS.drop(at).take(MIX_LENGTH)
+    }
+
     override suspend fun history(continuation: PageToken?): Result<Page<VideoItem>> = guard { paged(VIDEOS.reversed(), continuation) }
 
     override suspend fun setSubscribed(channelId: String, subscribed: Boolean): Result<Unit> = guard {
@@ -157,6 +163,7 @@ class FakeVideoAccount(signedIn: Boolean = true) : VideoAccount {
         /** Items per fake page. */
         const val PAGE_SIZE = 8
         private const val MIX_AT = 3
+        private const val MIX_LENGTH = 5
 
         /** The sample channels. */
         val CHANNELS: List<ChannelItem> = listOf(
