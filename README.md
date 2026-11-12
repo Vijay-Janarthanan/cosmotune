@@ -8,7 +8,7 @@
 
 <h3>Music that plays with its video, remembers what you like and picks what comes next.</h3>
 
-Version 1.0.23 updates itself in one click on Windows and Mac (it downloads, installs and opens again), checks for updates while it runs, lets the Windows installer choose where to install, and fixes a launch crash when an update was out. [1.0.23 release notes](docs/releases/1.0.23.md)
+Version 1.0.23 updates itself in one click on Windows and Mac (it downloads, installs and opens again), checks for updates while it runs, lets the Windows installer choose where to install, plays Video at full quality with Mixes and steadier lists, and fixes a launch crash when an update was out. [1.0.23 release notes](docs/releases/1.0.23.md)
 
 Version 1.0.17 gives the whole app a new look, called Orbit, on the phone, the desktop, the TV and the watch. It adds Watch, a mode for free films, series and live TV with plugins; Live now, for the scores of the matches you follow and live shows; and Indian channels from Prasar Bharati (DD) and the broadcasters' own live news. The sleep timer now pauses on time with the screen off. [1.0.17 changes and limits](docs/releases/1.0.17.md) · [Remaining work](docs/PENDING_WORK.md)
 
